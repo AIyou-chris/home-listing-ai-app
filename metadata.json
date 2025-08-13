@@ -1,0 +1,11 @@
+{
+  "metadata": "blank"
+}
+{
+  "name": "HomeListingAI",
+  "description": "An AI-powered platform for real estate agents to generate stunning property listings with interactive features like an AI assistant.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
