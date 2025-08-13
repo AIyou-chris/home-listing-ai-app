@@ -23,6 +23,10 @@ import SupportFAB from './components/SupportFAB';
 import VoiceAssistant from './components/VoiceAssistant';
 import ContactLeadModal from './components/ConsultationModal';
 import AdminDashboard from './components/AdminDashboard';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+import PropertyComparison from './components/PropertyComparison';
+import NotificationSystem, { Notification } from './components/NotificationSystem';
+import LoadingSpinner from './components/LoadingSpinner';
 import { getProperties, addProperty } from './services/firestoreService';
 import { LogoWithName } from './components/LogoWithName';
 
@@ -44,10 +48,13 @@ const App: React.FC = () => {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
     const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState(false);
-    const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+    const [selectedLead] = useState<Lead | null>(null);
     const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
     const [scrollToSection, setScrollToSection] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [isPropertyComparisonOpen, setIsPropertyComparisonOpen] = useState(false);
+    const [analyticsTimeRange, setAnalyticsTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
 
 
     // Mock data for settings
@@ -194,6 +201,25 @@ const App: React.FC = () => {
         setScrollToSection(sectionId);
     };
 
+    // Notification handler for future use
+    const handleAddNotification = (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+        const newNotification: Notification = {
+            ...notification,
+            id: `notif-${Date.now()}`,
+            timestamp: new Date(),
+            read: false
+        };
+        setNotifications(prev => [newNotification, ...prev]);
+    };
+
+    const handleMarkNotificationAsRead = (id: string) => {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    };
+
+    const handleDismissNotification = (id: string) => {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+    };
+
     const handleSelectProperty = (id: string) => {
         setSelectedPropertyId(id);
         setView('property');
@@ -274,11 +300,19 @@ const App: React.FC = () => {
     const selectedProperty = properties.find(p => p.id === selectedPropertyId);
 
     if (isLoading) {
-        return <div className="flex items-center justify-center h-screen bg-slate-50 text-slate-700">Loading Application...</div>;
+        return (
+            <div className="flex items-center justify-center h-screen bg-slate-50">
+                <LoadingSpinner size="xl" type="dots" text="Loading Application..." />
+            </div>
+        );
     }
     
     if (isSettingUp) {
-        return <div className="flex flex-col items-center justify-center h-screen bg-slate-50 text-slate-700"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div><p className="text-lg">Setting up your new account...</p></div>;
+        return (
+            <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+                <LoadingSpinner size="xl" type="pulse" text="Setting up your new account..." />
+            </div>
+        );
     }
 
     const renderViewContent = () => {
@@ -295,7 +329,7 @@ const App: React.FC = () => {
                     case 'listings': 
                         return <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')}/>;
                     case 'add-listing': 
-                        return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} onPreview={() => {}} />;
+                        return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} />;
                     case 'leads': 
                         return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
                     case 'inbox': 
@@ -313,6 +347,14 @@ const App: React.FC = () => {
                         />;
                     case 'marketing': 
                         return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
+                    case 'analytics': 
+                        return <AnalyticsDashboard 
+                            properties={properties}
+                            leads={leads}
+                            appointments={appointments}
+                            timeRange={analyticsTimeRange}
+                            onTimeRangeChange={setAnalyticsTimeRange}
+                        />;
                     case 'settings': 
                         return <SettingsPage 
                             userProfile={userProfile} onSaveProfile={setUserProfile}
@@ -342,7 +384,20 @@ const App: React.FC = () => {
                                 <span className="material-symbols-outlined">menu</span>
                             </button>
                             <LogoWithName />
-                            <div className="w-8"></div>
+                            <div className="flex items-center space-x-2">
+                                <NotificationSystem 
+                                    notifications={notifications}
+                                    onMarkAsRead={handleMarkNotificationAsRead}
+                                    onDismiss={handleDismissNotification}
+                                />
+                                <button 
+                                    onClick={() => setIsPropertyComparisonOpen(true)}
+                                    className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                                    aria-label="Compare properties"
+                                >
+                                    <span className="material-symbols-outlined">compare</span>
+                                </button>
+                            </div>
                         </header>
                         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
                             {mainContent()}
@@ -387,6 +442,13 @@ const App: React.FC = () => {
             {renderViewContent()}
             
             {isConsultationModalOpen && selectedLead && <ContactLeadModal lead={selectedLead} onSchedule={() => setIsConsultationModalOpen(false)} onClose={() => setIsConsultationModalOpen(false)} />}
+            
+            {isPropertyComparisonOpen && (
+                <PropertyComparison 
+                    properties={properties}
+                    onClose={() => setIsPropertyComparisonOpen(false)}
+                />
+            )}
             
             <SupportFAB onClick={() => setIsVoiceAssistantOpen(true)} />
             {isVoiceAssistantOpen && <VoiceAssistant onClose={() => setIsVoiceAssistantOpen(false)} />}

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Conversation, ChatMessage, Property, SocialPlatform, AgentProfile, AIBlogPost } from '../types';
+import { Conversation, ChatMessage, Property, AgentProfile, AIBlogPost } from '../types';
 import { 
     continueConversation, 
     generatePropertyReport, 
@@ -307,7 +307,7 @@ const AIChatPage: React.FC<AIChatPageProps> = ({ properties, agentProfile, conve
     const [blogTopic, setBlogTopic] = useState('');
     const [blogKeywords, setBlogKeywords] = useState('');
     const [blogTone, setBlogTone] = useState('Professional');
-    const [blogStyle, setBlogStyle] = useState('Informative');
+    const [blogStyle] = useState('Informative');
     const [blogAudience, setBlogAudience] = useState('First-Time Homebuyers');
     const [blogCTA, setBlogCTA] = useState('Contact me for a free consultation.');
     const [includeBio, setIncludeBio] = useState(true);

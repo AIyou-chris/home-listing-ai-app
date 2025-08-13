@@ -21,16 +21,18 @@ export function isAIDescription(description: any): description is AIDescription 
   return description && typeof description === 'object' && typeof description.title === 'string' && Array.isArray(description.paragraphs);
 }
 
-export type View = 'dashboard' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'signup' | 'signin' | 'admin-dashboard';
+export type View = 'dashboard' | 'analytics' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'signup' | 'signin' | 'admin-dashboard';
 
 export interface Property {
   id: string;
   title: string;
   address: string;
   price: number;
-  beds: number;
-  baths: number;
-  sqft: number;
+  bedrooms: number;
+  bathrooms: number;
+  squareFeet: number;
+  status?: 'Active' | 'Pending' | 'Sold';
+  listedDate?: string;
   description: string | AIDescription;
   heroPhotos: (string | File)[];
   galleryPhotos?: (string | File)[];
@@ -86,6 +88,9 @@ export interface Appointment {
     leadId: string;
     propertyId: string;
     notes: string;
+    status?: 'Scheduled' | 'Completed' | 'Cancelled';
+    leadName?: string;
+    propertyAddress?: string;
 }
 
 export interface Conversation {
@@ -259,6 +264,8 @@ export interface AIAssignment {
     propertyId: string;
     description: string;
     status: 'active' | 'paused' | 'completed';
+    name?: string;
+    voiceId?: string;
 }
 
 export interface LocalInfoData {

@@ -11,7 +11,7 @@ import PublicPropertyApp from './PublicPropertyApp';
 interface AddListingPageProps {
     onCancel: () => void;
     onSave: (newProperty: Omit<Property, 'id' | 'description' | 'imageUrl'>) => void;
-    onPreview: () => void;
+    onPreview?: () => void;
 }
 
 const inputClasses = "w-full px-3 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition";
@@ -43,7 +43,7 @@ const LocalInfoModal: React.FC<{
                     <div>
                         <div
                             className="prose prose-slate max-w-none prose-headings:font-bold prose-p:text-slate-600"
-                            dangerouslySetInnerHTML={{ __html: data.text.replace(/\n/g, '<br />').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+                            dangerouslySetInnerHTML={{ __html: data.summary.replace(/\n/g, '<br />').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
                         />
                         {data.sources && data.sources.length > 0 && (
                             <div className="mt-6 pt-4 border-t border-slate-200">
@@ -147,7 +147,7 @@ interface UploadedFile {
     progress: number;
 }
 
-const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, onPreview }) => {
+const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => {
     // A simplified state for demonstration. In a real app, this would be more robust.
     const [formData, setFormData] = useState({
         propertyTitle: 'Beautiful 3-Bedroom Home',

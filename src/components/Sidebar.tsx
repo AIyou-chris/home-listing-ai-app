@@ -49,6 +49,7 @@ const NavItem: React.FC<{
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose }) => {
   const navItems = [
     { view: 'dashboard', icon: 'home', label: 'Overview' },
+    { view: 'analytics', icon: 'analytics', label: 'Analytics' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
     { view: 'listings', icon: 'storefront', label: 'Listings' },
     { view: 'ai-content', icon: 'forum', label: 'AI Content' },
