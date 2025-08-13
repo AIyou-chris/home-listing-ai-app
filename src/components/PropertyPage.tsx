@@ -30,11 +30,11 @@ const PropertyHeaderDetails: React.FC<{ address: string, price: number }> = ({ a
     </div>
 );
 
-const PropertyStats: React.FC<{ beds: number, baths: number, sqft: number }> = ({ beds, baths, sqft }) => (
+const PropertyStats: React.FC<{ bedrooms: number, bathrooms: number, squareFeet: number }> = ({ bedrooms, bathrooms, squareFeet }) => (
     <div className="flex items-center divide-x divide-slate-200 rounded-xl bg-slate-50 border border-slate-200/80 p-4 mt-6">
-        <div className="flex-1 flex items-center justify-center space-x-2 text-slate-700"><span className="material-symbols-outlined w-6 h-6 text-primary-500">bed</span> <span className="font-semibold text-lg">{beds}</span> <span className="text-sm">beds</span></div>
-        <div className="flex-1 flex items-center justify-center space-x-2 text-slate-700"><span className="material-symbols-outlined w-6 h-6 text-primary-500">bathtub</span> <span className="font-semibold text-lg">{baths}</span> <span className="text-sm">baths</span></div>
-        <div className="flex-1 flex items-center justify-center space-x-2 text-slate-700"><span className="material-symbols-outlined w-6 h-6 text-primary-500">fullscreen</span> <span className="font-semibold text-lg">{sqft.toLocaleString()}</span> <span className="text-sm">sqft</span></div>
+        <div className="flex-1 flex items-center justify-center space-x-2 text-slate-700"><span className="material-symbols-outlined w-6 h-6 text-primary-500">bed</span> <span className="font-semibold text-lg">{bedrooms}</span> <span className="text-sm">bedrooms</span></div>
+        <div className="flex-1 flex items-center justify-center space-x-2 text-slate-700"><span className="material-symbols-outlined w-6 h-6 text-primary-500">bathtub</span> <span className="font-semibold text-lg">{bathrooms}</span> <span className="text-sm">bathrooms</span></div>
+        <div className="flex-1 flex items-center justify-center space-x-2 text-slate-700"><span className="material-symbols-outlined w-6 h-6 text-primary-500">fullscreen</span> <span className="font-semibold text-lg">{squareFeet.toLocaleString()}</span> <span className="text-sm">squareFeet</span></div>
     </div>
 );
 
@@ -223,7 +223,7 @@ const PropertyPage: React.FC<PropertyPageProps> = ({ property, setProperty, onBa
             <PropertyImage imageUrl={property.imageUrl} address={property.address} />
             <div className="mt-8">
                 <PropertyHeaderDetails address={property.address} price={property.price} />
-                <PropertyStats beds={property.beds} baths={property.baths} sqft={property.sqft} />
+                <PropertyStats bedrooms={property.bedrooms} bathrooms={property.bathrooms} squareFeet={property.squareFeet} />
             </div>
             <AIDescriptionSection 
                 description={property.description}

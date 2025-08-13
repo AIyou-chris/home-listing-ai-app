@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from '../services/firebase';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
@@ -15,6 +15,7 @@ interface SignInPageProps {
 const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateToLanding, onNavigateToSection, onEnterDemoMode }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [error, setError] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 

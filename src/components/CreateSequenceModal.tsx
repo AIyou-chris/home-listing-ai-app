@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
-import { TriggerType, FollowUpSequence, SequenceStep } from './types';
+import { TriggerType, FollowUpSequence, SequenceStep } from '../types';
 
 interface SequenceEditorModalProps {
     sequence?: FollowUpSequence | null;

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from '../services/firebase';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';

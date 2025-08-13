@@ -201,7 +201,8 @@ const App: React.FC = () => {
         setScrollToSection(sectionId);
     };
 
-    // Notification handler for future use
+    // Notification handler for future use - will be used when implementing real notifications
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleAddNotification = (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
         const newNotification: Notification = {
             ...notification,

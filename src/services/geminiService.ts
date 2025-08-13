@@ -43,9 +43,9 @@ const createSerializableProperty = (property: Property) => {
         title: property.title,
         address: property.address,
         price: property.price,
-        beds: property.beds,
-        baths: property.baths,
-        sqft: property.sqft,
+        bedrooms: property.bedrooms,
+        bathrooms: property.bathrooms,
+        squareFeet: property.squareFeet,
         description: sanitizedDescription,
         heroPhotos: sanitizedHeroPhotos,
         galleryPhotos: sanitizedGalleryPhotos,
@@ -156,7 +156,7 @@ export const generateVideoScript = async (property: Property): Promise<string> =
     return (result.data as { text: string }).text;
   } catch (error) {
     console.error("Error generating video script:", error);
-    return `Welcome to ${property.address}. This beautiful ${property.propertyType} could be your next home. With ${property.beds} beds and ${property.baths} baths, there's plenty of space to relax. Key features include: ${property.features.slice(0, 3).join(', ')}. Contact us to schedule a tour today!`;
+    return `Welcome to ${property.address}. This beautiful ${property.propertyType} could be your next home. With ${property.bedrooms} bedrooms and ${property.bathrooms} bathrooms, there's plenty of space to relax. Key features include: ${property.features.slice(0, 3).join(', ')}. Contact us to schedule a tour today!`;
   }
 };
 

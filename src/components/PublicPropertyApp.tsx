@@ -94,7 +94,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
 
             <div className="relative w-full max-w-sm h-[85vh] max-h-[700px] bg-slate-100 rounded-[40px] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
                 <main className="flex-1 overflow-y-auto pb-24">
-                    <ImageCarousel images={property.heroPhotos || [property.imageUrl]} />
+                    <ImageCarousel images={property.heroPhotos?.filter((img): img is string => typeof img === 'string') || [property.imageUrl]} />
 
                     <div className="p-6">
                         <h1 className="text-2xl font-bold text-slate-900">{property.title}</h1>
@@ -105,9 +105,9 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                         <p className="text-4xl font-extrabold text-green-600 mt-4">${property.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
 
                         <div className="mt-6 p-4 bg-white rounded-2xl shadow-md border border-slate-200/60 flex justify-around">
-                            <InfoPill icon="bed" value={property.beds} label="Bedrooms" />
-                            <InfoPill icon="bathtub" value={property.baths} label="Bathrooms" />
-                            <InfoPill icon="fullscreen" value={property.sqft.toLocaleString()} label="Sq Ft" />
+                            <InfoPill icon="bed" value={property.bedrooms} label="Bedrooms" />
+                            <InfoPill icon="bathtub" value={property.bathrooms} label="Bathrooms" />
+                            <InfoPill icon="fullscreen" value={property.squareFeet.toLocaleString()} label="Sq Ft" />
                         </div>
                         
                         <button onClick={onTalkToHome} className="mt-6 w-full flex items-center justify-center gap-3 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition-shadow">

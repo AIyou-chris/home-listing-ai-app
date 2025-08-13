@@ -31,9 +31,9 @@ export const addProperty = async (propertyData: Omit<Property, 'id'>, userId: st
       title: propertyData.title,
       address: propertyData.address,
       price: propertyData.price,
-      beds: propertyData.beds,
-      baths: propertyData.baths,
-      sqft: propertyData.sqft,
+      bedrooms: propertyData.bedrooms,
+      bathrooms: propertyData.bathrooms,
+      squareFeet: propertyData.squareFeet,
       description: sanitizedDescription,
       heroPhotos: sanitizedHeroPhotos,
       galleryPhotos: sanitizedGalleryPhotos,
@@ -73,9 +73,9 @@ export const getProperties = async (userId: string): Promise<Property[]> => {
           typeof data.title === 'string' &&
           typeof data.address === 'string' &&
           typeof data.price === 'number' &&
-          typeof data.beds === 'number' &&
-          typeof data.baths === 'number' &&
-          typeof data.sqft === 'number') {
+          typeof data.bedrooms === 'number' &&
+          typeof data.bathrooms === 'number' &&
+          typeof data.squareFeet === 'number') {
         properties.push({
           id: doc.id,
           ...data,

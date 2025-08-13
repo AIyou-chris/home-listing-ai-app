@@ -215,9 +215,9 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
             title: formData.propertyTitle,
             address: formData.address,
             price: Number(formData.price) || 0,
-            beds: Number(formData.beds) || 0,
-            baths: Number(formData.baths) || 0,
-            sqft: Number(formData.sqft) || 0,
+            bedrooms: Number(formData.beds) || 0,
+            bathrooms: Number(formData.baths) || 0,
+            squareFeet: Number(formData.sqft) || 0,
             description: {
                 title: 'Property Description Preview',
                 paragraphs: formData.description.split('\n').filter(p => p.trim() !== '')
@@ -268,9 +268,9 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
             title: formData.propertyTitle,
             address: formData.address,
             price: Number(formData.price),
-            beds: Number(formData.beds),
-            baths: Number(formData.baths),
-            sqft: Number(formData.sqft),
+            bedrooms: Number(formData.beds),
+            bathrooms: Number(formData.baths),
+            squareFeet: Number(formData.sqft),
             propertyType: 'Single-Family Home', // Example
             features: formData.rawAmenities.split(',').map(s => s.trim()),
             // In a real app, these would be URLs from a server

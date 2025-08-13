@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChatMessage } from './types';
+import { ChatMessage } from '../types';
 import { continueConversation } from '../services/geminiService';
 
 interface VoiceAssistantProps {

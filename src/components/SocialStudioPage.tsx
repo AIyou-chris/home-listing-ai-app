@@ -1,7 +1,21 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Property, SocialPost, SocialPlatform, SAMPLE_SOCIAL_POSTS } from '../types';
+import { Property, SocialPost, SocialPlatform } from '../types';
 import { generateSocialPostText } from '../services/geminiService';
+
+// Mock data for social posts
+const SAMPLE_SOCIAL_POSTS: SocialPost[] = [
+    {
+        id: '1',
+        propertyId: 'demo-1',
+        propertyAddress: '123 Main St',
+        platforms: ['facebook'],
+        content: 'Just listed! Beautiful home in great neighborhood.',
+        imageUrl: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=800&auto=format&fit=crop',
+        postAt: new Date('2024-01-15').toISOString(),
+        status: 'scheduled'
+    }
+];
 
 interface SocialStudioPageProps {
     properties: Property[];

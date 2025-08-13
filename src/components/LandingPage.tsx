@@ -226,9 +226,9 @@ const InteractiveListingAppEmbed: React.FC<{ onOpenModal: (modal: ModalType) => 
                             </div>
                             
                             <div className="p-3 bg-white rounded-2xl shadow-md border border-slate-200/60 flex justify-around">
-                                <InfoPill icon="bed" value={property.beds} label="Beds" />
-                                <InfoPill icon="bathtub" value={property.baths} label="Baths" />
-                                <InfoPill icon="fullscreen" value={property.sqft.toLocaleString()} label="Sq Ft" />
+                                <InfoPill icon="bed" value={property.bedrooms} label="Beds" />
+                                <InfoPill icon="bathtub" value={property.bathrooms} label="Baths" />
+                                <InfoPill icon="fullscreen" value={property.squareFeet.toLocaleString()} label="Sq Ft" />
                             </div>
 
                              <button onClick={() => onOpenModal('voice')} className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-shadow">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, CalendarIntegrationType } from './types';
+import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
 
 interface SettingsPageProps {
     userProfile: AgentProfile;

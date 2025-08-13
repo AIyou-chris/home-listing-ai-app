@@ -27,7 +27,7 @@ const VoiceChat: React.FC<VoiceChatProps> = ({ onClose }) => {
         );
         
         const result = await transcribeFunction({ audioData: base64Audio });
-        const userText = result.data.text;
+        const userText = (result.data as any).text;
         setTranscription(userText);
 
         // Get AI response
@@ -36,7 +36,7 @@ const VoiceChat: React.FC<VoiceChatProps> = ({ onClose }) => {
         );
         
         const aiResult = await chatFunction({ message: userText });
-        const responseText = aiResult.data.text;
+        const responseText = (aiResult.data as any).text;
         setAiResponse(responseText);
 
         // Convert AI response to speech
@@ -47,8 +47,8 @@ const VoiceChat: React.FC<VoiceChatProps> = ({ onClose }) => {
         const speechResult = await speechFunction({ text: responseText });
         
         // Play the audio response
-        if (audioRef.current && speechResult.data.audioUrl) {
-          audioRef.current.src = speechResult.data.audioUrl;
+        if (audioRef.current && (speechResult.data as any).audioUrl) {
+          audioRef.current.src = (speechResult.data as any).audioUrl;
           audioRef.current.play();
         }
       };

@@ -36,22 +36,22 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect, onDelet
                         </div>
                         <div className="flex items-center gap-2 text-lg font-semibold text-sky-300">
                              <span className="material-symbols-outlined text-sky-400">fullscreen</span>
-                            <span>{property.sqft.toLocaleString()} sqft</span>
+                            <span>{property.squareFeet.toLocaleString()} squareFeet</span>
                         </div>
                     </div>
 
                     <div className="mt-2 flex items-center divide-x divide-slate-600 text-sm text-slate-300">
                         <div className="flex items-center gap-2 pr-3">
                             <span className="material-symbols-outlined text-base text-slate-400">bed</span>
-                            <span>{property.beds} bds</span>
+                            <span>{property.bedrooms} bds</span>
                         </div>
                         <div className="flex items-center gap-2 px-3">
                              <span className="material-symbols-outlined text-base text-slate-400">bathtub</span>
-                            <span>{property.baths} ba</span>
+                            <span>{property.bathrooms} ba</span>
                         </div>
                         <div className="flex items-center gap-2 pl-3">
                            <span className="material-symbols-outlined text-base text-slate-400">straighten</span>
-                            <span>{property.sqft.toLocaleString()} sqft</span>
+                            <span>{property.squareFeet.toLocaleString()} squareFeet</span>
                         </div>
                     </div>
                     
