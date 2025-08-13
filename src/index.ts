@@ -1,230 +1,116 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
+import OpenAI from 'openai';
 
+// Initialize Firebase Admin SDK
 admin.initializeApp();
 
-const geminiApiKey = functions.config().gemini?.key;
-let ai: GoogleGenAI | undefined;
-if (geminiApiKey) {
-    ai = new GoogleGenAI({apiKey: geminiApiKey});
+// Initialize OpenAI
+const openaiApiKey = functions.config().openai?.key;
+let openai: OpenAI | undefined;
+
+if (openaiApiKey) {
+    openai = new OpenAI({ apiKey: openaiApiKey });
 } else {
-    console.error("Gemini API key not found. Set it with: firebase functions:config:set gemini.key=\"YOUR_API_KEY\"");
+    console.error("OpenAI API key not found");
 }
 
-// --- Types (copied from client for self-containment) ---
-interface Property {
-    id: string;
-    title: string;
-    address: string;
-    price: number;
-    beds: number;
-    baths: number;
-    sqft: number;
-    description: string | AIDescription;
-    heroPhotos: string[];
-    appFeatures: { [key: string]: boolean };
-    agent: any;
-    propertyType: string;
-    features: string[];
-    imageUrl: string;
-}
+// Firestore references
+const db = admin.firestore();
+const propertiesCollection = db.collection('properties');
 
-interface AIDescription {
-    title: string;
-    paragraphs: string[];
-}
-
-interface ChatMessage {
-  sender: 'user' | 'ai';
-  text: string;
-}
-
-type SocialPlatform = 'facebook' | 'instagram' | 'twitter' | 'linkedin';
-
-interface AIBlogPost {
-    title: string;
-    body: string;
-}
-
-function isAIDescription(description: any): description is AIDescription {
-  return description && typeof description === 'object' && typeof description.title === 'string' && Array.isArray(description.paragraphs);
-}
-
-
-// --- Helper for creating callable functions ---
-const onCall = <T, R>(handler: (data: T, aiInstance: GoogleGenAI) => Promise<R>) => {
-    return functions.https.onCall(async (data, context) => {
-        // We will allow unauthenticated access for the demo app, but this is where you'd enforce it.
-        // if (!context.auth) {
-        //     throw new functions.https.HttpsError("unauthenticated", "The function must be called while authenticated.");
-        // }
-        if (!ai) {
-            throw new functions.https.HttpsError("failed-precondition", "The Gemini API client is not initialized on the server.");
-        }
-        try {
-            return await handler(data as T, ai);
-        } catch (error) {
-            console.error("Error executing function:", error);
-            throw new functions.https.HttpsError("internal", "An error occurred while calling the Gemini API.", error);
-        }
-    });
-};
-
-const generateDescriptionPrompt = (property: Property): string => `
-Generate a captivating description for the following property.
-- Emphasize the unique features and the lifestyle it offers.
-- Use evocative and aspirational language.
-- Create a compelling title and break the description into multiple paragraphs.
-
-Property Details:
-- Type: ${property.propertyType}
-- Address: ${property.address}
-- Price: $${property.price.toLocaleString()}
-- Specs: ${property.beds} Bedrooms, ${property.baths} Bathrooms, ${property.sqft} sq. ft.
-- Key Features: ${property.features.join(', ')}
-`;
-
-export const generatePropertyDescription = onCall<{ property: Property }, AIDescription>(async ({ property }, aiInstance) => {
-    const response = await aiInstance.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: generateDescriptionPrompt(property),
-        config: {
-            systemInstruction: "You are a world-class real estate copywriter known for crafting compelling, luxurious, and SEO-optimized property descriptions. Return the response as a JSON object with a 'title' and 'paragraphs' array.",
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    title: { type: Type.STRING },
-                    paragraphs: { type: Type.ARRAY, items: { type: Type.STRING } }
-                }
-            },
-        },
-    });
-    return JSON.parse(response.text);
-});
-
-const answerQuestionPrompt = (property: Property, question: string): string => {
-  const descriptionText = isAIDescription(property.description)
-    ? `${property.description.title} ${property.description.paragraphs.join(' ')}`
-    : property.description;
-
-  return `
-Based ONLY on the provided property data below, answer the user's question.
-
-Property Data:
-- Type: ${property.propertyType}
-- Address: ${property.address}
-- Price: $${property.price.toLocaleString()}
-- Specs: ${property.beds} Bedrooms, ${property.baths} Bathrooms, ${property.sqft} sq. ft.
-- Key Features: ${property.features.join(', ')}
-- Full Description: ${descriptionText}
-
-User's Question: "${question}"
-`;
-};
-
-export const answerPropertyQuestion = onCall<{ property: Property; question: string }, { text: string }>(async ({ property, question }, aiInstance) => {
-    const response = await aiInstance.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: answerQuestionPrompt(property, question),
-        config: {
-            systemInstruction: `You are a friendly, warm, and knowledgeable AI assistant for a specific property. Your goal is to answer questions from potential buyers accurately and concisely. If the information is not in the provided data, respond with: "I'm sorry, I don't have that specific information, but the listing agent can certainly help. Would you like to schedule a showing?" Keep answers brief.`
-        }
-    });
-    return { text: response.text };
-});
-
-export const continueConversation = onCall<{ messages: ChatMessage[] }, { text: string }>(async ({ messages }, aiInstance) => {
-    const history = messages.map((msg) => ({
-        role: msg.sender === "user" ? "user" : "model",
-        parts: [{ text: msg.text }],
-    }));
-    const userPrompt = history.pop();
-    if (!userPrompt) {
-        throw new functions.https.HttpsError("invalid-argument", "No user prompt provided.");
+// Voice transcription using OpenAI Whisper
+export const transcribeVoice = functions.https.onCall(async (data, context) => {
+    if (!openai) {
+        throw new functions.https.HttpsError("failed-precondition", "OpenAI is not initialized");
     }
-    const chat = aiInstance.chats.create({
-      model: 'gemini-2.5-flash',
-      config: {
-        systemInstruction: "You are HomeListingAI, a helpful and creative AI assistant for real estate agents. Your goal is to help agents with marketing, communication, property analysis, and administrative tasks. Be professional, insightful, and ready to assist with a wide range of real estate needs.",
-      },
-      history: history,
-    });
-    const response: GenerateContentResponse = await chat.sendMessage({ message: userPrompt.parts[0].text });
-    return { text: response.text };
+
+    try {
+        const { audioData } = data;
+        
+        // Convert base64 to buffer
+        const buffer = Buffer.from(audioData.split(',')[1], 'base64');
+        
+        const transcription = await openai.audio.transcriptions.create({
+            file: new File([buffer], 'audio.webm', { type: 'audio/webm' }),
+            model: 'whisper-1',
+        });
+
+        return { text: transcription.text };
+    } catch (error) {
+        console.error("Transcription error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to transcribe audio");
+    }
 });
 
-export const getMarketAnalysis = onCall<{ address: string }, { analysisText: string; sources: { uri: string; title: string }[] }>(async ({ address }, aiInstance) => {
-    const prompt = `Provide a comprehensive property market analysis for the address: "${address}". Include sections like Comparable Sales, Market Trends, and Neighborhood Data.`;
-    const response = await aiInstance.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] },
-    });
-    const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
-    const sources = groundingMetadata?.groundingChunks?.map((chunk: any) => chunk.web).filter(Boolean) || [];
-    return {
-        analysisText: response.text,
-        sources: sources.map((source: any) => ({ uri: source.uri, title: source.title || source.uri })),
-    };
-});
+// TODO: Refactor this to use the Gemini service for consistency
+// Get AI response for voice chat
+export const voiceChatResponse = functions.https.onCall(async (data, context) => {
+    if (!openai) {
+        throw new functions.https.HttpsError("failed-precondition", "OpenAI is not initialized");
+    }
 
-export const generatePropertyReport = onCall<{ property: Property, options: any }, { text: string }>(async ({ property, options }, aiInstance) => {
-    const promptParts = [`Generate a compelling market analysis report for the property at ${property.address}.`];
-    if (options.marketAnalysis) promptParts.push("Include current market trends.");
-    if (options.comparableProperties) promptParts.push("Include 2-3 recent comparable property sales.");
-    if (options.neighborhoodInfo) promptParts.push("Include neighborhood highlights.");
-    const useSearch = options.comparableProperties || options.marketAnalysis;
-    const response = await aiInstance.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: promptParts.join('\n'),
-        config: {
-            systemInstruction: "You are a real estate market analyst AI. Your reports are professional and easy for a client to understand.",
-            ...(useSearch && { tools: [{ googleSearch: {} }] })
-        }
-    });
-    return { text: response.text };
-});
+    try {
+        const { message } = data;
+        const { propertyId, chatHistory } = data; // Assuming propertyId and chatHistory are passed
 
-export const generateBlogPost = onCall<{ options: any }, AIBlogPost>(async ({ options }, aiInstance) => {
-    const { topic, keywords, tone, style, audience, cta } = options;
-    const prompt = `Write an engaging blog post (400-600 words) on: "${topic}". Keywords: ${keywords}. Tone: ${tone}. Style: ${style}. Audience: ${audience}. CTA: "${cta}". Format as HTML in a JSON object with 'title' and 'body'.`;
-    const response = await aiInstance.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            systemInstruction: "You are a professional content writer and SEO specialist for the real estate industry. Your output must be a JSON object.",
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: { title: { type: Type.STRING }, body: { type: Type.STRING } }
+        let propertyContext = '';
+        if (propertyId) {
+            const propertyDoc = await propertiesCollection.doc(propertyId).get();
+            if (propertyDoc.exists) {
+                const propertyData = propertyDoc.data();
+                // Construct a concise property context string
+                propertyContext = `The property is located at ${propertyData?.address}, has ${propertyData?.beds} beds, ${propertyData?.baths} baths, and is ${propertyData?.sqft} sqft. Its description is: ${propertyData?.description?.paragraphs?.join(' ') || propertyData?.description}. Key features include: ${propertyData?.features?.join(', ')}.`;
             }
         }
-    });
-    return JSON.parse(response.text);
+
+        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+            {
+                role: 'system',
+                content: `You are a helpful AI assistant for a real estate app. Your goal is to answer questions about properties. Keep responses conversational and under 100 words. If the question is about a specific property, use the provided property context. If you don't know the answer, politely state that you don't have that information.
+                ${propertyContext}`
+            },
+            ...(chatHistory || []).map((msg: { sender: string; text: string }) => ({
+                role: msg.sender === 'user' ? 'user' : 'assistant',
+                content: msg.text
+            })),
+            { role: 'user', content: message }
+        ];
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4',
+            messages: messages,
+            max_tokens: 150,
+        });
+
+        return { text: completion.choices[0].message.content };
+    } catch (error) {
+        console.error("Chat error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to get AI response");
+    }
 });
 
-export const generateVideoScript = onCall<{ property: Property }, { text: string }>(async ({ property }, aiInstance) => {
-    const prompt = `Generate a short, punchy video script for a social media reel for this property: ${property.address}, a ${property.beds} bed, ${property.baths} bath ${property.propertyType}. Features: ${property.features.join(", ")}.`;
-    const response = await aiInstance.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            systemInstruction: "You are a creative director specializing in viral real estate video content."
-        }
-    });
-    return { text: response.text };
-});
+// Convert text to speech using OpenAI
+export const generateSpeech = functions.https.onCall(async (data, context) => {
+    if (!openai) {
+        throw new functions.https.HttpsError("failed-precondition", "OpenAI is not initialized");
+    }
 
-export const generateSocialPostText = onCall<{ property: Property, platforms: SocialPlatform[] }, { text: string }>(async ({ property, platforms }, aiInstance) => {
-    const prompt = `Generate a social media post for ${property.address} for platforms: ${platforms.join(", ")}. Be engaging and include hashtags.`;
-    const response = await aiInstance.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            systemInstruction: "You are a savvy social media manager for a top real estate agency."
-        }
-    });
-    return { text: response.text };
+    try {
+        const { text, voice = 'alloy' } = data;
+        
+        const mp3 = await openai.audio.speech.create({
+            model: 'tts-1',
+            voice: voice as any,
+            input: text,
+        });
+
+        const buffer = Buffer.from(await mp3.arrayBuffer());
+        const base64Audio = buffer.toString('base64');
+        const audioUrl = `data:audio/mp3;base64,${base64Audio}`;
+
+        return { audioUrl };
+    } catch (error) {
+        console.error("Speech generation error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to generate speech");
+    }
 });

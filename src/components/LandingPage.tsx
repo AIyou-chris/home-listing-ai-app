@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { LogoWithName } from './LogoWithName';
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
 import { Property, isAIDescription } from '../types';
 import { ListingAppModals } from './ListingAppModals';
+import VoiceChat from './VoiceChat';
 
 type ModalType = 'schools' | 'financing' | 'schedule' | 'save' | 'share' | 'voice' | null;
 
@@ -73,7 +73,7 @@ const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () 
     const navLinks = [
         { name: "Price", href: "#pricing" },
         { name: "Demo", href: "#demo" },
-        { name: "White Label", href: "#white-label" },
+        { name: "White Label", href: "#contact" },
         { name: "Contact", href: "#contact" }
     ];
 
@@ -788,6 +788,7 @@ interface LandingPageProps {
 
 const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin }) => {
     const [activeModal, setActiveModal] = useState<ModalType>(null);
+    const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
     // Use a real property from demo data for the interactive embed
     const propertyForDemo = DEMO_FAT_PROPERTIES[0]; 
 
