@@ -137,6 +137,417 @@ const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () 
     );
 };
 
+const RevolutionaryAIFeaturesSection: React.FC = () => {
+    const [activeDemo, setActiveDemo] = useState<'analytics' | 'personality' | 'leadgen' | 'notifications'>('analytics');
+
+    const DemoSection: React.FC<{ title: string; children: React.ReactNode; isActive: boolean }> = ({ title, children, isActive }) => (
+        <div className={`transition-all duration-500 ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute'}`}>
+            <h3 className="text-2xl font-bold text-slate-900 mb-6">{title}</h3>
+            {children}
+        </div>
+    );
+
+    return (
+        <section className="py-20 bg-white relative overflow-hidden">
+            {/* Background Elements */}
+            <div className="absolute inset-0 pointer-events-none">
+                {/* Floating Charts */}
+                <div className="absolute top-20 left-10 opacity-10 animate-float-slow">
+                    <svg width="80" height="60" viewBox="0 0 80 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 50L20 40L30 45L40 35L50 30L60 25L70 20L80 15" stroke="#3B82F6" strokeWidth="2" fill="none"/>
+                        <circle cx="20" cy="40" r="3" fill="#3B82F6"/>
+                        <circle cx="40" cy="35" r="3" fill="#3B82F6"/>
+                        <circle cx="60" cy="25" r="3" fill="#3B82F6"/>
+                        <circle cx="80" cy="15" r="3" fill="#3B82F6"/>
+                    </svg>
+                </div>
+                
+                <div className="absolute top-40 right-20 opacity-8 animate-float-slower">
+                    <svg width="60" height="40" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="10" y="25" width="8" height="15" fill="#10B981"/>
+                        <rect x="22" y="20" width="8" height="20" fill="#10B981"/>
+                        <rect x="34" y="15" width="8" height="25" fill="#10B981"/>
+                        <rect x="46" y="10" width="8" height="30" fill="#10B981"/>
+                    </svg>
+                </div>
+
+                {/* Floating Icons */}
+                <div className="absolute top-60 left-20 opacity-5 animate-float">
+                    <span className="material-symbols-outlined text-6xl text-blue-500">analytics</span>
+                </div>
+                
+                <div className="absolute top-80 right-10 opacity-5 animate-float-slow">
+                    <span className="material-symbols-outlined text-5xl text-green-500">trending_up</span>
+                </div>
+
+                <div className="absolute top-40 left-1/4 opacity-5 animate-float-slower">
+                    <span className="material-symbols-outlined text-4xl text-purple-500">psychology</span>
+                </div>
+                
+                <div className="absolute bottom-60 right-1/4 opacity-5 animate-float">
+                    <span className="material-symbols-outlined text-4xl text-orange-500">target</span>
+                </div>
+                
+                <div className="absolute bottom-40 left-1/3 opacity-5 animate-float-slow">
+                    <span className="material-symbols-outlined text-3xl text-red-500">favorite</span>
+                </div>
+
+                {/* Geometric Shapes */}
+                <div className="absolute top-20 right-1/3 opacity-5 animate-pulse">
+                    <div className="w-16 h-16 border-2 border-blue-300 rounded-full"></div>
+                </div>
+                
+                <div className="absolute top-100 left-1/3 opacity-5 animate-bounce">
+                    <div className="w-12 h-12 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
+                </div>
+
+                {/* Dots Pattern */}
+                <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                    <div className="grid grid-cols-20 gap-4 w-full h-full">
+                        {Array.from({ length: 100 }).map((_, i) => (
+                            <div key={i} className="w-1 h-1 bg-blue-300 rounded-full animate-pulse" 
+                                 style={{ 
+                                     animationDelay: `${i * 0.1}s`,
+                                     animationDuration: `${2 + Math.random() * 2}s`
+                                 }}></div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Gradient Orbs */}
+                <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+                <div className="absolute bottom-1/4 left-1/4 w-24 h-24 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div className="text-center mb-16">
+                    <h2 className="text-4xl font-bold text-slate-900 mb-4 animate-fade-in-up">
+                        Revolutionary AI Features
+                    </h2>
+                    <p className="text-xl text-slate-600 animate-fade-in-up animation-delay-200">
+                        See how our AI transforms every aspect of real estate
+                    </p>
+                </div>
+
+                {/* Feature Navigation */}
+                <div className="flex flex-wrap justify-center gap-4 mb-12 animate-fade-in-up animation-delay-400">
+                    {[
+                        { id: 'analytics', label: 'Analytics Dashboard', icon: '📊' },
+                        { id: 'personality', label: 'AI Personalities', icon: '🎭' },
+                        { id: 'leadgen', label: 'Lead Generation', icon: '🎯' },
+                        { id: 'notifications', label: 'Smart Notifications', icon: '🔔' }
+                    ].map(feature => (
+                        <button
+                            key={feature.id}
+                            onClick={() => setActiveDemo(feature.id as any)}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 ${
+                                activeDemo === feature.id
+                                    ? 'bg-primary-600 text-white shadow-lg'
+                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                        >
+                            <span className="animate-bounce">{feature.icon}</span>
+                            <span>{feature.label}</span>
+                        </button>
+                    ))}
+                </div>
+
+                {/* Interactive Demo Area */}
+                <div className="relative min-h-[600px] bg-slate-50 rounded-2xl p-8 shadow-xl backdrop-blur-sm border border-slate-200/50 animate-fade-in-up animation-delay-600">
+                    {/* Background Pattern for Demo Area */}
+                    <div className="absolute inset-0 opacity-5">
+                        <div className="absolute top-4 right-4">
+                            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="20" cy="20" r="18" stroke="#3B82F6" strokeWidth="1" fill="none"/>
+                                <circle cx="20" cy="20" r="12" stroke="#3B82F6" strokeWidth="1" fill="none"/>
+                                <circle cx="20" cy="20" r="6" stroke="#3B82F6" strokeWidth="1" fill="none"/>
+                            </svg>
+                        </div>
+                        <div className="absolute bottom-4 left-4">
+                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M15 5L25 15L15 25L5 15Z" stroke="#10B981" strokeWidth="1" fill="none"/>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <DemoSection title="Real-Time Analytics Dashboard" isActive={activeDemo === 'analytics'}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {[
+                                { title: 'Total Properties', value: '24', change: '+12%', icon: '🏠' },
+                                { title: 'Active Leads', value: '156', change: '+8%', icon: '👥' },
+                                { title: 'Conversion Rate', value: '23.4%', change: '+5%', icon: '📈' },
+                                { title: 'Monthly Revenue', value: '$89.2K', change: '+18%', icon: '💰' }
+                            ].map((metric, index) => (
+                                <div key={index} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 
+                                     style={{ animationDelay: `${index * 100}ms` }}>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <span className="text-2xl animate-pulse">{metric.icon}</span>
+                                        <span className="text-green-600 text-sm font-semibold animate-bounce">{metric.change}</span>
+                                    </div>
+                                    <h4 className="text-2xl font-bold text-slate-900 mb-1">{metric.value}</h4>
+                                    <p className="text-slate-600 text-sm">{metric.title}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 transform hover:scale-105 transition-all duration-300 animate-fade-in-up animation-delay-400">
+                                <h4 className="font-semibold text-slate-900 mb-4">Lead Source Performance</h4>
+                                <div className="space-y-3">
+                                    {[
+                                        { source: 'Website', leads: 45, conversion: '28%' },
+                                        { source: 'Social Media', leads: 32, conversion: '22%' },
+                                        { source: 'Referrals', leads: 28, conversion: '35%' },
+                                        { source: 'Direct', leads: 51, conversion: '18%' }
+                                    ].map((item, index) => (
+                                        <div key={index} className="flex items-center justify-between animate-fade-in-left" 
+                                             style={{ animationDelay: `${index * 100}ms` }}>
+                                            <span className="text-slate-700">{item.source}</span>
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-slate-600">{item.leads} leads</span>
+                                                <span className="text-green-600 font-semibold">{item.conversion}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 transform hover:scale-105 transition-all duration-300 animate-fade-in-up animation-delay-600">
+                                <h4 className="font-semibold text-slate-900 mb-4">Property Performance</h4>
+                                <div className="space-y-3">
+                                    {[
+                                        { property: 'Ocean Drive Villa', views: 234, inquiries: 12 },
+                                        { property: 'Downtown Loft', views: 189, inquiries: 8 },
+                                        { property: 'Mountain Cabin', views: 156, inquiries: 6 },
+                                        { property: 'City Penthouse', views: 298, inquiries: 15 }
+                                    ].map((item, index) => (
+                                        <div key={index} className="flex items-center justify-between animate-fade-in-right" 
+                                             style={{ animationDelay: `${index * 100}ms` }}>
+                                            <span className="text-slate-700 truncate">{item.property}</span>
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-slate-600">{item.views} views</span>
+                                                <span className="text-primary-600 font-semibold">{item.inquiries} inquiries</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </DemoSection>
+
+                    <DemoSection title="AI Personality System" isActive={activeDemo === 'personality'}>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div className="animate-fade-in-left">
+                                <h4 className="font-semibold text-slate-900 mb-4">Your Three AI Sidekicks</h4>
+                                <div className="space-y-4">
+                                    {[
+                                        { name: 'Listing Sidekick', type: 'listing', description: 'Specializes in home listings and property-specific information' },
+                                        { name: 'Agent Sidekick', type: 'agent', description: 'Represents the real estate agent and handles sales conversations' },
+                                        { name: 'Helper Sidekick', type: 'helper', description: 'Helps agents navigate the dashboard and maximize ROI' }
+                                    ].map((sidekick, index) => (
+                                        <div key={index} className="bg-white p-4 rounded-lg border border-slate-200 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 
+                                             style={{ animationDelay: `${index * 200}ms` }}>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center animate-pulse ${
+                                                    sidekick.type === 'listing' ? 'bg-green-100' :
+                                                    sidekick.type === 'agent' ? 'bg-blue-100' : 'bg-purple-100'
+                                                }`}>
+                                                    <span className={`text-sm ${
+                                                        sidekick.type === 'listing' ? 'text-green-600' :
+                                                        sidekick.type === 'agent' ? 'text-blue-600' : 'text-purple-600'
+                                                    }`}>
+                                                        {sidekick.type === 'listing' ? '🏠' :
+                                                         sidekick.type === 'agent' ? '👤' : '🤖'}
+                                                    </span>
+                                                </div>
+                                                <h5 className="font-semibold text-slate-900">{sidekick.name}</h5>
+                                            </div>
+                                            <p className="text-sm text-slate-600">{sidekick.description}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="animate-fade-in-right">
+                                <h4 className="font-semibold text-slate-900 mb-4">AI Personalities</h4>
+                                <div className="space-y-3">
+                                    {[
+                                        { name: 'Professional Expert', traits: ['Authoritative', 'Knowledgeable'] },
+                                        { name: 'Friendly Guide', traits: ['Warm', 'Approachable'] },
+                                        { name: 'Marketing Specialist', traits: ['Creative', 'Enthusiastic'] }
+                                    ].map((personality, index) => (
+                                        <div key={index} className="bg-slate-50 p-3 rounded-lg border border-slate-200 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 
+                                             style={{ animationDelay: `${index * 200}ms` }}>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <h6 className="font-semibold text-slate-800">{personality.name}</h6>
+                                                <div className="flex gap-1">
+                                                    {personality.traits.map((trait, traitIndex) => (
+                                                        <span key={traitIndex} className="px-2 py-1 bg-primary-100 text-primary-700 text-xs rounded-full animate-pulse" 
+                                                              style={{ animationDelay: `${traitIndex * 100}ms` }}>
+                                                            {trait}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </DemoSection>
+
+                    <DemoSection title="AI Lead Generation & Nurturing" isActive={activeDemo === 'leadgen'}>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* Lead Generation Process */}
+                            <div className="animate-fade-in-left">
+                                <h4 className="font-semibold text-slate-900 mb-4">24/7 Lead Generation Process</h4>
+                                <div className="space-y-4">
+                                    {[
+                                        { step: '1', title: 'Instant Engagement', description: 'AI responds to every inquiry within seconds, keeping buyers engaged', icon: '⚡' },
+                                        { step: '2', title: 'Smart Qualification', description: 'AI asks intelligent questions to qualify leads automatically', icon: '🎯' },
+                                        { step: '3', title: 'Lead Capture', description: 'Contact info and conversation history saved to your dashboard', icon: '📝' },
+                                        { step: '4', title: 'Real-time Alerts', description: 'Get notified instantly when hot leads are captured', icon: '🔔' }
+                                    ].map((item, index) => (
+                                        <div key={index} className="bg-white p-4 rounded-lg border border-slate-200 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 
+                                             style={{ animationDelay: `${index * 150}ms` }}>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center animate-pulse">
+                                                    <span className="text-sm font-bold text-primary-600">{item.step}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xl">{item.icon}</span>
+                                                    <h5 className="font-semibold text-slate-900">{item.title}</h5>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-slate-600 ml-11">{item.description}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Lead Nurturing Features */}
+                            <div className="animate-fade-in-right">
+                                <h4 className="font-semibold text-slate-900 mb-4">AI-Powered Lead Nurturing</h4>
+                                <div className="space-y-4">
+                                    {[
+                                        { feature: 'Automated Follow-ups', status: 'Active', leads: '156', icon: '🔄' },
+                                        { feature: 'Personalized Messages', status: 'Active', leads: '89', icon: '💬' },
+                                        { feature: 'Appointment Scheduling', status: 'Active', leads: '23', icon: '📅' },
+                                        { feature: 'Market Updates', status: 'Active', leads: '67', icon: '📈' }
+                                    ].map((item, index) => (
+                                        <div key={index} className="bg-slate-50 p-4 rounded-lg border border-slate-200 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 
+                                             style={{ animationDelay: `${index * 150}ms` }}>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-2xl">{item.icon}</span>
+                                                    <div>
+                                                        <h5 className="font-semibold text-slate-900">{item.feature}</h5>
+                                                        <p className="text-sm text-slate-500">{item.leads} leads engaged</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                                    <span className="text-sm text-green-600 font-semibold">{item.status}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Lead Quality Metrics */}
+                        <div className="mt-8 bg-white p-6 rounded-xl shadow-sm border border-slate-200 animate-fade-in-up animation-delay-600">
+                            <h4 className="font-semibold text-slate-900 mb-4 text-center">Lead Quality Metrics</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                {[
+                                    { metric: 'Response Time', value: '< 30 sec', improvement: '+85%' },
+                                    { metric: 'Lead Quality', value: '92%', improvement: '+67%' },
+                                    { metric: 'Conversion Rate', value: '23.4%', improvement: '+45%' },
+                                    { metric: 'Follow-up Rate', value: '100%', improvement: '+100%' }
+                                ].map((item, index) => (
+                                    <div key={index} className="text-center animate-fade-in-up" 
+                                         style={{ animationDelay: `${index * 100}ms` }}>
+                                        <div className="text-2xl font-bold text-primary-600 mb-1">{item.value}</div>
+                                        <div className="text-sm text-slate-600 mb-1">{item.metric}</div>
+                                        <div className="text-xs text-green-600 font-semibold">{item.improvement}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        <div className="mt-6 text-center animate-fade-in-up animation-delay-800">
+                            <button className="bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700 transition transform hover:scale-105">
+                                Start Generating Leads
+                            </button>
+                        </div>
+                    </DemoSection>
+
+                    <DemoSection title="Smart Notification System" isActive={activeDemo === 'notifications'}>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div className="animate-fade-in-left">
+                                <h4 className="font-semibold text-slate-900 mb-4">Real-Time Notifications</h4>
+                                <div className="space-y-3">
+                                    {[
+                                        { type: 'success', title: 'New Lead Captured', message: 'John Doe inquired about Ocean Drive Villa', time: '2 min ago' },
+                                        { type: 'info', title: 'Appointment Scheduled', message: 'Showing scheduled for tomorrow at 2 PM', time: '5 min ago' },
+                                        { type: 'warning', title: 'Market Update', message: 'Property values increased 3.2% this month', time: '1 hour ago' },
+                                        { type: 'error', title: 'Lead Lost', message: 'Sarah Smith chose another property', time: '2 hours ago' }
+                                    ].map((notification, index) => (
+                                        <div key={index} className={`p-4 rounded-lg border transform hover:scale-105 transition-all duration-300 animate-fade-in-up ${
+                                            notification.type === 'success' ? 'bg-green-50 border-green-200' :
+                                            notification.type === 'info' ? 'bg-blue-50 border-blue-200' :
+                                            notification.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                                            'bg-red-50 border-red-200'
+                                        }`} style={{ animationDelay: `${index * 150}ms` }}>
+                                            <div className="flex items-start gap-3">
+                                                <span className={`text-lg animate-pulse ${
+                                                    notification.type === 'success' ? 'text-green-600' :
+                                                    notification.type === 'info' ? 'text-blue-600' :
+                                                    notification.type === 'warning' ? 'text-yellow-600' :
+                                                    'text-red-600'
+                                                }`}>
+                                                    {notification.type === 'success' ? '✅' :
+                                                     notification.type === 'info' ? 'ℹ️' :
+                                                     notification.type === 'warning' ? '⚠️' : '❌'}
+                                                </span>
+                                                <div className="flex-1">
+                                                    <h5 className="font-semibold text-slate-900">{notification.title}</h5>
+                                                    <p className="text-sm text-slate-600">{notification.message}</p>
+                                                    <p className="text-xs text-slate-500 mt-1">{notification.time}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="animate-fade-in-right">
+                                <h4 className="font-semibold text-slate-900 mb-4">Notification Settings</h4>
+                                <div className="bg-white p-6 rounded-lg border border-slate-200 transform hover:scale-105 transition-all duration-300">
+                                    <div className="space-y-4">
+                                        {[
+                                            'New Lead Notifications',
+                                            'Appointment Reminders',
+                                            'Market Updates',
+                                            'AI Interaction Alerts',
+                                            'Weekly Performance Reports'
+                                        ].map((setting, index) => (
+                                            <div key={index} className="flex items-center justify-between animate-fade-in-up" 
+                                                 style={{ animationDelay: `${index * 100}ms` }}>
+                                                <span className="text-slate-700">{setting}</span>
+                                                <div className="w-12 h-6 bg-primary-600 rounded-full relative animate-pulse">
+                                                    <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 right-0.5"></div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </DemoSection>
+                </div>
+            </div>
+        </section>
+    );
+};
+
 const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ onEnterDemoMode }) => {
     const features = [
         { icon: 'track_changes', title: 'Never Lose a Lead', description: 'Watch in real-time as every inquiry—from your website, ads, or QR codes—populates your dashboard instantly.' },
@@ -148,17 +559,57 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ o
     ];
 
     return (
-        <section className="py-20 bg-slate-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">Your Mission Control for Closing More Deals</h2>
-                <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600">
+        <section className="py-20 bg-slate-50 relative overflow-hidden">
+            {/* Background Elements */}
+            <div className="absolute inset-0 pointer-events-none">
+                {/* Floating Icons */}
+                <div className="absolute top-20 left-10 opacity-5 animate-float">
+                    <span className="material-symbols-outlined text-5xl text-blue-500">dashboard</span>
+                </div>
+                <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
+                    <span className="material-symbols-outlined text-4xl text-green-500">analytics</span>
+                </div>
+                <div className="absolute bottom-20 left-1/3 opacity-5 animate-float-slower">
+                    <span className="material-symbols-outlined text-3xl text-purple-500">trending_up</span>
+                </div>
+                
+                {/* Geometric Shapes */}
+                <div className="absolute top-60 right-1/4 opacity-5 animate-pulse">
+                    <div className="w-20 h-20 border-2 border-blue-300 rounded-full"></div>
+                </div>
+                <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
+                    <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
+                </div>
+                
+                {/* Dots Pattern */}
+                <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                    <div className="grid grid-cols-20 gap-4 w-full h-full">
+                        {Array.from({ length: 80 }).map((_, i) => (
+                            <div key={i} className="w-1 h-1 bg-slate-400 rounded-full animate-pulse" 
+                                 style={{ 
+                                     animationDelay: `${i * 0.15}s`,
+                                     animationDuration: `${2 + Math.random() * 2}s`
+                                 }}></div>
+                        ))}
+                    </div>
+                </div>
+                
+                {/* Gradient Orbs */}
+                <div className="absolute top-1/3 left-1/4 w-28 h-28 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+                <div className="absolute bottom-1/3 right-1/4 w-20 h-20 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+            </div>
+            
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight animate-fade-in-up">Your Mission Control for Closing More Deals</h2>
+                <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                     The AI Listing App is just the beginning. The real power is your dashboard—a command center designed to turn leads into sales and make you the hero of every transaction.
                 </p>
 
-                <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-left">
-                    {features.map(feature => (
-                        <div key={feature.title} className="flex items-start gap-4 p-6 bg-white rounded-xl shadow-md border border-slate-200/60">
-                            <div className="flex-shrink-0 w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
+                <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-left animate-fade-in-up animation-delay-400">
+                    {features.map((feature, index) => (
+                        <div key={feature.title} className="flex items-start gap-4 p-6 bg-white rounded-xl shadow-md border border-slate-200/60 transform hover:scale-105 transition-all duration-300 hover-lift animate-fade-in-up" 
+                             style={{ animationDelay: `${index * 100}ms` }}>
+                            <div className="flex-shrink-0 w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center animate-pulse">
                                 <span className="material-symbols-outlined text-3xl text-primary-600">{feature.icon}</span>
                             </div>
                             <div>
@@ -169,10 +620,10 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ o
                     ))}
                 </div>
 
-                <div className="mt-12">
-                    <button onClick={onEnterDemoMode} className="px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg">
+                <div className="mt-12 animate-fade-in-up animation-delay-800">
+                    <button onClick={onEnterDemoMode} className="px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg transform hover:scale-105 btn-animate">
                         <span className="flex items-center gap-2">
-                            <span className="material-symbols-outlined">rocket_launch</span>
+                            <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
                         </span>
                     </button>
@@ -305,22 +756,62 @@ const AIAppShowcaseSection: React.FC<{ onOpenModal: (modal: ModalType) => void }
     ];
 
     return (
-        <section id="how-it-works" className="py-20 bg-white">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section id="how-it-works" className="py-20 bg-white relative overflow-hidden">
+            {/* Background Elements */}
+            <div className="absolute inset-0 pointer-events-none">
+                {/* Floating Icons */}
+                <div className="absolute top-20 left-10 opacity-5 animate-float">
+                    <span className="material-symbols-outlined text-6xl text-blue-500">smartphone</span>
+                </div>
+                <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
+                    <span className="material-symbols-outlined text-5xl text-green-500">touch_app</span>
+                </div>
+                <div className="absolute bottom-20 left-1/4 opacity-5 animate-float-slower">
+                    <span className="material-symbols-outlined text-4xl text-purple-500">smart_toy</span>
+                </div>
+                
+                {/* Geometric Shapes */}
+                <div className="absolute top-60 right-1/3 opacity-5 animate-pulse">
+                    <div className="w-24 h-24 border-2 border-blue-300 rounded-full"></div>
+                </div>
+                <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
+                    <div className="w-20 h-20 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
+                </div>
+                
+                {/* Dots Pattern */}
+                <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                    <div className="grid grid-cols-20 gap-4 w-full h-full">
+                        {Array.from({ length: 60 }).map((_, i) => (
+                            <div key={i} className="w-1 h-1 bg-blue-300 rounded-full animate-pulse" 
+                                 style={{ 
+                                     animationDelay: `${i * 0.2}s`,
+                                     animationDuration: `${2 + Math.random() * 2}s`
+                                 }}></div>
+                        ))}
+                    </div>
+                </div>
+                
+                {/* Gradient Orbs */}
+                <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+                <div className="absolute bottom-1/4 left-1/4 w-24 h-24 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+            </div>
+            
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 <div className="text-center">
-                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">From Home To Lead Machine</h2>
-                    <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600">
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 animate-fade-in-up">From Home To Lead Machine</h2>
+                    <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                         Transform your listings into lead magnets! Build your AI listing app in minutes, then watch as your home becomes a powerful lead generation machine.
                     </p>
                 </div>
-                <div className="mt-16 grid lg:grid-cols-2 gap-16 items-center">
-                    <div className="flex justify-center">
+                <div className="mt-16 grid lg:grid-cols-2 gap-16 items-center animate-fade-in-up animation-delay-400">
+                    <div className="flex justify-center animate-fade-in-left">
                         <InteractiveListingAppEmbed onOpenModal={onOpenModal} />
                     </div>
-                    <div className="space-y-8">
-                        {highlights.map(item => (
-                            <div key={item.title} className="flex items-start gap-5">
-                                <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <div className="space-y-8 animate-fade-in-right">
+                        {highlights.map((item, index) => (
+                            <div key={item.title} className="flex items-start gap-5 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 
+                                 style={{ animationDelay: `${index * 150}ms` }}>
+                                <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center animate-pulse">
                                     <span className="material-symbols-outlined text-3xl text-blue-600">{item.icon}</span>
                                 </div>
                                 <div>
@@ -346,17 +837,57 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
     );
 
     return (
-        <section id="pricing" className="py-20 bg-slate-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section id="pricing" className="py-20 bg-slate-50 relative overflow-hidden">
+            {/* Background Elements */}
+            <div className="absolute inset-0 pointer-events-none">
+                {/* Floating Icons */}
+                <div className="absolute top-20 left-10 opacity-5 animate-float">
+                    <span className="material-symbols-outlined text-5xl text-blue-500">payments</span>
+                </div>
+                <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
+                    <span className="material-symbols-outlined text-4xl text-green-500">verified</span>
+                </div>
+                <div className="absolute bottom-20 left-1/4 opacity-5 animate-float-slower">
+                    <span className="material-symbols-outlined text-3xl text-purple-500">star</span>
+                </div>
+                
+                {/* Geometric Shapes */}
+                <div className="absolute top-60 right-1/3 opacity-5 animate-pulse">
+                    <div className="w-20 h-20 border-2 border-blue-300 rounded-full"></div>
+                </div>
+                <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
+                    <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
+                </div>
+                
+                {/* Dots Pattern */}
+                <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                    <div className="grid grid-cols-20 gap-4 w-full h-full">
+                        {Array.from({ length: 70 }).map((_, i) => (
+                            <div key={i} className="w-1 h-1 bg-slate-400 rounded-full animate-pulse" 
+                                 style={{ 
+                                     animationDelay: `${i * 0.12}s`,
+                                     animationDuration: `${2 + Math.random() * 2}s`
+                                 }}></div>
+                        ))}
+                    </div>
+                </div>
+                
+                {/* Gradient Orbs */}
+                <div className="absolute top-1/3 left-1/4 w-28 h-28 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+                <div className="absolute bottom-1/3 right-1/4 w-20 h-20 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+            </div>
+            
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 <div className="text-center">
-                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Choose the Plan That's Right for You</h2>
-                    <p className="mt-4 max-w-2xl mx-auto text-lg text-slate-600">
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 animate-fade-in-up">Choose the Plan That's Right for You</h2>
+                    <p className="mt-4 max-w-2xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                         Simple, transparent pricing. Powerful features. No hidden costs.
                     </p>
                 </div>
-                <div className="mt-16 grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                <div className="mt-16 grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-fade-in-up animation-delay-400">
                     {/* Solo Agent Plan */}
-                    <div className="p-8 h-full flex flex-col rounded-2xl bg-white shadow-lg border border-slate-200">
+                    <div className="p-8 h-full flex flex-col rounded-2xl bg-white shadow-lg border border-slate-200 transform hover:scale-105 transition-all duration-300 hover-lift animate-fade-in-up" 
+                         style={{ animationDelay: '400ms' }}>
                         <div className="flex-grow">
                             <h3 className="text-2xl font-bold text-slate-800">Solo Agent</h3>
                             <p className="mt-2 text-slate-500">For the individual agent ready to supercharge their business.</p>
@@ -382,7 +913,8 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                     </div>
 
                     {/* Pro Team Plan */}
-                    <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform lg:scale-105">
+                    <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform lg:scale-105 hover:scale-110 transition-all duration-300 animate-fade-in-up glow" 
+                         style={{ animationDelay: '600ms' }}>
                         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                             <span className="px-4 py-1 bg-purple-600 text-white text-sm font-bold uppercase rounded-full tracking-wider">Most Popular</span>
                         </div>
@@ -410,7 +942,8 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                     </div>
 
                     {/* Brokerage Plan */}
-                     <div className="p-8 h-full flex flex-col rounded-2xl bg-white shadow-lg border border-slate-200">
+                     <div className="p-8 h-full flex flex-col rounded-2xl bg-white shadow-lg border border-slate-200 transform hover:scale-105 transition-all duration-300 hover-lift animate-fade-in-up" 
+                          style={{ animationDelay: '800ms' }}>
                         <div className="flex-grow">
                             <h3 className="text-2xl font-bold text-slate-800">Brokerage</h3>
                             <p className="mt-2 text-slate-500">Fully branded solutions for your entire brokerage.</p>
@@ -451,15 +984,54 @@ const WhiteLabelSection: React.FC<{ onOpenConsultationModal: () => void; }> = ({
     );
 
     return (
-        <section id="white-label" className="py-20 bg-slate-50">
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="bg-white p-8 sm:p-12 rounded-2xl shadow-xl border border-slate-200/80 text-center">
-                    <h2 className="text-3xl sm:text-4xl font-extrabold text-primary-700 tracking-tight">White Label & Custom Services</h2>
-                    <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600">
+        <section id="white-label" className="py-20 bg-slate-50 relative overflow-hidden">
+            {/* Background Elements */}
+            <div className="absolute inset-0 pointer-events-none">
+                {/* Floating Icons */}
+                <div className="absolute top-20 left-10 opacity-5 animate-float">
+                    <span className="material-symbols-outlined text-5xl text-blue-500">business</span>
+                </div>
+                <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
+                    <span className="material-symbols-outlined text-4xl text-green-500">verified</span>
+                </div>
+                <div className="absolute bottom-20 left-1/4 opacity-5 animate-float-slower">
+                    <span className="material-symbols-outlined text-3xl text-purple-500">star</span>
+                </div>
+                
+                {/* Geometric Shapes */}
+                <div className="absolute top-60 right-1/3 opacity-5 animate-pulse">
+                    <div className="w-20 h-20 border-2 border-blue-300 rounded-full"></div>
+                </div>
+                <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
+                    <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
+                </div>
+                
+                {/* Dots Pattern */}
+                <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                    <div className="grid grid-cols-20 gap-4 w-full h-full">
+                        {Array.from({ length: 50 }).map((_, i) => (
+                            <div key={i} className="w-1 h-1 bg-slate-400 rounded-full animate-pulse" 
+                                 style={{ 
+                                     animationDelay: `${i * 0.18}s`,
+                                     animationDuration: `${2 + Math.random() * 2}s`
+                                 }}></div>
+                        ))}
+                    </div>
+                </div>
+                
+                {/* Gradient Orbs */}
+                <div className="absolute top-1/3 left-1/4 w-28 h-28 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+                <div className="absolute bottom-1/3 right-1/4 w-20 h-20 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+            </div>
+            
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div className="bg-white p-8 sm:p-12 rounded-2xl shadow-xl border border-slate-200/80 text-center hover-lift">
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-primary-700 tracking-tight animate-fade-in-up">White Label & Custom Services</h2>
+                    <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                         Want your own brand? We offer full white labeling, custom web design, design systems, automation, and digital marketing for real estate pros, teams, and brokerages. Get a seamless, premium experience—your brand, your way.
                     </p>
 
-                    <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-12">
+                    <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-12 animate-fade-in-up animation-delay-400">
                         <ServiceItem icon="storefront" iconClass="text-primary-600" title="White Label Solutions">
                             Your logo, your domain, your colors—powered by our AI. Launch a fully branded platform for your team or brokerage, with all the features of HomeListingAI under your own identity.
                         </ServiceItem>
@@ -474,15 +1046,15 @@ const WhiteLabelSection: React.FC<{ onOpenConsultationModal: () => void; }> = ({
                         </ServiceItem>
                     </div>
                     
-                    <div className="mt-16">
+                    <div className="mt-16 animate-fade-in-up animation-delay-600">
                         <button
                             onClick={onOpenConsultationModal}
-                            className="inline-flex items-center gap-2 px-6 py-3 text-base font-bold text-white bg-gradient-to-r from-green-400 to-primary-500 rounded-lg shadow-lg hover:shadow-xl transition-all"
+                            className="inline-flex items-center gap-2 px-6 py-3 text-base font-bold text-white bg-gradient-to-r from-green-400 to-primary-500 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 btn-animate"
                         >
-                             <span className="material-symbols-outlined">calendar_today</span>
+                             <span className="material-symbols-outlined animate-pulse">calendar_today</span>
                             Set Up a Free Consultation
                         </button>
-                        <p className="mt-4 text-sm text-slate-500">
+                        <p className="mt-4 text-sm text-slate-500 animate-fade-in-up animation-delay-800">
                             No obligation. See how we can help your business grow.
                         </p>
                     </div>
@@ -499,16 +1071,56 @@ const FeaturesGridSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onN
         { icon: "schedule", title: "Save 20+ Hours Weekly", description: "Eliminate repetitive answering of the same buyer questions." }
     ];
     return (
-        <section className="py-20 bg-white">
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Turn Every Listing into an Installable App</h2>
-                <p className="mt-4 text-lg text-slate-600">
+        <section className="py-20 bg-white relative overflow-hidden">
+            {/* Background Elements */}
+            <div className="absolute inset-0 pointer-events-none">
+                {/* Floating Icons */}
+                <div className="absolute top-20 left-10 opacity-5 animate-float">
+                    <span className="material-symbols-outlined text-5xl text-blue-500">phone_iphone</span>
+                </div>
+                <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
+                    <span className="material-symbols-outlined text-4xl text-green-500">rocket_launch</span>
+                </div>
+                <div className="absolute bottom-20 left-1/4 opacity-5 animate-float-slower">
+                    <span className="material-symbols-outlined text-3xl text-purple-500">bolt</span>
+                </div>
+                
+                {/* Geometric Shapes */}
+                <div className="absolute top-60 right-1/3 opacity-5 animate-pulse">
+                    <div className="w-20 h-20 border-2 border-blue-300 rounded-full"></div>
+                </div>
+                <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
+                    <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
+                </div>
+                
+                {/* Dots Pattern */}
+                <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                    <div className="grid grid-cols-20 gap-4 w-full h-full">
+                        {Array.from({ length: 60 }).map((_, i) => (
+                            <div key={i} className="w-1 h-1 bg-blue-300 rounded-full animate-pulse" 
+                                 style={{ 
+                                     animationDelay: `${i * 0.15}s`,
+                                     animationDuration: `${2 + Math.random() * 2}s`
+                                 }}></div>
+                        ))}
+                    </div>
+                </div>
+                
+                {/* Gradient Orbs */}
+                <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+                <div className="absolute bottom-1/4 left-1/4 w-24 h-24 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+            </div>
+            
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 animate-fade-in-up">Turn Every Listing into an Installable App</h2>
+                <p className="mt-4 text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                     Stop chasing leads. Start capturing them automatically with AI that works 24/7. Each property becomes its own branded app with built-in messaging!
                 </p>
-                <div className="mt-12 grid sm:grid-cols-3 gap-8">
-                    {features.map(feature => (
-                        <div key={feature.title} className="p-8 bg-slate-50 rounded-2xl border border-slate-200/80">
-                            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto">
+                <div className="mt-12 grid sm:grid-cols-3 gap-8 animate-fade-in-up animation-delay-400">
+                    {features.map((feature, index) => (
+                        <div key={feature.title} className="p-8 bg-slate-50 rounded-2xl border border-slate-200/80 transform hover:scale-105 transition-all duration-300 hover-lift animate-fade-in-up" 
+                             style={{ animationDelay: `${index * 200}ms` }}>
+                            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto animate-pulse">
                                 <span className="material-symbols-outlined text-3xl text-purple-600">{feature.icon}</span>
                             </div>
                             <h3 className="mt-5 text-xl font-bold text-slate-800">{feature.title}</h3>
@@ -532,17 +1144,57 @@ const WhatYouGetSectionNew: React.FC = () => {
         { icon: 'install_mobile', title: 'Installable Property Apps', description: 'Each listing becomes its own app with custom branding and icons.', features: ['Property-specific apps', 'Home screen access', 'Custom branding'] },
     ];
     return (
-        <section id="what-you-get" className="py-20 bg-slate-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <h2 className="text-3xl font-extrabold text-slate-900">What You Get With Home Listing AI</h2>
-                <p className="mt-4 max-w-2xl mx-auto text-lg text-slate-600">
+        <section id="what-you-get" className="py-20 bg-slate-50 relative overflow-hidden">
+            {/* Background Elements */}
+            <div className="absolute inset-0 pointer-events-none">
+                {/* Floating Icons */}
+                <div className="absolute top-20 left-10 opacity-5 animate-float">
+                    <span className="material-symbols-outlined text-5xl text-blue-500">check_circle</span>
+                </div>
+                <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
+                    <span className="material-symbols-outlined text-4xl text-green-500">verified</span>
+                </div>
+                <div className="absolute bottom-20 left-1/4 opacity-5 animate-float-slower">
+                    <span className="material-symbols-outlined text-3xl text-purple-500">star</span>
+                </div>
+                
+                {/* Geometric Shapes */}
+                <div className="absolute top-60 right-1/3 opacity-5 animate-pulse">
+                    <div className="w-20 h-20 border-2 border-blue-300 rounded-full"></div>
+                </div>
+                <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
+                    <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
+                </div>
+                
+                {/* Dots Pattern */}
+                <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                    <div className="grid grid-cols-20 gap-4 w-full h-full">
+                        {Array.from({ length: 80 }).map((_, i) => (
+                            <div key={i} className="w-1 h-1 bg-slate-400 rounded-full animate-pulse" 
+                                 style={{ 
+                                     animationDelay: `${i * 0.1}s`,
+                                     animationDuration: `${2 + Math.random() * 2}s`
+                                 }}></div>
+                        ))}
+                    </div>
+                </div>
+                
+                {/* Gradient Orbs */}
+                <div className="absolute top-1/3 left-1/4 w-28 h-28 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+                <div className="absolute bottom-1/3 right-1/4 w-20 h-20 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+            </div>
+            
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+                <h2 className="text-3xl font-extrabold text-slate-900 animate-fade-in-up">What You Get With Home Listing AI</h2>
+                <p className="mt-4 max-w-2xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                     Everything you need to dominate your market and close more deals.
                 </p>
-                <div className="mt-12 grid md:grid-cols-2 lg:grid-cols-3 gap-8 text-left">
-                    {items.map(item => (
-                        <div key={item.title} className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60">
+                <div className="mt-12 grid md:grid-cols-2 lg:grid-cols-3 gap-8 text-left animate-fade-in-up animation-delay-400">
+                    {items.map((item, index) => (
+                        <div key={item.title} className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 transform hover:scale-105 transition-all duration-300 hover-lift animate-fade-in-up" 
+                             style={{ animationDelay: `${index * 100}ms` }}>
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center animate-pulse">
                                     <span className="material-symbols-outlined w-7 h-7 text-blue-600">{item.icon}</span>
                                 </div>
                                 <h3 className="text-lg font-bold text-slate-800">{item.title}</h3>
@@ -566,17 +1218,57 @@ const WhatYouGetSectionNew: React.FC = () => {
 };
 
 const TestimonialsSection: React.FC = () => (
-    <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl font-extrabold text-slate-900">Trusted by Real Estate Professionals</h2>
-            <p className="mt-4 text-lg text-slate-600">See how our agency services have helped agents succeed with digital marketing.</p>
-            <div className="mt-12 grid md:grid-cols-3 gap-8 text-left">
+    <section className="py-20 bg-white relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute inset-0 pointer-events-none">
+            {/* Floating Icons */}
+            <div className="absolute top-20 left-10 opacity-5 animate-float">
+                <span className="material-symbols-outlined text-5xl text-blue-500">star</span>
+            </div>
+            <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
+                <span className="material-symbols-outlined text-4xl text-green-500">verified</span>
+            </div>
+            <div className="absolute bottom-20 left-1/4 opacity-5 animate-float-slower">
+                <span className="material-symbols-outlined text-3xl text-purple-500">favorite</span>
+            </div>
+            
+            {/* Geometric Shapes */}
+            <div className="absolute top-60 right-1/3 opacity-5 animate-pulse">
+                <div className="w-20 h-20 border-2 border-blue-300 rounded-full"></div>
+            </div>
+            <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
+                <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
+            </div>
+            
+            {/* Dots Pattern */}
+            <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                <div className="grid grid-cols-20 gap-4 w-full h-full">
+                    {Array.from({ length: 40 }).map((_, i) => (
+                        <div key={i} className="w-1 h-1 bg-blue-300 rounded-full animate-pulse" 
+                             style={{ 
+                                 animationDelay: `${i * 0.25}s`,
+                                 animationDuration: `${2 + Math.random() * 2}s`
+                             }}></div>
+                    ))}
+                </div>
+            </div>
+            
+            {/* Gradient Orbs */}
+            <div className="absolute top-1/3 left-1/4 w-28 h-28 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-20 h-20 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+            <h2 className="text-3xl font-extrabold text-slate-900 animate-fade-in-up">Trusted by Real Estate Professionals</h2>
+            <p className="mt-4 text-lg text-slate-600 animate-fade-in-up animation-delay-200">See how our agency services have helped agents succeed with digital marketing.</p>
+            <div className="mt-12 grid md:grid-cols-3 gap-8 text-left animate-fade-in-up animation-delay-400">
                 {[
                     { name: 'Sarah Martinez', title: 'Top Producer, Coldwell Banker', location: 'Austin, TX', quote: '"Working with this team has been incredible. Their digital marketing strategies helped me triple my business in just 8 months. They really understand real estate!"' },
                     { name: 'Mike Thompson', title: 'RE/MAX Agent', location: 'Phoenix, AZ', quote: '"The team\'s expertise in online marketing and lead nurturing is unmatched. Their systematic approach helped me become a top producer in my office. Highly recommend their services."' },
                     { name: 'Jennifer Chen', title: 'Keller Williams, Team Lead', location: 'Seattle, WA', quote: '"The ROI has been outstanding. We get qualified, changing, daily new buyer/seller leads for our team to engage and work with. It\'s a huge time-saver."' },
-                ].map(t => (
-                    <div key={t.name} className="p-8 bg-slate-50 rounded-2xl border border-slate-200/80">
+                ].map((t, index) => (
+                    <div key={t.name} className="p-8 bg-slate-50 rounded-2xl border border-slate-200/80 transform hover:scale-105 transition-all duration-300 hover-lift animate-fade-in-up" 
+                         style={{ animationDelay: `${index * 200}ms` }}>
                         <p className="text-slate-600 italic">"{t.quote}"</p>
                         <div className="mt-6">
                             <p className="font-bold text-slate-800">{t.name}</p>
@@ -631,33 +1323,71 @@ const FaqSection: React.FC = () => {
 };
 
 const FinalCtaNew: React.FC<{ onNavigateToSignUp: () => void; onEnterDemoMode: () => void; }> = ({ onNavigateToSignUp, onEnterDemoMode }) => (
-    <section className="bg-gradient-to-r from-indigo-700 via-purple-800 to-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
-            <h2 className="text-4xl font-extrabold">Don't Let Another Lead Slip Away</h2>
-            <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-300">
+    <section className="bg-gradient-to-r from-indigo-700 via-purple-800 to-slate-900 text-white relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute inset-0 pointer-events-none">
+            {/* Floating Icons */}
+            <div className="absolute top-20 left-10 opacity-10 animate-float">
+                <span className="material-symbols-outlined text-5xl text-white">rocket_launch</span>
+            </div>
+            <div className="absolute top-40 right-20 opacity-10 animate-float-slow">
+                <span className="material-symbols-outlined text-4xl text-white">star</span>
+            </div>
+            <div className="absolute bottom-20 left-1/4 opacity-10 animate-float-slower">
+                <span className="material-symbols-outlined text-3xl text-white">auto_awesome</span>
+            </div>
+            
+            {/* Geometric Shapes */}
+            <div className="absolute top-60 right-1/3 opacity-10 animate-pulse">
+                <div className="w-20 h-20 border-2 border-white rounded-full"></div>
+            </div>
+            <div className="absolute bottom-40 right-10 opacity-10 animate-bounce">
+                <div className="w-16 h-16 bg-white rounded-lg transform rotate-45"></div>
+            </div>
+            
+            {/* Dots Pattern */}
+            <div className="absolute top-0 left-0 w-full h-full opacity-5">
+                <div className="grid grid-cols-20 gap-4 w-full h-full">
+                    {Array.from({ length: 30 }).map((_, i) => (
+                        <div key={i} className="w-1 h-1 bg-white rounded-full animate-pulse" 
+                             style={{ 
+                                 animationDelay: `${i * 0.3}s`,
+                                 animationDuration: `${2 + Math.random() * 2}s`
+                             }}></div>
+                    ))}
+                </div>
+            </div>
+            
+            {/* Gradient Orbs */}
+            <div className="absolute top-1/3 left-1/4 w-32 h-32 bg-white rounded-full opacity-5 animate-pulse blur-xl"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-24 h-24 bg-white rounded-full opacity-5 animate-pulse blur-xl"></div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center relative z-10">
+            <h2 className="text-4xl font-extrabold animate-fade-in-up">Don't Let Another Lead Slip Away</h2>
+            <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-300 animate-fade-in-up animation-delay-200">
                 While you're thinking about it, your competitors are capturing leads 24/7.
                 Start your HomeListingAI journey today and see results within hours.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+            <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4 animate-fade-in-up animation-delay-400">
                 <button
                     onClick={onNavigateToSignUp}
-                    className="flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-yellow-400 via-orange-400 to-purple-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all text-lg"
+                    className="flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-yellow-400 via-orange-400 to-purple-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all text-lg transform hover:scale-105 btn-animate"
                 >
-                    <span className="material-symbols-outlined">bolt</span>
+                    <span className="material-symbols-outlined animate-pulse">bolt</span>
                     Start Your Seven Day Free Trial
                 </button>
                 <button
                     onClick={onEnterDemoMode}
-                    className="flex items-center justify-center gap-2 px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg"
+                    className="flex items-center justify-center gap-2 px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg transform hover:scale-105 btn-animate"
                 >
-                    <span className="material-symbols-outlined">rocket_launch</span>
+                    <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                     Explore the Live Dashboard
                 </button>
             </div>
-            <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-slate-300">
-                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400">check_circle</span>Setup in under 10 minutes</span>
-                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400">check_circle</span>30-day money-back guarantee</span>
-                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400">check_circle</span>Cancel anytime</span>
+            <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-slate-300 animate-fade-in-up animation-delay-600">
+                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>Setup in under 10 minutes</span>
+                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>30-day money-back guarantee</span>
+                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>Cancel anytime</span>
             </div>
         </div>
     </section>
@@ -712,32 +1442,61 @@ const FooterNew: React.FC<{ onNavigateToAdmin: () => void; }> = ({ onNavigateToA
 );
 
 const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void }> = ({ onNavigateToSignUp, onEnterDemoMode }) => (
-    <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-28">
+    <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-28 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-white"></div>
+        
+        {/* Background Elements */}
+        <div className="absolute inset-0 pointer-events-none">
+            {/* Floating geometric shapes */}
+            <div className="absolute top-20 left-10 w-20 h-20 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-10 animate-float-slow"></div>
+            <div className="absolute top-40 right-20 w-16 h-16 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-8 animate-float"></div>
+            <div className="absolute bottom-20 left-1/4 w-12 h-12 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full opacity-6 animate-float-slower"></div>
+            
+            {/* Floating icons */}
+            <div className="absolute top-60 right-1/3 opacity-5 animate-float">
+                <span className="material-symbols-outlined text-4xl text-blue-500">home</span>
+            </div>
+            <div className="absolute bottom-40 left-1/3 opacity-5 animate-float-slow">
+                <span className="material-symbols-outlined text-3xl text-green-500">trending_up</span>
+            </div>
+            
+            {/* Dots pattern */}
+            <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                <div className="grid grid-cols-20 gap-4 w-full h-full">
+                    {Array.from({ length: 50 }).map((_, i) => (
+                        <div key={i} className="w-1 h-1 bg-blue-300 rounded-full animate-pulse" 
+                             style={{ 
+                                 animationDelay: `${i * 0.2}s`,
+                                 animationDuration: `${2 + Math.random() * 2}s`
+                             }}></div>
+                    ))}
+                </div>
+            </div>
+        </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
-                <div className="text-center lg:text-left">
-                    <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight">
-                        Imagine If You Had a <span className="text-primary-600">24/7 Real Estate Sidekick</span>
+                <div className="text-center lg:text-left relative z-10">
+                    <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight animate-fade-in-up">
+                        Imagine If You Had a <span className="text-primary-600 gradient-text">24/7 Real Estate Sidekick</span>
                     </h1>
-                    <p className="mt-6 max-w-lg mx-auto lg:mx-0 text-lg text-slate-600">
+                    <p className="mt-6 max-w-lg mx-auto lg:mx-0 text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                         It never sleeps, always follows up, and sounds just like you... <a href="#what-you-get" className="font-semibold text-primary-600 hover:underline">and so much more</a>.
                     </p>
-                    <div className="mt-8 flex justify-center lg:justify-start gap-4">
-                        <button onClick={onNavigateToSignUp} className="flex items-center gap-2 px-6 py-3.5 bg-orange-500 text-white font-semibold rounded-lg shadow-md hover:bg-orange-600 transition-all">
-                            <span className="material-symbols-outlined w-5 h-5">auto_awesome</span>
+                    <div className="mt-8 flex justify-center lg:justify-start gap-4 animate-fade-in-up animation-delay-400">
+                        <button onClick={onNavigateToSignUp} className="flex items-center gap-2 px-6 py-3.5 bg-orange-500 text-white font-semibold rounded-lg shadow-md hover:bg-orange-600 transition-all transform hover:scale-105 btn-animate">
+                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
                             Try It Free for 5 Days
                         </button>
-                        <button onClick={onEnterDemoMode} className="flex items-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all">
-                            <span className="material-symbols-outlined">rocket_launch</span>
+                        <button onClick={onEnterDemoMode} className="flex items-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
+                            <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
                         </button>
                     </div>
-                    <p className="mt-3 text-sm text-slate-500 text-center lg:text-left">No card. No pressure. Just power.</p>
+                    <p className="mt-3 text-sm text-slate-500 text-center lg:text-left animate-fade-in-up animation-delay-600">No card. No pressure. Just power.</p>
                 </div>
-                <div className="relative">
+                <div className="relative animate-fade-in-up animation-delay-600">
                     <div className="relative lg:animate-float">
-                         <div className="bg-white/60 backdrop-blur-lg p-6 rounded-2xl shadow-2xl border border-slate-200/80">
+                         <div className="bg-white/60 backdrop-blur-lg p-6 rounded-2xl shadow-2xl border border-slate-200/80 hover-lift">
                             <div className="flex justify-between items-center">
                                 <h3 className="font-bold text-slate-800">AI Agent Dashboard</h3>
                                 <div className="flex space-x-1.5">
@@ -809,6 +1568,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             />
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+                <RevolutionaryAIFeaturesSection />
                 <DashboardShowcaseSection onEnterDemoMode={onEnterDemoMode} />
                 <AIAppShowcaseSection onOpenModal={setActiveModal} />
                 <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenConsultationModal={onOpenConsultationModal} />

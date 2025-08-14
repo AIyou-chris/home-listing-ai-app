@@ -21,7 +21,7 @@ export function isAIDescription(description: any): description is AIDescription 
   return description && typeof description === 'object' && typeof description.title === 'string' && Array.isArray(description.paragraphs);
 }
 
-export type View = 'dashboard' | 'analytics' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'signup' | 'signin' | 'admin-dashboard';
+export type View = 'dashboard' | 'analytics' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'new-landing' | 'signup' | 'signin' | 'admin-dashboard';
 
 export interface Property {
   id: string;
@@ -78,6 +78,8 @@ export interface Lead {
     phone: string;
     date: string;
     lastMessage: string;
+    source?: string;
+    notes?: string;
 }
 
 export interface Appointment {
@@ -116,12 +118,42 @@ export interface Interaction {
 export interface AIPersonality {
     id: string;
     name: string;
-    // ... other personality fields
+    description: string;
+    traits: string[];
+    sampleResponses: {
+        question: string;
+        response: string;
+    }[];
 }
 
 export interface AIVoice {
     id: string;
     name: string;
+    description: string;
+    gender: 'male' | 'female' | 'neutral';
+    accent?: string;
+    sampleUrl?: string;
+}
+
+export interface KnowledgeBasePriority {
+    id: string;
+    name: string;
+    description: string;
+    weights: {
+        agent: number;
+        listing: number;
+        marketing: number;
+    };
+}
+
+export interface PersonalityTest {
+    id: string;
+    question: string;
+    responses: {
+        id: string;
+        text: string;
+        personalityId: string;
+    }[];
 }
 
 export type TriggerType = 'Lead Capture' | 'Appointment Scheduled' | 'Property Viewed' | 'Market Update' | 'Custom';
@@ -260,12 +292,13 @@ export interface AgentTask {
 
 export interface AIAssignment {
     id: string;
-    personalityId: string;
-    propertyId: string;
+    name: string;
+    type: 'listing' | 'agent' | 'helper';
     description: string;
-    status: 'active' | 'paused' | 'completed';
-    name?: string;
+    personalityId?: string;
     voiceId?: string;
+    knowledgePriority: 'agent' | 'listing' | 'marketing' | 'balanced' | 'dynamic';
+    status: 'active' | 'paused' | 'completed';
 }
 
 export interface LocalInfoData {

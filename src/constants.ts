@@ -1,4 +1,4 @@
-import { School, Lead, Appointment, Interaction, Conversation, SocialPost, AgentProfile } from './types';
+import { School, Lead, Appointment, Interaction, Conversation, SocialPost, AgentProfile, AIVoice, KnowledgeBasePriority, PersonalityTest, AIAssignment } from './types';
 import type { AgentTask, AIPersonality } from './types';
 
 export const SAMPLE_AGENT: AgentProfile = {
@@ -84,23 +84,238 @@ export const SAMPLE_TASKS: AgentTask[] = [
 export const AI_PERSONALITIES: AIPersonality[] = [
     {
         id: 'pers-1',
-        name: 'Professional Real Estate Expert'
+        name: 'Professional Real Estate Expert',
+        description: 'A knowledgeable and authoritative voice with deep market expertise',
+        traits: ['Professional', 'Knowledgeable', 'Authoritative', 'Trustworthy', 'Detail-oriented'],
+        sampleResponses: [
+            {
+                question: 'What makes this property a good investment?',
+                response: 'This property offers exceptional value with its prime location, recent upgrades, and strong rental potential. The current market conditions and projected appreciation make it an excellent investment opportunity.'
+            },
+            {
+                question: 'How does this compare to similar properties?',
+                response: 'Based on recent comparable sales in this neighborhood, this property is priced competitively at 5% below market value. The unique features and upgrades provide additional value not found in similar listings.'
+            }
+        ]
     },
     {
         id: 'pers-2',
-        name: 'Friendly Guide'
+        name: 'Friendly Guide',
+        description: 'A warm and approachable assistant who makes clients feel comfortable',
+        traits: ['Friendly', 'Approachable', 'Patient', 'Encouraging', 'Supportive'],
+        sampleResponses: [
+            {
+                question: 'What makes this property a good investment?',
+                response: 'I\'m excited to share why this property is such a great find! It\'s in a wonderful neighborhood with excellent schools, and the recent renovations really make it shine. Plus, the investment potential is fantastic!'
+            },
+            {
+                question: 'How does this compare to similar properties?',
+                response: 'Great question! I\'ve looked at similar homes in the area, and this one really stands out. It\'s priced very competitively, and you\'re getting so much more value for your money. Would you like me to show you the details?'
+            }
+        ]
     },
     {
         id: 'pers-3',
-        name: 'Marketing Specialist'
+        name: 'Marketing Specialist',
+        description: 'A creative and enthusiastic voice focused on highlighting property benefits',
+        traits: ['Creative', 'Enthusiastic', 'Persuasive', 'Innovative', 'Results-driven'],
+        sampleResponses: [
+            {
+                question: 'What makes this property a good investment?',
+                response: 'This property is an absolute GEM! 🏠✨ With its stunning curb appeal, premium finishes, and unbeatable location, it\'s a dream investment that practically sells itself. The ROI potential is off the charts!'
+            },
+            {
+                question: 'How does this compare to similar properties?',
+                response: 'This property is in a league of its own! 💎 While other homes in the area are just houses, this is a lifestyle upgrade. The attention to detail and premium features make it the clear winner in its price range.'
+            }
+        ]
+    },
+    {
+        id: 'pers-4',
+        name: 'Analytical Advisor',
+        description: 'A data-driven expert who provides detailed market insights',
+        traits: ['Analytical', 'Data-driven', 'Precise', 'Thorough', 'Objective'],
+        sampleResponses: [
+            {
+                question: 'What makes this property a good investment?',
+                response: 'Based on my analysis of market data, this property shows a 12.3% annual appreciation rate, 8.7% rental yield potential, and is located in a high-growth corridor. The numbers clearly indicate strong investment viability.'
+            },
+            {
+                question: 'How does this compare to similar properties?',
+                response: 'My comparative market analysis shows this property is priced 7.2% below the median for comparable homes in this area. The price per square foot is $247 vs. the neighborhood average of $267, representing significant value.'
+            }
+        ]
+    },
+    {
+        id: 'pers-5',
+        name: 'Luxury Concierge',
+        description: 'A sophisticated and premium service-oriented assistant',
+        traits: ['Sophisticated', 'Premium', 'Service-oriented', 'Discrete', 'Exclusive'],
+        sampleResponses: [
+            {
+                question: 'What makes this property a good investment?',
+                response: 'This exceptional property represents the pinnacle of luxury real estate investment. Its prestigious address, unparalleled amenities, and exclusive features create a truly distinguished investment opportunity for discerning clients.'
+            },
+            {
+                question: 'How does this compare to similar properties?',
+                response: 'This property transcends typical market comparisons. While other properties may offer similar square footage, none can match the level of sophistication, privacy, and exclusivity that this residence provides to its fortunate owners.'
+            }
+        ]
     }
 ];
 
-export const AI_VOICES = [
-  { id: 'jordan', name: 'Jordan (Professional)' },
-  { id: 'morgan', name: 'Morgan (Friendly)' },
-  { id: 'cameron', name: 'Cameron (Casual)' },
-  { id: 'alex', name: 'Alex (Energetic)' },
-  { id: 'taylor', name: 'Taylor (Warm)' }
+export const AI_VOICES: AIVoice[] = [
+    { 
+        id: 'jordan', 
+        name: 'Jordan (Professional)', 
+        description: 'Clear, confident, and authoritative voice perfect for business interactions',
+        gender: 'male',
+        accent: 'American',
+        sampleUrl: '/samples/jordan-sample.mp3'
+    },
+    { 
+        id: 'morgan', 
+        name: 'Morgan (Friendly)', 
+        description: 'Warm, approachable voice that puts clients at ease',
+        gender: 'female',
+        accent: 'American',
+        sampleUrl: '/samples/morgan-sample.mp3'
+    },
+    { 
+        id: 'cameron', 
+        name: 'Cameron (Casual)', 
+        description: 'Relaxed and conversational tone for informal interactions',
+        gender: 'neutral',
+        accent: 'American',
+        sampleUrl: '/samples/cameron-sample.mp3'
+    },
+    { 
+        id: 'alex', 
+        name: 'Alex (Energetic)', 
+        description: 'Dynamic and enthusiastic voice for engaging presentations',
+        gender: 'male',
+        accent: 'American',
+        sampleUrl: '/samples/alex-sample.mp3'
+    },
+    { 
+        id: 'taylor', 
+        name: 'Taylor (Warm)', 
+        description: 'Gentle and reassuring voice for sensitive conversations',
+        gender: 'female',
+        accent: 'American',
+        sampleUrl: '/samples/taylor-sample.mp3'
+    },
+    { 
+        id: 'sophia', 
+        name: 'Sophia (Luxury)', 
+        description: 'Sophisticated and refined voice for premium properties',
+        gender: 'female',
+        accent: 'British',
+        sampleUrl: '/samples/sophia-sample.mp3'
+    },
+    { 
+        id: 'marcus', 
+        name: 'Marcus (Analytical)', 
+        description: 'Clear and precise voice for data-driven discussions',
+        gender: 'male',
+        accent: 'American',
+        sampleUrl: '/samples/marcus-sample.mp3'
+    }
+];
+
+export const KNOWLEDGE_BASE_PRIORITIES: KnowledgeBasePriority[] = [
+    {
+        id: 'agent-priority',
+        name: 'Agent Knowledge Base',
+        description: 'Company policies, scripts, expertise',
+        weights: { agent: 0.8, listing: 0.1, marketing: 0.1 }
+    },
+    {
+        id: 'listing-priority',
+        name: 'Listing Knowledge Base',
+        description: 'Property details, floor plans, features',
+        weights: { agent: 0.1, listing: 0.8, marketing: 0.1 }
+    },
+    {
+        id: 'marketing-priority',
+        name: 'Market Knowledge Base',
+        description: 'Market data, comps, trends',
+        weights: { agent: 0.1, listing: 0.1, marketing: 0.8 }
+    },
+    {
+        id: 'balanced-priority',
+        name: 'Balanced',
+        description: 'Equal weight to all knowledge bases',
+        weights: { agent: 0.33, listing: 0.33, marketing: 0.34 }
+    },
+    {
+        id: 'dynamic-priority',
+        name: 'Dynamic',
+        description: 'Adapts based on conversation context',
+        weights: { agent: 0.4, listing: 0.3, marketing: 0.3 }
+    }
+];
+
+export const PERSONALITY_TEST_QUESTIONS: PersonalityTest[] = [
+    {
+        id: 'test-1',
+        question: 'How would you describe your ideal client interaction?',
+        responses: [
+            { id: 'resp-1-1', text: 'Professional and data-driven', personalityId: 'pers-1' },
+            { id: 'resp-1-2', text: 'Warm and personal', personalityId: 'pers-2' },
+            { id: 'resp-1-3', text: 'Creative and exciting', personalityId: 'pers-3' },
+            { id: 'resp-1-4', text: 'Analytical and thorough', personalityId: 'pers-4' },
+            { id: 'resp-1-5', text: 'Sophisticated and exclusive', personalityId: 'pers-5' }
+        ]
+    },
+    {
+        id: 'test-2',
+        question: 'What tone should your AI assistant use when discussing properties?',
+        responses: [
+            { id: 'resp-2-1', text: 'Authoritative and knowledgeable', personalityId: 'pers-1' },
+            { id: 'resp-2-2', text: 'Friendly and encouraging', personalityId: 'pers-2' },
+            { id: 'resp-2-3', text: 'Enthusiastic and persuasive', personalityId: 'pers-3' },
+            { id: 'resp-2-4', text: 'Precise and objective', personalityId: 'pers-4' },
+            { id: 'resp-2-5', text: 'Premium and sophisticated', personalityId: 'pers-5' }
+        ]
+    },
+    {
+        id: 'test-3',
+        question: 'How should your AI handle client objections?',
+        responses: [
+            { id: 'resp-3-1', text: 'Provide detailed explanations with facts', personalityId: 'pers-1' },
+            { id: 'resp-3-2', text: 'Listen empathetically and offer reassurance', personalityId: 'pers-2' },
+            { id: 'resp-3-3', text: 'Highlight benefits and create excitement', personalityId: 'pers-3' },
+            { id: 'resp-3-4', text: 'Present data and comparative analysis', personalityId: 'pers-4' },
+            { id: 'resp-3-5', text: 'Address concerns with discretion and class', personalityId: 'pers-5' }
+        ]
+    }
+];
+
+export const DEFAULT_AI_ASSIGNMENTS: AIAssignment[] = [
+    {
+        id: 'listing-sidekick',
+        name: 'Listing Sidekick',
+        type: 'listing',
+        description: 'Specializes in home listings and property-specific information',
+        knowledgePriority: 'listing',
+        status: 'active'
+    },
+    {
+        id: 'agent-sidekick',
+        name: 'Agent Sidekick',
+        type: 'agent',
+        description: 'Represents the real estate agent and handles sales conversations',
+        knowledgePriority: 'agent',
+        status: 'active'
+    },
+    {
+        id: 'helper-sidekick',
+        name: 'Helper Sidekick',
+        type: 'helper',
+        description: 'Helps agents navigate the dashboard and maximize ROI',
+        knowledgePriority: 'balanced',
+        status: 'active'
+    }
 ];
 

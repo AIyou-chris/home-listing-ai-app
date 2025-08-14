@@ -5,6 +5,7 @@ import AddLeadModal from './AddLeadModal';
 import ScheduleAppointmentModal from './ScheduleAppointmentModal';
 import ContactLeadModal from './ContactLeadModal';
 import CalendarView from './CalendarView';
+import ExportModal from './ExportModal';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: string, iconBgColor: string }> = ({ title, value, icon, iconBgColor }) => (
   <div className="bg-white rounded-lg shadow-sm p-5 flex items-center space-x-4">
@@ -121,6 +122,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [schedulingLead, setSchedulingLead] = useState<Lead | null>(null);
     const [contactingLead, setContactingLead] = useState<Lead | null>(null);
 
@@ -181,6 +183,13 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                         >
                             <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
                             <span>Schedule Appointment</span>
+                        </button>
+                        <button 
+                            onClick={() => setIsExportModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg font-semibold shadow-sm hover:bg-slate-700 transition"
+                        >
+                            <span className="material-symbols-outlined w-5 h-5">download</span>
+                            <span>Export Data</span>
                         </button>
                     </div>
                 </header>
@@ -268,6 +277,14 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                     lead={contactingLead}
                     onClose={handleCloseContactModal}
                     onSchedule={() => handleSwitchToSchedule(contactingLead)}
+                />
+            )}
+            {isExportModalOpen && (
+                <ExportModal
+                    isOpen={isExportModalOpen}
+                    onClose={() => setIsExportModalOpen(false)}
+                    leads={leads}
+                    appointments={appointments}
                 />
             )}
         </>

@@ -4,8 +4,9 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from './services/firebase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, AIPersonality, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence, AIAssignment } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
-import { SAMPLE_AGENT, SAMPLE_TASKS, SAMPLE_CONVERSATIONS, SAMPLE_INTERACTIONS, AI_PERSONALITIES } from './constants';
+import { SAMPLE_AGENT, SAMPLE_TASKS, SAMPLE_CONVERSATIONS, SAMPLE_INTERACTIONS, AI_PERSONALITIES, DEFAULT_AI_ASSIGNMENTS } from './constants';
 import LandingPage from './components/LandingPage';
+import NewLandingPage from './components/NewLandingPage';
 import SignUpPage from './components/SignUpPage';
 import SignInPage from './components/SignInPage';
 import Dashboard from './components/Dashboard';
@@ -64,29 +65,7 @@ const App: React.FC = () => {
     const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({ integrationType: 'google', aiScheduling: true, conflictDetection: true, emailReminders: true, autoConfirm: false });
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid'}] });
     const [personalities, setPersonalities] = useState<AIPersonality[]>(AI_PERSONALITIES);
-    const [assignments, setAssignments] = useState<AIAssignment[]>([
-        {
-            id: 'listing-assistant',
-            personalityId: 'pers-1',
-            propertyId: 'default',
-            description: 'Interacts with potential buyers on the public-facing property app.',
-            status: 'active'
-        },
-        {
-            id: 'support-assistant',
-            personalityId: 'pers-2',
-            propertyId: 'default',
-            description: 'Helps you with tasks and information within your dashboard.',
-            status: 'active'
-        },
-        {
-            id: 'marketing-assistant',
-            personalityId: 'pers-1',
-            propertyId: 'default',
-            description: 'Generates marketing content and handles automated lead follow-ups.',
-            status: 'active'
-        }
-    ]);
+    const [assignments, setAssignments] = useState<AIAssignment[]>(DEFAULT_AI_ASSIGNMENTS);
 
 
     useEffect(() => {
@@ -221,6 +200,21 @@ const App: React.FC = () => {
         setNotifications(prev => prev.filter(n => n.id !== id));
     };
 
+    // Task management handlers
+    const handleTaskUpdate = (taskId: string, updates: Partial<AgentTask>) => {
+        setTasks(prev => prev.map(task => 
+            task.id === taskId ? { ...task, ...updates } : task
+        ));
+    };
+
+    const handleTaskAdd = (newTask: AgentTask) => {
+        setTasks(prev => [newTask, ...prev]);
+    };
+
+    const handleTaskDelete = (taskId: string) => {
+        setTasks(prev => prev.filter(task => task.id !== taskId));
+    };
+
     const handleSelectProperty = (id: string) => {
         setSelectedPropertyId(id);
         setView('property');
@@ -323,8 +317,19 @@ const App: React.FC = () => {
                 switch(view) {
                     case 'admin-dashboard': 
                         return <AdminDashboard />;
-                    case 'dashboard': 
-                        return <Dashboard agentProfile={userProfile} properties={properties} leads={leads} appointments={appointments} tasks={tasks} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} />;
+                                case 'dashboard':
+                return <Dashboard 
+                    agentProfile={userProfile} 
+                    properties={properties} 
+                    leads={leads} 
+                    appointments={appointments} 
+                    tasks={tasks} 
+                    onSelectProperty={handleSelectProperty} 
+                    onAddNew={() => setView('add-listing')}
+                    onTaskUpdate={handleTaskUpdate}
+                    onTaskAdd={handleTaskAdd}
+                    onTaskDelete={handleTaskDelete}
+                />;
                     case 'property': 
                         return selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setView('listings')} /> : <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')} />;
                     case 'listings': 
@@ -367,7 +372,18 @@ const App: React.FC = () => {
                         />;
                     // Default to dashboard if logged in and view is somehow invalid
                     default:
-                        return <Dashboard agentProfile={userProfile} properties={properties} leads={leads} appointments={appointments} tasks={tasks} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} />;
+                        return <Dashboard 
+                            agentProfile={userProfile} 
+                            properties={properties} 
+                            leads={leads} 
+                            appointments={appointments} 
+                            tasks={tasks} 
+                            onSelectProperty={handleSelectProperty} 
+                            onAddNew={() => setView('add-listing')}
+                            onTaskUpdate={handleTaskUpdate}
+                            onTaskAdd={handleTaskAdd}
+                            onTaskDelete={handleTaskDelete}
+                        />;
                 }
             };
             
@@ -425,8 +441,19 @@ const App: React.FC = () => {
                     onEnterDemoMode={handleEnterDemoMode} 
                 />;
             case 'landing':
+                return <LandingPage 
+                    onNavigateToSignUp={handleNavigateToSignUp} 
+                    onNavigateToSignIn={handleNavigateToSignIn} 
+                    onEnterDemoMode={handleEnterDemoMode}
+                    scrollToSection={scrollToSection}
+                    onScrollComplete={() => setScrollToSection(null)}
+                    onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                    onNavigateToAdmin={handleNavigateToAdmin}
+                />;
+            case 'new-landing':
+                return <NewLandingPage />;
             default:
-                 return <LandingPage 
+                return <LandingPage 
                     onNavigateToSignUp={handleNavigateToSignUp} 
                     onNavigateToSignIn={handleNavigateToSignIn} 
                     onEnterDemoMode={handleEnterDemoMode}
@@ -453,6 +480,8 @@ const App: React.FC = () => {
             
             <SupportFAB onClick={() => setIsVoiceAssistantOpen(true)} />
             {isVoiceAssistantOpen && <VoiceAssistant onClose={() => setIsVoiceAssistantOpen(false)} />}
+            
+
         </>
     )
 }

@@ -4,8 +4,7 @@ import { Conversation, ChatMessage, Property, AgentProfile, AIBlogPost } from '.
 import { 
     continueConversation, 
     generatePropertyReport, 
-    generateBlogPost,
-    generateSocialPostText
+    generateBlogPost
 } from '../services/geminiService';
 
 // Add declarations for CDN libraries
@@ -18,6 +17,117 @@ declare global {
   }
 }
 
+// --- Chat Templates Data ---
+
+interface ChatTemplate {
+    id: string;
+    title: string;
+    description: string;
+    category: 'lead-followup' | 'property-analysis' | 'market-research' | 'client-communication' | 'marketing';
+    prompt: string;
+    icon: string;
+}
+
+const CHAT_TEMPLATES: ChatTemplate[] = [
+    // Lead Follow-up Templates
+    {
+        id: 'new-lead-followup',
+        title: 'New Lead Follow-up',
+        description: 'Professional follow-up for new leads',
+        category: 'lead-followup',
+        icon: 'person_add',
+        prompt: 'Help me write a professional follow-up message for a new lead who just inquired about a property. Include: thanking them for their interest, offering to schedule a showing, providing my contact information, and asking about their timeline and preferences.'
+    },
+    {
+        id: 'post-showing-followup',
+        title: 'Post-Showing Follow-up',
+        description: 'Follow-up after property showing',
+        category: 'lead-followup',
+        icon: 'home',
+        prompt: 'Create a follow-up message for after showing a property. Include: thanking them for their time, asking for their thoughts and feedback, addressing any concerns they might have, and next steps if they\'re interested.'
+    },
+    {
+        id: 'offer-submission',
+        title: 'Offer Submission Guide',
+        description: 'Guide clients through making an offer',
+        category: 'client-communication',
+        icon: 'handshake',
+        prompt: 'Help me explain to my client the process of submitting an offer on a property. Include: required documents, typical timeline, negotiation strategies, and what to expect during the process.'
+    },
+    
+    // Property Analysis Templates
+    {
+        id: 'property-valuation',
+        title: 'Property Valuation Analysis',
+        description: 'Analyze property value and market position',
+        category: 'property-analysis',
+        icon: 'assessment',
+        prompt: 'Analyze this property\'s value and market position. Consider: recent comparable sales, current market conditions, unique features and upgrades, neighborhood trends, and provide a suggested listing/offer price range.'
+    },
+    {
+        id: 'investment-analysis',
+        title: 'Investment Property Analysis',
+        description: 'Evaluate rental income potential',
+        category: 'property-analysis',
+        icon: 'trending_up',
+        prompt: 'Provide an investment analysis for this property including: estimated rental income, cash flow projections, cap rate calculations, appreciation potential, and overall investment viability.'
+    },
+    
+    // Market Research Templates
+    {
+        id: 'neighborhood-analysis',
+        title: 'Neighborhood Analysis',
+        description: 'Comprehensive area overview',
+        category: 'market-research',
+        icon: 'location_city',
+        prompt: 'Create a comprehensive neighborhood analysis including: demographics, school ratings, amenities, transportation, safety statistics, recent sales trends, and future development plans.'
+    },
+    {
+        id: 'market-trends',
+        title: 'Market Trends Report',
+        description: 'Current market conditions and trends',
+        category: 'market-research',
+        icon: 'analytics',
+        prompt: 'Generate a market trends report covering: current inventory levels, average days on market, price trends over the last 6 months, buyer/seller market conditions, and predictions for the next quarter.'
+    },
+    
+    // Client Communication Templates
+    {
+        id: 'first-time-buyer',
+        title: 'First-Time Buyer Guide',
+        description: 'Comprehensive guide for new buyers',
+        category: 'client-communication',
+        icon: 'school',
+        prompt: 'Create a comprehensive guide for first-time homebuyers covering: the buying process step-by-step, financing options, what to look for in a home, common mistakes to avoid, and timeline expectations.'
+    },
+    {
+        id: 'seller-consultation',
+        title: 'Seller Consultation Prep',
+        description: 'Prepare for listing consultation',
+        category: 'client-communication',
+        icon: 'sell',
+        prompt: 'Help me prepare talking points for a seller consultation including: current market conditions, pricing strategy, marketing plan, staging recommendations, and timeline to sell.'
+    },
+    
+    // Marketing Templates
+    {
+        id: 'listing-description',
+        title: 'Compelling Listing Description',
+        description: 'Write engaging property descriptions',
+        category: 'marketing',
+        icon: 'edit',
+        prompt: 'Write a compelling listing description that highlights the property\'s best features, uses emotional language to help buyers envision living there, includes key details and amenities, and creates urgency without being pushy.'
+    },
+    {
+        id: 'social-media-strategy',
+        title: 'Social Media Strategy',
+        description: 'Plan social media content',
+        category: 'marketing',
+        icon: 'share',
+        prompt: 'Create a social media marketing strategy for this listing including: platform-specific content ideas, posting schedule, hashtag recommendations, and engagement tactics to reach potential buyers.'
+    }
+];
+
 // --- Reusable Components ---
 
 const AIInteractionLoader: React.FC<{className?: string}> = ({ className }) => (
@@ -27,6 +137,229 @@ const AIInteractionLoader: React.FC<{className?: string}> = ({ className }) => (
         <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse"></div>
     </div>
 );
+
+const ChatTemplatesPanel: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSelectTemplate: (template: ChatTemplate) => void;
+}> = ({ isOpen, onClose, onSelectTemplate }) => {
+    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    
+    const categories = [
+        { id: 'all', label: 'All Templates', icon: 'grid_view' },
+        { id: 'lead-followup', label: 'Lead Follow-up', icon: 'person_add' },
+        { id: 'property-analysis', label: 'Property Analysis', icon: 'assessment' },
+        { id: 'market-research', label: 'Market Research', icon: 'analytics' },
+        { id: 'client-communication', label: 'Client Communication', icon: 'chat' },
+        { id: 'marketing', label: 'Marketing', icon: 'campaign' }
+    ];
+    
+    const filteredTemplates = selectedCategory === 'all' 
+        ? CHAT_TEMPLATES 
+        : CHAT_TEMPLATES.filter(t => t.category === selectedCategory);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden">
+                <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-gradient-to-r from-primary-500 to-purple-600 text-white">
+                    <div>
+                        <h2 className="text-2xl font-bold">AI Chat Templates</h2>
+                        <p className="text-primary-100 mt-1">Pre-built prompts for common real estate tasks</p>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-white hover:text-primary-100 transition-colors p-2 rounded-lg hover:bg-white/10"
+                    >
+                        <span className="material-symbols-outlined text-2xl">close</span>
+                    </button>
+                </div>
+
+                <div className="flex h-[calc(90vh-120px)]">
+                    {/* Categories Sidebar */}
+                    <div className="w-72 bg-slate-50 border-r border-slate-200 p-4">
+                        <h3 className="font-semibold text-slate-900 mb-4">Categories</h3>
+                        <div className="space-y-2">
+                            {categories.map(category => (
+                                <button
+                                    key={category.id}
+                                    onClick={() => setSelectedCategory(category.id)}
+                                    className={`w-full text-left p-3 rounded-lg transition-all flex items-center gap-3 ${
+                                        selectedCategory === category.id
+                                            ? 'bg-primary-100 text-primary-700 border-2 border-primary-300'
+                                            : 'hover:bg-slate-200 text-slate-700 border-2 border-transparent'
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined text-xl">{category.icon}</span>
+                                    <div>
+                                        <div className="font-semibold">{category.label}</div>
+                                        <div className="text-xs opacity-75">
+                                            {category.id === 'all' 
+                                                ? `${CHAT_TEMPLATES.length} templates`
+                                                : `${CHAT_TEMPLATES.filter(t => t.category === category.id).length} templates`
+                                            }
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Templates Grid */}
+                    <div className="flex-1 p-6 overflow-y-auto">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {filteredTemplates.map(template => (
+                                <div
+                                    key={template.id}
+                                    className="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-primary-300 hover:shadow-lg transition-all cursor-pointer group"
+                                    onClick={() => {
+                                        onSelectTemplate(template);
+                                        onClose();
+                                    }}
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <div className="flex-shrink-0 w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center group-hover:bg-primary-200 transition-colors">
+                                            <span className="material-symbols-outlined text-primary-600 text-xl">{template.icon}</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-slate-900 mb-2 group-hover:text-primary-700 transition-colors">
+                                                {template.title}
+                                            </h4>
+                                            <p className="text-sm text-slate-600 mb-3 line-clamp-2">
+                                                {template.description}
+                                            </p>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded-full">
+                                                    {template.category.replace('-', ' ')}
+                                                </span>
+                                                <span className="text-xs text-primary-600 font-semibold group-hover:text-primary-700">
+                                                    Use Template →
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const VoiceRecorder: React.FC<{
+    onTranscript: (text: string) => void;
+    isDisabled?: boolean;
+}> = ({ onTranscript, isDisabled }) => {
+    const [isRecording, setIsRecording] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            chunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    chunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(chunksRef.current, { type: 'audio/wav' });
+                setIsProcessing(true);
+                
+                // Here you would typically send the audio to your speech-to-text service
+                // For now, we'll simulate it with a timeout
+                setTimeout(() => {
+                    onTranscript("Voice recording processed! This would contain the transcribed text from your speech.");
+                    setIsProcessing(false);
+                }, 2000);
+
+                // Stop all tracks
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+            setRecordingTime(0);
+            
+            // Start timer
+            timerRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
+
+        } catch (error) {
+            console.error('Error accessing microphone:', error);
+            alert('Could not access microphone. Please check permissions.');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+            }
+        }
+    };
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    if (isProcessing) {
+        return (
+            <div className="flex items-center gap-3 px-4 py-2 bg-primary-50 border border-primary-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-primary-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium text-primary-700">Processing speech...</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (isRecording) {
+        return (
+            <div className="flex items-center gap-3 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium text-red-700">
+                        Recording... {formatTime(recordingTime)}
+                    </span>
+                </div>
+                <button
+                    onClick={stopRecording}
+                    className="px-3 py-1 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-colors"
+                >
+                    Stop
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <button
+            onClick={startRecording}
+            disabled={isDisabled}
+            className="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 disabled:bg-slate-50 disabled:opacity-50 transition-colors shadow-sm"
+            title="Record voice message"
+        >
+            <span className="material-symbols-outlined w-4 h-4 text-slate-600">mic</span>
+        </button>
+    );
+};
 
 const GeneratedContentDisplay: React.FC<{ content: string; title: string; icon: string }> = ({ content, title, icon }) => (
     <div className="mt-6 p-6 bg-slate-50 border border-slate-200 rounded-lg">
@@ -217,6 +550,7 @@ const ChatWindow: React.FC<{
     onBack: () => void;
 }> = ({ conversation, onSendMessage, isAiReplying, onBack }) => {
     const [userInput, setUserInput] = useState('');
+    const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
     const chatContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -229,6 +563,14 @@ const ChatWindow: React.FC<{
             onSendMessage(userInput);
             setUserInput('');
         }
+    };
+
+    const handleTemplateSelect = (template: ChatTemplate) => {
+        setUserInput(template.prompt);
+    };
+
+    const handleVoiceTranscript = (transcript: string) => {
+        setUserInput(prev => prev + ' ' + transcript);
     };
     
     return (
@@ -258,13 +600,54 @@ const ChatWindow: React.FC<{
                 )}
             </main>
             <footer className="p-4 bg-white border-t border-slate-200 flex-shrink-0">
-                <form onSubmit={handleFormSubmit} className="flex items-center space-x-2">
-                    <input type="text" value={userInput} onChange={e => setUserInput(e.target.value)} placeholder="Ask your AI assistant..." className="w-full bg-white border-2 border-slate-200 rounded-full py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" disabled={isAiReplying}/>
-                    <button type="submit" disabled={!userInput.trim() || isAiReplying} className="p-2.5 rounded-full bg-primary-600 text-white hover:bg-primary-700 disabled:bg-slate-300">
+                {/* Templates Button */}
+                <div className="flex items-center justify-between mb-3">
+                    <button
+                        onClick={() => setIsTemplatesOpen(true)}
+                        className="flex items-center gap-2 px-3 py-2 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors text-sm font-medium flex-shrink-0"
+                    >
+                        <span className="material-symbols-outlined text-base leading-none">library_books</span>
+                        <span>Templates</span>
+                    </button>
+                    <div className="text-xs text-slate-500 hidden sm:block">
+                        💡 Use templates for common tasks or record voice messages
+                    </div>
+                </div>
+                
+                {/* Chat Input with Voice Recorder Inside */}
+                <form onSubmit={handleFormSubmit} className="flex items-end gap-2">
+                    <div className="flex-1 relative">
+                        <textarea 
+                            value={userInput} 
+                            onChange={e => setUserInput(e.target.value)} 
+                            placeholder="Ask your AI assistant anything, use a template, or record a voice message..." 
+                            className="w-full bg-white border-2 border-slate-200 rounded-lg py-2.5 px-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none" 
+                            disabled={isAiReplying}
+                            rows={userInput.length > 100 ? 3 : 1}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleFormSubmit(e);
+                                }
+                            }}
+                        />
+                        {/* Voice Recorder positioned inside textarea */}
+                        <div className="absolute right-2 bottom-2">
+                            <VoiceRecorder onTranscript={handleVoiceTranscript} isDisabled={isAiReplying} />
+                        </div>
+                    </div>
+                    <button type="submit" disabled={!userInput.trim() || isAiReplying} className="p-2.5 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:bg-slate-300 flex-shrink-0">
                         <span className="material-symbols-outlined w-5 h-5">send</span>
                     </button>
                 </form>
             </footer>
+            
+            {/* Templates Modal */}
+            <ChatTemplatesPanel 
+                isOpen={isTemplatesOpen}
+                onClose={() => setIsTemplatesOpen(false)}
+                onSelectTemplate={handleTemplateSelect}
+            />
         </div>
     );
 };
@@ -279,7 +662,7 @@ interface AIChatPageProps {
     setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
     onBackToDashboard: () => void;
 }
-type ActiveTab = 'chat' | 'reports' | 'blog' | 'social';
+type ActiveTab = 'chat' | 'reports' | 'blog';
 
 const AIChatPage: React.FC<AIChatPageProps> = ({ properties, agentProfile, conversations, setConversations, onBackToDashboard }) => {
     const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
@@ -314,10 +697,7 @@ const AIChatPage: React.FC<AIChatPageProps> = ({ properties, agentProfile, conve
     const [isGeneratingBlog, setIsGeneratingBlog] = useState(false);
     const [blogContent, setBlogContent] = useState<AIBlogPost | null>(null);
 
-    // State for Social Posts Tab
-    const [socialPropId, setSocialPropId] = useState<string>(properties[0]?.id || '');
-    const [isGeneratingSocial, setIsGeneratingSocial] = useState(false);
-    const [socialContent, setSocialContent] = useState('');
+
 
     // Refs for PDF generation
     const reportRef = useRef<HTMLDivElement>(null);
@@ -403,17 +783,6 @@ const AIChatPage: React.FC<AIChatPageProps> = ({ properties, agentProfile, conve
         }
         setIsGeneratingBlog(false);
     };
-    
-    const handleGenerateSocial = async () => {
-        const prop = properties.find(p => p.id === socialPropId);
-        if (!prop) return;
-        setIsGeneratingSocial(true);
-        setSocialContent('');
-        // Using a generic platform array for now
-        const content = await generateSocialPostText(prop, ['facebook', 'instagram']);
-        setSocialContent(content);
-        setIsGeneratingSocial(false);
-    };
 
     const activeConversation = conversations.find(c => c.id === activeConversationId);
     const selectedPropertyForReport = properties.find(p => p.id === reportPropId);
@@ -422,7 +791,6 @@ const AIChatPage: React.FC<AIChatPageProps> = ({ properties, agentProfile, conve
         { id: 'chat', label: 'AI Content', icon: 'chat_bubble' },
         { id: 'reports', label: 'Property Reports', icon: 'analytics' },
         { id: 'blog', label: 'Blog & Articles', icon: 'edit' },
-        { id: 'social', label: 'Social Posts', icon: 'rss_feed' },
     ];
 
     const renderContent = () => {
@@ -590,20 +958,6 @@ const AIChatPage: React.FC<AIChatPageProps> = ({ properties, agentProfile, conve
                              )}
                         </div>
                     </div>
-                </div>
-            );
-            case 'social': return (
-                <div className="p-4 sm:p-6 lg:p-8">
-                    <h3 className="text-xl font-bold text-slate-800">Generate Social Media Post</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 items-end">
-                        <div className="md:col-span-2">
-                            <label htmlFor="social-prop" className="block text-sm font-semibold text-slate-700 mb-1.5">Select Property</label>
-                            <div className="relative"><select id="social-prop" value={socialPropId} onChange={e => setSocialPropId(e.target.value)} className="w-full appearance-none bg-white px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"><option value="" disabled>Select a property</option>{properties.map(p => <option key={p.id} value={p.id}>{p.address}</option>)}</select><span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span></div>
-                        </div>
-                        <button onClick={handleGenerateSocial} disabled={isGeneratingSocial || !socialPropId} className="w-full md:w-auto px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg shadow-sm hover:bg-primary-700 disabled:bg-slate-400 flex items-center justify-center gap-2"><span className="material-symbols-outlined w-5 h-5">auto_awesome</span>{isGeneratingSocial ? 'Generating...' : 'Generate Post'}</button>
-                    </div>
-                    {isGeneratingSocial && <div className="mt-6 flex justify-center"><AIInteractionLoader className="text-2xl" /></div>}
-                    {socialContent && <GeneratedContentDisplay content={socialContent} title="Generated Social Post" icon="rss_feed" />}
                 </div>
             );
         }
