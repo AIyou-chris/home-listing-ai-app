@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
+import EmailTemplateModal from './EmailTemplateModal';
+import SequenceTemplateModal from './SequenceTemplateModal';
 import { TriggerType, FollowUpSequence, SequenceStep } from '../types';
+import { EmailTemplate } from '../constants/emailTemplates';
+// TODO: Add drag and drop functionality later
+// import { DndContext, closestCenter } from '@dnd-kit/core';
 
 interface SequenceEditorModalProps {
     sequence?: FollowUpSequence | null;
@@ -17,6 +22,52 @@ const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => 
 const Textarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = (props) => (
     <textarea {...props} className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
 );
+
+// Validation functions
+const validateStep = (step: SequenceStep): string[] => {
+    const errors: string[] = [];
+    
+    if (!step.content.trim()) {
+        errors.push('Content is required');
+    }
+    
+    if ((step.type === 'email' || step.type === 'ai-email') && !step.subject?.trim()) {
+        errors.push('Subject is required for emails');
+    }
+    
+    if (step.delay.value <= 0) {
+        errors.push('Delay must be greater than 0');
+    }
+    
+    if (step.type === 'meeting' && step.meetingDetails) {
+        if (!step.meetingDetails.location?.trim()) {
+            errors.push('Meeting location is required');
+        }
+    }
+    
+    return errors;
+};
+
+const validateSequence = (name: string, steps: SequenceStep[]): string[] => {
+    const errors: string[] = [];
+    
+    if (!name.trim()) {
+        errors.push('Sequence name is required');
+    }
+    
+    if (steps.length === 0) {
+        errors.push('At least one step is required');
+    }
+    
+    steps.forEach((step, index) => {
+        const stepErrors = validateStep(step);
+        stepErrors.forEach(error => {
+            errors.push(`Step ${index + 1}: ${error}`);
+        });
+    });
+    
+    return errors;
+};
 
 const StepEditor: React.FC<{ step: SequenceStep; onUpdate: (field: keyof SequenceStep, value: any) => void; onRemove: () => void; }> = ({ step, onUpdate, onRemove }) => {
     const icons = {
@@ -95,11 +146,24 @@ const StepEditor: React.FC<{ step: SequenceStep; onUpdate: (field: keyof Sequenc
                 </div>
             )}
              <div>
-                <Label htmlFor={`content-${step.id}`}>
-                    {step.type === 'meeting' ? 'Notes' : 
-                     step.type === 'ai-email' ? 'AI Prompt' :
-                     'Content'}
-                </Label>
+                <div className="flex items-center justify-between mb-1.5">
+                    <Label htmlFor={`content-${step.id}`}>
+                        {step.type === 'meeting' ? 'Notes' : 
+                         step.type === 'ai-email' ? 'AI Prompt' :
+                         'Content'}
+                    </Label>
+                    {(step.type === 'email' || step.type === 'ai-email') && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent('openEmailTemplates', { detail: step.id }));
+                            }}
+                            className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                        >
+                            Use Template
+                        </button>
+                    )}
+                </div>
                 <Textarea 
                     id={`content-${step.id}`} 
                     rows={4} 
@@ -122,6 +186,16 @@ const SequenceEditorModal: React.FC<SequenceEditorModalProps> = ({ sequence, onC
     const [description, setDescription] = useState('');
     const [triggerType, setTriggerType] = useState<TriggerType>('Lead Capture');
     const [steps, setSteps] = useState<SequenceStep[]>([]);
+    
+    // Template modal state
+    const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+    const [editingStepId, setEditingStepId] = useState<string | null>(null);
+    
+    // Sequence template modal state
+    const [isSequenceTemplateModalOpen, setIsSequenceTemplateModalOpen] = useState(false);
+    
+    // Validation state
+    const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
     useEffect(() => {
         if (sequence) {
@@ -136,6 +210,19 @@ const SequenceEditorModal: React.FC<SequenceEditorModalProps> = ({ sequence, onC
             setSteps([]);
         }
     }, [sequence]);
+
+    // Listen for template modal events
+    useEffect(() => {
+        const handleOpenTemplates = (event: CustomEvent) => {
+            setEditingStepId(event.detail);
+            setIsTemplateModalOpen(true);
+        };
+
+        window.addEventListener('openEmailTemplates', handleOpenTemplates as EventListener);
+        return () => {
+            window.removeEventListener('openEmailTemplates', handleOpenTemplates as EventListener);
+        };
+    }, []);
 
     const handleAddStep = (type: 'email' | 'task' | 'meeting' | 'ai-email') => {
         const newStep: SequenceStep = {
@@ -156,8 +243,51 @@ const SequenceEditorModal: React.FC<SequenceEditorModalProps> = ({ sequence, onC
         setSteps(prev => prev.filter(s => s.id !== stepId));
     };
 
+    const handleTemplateSelect = (template: EmailTemplate) => {
+        if (editingStepId) {
+            // Apply template to existing step
+            setSteps(prev => prev.map(step => {
+                if (step.id === editingStepId && (step.type === 'email' || step.type === 'ai-email')) {
+                    return {
+                        ...step,
+                        subject: template.subject,
+                        content: template.content
+                    };
+                }
+                return step;
+            }));
+        } else {
+            // Create new email step with template
+            const newStep: SequenceStep = {
+                id: `step-${Date.now()}`,
+                type: 'email',
+                delay: { value: 1, unit: 'days' },
+                content: template.content,
+                subject: template.subject
+            };
+            setSteps(prev => [...prev, newStep]);
+        }
+        setEditingStepId(null);
+    };
+
+    const handleSequenceTemplateSelect = (sequenceTemplate: Omit<FollowUpSequence, 'id'>) => {
+        setName(sequenceTemplate.name);
+        setDescription(sequenceTemplate.description);
+        setTriggerType(sequenceTemplate.triggerType);
+        setSteps(sequenceTemplate.steps);
+        setValidationErrors([]);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Validate the sequence
+        const errors = validateSequence(name, steps);
+        if (errors.length > 0) {
+            setValidationErrors(errors);
+            return;
+        }
+        
         const sequenceData: FollowUpSequence = {
             id: sequence?.id || `seq-${Date.now()}`,
             name,
@@ -171,8 +301,8 @@ const SequenceEditorModal: React.FC<SequenceEditorModalProps> = ({ sequence, onC
 
     const titleNode = (
         <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined w-6 h-6 text-primary-600">sparkles</span>
-            <h3 className="text-xl font-bold text-slate-800">{sequence ? 'Edit Sequence' : 'Create New Sequence'}</h3>
+            <span className="material-symbols-outlined w-5 h-5 text-primary-600 flex-shrink-0">auto_awesome</span>
+            <span className="text-xl font-bold text-slate-800">{sequence ? 'Edit Sequence' : 'Create New Sequence'}</span>
         </div>
     );
 
@@ -189,6 +319,21 @@ const SequenceEditorModal: React.FC<SequenceEditorModalProps> = ({ sequence, onC
                             <Label htmlFor="seq-desc">Description</Label>
                             <Textarea id="seq-desc" rows={2} placeholder="A short description of this sequence's purpose." value={description} onChange={e => setDescription(e.target.value)} />
                         </div>
+                        
+                        {/* Validation Errors */}
+                        {validationErrors.length > 0 && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="material-symbols-outlined w-4 h-4 text-red-600">error</span>
+                                    <h4 className="text-sm font-semibold text-red-800">Please fix the following errors:</h4>
+                                </div>
+                                <ul className="text-xs text-red-700 list-disc list-inside space-y-1">
+                                    {validationErrors.map((error, index) => (
+                                        <li key={index}>{error}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                         <div>
                             <Label htmlFor="seq-trigger">Trigger</Label>
                              <div className="relative">
@@ -221,19 +366,93 @@ const SequenceEditorModal: React.FC<SequenceEditorModalProps> = ({ sequence, onC
                                 />
                             ))}
                         </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                            <button type="button" onClick={() => handleAddStep('email')} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200">
-                                <span className="material-symbols-outlined w-4 h-4">add</span> Add Email
-                            </button>
-                            <button type="button" onClick={() => handleAddStep('ai-email')} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">
+                        <div className="mt-4 space-y-3">
+                            {/* Template Browser */}
+                            {/* Sequence Template Section */}
+                            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg mb-4">
+                                <div>
+                                    <h4 className="text-sm font-semibold text-purple-800">🚀 Sequence Templates</h4>
+                                    <p className="text-xs text-purple-600">Start with proven, complete sequences</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSequenceTemplateModalOpen(true)}
+                                    className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all text-sm font-medium"
+                                >
+                                    <span className="material-symbols-outlined w-4 h-4">auto_awesome</span>
+                                    Choose Template
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div>
+                                    <h4 className="text-sm font-semibold text-blue-800">Email Templates</h4>
+                                    <p className="text-xs text-blue-600">Professional templates for every situation</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setEditingStepId(null);
+                                        setIsTemplateModalOpen(true);
+                                    }}
+                                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                                >
+                                    <span className="material-symbols-outlined w-4 h-4">library_books</span>
+                                    Browse Templates
+                                </button>
+                            </div>
+                            
+                            {/* Manual Step Buttons */}
+                            <div className="flex flex-wrap gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={() => handleAddStep('email')} 
+                                    className="group relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-all"
+                                    title="Send a personalized email with custom subject and content"
+                                >
+                                    <span className="material-symbols-outlined w-4 h-4">add</span> Add Email
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                        Send personalized email
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-slate-800"></div>
+                                    </div>
+                                </button>
+                            <button 
+                                type="button" 
+                                onClick={() => handleAddStep('ai-email')} 
+                                className="group relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200 transition-all"
+                                title="Let AI write and send a personalized email based on your prompt"
+                            >
                                 <span className="material-symbols-outlined w-4 h-4">add</span> Add AI Email
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                    AI writes personalized email
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-slate-800"></div>
+                                </div>
                             </button>
-                            <button type="button" onClick={() => handleAddStep('task')} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-md hover:bg-yellow-200">
+                            <button 
+                                type="button" 
+                                onClick={() => handleAddStep('task')} 
+                                className="group relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-md hover:bg-yellow-200 transition-all"
+                                title="Create a reminder task for you or your team to complete"
+                            >
                                 <span className="material-symbols-outlined w-4 h-4">add</span> Add Task
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                    Create reminder task
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-slate-800"></div>
+                                </div>
                             </button>
-                            <button type="button" onClick={() => handleAddStep('meeting')} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200">
+                            <button 
+                                type="button" 
+                                onClick={() => handleAddStep('meeting')} 
+                                className="group relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200 transition-all"
+                                title="Schedule an appointment or meeting with date, time, and location"
+                            >
                                 <span className="material-symbols-outlined w-4 h-4">add</span> Add Meeting
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                    Schedule appointment
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-slate-800"></div>
+                                </div>
                             </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -246,6 +465,24 @@ const SequenceEditorModal: React.FC<SequenceEditorModalProps> = ({ sequence, onC
                     </button>
                 </div>
             </form>
+            
+            {/* Email Template Modal */}
+            {isTemplateModalOpen && (
+                <EmailTemplateModal
+                    onClose={() => {
+                        setIsTemplateModalOpen(false);
+                        setEditingStepId(null);
+                    }}
+                    onSelectTemplate={handleTemplateSelect}
+                />
+            )}
+            
+            {isSequenceTemplateModalOpen && (
+                <SequenceTemplateModal
+                    onClose={() => setIsSequenceTemplateModalOpen(false)}
+                    onSelectTemplate={handleSequenceTemplateSelect}
+                />
+            )}
         </Modal>
     );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
+import { emailAuthService, EmailConnection } from '../services/emailAuthService';
 
 interface SettingsPageProps {
     userProfile: AgentProfile;
@@ -121,18 +122,26 @@ const IntegrationCard: React.FC<{
         <button
             type="button"
             onClick={onClick}
-            className={`p-5 text-left rounded-xl border-2 transition-all w-full h-full flex flex-col ${isSelected ? 'border-primary-500 bg-primary-50 shadow-lg' : 'border-slate-200 bg-white hover:border-primary-300 hover:shadow-md'}`}
+            className={`p-4 sm:p-5 text-left rounded-xl border-2 transition-all w-full h-full flex flex-col min-h-[140px] sm:min-h-[160px] ${
+                isSelected 
+                    ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200' 
+                    : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-md hover:bg-slate-50 active:bg-slate-100'
+            }`}
         >
-            <div className="flex items-center gap-4 mb-3">
-                <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${isSelected ? 'bg-primary-500' : 'bg-slate-100'}`}>
-                    <span className={`material-symbols-outlined w-6 h-6 ${isSelected ? 'text-white' : 'text-slate-600'}`}>{icon}</span>
+            <div className="flex items-center gap-3 sm:gap-4 mb-3">
+                <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center ${
+                    isSelected ? 'bg-blue-500' : 'bg-slate-100'
+                }`}>
+                    <span className={`material-symbols-outlined w-5 h-5 sm:w-6 sm:h-6 ${
+                        isSelected ? 'text-white' : 'text-slate-600'
+                    }`}>{icon}</span>
                 </div>
-                <h4 className="text-lg font-bold text-slate-800">{title}</h4>
+                <h4 className="text-base sm:text-lg font-bold text-slate-800">{title}</h4>
             </div>
-            <p className="text-sm text-slate-600 flex-grow">{description}</p>
-            <div className="mt-4 flex items-center gap-2">
+            <p className="text-xs sm:text-sm text-slate-600 flex-grow leading-relaxed">{description}</p>
+            <div className="mt-3 sm:mt-4 flex items-center gap-2 flex-wrap">
                 {tags.map(tag => (
-                    <span key={tag.label} className={`px-2 py-0.5 text-xs font-semibold rounded-full ${tagColors[tag.color]}`}>
+                    <span key={tag.label} className={`px-2 py-1 text-xs font-semibold rounded-full ${tagColors[tag.color]}`}>
                         {tag.label}
                     </span>
                 ))}
@@ -175,7 +184,7 @@ const PlanFeature: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile, notificationSettings, onSaveNotifications, emailSettings, onSaveEmailSettings, calendarSettings, onSaveCalendarSettings, billingSettings, onSaveBillingSettings, onBackToDashboard }) => {
-    const [activeTab, setActiveTab] = useState('billing');
+    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('billing');
     const [profileFormData, setProfileFormData] = useState<AgentProfile>(userProfile);
     const [emailFormData, setEmailFormData] = useState<EmailSettings>(emailSettings);
     const [calendarFormData, setCalendarFormData] = useState<CalendarSettings>(calendarSettings);
@@ -185,11 +194,53 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         newPassword: '',
         confirmNewPassword: '',
     });
+    
+    // Email connection state
+    const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([]);
+    const [isConnecting, setIsConnecting] = useState<string | null>(null);
 
 
     useEffect(() => {
         setCurrentNotifications(notificationSettings);
+        // Load existing email connections
+        setEmailConnections(emailAuthService.getConnections());
     }, [notificationSettings]);
+
+    // Email connection handlers
+    const handleGmailConnect = async () => {
+        setIsConnecting('gmail');
+        try {
+            const connection = await emailAuthService.connectGmail();
+            setEmailConnections(prev => [...prev.filter(c => c.provider !== 'gmail'), connection]);
+        } catch (error) {
+            console.error('Gmail connection failed:', error);
+            alert('Failed to connect Gmail. Please try again.');
+        } finally {
+            setIsConnecting(null);
+        }
+    };
+
+    const handleOutlookConnect = async () => {
+        setIsConnecting('outlook');
+        try {
+            const connection = await emailAuthService.connectOutlook();
+            setEmailConnections(prev => [...prev.filter(c => c.provider !== 'outlook'), connection]);
+        } catch (error) {
+            console.error('Outlook connection failed:', error);
+            alert('Failed to connect Outlook. Please try again.');
+        } finally {
+            setIsConnecting(null);
+        }
+    };
+
+    const handleEmailDisconnect = async (provider: 'gmail' | 'outlook') => {
+        try {
+            await emailAuthService.disconnect(provider);
+            setEmailConnections(prev => prev.filter(c => c.provider !== provider));
+        } catch (error) {
+            console.error('Disconnect failed:', error);
+        }
+    };
      useEffect(() => {
         setProfileFormData(userProfile);
     }, [userProfile]);
@@ -285,7 +336,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 <TabButton
                                     key={tab.id}
                                     isActive={activeTab === tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
+                                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
                                     icon={tab.icon}
                                 >
                                     {tab.label}
@@ -305,117 +356,236 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                            <div className="p-8">...</div>
                         )}
                          {activeTab === 'email' && (
-                            <form onSubmit={handleEmailSettingsSave} className="p-8">
+                            <form onSubmit={handleEmailSettingsSave} className="p-8 space-y-8">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-slate-900">Email Integration</h2>
-                                    <p className="text-slate-500 mt-1">Choose how to connect your email for AI-powered lead management.</p>
+                                    <h2 className="text-2xl font-bold text-slate-900">📧 Email Settings</h2>
+                                    <p className="text-slate-500 mt-1">Connect your email accounts and configure your email preferences for automated sequences.</p>
                                 </div>
 
-                                <div className="mt-8 pt-8 border-t border-slate-200">
-                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Connection Method</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <IntegrationCard
-                                            icon="mail"
-                                            title="Email Forwarding"
-                                            description="The easiest way to get started. Set up a simple forwarding rule in your email client."
-                                            tags={[{ label: 'Easy Start', color: 'blue' }, { label: 'Good', color: 'green' }]}
-                                            isSelected={emailFormData.integrationType === 'forwarding'}
-                                            onClick={() => handleEmailSettingsChange('integrationType', 'forwarding')}
-                                        />
-                                        <IntegrationCard
-                                            icon="shield"
-                                            title="Direct Connection"
-                                            description="Recommended for professionals. Connect your Google or Microsoft account for perfect authenticity."
-                                            tags={[{ label: 'Recommended', color: 'purple' }, { label: 'Best', color: 'green' }]}
-                                            isSelected={emailFormData.integrationType === 'oauth'}
-                                            onClick={() => handleEmailSettingsChange('integrationType', 'oauth')}
-                                        />
+                                {/* Email Account Connections */}
+                                <div className="bg-white rounded-lg border border-slate-200 p-6">
+                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Email Account Connections</h3>
+                                    <p className="text-sm text-slate-600 mb-4">
+                                        Connect your email accounts to send follow-up sequences and automated emails directly from your own inbox.
+                                    </p>
+                                    
+                                    <div className="space-y-4">
+                                        {/* Connection Options */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                            {/* OAuth Connection */}
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                                <h4 className="text-sm font-semibold text-blue-800 mb-2">🔐 Direct Connection (Recommended)</h4>
+                                                <div className="text-xs text-blue-700 space-y-1">
+                                                    <p>• Works with Gmail & Outlook</p>
+                                                    <p>• 100% authentic emails (no "via" tags)</p>
+                                                    <p>• Best deliverability & reputation</p>
+                                                    <p>• One-click setup with OAuth</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Email Forwarding */}
+                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                                <h4 className="text-sm font-semibold text-green-800 mb-2">📧 Email Forwarding (Any Provider)</h4>
+                                                <div className="text-xs text-green-700 space-y-1">
+                                                    <p>• Works with ANY email provider</p>
+                                                    <p>• Yahoo, AOL, custom domains, etc.</p>
+                                                    <p>• Simple forwarding rule setup</p>
+                                                    <p>• All replies come to your inbox</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Current Setup Status */}
+                                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
+                                            <h4 className="text-sm font-semibold text-slate-700 mb-2">📬 Your Unique Forwarding Address</h4>
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="text"
+                                                    readOnly
+                                                    value={`agent-${userProfile.email?.split('@')[0] || 'demo'}@homelistingai.com`}
+                                                    className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded text-sm font-mono"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => navigator.clipboard.writeText(`agent-${userProfile.email?.split('@')[0] || 'demo'}@homelistingai.com`)}
+                                                    className="px-3 py-2 bg-slate-600 text-white text-xs rounded hover:bg-slate-700 transition"
+                                                >
+                                                    Copy
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-slate-600 mt-2">
+                                                Set up a forwarding rule in your email client to forward leads to this address. 
+                                                <a href="#" className="text-blue-600 hover:underline ml-1">View setup guide →</a>
+                                            </p>
+                                        </div>
+
+                                        {/* Email preview */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">Email Preview</label>
+                                            <div className="mt-2 p-3 bg-white border border-slate-200 rounded-md text-sm">
+                                                <p><strong>From:</strong> {userProfile.name} &lt;{userProfile.email}&gt;</p>
+                                                <p className="text-xs text-green-600">✓ Looks 100% authentic</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Connection Status */}
+                                        <div className="space-y-4">
+                                            {/* Connected Accounts */}
+                                            {emailConnections.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <h4 className="text-sm font-medium text-slate-700">Connected Accounts</h4>
+                                                    {emailConnections.map(connection => (
+                                                        <div key={connection.provider} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="text-lg">
+                                                                    {connection.provider === 'gmail' ? '📧' : '📬'}
+                                                                </span>
+                                                                <div>
+                                                                    <p className="font-medium text-green-800">{connection.email}</p>
+                                                                    <p className="text-xs text-green-600">Connected {new Date(connection.connectedAt).toLocaleDateString()}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handleEmailDisconnect(connection.provider)}
+                                                                className="text-xs px-3 py-1 text-red-600 hover:bg-red-100 rounded"
+                                                            >
+                                                                Disconnect
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Connection Buttons */}
+                                            <div className="flex flex-col sm:flex-row gap-3">
+                                                {!emailConnections.find(c => c.provider === 'gmail') && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleGmailConnect}
+                                                        disabled={isConnecting === 'gmail'}
+                                                        className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 transition"
+                                                    >
+                                                        {isConnecting === 'gmail' ? (
+                                                            <>
+                                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                <span className="font-semibold">Connecting...</span>
+                                                            </>
+                                                        ) : (
+                                                            <span className="font-semibold">📧 Connect Gmail</span>
+                                                        )}
+                                                    </button>
+                                                )}
+
+                                                {!emailConnections.find(c => c.provider === 'outlook') && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleOutlookConnect}
+                                                        disabled={isConnecting === 'outlook'}
+                                                        className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-orange-600 text-white rounded-lg shadow-sm hover:bg-orange-700 disabled:opacity-50 transition"
+                                                    >
+                                                        {isConnecting === 'outlook' ? (
+                                                            <>
+                                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                <span className="font-semibold">Connecting...</span>
+                                                            </>
+                                                        ) : (
+                                                            <span className="font-semibold">📬 Connect Outlook</span>
+                                                        )}
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Help Text */}
+                                            {emailConnections.length === 0 && (
+                                                <div className="space-y-3">
+                                                    <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded p-3">
+                                                        <p className="font-medium text-blue-800 mb-1">🔐 OAuth Connection</p>
+                                                        <p>Secure authentication. Your password is never stored or seen by our app.</p>
+                                                    </div>
+                                                    
+                                                    <div className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded p-3">
+                                                        <p className="font-medium text-amber-800 mb-1">💡 Don't have Gmail or Outlook?</p>
+                                                        <p>No problem! Use the forwarding address above with any email provider (Yahoo, AOL, custom domain, etc.). Just set up email forwarding in your current email client.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 
-                                {emailFormData.integrationType === 'forwarding' && (
-                                    <div className="mt-8 pt-8 border-t border-slate-200">
-                                        <h3 className="text-xl font-bold text-slate-800 mb-4">Email Forwarding Setup</h3>
-                                        <div className="p-6 bg-slate-50 rounded-lg border border-slate-200 space-y-4">
-                                            <div>
-                                                <h4 className="font-semibold text-slate-700">How it Works</h4>
-                                                <p className="text-sm text-slate-600 mt-1">Simply set up a rule in your email client (like Gmail or Outlook) to automatically forward new lead emails to the unique address below. Our AI will then process them for you.</p>
-                                            </div>
-                                            <div>
-                                                <label htmlFor="forwardingAddress" className="block text-sm font-semibold text-slate-700 mb-1.5">Your Unique Forwarding Address</label>
-                                                <input id="forwardingAddress" type="text" readOnly value={`agent-${userProfile.email?.split('@')[0] || '123'}@homelistingai.com`} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-semibold text-slate-700">How it Looks to Clients</h4>
-                                                <p className="text-sm text-slate-600 mt-1">When we send emails on your behalf, some email clients may show a "via homelistingai.com" notice.</p>
-                                                <div className="mt-2 p-3 bg-white border border-slate-200 rounded-md text-sm">
-                                                    <p><strong>From:</strong> {userProfile.name} &lt;{userProfile.email}&gt;</p>
-                                                    <p className="text-xs text-slate-500">via homelistingai.com</p>
-                                                </div>
-                                            </div>
+
+
+
+                                {/* Email Preferences */}
+                                <div className="bg-white rounded-lg border border-slate-200 p-6">
+                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">✉️ Email Preferences</h3>
+                                    
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label htmlFor="fromName" className="block text-sm font-medium text-slate-700 mb-1">
+                                                Display Name
+                                            </label>
+                                            <input
+                                                type="text"
+                                                id="fromName"
+                                                name="fromName"
+                                                value={emailFormData.fromName || ''}
+                                                onChange={(e) => handleEmailSettingsChange('fromName', e.target.value)}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="Your Name"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="signature" className="block text-sm font-medium text-slate-700 mb-1">
+                                                Email Signature
+                                            </label>
+                                            <textarea
+                                                id="signature"
+                                                name="signature"
+                                                value={emailFormData.signature || ''}
+                                                onChange={(e) => handleEmailSettingsChange('signature', e.target.value)}
+                                                rows={4}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="Best regards,&#10;Your Name&#10;Real Estate Agent&#10;Phone: (555) 123-4567"
+                                            />
+                                        </div>
+
+                                        <div className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                id="autoReply"
+                                                name="autoReply"
+                                                checked={emailFormData.autoReply || false}
+                                                onChange={(e) => handleEmailSettingsChange('autoReply', e.target.checked)}
+                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+                                            />
+                                            <label htmlFor="autoReply" className="ml-2 block text-sm text-slate-700">
+                                                Enable auto-reply for new leads
+                                            </label>
+                                        </div>
+
+                                        <div className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                id="trackOpens"
+                                                name="trackOpens"
+                                                checked={emailFormData.trackOpens || false}
+                                                onChange={(e) => handleEmailSettingsChange('trackOpens', e.target.checked)}
+                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+                                            />
+                                            <label htmlFor="trackOpens" className="ml-2 block text-sm text-slate-700">
+                                                Track email opens and clicks
+                                            </label>
                                         </div>
                                     </div>
-                                )}
+                                </div>
 
-                                {emailFormData.integrationType === 'oauth' && (
-                                    <div className="mt-8 pt-8 border-t border-slate-200">
-                                        <h3 className="text-xl font-bold text-slate-800 mb-4">Direct Account Connection</h3>
-                                        <div className="p-6 bg-slate-50 rounded-lg border border-slate-200 space-y-4">
-                                             <div>
-                                                <h4 className="font-semibold text-slate-700">How it Works</h4>
-                                                <p className="text-sm text-slate-600 mt-1">Connect your email account securely using OAuth. We never see or store your password. This sends emails directly from your account, ensuring perfect deliverability and professionalism.</p>
-                                            </div>
-                                             <div>
-                                                <h4 className="font-semibold text-slate-700">How it Looks to Clients</h4>
-                                                <p className="text-sm text-slate-600 mt-1">Emails appear exactly as if you sent them yourself. No "via" tags, no branding from us.</p>
-                                                <div className="mt-2 p-3 bg-white border border-slate-200 rounded-md text-sm">
-                                                    <p><strong>From:</strong> {userProfile.name} &lt;{userProfile.email}&gt;</p>
-                                                    <p className="text-xs text-green-600">✓ Looks 100% authentic</p>
-                                                </div>
-                                            </div>
-                                            <div className="pt-4 flex flex-col sm:flex-row gap-4">
-                                                 <button type="button" className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 transition">
-                                                    <span className="material-symbols-outlined w-6 h-6">google</span>
-                                                    <span className="font-semibold text-slate-700">Connect with Google</span>
-                                                 </button>
-                                                  <button type="button" className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 transition">
-                                                    <span className="material-symbols-outlined w-6 h-6">microsoft</span>
-                                                    <span className="font-semibold text-slate-700">Connect with Microsoft</span>
-                                                 </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <FeatureSection title="AI Email Features" icon="sparkles">
-                                    <FeatureToggleRow
-                                        label="AI Email Processing"
-                                        description="Let the AI read, categorize, and summarize incoming emails."
-                                        enabled={emailFormData.aiEmailProcessing}
-                                        onToggle={(val) => handleEmailSettingsChange('aiEmailProcessing', val)}
-                                    />
-                                    <FeatureToggleRow
-                                        label="Smart Auto-Reply"
-                                        description="Automatically send AI-generated replies to common inquiries."
-                                        enabled={emailFormData.autoReply}
-                                        onToggle={(val) => handleEmailSettingsChange('autoReply', val)}
-                                    />
-                                    <FeatureToggleRow
-                                        label="AI Lead Scoring"
-                                        description="Prioritize hot leads by analyzing email content and intent."
-                                        enabled={emailFormData.leadScoring}
-                                        onToggle={(val) => handleEmailSettingsChange('leadScoring', val)}
-                                    />
-                                    <FeatureToggleRow
-                                        label="Automated Follow-up Enrollment"
-                                        description="Automatically enroll new leads into your follow-up sequences."
-                                        enabled={emailFormData.followUpSequences}
-                                        onToggle={(val) => handleEmailSettingsChange('followUpSequences', val)}
-                                    />
-                                </FeatureSection>
-
-                                <div className="mt-8 pt-5 border-t border-slate-200 flex justify-end">
-                                    <button type="submit" className="px-6 py-2.5 font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition">
+                                <div className="flex justify-end">
+                                    <button
+                                        type="submit"
+                                        className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                    >
                                         Save Email Settings
                                     </button>
                                 </div>
@@ -428,8 +598,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     <p className="text-slate-500 mt-1">Connect your calendar to sync appointments and automate scheduling.</p>
                                 </div>
                                  <div className="mt-8 pt-8 border-t border-slate-200">
-                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Choose Calendar Service</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="mb-4">
+                                        <h3 className="text-lg font-semibold text-slate-800">Choose Calendar Service</h3>
+                                        <p className="text-sm text-slate-500 mt-1">Tap a card to select your preferred calendar</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
                                         <IntegrationCard
                                             icon="calendar_month"
                                             title="Google Calendar"
@@ -447,7 +620,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                             onClick={() => handleCalendarSettingsChange('integrationType', 'outlook')}
                                         />
                                          <IntegrationCard
-                                            icon="apple"
+                                            icon="calendar_month"
                                             title="Apple Calendar"
                                             description="Integrate with your iCloud Calendar."
                                             tags={[{ label: 'Apple', color: 'green' }]}
@@ -479,7 +652,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                          </div>
                                     </div>
                                 )}
-                                <FeatureSection title="AI Scheduling Features" icon="sparkles">
+                                <FeatureSection title="AI Scheduling Features" icon="calendar_today">
                                     <FeatureToggleRow label="AI Scheduling" description="Let the AI assistant find optimal times and book appointments directly." enabled={calendarFormData.aiScheduling} onToggle={(val) => handleCalendarSettingsChange('aiScheduling', val)} />
                                     <FeatureToggleRow label="Conflict Detection" description="Prevent double-bookings by checking real-time availability." enabled={calendarFormData.conflictDetection} onToggle={(val) => handleCalendarSettingsChange('conflictDetection', val)} />
                                     <FeatureToggleRow label="Automatic Email Reminders" description="Send automated reminders to clients before an appointment." enabled={calendarFormData.emailReminders} onToggle={(val) => handleCalendarSettingsChange('emailReminders', val)} />
@@ -534,6 +707,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 </div>
                            </div>
                         )}
+                        
                         {activeTab === 'billing' && (
                            <div className="p-8">
                                 <header className="mb-8">
@@ -643,12 +817,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 </div>
                            </div>
                         )}
-                        {activeTab !== 'profile' && activeTab !== 'notifications' && activeTab !== 'email' && activeTab !== 'calendar' && activeTab !== 'security' && activeTab !== 'billing' && (
-                            <div className="text-center py-20 p-8">
-                                <h2 className="text-xl font-semibold text-slate-700">Coming Soon</h2>
-                                <p className="text-slate-500 mt-2">This settings page is under construction.</p>
-                            </div>
-                        )}
+                                        {activeTab !== 'profile' && activeTab !== 'notifications' && activeTab !== 'email' && activeTab !== 'calendar' && activeTab !== 'security' && activeTab !== 'billing' && (
+                    <div className="text-center py-20 p-8">
+                        <h2 className="text-xl font-semibold text-slate-700">Coming Soon</h2>
+                        <p className="text-slate-500 mt-2">This settings page is under construction.</p>
+                    </div>
+                )}
                     </main>
                 </div>
             </div>
