@@ -80,6 +80,16 @@ export interface Lead {
     lastMessage: string;
     source?: string;
     notes?: string;
+    score?: LeadScore;
+    behaviors?: LeadBehavior[];
+}
+
+export interface LeadBehavior {
+    id: string;
+    eventType: TriggerEventType;
+    description: string;
+    timestamp: string;
+    metadata?: { [key: string]: any };
 }
 
 export interface Appointment {
@@ -178,6 +188,85 @@ export interface FollowUpSequence {
     triggerType: TriggerType;
     steps: SequenceStep[];
     isActive: boolean;
+    analytics?: SequenceAnalytics;
+    smartTriggers?: SmartTrigger[];
+}
+
+// Sequence Performance Analytics
+export interface SequenceAnalytics {
+    totalLeads: number;
+    emailsSent: number;
+    emailsOpened: number;
+    emailsClicked: number;
+    tasksCompleted: number;
+    meetingsScheduled: number;
+    appointmentsBooked: number;
+    responsesReceived: number;
+    openRate: number;
+    clickRate: number;
+    responseRate: number;
+    appointmentRate: number;
+    avgResponseTime: number; // in hours
+    lastUpdated: string;
+}
+
+// Smart Triggers
+export interface SmartTrigger {
+    id: string;
+    name: string;
+    description: string;
+    eventType: TriggerEventType;
+    conditions: TriggerCondition[];
+    isActive: boolean;
+    priority: number; // 1-10, higher = more priority
+    cooldownPeriod: number; // hours before trigger can fire again for same lead
+}
+
+export type TriggerEventType = 
+    | 'website_visit'
+    | 'email_open' 
+    | 'email_click'
+    | 'property_view'
+    | 'form_submission'
+    | 'phone_call'
+    | 'appointment_scheduled'
+    | 'document_download'
+    | 'video_watched'
+    | 'lead_score_change';
+
+export interface TriggerCondition {
+    field: string;
+    operator: 'equals' | 'contains' | 'greater_than' | 'less_than' | 'exists';
+    value: string | number;
+}
+
+// Lead Scoring
+export interface LeadScore {
+    leadId: string;
+    totalScore: number;
+    scoreHistory: ScoreEvent[];
+    lastUpdated: string;
+    tier: 'Cold' | 'Warm' | 'Hot' | 'Qualified';
+}
+
+export interface ScoreEvent {
+    id: string;
+    eventType: string;
+    points: number;
+    description: string;
+    timestamp: string;
+    sequenceId?: string;
+    stepId?: string;
+}
+
+export interface ScoringRule {
+    id: string;
+    name: string;
+    eventType: string;
+    points: number;
+    description: string;
+    isActive: boolean;
+    maxOccurrences?: number; // max times this rule can award points per lead
 }
 
 export interface MarketingVideo {
@@ -226,6 +315,10 @@ export interface EmailSettings {
     autoReply: boolean;
     leadScoring: boolean;
     followUpSequences: boolean;
+    fromEmail?: string;
+    fromName?: string;
+    signature?: string;
+    trackOpens?: boolean;
 }
 
 export interface BillingSettings {

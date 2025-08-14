@@ -53,10 +53,10 @@ const PerformanceOverview: React.FC<{ data: AnalyticsData['performanceOverview']
         <StatCard title="Avg. AI Response" value={data.avgAiResponseTime} icon="schedule" iconBgColor="bg-orange-100" iconColor="text-orange-600" />
       </div>
 
-      <div className="mt-8 pt-8 border-t border-slate-200 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1">
+      <div className="mt-8 pt-8 border-t border-slate-200 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
           <h4 className="text-lg font-bold text-slate-800 mb-4">Lead Funnel</h4>
-          <div className="space-y-8">
+          <div className="space-y-6">
             <FunnelStep
               icon="group"
               title="Leads Captured"
@@ -88,18 +88,59 @@ const PerformanceOverview: React.FC<{ data: AnalyticsData['performanceOverview']
             />
           </div>
         </div>
-        <div className="lg:col-span-2">
-           <h4 className="text-lg font-bold text-slate-800 mb-4">Lead & Appointment Trends</h4>
-           <div className="h-96 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center">
-             <p className="text-slate-500">Trend chart coming soon.</p>
-           </div>
+        <div>
+          <h4 className="text-lg font-bold text-slate-800 mb-4">Source Performance</h4>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="border-b border-slate-200 text-slate-500">
+                  <tr>
+                    <th className="py-3 px-3 font-semibold">Source</th>
+                    <th className="py-3 px-3 font-semibold text-center">Leads</th>
+                    <th className="py-3 px-3 font-semibold text-center">Conv. Rate</th>
+                    <th className="py-3 px-3 font-semibold text-center">Appointments</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DEMO_ANALYTICS_DATA.leadSourceAnalysis.map((source, index) => {
+                    const appointments = Math.round((source.leadCount * source.conversionRate) / 100);
+                    const iconMapping: Record<LeadSourceIconType, React.ReactElement> = {
+                      app: <span className="material-symbols-outlined w-5 h-5 text-blue-600">smartphone</span>,
+                      facebook: <FacebookIcon className="w-5 h-5 text-blue-800" />,
+                      zillow: <span className="material-symbols-outlined w-5 h-5 text-teal-600">home_work</span>,
+                      manual: <span className="material-symbols-outlined w-5 h-5 text-slate-600">edit</span>,
+                    };
+                    return (
+                      <tr key={index} className="border-b border-slate-100 hover:bg-white">
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm">
+                              {iconMapping[source.icon]}
+                            </div>
+                            <span className="font-medium text-slate-700">{source.sourceName}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-bold text-slate-800 text-center">{source.leadCount}</td>
+                        <td className="py-3 px-3 text-slate-600 text-center">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            {source.conversionRate.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-bold text-primary-700 text-center">{appointments}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-const LeadSourceAnalysis: React.FC<{ data: AnalyticsData['leadSourceAnalysis'] }> = ({ data }) => {
+const LeadSourceBreakdown: React.FC<{ data: AnalyticsData['leadSourceAnalysis'] }> = ({ data }) => {
     const iconMapping: Record<LeadSourceIconType, React.ReactElement> = {
         app: <span className="material-symbols-outlined w-5 h-5 text-blue-600">smartphone</span>,
         facebook: <FacebookIcon className="w-5 h-5 text-blue-800" />,
@@ -107,51 +148,35 @@ const LeadSourceAnalysis: React.FC<{ data: AnalyticsData['leadSourceAnalysis'] }
         manual: <span className="material-symbols-outlined w-5 h-5 text-slate-600">edit</span>,
     };
 
+    const totalLeads = data.reduce((sum, source) => sum + source.leadCount, 0);
+
   return (
     <div className="mt-8 bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
-      <h3 className="text-xl font-bold text-slate-800 mb-6">Lead Source Analysis</h3>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1">
-            <h4 className="text-lg font-bold text-slate-800 mb-4">Leads by Source</h4>
-            <div className="h-64 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center">
-                <p className="text-slate-500">Donut chart component would go here.</p>
+      <h3 className="text-xl font-bold text-slate-800 mb-6">Lead Source Breakdown</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {data.map((source, index) => {
+          const percentage = ((source.leadCount / totalLeads) * 100).toFixed(1);
+          return (
+            <div key={index} className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm">
+                  {iconMapping[source.icon]}
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800">{source.leadCount}</h4>
+                  <p className="text-xs text-slate-500">leads</p>
+                </div>
+              </div>
+              <h5 className="font-semibold text-slate-700 mb-1">{source.sourceName}</h5>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">{percentage}% of total</span>
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  {source.conversionRate.toFixed(1)}%
+                </span>
+              </div>
             </div>
-        </div>
-        <div className="lg:col-span-2">
-            <h4 className="text-lg font-bold text-slate-800 mb-4">Source Performance</h4>
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                    <thead className="border-b border-slate-200 text-slate-500">
-                        <tr>
-                            <th className="py-2 px-3 font-semibold">Source</th>
-                            <th className="py-2 px-3 font-semibold text-center">Leads</th>
-                            <th className="py-2 px-3 font-semibold text-center">Conv. Rate</th>
-                            <th className="py-2 px-3 font-semibold text-center">Appointments</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {data.map((source, index) => {
-                            const appointments = Math.round((source.leadCount * source.conversionRate) / 100);
-                            return (
-                                <tr key={index} className="border-b border-slate-100 hover:bg-slate-50">
-                                    <td className="py-3 px-3">
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full">
-                                                {iconMapping[source.icon]}
-                                            </div>
-                                            <span className="font-medium text-slate-700">{source.sourceName}</span>
-                                        </div>
-                                    </td>
-                                    <td className="py-3 px-3 font-medium text-slate-800 text-center">{source.leadCount}</td>
-                                    <td className="py-3 px-3 text-slate-600 text-center">{source.conversionRate.toFixed(1)}%</td>
-                                    <td className="py-3 px-3 font-bold text-primary-700 text-center">{appointments}</td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -163,7 +188,7 @@ const AnalyticsPage: React.FC = () => {
   return (
     <div className="space-y-8">
       <PerformanceOverview data={data.performanceOverview} />
-      <LeadSourceAnalysis data={data.leadSourceAnalysis} />
+      <LeadSourceBreakdown data={data.leadSourceAnalysis} />
     </div>
   );
 };

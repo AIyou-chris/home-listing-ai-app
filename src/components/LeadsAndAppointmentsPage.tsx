@@ -6,6 +6,8 @@ import ScheduleAppointmentModal from './ScheduleAppointmentModal';
 import ContactLeadModal from './ContactLeadModal';
 import CalendarView from './CalendarView';
 import ExportModal from './ExportModal';
+import LeadScoringDashboard from './LeadScoringDashboard';
+import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor } from '../services/leadScoringService';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: string, iconBgColor: string }> = ({ title, value, icon, iconBgColor }) => (
   <div className="bg-white rounded-lg shadow-sm p-5 flex items-center space-x-4">
@@ -118,7 +120,7 @@ interface LeadsAndAppointmentsPageProps {
 }
 
 const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ leads, appointments, onAddNewLead, onBackToDashboard }) => {
-    const [activeTab, setActiveTab] = useState<'leads' | 'appointments'>('leads');
+    const [activeTab, setActiveTab] = useState<'leads' | 'appointments' | 'scoring'>('leads');
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -220,6 +222,14 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                             >
                                 Appointments
                             </TabButton>
+                            <TabButton 
+                                isActive={activeTab === 'scoring'}
+                                onClick={() => setActiveTab('scoring')}
+                                icon="analytics"
+                                count={0}
+                            >
+                                Lead Scoring
+                            </TabButton>
                         </nav>
                     </div>
                     
@@ -241,7 +251,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
 
                     {activeTab === 'leads' ? (
                         <LeadsList leads={leads} onSchedule={handleOpenScheduleModal} onContact={handleOpenContactModal} />
-                    ) : (
+                    ) : activeTab === 'appointments' ? (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="lg:col-span-2">
                                 <CalendarView appointments={appointments} />
@@ -250,6 +260,14 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                                 <AppointmentsList appointments={appointments} />
                             </div>
                         </div>
+                    ) : (
+                        <LeadScoringDashboard 
+                            leads={leads}
+                            onLeadSelect={(lead) => {
+                                setContactingLead(lead);
+                                setIsContactModalOpen(true);
+                            }}
+                        />
                     )}
                 </main>
             </div>

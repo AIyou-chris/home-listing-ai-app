@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Property, FollowUpSequence } from '../types';
 import SequenceEditorModal from './CreateSequenceModal';
+import SequenceAnalyticsModal from './SequenceAnalyticsModal';
 import LeadFollowUpsPage from './LeadFollowUpsPage';
 import AnalyticsPage from './AnalyticsPage';
 import { DEMO_FAT_LEADS, DEMO_ACTIVE_FOLLOWUPS } from '../demoConstants';
@@ -22,9 +23,9 @@ const SequencesContent: React.FC<{ sequences: FollowUpSequence[], setSequences: 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h3 className="text-xl font-bold text-slate-800">Follow-up Sequences</h3>
-                <button onClick={() => openModal(null)} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition">
+                <button onClick={() => openModal(null)} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition whitespace-nowrap">
                     <span className="material-symbols-outlined w-5 h-5">add</span>
-                    <span>Create Sequence</span>
+                    <span>Create New Sequence</span>
                 </button>
             </div>
             <div className="mt-6 space-y-4">
@@ -45,7 +46,14 @@ const SequencesContent: React.FC<{ sequences: FollowUpSequence[], setSequences: 
                             <button onClick={() => toggleActive(seq.id)} className={`px-3 py-1 text-sm font-semibold rounded-full ${seq.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
                                 {seq.isActive ? 'Active' : 'Inactive'}
                             </button>
-                            <button onClick={() => openModal(seq)} className="p-2 rounded-md hover:bg-slate-200">
+                            <button 
+                                onClick={() => window.dispatchEvent(new CustomEvent('openSequenceAnalytics', { detail: seq }))}
+                                className="p-2 rounded-md hover:bg-blue-100 group"
+                                title="View analytics"
+                            >
+                                <span className="material-symbols-outlined w-4 h-4 text-slate-600 group-hover:text-blue-600">monitoring</span>
+                            </button>
+                            <button onClick={() => openModal(seq)} className="p-2 rounded-md hover:bg-slate-200" title="Edit sequence">
                                 <span className="material-symbols-outlined w-4 h-4 text-slate-600">edit</span>
                             </button>
                         </div>
@@ -180,6 +188,10 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
     // Sequence state
     const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
     const [editingSequence, setEditingSequence] = useState<FollowUpSequence | null>(null);
+    
+    // Analytics modal state
+    const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+    const [analyticsSequence, setAnalyticsSequence] = useState<FollowUpSequence | null>(null);
 
     const handleSaveSequence = (sequenceData: FollowUpSequence) => {
         setSequences(prev => {
@@ -194,6 +206,19 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
         });
         setIsSequenceModalOpen(false);
     };
+
+    // Listen for analytics modal events
+    useEffect(() => {
+        const handleOpenAnalytics = (event: CustomEvent) => {
+            setAnalyticsSequence(event.detail);
+            setIsAnalyticsModalOpen(true);
+        };
+
+        window.addEventListener('openSequenceAnalytics', handleOpenAnalytics as EventListener);
+        return () => {
+            window.removeEventListener('openSequenceAnalytics', handleOpenAnalytics as EventListener);
+        };
+    }, []);
 
     const tabs = [
         { id: 'analytics', label: 'Analytics', icon: 'monitoring' },
@@ -251,6 +276,15 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
                 </main>
             </div>
              {isSequenceModalOpen && <SequenceEditorModal sequence={editingSequence} onClose={() => setIsSequenceModalOpen(false)} onSave={handleSaveSequence} />}
+             {isAnalyticsModalOpen && analyticsSequence && (
+                <SequenceAnalyticsModal
+                    sequence={analyticsSequence}
+                    onClose={() => {
+                        setIsAnalyticsModalOpen(false);
+                        setAnalyticsSequence(null);
+                    }}
+                />
+            )}
         </div>
     );
 };
