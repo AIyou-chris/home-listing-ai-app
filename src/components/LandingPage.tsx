@@ -895,6 +895,10 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                                 <span className="text-5xl font-extrabold text-slate-900">$59</span>
                                 <span className="text-xl font-medium text-slate-500">/mo</span>
                             </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                                <span className="line-through text-slate-400">Normally $99</span> 
+                                <span className="ml-2 text-green-600 font-semibold">40% OFF</span>
+                            </p>
                             <p className="mt-1 text-sm text-slate-500">Up to 5 Active Listings</p>
                             <ul className="mt-8 space-y-4">
                                 <PlanFeature>Full Dashboard Access</PlanFeature>

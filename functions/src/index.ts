@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { GoogleGenerativeAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Initialize Firebase Admin SDK
 admin.initializeApp();
@@ -13,9 +13,9 @@ const db = admin.firestore();
 const propertiesCollection = db.collection('properties');
 
 // Voice transcription using Google Speech-to-Text (via Gemini)
-export const transcribeVoice = functions.https.onCall(async (data, context) => {
+export const transcribeVoice = functions.https.onCall(async (data: any, context) => {
     try {
-        const { audioData } = data;
+        // const { audioData } = data; // Not used in demo
         
         // For now, we'll use a placeholder since Google Speech-to-Text requires additional setup
         // In production, you'd use Google Cloud Speech-to-Text API
@@ -30,7 +30,7 @@ export const transcribeVoice = functions.https.onCall(async (data, context) => {
 });
 
 // Get AI response for voice chat using Gemini
-export const voiceChatResponse = functions.https.onCall(async (data, context) => {
+export const voiceChatResponse = functions.https.onCall(async (data: any, context) => {
     try {
         const { message, propertyId, chatHistory } = data;
 
@@ -68,9 +68,9 @@ Please provide a helpful response:`;
 });
 
 // Convert text to speech using Google Text-to-Speech
-export const generateSpeech = functions.https.onCall(async (data, context) => {
+export const generateSpeech = functions.https.onCall(async (data: any, context) => {
     try {
-        const { text, voice = 'en-US-Neural2-A' } = data;
+        const { text } = data; // voice removed for simplicity
         
         // For now, we'll use a placeholder since Google Text-to-Speech requires additional setup
         // In production, you'd use Google Cloud Text-to-Speech API
@@ -85,7 +85,7 @@ export const generateSpeech = functions.https.onCall(async (data, context) => {
 });
 
 // Generate property description using Gemini
-export const generatePropertyDescription = functions.https.onCall(async (data, context) => {
+export const generatePropertyDescription = functions.https.onCall(async (data: any, context) => {
     try {
         const { property } = data;
         
@@ -131,7 +131,7 @@ Format the response as JSON with "title" and "paragraphs" fields.`;
 });
 
 // Answer property questions using Gemini
-export const answerPropertyQuestion = functions.https.onCall(async (data, context) => {
+export const answerPropertyQuestion = functions.https.onCall(async (data: any, context) => {
     try {
         const { property, question } = data;
         
@@ -166,7 +166,7 @@ Please provide a helpful, accurate answer based on the property information. Kee
 });
 
 // Continue conversation using Gemini
-export const continueConversation = functions.https.onCall(async (data, context) => {
+export const continueConversation = functions.https.onCall(async (data: any, context) => {
     try {
         const { messages } = data;
         
@@ -194,7 +194,7 @@ Please provide a helpful response that continues the conversation:`;
 });
 
 // Generate market analysis using Gemini
-export const getMarketAnalysis = functions.https.onCall(async (data, context) => {
+export const getMarketAnalysis = functions.https.onCall(async (data: any, context) => {
     try {
         const { address } = data;
         
@@ -225,8 +225,93 @@ Keep it concise and informative for potential buyers.`;
     }
 });
 
+// Generate comprehensive property report using Gemini
+export const generatePropertyReport = functions.https.onCall(async (data: any, context) => {
+    try {
+        const { property, options } = data;
+        
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        
+        console.log("Generating property report for:", property.address);
+        
+        // Build enhanced property context with real data if available
+        let propertyContext = `
+        Property Details:
+        - Address: ${property.address}
+        - Type: ${property.propertyType || 'residential'}
+        - Size: ${property.squareFeet?.toLocaleString()} sq ft
+        - Bedrooms: ${property.bedrooms}
+        - Bathrooms: ${property.bathrooms}
+        - Listed Price: $${property.price?.toLocaleString()}
+        - Features: ${property.features?.join(', ') || 'Standard features'}
+        `;
+        
+        // Add real property data if available
+        if (options.realPropertyData) {
+            const realData = options.realPropertyData;
+            propertyContext += `
+        
+        Real Market Data (Enhanced with Datafiniti):
+        - Estimated Value: $${realData.estimatedValue?.toLocaleString() || 'N/A'}
+        - Rental Estimate: $${realData.rentEstimate?.toLocaleString() || 'N/A'}/month
+        - Walk Score: ${realData.walkScore || 'N/A'}/100
+        - Safety Score: ${realData.crimeScore || 'N/A'}/100
+        - School District: ${realData.schoolDistrict || 'N/A'}
+        - Neighborhood: ${realData.neighborhood || 'N/A'}
+        - Year Built: ${realData.yearBuilt || 'N/A'}
+        - Lot Size: ${realData.lotSize?.toLocaleString() || 'N/A'} sq ft
+        `;
+        }
+        
+        // Build content sections based on selected options
+        let contentSections = [];
+        
+        if (options.marketAnalysis) {
+            contentSections.push("## Market Analysis\nProvide current market conditions, pricing trends, and market positioning for this property type and area.");
+        }
+        
+        if (options.comparableProperties) {
+            contentSections.push("## Comparable Properties\nAnalyze similar properties in the area, comparing features, pricing, and market performance.");
+        }
+        
+        if (options.neighborhoodInfo) {
+            contentSections.push("## Neighborhood Highlights\nDescribe the neighborhood amenities, schools, transportation, and lifestyle factors that make this area attractive.");
+        }
+        
+        const prompt = `Create a professional real estate market report for this property:
+        
+        ${propertyContext}
+        
+        Generate a comprehensive report with the following sections:
+        ${contentSections.join('\n\n')}
+        
+        ## Investment Summary
+        Provide an overall investment recommendation and key takeaways.
+        
+        Requirements:
+        - Professional tone suitable for client presentations
+        - Use actual data provided where available
+        - Include specific numbers and market insights
+        - Format with clear headings and bullet points
+        - 800-1200 words total
+        - Focus on value proposition and market opportunity
+        
+        Make this report compelling for potential buyers or investors while remaining factual and professional.`;
+        
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        
+        console.log("Property report generated successfully");
+        return { text };
+    } catch (error) {
+        console.error("Property report generation error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to generate property report");
+    }
+});
+
 // Generate blog post using Gemini
-export const generateBlogPost = functions.https.onCall(async (data, context) => {
+export const generateBlogPost = functions.https.onCall(async (data: any, context) => {
     try {
         const { topic, tone, length } = data;
         
@@ -249,7 +334,7 @@ export const generateBlogPost = functions.https.onCall(async (data, context) => 
 });
 
 // Generate social media post using Gemini
-export const generateSocialPostText = functions.https.onCall(async (data, context) => {
+export const generateSocialPostText = functions.https.onCall(async (data: any, context) => {
     try {
         const { property, platform, tone } = data;
         
@@ -276,7 +361,7 @@ Make it engaging, include relevant hashtags, and encourage engagement. Keep it a
 });
 
 // Get local information using Gemini
-export const getLocalInfo = functions.https.onCall(async (data, context) => {
+export const getLocalInfo = functions.https.onCall(async (data: any, context) => {
     try {
         const { address, category } = data;
         
