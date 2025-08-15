@@ -13,7 +13,7 @@ export const SAMPLE_AGENT: AgentProfile = {
     { platform: 'LinkedIn', url: 'https://linkedin.com' },
   ],
   brandColor: '#0ea5e9', // a nice sky blue
-  logoUrl: '', // Let's leave this empty to avoid finding a fake logo
+  logoUrl: 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?q=80&w=200&h=80&auto=format&fit=crop&crop=center', // Professional real estate logo placeholder
   website: 'https://prestigeproperties.com',
   bio: 'With over 15 years of experience in the luxury market, Sarah Johnson combines deep market knowledge with a passion for client success. Her dedication and expertise make her a trusted advisor for buyers and sellers of distinguished properties.'
 };
