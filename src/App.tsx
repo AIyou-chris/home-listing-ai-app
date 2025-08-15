@@ -19,7 +19,7 @@ import InteractionHubPage from './components/InteractionHubPage';
 import AIChatPage from './components/AIChatPage';
 import KnowledgeBasePage from './components/KnowledgeBasePage';
 import MarketingPage from './components/MarketingPage';
-import SettingsPage from './components/SettingsPage';
+// import SettingsPage from './components/SettingsPage'; // Temporarily disabled for Voice Assistant deployment
 import SupportFAB from './components/SupportFAB';
 import VoiceAssistant from './components/VoiceAssistant';
 import ContactLeadModal from './components/ConsultationModal';
@@ -60,7 +60,12 @@ const App: React.FC = () => {
 
     // Mock data for settings
     const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
-    const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({ newLead: true, appointmentScheduled: true, aiInteraction: false, weeklySummary: true });
+    const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({ 
+    newLead: true, 
+    appointmentScheduled: true, 
+    aiInteraction: false,
+    weeklySummary: true
+  });
     const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
     const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({ integrationType: 'google', aiScheduling: true, conflictDetection: true, emailReminders: true, autoConfirm: false });
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid'}] });
@@ -344,12 +349,7 @@ const App: React.FC = () => {
                         return <AIChatPage properties={properties} agentProfile={userProfile} conversations={conversations} setConversations={setConversations} onBackToDashboard={() => setView('dashboard')} />;
                     case 'knowledge-base': 
                         return <KnowledgeBasePage 
-                            properties={properties} 
-                            personalities={personalities} 
-                            setPersonalities={setPersonalities} 
-                            assignments={assignments}
-                            setAssignments={setAssignments}
-                            onBackToDashboard={() => setView('dashboard')} 
+                            agentProfile={userProfile}
                         />;
                     case 'marketing': 
                         return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
@@ -362,14 +362,20 @@ const App: React.FC = () => {
                             onTimeRangeChange={setAnalyticsTimeRange}
                         />;
                     case 'settings': 
-                        return <SettingsPage 
-                            userProfile={userProfile} onSaveProfile={setUserProfile}
-                            notificationSettings={notificationSettings} onSaveNotifications={setNotificationSettings}
-                            emailSettings={emailSettings} onSaveEmailSettings={setEmailSettings}
-                            calendarSettings={calendarSettings} onSaveCalendarSettings={setCalendarSettings}
-                            billingSettings={billingSettings} onSaveBillingSettings={setBillingSettings}
-                            onBackToDashboard={() => setView('dashboard')}
-                        />;
+                        return (
+                            <div className="bg-slate-50 min-h-full">
+                                <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+                                    <div className="text-center py-20">
+                                        <span className="text-6xl mb-4 block">🔧</span>
+                                        <h2 className="text-2xl font-bold text-slate-900 mb-3">Settings Coming Soon!</h2>
+                                        <p className="text-slate-600 mb-6">We're working on enhanced settings. Meanwhile, enjoy the amazing Voice Assistant!</p>
+                                        <div className="text-sm text-slate-500">
+                                            ✨ Check out the Knowledge Base tab for the enhanced Voice Assistant with animations!
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
                     // Default to dashboard if logged in and view is somehow invalid
                     default:
                         return <Dashboard 

@@ -1,11 +1,12 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Property, FollowUpSequence } from '../types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Property, FollowUpSequence, Lead, AgentProfile } from '../types';
 import SequenceEditorModal from './CreateSequenceModal';
 import SequenceAnalyticsModal from './SequenceAnalyticsModal';
 import LeadFollowUpsPage from './LeadFollowUpsPage';
 import AnalyticsPage from './AnalyticsPage';
 import { DEMO_FAT_LEADS, DEMO_ACTIVE_FOLLOWUPS } from '../demoConstants';
+import { notificationService } from '../services/notificationService';
 
 interface MarketingPageProps {
   properties: Property[];
@@ -181,6 +182,319 @@ const QRCodeSystem: React.FC<{ properties: Property[] }> = ({ properties }) => {
     );
 };
 
+// Comprehensive Messaging & Notification Center
+const MessagingCenter: React.FC = () => {
+    const [messagingTab, setMessagingTab] = useState('quick-notifications');
+    const [customMessage, setCustomMessage] = useState('');
+    const [selectedTemplate, setSelectedTemplate] = useState('');
+    const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+    const [messageHistory, setMessageHistory] = useState([
+        { id: '1', type: 'notification', title: 'New Lead Alert', message: 'John Smith is interested in 742 Ocean Drive', timestamp: '2 minutes ago', status: 'sent' },
+        { id: '2', type: 'sms', title: 'Appointment Reminder', message: 'Tomorrow at 2:00 PM - Property showing', timestamp: '1 hour ago', status: 'delivered' },
+        { id: '3', type: 'email', title: 'Follow-up Sequence', message: 'Welcome to our listing updates!', timestamp: '3 hours ago', status: 'opened' },
+        { id: '4', type: 'notification', title: 'Hot Lead Alert', message: 'Sarah Williams (Score: 95) viewed 3 properties', timestamp: '5 hours ago', status: 'sent' }
+    ]);
+
+    const messageTemplates = [
+        { id: 'welcome', title: 'Welcome New Lead', content: 'Hi {name}, thank you for your interest in {property}! I\'d love to help you find your perfect home.' },
+        { id: 'appointment-reminder', title: 'Appointment Reminder', content: 'Hi {name}, this is a friendly reminder about our meeting tomorrow at {time} for {property}.' },
+        { id: 'follow-up', title: 'Property Follow-up', content: 'Hi {name}, I wanted to follow up on {property}. Do you have any questions or would you like to schedule a viewing?' },
+        { id: 'price-change', title: 'Price Change Alert', content: 'Great news! The price for {property} has been reduced to {price}. Would you like to take another look?' },
+        { id: 'hot-lead', title: 'Urgent Follow-up', content: 'Hi {name}, I noticed you\'ve been very active looking at properties. I have some exclusive listings that might interest you!' }
+    ];
+
+    const quickNotificationTypes = [
+        { id: 'test', title: 'Test Notification', icon: 'science', color: 'blue', description: 'Send a test notification to verify your setup' },
+        { id: 'new-lead', title: 'New Lead Alert', icon: 'person_add', color: 'green', description: 'Alert about a new potential client' },
+        { id: 'appointment', title: 'Appointment Reminder', icon: 'schedule', color: 'purple', description: 'Remind about upcoming meetings' },
+        { id: 'hot-lead', title: 'Hot Lead Alert', icon: 'whatshot', color: 'red', description: 'High-priority lead notification' },
+        { id: 'price-change', title: 'Price Change', icon: 'trending_down', color: 'orange', description: 'Property price update alert' },
+        { id: 'showing-request', title: 'Showing Request', icon: 'home', color: 'indigo', description: 'New property showing request' }
+    ];
+
+    const handleSendQuickNotification = async (type: string) => {
+        const notificationType = quickNotificationTypes.find(n => n.id === type);
+        if (!notificationType) return;
+
+        try {
+            switch (type) {
+                case 'test':
+                    await notificationService.showTestNotification();
+                    break;
+                case 'new-lead':
+                    await notificationService.showNewLeadNotification('John Smith', '742 Ocean Drive');
+                    break;
+                case 'appointment':
+                    await notificationService.showAppointmentReminder('Jane Doe', '2:00 PM', '123 Main Street');
+                    break;
+                case 'hot-lead':
+                    await notificationService.showHotLeadAlert('Sarah Williams', 95);
+                    break;
+                case 'price-change':
+                    await notificationService.showNotification({
+                        title: 'Price Reduction Alert',
+                        body: '742 Ocean Drive reduced to $2.8M',
+                        tag: 'price_change'
+                    });
+                    break;
+                case 'showing-request':
+                    await notificationService.showNotification({
+                        title: 'New Showing Request',
+                        body: 'Client wants to see 456 Beach Ave tomorrow',
+                        tag: 'showing-request'
+                    });
+                    break;
+            }
+
+            // Add to message history
+            const newMessage = {
+                id: Date.now().toString(),
+                type: 'notification',
+                title: notificationType.title,
+                message: notificationType.description,
+                timestamp: 'Just now',
+                status: 'sent'
+            };
+            setMessageHistory(prev => [newMessage, ...prev]);
+
+        } catch (error) {
+            console.error('Error sending notification:', error);
+            alert('Please enable browser notifications in Settings first!');
+        }
+    };
+
+    const handleSendCustomMessage = async () => {
+        if (!customMessage.trim()) {
+            alert('Please enter a message to send');
+            return;
+        }
+
+        try {
+            await notificationService.showNotification({
+                title: 'Custom Message',
+                body: customMessage,
+                tag: 'custom-message'
+            });
+
+            // Add to message history
+            const newMessage = {
+                id: Date.now().toString(),
+                type: 'custom',
+                title: 'Custom Message',
+                message: customMessage,
+                timestamp: 'Just now',
+                status: 'sent'
+            };
+            setMessageHistory(prev => [newMessage, ...prev]);
+            setCustomMessage('');
+
+        } catch (error) {
+            console.error('Error sending custom message:', error);
+            alert('Please enable browser notifications in Settings first!');
+        }
+    };
+
+    const messagingTabs = [
+        { id: 'quick-notifications', label: 'Quick Notifications', icon: 'flash_on' },
+        { id: 'message-templates', label: 'Message Templates', icon: 'article' },
+        { id: 'message-history', label: 'Message History', icon: 'history' },
+        { id: 'scheduled-messages', label: 'Scheduled Messages', icon: 'schedule_send' }
+    ];
+
+    const renderMessagingContent = () => {
+        switch (messagingTab) {
+            case 'quick-notifications':
+                return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {quickNotificationTypes.map(notification => {
+                            const colorClasses = {
+                                blue: { bg: 'bg-blue-100', text: 'text-blue-600', btn: 'bg-blue-600 hover:bg-blue-700' },
+                                green: { bg: 'bg-green-100', text: 'text-green-600', btn: 'bg-green-600 hover:bg-green-700' },
+                                purple: { bg: 'bg-purple-100', text: 'text-purple-600', btn: 'bg-purple-600 hover:bg-purple-700' },
+                                red: { bg: 'bg-red-100', text: 'text-red-600', btn: 'bg-red-600 hover:bg-red-700' },
+                                orange: { bg: 'bg-orange-100', text: 'text-orange-600', btn: 'bg-orange-600 hover:bg-orange-700' },
+                                indigo: { bg: 'bg-indigo-100', text: 'text-indigo-600', btn: 'bg-indigo-600 hover:bg-indigo-700' }
+                            }[notification.color] || { bg: 'bg-slate-100', text: 'text-slate-600', btn: 'bg-slate-600 hover:bg-slate-700' };
+
+                            return (
+                                <div key={notification.id} className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6 hover:shadow-md transition-shadow">
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className={`p-3 rounded-lg ${colorClasses.bg}`}>
+                                            <span className={`material-symbols-outlined w-6 h-6 ${colorClasses.text}`}>
+                                                {notification.icon}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <h3 className="text-lg font-bold text-slate-900 mb-2">{notification.title}</h3>
+                                    <p className="text-sm text-slate-600 mb-4">{notification.description}</p>
+                                    <button
+                                        onClick={() => handleSendQuickNotification(notification.id)}
+                                        className={`w-full flex items-center justify-center gap-2 px-4 py-2 ${colorClasses.btn} text-white rounded-lg font-semibold shadow-sm transition`}
+                                    >
+                                        <span className="material-symbols-outlined w-4 h-4">send</span>
+                                        <span>Send Now</span>
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+
+            case 'message-templates':
+                return (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                            <h3 className="text-lg font-bold text-slate-900 mb-4">Message Templates</h3>
+                            <div className="space-y-3">
+                                {messageTemplates.map(template => (
+                                    <div key={template.id} className="border border-slate-200 rounded-lg p-4 hover:border-primary-300 transition-colors cursor-pointer"
+                                         onClick={() => setSelectedTemplate(template.content)}>
+                                        <h4 className="font-semibold text-slate-900">{template.title}</h4>
+                                        <p className="text-sm text-slate-600 mt-1">{template.content.substring(0, 80)}...</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                            <h3 className="text-lg font-bold text-slate-900 mb-4">Custom Message</h3>
+                            <div className="space-y-4">
+                                <textarea
+                                    value={customMessage || selectedTemplate}
+                                    onChange={(e) => setCustomMessage(e.target.value)}
+                                    placeholder="Type your custom message here..."
+                                    className="w-full h-32 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleSendCustomMessage}
+                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition"
+                                    >
+                                        <span className="material-symbols-outlined w-4 h-4">send</span>
+                                        <span>Send Message</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {setCustomMessage(''); setSelectedTemplate('');}}
+                                        className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-50 transition"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                    💡 Use variables like {'{name}'}, {'{property}'}, {'{time}'} in your messages
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+            case 'message-history':
+                return (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-bold text-slate-900">Message History</h3>
+                            <button className="flex items-center gap-2 px-3 py-1 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition">
+                                <span className="material-symbols-outlined w-4 h-4">download</span>
+                                Export
+                            </button>
+                        </div>
+                        <div className="space-y-4 max-h-96 overflow-y-auto">
+                            {messageHistory.map(message => (
+                                <div key={message.id} className="border border-slate-200 rounded-lg p-4 hover:border-slate-300 transition-colors">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`material-symbols-outlined w-4 h-4 ${
+                                                    message.type === 'notification' ? 'text-blue-600' :
+                                                    message.type === 'sms' ? 'text-green-600' :
+                                                    message.type === 'email' ? 'text-purple-600' : 'text-orange-600'
+                                                }`}>
+                                                    {message.type === 'notification' ? 'notifications' :
+                                                     message.type === 'sms' ? 'sms' :
+                                                     message.type === 'email' ? 'email' : 'message'}
+                                                </span>
+                                                <h4 className="font-semibold text-slate-900">{message.title}</h4>
+                                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                                    message.status === 'sent' ? 'bg-blue-100 text-blue-700' :
+                                                    message.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                                                    message.status === 'opened' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+                                                }`}>
+                                                    {message.status}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-slate-600">{message.message}</p>
+                                        </div>
+                                        <span className="text-xs text-slate-500 ml-4">{message.timestamp}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+
+            case 'scheduled-messages':
+                return (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                        <div className="text-center py-12">
+                            <span className="material-symbols-outlined w-16 h-16 text-slate-400 mx-auto mb-4 block">schedule_send</span>
+                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Scheduled Messages</h3>
+                            <p className="text-slate-600 mb-4">Schedule notifications and messages for later delivery</p>
+                            <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition mx-auto">
+                                <span className="material-symbols-outlined w-4 h-4">add</span>
+                                <span>Schedule Message</span>
+                            </button>
+                            <p className="text-xs text-slate-500 mt-4">Coming soon: Set up automated message scheduling</p>
+                        </div>
+                    </div>
+                );
+
+            default:
+                return <div>Select a messaging option</div>;
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            {/* Messaging Navigation */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-2">
+                <nav className="flex space-x-1 overflow-x-auto">
+                    {messagingTabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setMessagingTab(tab.id)}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
+                                messagingTab === tab.id
+                                    ? 'bg-primary-100 text-primary-700'
+                                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                            }`}
+                        >
+                            <span className="material-symbols-outlined w-4 h-4">{tab.icon}</span>
+                            <span>{tab.label}</span>
+                        </button>
+                    ))}
+                </nav>
+            </div>
+
+            {/* Alert Status */}
+            <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined w-5 h-5 text-orange-600">info</span>
+                    <div>
+                        <h4 className="font-semibold text-orange-900">Notification Status</h4>
+                        <p className="text-sm text-orange-700">
+                            Browser notifications: <span className="font-semibold">Ready to send</span> • 
+                            Enable in Settings first for best experience
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Messaging Content */}
+            {renderMessagingContent()}
+        </div>
+    );
+};
+
 
 const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, setSequences, onBackToDashboard }) => {
     const [activeTab, setActiveTab] = useState('analytics');
@@ -221,6 +535,7 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
     }, []);
 
     const tabs = [
+        // { id: 'messaging', label: 'Notifications & Messaging', icon: 'notifications' }, // Hidden for launch - will re-enable post-launch
         { id: 'analytics', label: 'Analytics', icon: 'monitoring' },
         { id: 'sequences', label: 'Follow-up Sequences', icon: 'lan' },
         { id: 'follow-ups', label: 'Active Follow-ups', icon: 'group' },
@@ -229,6 +544,8 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
 
     const renderContent = () => {
         switch (activeTab) {
+            case 'messaging':
+                return <MessagingCenter />;
             case 'analytics':
                 return <AnalyticsPage />;
             case 'sequences':

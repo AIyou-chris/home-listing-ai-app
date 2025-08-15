@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import { Property, Lead, Appointment, LeadStatus, AgentTask, TaskPriority, AgentProfile } from '../types';
 import SmartTaskManager from './SmartTaskManager';
+// Hidden for launch - notification service will be re-enabled post-launch
+// import { notificationService } from '../services/notificationService';
 
 interface DashboardProps {
   agentProfile: AgentProfile;
@@ -92,7 +94,15 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isTaskManagerOpen, setIsTaskManagerOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  // Hidden for launch - notification states will be re-enabled post-launch
+  // const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  // const notificationDropdownRef = useRef<HTMLDivElement>(null);
   const newLeadsCount = leads.filter(l => l.status === 'New').length;
+
+  // Hidden for launch - notification functions will be re-enabled post-launch
+  // const handleSendTestNotification = async () => { ... };
+  // const handleSendNewLeadNotification = async () => { ... };
+  // const handleSendAppointmentReminder = async () => { ... };
 
   return (
     <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
@@ -103,6 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <p className="text-slate-500 mt-1">Welcome back, {agentProfile.name}! Here's an overview of your real estate activity.</p>
         </div>
         <div className="flex items-center gap-4">
+            {/* Hidden for launch - notification button will be re-enabled post-launch */}
             <button 
                 onClick={onAddNew}
                 className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105"
