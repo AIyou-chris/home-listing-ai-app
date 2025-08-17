@@ -9,9 +9,25 @@
         h1, h2, h3 { color: #333; }
         .section { margin-bottom: 30px; }
         .highlight { background-color: #f8f9fa; padding: 15px; border-left: 4px solid #007bff; margin: 15px 0; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #e9ecef; }
+        .logo { display: flex; align-items: center; gap: 10px; }
+        .logo-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+        .logo-text { font-size: 24px; font-weight: bold; color: #333; }
+        .back-btn { background: #f97316; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; text-decoration: none; display: inline-block; }
+        .back-btn:hover { background: #ea580c; }
     </style>
 </head>
 <body>
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">
+                <img src="/newlogo.png" alt="HomeListingAI Logo" style="width: 32px; height: 32px; object-fit: contain;">
+            </div>
+            <div class="logo-text">HomeListingAI</div>
+        </div>
+        <a href="javascript:history.back()" class="back-btn">← Back</a>
+    </div>
+    
     <h1>Terms of Service</h1>
     <p><strong>Last updated: January 2025</strong></p>
 

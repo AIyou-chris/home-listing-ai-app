@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from './services/firebase';
@@ -24,6 +23,8 @@ import SupportFAB from './components/SupportFAB';
 import VoiceAssistant from './components/VoiceAssistant';
 import ConsultationModal from './components/ConsultationModal';
 import AdminDashboard from './components/AdminDashboard';
+import AdminSidebar from './components/AdminSidebar';
+import AdminLayout from './components/AdminLayout';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import PropertyComparison from './components/PropertyComparison';
 import NotificationSystem, { Notification } from './components/NotificationSystem';
@@ -187,7 +188,13 @@ const App: React.FC = () => {
         setView('dashboard');
     };
 
-    const handleNavigateToAdmin = () => setView('admin-dashboard');
+    const handleNavigateToAdmin = () => {
+        // Allow admin access from landing page by entering demo mode
+        if (!user && !isDemoMode) {
+            handleEnterDemoMode();
+        }
+        setView('admin-dashboard');
+    };
     const handleNavigateToSection = (sectionId: string) => {
         if (sectionId === '#contact') {
             setIsConsultationModalOpen(true);
@@ -333,7 +340,16 @@ const App: React.FC = () => {
              const mainContent = () => {
                 switch(view) {
                     case 'admin-dashboard': 
-                        return <AdminDashboard />;
+                    case 'admin-users': 
+                    case 'admin-leads': 
+                    case 'admin-ai-content': 
+                    case 'admin-knowledge-base': 
+                    case 'admin-marketing': 
+                    case 'admin-analytics': 
+                    case 'admin-security': 
+                    case 'admin-billing': 
+                    case 'admin-settings': 
+                        return <AdminLayout currentView={view} />;
                                 case 'dashboard':
                 return <Dashboard 
                     agentProfile={userProfile} 
@@ -366,13 +382,7 @@ const App: React.FC = () => {
                     case 'marketing': 
                         return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
                     case 'analytics': 
-                        return <AnalyticsDashboard 
-                            properties={properties}
-                            leads={leads}
-                            appointments={appointments}
-                            timeRange={analyticsTimeRange}
-                            onTimeRangeChange={setAnalyticsTimeRange}
-                        />;
+                        return <AnalyticsDashboard />;
                     case 'settings': 
                         return <SettingsPage 
                             userProfile={userProfile}
@@ -404,9 +414,24 @@ const App: React.FC = () => {
                 }
             };
             
-            // Admin view is special and doesn't get the standard sidebar
-            if (view === 'admin-dashboard') {
-                return <AdminDashboard />;
+            // Admin views get the admin sidebar
+            if (view.startsWith('admin-')) {
+                return (
+                    <div className="flex h-screen bg-slate-50">
+                        <AdminSidebar activeView={view} setView={setView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                        <div className="flex-1 flex flex-col overflow-hidden">
+                            <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
+                                <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
+                                    <span className="material-symbols-outlined">menu</span>
+                                </button>
+                                <LogoWithName />
+                            </header>
+                            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+                                {mainContent()}
+                            </main>
+                        </div>
+                    </div>
+                );
             }
 
             return (
