@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from '../services/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, functions } from '../services/firebase';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
 import { Logo } from './Logo';
@@ -42,6 +43,20 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateToSignIn, onNavigateT
                 await updateProfile(userCredential.user, {
                     displayName: fullName,
                 });
+
+                // Trigger onboarding sequence
+                try {
+                    const triggerOnboardingSequence = httpsCallable(functions, 'triggerOnboardingSequence');
+                    await triggerOnboardingSequence({
+                        userEmail: email,
+                        userName: fullName
+                    });
+                    console.log('Onboarding sequence triggered successfully');
+                } catch (onboardingError) {
+                    console.error('Failed to trigger onboarding sequence:', onboardingError);
+                    // Don't fail the signup if onboarding fails
+                }
+
                 // App.tsx's onAuthStateChanged will handle navigation
             } catch (err: any) {
                 if (err.code === 'auth/email-already-in-use') {
