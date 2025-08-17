@@ -1270,6 +1270,143 @@ const FaqSection: React.FC = () => {
     );
 };
 
+const AboutUsSection: React.FC = () => (
+    <section id="about-us" className="py-20 bg-white relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute inset-0 pointer-events-none">
+            {/* Floating Icons */}
+            <div className="absolute top-20 left-10 opacity-5 animate-float">
+                <span className="material-symbols-outlined text-5xl text-blue-500">history</span>
+            </div>
+            <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
+                <span className="material-symbols-outlined text-4xl text-green-500">trending_up</span>
+            </div>
+            <div className="absolute bottom-20 left-1/4 opacity-5 animate-float-slower">
+                <span className="material-symbols-outlined text-3xl text-purple-500">star</span>
+            </div>
+            
+            {/* Geometric Shapes */}
+            <div className="absolute top-60 right-1/3 opacity-5 animate-pulse">
+                <div className="w-20 h-20 border-2 border-blue-300 rounded-full"></div>
+            </div>
+            <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
+                <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
+            </div>
+            
+            {/* Dots Pattern */}
+            <div className="absolute top-0 left-0 w-full h-full opacity-3">
+                <div className="grid grid-cols-20 gap-4 w-full h-full">
+                    {Array.from({ length: 60 }).map((_, i) => (
+                        <div key={i} className="w-1 h-1 bg-blue-300 rounded-full animate-pulse" 
+                             style={{ 
+                                 animationDelay: `${i * 0.15}s`,
+                                 animationDuration: `${2 + Math.random() * 2}s`
+                             }}></div>
+                    ))}
+                </div>
+            </div>
+            
+            {/* Gradient Orbs */}
+            <div className="absolute top-1/3 left-1/4 w-28 h-28 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-20 h-20 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            {/* Hero Header */}
+            <div className="text-center mb-16">
+                <h2 className="text-4xl font-bold text-slate-900 mb-4 animate-fade-in-up">About Us</h2>
+                <p className="text-xl text-slate-600 animate-fade-in-up animation-delay-200">
+                    We've been doing this since dial-up.
+                </p>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-16 items-start">
+                {/* Story Content */}
+                <div className="animate-fade-in-left">
+                    <div className="bg-slate-50 rounded-2xl p-8 shadow-lg border border-slate-200/60">
+                        <p className="text-lg text-slate-700 leading-relaxed mb-6">
+                            Founded by seasoned real estate and mortgage pros with over <span className="font-bold text-primary-600">15 years</span> of hands-on experience, we've seen the industry evolve—and helped shape it. From launching our first website in 1997 (yeah, we were there before Google), to pioneering our first mobile app in 2005, we've always stayed two steps ahead of the curve.
+                        </p>
+                        <p className="text-lg text-slate-700 leading-relaxed mb-6">
+                            Today, we proudly serve over <span className="font-bold text-primary-600">500 loyal clients</span>, blending cutting-edge technology with old-school hustle. And let's not forget our two 100-pound Labrador companions, our unofficial <span className="font-bold text-green-600">Chief Happiness Officers</span>, who remind us daily that loyalty and presence are everything.
+                        </p>
+                        <p className="text-lg text-slate-700 leading-relaxed font-semibold">
+                            This isn't just business—it's <span className="text-primary-600">legacy</span>, <span className="text-purple-600">innovation</span>, and a commitment to doing things right.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Stats Card */}
+                <div className="animate-fade-in-right">
+                    <div className="bg-slate-50 rounded-2xl p-8 shadow-lg border border-slate-200/60">
+                        <h3 className="text-2xl font-bold text-slate-900 text-center mb-8">Experience Accumulation</h3>
+                        
+                        <div className="grid grid-cols-2 gap-6 mb-8">
+                            {[
+                                { number: '30', label: 'Years in Business', icon: '🏢' },
+                                { number: '500+', label: 'Clients Served', icon: '👥' },
+                                { number: '15+', label: 'Years Experience', icon: '⚡' },
+                                { number: '2', label: 'Labrador Officers', icon: '🐕' }
+                            ].map((stat, index) => (
+                                <div key={index} className="text-center group hover:scale-105 transition-transform duration-300">
+                                    <div className="text-3xl mb-2 animate-bounce" style={{animationDelay: `${index * 0.2}s`}}>
+                                        {stat.icon}
+                                    </div>
+                                    <div className="text-3xl font-bold text-primary-600 mb-2 group-hover:text-primary-700 transition-colors">
+                                        {stat.number}
+                                    </div>
+                                    <div className="text-sm text-slate-600 group-hover:text-slate-800 transition-colors">
+                                        {stat.label}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Timeline Section - Full Width */}
+            <div className="mt-16 animate-fade-in-up animation-delay-400">
+                <div className="bg-slate-50 rounded-2xl p-8 shadow-lg border border-slate-200/60">
+                    <h3 className="text-2xl font-bold text-slate-900 text-center mb-8">Our Journey</h3>
+                    
+                    <div className="grid md:grid-cols-3 gap-8">
+                        <div className="flex flex-col items-center text-center group">
+                            <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg mb-4 animate-pulse group-hover:scale-110 transition-transform duration-300">
+                                1997
+                            </div>
+                            <h4 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-blue-600 transition-colors">
+                                The Beginning
+                            </h4>
+                            <p className="text-slate-600">Launched our first website (before Google existed!)</p>
+                        </div>
+                        
+                        <div className="flex flex-col items-center text-center group">
+                            <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg mb-4 animate-pulse group-hover:scale-110 transition-transform duration-300">
+                                2005
+                            </div>
+                            <h4 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-green-600 transition-colors">
+                                Mobile Revolution
+                            </h4>
+                            <p className="text-slate-600">Pioneered our first mobile app</p>
+                        </div>
+                        
+                        <div className="flex flex-col items-center text-center group">
+                            <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-lg mb-4 animate-pulse group-hover:scale-110 transition-transform duration-300">
+                                2024
+                            </div>
+                            <h4 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">
+                                AI-Powered Future
+                            </h4>
+                            <p className="text-slate-600">Leading the AI revolution in real estate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+);
+
 const FinalCtaNew: React.FC<{ onNavigateToSignUp: () => void; onEnterDemoMode: () => void; }> = ({ onNavigateToSignUp, onEnterDemoMode }) => (
     <section className="bg-gradient-to-r from-indigo-700 via-purple-800 to-slate-900 text-white relative overflow-hidden">
         {/* Background Elements */}
@@ -1343,47 +1480,65 @@ const FinalCtaNew: React.FC<{ onNavigateToSignUp: () => void; onEnterDemoMode: (
 
 
 const FooterNew: React.FC<{ onNavigateToAdmin: () => void; }> = ({ onNavigateToAdmin }) => (
-    <footer className="bg-slate-900 text-slate-300">
-        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-                <div className="col-span-2 md:col-span-1">
-                    <LogoWithName textClassName="text-white" />
-                    <p className="mt-4 text-sm text-slate-400">Transform your real estate business with AI-powered lead generation.</p>
+    <footer className="bg-slate-800 text-slate-400">
+        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+                {/* HomeListingAI Section */}
+                <div className="col-span-1 md:col-span-1">
+                    <div className="flex items-center gap-3 mb-3">
+                        <img 
+                            src="/newlogo.png" 
+                            alt="HomeListingAI Logo" 
+                            className="w-8 h-8 object-contain"
+                        />
+                        <span className="text-white font-semibold text-lg">HomeListingAI</span>
+                    </div>
+                    <p className="text-sm text-slate-300">Transform your real estate business with AI-powered lead generation.</p>
                 </div>
+                
+                {/* Product Section */}
                 <div>
-                    <h3 className="font-semibold text-white">Product</h3>
-                    <ul className="mt-4 space-y-2 text-sm">
-                        <li><a href="#pricing" className="hover:text-white">Features</a></li>
-                        <li><a href="#how-it-works" className="hover:text-white">How It Works</a></li>
-                        <li><a href="#guarantee" className="hover:text-white">Guarantee</a></li>
+                    <h3 className="text-sm font-semibold text-white mb-3">Product</h3>
+                    <ul className="space-y-2 text-sm">
+                        <li><a href="#what-you-get" className="hover:text-white transition-colors">Features</a></li>
+                        <li><a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a></li>
+                        <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
                     </ul>
                 </div>
+                
+                {/* Legal Section */}
                 <div>
-                    <h3 className="font-semibold text-white">Legal</h3>
-                    <ul className="mt-4 space-y-2 text-sm">
-                        <li><a href="#" className="hover:text-white">Terms of Service</a></li>
-                        <li><a href="#" className="hover:text-white">Privacy Policy</a></li>
-                        <li><a href="#" className="hover:text-white">Compliance Policy</a></li>
-                        <li><a href="#" className="hover:text-white">DMCA Policy</a></li>
+                    <h3 className="text-sm font-semibold text-white mb-3">Legal</h3>
+                    <ul className="space-y-2 text-sm">
+                        <li><a href="/terms-of-service.html" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Terms of Service</a></li>
+                        <li><a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Privacy Policy</a></li>
+                        <li><a href="#" className="hover:text-white transition-colors">Compliance Policy</a></li>
+                        <li><a href="#" className="hover:text-white transition-colors">DMCA Policy</a></li>
                     </ul>
                 </div>
+                
+                {/* Company Section */}
                 <div>
-                    <h3 className="font-semibold text-white">Company</h3>
-                    <ul className="mt-4 space-y-2 text-sm">
-                        <li><a href="#" className="hover:text-white">About Us</a></li>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); onNavigateToAdmin(); }} className="hover:text-white">Admin</a></li>
+                    <h3 className="text-sm font-semibold text-white mb-3">Company</h3>
+                    <ul className="space-y-2 text-sm">
+                        <li><a href="#about-us" className="hover:text-white transition-colors">About Us</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); onNavigateToAdmin(); }} className="hover:text-white transition-colors">Admin</a></li>
                     </ul>
                 </div>
-                 <div>
-                    <h3 className="font-semibold text-white">Contact</h3>
-                    <ul className="mt-4 space-y-2 text-sm">
-                        <li><a href="#" className="hover:text-white">support@homelistingai.com</a></li>
-                        <li><a href="#" className="hover:text-white">Seattle, WA</a></li>
+                
+                {/* Contact Section */}
+                <div>
+                    <h3 className="text-sm font-semibold text-white mb-3">Contact</h3>
+                    <ul className="space-y-2 text-sm">
+                        <li><a href="mailto:us@homelistingai.com" className="hover:text-white transition-colors">us@homelistingai.com</a></li>
+                        <li><span className="text-slate-300">Seattle, WA</span></li>
                     </ul>
                 </div>
             </div>
-            <div className="mt-12 border-t border-slate-800 pt-8 text-center text-sm">
-                <p>&copy; {new Date().getFullYear()} HomeListingAI. All rights reserved.</p>
+            
+            {/* Copyright Notice */}
+            <div className="mt-12 border-t border-slate-700 pt-8 text-center">
+                <p className="text-sm text-slate-300">&copy; 2025 HomeListingAI. All rights reserved.</p>
             </div>
         </div>
     </footer>
@@ -1521,6 +1676,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <AIAppShowcaseSection onOpenModal={setActiveModal} />
                 <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenConsultationModal={onOpenConsultationModal} />
                 <WhiteLabelSection onOpenConsultationModal={onOpenConsultationModal} />
+                <AboutUsSection />
                 <FeaturesGridSection onNavigateToSignUp={onNavigateToSignUp} />
                 <WhatYouGetSectionNew />
                 <TestimonialsSection />

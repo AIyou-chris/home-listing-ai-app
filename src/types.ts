@@ -21,7 +21,7 @@ export function isAIDescription(description: any): description is AIDescription 
   return description && typeof description === 'object' && typeof description.title === 'string' && Array.isArray(description.paragraphs);
 }
 
-export type View = 'dashboard' | 'analytics' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'new-landing' | 'signup' | 'signin' | 'admin-dashboard';
+export type View = 'dashboard' | 'analytics' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'new-landing' | 'signup' | 'signin' | 'admin-dashboard' | 'admin-users' | 'admin-leads' | 'admin-ai-content' | 'admin-knowledge-base' | 'admin-marketing' | 'admin-analytics' | 'admin-security' | 'admin-billing' | 'admin-settings';
 
 export interface Property {
   id: string;
@@ -412,4 +412,112 @@ export interface LocalInfoData {
     highlights: string[];
     sources?: { uri: string; title: string }[];
     lastUpdated?: string;
+}
+
+export type UserStatus = 'Active' | 'Inactive' | 'Suspended' | 'Pending';
+
+export interface User {
+    id: string;
+    name: string;
+    email: string;
+    status: UserStatus;
+    role: 'agent' | 'admin' | 'user';
+    dateJoined: string;
+    lastActive: string;
+    plan: 'Solo Agent' | 'Pro Team' | 'Brokerage';
+    propertiesCount: number;
+    leadsCount: number;
+    aiInteractions: number;
+    profileImage?: string;
+    phone?: string;
+    company?: string;
+    subscriptionStatus: 'active' | 'trial' | 'expired' | 'cancelled';
+    renewalDate: string;
+}
+
+// Admin Settings Collection
+export interface AdminSettings {
+    id: string;
+    platformName: string;
+    platformUrl: string;
+    supportEmail: string;
+    timezone: string;
+    featureToggles: {
+        aiContentGeneration: boolean;
+        voiceAssistant: boolean;
+        qrCodeSystem: boolean;
+        analyticsDashboard: boolean;
+        knowledgeBase: boolean;
+    };
+    systemLimits: {
+        maxFileUploadSize: number;
+        sessionTimeout: number;
+        maxConcurrentUsers: number;
+        apiRateLimit: number;
+    };
+    maintenanceMode: boolean;
+    autoUpdates: boolean;
+}
+
+// Broadcast Messages Collection
+export interface BroadcastMessage {
+    id: string;
+    title: string;
+    content: string;
+    messageType: 'General' | 'Maintenance' | 'Feature' | 'Emergency' | 'System' | 'Welcome';
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    targetAudience: string[];
+    sentBy: string; // admin ID
+    sentAt: string;
+    scheduledFor?: string;
+    status: 'draft' | 'scheduled' | 'sent' | 'failed';
+    deliveryStats: {
+        totalRecipients: number;
+        delivered: number;
+        read: number;
+        failed: number;
+    };
+}
+
+// System Alerts Collection
+export interface SystemAlert {
+    id: string;
+    type: 'warning' | 'error' | 'critical' | 'info';
+    title: string;
+    description: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    component: string; // 'database' | 'api' | 'ai' | 'email' | 'storage'
+    createdAt: string;
+    acknowledgedBy?: string;
+    acknowledgedAt?: string;
+    resolvedAt?: string;
+    status: 'active' | 'acknowledged' | 'resolved';
+}
+
+// Retention Campaigns Collection
+export interface RetentionCampaign {
+    id: string;
+    name: string;
+    trigger: 'pre-renewal' | 'renewal-day' | 'day-1-recovery' | 'day-3-recovery';
+    triggerDays: number;
+    channels: string[]; // 'email' | 'phone' | 'sms'
+    messageTemplate: string;
+    successRate: number;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// User Notifications Collection
+export interface UserNotification {
+    id: string;
+    userId: string;
+    title: string;
+    content: string;
+    type: 'broadcast' | 'system' | 'billing' | 'feature';
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    read: boolean;
+    readAt?: string;
+    createdAt: string;
+    expiresAt?: string;
 }
