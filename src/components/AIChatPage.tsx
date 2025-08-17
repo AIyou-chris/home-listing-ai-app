@@ -9,6 +9,7 @@ import {
 import { datafiniti, DatafinitiProperty } from '../services/datafiniti';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import AIMarketingProposalPage from './AIMarketingProposalPage';
 
 // PDF generation utilities
 
@@ -1187,7 +1188,7 @@ interface AIChatPageProps {
     setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
     onBackToDashboard: () => void;
 }
-type ActiveTab = 'chat' | 'reports' | 'blog';
+type ActiveTab = 'chat' | 'reports' | 'proposals' | 'blog';
 
 const AIChatPage: React.FC<AIChatPageProps> = ({ properties, agentProfile, conversations, setConversations, onBackToDashboard }) => {
     const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
@@ -1506,6 +1507,7 @@ const AIChatPage: React.FC<AIChatPageProps> = ({ properties, agentProfile, conve
     const tabs: { id: ActiveTab; label: string; icon: string }[] = [
         { id: 'chat', label: 'AI Content', icon: 'chat_bubble' },
         { id: 'reports', label: 'Property Reports', icon: 'analytics' },
+        { id: 'proposals', label: 'Marketing Proposals', icon: 'description' },
         { id: 'blog', label: 'Blog & Articles', icon: 'edit' },
     ];
 
@@ -1736,6 +1738,16 @@ const AIChatPage: React.FC<AIChatPageProps> = ({ properties, agentProfile, conve
                                 </div>
                             )}
                         </div>
+                    </div>
+                </div>
+            );
+            case 'proposals': return (
+                <div className="p-4 sm:p-6 lg:p-8">
+                    <h3 className="text-xl font-bold text-slate-800">📋 AI Marketing Proposals</h3>
+                    <p className="text-slate-600 mt-1">Generate professional marketing proposals with AI</p>
+                    
+                    <div className="mt-6">
+                        <AIMarketingProposalPage />
                     </div>
                 </div>
             );
