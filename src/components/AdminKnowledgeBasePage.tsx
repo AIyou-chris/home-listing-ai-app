@@ -101,7 +101,7 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
+                                    onClick={() => setActiveTab(tab.id as any)}
                                     className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${
                                         activeTab === tab.id
                                             ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'

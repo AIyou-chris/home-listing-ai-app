@@ -1,12 +1,15 @@
 import React from 'react';
 
 interface ModalProps {
-    title: React.ReactNode;
+    title?: React.ReactNode;
     onClose: () => void;
     children: React.ReactNode;
+    isOpen?: boolean;
 }
 
-const Modal: React.FC<ModalProps> = ({ title, onClose, children }) => {
+const Modal: React.FC<ModalProps> = ({ title, onClose, children, isOpen = true }) => {
+    if (!isOpen) return null;
+    
     return (
         <div 
             className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
