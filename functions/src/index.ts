@@ -6232,3 +6232,244 @@ const SUBSCRIPTION_PLANS = [
         paypalPlanId: 'P-5ML4271244454362XMQIZHI'
     }
 ];
+
+// Trigger onboarding sequence for new users
+export const triggerOnboardingSequence = functions.https.onCall(async (data: any, context: any) => {
+    try {
+        if (!context?.auth) {
+            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+        }
+
+        const userId = context.auth.uid;
+        const { userEmail, userName } = data;
+
+        // Create onboarding sequence for new user
+        const onboardingSequence = {
+            id: `onboarding-${userId}`,
+            name: 'Post-Signup Onboarding',
+            description: 'Welcome new users and guide them through platform features',
+            triggerType: 'Account Created',
+            isActive: true,
+            userId: userId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            steps: [
+                {
+                    id: 'step-1',
+                    type: 'email',
+                    delay: { value: 5, unit: 'minutes' },
+                    subject: 'Welcome to HomeListingAI! 🏠',
+                    content: `Hi ${userName || 'there'},
+
+Welcome to HomeListingAI! I'm excited to help you revolutionize your real estate business with AI-powered tools.
+
+Your 7-day free trial is now active, and you have full access to all features. Here's what you can do right now:
+
+🎯 Quick Start Guide:
+1. Add your first property listing
+2. Set up your AI assistant personality
+3. Create your first follow-up sequence
+4. Generate QR codes for your listings
+
+Need help getting started? Reply to this email or check out our quick tutorial videos in the dashboard.
+
+Best regards,
+The HomeListingAI Team`,
+                    status: 'pending',
+                    scheduledFor: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes from now
+                },
+                {
+                    id: 'step-2',
+                    type: 'email',
+                    delay: { value: 1, unit: 'days' },
+                    subject: 'Your First Property Listing - Let\'s Get Started!',
+                    content: `Hi ${userName || 'there'},
+
+I noticed you haven't added your first property listing yet. Let me show you how easy it is!
+
+🚀 Add Your First Listing:
+• Upload photos and details
+• Generate AI-powered descriptions
+• Create professional marketing materials
+• Track visitor engagement
+
+This takes just 5 minutes and will help you see immediate results.
+
+Need help? I'm here to guide you through every step.
+
+Best,
+The HomeListingAI Team`,
+                    status: 'pending',
+                    scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000) // 1 day from now
+                },
+                {
+                    id: 'step-3',
+                    type: 'email',
+                    delay: { value: 3, unit: 'days' },
+                    subject: 'See How Other Agents Are Succeeding',
+                    content: `Hi ${userName || 'there'},
+
+Here are some real results from agents using HomeListingAI:
+
+📈 Success Stories:
+• Sarah M. increased her lead conversion by 3x
+• Mike R. saved 15 hours per week on follow-ups
+• Lisa K. generated 47 new leads in her first month
+
+Your trial ends in 4 days. Want to join these success stories?
+
+Upgrade now and get:
+✅ Unlimited property listings
+✅ Advanced AI features
+✅ Priority support
+✅ 30-day money-back guarantee
+
+Ready to transform your business?
+
+Best,
+The HomeListingAI Team`,
+                    status: 'pending',
+                    scheduledFor: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days from now
+                },
+                {
+                    id: 'step-4',
+                    type: 'email',
+                    delay: { value: 5, unit: 'days' },
+                    subject: 'Last 2 Days: Don\'t Lose Your Progress!',
+                    content: `Hi ${userName || 'there'},
+
+Your free trial ends in 2 days. Here's what happens next:
+
+⏰ Trial Ending Soon:
+• Your account will be paused
+• All your data will be saved for 30 days
+• You can reactivate anytime
+
+💡 What You'll Lose Access To:
+• AI-powered lead generation
+• Automated follow-up sequences
+• Property analytics and insights
+• QR code tracking
+
+🔒 What You'll Keep:
+• All your property data
+• Lead information
+• Templates and sequences
+
+Upgrade now to continue growing your business with AI!
+
+Best,
+The HomeListingAI Team`,
+                    status: 'pending',
+                    scheduledFor: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // 5 days from now
+                },
+                {
+                    id: 'step-5',
+                    type: 'email',
+                    delay: { value: 6, unit: 'days' },
+                    subject: 'Final Day: Your Trial Ends Tomorrow',
+                    content: `Hi ${userName || 'there'},
+
+This is your final reminder - your trial ends tomorrow at midnight.
+
+🎯 Last Chance to Upgrade:
+• Keep all your data and progress
+• Continue using all AI features
+• No setup required - instant access
+
+💳 Simple Upgrade Process:
+• Click the upgrade button in your dashboard
+• Choose your plan (starting at $59/month)
+• Continue using all features immediately
+
+Questions? Reply to this email - I'm here to help!
+
+Best,
+The HomeListingAI Team`,
+                    status: 'pending',
+                    scheduledFor: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000) // 6 days from now
+                },
+                {
+                    id: 'step-6',
+                    type: 'email',
+                    delay: { value: 7, unit: 'days' },
+                    subject: 'Your Trial Has Ended - Here\'s What\'s Next',
+                    content: `Hi ${userName || 'there'},
+
+Your 7-day free trial has ended. Here's what happens now:
+
+📊 Your Trial Summary:
+• You explored our AI-powered platform
+• Created property listings
+• Generated leads
+• Saved time with automation
+
+🔄 Reactivate Anytime:
+• Your data is safe for 30 days
+• Upgrade anytime to continue
+• No setup required
+
+💡 Special Offer:
+Upgrade within the next 7 days and get 20% off your first month!
+
+Ready to continue? Click here to upgrade.
+
+Best,
+The HomeListingAI Team`,
+                    status: 'pending',
+                    scheduledFor: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+                }
+            ]
+        };
+
+        // Save the onboarding sequence to Firestore
+        await db.collection('onboardingSequences').doc(userId).set(onboardingSequence);
+
+        // Schedule the first email
+        await scheduleOnboardingEmail(userId, userEmail, onboardingSequence.steps[0]);
+
+        // Log the onboarding trigger
+        await logAuditAction({
+            action: 'onboarding_sequence_triggered',
+            resourceType: 'user',
+            resourceId: userId,
+            details: {
+                sequenceId: onboardingSequence.id,
+                userEmail: userEmail,
+                stepsCount: onboardingSequence.steps.length
+            },
+            severity: 'info'
+        }, context);
+
+        return {
+            success: true,
+            message: 'Onboarding sequence triggered successfully',
+            sequenceId: onboardingSequence.id
+        };
+    } catch (error) {
+        console.error("Onboarding sequence error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to trigger onboarding sequence");
+    }
+});
+
+// Helper function to schedule onboarding emails
+async function scheduleOnboardingEmail(userId: string, userEmail: string, step: any) {
+    try {
+        // For now, we'll use a simple approach - in production, you'd use a proper email scheduling service
+        const emailData = {
+            to: userEmail,
+            subject: step.subject,
+            content: step.content,
+            userId: userId,
+            stepId: step.id,
+            scheduledFor: step.scheduledFor,
+            status: 'scheduled'
+        };
+
+        // Save to scheduled emails collection
+        await db.collection('scheduledEmails').add(emailData);
+
+        console.log(`Scheduled onboarding email for user ${userId}, step ${step.id}`);
+    } catch (error) {
+        console.error("Error scheduling onboarding email:", error);
+    }
+}

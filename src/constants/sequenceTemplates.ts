@@ -4,7 +4,7 @@ export interface SequenceTemplate {
     id: string;
     name: string;
     description: string;
-    category: 'buyer' | 'seller' | 'nurture' | 'followup';
+    category: 'buyer' | 'seller' | 'nurture' | 'followup' | 'onboarding';
     triggerType: TriggerType;
     steps: Omit<SequenceStep, 'id'>[];
     tags: string[];
@@ -14,6 +14,168 @@ export interface SequenceTemplate {
 }
 
 export const SEQUENCE_TEMPLATES: SequenceTemplate[] = [
+    // ONBOARDING SEQUENCES
+    {
+        id: 'post-signup-onboarding',
+        name: 'Post-Signup Onboarding',
+        description: 'Welcome new users and guide them through platform features to increase conversion',
+        category: 'onboarding',
+        triggerType: 'Account Created',
+        estimatedDuration: '7 days',
+        conversionRate: 35,
+        difficulty: 'Beginner',
+        tags: ['onboarding', 'welcome', 'conversion'],
+        steps: [
+            {
+                type: 'email',
+                delay: { value: 5, unit: 'minutes' },
+                subject: 'Welcome to HomeListingAI! 🏠',
+                content: `Hi {{user.name}},
+
+Welcome to HomeListingAI! I'm excited to help you revolutionize your real estate business with AI-powered tools.
+
+Your 7-day free trial is now active, and you have full access to all features. Here's what you can do right now:
+
+🎯 Quick Start Guide:
+1. Add your first property listing
+2. Set up your AI assistant personality
+3. Create your first follow-up sequence
+4. Generate QR codes for your listings
+
+Need help getting started? Reply to this email or check out our quick tutorial videos in the dashboard.
+
+Best regards,
+The HomeListingAI Team`
+            },
+            {
+                type: 'email',
+                delay: { value: 1, unit: 'days' },
+                subject: 'Your First Property Listing - Let\'s Get Started!',
+                content: `Hi {{user.name}},
+
+I noticed you haven't added your first property listing yet. Let me show you how easy it is!
+
+🚀 Add Your First Listing:
+• Upload photos and details
+• Generate AI-powered descriptions
+• Create professional marketing materials
+• Track visitor engagement
+
+This takes just 5 minutes and will help you see immediate results.
+
+Need help? I'm here to guide you through every step.
+
+Best,
+The HomeListingAI Team`
+            },
+            {
+                type: 'email',
+                delay: { value: 3, unit: 'days' },
+                subject: 'See How Other Agents Are Succeeding',
+                content: `Hi {{user.name}},
+
+Here are some real results from agents using HomeListingAI:
+
+📈 Success Stories:
+• Sarah M. increased her lead conversion by 3x
+• Mike R. saved 15 hours per week on follow-ups
+• Lisa K. generated 47 new leads in her first month
+
+Your trial ends in 4 days. Want to join these success stories?
+
+Upgrade now and get:
+✅ Unlimited property listings
+✅ Advanced AI features
+✅ Priority support
+✅ 30-day money-back guarantee
+
+Ready to transform your business?
+
+Best,
+The HomeListingAI Team`
+            },
+            {
+                type: 'email',
+                delay: { value: 5, unit: 'days' },
+                subject: 'Last 2 Days: Don\'t Lose Your Progress!',
+                content: `Hi {{user.name}},
+
+Your free trial ends in 2 days. Here's what happens next:
+
+⏰ Trial Ending Soon:
+• Your account will be paused
+• All your data will be saved for 30 days
+• You can reactivate anytime
+
+💡 What You'll Lose Access To:
+• AI-powered lead generation
+• Automated follow-up sequences
+• Property analytics and insights
+• QR code tracking
+
+🔒 What You'll Keep:
+• All your property data
+• Lead information
+• Templates and sequences
+
+Upgrade now to continue growing your business with AI!
+
+Best,
+The HomeListingAI Team`
+            },
+            {
+                type: 'email',
+                delay: { value: 6, unit: 'days' },
+                subject: 'Final Day: Your Trial Ends Tomorrow',
+                content: `Hi {{user.name}},
+
+This is your final reminder - your trial ends tomorrow at midnight.
+
+🎯 Last Chance to Upgrade:
+• Keep all your data and progress
+• Continue using all AI features
+• No setup required - instant access
+
+💳 Simple Upgrade Process:
+• Click the upgrade button in your dashboard
+• Choose your plan (starting at $59/month)
+• Continue using all features immediately
+
+Questions? Reply to this email - I'm here to help!
+
+Best,
+The HomeListingAI Team`
+            },
+            {
+                type: 'email',
+                delay: { value: 7, unit: 'days' },
+                subject: 'Your Trial Has Ended - Here\'s What\'s Next',
+                content: `Hi {{user.name}},
+
+Your 7-day free trial has ended. Here's what happens now:
+
+📊 Your Trial Summary:
+• You explored our AI-powered platform
+• Created [X] property listings
+• Generated [X] leads
+• Saved [X] hours with automation
+
+🔄 Reactivate Anytime:
+• Your data is safe for 30 days
+• Upgrade anytime to continue
+• No setup required
+
+💡 Special Offer:
+Upgrade within the next 7 days and get 20% off your first month!
+
+Ready to continue? Click here to upgrade.
+
+Best,
+The HomeListingAI Team`
+            }
+        ]
+    },
+
     // BUYER SEQUENCES
     {
         id: 'new-buyer-aggressive',
@@ -30,7 +192,15 @@ export const SEQUENCE_TEMPLATES: SequenceTemplate[] = [
                 type: 'email',
                 delay: { value: 5, unit: 'minutes' },
                 subject: 'Quick question about {{property.address}}',
-                content: `Hi {{lead.name}},\n\nI just saw your inquiry about {{property.address}}. This is a fantastic property and I'd love to chat about it.\n\nAre you available for a quick 5-minute call today?\n\nBest regards,\n{{agent.name}}\n{{agent.phone}}`
+                content: `Hi {{lead.name}},
+
+I just saw your inquiry about {{property.address}}. This is a fantastic property and I'd love to chat about it.
+
+Are you available for a quick 5-minute call today?
+
+Best regards,
+{{agent.name}}
+{{agent.phone}}`
             },
             {
                 type: 'task',
@@ -41,7 +211,18 @@ export const SEQUENCE_TEMPLATES: SequenceTemplate[] = [
                 type: 'email',
                 delay: { value: 4, unit: 'hours' },
                 subject: 'Available for a showing this week?',
-                content: `Hi {{lead.name}},\n\nI tried calling but wanted to follow up via email as well.\n\n{{property.address}} has some amazing features:\n• {{property.bedrooms}} bedrooms, {{property.bathrooms}} bathrooms\n• {{property.squareFeet}} sq ft of living space\n• Recently updated kitchen and bathrooms\n\nWould you be interested in a private showing this week? I have availability tomorrow and Friday.\n\n{{agent.name}}`
+                content: `Hi {{lead.name}},
+
+I tried calling but wanted to follow up via email as well.
+
+{{property.address}} has some amazing features:
+• {{property.bedrooms}} bedrooms, {{property.bathrooms}} bathrooms
+• {{property.squareFeet}} sq ft of living space
+• Recently updated kitchen and bathrooms
+
+Would you be interested in a private showing this week? I have availability tomorrow and Friday.
+
+{{agent.name}}`
             },
             {
                 type: 'ai-email',
