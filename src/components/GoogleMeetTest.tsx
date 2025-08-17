@@ -44,8 +44,12 @@ const GoogleMeetTest: React.FC = () => {
 
   const handleGoogleAuth = async () => {
     try {
-      const authUrl = await googleOAuthService.initializeAuth();
-      window.open(authUrl, '_blank', 'width=500,height=600');
+      const success = await googleOAuthService.requestAccess();
+      if (success) {
+        console.log('Google authentication successful');
+      } else {
+        console.error('Google authentication failed');
+      }
     } catch (error) {
       console.error('Error initiating Google auth:', error);
     }

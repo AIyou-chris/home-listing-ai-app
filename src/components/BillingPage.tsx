@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '../services/firebase';
 import { billingService, SUBSCRIPTION_PLANS, Subscription, Invoice } from '../services/billingService';
-import { Modal } from './Modal';
+import Modal from './Modal';
 
 interface BillingPageProps {
     onBackToDashboard: () => void;

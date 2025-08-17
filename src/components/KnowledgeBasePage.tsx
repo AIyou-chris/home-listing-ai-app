@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AgentProfile } from '../types';
 import { generateText } from '../services/geminiService';
+import { fileUploadService, FileData, KnowledgeBaseEntry } from '../services/fileUploadService';
+import { auth } from '../services/firebase';
 
 interface KnowledgeBasePageProps {
     agentProfile: AgentProfile;
@@ -8,8 +10,13 @@ interface KnowledgeBasePageProps {
 
 const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) => {
     const [activeTab, setActiveTab] = useState<'agent' | 'listing' | 'personalities' | 'conversations' | 'marketing'>('agent');
-    const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+    const [uploadedFiles, setUploadedFiles] = useState<FileData[]>([]);
+    const [knowledgeBaseEntries, setKnowledgeBaseEntries] = useState<KnowledgeBaseEntry[]>([]);
     const [isDragging, setIsDragging] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<KnowledgeBaseEntry[]>([]);
     
     // AI Personalities State
     const [aiSidekicks, setAiSidekicks] = useState({
@@ -20,6 +27,18 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
     const [testInput, setTestInput] = useState('');
     const [testResults, setTestResults] = useState<{[key: string]: string}>({});
     const [isTesting, setIsTesting] = useState(false);
+    
+    // Text content state
+    const [textContent, setTextContent] = useState({
+        title: '',
+        content: ''
+    });
+    
+    // URL scraper state
+    const [urlScraper, setUrlScraper] = useState({
+        url: '',
+        frequency: 'once'
+    });
 
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
@@ -38,31 +57,154 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
         e.stopPropagation();
     };
 
-    const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(false);
         
         const files = Array.from(e.dataTransfer.files);
-        const fileNames = files.map(file => file.name);
-        setUploadedFiles(prev => [...prev, ...fileNames]);
+        await handleFileUpload(files);
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const files = Array.from(e.target.files);
-            const fileNames = files.map(file => file.name);
-            setUploadedFiles(prev => [...prev, ...fileNames]);
+            await handleFileUpload(files);
         }
     };
 
+    const handleFileUpload = async (files: File[]) => {
+        if (!auth.currentUser) {
+            alert('Please sign in to upload files');
+            return;
+        }
+
+        setIsUploading(true);
+        
+        for (const file of files) {
+            try {
+                // Validate file
+                if (!fileUploadService.isValidFileType(file)) {
+                    alert(`File type not supported: ${file.name}`);
+                    continue;
+                }
+                
+                if (!fileUploadService.isValidFileSize(file)) {
+                    alert(`File too large: ${file.name} (max 10MB)`);
+                    continue;
+                }
+
+                // Update progress
+                setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
+
+                // Upload file
+                const uploadResult = await fileUploadService.uploadFile(
+                    file,
+                    auth.currentUser.uid
+                );
+
+                // Process document
+                setUploadProgress(prev => ({ ...prev, [file.name]: 25 }));
+                
+                const processResult = await fileUploadService.processDocument(
+                    uploadResult.fileId,
+                    file.type
+                );
+
+                // Process knowledge base
+                setUploadProgress(prev => ({ ...prev, [file.name]: 50 }));
+                
+                const knowledgeResult = await fileUploadService.processKnowledgeBase(
+                    uploadResult.fileId,
+                    auth.currentUser.uid,
+                    activeTab,
+                    []
+                );
+
+                // Store in knowledge base
+                setUploadProgress(prev => ({ ...prev, [file.name]: 75 }));
+                
+                await fileUploadService.storeKnowledgeBase(
+                    uploadResult.fileId,
+                    activeTab,
+                    [],
+                    auth.currentUser.uid
+                );
+
+                // Update AI context
+                setUploadProgress(prev => ({ ...prev, [file.name]: 90 }));
+                
+                await fileUploadService.updateAIContext(
+                    auth.currentUser.uid,
+                    activeTab,
+                    aiSidekicks[activeTab as keyof typeof aiSidekicks]?.personality || 'professional'
+                );
+
+                setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+
+                // Refresh file list
+                loadUserFiles();
+
+            } catch (error) {
+                console.error('File upload error:', error);
+                alert(`Failed to upload ${file.name}: ${error}`);
+            }
+        }
+
+        setIsUploading(false);
+        setUploadProgress({});
+    };
+
+    const loadUserFiles = async () => {
+        if (!auth.currentUser) return;
+
+        try {
+            const result = await fileUploadService.getUserFiles(auth.currentUser.uid);
+            setUploadedFiles(result.files);
+        } catch (error) {
+            console.error('Failed to load files:', error);
+        }
+    };
+
+    const handleSearch = async () => {
+        if (!auth.currentUser || !searchQuery.trim()) return;
+
+        try {
+            const result = await fileUploadService.searchKnowledgeBase(
+                searchQuery,
+                auth.currentUser.uid,
+                activeTab
+            );
+            setSearchResults(result.results);
+        } catch (error) {
+            console.error('Search error:', error);
+        }
+    };
+
+    const handleDeleteFile = async (fileId: string) => {
+        if (!confirm('Are you sure you want to delete this file?')) return;
+
+        try {
+            await fileUploadService.deleteFile(fileId);
+            loadUserFiles();
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('Failed to delete file');
+        }
+    };
+
+    // Load files on component mount
+    useEffect(() => {
+        loadUserFiles();
+    }, []);
+
     const handlePersonalityTest = async () => {
-        if (!testInput.trim()) return;
+        if (!testInput.trim() || !auth.currentUser) return;
         
         setIsTesting(true);
         const results: {[key: string]: string} = {};
         
-        // Simulate AI responses for each personality
+        // Test AI responses for each personality with knowledge base context
         const personalities = {
             listing: aiSidekicks.listing.personality,
             agent: aiSidekicks.agent.personality,
@@ -70,12 +212,96 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
         };
         
         for (const [sidekick, personality] of Object.entries(personalities)) {
-            const response = await generateText(`Respond to: "${testInput}" with a ${personality} personality. Keep it brief and natural.`);
-            results[sidekick] = response;
+            try {
+                const response = await fileUploadService.getAIResponseWithContext(
+                    testInput,
+                    auth.currentUser!.uid,
+                    sidekick,
+                    personality,
+                    []
+                );
+                results[sidekick] = response.text;
+            } catch (error) {
+                console.error(`Error testing ${sidekick} personality:`, error);
+                results[sidekick] = `Error: Unable to generate response for ${sidekick} personality.`;
+            }
         }
         
         setTestResults(results);
         setIsTesting(false);
+    };
+
+    const handleTrainPersonality = async (sidekickType: string) => {
+        if (!auth.currentUser) return;
+        
+        try {
+            const personality = aiSidekicks[sidekickType as keyof typeof aiSidekicks];
+            const trainingData = `Training data for ${sidekickType} sidekick with ${personality.personality} personality and ${personality.voice} voice.`;
+            
+            const result = await fileUploadService.trainAIPersonality(
+                auth.currentUser.uid,
+                sidekickType,
+                trainingData,
+                { voice: personality.voice, personality: personality.personality }
+            );
+            
+            alert(`${sidekickType} personality trained successfully!`);
+        } catch (error) {
+            console.error('Personality training error:', error);
+            alert('Failed to train personality. Please try again.');
+        }
+    };
+
+    const handleAddTextContent = async () => {
+        if (!auth.currentUser || !textContent.title.trim() || !textContent.content.trim()) {
+            alert('Please fill in both title and content');
+            return;
+        }
+        
+        try {
+            // Create a virtual file for text content
+            const textBlob = new Blob([textContent.content], { type: 'text/plain' });
+            const textFile = new File([textBlob], `${textContent.title}.txt`, { type: 'text/plain' });
+            
+            // Upload and process the text content
+            const uploadResult = await fileUploadService.uploadFile(textFile, auth.currentUser!.uid);
+            const processResult = await fileUploadService.processDocument(uploadResult.fileId, 'text/plain');
+            const knowledgeResult = await fileUploadService.processKnowledgeBase(
+                uploadResult.fileId,
+                auth.currentUser!.uid,
+                activeTab,
+                []
+            );
+            
+            // Clear form
+            setTextContent({ title: '', content: '' });
+            alert('Text content added to knowledge base successfully!');
+            
+            // Refresh file list
+            loadUserFiles();
+        } catch (error) {
+            console.error('Text content error:', error);
+            alert('Failed to add text content. Please try again.');
+        }
+    };
+
+    const handleUrlScraping = async () => {
+        if (!auth.currentUser || !urlScraper.url.trim()) {
+            alert('Please enter a valid URL');
+            return;
+        }
+        
+        try {
+            // For now, we'll create a placeholder for URL scraping
+            // In production, this would call a web scraping service
+            alert(`URL scraping for ${urlScraper.url} with frequency ${urlScraper.frequency} will be implemented.`);
+            
+            // Clear form
+            setUrlScraper({ url: '', frequency: 'once' });
+        } catch (error) {
+            console.error('URL scraping error:', error);
+            alert('Failed to start URL scraping. Please try again.');
+        }
     };
 
     const tabs = [
@@ -184,7 +410,7 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                         {uploadedFiles.map((file, index) => (
                                             <div key={index} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
                                                 <span className="material-symbols-outlined text-slate-400">description</span>
-                                                <span className="flex-1 text-slate-700">{file}</span>
+                                                <span className="flex-1 text-slate-700">{typeof file === 'string' ? file : file.fileName}</span>
                                                 <button 
                                                     onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
                                                     className="text-red-500 hover:text-red-700"
@@ -216,6 +442,8 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                             <input 
                                                 type="text" 
                                                 placeholder="e.g., Agent Scripts, Q&A"
+                                                value={textContent.title}
+                                                onChange={(e) => setTextContent(prev => ({ ...prev, title: e.target.value }))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                             />
                                         </div>
@@ -224,10 +452,15 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                             <textarea 
                                                 placeholder="Paste your agent knowledge content here..."
                                                 rows={6}
+                                                value={textContent.content}
+                                                onChange={(e) => setTextContent(prev => ({ ...prev, content: e.target.value }))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                             />
                                         </div>
-                                        <button className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition">
+                                        <button 
+                                            onClick={handleAddTextContent}
+                                            className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+                                        >
                                             Add to Knowledge Base
                                         </button>
                                     </div>
@@ -243,19 +476,28 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                             <input 
                                                 type="url" 
                                                 placeholder="https://example.com/agent-resources"
+                                                value={urlScraper.url}
+                                                onChange={(e) => setUrlScraper(prev => ({ ...prev, url: e.target.value }))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-2">Scraping Frequency</label>
-                                            <select className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                            <select 
+                                                value={urlScraper.frequency}
+                                                onChange={(e) => setUrlScraper(prev => ({ ...prev, frequency: e.target.value }))}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
                                                 <option value="once">Once (Manual)</option>
                                                 <option value="daily">Daily</option>
                                                 <option value="weekly">Weekly</option>
                                                 <option value="monthly">Monthly</option>
                                             </select>
                                         </div>
-                                        <button className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                                        <button 
+                                            onClick={handleUrlScraping}
+                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                                        >
                                             Start Scraping
                                         </button>
                                     </div>
@@ -303,7 +545,7 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                         {uploadedFiles.map((file, index) => (
                                             <div key={index} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
                                                 <span className="material-symbols-outlined text-slate-400">description</span>
-                                                <span className="flex-1 text-slate-700">{file}</span>
+                                                <span className="flex-1 text-slate-700">{typeof file === 'string' ? file : file.fileName}</span>
                                                 <button 
                                                     onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
                                                     className="text-red-500 hover:text-red-700"
@@ -335,6 +577,8 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                             <input 
                                                 type="text" 
                                                 placeholder="e.g., Property Descriptions, Market Data"
+                                                value={textContent.title}
+                                                onChange={(e) => setTextContent(prev => ({ ...prev, title: e.target.value }))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                             />
                                         </div>
@@ -343,10 +587,15 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                             <textarea 
                                                 placeholder="Paste your property knowledge content here..."
                                                 rows={6}
+                                                value={textContent.content}
+                                                onChange={(e) => setTextContent(prev => ({ ...prev, content: e.target.value }))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                             />
                                         </div>
-                                        <button className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition">
+                                        <button 
+                                            onClick={handleAddTextContent}
+                                            className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+                                        >
                                             Add to Knowledge Base
                                         </button>
                                     </div>
@@ -362,19 +611,28 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                             <input 
                                                 type="url" 
                                                 placeholder="https://example.com/property-listings"
+                                                value={urlScraper.url}
+                                                onChange={(e) => setUrlScraper(prev => ({ ...prev, url: e.target.value }))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-2">Scraping Frequency</label>
-                                            <select className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                            <select 
+                                                value={urlScraper.frequency}
+                                                onChange={(e) => setUrlScraper(prev => ({ ...prev, frequency: e.target.value }))}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
                                                 <option value="once">Once (Manual)</option>
                                                 <option value="daily">Daily</option>
                                                 <option value="weekly">Weekly</option>
                                                 <option value="monthly">Monthly</option>
                                             </select>
                                         </div>
-                                        <button className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                                        <button 
+                                            onClick={handleUrlScraping}
+                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                                        >
                                             Start Scraping
                                         </button>
                                     </div>
@@ -440,6 +698,13 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                                 <option value="neutral-1">Neutral Voice 1</option>
                                             </select>
                                         </div>
+                                        
+                                        <button
+                                            onClick={() => handleTrainPersonality('listing')}
+                                            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                                        >
+                                            Train Listing Personality
+                                        </button>
                                     </div>
                                 </div>
 
@@ -489,6 +754,13 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                                 <option value="neutral-1">Neutral Voice 1</option>
                                             </select>
                                         </div>
+                                        
+                                        <button
+                                            onClick={() => handleTrainPersonality('agent')}
+                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                                        >
+                                            Train Agent Personality
+                                        </button>
                                     </div>
                                 </div>
 
@@ -538,6 +810,13 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                                 <option value="neutral-1">Neutral Voice 1</option>
                                             </select>
                                         </div>
+                                        
+                                        <button
+                                            onClick={() => handleTrainPersonality('helper')}
+                                            className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                                        >
+                                            Train Helper Personality
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -791,7 +1070,7 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                         {uploadedFiles.map((file, index) => (
                                             <div key={index} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
                                                 <span className="material-symbols-outlined text-slate-400">description</span>
-                                                <span className="flex-1 text-slate-700">{file}</span>
+                                                <span className="flex-1 text-slate-700">{typeof file === 'string' ? file : file.fileName}</span>
                                                 <button 
                                                     onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
                                                     className="text-red-500 hover:text-red-700"
@@ -823,6 +1102,8 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                             <input 
                                                 type="text" 
                                                 placeholder="e.g., Luxury Property Marketing Strategy"
+                                                value={textContent.title}
+                                                onChange={(e) => setTextContent(prev => ({ ...prev, title: e.target.value }))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                             />
                                         </div>
@@ -831,10 +1112,15 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                             <textarea 
                                                 placeholder="Paste your marketing content here..."
                                                 rows={6}
+                                                value={textContent.content}
+                                                onChange={(e) => setTextContent(prev => ({ ...prev, content: e.target.value }))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                             />
                                         </div>
-                                        <button className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition">
+                                        <button 
+                                            onClick={handleAddTextContent}
+                                            className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+                                        >
                                             Add to Knowledge Base
                                         </button>
                                     </div>
@@ -850,19 +1136,28 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                                             <input 
                                                 type="url" 
                                                 placeholder="https://example.com/marketing-campaign"
+                                                value={urlScraper.url}
+                                                onChange={(e) => setUrlScraper(prev => ({ ...prev, url: e.target.value }))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-2">Scraping Frequency</label>
-                                            <select className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                            <select 
+                                                value={urlScraper.frequency}
+                                                onChange={(e) => setUrlScraper(prev => ({ ...prev, frequency: e.target.value }))}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
                                                 <option value="once">Once (Manual)</option>
                                                 <option value="daily">Daily</option>
                                                 <option value="weekly">Weekly</option>
                                                 <option value="monthly">Monthly</option>
                                             </select>
                                         </div>
-                                        <button className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                                        <button 
+                                            onClick={handleUrlScraping}
+                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                                        >
                                             Start Scraping
                                         </button>
                                     </div>

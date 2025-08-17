@@ -15,8 +15,11 @@ import { httpsCallable } from 'firebase/functions';
 
 export interface SubscriptionPlan {
     id: string;
-    name: 'Solo Agent';
+    name: 'Solo Agent' | 'Pro Team' | 'Brokerage';
     price: number;
+    description?: string;
+    originalPrice?: number;
+    discount?: number;
     features: string[];
     limitations: {
         listings: number;

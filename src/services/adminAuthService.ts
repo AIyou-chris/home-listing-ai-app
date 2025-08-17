@@ -100,7 +100,7 @@ class AdminAuthService {
 
   // Method to add new admin credentials (for development)
   addAdminCredential(email: string, password: string, user: AdminUser): void {
-    ADMIN_CREDENTIALS.push({ email, password, user });
+    ADMIN_CREDENTIALS.push({ email, password, user: user as any });
   }
 }
 

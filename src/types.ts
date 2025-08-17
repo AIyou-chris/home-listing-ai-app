@@ -297,6 +297,18 @@ export interface NotificationSettings {
     appointmentScheduled: boolean;
     aiInteraction: boolean;
     weeklySummary: boolean;
+    appointmentReminders: boolean;
+    taskReminders: boolean;
+    marketingUpdates: boolean;
+    propertyInquiries: boolean;
+    showingConfirmations: boolean;
+    hotLeads: boolean;
+    priceChanges: boolean;
+    contractMilestones: boolean;
+    browserNotifications: boolean;
+    weekendNotifications: boolean;
+    weeklyReport: boolean;
+    monthlyInsights: boolean;
 }
 
 export type CalendarIntegrationType = 'google' | 'outlook' | 'apple' | null;
