@@ -159,6 +159,16 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateToSignIn, onNavigateT
                                     </div>
                                 </div>
 
+                                <div className="p-4 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg">
+                                    <div className="flex items-start gap-3">
+                                        <span className="material-symbols-outlined w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5">gavel</span>
+                                        <div>
+                                            <h4 className="font-semibold">Important Legal Notice</h4>
+                                            <p className="text-xs mt-1">HomeListingAI provides tools and functionality only. You are responsible for all marketing content, communications, and compliance with real estate laws and regulations. Please review our Terms of Service and Privacy Policy.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div>
                                     <button type="submit" className="w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg shadow-md hover:shadow-lg transition-shadow">
                                         → Start Free Trial
