@@ -1915,3 +1915,233 @@ export const getSyncedEmails = functions.https.onCall(async (data: any, context:
         throw new functions.https.HttpsError("internal", "Failed to get synced emails");
     }
 });
+
+// QR Code Tracking System Functions
+
+// Track QR code scans
+export const trackQRScan = functions.https.onCall(async (data: any, context) => {
+    try {
+        const { qrCodeId, userId, userAgent, location, timestamp } = data;
+        
+        if (!qrCodeId) {
+            throw new functions.https.HttpsError("invalid-argument", "QR code ID is required");
+        }
+
+        const scanData = {
+            qrCodeId,
+            userId: userId || 'anonymous',
+            userAgent: userAgent || '',
+            location: location || null,
+            timestamp: timestamp || admin.firestore.FieldValue.serverTimestamp(),
+            ipAddress: '',
+            userEmail: null
+        };
+
+        // Save scan record
+        await db.collection('qrScans').add(scanData);
+
+        // Update QR code analytics
+        const qrCodeRef = db.collection('qrCodes').doc(qrCodeId);
+        await qrCodeRef.update({
+            totalScans: admin.firestore.FieldValue.increment(1),
+            lastScanned: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        console.log(`QR scan tracked: ${qrCodeId} by ${userId || 'anonymous'}`);
+        
+        return { success: true, scanId: scanData.timestamp };
+    } catch (error) {
+        console.error("QR scan tracking error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to track QR scan");
+    }
+});
+
+// Generate custom QR codes
+export const generateQRCode = functions.https.onCall(async (data: any, context) => {
+    try {
+        const { destination, title, description, userId, customData } = data;
+        
+        if (!destination || !userId) {
+            throw new functions.https.HttpsError("invalid-argument", "Destination URL and user ID are required");
+        }
+
+        // Generate unique QR code ID
+        const qrCodeId = `qr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Create QR code data
+        const qrCodeData = {
+            id: qrCodeId,
+            destination,
+            title: title || 'Custom QR Code',
+            description: description || '',
+            userId,
+            customData: customData || {},
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            totalScans: 0,
+            isActive: true,
+            metadata: {
+                createdBy: userId,
+                userAgent: '',
+                ipAddress: ''
+            }
+        };
+
+        // Save QR code to database
+        await db.collection('qrCodes').doc(qrCodeId).set(qrCodeData);
+
+        // Generate QR code URL (in production, you'd use a QR code generation library)
+        const qrCodeUrl = `https://your-domain.com/qr/${qrCodeId}`;
+        
+        console.log(`QR code generated: ${qrCodeId} for ${destination}`);
+        
+        return { 
+            success: true, 
+            qrCodeId, 
+            qrCodeUrl,
+            destination,
+            title: qrCodeData.title
+        };
+    } catch (error) {
+        console.error("QR code generation error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to generate QR code");
+    }
+});
+
+// Get QR code analytics
+export const getQRAnalytics = functions.https.onCall(async (data: any, context) => {
+    try {
+        const { qrCodeId, userId, timeRange } = data;
+        
+        if (!userId) {
+            throw new functions.https.HttpsError("invalid-argument", "User ID is required");
+        }
+
+        let query: any = db.collection('qrScans');
+        
+        // Filter by QR code if specified
+        if (qrCodeId) {
+            query = query.where('qrCodeId', '==', qrCodeId);
+        }
+        
+        // Filter by time range if specified
+        if (timeRange) {
+            const startDate = new Date();
+            switch (timeRange) {
+                case '24h':
+                    startDate.setHours(startDate.getHours() - 24);
+                    break;
+                case '7d':
+                    startDate.setDate(startDate.getDate() - 7);
+                    break;
+                case '30d':
+                    startDate.setDate(startDate.getDate() - 30);
+                    break;
+                case '90d':
+                    startDate.setDate(startDate.getDate() - 90);
+                    break;
+                default:
+                    break;
+            }
+            query = query.where('timestamp', '>=', startDate);
+        }
+
+        const snapshot = await query.get();
+        const scans = snapshot.docs.map((doc: any) => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        // Get QR codes for this user
+        const qrCodesSnapshot = await db.collection('qrCodes')
+            .where('userId', '==', userId)
+            .get();
+        
+        const qrCodes = qrCodesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        // Calculate analytics
+        const totalScans = scans.length;
+        const uniqueUsers = new Set(scans.map((scan: any) => scan.userId)).size;
+        const scansByDate = scans.reduce((acc: any, scan: any) => {
+            const date = new Date(scan.timestamp.toDate()).toDateString();
+            acc[date] = (acc[date] || 0) + 1;
+            return acc;
+        }, {});
+
+        const topQRCodes = qrCodes
+            .sort((a: any, b: any) => (b.totalScans || 0) - (a.totalScans || 0))
+            .slice(0, 10);
+
+        console.log(`QR analytics retrieved for user: ${userId}`);
+        
+        return {
+            success: true,
+            analytics: {
+                totalScans,
+                uniqueUsers,
+                scansByDate,
+                topQRCodes,
+                totalQRCodes: qrCodes.length
+            },
+            scans: scans.slice(0, 100) // Limit scan history
+        };
+    } catch (error) {
+        console.error("QR analytics error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to get QR analytics");
+    }
+});
+
+// Update QR code destination
+export const updateQRDestination = functions.https.onCall(async (data: any, context) => {
+    try {
+        const { qrCodeId, newDestination, userId } = data;
+        
+        if (!qrCodeId || !newDestination || !userId) {
+            throw new functions.https.HttpsError("invalid-argument", "QR code ID, new destination, and user ID are required");
+        }
+
+        // Verify ownership
+        const qrCodeDoc = await db.collection('qrCodes').doc(qrCodeId).get();
+        if (!qrCodeDoc.exists) {
+            throw new functions.https.HttpsError("not-found", "QR code not found");
+        }
+
+        const qrCodeData = qrCodeDoc.data();
+        if (qrCodeData?.userId !== userId) {
+            throw new functions.https.HttpsError("permission-denied", "You don't have permission to update this QR code");
+        }
+
+        // Update destination
+        await db.collection('qrCodes').doc(qrCodeId).update({
+            destination: newDestination,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            'metadata.lastUpdatedBy': userId
+        });
+
+        // Log the change
+        if (qrCodeData) {
+            await db.collection('qrCodeHistory').add({
+                qrCodeId,
+                action: 'destination_updated',
+                oldDestination: qrCodeData.destination,
+                newDestination,
+                userId,
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        console.log(`QR destination updated: ${qrCodeId} to ${newDestination}`);
+        
+        return { 
+            success: true, 
+            qrCodeId, 
+            newDestination,
+            message: 'QR code destination updated successfully'
+        };
+    } catch (error) {
+        console.error("QR destination update error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to update QR destination");
+    }
+});
