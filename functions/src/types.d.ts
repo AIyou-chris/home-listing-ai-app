@@ -23,3 +23,13 @@ declare module 'tesseract.js' {
 declare module 'pdf-parse' {
   export default function pdfParse(buffer: Buffer): Promise<{ text: string }>;
 }
+
+// Firebase Functions context type
+declare namespace FirebaseFirestore {
+  interface CallableContext {
+    auth?: {
+      uid: string;
+      token: any;
+    };
+  }
+}
