@@ -1,107 +1,122 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import { 
+  requireAdminPermission, 
+  getAdminUser, 
+  logAdminAction, 
+  combineMiddleware,
+  validateInput
+} from './middleware';
 
 const db = admin.firestore();
 
 // User management
-export const getAllUsers = functions.https.onCall(async (data: any, context: any) => {
-  try {
-    // Verify admin permissions
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
-    }
+export const getAllUsers = functions.https.onCall(
+  combineMiddleware(
+    requireAdminPermission('userManagement'),
+    validateInput({
+      page: { type: 'number', required: false },
+      limit: { type: 'number', required: false },
+      status: { type: 'string', required: false }
+    })
+  )(
+    async (data: any, context: any) => {
+      try {
+        const adminUser = await getAdminUser(context);
 
-    const adminDoc = await db.collection('admins').doc(context.auth.uid).get();
-    if (!adminDoc.exists) {
-      throw new functions.https.HttpsError('permission-denied', 'Admin access required');
-    }
+        const { page = 1, limit = 20, status } = data;
+        const offset = (page - 1) * limit;
 
-    const { page = 1, limit = 20, status } = data;
-    const offset = (page - 1) * limit;
+        let query = db.collection('users').orderBy('createdAt', 'desc');
 
-    let query = db.collection('users').orderBy('createdAt', 'desc');
+        if (status) {
+          query = query.where('status', '==', status);
+        }
 
-    if (status) {
-      query = query.where('status', '==', status);
-    }
+        const snapshot = await query.limit(limit).offset(offset).get();
+        const users = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
 
-    const snapshot = await query.limit(limit).offset(offset).get();
-    const users = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+        const totalSnapshot = await query.count().get();
+        const total = totalSnapshot.data().count;
 
-    const totalSnapshot = await query.count().get();
-    const total = totalSnapshot.data().count;
+        const result = {
+          users,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit)
+          }
+        };
 
-    return {
-      users,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
+        // Log admin action
+        await logAdminAction(adminUser.id, 'get_all_users', { page, limit, status });
+
+        return result;
+      } catch (error) {
+        console.error('getAllUsers error:', error);
+        throw new functions.https.HttpsError('internal', 'Failed to fetch users');
       }
-    };
-  } catch (error) {
-    console.error('getAllUsers error:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to fetch users');
-  }
-});
-
-export const updateUserStatus = functions.https.onCall(async (data: any, context: any) => {
-  try {
-    // Verify admin permissions
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
+  )
+);
 
-    const adminDoc = await db.collection('admins').doc(context.auth.uid).get();
-    if (!adminDoc.exists) {
-      throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+export const updateUserStatus = functions.https.onCall(
+  combineMiddleware(
+    requireAdminPermission('userManagement'),
+    validateInput({
+      userId: { type: 'string', required: true },
+      status: { type: 'string', required: true },
+      reason: { type: 'string', required: false }
+    })
+  )(
+    async (data: any, context: any) => {
+      try {
+        const adminUser = await getAdminUser(context);
+
+        const { userId, status, reason } = data;
+
+        if (!userId || !status) {
+          throw new functions.https.HttpsError('invalid-argument', 'User ID and status are required');
+        }
+
+        // Update user status
+        await db.collection('users').doc(userId).update({
+          status,
+          statusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          statusUpdatedBy: adminUser.id,
+          statusReason: reason || null
+        });
+
+        // Create notification for user
+        await db.collection('notifications').add({
+          userId,
+          type: 'status_update',
+          title: 'Account Status Updated',
+          message: `Your account status has been updated to: ${status}`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          read: false
+        });
+
+        // Log admin action
+        await logAdminAction(adminUser.id, 'update_user_status', { 
+          targetUserId: userId, 
+          oldStatus: (await db.collection('users').doc(userId).get()).data()?.status,
+          newStatus: status, 
+          reason 
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error('updateUserStatus error:', error);
+        throw new functions.https.HttpsError('internal', 'Failed to update user status');
+      }
     }
-
-    const { userId, status, reason } = data;
-
-    if (!userId || !status) {
-      throw new functions.https.HttpsError('invalid-argument', 'User ID and status are required');
-    }
-
-    // Update user status
-    await db.collection('users').doc(userId).update({
-      status,
-      statusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      statusUpdatedBy: context.auth.uid,
-      statusReason: reason || null
-    });
-
-    // Create notification for user
-    await db.collection('notifications').add({
-      userId,
-      type: 'status_update',
-      title: 'Account Status Updated',
-      message: `Your account status has been updated to: ${status}`,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      read: false
-    });
-
-    // Log admin action
-    await db.collection('adminLogs').add({
-      adminId: context.auth.uid,
-      action: 'update_user_status',
-      targetUserId: userId,
-      oldStatus: (await db.collection('users').doc(userId).get()).data()?.status,
-      newStatus: status,
-      reason,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('updateUserStatus error:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to update user status');
-  }
-});
+  )
+);
 
 // System settings
 export const updateSystemSettings = functions.https.onCall(async (data: any, context: any) => {
