@@ -879,94 +879,38 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
             
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 <div className="text-center">
-                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 animate-fade-in-up">Choose the Plan That's Right for You</h2>
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 animate-fade-in-up">Revolutionize Your Real Estate Business</h2>
                     <p className="mt-4 max-w-2xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                         Simple, transparent pricing. Powerful features. No hidden costs.
                     </p>
                 </div>
-                <div className="mt-16 grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-fade-in-up animation-delay-400">
-                    {/* Solo Agent Plan */}
-                    <div className="p-8 h-full flex flex-col rounded-2xl bg-white shadow-lg border border-slate-200 transform hover:scale-105 transition-all duration-300 hover-lift animate-fade-in-up" 
-                         style={{ animationDelay: '400ms' }}>
+                <div className="mt-16 flex justify-center animate-fade-in-up animation-delay-400">
+                    {/* Single Plan */}
+                    <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform hover:scale-105 transition-all duration-300 animate-fade-in-up glow max-w-md">
                         <div className="flex-grow">
-                            <h3 className="text-2xl font-bold text-slate-800">Solo Agent</h3>
-                            <p className="mt-2 text-slate-500">For the individual agent ready to supercharge their business.</p>
+                            <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
+                            <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
                             <p className="mt-6">
-                                <span className="text-5xl font-extrabold text-slate-900">$59</span>
-                                <span className="text-xl font-medium text-slate-500">/mo</span>
-                            </p>
-                            <p className="mt-1 text-sm text-slate-500">
-                                <span className="line-through text-slate-400">Normally $99</span> 
-                                <span className="ml-2 text-green-600 font-semibold">40% OFF</span>
-                            </p>
-                            <p className="mt-1 text-sm text-slate-500">Up to 5 Active Listings</p>
-                            <ul className="mt-8 space-y-4">
-                                <PlanFeature>Full Dashboard Access</PlanFeature>
-                                <PlanFeature>AI Content Studio</PlanFeature>
-                                <PlanFeature>Automated Follow-up Sequences</PlanFeature>
-                                <PlanFeature>AI Inbox & Lead Management</PlanFeature>
-                                <PlanFeature>Standard Support</PlanFeature>
-                            </ul>
-                        </div>
-                        <button
-                            onClick={onNavigateToSignUp}
-                            className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-colors duration-300 bg-white text-primary-600 border-2 border-primary-600 hover:bg-primary-50"
-                        >
-                            Choose Plan
-                        </button>
-                    </div>
-
-                    {/* Pro Team Plan */}
-                    <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform lg:scale-105 hover:scale-110 transition-all duration-300 animate-fade-in-up glow" 
-                         style={{ animationDelay: '600ms' }}>
-                        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                            <span className="px-4 py-1 bg-purple-600 text-white text-sm font-bold uppercase rounded-full tracking-wider">Most Popular</span>
-                        </div>
-                        <div className="flex-grow pt-4">
-                            <h3 className="text-2xl font-bold text-white">Pro Team</h3>
-                            <p className="mt-2 text-slate-300">For small teams and top producers who need more power.</p>
-                            <p className="mt-6">
-                                <span className="text-5xl font-extrabold text-white">$149</span>
+                                <span className="text-5xl font-extrabold text-white">$69</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
-                            <p className="mt-1 text-sm text-slate-300">Up to 20 Active Listings & 3 Agent Seats</p>
+                            <p className="mt-1 text-sm text-slate-300">Unlimited Active Listings</p>
                             <ul className="mt-8 space-y-4">
-                                <PlanFeature dark>Everything in Solo Agent</PlanFeature>
+                                <PlanFeature dark>Full Dashboard Access</PlanFeature>
+                                <PlanFeature dark>AI Content Studio</PlanFeature>
+                                <PlanFeature dark>Automated Follow-up Sequences</PlanFeature>
+                                <PlanFeature dark>AI Inbox & Lead Management</PlanFeature>
                                 <PlanFeature dark>Team Collaboration Features</PlanFeature>
                                 <PlanFeature dark>Advanced Analytics</PlanFeature>
                                 <PlanFeature dark>Priority Email Support</PlanFeature>
+                                <PlanFeature dark>White-Labeling Options</PlanFeature>
                             </ul>
                         </div>
                         <button 
                             onClick={onNavigateToSignUp}
                             className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-all duration-300 bg-white text-primary-700 shadow-lg hover:bg-slate-200 transform hover:scale-[1.02]"
                         >
-                            Choose Plan
-                        </button>
-                    </div>
-
-                    {/* Brokerage Plan */}
-                     <div className="p-8 h-full flex flex-col rounded-2xl bg-white shadow-lg border border-slate-200 transform hover:scale-105 transition-all duration-300 hover-lift animate-fade-in-up" 
-                          style={{ animationDelay: '800ms' }}>
-                        <div className="flex-grow">
-                            <h3 className="text-2xl font-bold text-slate-800">Brokerage</h3>
-                            <p className="mt-2 text-slate-500">Fully branded solutions for your entire brokerage.</p>
-                            <p className="mt-6">
-                                <span className="text-5xl font-extrabold text-slate-900">Custom</span>
-                            </p>
-                            <p className="mt-1 text-sm text-slate-500">Unlimited Listings & Agents</p>
-                            <ul className="mt-8 space-y-4">
-                                <PlanFeature>Everything in Pro Team</PlanFeature>
-                                <PlanFeature>Full White-Labeling</PlanFeature>
-                                <PlanFeature>Custom Integrations</PlanFeature>
-                                <PlanFeature>Dedicated Account Manager</PlanFeature>
-                            </ul>
-                        </div>
-                        <button
-                            onClick={onOpenConsultationModal}
-                            className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-colors duration-300 bg-white text-primary-600 border-2 border-primary-600 hover:bg-primary-50"
-                        >
-                            Contact Us
+                            Get Started Today
                         </button>
                     </div>
                 </div>

@@ -22,7 +22,7 @@ import MarketingPage from './components/MarketingPage';
 // import SettingsPage from './components/SettingsPage'; // Temporarily disabled for Voice Assistant deployment
 import SupportFAB from './components/SupportFAB';
 import VoiceAssistant from './components/VoiceAssistant';
-import ContactLeadModal from './components/ConsultationModal';
+import ConsultationModal from './components/ConsultationModal';
 import AdminDashboard from './components/AdminDashboard';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import PropertyComparison from './components/PropertyComparison';
@@ -475,7 +475,17 @@ const App: React.FC = () => {
         <>
             {renderViewContent()}
             
-            {isConsultationModalOpen && selectedLead && <ContactLeadModal lead={selectedLead} onSchedule={() => setIsConsultationModalOpen(false)} onClose={() => setIsConsultationModalOpen(false)} />}
+            {isConsultationModalOpen && <ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => {
+                // Add success notification
+                setNotifications(prev => [...prev, {
+                    id: Date.now().toString(),
+                    type: 'success',
+                    title: 'Consultation Scheduled',
+                    message: 'Your consultation has been scheduled successfully!',
+                    timestamp: new Date(),
+                    isRead: false
+                }]);
+            }} />}
             
             {isPropertyComparisonOpen && (
                 <PropertyComparison 
