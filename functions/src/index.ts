@@ -1916,6 +1916,80 @@ export const getSyncedEmails = functions.https.onCall(async (data: any, context:
     }
 });
 
+// Generate Marketing Proposal
+export const generateMarketingProposal = functions.https.onCall(async (data: any, context) => {
+    try {
+        const { propertyAddress, propertyPrice, propertyType, agentInfo, customRequirements, userId } = data;
+        
+        if (!propertyAddress || !agentInfo?.name || !userId) {
+            throw new functions.https.HttpsError("invalid-argument", "Property address, agent name, and user ID are required");
+        }
+
+        // Use Gemini to generate the proposal
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        
+        const prompt = `Create a professional real estate marketing proposal for the following property and agent:
+
+Property Details:
+- Address: ${propertyAddress}
+- Price: ${propertyPrice || 'TBD'}
+- Type: ${propertyType}
+
+Agent Information:
+- Name: ${agentInfo.name}
+- Email: ${agentInfo.email || 'N/A'}
+- Phone: ${agentInfo.phone || 'N/A'}
+- Experience: ${agentInfo.experience}
+
+Custom Requirements: ${customRequirements || 'None specified'}
+
+Please create a comprehensive marketing proposal with the following sections:
+1. Executive Summary (2-3 sentences)
+2. Market Analysis (brief market overview)
+3. Pricing Strategy (recommended approach)
+4. Marketing Plan (multi-channel strategy)
+5. Timeline (30-day campaign outline)
+
+Make it professional, concise, and actionable. Each section should be 1-2 sentences.`;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const proposalText = response.text();
+
+        // Parse the response into sections
+        const sections = proposalText.split('\n\n');
+        const proposal = {
+            id: `proposal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            propertyAddress,
+            propertyPrice,
+            propertyType,
+            agentInfo,
+            customRequirements,
+            executiveSummary: sections[0]?.replace('Executive Summary:', '').trim() || 'Professional marketing proposal for this property.',
+            marketAnalysis: sections[1]?.replace('Market Analysis:', '').trim() || 'Current market analysis shows strong potential.',
+            pricingStrategy: sections[2]?.replace('Pricing Strategy:', '').trim() || 'Competitive pricing strategy recommended.',
+            marketingPlan: sections[3]?.replace('Marketing Plan:', '').trim() || 'Multi-channel marketing approach.',
+            timeline: sections[4]?.replace('Timeline:', '').trim() || '30-day marketing campaign.',
+            userId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        // Save to Firestore
+        await db.collection('marketingProposals').doc(proposal.id).set(proposal);
+
+        console.log(`Marketing proposal generated: ${proposal.id} for ${propertyAddress}`);
+        
+        return { 
+            success: true, 
+            proposalId: proposal.id,
+            proposal
+        };
+    } catch (error) {
+        console.error("Marketing proposal generation error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to generate marketing proposal");
+    }
+});
+
 // QR Code Tracking System Functions
 
 // Track QR code scans
