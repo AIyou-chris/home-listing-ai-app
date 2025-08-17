@@ -1,10 +1,154 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
+import { 
+	collection, 
+	query, 
+	onSnapshot, 
+	orderBy, 
+	limit, 
+	where, 
+	Timestamp,
+	doc,
+	getDoc,
+	getDocs,
+	startAfter,
+	endBefore
+} from 'firebase/firestore';
+import { db } from './firebase';
+
+// Types for admin analytics
+export interface AdminMetrics {
+	totalUsers: number;
+	activeUsers: number;
+	newUsersToday: number;
+	totalProperties: number;
+	totalInteractions: number;
+	revenue: number;
+	conversionRate: number;
+	avgSessionDuration: number;
+	topPerformingProperties: Array<{
+		id: string;
+		title: string;
+		views: number;
+		leads: number;
+		conversionRate: number;
+	}>;
+	systemHealth: {
+		status: 'healthy' | 'warning' | 'critical';
+		uptime: number;
+		responseTime: number;
+		errorRate: number;
+	};
+}
+
+export interface UserEngagementMetrics {
+	totalUsers: number;
+	activeUsers: {
+		daily: number;
+		weekly: number;
+		monthly: number;
+	};
+	engagementScore: number;
+	topEngagedUsers: Array<{
+		userId: string;
+		email: string;
+		engagementScore: number;
+		lastActivity: Date;
+		interactions: number;
+	}>;
+	userRetention: {
+		day1: number;
+		day7: number;
+		day30: number;
+	};
+	userSegments: {
+		highEngagement: number;
+		mediumEngagement: number;
+		lowEngagement: number;
+		inactive: number;
+	};
+}
+
+export interface SystemPerformanceMetrics {
+	responseTime: {
+		average: number;
+		p95: number;
+		p99: number;
+	};
+	errorRate: number;
+	throughput: {
+		requestsPerMinute: number;
+		requestsPerHour: number;
+	};
+	resourceUsage: {
+		cpu: number;
+		memory: number;
+		storage: number;
+	};
+	functionPerformance: Array<{
+		name: string;
+		executionTime: number;
+		errorRate: number;
+		invocationCount: number;
+	}>;
+	uptime: number;
+}
+
+export interface RetentionMetrics {
+	overallRetention: {
+		day1: number;
+		day7: number;
+		day30: number;
+		day90: number;
+	};
+	cohortAnalysis: Array<{
+		cohort: string;
+		day1: number;
+		day7: number;
+		day30: number;
+		day90: number;
+	}>;
+	churnRate: {
+		monthly: number;
+		quarterly: number;
+	};
+	retentionBySegment: {
+		premium: number;
+		standard: number;
+		free: number;
+	};
+	revenueRetention: number;
+}
+
+export interface RealTimeData {
+	activeUsers: number;
+	recentEvents: Array<{
+		id: string;
+		type: string;
+		userId?: string;
+		propertyId?: string;
+		timestamp: Date;
+		data?: any;
+	}>;
+	systemAlerts: Array<{
+		id: string;
+		type: string;
+		severity: 'low' | 'medium' | 'high' | 'critical';
+		message: string;
+		timestamp: Date;
+	}>;
+	performanceMetrics: {
+		responseTime: number;
+		errorRate: number;
+		throughput: number;
+	};
+}
 
 // Analytics Service for tracking interactions and generating reports
 export class AnalyticsService {
 	private static instance: AnalyticsService;
 	private functions = functions;
+	private realTimeListeners: Map<string, () => void> = new Map();
 
 	private constructor() {}
 
@@ -174,14 +318,19 @@ export class AnalyticsService {
 	}
 
 	// Get real-time analytics
-	async getRealTimeAnalytics() {
+	async getRealTimeAnalytics(): Promise<RealTimeData> {
 		try {
 			// This would typically call a separate function or use Firestore directly
 			// For now, we'll return a placeholder
 			return {
 				activeUsers: 0,
 				recentEvents: [],
-				lastUpdated: new Date()
+				systemAlerts: [],
+				performanceMetrics: {
+					responseTime: 0,
+					errorRate: 0,
+					throughput: 0
+				}
 			};
 		} catch (error) {
 			console.error('Error getting real-time analytics:', error);
@@ -323,6 +472,261 @@ export class AnalyticsService {
 		a.click();
 		document.body.removeChild(a);
 		window.URL.revokeObjectURL(url);
+	}
+
+	// ===== ADMIN-SPECIFIC ANALYTICS =====
+
+	// Get admin dashboard metrics
+	async getAdminDashboardMetrics(): Promise<AdminMetrics> {
+		try {
+			const adminMetricsFunction = httpsCallable(this.functions, 'getAdminDashboardMetrics');
+			const result = await adminMetricsFunction({});
+			return result.data as AdminMetrics;
+		} catch (error) {
+			console.error('Error getting admin dashboard metrics:', error);
+			throw error;
+		}
+	}
+
+	// Get user engagement metrics
+	async getUserEngagementMetrics(): Promise<UserEngagementMetrics> {
+		try {
+			const userEngagementFunction = httpsCallable(this.functions, 'getUserEngagementMetrics');
+			const result = await userEngagementFunction({});
+			return result.data as UserEngagementMetrics;
+		} catch (error) {
+			console.error('Error getting user engagement metrics:', error);
+			throw error;
+		}
+	}
+
+	// Get system performance metrics
+	async getSystemPerformanceMetrics(): Promise<SystemPerformanceMetrics> {
+		try {
+			const systemPerformanceFunction = httpsCallable(this.functions, 'getSystemPerformanceMetrics');
+			const result = await systemPerformanceFunction({});
+			return result.data as SystemPerformanceMetrics;
+		} catch (error) {
+			console.error('Error getting system performance metrics:', error);
+			throw error;
+		}
+	}
+
+	// Get retention metrics
+	async getRetentionMetrics(): Promise<RetentionMetrics> {
+		try {
+			const retentionMetricsFunction = httpsCallable(this.functions, 'getRetentionMetrics');
+			const result = await retentionMetricsFunction({});
+			return result.data as RetentionMetrics;
+		} catch (error) {
+			console.error('Error getting retention metrics:', error);
+			throw error;
+		}
+	}
+
+	// ===== REAL-TIME LISTENERS =====
+
+	// Listen to real-time user activity
+	listenToUserActivity(callback: (data: any) => void, limit: number = 50): () => void {
+		const q = query(
+			collection(db, 'userInteractions'),
+			orderBy('timestamp', 'desc'),
+			limit(limit)
+		);
+
+		const unsubscribe = onSnapshot(q, (snapshot) => {
+			const activities = snapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data(),
+				timestamp: doc.data().timestamp?.toDate()
+			}));
+			callback(activities);
+		});
+
+		this.realTimeListeners.set('userActivity', unsubscribe);
+		return unsubscribe;
+	}
+
+	// Listen to real-time system alerts
+	listenToSystemAlerts(callback: (alerts: any[]) => void, severity?: 'low' | 'medium' | 'high' | 'critical'): () => void {
+		let q = query(
+			collection(db, 'alerts'),
+			orderBy('timestamp', 'desc'),
+			limit(20)
+		);
+
+		if (severity) {
+			q = query(q, where('severity', '==', severity));
+		}
+
+		const unsubscribe = onSnapshot(q, (snapshot) => {
+			const alerts = snapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data(),
+				timestamp: doc.data().timestamp?.toDate()
+			}));
+			callback(alerts);
+		});
+
+		this.realTimeListeners.set('systemAlerts', unsubscribe);
+		return unsubscribe;
+	}
+
+	// Listen to real-time performance metrics
+	listenToPerformanceMetrics(callback: (metrics: any) => void): () => void {
+		const q = query(
+			collection(db, 'performanceMetrics'),
+			orderBy('timestamp', 'desc'),
+			limit(1)
+		);
+
+		const unsubscribe = onSnapshot(q, (snapshot) => {
+			if (!snapshot.empty) {
+				const doc = snapshot.docs[0];
+				const metrics = {
+					id: doc.id,
+					...doc.data(),
+					timestamp: doc.data().timestamp?.toDate()
+				};
+				callback(metrics);
+			}
+		});
+
+		this.realTimeListeners.set('performanceMetrics', unsubscribe);
+		return unsubscribe;
+	}
+
+	// Listen to real-time user count
+	listenToActiveUsers(callback: (count: number) => void): () => void {
+		const q = query(
+			collection(db, 'activeUsers'),
+			where('lastActivity', '>', Timestamp.fromDate(new Date(Date.now() - 5 * 60 * 1000))) // Last 5 minutes
+		);
+
+		const unsubscribe = onSnapshot(q, (snapshot) => {
+			callback(snapshot.size);
+		});
+
+		this.realTimeListeners.set('activeUsers', unsubscribe);
+		return unsubscribe;
+	}
+
+	// Listen to real-time property views
+	listenToPropertyViews(callback: (views: any[]) => void, propertyId?: string): () => void {
+		let q = query(
+			collection(db, 'propertyViews'),
+			orderBy('timestamp', 'desc'),
+			limit(20)
+		);
+
+		if (propertyId) {
+			q = query(q, where('propertyId', '==', propertyId));
+		}
+
+		const unsubscribe = onSnapshot(q, (snapshot) => {
+			const views = snapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data(),
+				timestamp: doc.data().timestamp?.toDate()
+			}));
+			callback(views);
+		});
+
+		this.realTimeListeners.set('propertyViews', unsubscribe);
+		return unsubscribe;
+	}
+
+	// Listen to real-time conversion events
+	listenToConversions(callback: (conversions: any[]) => void): () => void {
+		const q = query(
+			collection(db, 'conversions'),
+			orderBy('timestamp', 'desc'),
+			limit(50)
+		);
+
+		const unsubscribe = onSnapshot(q, (snapshot) => {
+			const conversions = snapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data(),
+				timestamp: doc.data().timestamp?.toDate()
+			}));
+			callback(conversions);
+		});
+
+		this.realTimeListeners.set('conversions', unsubscribe);
+		return unsubscribe;
+	}
+
+	// Listen to real-time revenue data
+	listenToRevenue(callback: (revenue: any) => void): () => void {
+		const q = query(
+			collection(db, 'revenue'),
+			orderBy('timestamp', 'desc'),
+			limit(1)
+		);
+
+		const unsubscribe = onSnapshot(q, (snapshot) => {
+			if (!snapshot.empty) {
+				const doc = snapshot.docs[0];
+				const revenue = {
+					id: doc.id,
+					...doc.data(),
+					timestamp: doc.data().timestamp?.toDate()
+				};
+				callback(revenue);
+			}
+		});
+
+		this.realTimeListeners.set('revenue', unsubscribe);
+		return unsubscribe;
+	}
+
+	// Listen to real-time system health
+	listenToSystemHealth(callback: (health: any) => void): () => void {
+		const q = query(
+			collection(db, 'systemHealth'),
+			orderBy('timestamp', 'desc'),
+			limit(1)
+		);
+
+		const unsubscribe = onSnapshot(q, (snapshot) => {
+			if (!snapshot.empty) {
+				const doc = snapshot.docs[0];
+				const health = {
+					id: doc.id,
+					...doc.data(),
+					timestamp: doc.data().timestamp?.toDate()
+				};
+				callback(health);
+			}
+		});
+
+		this.realTimeListeners.set('systemHealth', unsubscribe);
+		return unsubscribe;
+	}
+
+	// Stop all real-time listeners
+	stopAllListeners(): void {
+		this.realTimeListeners.forEach(unsubscribe => unsubscribe());
+		this.realTimeListeners.clear();
+	}
+
+	// Stop specific listener
+	stopListener(listenerName: string): void {
+		const unsubscribe = this.realTimeListeners.get(listenerName);
+		if (unsubscribe) {
+			unsubscribe();
+			this.realTimeListeners.delete(listenerName);
+		}
+	}
+
+	// Get listener status
+	getListenerStatus(): { [key: string]: boolean } {
+		const status: { [key: string]: boolean } = {};
+		this.realTimeListeners.forEach((_, key) => {
+			status[key] = true;
+		});
+		return status;
 	}
 }
 
