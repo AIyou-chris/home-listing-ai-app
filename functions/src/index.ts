@@ -1916,6 +1916,123 @@ export const getSyncedEmails = functions.https.onCall(async (data: any, context:
     }
 });
 
+// Generate AI Questions for Interactive Forms
+export const generateAIQuestions = functions.https.onCall(async (data: any, context) => {
+    try {
+        const { type, userId } = data;
+        
+        if (!type || !userId) {
+            throw new functions.https.HttpsError("invalid-argument", "Type and user ID are required");
+        }
+
+        // Use Gemini to generate contextual questions
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        
+        const prompt = `Generate 8-10 intelligent questions for a real estate marketing proposal form. The questions should be:
+
+1. Property Address (text input)
+2. Property Type (select: Residential Home, Condo/Apartment, Townhouse, Luxury Home, Investment Property, Land, Commercial)
+3. Property Price (text input)
+4. Special Features (textarea - optional)
+5. Target Market (multi-select: First-time buyers, Families, Professionals, Investors, Luxury buyers, Downsizers, All buyers)
+6. Agent Name (text input)
+7. Agent Experience (select: 1-3 years, 3-5 years, 5-10 years, 10+ years)
+8. Custom Requirements (textarea - optional)
+
+Return the questions as a JSON array with this structure:
+[{
+  "id": "question_id",
+  "question": "Question text?",
+  "type": "text|select|textarea|multi-select",
+  "options": ["option1", "option2"] (for select/multi-select),
+  "required": true/false,
+  "placeholder": "placeholder text"
+}]
+
+Make the questions conversational and professional.`;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const questionsText = response.text();
+
+        // Parse the JSON response
+        let questions;
+        try {
+            questions = JSON.parse(questionsText);
+        } catch (parseError) {
+            // Fallback to default questions if parsing fails
+            questions = [
+                {
+                    id: 'property_address',
+                    question: 'What is the property address?',
+                    type: 'text',
+                    required: true,
+                    placeholder: 'e.g., 123 Main Street, City, State'
+                },
+                {
+                    id: 'property_type',
+                    question: 'What type of property is this?',
+                    type: 'select',
+                    options: ['Residential Home', 'Condo/Apartment', 'Townhouse', 'Luxury Home', 'Investment Property', 'Land', 'Commercial'],
+                    required: true
+                },
+                {
+                    id: 'property_price',
+                    question: 'What is the asking price or price range?',
+                    type: 'text',
+                    required: true,
+                    placeholder: 'e.g., $450,000 or $400,000 - $500,000'
+                },
+                {
+                    id: 'special_features',
+                    question: 'What special features or unique selling points should we highlight?',
+                    type: 'textarea',
+                    required: false,
+                    placeholder: 'e.g., Recently renovated kitchen, large backyard, great schools nearby, etc.'
+                },
+                {
+                    id: 'target_market',
+                    question: 'Who is your target market for this property?',
+                    type: 'multi-select',
+                    options: ['First-time buyers', 'Families', 'Professionals', 'Investors', 'Luxury buyers', 'Downsizers', 'All buyers'],
+                    required: true
+                },
+                {
+                    id: 'agent_name',
+                    question: 'What is your name?',
+                    type: 'text',
+                    required: true,
+                    placeholder: 'Your full name'
+                },
+                {
+                    id: 'agent_experience',
+                    question: 'How many years of real estate experience do you have?',
+                    type: 'select',
+                    options: ['1-3 years', '3-5 years', '5-10 years', '10+ years'],
+                    required: true
+                },
+                {
+                    id: 'custom_requirements',
+                    question: 'Any specific requirements or preferences for the marketing proposal?',
+                    type: 'textarea',
+                    required: false,
+                    placeholder: 'e.g., Focus on digital marketing, emphasize luxury features, target specific neighborhood, etc.'
+                }
+            ];
+        }
+
+        console.log(`AI questions generated for type: ${type}`);
+        
+        return { 
+            success: true, 
+            questions
+        };
+    } catch (error) {
+        console.error("AI questions generation error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to generate AI questions");
+    }
+});
+
 // Generate Marketing Proposal
 export const generateMarketingProposal = functions.https.onCall(async (data: any, context) => {
     try {
