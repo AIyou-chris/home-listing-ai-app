@@ -80,27 +80,84 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ onClose }) => {
         setMessages(prev => [...prev, newAiMessage]);
         setStatus('speaking');
         
-        // Simulate speaking time based on response length
-        const speakingDuration = Math.max(1500, aiResponse.length * 50);
-        setTimeout(() => {
-            setStatus('idle');
-        }, speakingDuration);
+        // Use text-to-speech if not muted
+        if (!isMuted && 'speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(aiResponse);
+            utterance.rate = 0.9;
+            utterance.pitch = 1;
+            utterance.volume = 0.8;
+            
+            utterance.onend = () => {
+                setStatus('idle');
+            };
+            
+            utterance.onerror = () => {
+                setStatus('idle');
+            };
+            
+            speechSynthesis.speak(utterance);
+        } else {
+            // Fallback to simulated speaking time
+            const speakingDuration = Math.max(1500, aiResponse.length * 50);
+            setTimeout(() => {
+                setStatus('idle');
+            }, speakingDuration);
+        }
 
     }, [status, messages]);
 
     const handleMicClick = () => {
         if (status === 'idle') {
-            setStatus('listening');
-            // Mock listening: In a real app, you'd start SpeechRecognition here.
-            // For this demo, we'll just toggle it off after a few seconds.
-            setTimeout(() => {
-                if (statusRef.current === 'listening') { // check if it wasn't cancelled
-                   setStatus('idle');
-                   // If speech was recognized, you'd call handleSendMessage here.
-                }
-            }, 4000); 
+            startSpeechRecognition();
         } else if (status === 'listening') {
-            setStatus('idle'); // Cancel listening
+            stopSpeechRecognition();
+        }
+    };
+
+    const startSpeechRecognition = () => {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+        
+        recognition.onstart = () => {
+            setStatus('listening');
+        };
+        
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setStatus('processing');
+            handleSendMessage(transcript);
+        };
+        
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            setStatus('idle');
+        };
+        
+        recognition.onend = () => {
+            if (status === 'listening') {
+                setStatus('idle');
+            }
+        };
+        
+        recognition.start();
+        
+        // Store recognition instance to stop it later
+        (window as any).currentRecognition = recognition;
+    };
+
+    const stopSpeechRecognition = () => {
+        if ((window as any).currentRecognition) {
+            (window as any).currentRecognition.stop();
+            setStatus('idle');
         }
     };
 

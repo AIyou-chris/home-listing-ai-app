@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
 import { emailAuthService, EmailConnection } from '../services/emailAuthService';
-import { notificationService } from '../services/notificationService';
+import NotificationService from '../services/notificationService';
 
 interface SettingsPageProps {
     userProfile: AgentProfile;
@@ -211,8 +211,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         // Load existing email connections
         setEmailConnections(emailAuthService.getConnections());
         // Check notification permission
-        if (notificationService.isNotificationSupported()) {
-            setNotificationPermission(notificationService.getPermission());
+        if ('Notification' in window) {
+            setNotificationPermission(Notification.permission);
         }
     }, [notificationSettings]);
 
@@ -256,11 +256,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
     const handleRequestNotificationPermission = async () => {
         setIsRequestingPermission(true);
         try {
-            const permission = await notificationService.requestPermission();
+            const permission = await Notification.requestPermission();
             setNotificationPermission(permission);
             if (permission === 'granted') {
                 // Show test notification
-                await notificationService.showTestNotification();
+                new Notification('Test Notification', {
+                    body: 'This is a test notification from HomeListing AI',
+                    icon: '/newlogo.png'
+                });
             }
         } catch (error) {
             console.error('Error requesting notification permission:', error);
@@ -271,8 +274,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
 
     const handleTestNotification = async () => {
         try {
-            const success = await notificationService.showTestNotification();
-            if (!success) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Test Notification', {
+                    body: 'This is a test notification from HomeListing AI',
+                    icon: '/newlogo.png'
+                });
+            } else {
                 alert('Please enable browser notifications first!');
             }
         } catch (error) {

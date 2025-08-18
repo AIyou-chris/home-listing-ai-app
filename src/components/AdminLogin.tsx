@@ -17,9 +17,16 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack, isLoading = fa
   };
 
   return (
-    <div className="min-h-screen bg-green-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 py-12 px-4 sm:px-6 lg:px-8" onClick={onBack}>
+      <div className="max-w-md w-full space-y-8 bg-white rounded-lg shadow-xl p-8" onClick={(e) => e.stopPropagation()}>
+        <div className="relative">
+          <button
+            onClick={onBack}
+            className="absolute top-0 right-0 p-2 text-slate-400 hover:text-slate-600 transition-colors"
+            aria-label="Close"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
           <div className="mx-auto h-12 w-12 bg-green-600 rounded-full flex items-center justify-center">
             <span className="material-symbols-outlined text-white text-2xl">admin_panel_settings</span>
           </div>

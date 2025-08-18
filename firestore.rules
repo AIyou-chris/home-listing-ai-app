@@ -1,52 +1,56 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection - users can read their own data, admins can read all
+    // Allow users to read/write their own data
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      allow write: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow admins to access all user data
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
     }
-
-    // Admin settings - only admins can access
-    match /admin_settings/{docId} {
-      allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    
+    // Allow authenticated users to read/write their own properties
+    match /properties/{propertyId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Allow admins to access all properties
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
     }
-
-    // Broadcast messages - admins can write, users can read if they're in target audience
-    match /broadcast_messages/{messageId} {
-      allow read: if request.auth != null && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        request.auth.uid in resource.data.targetAudience
-      );
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    
+    // Allow authenticated users to read/write their own leads
+    match /leads/{leadId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Allow admins to access all leads
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
     }
-
-    // System alerts - admins can read/write, users can read active alerts
-    match /system_alerts/{alertId} {
-      allow read: if request.auth != null && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        resource.data.status == 'active'
-      );
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    
+    // Allow admins to access admin settings
+    match /adminSettings/{document=**} {
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
     }
-
-    // Retention campaigns - only admins can access
-    match /retention_campaigns/{campaignId} {
-      allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    
+    // Allow admins to access system data
+    match /system/{document=**} {
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
     }
-
-    // User notifications - users can read their own notifications, admins can read all
-    match /user_notifications/{notificationId} {
-      allow read: if request.auth != null && (
-        resource.data.userId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    
+    // Allow authenticated users to read/write their own sequences
+    match /sequences/{sequenceId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Allow admins to access all sequences
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
     }
-
-    // Existing collections (if any) - maintain existing rules
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    
+    // Allow authenticated users to read/write their own templates
+    match /templates/{templateId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Allow admins to access all templates
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
+    }
+    
+    // Allow authenticated users to read/write their own files
+    match /files/{fileId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Allow admins to access all files
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
     }
   }
 }
