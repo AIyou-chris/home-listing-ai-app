@@ -620,11 +620,17 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ o
                     ))}
                 </div>
 
-                <div className="mt-12 animate-fade-in-up animation-delay-800">
+                <div className="mt-12 animate-fade-in-up animation-delay-800 flex justify-center gap-4">
                     <button onClick={onEnterDemoMode} className="px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg transform hover:scale-105 btn-animate">
                         <span className="flex items-center gap-2">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
+                        </span>
+                    </button>
+                    <button onClick={onEnterDemoMode} className="px-8 py-4 bg-orange-500 text-white font-semibold rounded-lg shadow-lg hover:bg-orange-600 transition-all text-lg transform hover:scale-105 btn-animate">
+                        <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
+                            Try It Free for 3 Days
                         </span>
                     </button>
                 </div>
@@ -891,26 +897,26 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                             <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
                             <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
                             <p className="mt-6">
-                                <span className="text-5xl font-extrabold text-white">$69</span>
+                                <span className="text-5xl font-extrabold text-white">$79</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
-                            <p className="mt-1 text-sm text-slate-300">Unlimited Active Listings</p>
+                            <p className="mt-1 text-sm text-slate-300">Three Active Listings</p>
                             <ul className="mt-8 space-y-4">
-                                <PlanFeature dark>Full Dashboard Access</PlanFeature>
+                                <PlanFeature dark>500 AI interactions per month</PlanFeature>
+                                <PlanFeature dark>1GB of storage space</PlanFeature>
+                                <PlanFeature dark>200 emails per month</PlanFeature>
+                                <PlanFeature dark>Advanced analytics dashboard</PlanFeature>
                                 <PlanFeature dark>AI Content Studio</PlanFeature>
-                                <PlanFeature dark>Automated Follow-up Sequences</PlanFeature>
-                                <PlanFeature dark>AI Inbox & Lead Management</PlanFeature>
-                                <PlanFeature dark>Team Collaboration Features</PlanFeature>
-                                <PlanFeature dark>Advanced Analytics</PlanFeature>
-                                <PlanFeature dark>Priority Email Support</PlanFeature>
-                                <PlanFeature dark>White-Labeling Options</PlanFeature>
+                                <PlanFeature dark>Automated follow-up sequences</PlanFeature>
+                                <PlanFeature dark>Priority email support</PlanFeature>
+                                <PlanFeature dark>Need more? We do custom programs</PlanFeature>
                             </ul>
                         </div>
                         <button 
                             onClick={onNavigateToSignUp}
                             className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-all duration-300 bg-white text-primary-700 shadow-lg hover:bg-slate-200 transform hover:scale-[1.02]"
                         >
-                            Get Started Today
+                            Get Started Today for Free
                         </button>
                     </div>
                 </div>
@@ -1459,7 +1465,7 @@ const FinalCtaNew: React.FC<{ onNavigateToSignUp: () => void; onEnterDemoMode: (
                     className="flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-yellow-400 via-orange-400 to-purple-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all text-lg transform hover:scale-105 btn-animate"
                 >
                     <span className="material-symbols-outlined animate-pulse">bolt</span>
-                    Start Your Seven Day Free Trial
+                    Start Your Three Day Free Trial
                 </button>
                 <button
                     onClick={onEnterDemoMode}
@@ -1588,7 +1594,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     <div className="mt-8 flex justify-center lg:justify-start gap-4 animate-fade-in-up animation-delay-400">
                         <button onClick={onNavigateToSignUp} className="flex items-center gap-2 px-6 py-3.5 bg-orange-500 text-white font-semibold rounded-lg shadow-md hover:bg-orange-600 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
-                            Try It Free for 5 Days
+                            Try It Free for 3 Days
                         </button>
                         <button onClick={onEnterDemoMode} className="flex items-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
