@@ -120,6 +120,9 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        // Temporary: Clear any existing authentication to show landing page
+        auth.signOut();
+        
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setIsLoading(true);
             setIsSettingUp(false); // Reset on every auth change
@@ -133,7 +136,7 @@ const App: React.FC = () => {
                 const isAdmin = token?.claims?.role === 'admin';
                 
                 if (isAdmin) {
-                    console.log("Admin user detected, skipping property loading");
+                    console.log("Admin user detected, going to landing page");
                     setUser(currentUser);
                     setUserProfile({
                         ...SAMPLE_AGENT,
@@ -148,7 +151,7 @@ const App: React.FC = () => {
                     setTasks([]);
                     setConversations([]);
                     setSequences([]);
-                    setView('admin-dashboard');
+                    setView('landing');
                     setIsLoading(false);
                     return;
                 }

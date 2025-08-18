@@ -1,0 +1,34 @@
+{"users": [
+{
+  "localId": "3cKwyqcyCUcvsd2DrXo6DnPLjls2",
+  "email": "us@homelistingai.com",
+  "emailVerified": true,
+  "passwordHash": "fW8DGoI9RpFsEVpEzg506sAAAKm8NXx6VRJvKzUY/H7v3nHZ/FqzCZbTRGOqYs6RA9wnIyO7CuSXT3xVaWdAjA==",
+  "salt": "gVxHQcIfeIZE2g==",
+  "displayName": "System Administrator",
+  "lastSignedInAt": "1755545565302",
+  "createdAt": "1755475450784",
+  "disabled": false,
+  "customAttributes": "{\"role\":\"admin\",\"permissions\":[\"users\",\"billing\",\"analytics\",\"system\",\"support\"]}",
+  "providerUserInfo": []
+},
+{
+  "localId": "CHDZFRT7mSYnZNC1xHwoJdzGWTf1",
+  "email": "cdipotter@me.com",
+  "emailVerified": false,
+  "passwordHash": "XdQZjLQ9VmqmYTSWfpNSNNRFVzDA3BxZzuuvHdIFPbg+TFDYuypfWaZF2bxo/ZPR2j4tQhqyI3FwOQm86AGjeA==",
+  "salt": "E1r07ZJl4kn4ww==",
+  "lastSignedInAt": "1755531117054",
+  "createdAt": "1754776703800",
+  "providerUserInfo": []
+},
+{
+  "localId": "wxYzCssHWJTyaEMRIKIaOxsU2s32",
+  "email": "homelistingai@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "zLUco7P6kZsHlkCX1BKsY/ypxDDQ8nux20/px3GRJzkNKrFMK7qKUJBYs8oxWDeF/HRpo8i2a/sQNL722zgsfA==",
+  "salt": "7J8pNPUMsxfVpA==",
+  "lastSignedInAt": "1754775695495",
+  "createdAt": "1754775695495",
+  "providerUserInfo": []
+}]}
