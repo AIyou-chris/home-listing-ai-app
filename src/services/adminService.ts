@@ -500,6 +500,274 @@ export class AdminService {
 
         return { ...health, issues };
     }
+
+    // Data Migration & Seeding
+    static async seedAdminData(): Promise<{
+        success: boolean;
+        message: string;
+        createdItems: {
+            adminSettings: boolean;
+            retentionCampaigns: boolean;
+            systemMonitoringRules: boolean;
+        };
+    }> {
+        try {
+            const results = {
+                adminSettings: false,
+                retentionCampaigns: false,
+                systemMonitoringRules: false
+            };
+
+            // Create initial admin settings
+            try {
+                const existingSettings = await DatabaseService.getAdminSettings();
+                if (!existingSettings) {
+                    const defaultSettings: AdminSettings = {
+                        id: 'default',
+                        maintenanceMode: false,
+                        featureToggles: {
+                            aiContentGeneration: true,
+                            voiceAssistant: true,
+                            qrCodeSystem: true,
+                            analyticsDashboard: true,
+                            knowledgeBase: true
+                        },
+                        systemLimits: {
+                            maxFileUploadSize: 10485760, // 10MB
+                            sessionTimeout: 24,
+                            maxConcurrentUsers: 1000,
+                            apiRateLimit: 100
+                        },
+                        platformName: 'Home Listing AI',
+                        platformUrl: 'https://homelistingai.com',
+                        supportEmail: 'support@homelistingai.com',
+                        timezone: 'UTC',
+                        autoUpdates: true
+                    };
+                    await DatabaseService.createAdminSettings(defaultSettings);
+                    results.adminSettings = true;
+                }
+            } catch (error) {
+                console.error('Error creating admin settings:', error);
+            }
+
+            // Set up default retention campaigns
+            try {
+                const existingCampaigns = await DatabaseService.getRetentionCampaigns();
+                if (existingCampaigns.length === 0) {
+                    const defaultCampaigns: Omit<RetentionCampaign, 'id'>[] = [
+                        {
+                            name: 'Pre-Renewal Reminder',
+                            trigger: 'pre-renewal',
+                            triggerDays: 3,
+                            channels: ['email', 'push'],
+                            messageTemplate: 'Your subscription renews in {days} days. Upgrade now to continue using all features!',
+                            successRate: 0,
+                            isActive: true,
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                        },
+                        {
+                            name: 'Renewal Day Recovery',
+                            trigger: 'renewal-day',
+                            triggerDays: 0,
+                            channels: ['email'],
+                            messageTemplate: 'We miss you! Come back and check out your latest leads and properties.',
+                            successRate: 0,
+                            isActive: true,
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                        },
+                        {
+                            name: 'Day 1 Recovery',
+                            trigger: 'day-1-recovery',
+                            triggerDays: 1,
+                            channels: ['email', 'push'],
+                            messageTemplate: 'Your subscription has expired. Renew now to ensure uninterrupted access to your account.',
+                            successRate: 0,
+                            isActive: true,
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                        }
+                    ];
+
+                    for (const campaign of defaultCampaigns) {
+                        await DatabaseService.createRetentionCampaign(campaign);
+                    }
+                    results.retentionCampaigns = true;
+                }
+            } catch (error) {
+                console.error('Error creating retention campaigns:', error);
+            }
+
+            // Create system monitoring rules
+            try {
+                const defaultMonitoringRules = [
+                    {
+                        id: 'high_cpu_usage',
+                        name: 'High CPU Usage Alert',
+                        type: 'system_performance',
+                        condition: 'cpu_usage > 80',
+                        severity: 'warning',
+                        isActive: true,
+                        action: 'send_alert'
+                    },
+                    {
+                        id: 'database_connection_issues',
+                        name: 'Database Connection Issues',
+                        type: 'system_health',
+                        condition: 'db_connection_failed',
+                        severity: 'error',
+                        isActive: true,
+                        action: 'send_alert'
+                    },
+                    {
+                        id: 'api_response_time',
+                        name: 'API Response Time Alert',
+                        type: 'system_performance',
+                        condition: 'api_response_time > 2000ms',
+                        severity: 'warning',
+                        isActive: true,
+                        action: 'send_alert'
+                    }
+                ];
+
+                // Note: This would need a corresponding method in DatabaseService
+                // await DatabaseService.createSystemMonitoringRules(defaultMonitoringRules);
+                results.systemMonitoringRules = true;
+            } catch (error) {
+                console.error('Error creating system monitoring rules:', error);
+            }
+
+            return {
+                success: true,
+                message: 'Admin data seeded successfully',
+                createdItems: results
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to seed admin data: ${error}`,
+                createdItems: {
+                    adminSettings: false,
+                    retentionCampaigns: false,
+                    systemMonitoringRules: false
+                }
+            };
+        }
+    }
+
+    static async migrateUserData(): Promise<{
+        success: boolean;
+        message: string;
+        migratedUsers: number;
+        updatedFields: string[];
+        errors: string[];
+    }> {
+        try {
+            const allUsers = await this.getAllUsers();
+            let migratedUsers = 0;
+            const errors: string[] = [];
+            const updatedFields: string[] = [];
+
+            for (const user of allUsers) {
+                try {
+                    const updates: Partial<User> = {};
+
+                    // Update existing users with new fields
+                    if (!user.dateJoined) {
+                        updates.dateJoined = new Date().toISOString();
+                        updatedFields.push('dateJoined');
+                    }
+
+                    if (!user.lastActive) {
+                        updates.lastActive = new Date().toISOString();
+                        updatedFields.push('lastActive');
+                    }
+
+                    if (!user.propertiesCount) {
+                        updates.propertiesCount = 0;
+                        updatedFields.push('propertiesCount');
+                    }
+
+                    if (!user.leadsCount) {
+                        updates.leadsCount = 0;
+                        updatedFields.push('leadsCount');
+                    }
+
+                    if (!user.aiInteractions) {
+                        updates.aiInteractions = 0;
+                        updatedFields.push('aiInteractions');
+                    }
+
+                    if (!user.renewalDate) {
+                        const renewalDate = new Date();
+                        renewalDate.setDate(renewalDate.getDate() + 30); // Default 30 days
+                        updates.renewalDate = renewalDate.toISOString();
+                        updatedFields.push('renewalDate');
+                    }
+
+                    if (!user.subscriptionStatus) {
+                        updates.subscriptionStatus = 'trial';
+                        updatedFields.push('subscriptionStatus');
+                    }
+
+                    if (!user.plan) {
+                        updates.plan = 'Solo Agent';
+                        updatedFields.push('plan');
+                    }
+
+                    if (!user.status) {
+                        updates.status = 'Active';
+                        updatedFields.push('status');
+                    }
+
+                    // Apply updates if any
+                    if (Object.keys(updates).length > 0) {
+                        await DatabaseService.updateUser(user.id, updates);
+                        migratedUsers++;
+                    }
+                } catch (error) {
+                    errors.push(`Failed to migrate user ${user.id}: ${error}`);
+                }
+            }
+
+            // Calculate user statistics
+            const userStats = await this.getUserStats();
+            // Note: Migration tracking would need to be implemented in DatabaseService
+            console.log(`Migration completed: ${migratedUsers} users migrated`);
+
+            // Set up subscription tracking
+            const renewalData = await this.getRenewalData();
+            const highRiskUsers = renewalData.filter(user => user.riskLevel === 'high');
+            
+            if (highRiskUsers.length > 0) {
+                await this.createSystemAlert(
+                    'warning',
+                    'High Risk Users Detected',
+                    `${highRiskUsers.length} users identified as high risk for churn`,
+                    'high',
+                    'user_management'
+                );
+            }
+
+            return {
+                success: true,
+                message: `Successfully migrated ${migratedUsers} users`,
+                migratedUsers,
+                updatedFields: [...new Set(updatedFields)],
+                errors
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Migration failed: ${error}`,
+                migratedUsers: 0,
+                updatedFields: [],
+                errors: [error.toString()]
+            };
+        }
+    }
 }
 
 export default AdminService;

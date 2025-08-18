@@ -6,7 +6,7 @@ import SequenceAnalyticsModal from './SequenceAnalyticsModal';
 import LeadFollowUpsPage from './LeadFollowUpsPage';
 import AnalyticsPage from './AnalyticsPage';
 import { DEMO_FAT_LEADS, DEMO_ACTIVE_FOLLOWUPS } from '../demoConstants';
-import { notificationService } from '../services/notificationService';
+import NotificationService from '../services/notificationService';
 
 interface MarketingPageProps {
   properties: Property[];
@@ -217,33 +217,14 @@ const MessagingCenter: React.FC = () => {
         if (!notificationType) return;
 
         try {
-            switch (type) {
-                case 'test':
-                    await notificationService.showTestNotification();
-                    break;
-                case 'new-lead':
-                    await notificationService.showNewLeadNotification('John Smith', '742 Ocean Drive');
-                    break;
-                case 'appointment':
-                    await notificationService.showAppointmentReminder('Jane Doe', '2:00 PM', '123 Main Street');
-                    break;
-                case 'hot-lead':
-                    await notificationService.showHotLeadAlert('Sarah Williams', 95);
-                    break;
-                case 'price-change':
-                    await notificationService.showNotification({
-                        title: 'Price Reduction Alert',
-                        body: '742 Ocean Drive reduced to $2.8M',
-                        tag: 'price_change'
-                    });
-                    break;
-                case 'showing-request':
-                    await notificationService.showNotification({
-                        title: 'New Showing Request',
-                        body: 'Client wants to see 456 Beach Ave tomorrow',
-                        tag: 'showing-request'
-                    });
-                    break;
+            // Browser notification functionality - will be implemented later
+            console.log(`Sending notification: ${type}`);
+            // For now, just simulate the notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(notificationType.title, {
+                    body: notificationType.description,
+                    icon: '/newlogo.png'
+                });
             }
 
             // Add to message history
@@ -270,11 +251,15 @@ const MessagingCenter: React.FC = () => {
         }
 
         try {
-            await notificationService.showNotification({
-                title: 'Custom Message',
-                body: customMessage,
-                tag: 'custom-message'
-            });
+            // Browser notification functionality - will be implemented later
+            console.log('Sending custom message:', customMessage);
+            // For now, just simulate the notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Custom Message', {
+                    body: customMessage,
+                    icon: '/newlogo.png'
+                });
+            }
 
             // Add to message history
             const newMessage = {

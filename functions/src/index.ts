@@ -11,6 +11,342 @@ admin.initializeApp();
 // Initialize Google AI (Gemini)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
+// Admin service functions for data migration and seeding
+export const seedAdminData = functions.https.onCall(async (data: any, context: any) => {
+    try {
+        // Verify admin access
+        if (!context?.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+        }
+
+        const userRecord = await admin.auth().getUser(context.auth.uid);
+        if (userRecord.customClaims?.role !== 'admin') {
+            throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+        }
+
+        // Create initial admin settings
+        const adminSettingsRef = db.collection('adminSettings').doc('default');
+        const existingSettings = await adminSettingsRef.get();
+        
+        if (!existingSettings.exists) {
+            const defaultSettings = {
+                id: 'default',
+                platformName: 'Home Listing AI',
+                platformUrl: 'https://homelistingai.com',
+                supportEmail: 'support@homelistingai.com',
+                timezone: 'UTC',
+                featureToggles: {
+                    aiContentGeneration: true,
+                    voiceAssistant: true,
+                    qrCodeSystem: true,
+                    analyticsDashboard: true,
+                    knowledgeBase: true
+                },
+                systemLimits: {
+                    maxFileUploadSize: 10485760, // 10MB
+                    sessionTimeout: 24,
+                    maxConcurrentUsers: 1000,
+                    apiRateLimit: 100
+                },
+                maintenanceMode: false,
+                autoUpdates: true
+            };
+            await adminSettingsRef.set(defaultSettings);
+        }
+
+        // Set up default retention campaigns
+        const campaignsRef = db.collection('retentionCampaigns');
+        const existingCampaigns = await campaignsRef.get();
+        
+        if (existingCampaigns.empty) {
+            const defaultCampaigns = [
+                {
+                    name: 'Pre-Renewal Reminder',
+                    trigger: 'pre-renewal',
+                    triggerDays: 3,
+                    channels: ['email', 'push'],
+                    messageTemplate: 'Your subscription renews in {days} days. Upgrade now to continue using all features!',
+                    successRate: 0,
+                    isActive: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    name: 'Renewal Day Recovery',
+                    trigger: 'renewal-day',
+                    triggerDays: 0,
+                    channels: ['email'],
+                    messageTemplate: 'We miss you! Come back and check out your latest leads and properties.',
+                    successRate: 0,
+                    isActive: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    name: 'Day 1 Recovery',
+                    trigger: 'day-1-recovery',
+                    triggerDays: 1,
+                    channels: ['email', 'push'],
+                    messageTemplate: 'Your subscription has expired. Renew now to ensure uninterrupted access to your account.',
+                    successRate: 0,
+                    isActive: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }
+            ];
+
+            for (const campaign of defaultCampaigns) {
+                await campaignsRef.add(campaign);
+            }
+        }
+
+        // Create system monitoring rules
+        const monitoringRulesRef = db.collection('systemMonitoringRules');
+        const existingRules = await monitoringRulesRef.get();
+        
+        if (existingRules.empty) {
+            const defaultRules = [
+                {
+                    id: 'high_cpu_usage',
+                    name: 'High CPU Usage Alert',
+                    type: 'system_performance',
+                    condition: 'cpu_usage > 80',
+                    severity: 'warning',
+                    isActive: true,
+                    action: 'send_alert'
+                },
+                {
+                    id: 'database_connection_issues',
+                    name: 'Database Connection Issues',
+                    type: 'system_health',
+                    condition: 'db_connection_failed',
+                    severity: 'error',
+                    isActive: true,
+                    action: 'send_alert'
+                },
+                {
+                    id: 'api_response_time',
+                    name: 'API Response Time Alert',
+                    type: 'system_performance',
+                    condition: 'api_response_time > 2000ms',
+                    severity: 'warning',
+                    isActive: true,
+                    action: 'send_alert'
+                }
+            ];
+
+            for (const rule of defaultRules) {
+                await monitoringRulesRef.doc(rule.id).set(rule);
+            }
+        }
+
+        return {
+            success: true,
+            message: 'Admin data seeded successfully',
+            createdItems: {
+                adminSettings: !existingSettings.exists,
+                retentionCampaigns: existingCampaigns.empty,
+                systemMonitoringRules: existingRules.empty
+            }
+        };
+    } catch (error) {
+        console.error('Seed admin data error:', error);
+        throw new functions.https.HttpsError('internal', `Failed to seed admin data: ${error}`);
+    }
+});
+
+export const migrateUserData = functions.https.onCall(async (data: any, context: any) => {
+    try {
+        // Verify admin access
+        if (!context?.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+        }
+
+        const userRecord = await admin.auth().getUser(context.auth.uid);
+        if (userRecord.customClaims?.role !== 'admin') {
+            throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+        }
+
+        const usersRef = db.collection('users');
+        const usersSnapshot = await usersRef.get();
+        let migratedUsers = 0;
+        const errors: string[] = [];
+        const updatedFields: string[] = [];
+
+        for (const userDoc of usersSnapshot.docs) {
+            try {
+                const userData = userDoc.data();
+                const updates: any = {};
+
+                // Update existing users with new fields
+                if (!userData.dateJoined) {
+                    updates.dateJoined = new Date().toISOString();
+                    updatedFields.push('dateJoined');
+                }
+
+                if (!userData.lastActive) {
+                    updates.lastActive = new Date().toISOString();
+                    updatedFields.push('lastActive');
+                }
+
+                if (!userData.propertiesCount) {
+                    updates.propertiesCount = 0;
+                    updatedFields.push('propertiesCount');
+                }
+
+                if (!userData.leadsCount) {
+                    updates.leadsCount = 0;
+                    updatedFields.push('leadsCount');
+                }
+
+                if (!userData.aiInteractions) {
+                    updates.aiInteractions = 0;
+                    updatedFields.push('aiInteractions');
+                }
+
+                if (!userData.renewalDate) {
+                    const renewalDate = new Date();
+                    renewalDate.setDate(renewalDate.getDate() + 30); // Default 30 days
+                    updates.renewalDate = renewalDate.toISOString();
+                    updatedFields.push('renewalDate');
+                }
+
+                if (!userData.subscriptionStatus) {
+                    updates.subscriptionStatus = 'trial';
+                    updatedFields.push('subscriptionStatus');
+                }
+
+                if (!userData.plan) {
+                    updates.plan = 'Solo Agent';
+                    updatedFields.push('plan');
+                }
+
+                if (!userData.status) {
+                    updates.status = 'Active';
+                    updatedFields.push('status');
+                }
+
+                // Apply updates if any
+                if (Object.keys(updates).length > 0) {
+                    await userDoc.ref.update(updates);
+                    migratedUsers++;
+                }
+            } catch (error) {
+                errors.push(`Failed to migrate user ${userDoc.id}: ${error}`);
+            }
+        }
+
+        // Calculate user statistics
+        const totalUsers = usersSnapshot.size;
+        const activeUsers = usersSnapshot.docs.filter(doc => doc.data().status === 'Active').length;
+        const trialUsers = usersSnapshot.docs.filter(doc => doc.data().subscriptionStatus === 'trial').length;
+        const expiredUsers = usersSnapshot.docs.filter(doc => doc.data().subscriptionStatus === 'expired').length;
+
+        // Log migration results
+        console.log(`Migration completed: ${migratedUsers} users migrated`);
+
+        // Set up subscription tracking - identify high risk users
+        const highRiskUsers = usersSnapshot.docs.filter(doc => {
+            const userData = doc.data();
+            const lastActiveDate = new Date(userData.lastActive || new Date());
+            const now = new Date();
+            const daysSinceLastActive = Math.floor((now.getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            return daysSinceLastActive > 30 || userData.propertiesCount === 0;
+        });
+
+        if (highRiskUsers.length > 0) {
+            // Create system alert for high risk users
+            await db.collection('systemAlerts').add({
+                type: 'warning',
+                title: 'High Risk Users Detected',
+                description: `${highRiskUsers.length} users identified as high risk for churn`,
+                severity: 'high',
+                component: 'user_management',
+                createdAt: new Date().toISOString(),
+                status: 'active'
+            });
+        }
+
+        return {
+            success: true,
+            message: `Successfully migrated ${migratedUsers} users`,
+            migratedUsers,
+            updatedFields: [...new Set(updatedFields)],
+            errors,
+            stats: {
+                totalUsers,
+                activeUsers,
+                trialUsers,
+                expiredUsers
+            }
+        };
+    } catch (error) {
+        console.error('Migration error:', error);
+        throw new functions.https.HttpsError('internal', `Migration failed: ${error}`);
+    }
+});
+
+// Set admin role for a user
+export const setAdminRole = functions.https.onCall(async (data: any, context: any) => {
+    try {
+        // Verify admin access
+        if (!context?.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+        }
+
+        const { email } = data;
+        if (!email) {
+            throw new functions.https.HttpsError('invalid-argument', 'Email is required');
+        }
+
+        // Check if the requesting user is already an admin or if this is the first admin setup
+        const requestingUser = await admin.auth().getUser(context.auth.uid);
+        
+        // For security, only allow setting admin role if:
+        // 1. The requesting user is already an admin, OR
+        // 2. This is the first admin setup (no existing admins)
+        const existingAdmins = await db.collection('users')
+            .where('role', '==', 'admin')
+            .get();
+
+        const isFirstAdmin = existingAdmins.empty;
+        const isRequestingUserAdmin = requestingUser.customClaims?.role === 'admin';
+
+        if (!isFirstAdmin && !isRequestingUserAdmin) {
+            throw new functions.https.HttpsError('permission-denied', 'Only existing admins can create new admins');
+        }
+
+        // Find the user by email
+        const userRecord = await admin.auth().getUserByEmail(email);
+        
+        // Set custom claims for admin role
+        await admin.auth().setCustomUserClaims(userRecord.uid, {
+            role: 'admin',
+            permissions: ['users', 'billing', 'analytics', 'system', 'support']
+        });
+
+        // Update user document in Firestore
+        await db.collection('users').doc(userRecord.uid).set({
+            role: 'admin',
+            isAdmin: true,
+            adminPermissions: ['users', 'billing', 'analytics', 'system', 'support'],
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        return {
+            success: true,
+            message: `Admin role set successfully for ${email}`
+        };
+    } catch (error) {
+        console.error('Set admin role error:', error);
+        throw new functions.https.HttpsError('internal', `Failed to set admin role: ${error}`);
+    }
+});
+
+// Export the setup admin function
+export { setupInitialAdmin, setupInitialAdminHttp } from './setupAdmin';
+
 
 
 // Firestore references
