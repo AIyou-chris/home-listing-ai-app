@@ -48,6 +48,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, setView, isOpen
     { view: 'admin-leads', icon: 'groups', label: 'Leads' },
     { view: 'admin-ai-content', icon: 'forum', label: 'AI Content' },
     { view: 'admin-knowledge-base', icon: 'description', label: 'Knowledge Base' },
+    { view: 'admin-ai-personalities', icon: 'psychology', label: 'AI Personalities' },
     { view: 'admin-marketing', icon: 'campaign', label: 'Marketing' },
     { view: 'admin-analytics', icon: 'analytics', label: 'Analytics' },
     { view: 'admin-security', icon: 'security', label: 'Security' },

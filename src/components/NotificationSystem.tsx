@@ -16,20 +16,25 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ userId }) => {
         // Load initial notifications
         loadNotifications();
         
-        // Subscribe to real-time updates
-        const unsubscribe = NotificationService.subscribeToUserNotifications(userId, (newNotifications) => {
-            setNotifications(newNotifications);
-            setUnreadCount(newNotifications.filter(n => !n.read).length);
-        });
+        // Temporarily disabled Firebase real-time updates
+        // const unsubscribe = NotificationService.subscribeToUserNotifications(userId, (newNotifications) => {
+        //     setNotifications(newNotifications);
+        //     setUnreadCount(newNotifications.filter(n => !n.read).length);
+        // });
 
-        return () => unsubscribe();
+        // return () => unsubscribe();
     }, [userId]);
 
     const loadNotifications = async () => {
         try {
-            const userNotifications = await NotificationService.getUserNotifications(userId);
-            setNotifications(userNotifications);
-            setUnreadCount(userNotifications.filter(n => !n.read).length);
+            // Temporarily disabled Firebase notifications
+            // const userNotifications = await NotificationService.getUserNotifications(userId);
+            // setNotifications(userNotifications);
+            // setUnreadCount(userNotifications.filter(n => !n.read).length);
+            
+            // Mock notifications for now
+            setNotifications([]);
+            setUnreadCount(0);
         } catch (error) {
             console.error('Error loading notifications:', error);
         }
@@ -37,7 +42,9 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ userId }) => {
 
     const handleMarkAsRead = async (notificationId: string) => {
         try {
-            await NotificationService.markNotificationAsRead(notificationId);
+            // Temporarily disabled Firebase notifications
+            // await NotificationService.markNotificationAsRead(notificationId);
+            console.log('Mark as read disabled');
         } catch (error) {
             console.error('Error marking notification as read:', error);
         }
@@ -45,7 +52,9 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ userId }) => {
 
     const handleMarkAllAsRead = async () => {
         try {
-            await NotificationService.markAllNotificationsAsRead(userId);
+            // Temporarily disabled Firebase notifications
+            // await NotificationService.markAllNotificationsAsRead(userId);
+            console.log('Mark all as read disabled');
         } catch (error) {
             console.error('Error marking all notifications as read:', error);
         }

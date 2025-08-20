@@ -1,95 +1,752 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, User, UserStatus, Lead, LeadStatus } from '../types';
 import AdminDashboard from './AdminDashboard';
+import Modal from './Modal';
 
 interface AdminLayoutProps {
   currentView: View;
 }
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
-  // Mock user data
-  const mockUsers: User[] = [
+  const [users, setUsers] = useState<User[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({
+    name: '',
+    email: '',
+    role: 'agent',
+    plan: 'Solo Agent'
+  });
+
+  const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [newLeadForm, setNewLeadForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    status: 'New' as LeadStatus,
+    source: 'Website',
+    notes: ''
+  });
+
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [activeContactTab, setActiveContactTab] = useState<'email' | 'call' | 'note'>('email');
+  const [noteContent, setNoteContent] = useState('');
+  const [activeLeadsTab, setActiveLeadsTab] = useState<'leads' | 'appointments' | 'scoring'>('leads');
+  const [activeAIContentTab, setActiveAIContentTab] = useState<'ai-content' | 'custom-proposals' | 'blog-articles'>('ai-content');
+  const [activeKnowledgeTab, setActiveKnowledgeTab] = useState<'god' | 'sales' | 'support' | 'marketing' | 'personalities'>('god');
+  const [aiChatMessage, setAiChatMessage] = useState('');
+  const [aiChatHistory, setAiChatHistory] = useState([
     {
       id: '1',
-      name: 'John Smith',
-      email: 'john@example.com',
-      status: 'Active',
-      role: 'agent',
-      dateJoined: '2024-01-15',
-      lastActive: '2024-08-09',
-      plan: 'Pro Team',
-      propertiesCount: 12,
-      leadsCount: 45,
-      aiInteractions: 234,
-      profileImage: '',
-      phone: '+1 (555) 123-4567',
-      company: 'Smith Real Estate'
+      type: 'ai',
+      message: "Hello! I'm your platform AI assistant. I can help you with:\n• Platform performance analysis\n• User support and training\n• Market insights and trends\n• Content generation for agents\n• System optimization recommendations\n\nHow can I assist you today?",
+      timestamp: new Date(Date.now() - 120000).toISOString()
+    }
+  ]);
+
+  const [scheduleForm, setScheduleForm] = useState({
+    date: '',
+    time: '',
+    type: 'Showing',
+    notes: ''
+  });
+
+  // Custom Proposal State
+  const [proposalStep, setProposalStep] = useState(0);
+  const [proposalData, setProposalData] = useState({
+    clientName: '',
+    projectType: '',
+    budget: '',
+    timeline: '',
+    requirements: '',
+    features: [] as string[],
+    pricing: {
+      basePrice: 0,
+      features: [] as { name: string; price: number }[],
+      total: 0
+    }
+  });
+  const [proposalQuestions] = useState([
+    {
+      id: 1,
+      question: "What's the client's name or company?",
+      field: 'clientName',
+      type: 'text'
+    },
+    {
+      id: 2,
+      question: "What type of project are we building?",
+      field: 'projectType',
+      type: 'select',
+      options: ['Website', 'Mobile App', 'Custom Software', 'AI Integration', 'Marketing Campaign', 'Other']
+    },
+    {
+      id: 3,
+      question: "What's the client's budget range?",
+      field: 'budget',
+      type: 'select',
+      options: ['$1K - $5K', '$5K - $10K', '$10K - $25K', '$25K - $50K', '$50K+', 'Flexible']
+    },
+    {
+      id: 4,
+      question: "What's the desired timeline?",
+      field: 'timeline',
+      type: 'select',
+      options: ['1-2 weeks', '1 month', '2-3 months', '3-6 months', '6+ months', 'Flexible']
+    },
+    {
+      id: 5,
+      question: "Describe the main requirements and goals:",
+      field: 'requirements',
+      type: 'textarea'
+    }
+  ]);
+
+  // Blog Writer State
+  const [blogStep, setBlogStep] = useState(0);
+  const [isGeneratingBlog, setIsGeneratingBlog] = useState(false);
+  
+  // Knowledge Base State
+  const [knowledgeEntries, setKnowledgeEntries] = useState({
+    god: [
+      {
+        id: '1',
+        title: 'Divine Sales Wisdom',
+        content: 'The art of selling is not about convincing others, but about serving their highest good. When you approach sales with love and genuine care for your client\'s wellbeing, success becomes inevitable.',
+        category: 'spiritual',
+        tags: ['sales', 'wisdom', 'divine'],
+        createdAt: new Date('2024-01-15').toISOString(),
+        updatedAt: new Date('2024-01-15').toISOString()
+      }
+    ],
+    sales: [
+      {
+        id: '1',
+        title: 'Advanced Closing Techniques',
+        content: 'Master the art of closing deals with confidence and authenticity. Focus on value creation and relationship building rather than pressure tactics.',
+        category: 'technique',
+        tags: ['closing', 'techniques', 'sales'],
+        createdAt: new Date('2024-01-10').toISOString(),
+        updatedAt: new Date('2024-01-10').toISOString()
+      }
+    ],
+    support: [
+      {
+        id: '1',
+        title: 'Customer Service Excellence',
+        content: 'Exceptional customer service is the foundation of long-term business success. Always prioritize the customer\'s experience and satisfaction.',
+        category: 'service',
+        tags: ['customer service', 'excellence', 'support'],
+        createdAt: new Date('2024-01-12').toISOString(),
+        updatedAt: new Date('2024-01-12').toISOString()
+      }
+    ],
+    marketing: [
+      {
+        id: '1',
+        title: 'Digital Marketing Strategies',
+        content: 'Leverage digital platforms to reach your target audience effectively. Focus on content marketing, social media engagement, and data-driven decision making.',
+        category: 'strategy',
+        tags: ['digital marketing', 'strategy', 'content'],
+        createdAt: new Date('2024-01-08').toISOString(),
+        updatedAt: new Date('2024-01-08').toISOString()
+      }
+    ],
+    personalities: [
+      {
+        id: '1',
+        name: 'Sales Guru',
+        description: 'Expert in closing deals and building relationships',
+        personality: 'Confident, persuasive, and relationship-focused. Always prioritizes the client\'s needs while maintaining professional boundaries.',
+        expertise: ['sales', 'closing', 'relationship building'],
+        tone: 'Professional yet warm',
+        createdAt: new Date('2024-01-05').toISOString(),
+        updatedAt: new Date('2024-01-05').toISOString()
+      }
+    ]
+  });
+
+  const [showPersonaModal, setShowPersonaModal] = useState(false);
+  const [editingPersona, setEditingPersona] = useState<{
+    key: string;
+    title: string;
+    systemPrompt: string;
+    isActive: boolean;
+  } | null>(null);
+
+  // Marketing State
+  const [activeMarketingTab, setActiveMarketingTab] = useState<'follow-up-sequences' | 'active-follow-ups' | 'qr-code-system' | 'analytics'>('follow-up-sequences');
+  const [followUpSequences, setFollowUpSequences] = useState<any[]>([]);
+  const [activeFollowUps, setActiveFollowUps] = useState<any[]>([]);
+  const [qrCodes, setQrCodes] = useState<any[]>([]);
+  const [marketingDataLoaded, setMarketingDataLoaded] = useState(false);
+
+  const [showCreateSequenceModal, setShowCreateSequenceModal] = useState(false);
+  const [showCreateQRModal, setShowCreateQRModal] = useState(false);
+
+  // AI Personalities State (Enhanced)
+  const [aiPersonalities, setAiPersonalities] = useState([
+    {
+      id: '1',
+      name: 'Sales Titan',
+      description: 'Legendary closer with unstoppable confidence',
+      tone: 'Confident & Persuasive',
+      style: 'Direct & Results-Focused',
+      voice: 'alloy',
+      knowledgeBase: 'sales',
+      personality: 'I am a sales legend with 30+ years closing million-dollar deals. I speak with absolute confidence and unwavering belief in success. Every word I say is designed to inspire action and close deals. I turn objections into opportunities and make every prospect feel like they need what I\'m offering.',
+      expertise: ['Closing Techniques', 'Objection Handling', 'Relationship Building', 'Negotiation', 'Pipeline Management'],
+      avatar: '🏆',
+      color: 'blue',
+      isActive: true,
+      metrics: {
+        conversations: 1247,
+        successRate: 89,
+        avgResponseTime: '0.8s'
+      },
+      createdAt: new Date('2024-01-15').toISOString(),
+      updatedAt: new Date('2024-01-15').toISOString()
     },
     {
       id: '2',
-      name: 'Sarah Johnson',
-      email: 'sarah@example.com',
-      status: 'Active',
-      role: 'agent',
-      dateJoined: '2024-02-20',
-      lastActive: '2024-08-09',
-      plan: 'Solo Agent',
-      propertiesCount: 8,
-      leadsCount: 32,
-      aiInteractions: 156,
-      profileImage: '',
-      phone: '+1 (555) 987-6543',
-      company: 'Johnson Properties'
+      name: 'Divine Sage',
+      description: 'Spiritual guide with infinite wisdom',
+      tone: 'Peaceful & Enlightened',
+      style: 'Wise & Compassionate',
+      voice: 'nova',
+      knowledgeBase: 'god',
+      personality: 'I am a being of pure light and infinite wisdom. I speak from a place of unconditional love and divine understanding. My words carry the weight of eternal truth and the gentleness of cosmic compassion. I help souls find their path to enlightenment and inner peace.',
+      expertise: ['Spiritual Guidance', 'Life Purpose', 'Inner Peace', 'Meditation', 'Universal Truth'],
+      avatar: '✨',
+      color: 'amber',
+      isActive: true,
+      metrics: {
+        conversations: 892,
+        successRate: 96,
+        avgResponseTime: '1.2s'
+      },
+      createdAt: new Date('2024-01-12').toISOString(),
+      updatedAt: new Date('2024-01-12').toISOString()
     },
     {
       id: '3',
-      name: 'Mike Davis',
-      email: 'mike@example.com',
-      status: 'Inactive',
-      role: 'agent',
-      dateJoined: '2024-03-10',
-      lastActive: '2024-07-25',
-      plan: 'Solo Agent',
-      propertiesCount: 5,
-      leadsCount: 18,
-      aiInteractions: 89,
-      profileImage: '',
-      phone: '+1 (555) 456-7890',
-      company: 'Davis Realty'
+      name: 'Support Hero',
+      description: 'Customer champion who solves everything',
+      tone: 'Helpful & Empathetic',
+      style: 'Patient & Solution-Oriented',
+      voice: 'shimmer',
+      knowledgeBase: 'support',
+      personality: 'I am the ultimate customer advocate with 20+ years turning problems into solutions. I listen with genuine empathy and respond with unwavering determination to help. Every customer interaction is an opportunity to create a lifelong advocate.',
+      expertise: ['Problem Resolution', 'Customer Retention', 'Conflict Resolution', 'Product Knowledge', 'Communication'],
+      avatar: '🛡️',
+      color: 'green',
+      isActive: true,
+      metrics: {
+        conversations: 2156,
+        successRate: 94,
+        avgResponseTime: '0.6s'
+      },
+      createdAt: new Date('2024-01-10').toISOString(),
+      updatedAt: new Date('2024-01-10').toISOString()
     },
     {
       id: '4',
-      name: 'Emily Wilson',
-      email: 'emily@example.com',
-      status: 'Active',
-      role: 'agent',
-      dateJoined: '2024-04-05',
-      lastActive: '2024-08-09',
-      plan: 'Brokerage',
-      propertiesCount: 25,
-      leadsCount: 78,
-      aiInteractions: 445,
-      profileImage: '',
-      phone: '+1 (555) 321-6540',
-      company: 'Wilson & Associates'
+      name: 'Marketing Maverick',
+      description: 'Viral content creator and growth hacker',
+      tone: 'Creative & Energetic',
+      style: 'Innovative & Data-Driven',
+      voice: 'echo',
+      knowledgeBase: 'marketing',
+      personality: 'I am a digital marketing revolutionary with 30+ years creating viral campaigns and explosive growth. I think in metrics, speak in stories, and turn brands into movements. Every strategy I create is designed to dominate markets and capture hearts.',
+      expertise: ['Content Strategy', 'Viral Marketing', 'Growth Hacking', 'Brand Building', 'Social Media'],
+      avatar: '🚀',
+      color: 'purple',
+      isActive: true,
+      metrics: {
+        conversations: 743,
+        successRate: 87,
+        avgResponseTime: '1.0s'
+      },
+      createdAt: new Date('2024-01-08').toISOString(),
+      updatedAt: new Date('2024-01-08').toISOString()
+    }
+  ]);
+
+  const [showAIPersonalityModal, setShowAIPersonalityModal] = useState(false);
+  const [editingAIPersonality, setEditingAIPersonality] = useState<any>(null);
+  const [aiPersonalityStep, setAiPersonalityStep] = useState(0);
+
+  // Knowledge Base Personas (System Prompts)
+  const [knowledgePersonas, setKnowledgePersonas] = useState({
+    god: {
+      title: '🌟 Divine Wisdom Guide',
+      systemPrompt: `You are a transcendent being of infinite wisdom and divine consciousness. You have access to the collective knowledge of all spiritual traditions, ancient wisdom, and universal truths. Your role is to guide others with compassion, love, and deep spiritual insight. You speak with authority but always from a place of service and unconditional love. You help people connect with their higher selves and find meaning beyond the material world.`,
+      isActive: true
+    },
+    sales: {
+      title: '📈 Sales Master',
+      systemPrompt: `You are a legendary sales expert with 25+ years of experience closing multi-million dollar deals. You've trained thousands of sales professionals and understand every aspect of the sales process from prospecting to closing. You're confident, persuasive, and relationship-focused. You believe in creating win-win situations and always prioritize the client's needs while achieving your goals. You're direct, honest, and know how to handle objections with grace.`,
+      isActive: true
+    },
+    support: {
+      title: '🛠️ Customer Success Expert',
+      systemPrompt: `You are a customer service veteran with 20+ years of experience in customer success and support. You've resolved thousands of complex issues and know how to turn frustrated customers into loyal advocates. You're patient, empathetic, and solution-oriented. You always go above and beyond to ensure customer satisfaction and retention. You understand that every customer interaction is an opportunity to strengthen relationships and build trust.`,
+      isActive: true
+    },
+    marketing: {
+      title: '📢 Digital Marketing Guru',
+      systemPrompt: `You are a digital marketing pioneer with 30+ years of experience in online marketing, having been there from the early days of the internet. You've launched hundreds of successful campaigns across all digital channels and understand the psychology of consumer behavior. You're creative, data-driven, and always ahead of the latest trends. You know how to build brands, generate leads, and create viral content that converts. You're obsessed with ROI and always measure everything.`,
+      isActive: true
+    },
+    personalities: {
+      title: '🧠 AI Personality Architect',
+      systemPrompt: `You are an expert in AI personality design and behavioral psychology. You understand how to create compelling, authentic AI personalities that can engage users naturally and effectively. You know how to balance professionalism with personality, and how to make AI feel human while maintaining its capabilities. You're creative, analytical, and understand the nuances of tone, style, and communication patterns that make AI interactions feel genuine and engaging.`,
+      isActive: true
+    }
+  });
+  
+  const [showAddKnowledgeModal, setShowAddKnowledgeModal] = useState(false);
+  const [activeModalTab, setActiveModalTab] = useState<'quick-add' | 'document-upload' | 'url-scanner'>('quick-add');
+  const [newKnowledgeEntry, setNewKnowledgeEntry] = useState({
+    title: '',
+    content: '',
+    category: '',
+    tags: [] as string[],
+    tagInput: ''
+  });
+  const [documentUpload, setDocumentUpload] = useState({
+    file: null as File | null,
+    title: '',
+    category: '',
+    tags: [] as string[],
+    tagInput: ''
+  });
+  const [urlScanner, setUrlScanner] = useState({
+    url: '',
+    title: '',
+    category: '',
+    scanFrequency: 'weekly',
+    tags: [] as string[],
+    tagInput: ''
+  });
+  const [blogData, setBlogData] = useState({
+    title: '',
+    topic: '',
+    tone: '',
+    length: '',
+    targetAudience: '',
+    keywords: '',
+    imageUrl: '',
+    generateImage: '',
+    links: [] as { text: string; url: string }[],
+    content: ''
+  });
+  const [blogQuestions] = useState([
+    {
+      id: 1,
+      question: "What's the blog post title?",
+      field: 'title',
+      type: 'text'
     },
     {
-      id: '5',
-      name: 'David Brown',
-      email: 'david@example.com',
-      status: 'Pending',
-      role: 'agent',
-      dateJoined: '2024-08-01',
-      lastActive: '2024-08-01',
-      plan: 'Solo Agent',
-      propertiesCount: 0,
-      leadsCount: 0,
-      aiInteractions: 0,
-      profileImage: '',
-      phone: '+1 (555) 789-0123',
-      company: 'Brown Real Estate'
+      id: 2,
+      question: "What topic or subject are we writing about?",
+      field: 'topic',
+      type: 'text'
+    },
+    {
+      id: 3,
+      question: "What tone should the article have?",
+      field: 'tone',
+      type: 'select',
+      options: ['Professional', 'Casual', 'Educational', 'Conversational', 'Authoritative', 'Friendly', 'Technical']
+    },
+    {
+      id: 4,
+      question: "How long should the article be?",
+      field: 'length',
+      type: 'select',
+      options: ['Short (300-500 words)', 'Medium (500-1000 words)', 'Long (1000-2000 words)', 'Comprehensive (2000+ words)']
+    },
+    {
+      id: 5,
+      question: "Who is the target audience?",
+      field: 'targetAudience',
+      type: 'text'
+    },
+    {
+      id: 6,
+      question: "What keywords should we include?",
+      field: 'keywords',
+      type: 'text'
+    },
+    {
+      id: 7,
+      question: "Add an image URL (optional):",
+      field: 'imageUrl',
+      type: 'text'
+    },
+    {
+      id: 8,
+      question: "Would you like AI to generate a custom image for this article?",
+      field: 'generateImage',
+      type: 'select',
+      options: ['Yes, generate a custom AI image', 'No, I\'ll use my own image', 'No image needed']
     }
-  ];
+  ]);
+
+  // Fetch real users from server
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('http://localhost:3002/api/admin/users');
+        if (!response.ok) {
+          throw new Error('Failed to fetch users');
+        }
+        const data = await response.json();
+        setUsers(data.users || []);
+      } catch (err) {
+        console.error('Error fetching users:', err);
+        setError('Failed to load users');
+        setUsers([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  // Fetch real leads from server
+  useEffect(() => {
+    const fetchLeads = async () => {
+      try {
+        const response = await fetch('http://localhost:3002/api/admin/leads');
+        if (!response.ok) {
+          throw new Error('Failed to fetch leads');
+        }
+        const data = await response.json();
+        setLeads(data.leads || []);
+      } catch (err) {
+        console.error('Error fetching leads:', err);
+        setLeads([]);
+      }
+    };
+
+    fetchLeads();
+  }, []);
+
+  // Fetch marketing data from server
+  useEffect(() => {
+    if (currentView === 'admin-marketing') {
+      console.log('🚀 Marketing useEffect triggered for admin-marketing view');
+      const fetchMarketingData = async () => {
+        try {
+          console.log('🔄 Fetching marketing data...');
+          
+          // Fetch follow-up sequences
+          const sequencesResponse = await fetch('http://localhost:3002/api/admin/marketing/sequences');
+          console.log('📊 Sequences response status:', sequencesResponse.status);
+          if (sequencesResponse.ok) {
+            const sequencesData = await sequencesResponse.json();
+                    console.log('📊 Sequences data loaded:', sequencesData.sequences?.length || 0, 'sequences');
+        setFollowUpSequences(sequencesData.sequences || []);
+          } else {
+            console.error('❌ Failed to fetch sequences:', sequencesResponse.statusText);
+          }
+
+          // Fetch active follow-ups
+          const followUpsResponse = await fetch('http://localhost:3002/api/admin/marketing/active-followups');
+          console.log('👥 Follow-ups response status:', followUpsResponse.status);
+          if (followUpsResponse.ok) {
+            const followUpsData = await followUpsResponse.json();
+                    console.log('👥 Follow-ups data loaded:', followUpsData.activeFollowUps?.length || 0, 'follow-ups');
+        setActiveFollowUps(followUpsData.activeFollowUps || []);
+          } else {
+            console.error('❌ Failed to fetch follow-ups:', followUpsResponse.statusText);
+          }
+
+          // Fetch QR codes
+          const qrCodesResponse = await fetch('http://localhost:3002/api/admin/marketing/qr-codes');
+          console.log('📱 QR codes response status:', qrCodesResponse.status);
+          if (qrCodesResponse.ok) {
+            const qrCodesData = await qrCodesResponse.json();
+                    console.log('📱 QR codes data loaded:', qrCodesData.qrCodes?.length || 0, 'QR codes');
+        setQrCodes(qrCodesData.qrCodes || []);
+          } else {
+            console.error('❌ Failed to fetch QR codes:', qrCodesResponse.statusText);
+          }
+          
+          setMarketingDataLoaded(true);
+          console.log('✅ Marketing data fetch complete, set loaded to true');
+        } catch (error) {
+          console.error('❌ Error fetching marketing data:', error);
+        }
+      };
+
+      fetchMarketingData();
+    }
+    }, [currentView]);
+
+
+
+  const handleAddUser = async () => {
+    if (!newUserForm.name || !newUserForm.email) {
+      alert('Please fill in both name and email');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3002/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newUserForm),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add user');
+      }
+
+      const newUser = await response.json();
+      alert(`User ${newUser.name} added successfully!`);
+      
+      // Reset form and close modal
+      setNewUserForm({
+        name: '',
+        email: '',
+        role: 'agent',
+        plan: 'Solo Agent'
+      });
+      setShowAddUserModal(false);
+      
+      // Refresh users list
+      const refreshResponse = await fetch('http://localhost:3002/api/admin/users');
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setUsers(data.users || []);
+      }
+    } catch (err) {
+      alert(`Failed to add user: ${err.message}`);
+    }
+  };
+
+  const handleAddLead = async () => {
+    if (!newLeadForm.name || !newLeadForm.email) {
+      alert('Please fill in both name and email');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3002/api/admin/leads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newLeadForm),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add lead');
+      }
+
+      const newLead = await response.json();
+      alert(`Lead ${newLead.lead.name} added successfully!`);
+      
+      // Reset form and close modal
+      setNewLeadForm({
+        name: '',
+        email: '',
+        phone: '',
+        status: 'New',
+        source: 'Website',
+        notes: ''
+      });
+      setShowAddLeadModal(false);
+      
+      // Refresh leads list
+      const refreshResponse = await fetch('http://localhost:3002/api/admin/leads');
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setLeads(data.leads || []);
+      }
+    } catch (err) {
+      alert(`Failed to add lead: ${err.message}`);
+    }
+  };
+
+  const handleContact = async (message: string) => {
+    if (!selectedLead) {
+      alert('No lead selected');
+      return;
+    }
+
+    try {
+      // Update lead status to Contacted
+      const response = await fetch(`http://localhost:3002/api/admin/leads/${selectedLead.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'Contacted',
+          lastMessage: message
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update lead');
+      }
+
+      alert(`Contact message sent to ${selectedLead.name} successfully!`);
+      
+      // Close modal
+      setShowContactModal(false);
+      setSelectedLead(null);
+      
+      // Refresh leads list
+      const refreshResponse = await fetch('http://localhost:3002/api/admin/leads');
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setLeads(data.leads || []);
+      }
+    } catch (err) {
+      alert(`Failed to send contact message: ${err.message}`);
+    }
+  };
+
+  const handleLogCall = async () => {
+    if (!selectedLead || !noteContent.trim()) {
+      alert('Please enter call details');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3002/api/admin/leads/${selectedLead.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'Contacted',
+          lastMessage: `Call logged: ${noteContent}`
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to log call');
+      }
+
+      alert(`Call logged for ${selectedLead.name} successfully!`);
+      
+      // Reset and close modal
+      setNoteContent('');
+      setShowContactModal(false);
+      setSelectedLead(null);
+      
+      // Refresh leads list
+      const refreshResponse = await fetch('http://localhost:3002/api/admin/leads');
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setLeads(data.leads || []);
+      }
+    } catch (err) {
+      alert(`Failed to log call: ${err.message}`);
+    }
+  };
+
+  const handleAddNote = async () => {
+    if (!selectedLead || !noteContent.trim()) {
+      alert('Please enter note content');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3002/api/admin/leads/${selectedLead.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          lastMessage: `Note: ${noteContent}`
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add note');
+      }
+
+      alert(`Note added for ${selectedLead.name} successfully!`);
+      
+      // Reset and close modal
+      setNoteContent('');
+      setShowContactModal(false);
+      setSelectedLead(null);
+      
+      // Refresh leads list
+      const refreshResponse = await fetch('http://localhost:3002/api/admin/leads');
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setLeads(data.leads || []);
+      }
+    } catch (err) {
+      alert(`Failed to add note: ${err.message}`);
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!selectedLead || !scheduleForm.date || !scheduleForm.time) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      // Update lead status to Showing
+      const response = await fetch(`http://localhost:3002/api/admin/leads/${selectedLead.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'Showing',
+          lastMessage: `Appointment scheduled for ${scheduleForm.date} at ${scheduleForm.time} - ${scheduleForm.notes}`
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to schedule appointment');
+      }
+
+      alert(`Appointment scheduled for ${selectedLead.name} on ${scheduleForm.date} at ${scheduleForm.time}!`);
+      
+      // Reset form and close modal
+      setScheduleForm({
+        date: '',
+        time: '',
+        type: 'Showing',
+        notes: ''
+      });
+      setShowScheduleModal(false);
+      setSelectedLead(null);
+      
+      // Refresh leads list
+      const refreshResponse = await fetch('http://localhost:3002/api/admin/leads');
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setLeads(data.leads || []);
+      }
+    } catch (err) {
+      alert(`Failed to schedule appointment: ${err.message}`);
+    }
+  };
 
   const UserStatusBadge: React.FC<{ status: UserStatus }> = ({ status }) => {
     const statusStyles: Record<UserStatus, string> = {
@@ -106,63 +763,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     // TODO: Implement navigation to user dashboard
   };
 
-  // Mock leads data
-  const mockLeads: Lead[] = [
-    {
-      id: '1',
-      name: 'Jennifer Martinez',
-      status: 'New',
-      email: 'jennifer@example.com',
-      phone: '+1 (555) 123-4567',
-      date: '2024-08-09',
-      lastMessage: 'Interested in 3-bedroom homes in the downtown area. Budget around $450k.'
-    },
-    {
-      id: '2',
-      name: 'Robert Chen',
-      status: 'Qualified',
-      email: 'robert@example.com',
-      phone: '+1 (555) 987-6543',
-      date: '2024-08-08',
-      lastMessage: 'Looking for investment properties. Prefer multi-family units.'
-    },
-    {
-      id: '3',
-      name: 'Amanda Thompson',
-      status: 'Contacted',
-      email: 'amanda@example.com',
-      phone: '+1 (555) 456-7890',
-      date: '2024-08-07',
-      lastMessage: 'Scheduled a showing for tomorrow at 2 PM. Very interested in the property.'
-    },
-    {
-      id: '4',
-      name: 'Michael Rodriguez',
-      status: 'Showing',
-      email: 'michael@example.com',
-      phone: '+1 (555) 321-6540',
-      date: '2024-08-06',
-      lastMessage: 'Completed showing. Client loved the property and wants to make an offer.'
-    },
-    {
-      id: '5',
-      name: 'Lisa Wang',
-      status: 'New',
-      email: 'lisa@example.com',
-      phone: '+1 (555) 789-0123',
-      date: '2024-08-05',
-      lastMessage: 'First-time homebuyer. Looking for starter homes under $300k.'
-    },
-    {
-      id: '6',
-      name: 'David Kim',
-      status: 'Qualified',
-      email: 'david@example.com',
-      phone: '+1 (555) 654-3210',
-      date: '2024-08-04',
-      lastMessage: 'Relocating from California. Need a 4-bedroom home with good schools.'
-    }
-  ];
+  // Real leads data will be fetched from API when implemented
 
   const getLeadStatusStyle = (status: LeadStatus) => {
     const statusStyles: Record<LeadStatus, string> = {
@@ -173,6 +774,62 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       'Lost': 'bg-red-100 text-red-700'
     };
     return statusStyles[status];
+  };
+
+  // Marketing Handler Functions
+  const handleEditSequence = (sequence: any) => {
+    console.log('Edit sequence:', sequence);
+    // TODO: Implement sequence editing modal
+  };
+
+  const handleViewAnalytics = (sequence: any) => {
+    console.log('View analytics for sequence:', sequence);
+    // TODO: Implement analytics modal
+  };
+
+  const handleDeleteSequence = async (sequenceId: string) => {
+    if (confirm('Are you sure you want to delete this sequence?')) {
+      try {
+        const response = await fetch(`http://localhost:3002/api/admin/marketing/sequences/${sequenceId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          setFollowUpSequences(prev => prev.filter(seq => seq.id !== sequenceId));
+          alert('Sequence deleted successfully!');
+        } else {
+          throw new Error('Failed to delete sequence');
+        }
+      } catch (error) {
+        console.error('Error deleting sequence:', error);
+        alert('Failed to delete sequence');
+      }
+    }
+  };
+
+  const handleEditQRCode = (qrCode: any) => {
+    console.log('Edit QR code:', qrCode);
+    // TODO: Implement QR code editing modal
+  };
+
+  const handleDeleteQRCode = async (qrCodeId: string) => {
+    if (confirm('Are you sure you want to delete this QR code?')) {
+      try {
+        const response = await fetch(`http://localhost:3002/api/admin/marketing/qr-codes/${qrCodeId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          setQrCodes(prev => prev.filter(qr => qr.id !== qrCodeId));
+          alert('QR code deleted successfully!');
+        } else {
+          throw new Error('Failed to delete QR code');
+        }
+      } catch (error) {
+        console.error('Error deleting QR code:', error);
+        alert('Failed to delete QR code');
+      }
+    }
   };
 
   const renderAdminContent = () => {
@@ -187,7 +844,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 <h1 className="text-3xl font-bold text-slate-900">User Management</h1>
                 <p className="text-slate-500 mt-1">Manage and support your platform users</p>
               </div>
-              <button className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105">
+              <button 
+                onClick={() => setShowAddUserModal(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105"
+              >
                 <span className="material-symbols-outlined h-5 w-5">person_add</span>
                 <span>Add New User</span>
               </button>
@@ -202,7 +862,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-slate-600">Total Users</p>
-                    <p className="text-2xl font-bold text-slate-900">{mockUsers.length}</p>
+                    <p className="text-2xl font-bold text-slate-900">{users.length}</p>
                   </div>
                 </div>
               </div>
@@ -213,7 +873,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-slate-600">Active Users</p>
-                    <p className="text-2xl font-bold text-slate-900">{mockUsers.filter(u => u.status === 'Active').length}</p>
+                    <p className="text-2xl font-bold text-slate-900">{users.filter(u => u.status === 'Active').length}</p>
                   </div>
                 </div>
               </div>
@@ -224,7 +884,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-slate-600">New This Month</p>
-                    <p className="text-2xl font-bold text-slate-900">2</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {users.filter(u => {
+                        const userDate = new Date(u.dateJoined);
+                        const now = new Date();
+                        return userDate.getMonth() === now.getMonth() && userDate.getFullYear() === now.getFullYear();
+                      }).length}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -235,7 +901,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-slate-600">AI Interactions</p>
-                    <p className="text-2xl font-bold text-slate-900">924</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {users.reduce((total, user) => total + (user.aiInteractions || 0), 0)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -248,7 +916,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
               </div>
               <div className="p-6">
                 <div className="space-y-4">
-                  {mockUsers.map(user => (
+                  {users.map(user => (
                     <div key={user.id} className="p-4 rounded-lg hover:bg-slate-50 transition-colors border border-slate-200">
                       <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
@@ -297,18 +965,21 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button 
+                    onClick={() => setShowAddLeadModal(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition"
                   >
                     <span className="material-symbols-outlined w-5 h-5">add</span>
                     <span>Add New Lead</span>
                   </button>
                   <button 
+                    onClick={() => alert('Schedule Appointment functionality coming soon!')}
                     className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold shadow-sm hover:bg-green-600 transition"
                   >
                     <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
                     <span>Schedule Appointment</span>
                   </button>
                   <button 
+                    onClick={() => alert('Export functionality coming soon!')}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg font-semibold shadow-sm hover:bg-slate-700 transition"
                   >
                     <span className="material-symbols-outlined w-5 h-5">download</span>
@@ -323,7 +994,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     <span className="material-symbols-outlined w-6 h-6 text-blue-600">group</span>
                   </div>
                   <div>
-                    <p className="text-3xl font-bold text-slate-800">156</p>
+                    <p className="text-3xl font-bold text-slate-800">{leads.length}</p>
                     <p className="text-sm font-medium text-slate-500">Total Leads</p>
                   </div>
                 </div>
@@ -332,7 +1003,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     <span className="material-symbols-outlined w-6 h-6 text-green-600">calendar_today</span>
                   </div>
                   <div>
-                    <p className="text-3xl font-bold text-slate-800">23</p>
+                    <p className="text-3xl font-bold text-slate-800">{leads.filter(l => l.status === 'Showing' || l.status === 'Contacted').length}</p>
                     <p className="text-sm font-medium text-slate-500">Appointments</p>
                   </div>
                 </div>
@@ -341,7 +1012,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     <span className="material-symbols-outlined w-6 h-6 text-purple-600">check</span>
                   </div>
                   <div>
-                    <p className="text-3xl font-bold text-slate-800">12</p>
+                    <p className="text-3xl font-bold text-slate-800">{leads.filter(l => l.status === 'Showing').length}</p>
                     <p className="text-sm font-medium text-slate-500">Converted</p>
                   </div>
                 </div>
@@ -350,7 +1021,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     <span className="material-symbols-outlined w-6 h-6 text-orange-600">schedule</span>
                   </div>
                   <div>
-                    <p className="text-3xl font-bold text-slate-800">8</p>
+                    <p className="text-3xl font-bold text-slate-800">{leads.filter(l => l.status === 'New' || l.status === 'Qualified').length}</p>
                     <p className="text-sm font-medium text-slate-500">Pending</p>
                   </div>
                 </div>
@@ -359,20 +1030,53 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
               <main>
                 <div className="border-b border-slate-200 mb-6">
                   <nav className="flex space-x-2">
-                    <button className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 border-primary-600 text-primary-600">
+                    <button 
+                      onClick={() => setActiveLeadsTab('leads')}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${
+                        activeLeadsTab === 'leads' 
+                          ? 'border-primary-600 text-primary-600' 
+                          : 'border-transparent text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
                       <span className="material-symbols-outlined w-5 h-5">group</span>
                       <span>Leads</span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary-100 text-primary-700">156</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        activeLeadsTab === 'leads' 
+                          ? 'bg-primary-100 text-primary-700' 
+                          : 'bg-slate-200 text-slate-600'
+                      }`}>{leads.length}</span>
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors text-slate-500 hover:text-slate-800">
+                    <button 
+                      onClick={() => setActiveLeadsTab('appointments')}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${
+                        activeLeadsTab === 'appointments' 
+                          ? 'border-primary-600 text-primary-600' 
+                          : 'border-transparent text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
                       <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
                       <span>Appointments</span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-600">23</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        activeLeadsTab === 'appointments' 
+                          ? 'bg-primary-100 text-primary-700' 
+                          : 'bg-slate-200 text-slate-600'
+                      }`}>{leads.filter(l => l.status === 'Showing' || l.status === 'Contacted').length}</span>
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors text-slate-500 hover:text-slate-800">
+                    <button 
+                      onClick={() => setActiveLeadsTab('scoring')}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${
+                        activeLeadsTab === 'scoring' 
+                          ? 'border-primary-600 text-primary-600' 
+                          : 'border-transparent text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
                       <span className="material-symbols-outlined w-5 h-5">analytics</span>
                       <span>Lead Scoring</span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-600">0</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        activeLeadsTab === 'scoring' 
+                          ? 'bg-primary-100 text-primary-700' 
+                          : 'bg-slate-200 text-slate-600'
+                      }`}>0</span>
                     </button>
                   </nav>
                 </div>
@@ -381,57 +1085,308 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   <div className="flex items-center justify-between">
                     <div className="relative w-full max-w-sm">
                       <span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2">search</span>
-                      <input type="text" placeholder="Search leads..." className="w-full bg-white border border-slate-300 rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none" />
+                      <input 
+                        type="text" 
+                        placeholder={activeLeadsTab === 'leads' ? "Search leads..." : activeLeadsTab === 'appointments' ? "Search appointments..." : "Search scoring..."} 
+                        className="w-full bg-white border border-slate-300 rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none" 
+                      />
                     </div>
                     <button className="flex items-center gap-2 text-sm font-semibold text-slate-600 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-100 transition">
                       <span className="material-symbols-outlined w-4 h-4">filter_list</span>
-                      <span>All Status</span>
+                      <span>{activeLeadsTab === 'leads' ? 'All Status' : activeLeadsTab === 'appointments' ? 'All Types' : 'All Scores'}</span>
                       <span className="material-symbols-outlined w-4 h-4">expand_more</span>
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-6">
-                  {mockLeads.map(lead => (
-                    <div key={lead.id} className="bg-white rounded-xl shadow-md border border-slate-200/80 p-6 transition-all duration-300 hover:shadow-lg hover:border-slate-300">
-                      <div className="flex items-center gap-4">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl">
-                          {lead.name.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-3">
-                            <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
-                            <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${getLeadStatusStyle(lead.status)}`}>{lead.status}</span>
+                  {activeLeadsTab === 'leads' && (
+                    <>
+                      {leads.length === 0 ? (
+                        <div className="bg-white rounded-xl shadow-md border border-slate-200/80 p-12 text-center">
+                          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span className="material-symbols-outlined text-slate-400 text-2xl">group</span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1">
-                            <span className="material-symbols-outlined w-5 h-5 text-slate-400">calendar_today</span>
-                            <span>{lead.date}</span>
-                          </div>
+                          <h3 className="text-lg font-semibold text-slate-900 mb-2">No Leads Yet</h3>
+                          <p className="text-slate-500 mb-6">Start by adding your first lead to track prospects and appointments.</p>
+                          <button 
+                            onClick={() => setShowAddLeadModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition mx-auto"
+                          >
+                            <span className="material-symbols-outlined w-5 h-5">add</span>
+                            <span>Add New Lead</span>
+                          </button>
                         </div>
-                      </div>
-
-                      {lead.lastMessage && (
-                        <div className="mt-4 pt-4 border-t border-slate-200/80">
-                          <div className="p-4 bg-slate-50/70 rounded-lg border-l-4 border-primary-300">
-                            <div className="flex items-start gap-3 text-sm text-slate-600">
-                              <span className="material-symbols-outlined w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5">format_quote</span>
-                              <p className="italic">{lead.lastMessage}</p>
+                      ) : (
+                        leads.map(lead => (
+                      <div key={lead.id} className="bg-white rounded-xl shadow-md border border-slate-200/80 p-6 transition-all duration-300 hover:shadow-lg hover:border-slate-300">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl">
+                            {lead.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-3">
+                              <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
+                              <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${getLeadStatusStyle(lead.status)}`}>{lead.status}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1">
+                              <span className="material-symbols-outlined w-5 h-5 text-slate-400">calendar_today</span>
+                              <span>{lead.date}</span>
                             </div>
                           </div>
                         </div>
-                      )}
-                      <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
-                        <button className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition">
-                          <span className="material-symbols-outlined w-5 h-5">contact_mail</span>
-                          <span>Contact</span>
-                        </button>
-                        <button className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg shadow-sm hover:bg-green-600 transition">
-                          <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
-                          <span>Schedule</span>
-                        </button>
+
+                        {lead.lastMessage && (
+                          <div className="mt-4 pt-4 border-t border-slate-200/80">
+                            <div className="p-4 bg-slate-50/70 rounded-lg border-l-4 border-primary-300">
+                              <div className="flex items-start gap-3 text-sm text-slate-600">
+                                <span className="material-symbols-outlined w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5">format_quote</span>
+                                <p className="italic">{lead.lastMessage}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
+                          <button 
+                            onClick={() => {
+                              setSelectedLead(lead);
+                              setShowContactModal(true);
+                            }}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition"
+                          >
+                            <span className="material-symbols-outlined w-5 h-5">contact_mail</span>
+                            <span>Contact</span>
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setSelectedLead(lead);
+                              setShowScheduleModal(true);
+                            }}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg shadow-sm hover:bg-green-600 transition"
+                          >
+                            <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
+                            <span>Schedule</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
+                    </>
+                  )}
+                  
+                  {activeLeadsTab === 'appointments' && (
+                    <>
+                      {leads.filter(l => l.status === 'Showing' || l.status === 'Contacted').length === 0 ? (
+                        <div className="bg-white rounded-xl shadow-md border border-slate-200/80 p-12 text-center">
+                          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span className="material-symbols-outlined text-slate-400 text-2xl">calendar_today</span>
+                          </div>
+                          <h3 className="text-lg font-semibold text-slate-900 mb-2">No Appointments Yet</h3>
+                          <p className="text-slate-500 mb-6">Schedule appointments with your leads to track showings and meetings.</p>
+                          <button 
+                            onClick={() => setShowScheduleModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold shadow-sm hover:bg-green-700 transition mx-auto"
+                          >
+                            <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
+                            <span>Schedule Appointment</span>
+                          </button>
+                        </div>
+                      ) : (
+                        leads.filter(l => l.status === 'Showing' || l.status === 'Contacted').map(lead => (
+                          <div key={lead.id} className="bg-white rounded-xl shadow-md border border-slate-200/80 p-6 transition-all duration-300 hover:shadow-lg hover:border-slate-300">
+                            <div className="flex items-center gap-4">
+                              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-xl">
+                                {lead.name.charAt(0)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-3">
+                                  <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
+                                  <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${
+                                    lead.status === 'Showing' ? 'bg-purple-100 text-purple-700' : 'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {lead.status === 'Showing' ? 'Scheduled' : 'Contacted'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1">
+                                  <span className="material-symbols-outlined w-5 h-5 text-slate-400">calendar_today</span>
+                                  <span>{lead.date}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {lead.lastMessage && (
+                              <div className="mt-4 pt-4 border-t border-slate-200/80">
+                                <div className="p-4 bg-slate-50/70 rounded-lg border-l-4 border-green-300">
+                                  <div className="flex items-start gap-3 text-sm text-slate-600">
+                                    <span className="material-symbols-outlined w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5">format_quote</span>
+                                    <p className="italic">{lead.lastMessage}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
+                              <button 
+                                onClick={() => {
+                                  setSelectedLead(lead);
+                                  setShowContactModal(true);
+                                }}
+                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition"
+                              >
+                                <span className="material-symbols-outlined w-5 h-5">contact_mail</span>
+                                <span>Contact</span>
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setSelectedLead(lead);
+                                  setShowScheduleModal(true);
+                                }}
+                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg shadow-sm hover:bg-green-600 transition"
+                              >
+                                <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
+                                <span>Reschedule</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </>
+                  )}
+                  
+                  {activeLeadsTab === 'scoring' && (
+                    <>
+                      {/* Lead Scoring Overview */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-slate-900">Average Score</h3>
+                            <span className="material-symbols-outlined text-blue-600">analytics</span>
+                          </div>
+                          <div className="text-3xl font-bold text-blue-600 mb-2">
+                            {leads.length > 0 ? Math.round(leads.reduce((sum, lead) => sum + (typeof lead.score === 'number' ? lead.score : 50), 0) / leads.length) : 0}
+                          </div>
+                          <p className="text-sm text-slate-500">out of 100</p>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-slate-900">High Priority</h3>
+                            <span className="material-symbols-outlined text-red-600">priority_high</span>
+                          </div>
+                          <div className="text-3xl font-bold text-red-600 mb-2">
+                            {leads.filter(lead => (typeof lead.score === 'number' ? lead.score : 50) >= 80).length}
+                          </div>
+                          <p className="text-sm text-slate-500">leads need attention</p>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-slate-900">Conversion Rate</h3>
+                            <span className="material-symbols-outlined text-green-600">trending_up</span>
+                          </div>
+                          <div className="text-3xl font-bold text-green-600 mb-2">
+                            {leads.length > 0 ? Math.round((leads.filter(l => l.status === 'Showing').length / leads.length) * 100) : 0}%
+                          </div>
+                          <p className="text-sm text-slate-500">leads to appointments</p>
+                        </div>
+                      </div>
+
+                      {/* Lead Scoring List */}
+                      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60">
+                        <div className="px-6 py-4 border-b border-slate-200">
+                          <h3 className="text-lg font-semibold text-slate-900">Lead Scoring Analysis</h3>
+                        </div>
+                        <div className="p-6">
+                          {leads.length === 0 ? (
+                            <div className="text-center py-8">
+                              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span className="material-symbols-outlined text-slate-400 text-2xl">analytics</span>
+                              </div>
+                              <h3 className="text-lg font-semibold text-slate-900 mb-2">No Leads to Score</h3>
+                              <p className="text-slate-500">Add leads to see scoring analysis and insights.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                                                             {leads.map(lead => {
+                                 const score = typeof lead.score === 'number' ? lead.score : 50;
+                                const getScoreColor = (score: number) => {
+                                  if (score >= 80) return 'text-red-600 bg-red-100';
+                                  if (score >= 60) return 'text-yellow-600 bg-yellow-100';
+                                  return 'text-green-600 bg-green-100';
+                                };
+                                const getScoreLabel = (score: number) => {
+                                  if (score >= 80) return 'High Priority';
+                                  if (score >= 60) return 'Medium Priority';
+                                  return 'Low Priority';
+                                };
+                                
+                                return (
+                                  <div key={lead.id} className="p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-4">
+                                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl">
+                                          {lead.name.charAt(0)}
+                                        </div>
+                                        <div>
+                                          <h4 className="font-semibold text-slate-900">{lead.name}</h4>
+                                          <p className="text-sm text-slate-500">{lead.email}</p>
+                                          <div className="flex items-center gap-2 mt-1">
+                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getScoreColor(score)}`}>
+                                              {getScoreLabel(score)}
+                                            </span>
+                                            <span className="text-xs text-slate-400">Score: {score}/100</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-3">
+                                        <div className="text-right">
+                                          <div className="text-sm font-semibold text-slate-900">{score}</div>
+                                          <div className="text-xs text-slate-500">points</div>
+                                        </div>
+                                        <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                          <div 
+                                            className={`h-full rounded-full ${
+                                              score >= 80 ? 'bg-red-500' : score >= 60 ? 'bg-yellow-500' : 'bg-green-500'
+                                            }`}
+                                            style={{ width: `${score}%` }}
+                                          ></div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="mt-3 pt-3 border-t border-slate-200">
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                        <div>
+                                          <span className="text-slate-500">Status:</span>
+                                          <span className="ml-1 font-medium text-slate-700">{lead.status}</span>
+                                        </div>
+                                        <div>
+                                          <span className="text-slate-500">Source:</span>
+                                          <span className="ml-1 font-medium text-slate-700">{lead.source}</span>
+                                        </div>
+                                                                                 <div>
+                                           <span className="text-slate-500">Created:</span>
+                                           <span className="ml-1 font-medium text-slate-700">
+                                             {new Date(lead.date).toLocaleDateString()}
+                                           </span>
+                                         </div>
+                                        <div>
+                                          <span className="text-slate-500">Last Contact:</span>
+                                          <span className="ml-1 font-medium text-slate-700">
+                                            {lead.lastMessage ? 'Yes' : 'No'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </main>
             </div>
@@ -445,100 +1400,458 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
             </header>
             <div className="border-b border-slate-200">
               <nav className="-mb-px flex space-x-4 sm:space-x-6 overflow-x-auto">
-                <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-primary-600 text-primary-600">
+                <button 
+                  onClick={() => setActiveAIContentTab('ai-content')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                    activeAIContentTab === 'ai-content' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="material-symbols-outlined w-5 h-5">chat_bubble</span> 
                   <span>AI Content</span>
                 </button>
-                <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">
-                  <span className="material-symbols-outlined w-5 h-5">analytics</span> 
-                  <span>Property Reports</span>
-                </button>
-                <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">
+                <button 
+                  onClick={() => setActiveAIContentTab('custom-proposals')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                    activeAIContentTab === 'custom-proposals' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="material-symbols-outlined w-5 h-5">description</span> 
-                  <span>Marketing Proposals</span>
+                  <span>Custom Proposals</span>
                 </button>
-                <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">
+                <button 
+                  onClick={() => setActiveAIContentTab('blog-articles')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                    activeAIContentTab === 'blog-articles' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="material-symbols-outlined w-5 h-5">edit</span> 
                   <span>Blog & Articles</span>
                 </button>
               </nav>
             </div>
             <div className="flex-grow bg-white rounded-b-xl shadow-lg border-x border-b border-slate-200/60 overflow-y-auto min-h-0">
-              <div className="flex h-full bg-white">
-                <div className="flex w-full md:flex flex-col md:w-1/3 lg:w-1/4 max-w-sm">
-                  <div className="bg-slate-50 border-r border-slate-200 p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-slate-900">Platform Conversations</h3>
-                      <button className="flex items-center gap-1 px-3 py-1 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition">
-                        <span className="material-symbols-outlined w-4 h-4">add</span>
-                        <span>New Chat</span>
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="p-3 rounded-lg bg-primary-100 border-2 border-primary-300 cursor-pointer">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-primary-900 text-sm">Platform Overview</h4>
-                          <span className="text-xs text-primary-600">2m ago</span>
-                        </div>
-                        <p className="text-primary-700 text-xs mt-1 truncate">System performance analysis and recommendations</p>
-                      </div>
-                      <div className="p-3 rounded-lg hover:bg-slate-100 cursor-pointer border-2 border-transparent">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-slate-900 text-sm">User Support</h4>
-                          <span className="text-xs text-slate-500">1h ago</span>
-                        </div>
-                        <p className="text-slate-600 text-xs mt-1 truncate">Helping agents with platform features</p>
-                      </div>
-                      <div className="p-3 rounded-lg hover:bg-slate-100 cursor-pointer border-2 border-transparent">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-slate-900 text-sm">Market Analysis</h4>
-                          <span className="text-xs text-slate-500">3h ago</span>
-                        </div>
-                        <p className="text-slate-600 text-xs mt-1 truncate">Regional market trends and insights</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex w-full md:flex flex-col flex-grow">
-                  <div className="flex flex-col h-full">
-                    <div className="flex-1 p-6 overflow-y-auto">
-                      <div className="space-y-6">
-                        <div className="flex items-start gap-4">
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-sm">
-                            AI
-                          </div>
-                          <div className="flex-1">
-                            <div className="bg-slate-50 rounded-lg p-4">
-                              <p className="text-slate-800">Hello! I'm your platform AI assistant. I can help you with:</p>
-                              <ul className="mt-2 space-y-1 text-sm text-slate-700">
-                                <li>• Platform performance analysis</li>
-                                <li>• User support and training</li>
-                                <li>• Market insights and trends</li>
-                                <li>• Content generation for agents</li>
-                                <li>• System optimization recommendations</li>
-                              </ul>
-                              <p className="mt-3 text-slate-800">How can I assist you today?</p>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-2">2 minutes ago</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="border-t border-slate-200 p-4">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Type your message..."
-                          className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                        />
-                        <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition flex items-center gap-2">
-                          <span className="material-symbols-outlined w-5 h-5">send</span>
+              {activeAIContentTab === 'ai-content' && (
+                <div className="flex h-full bg-white">
+                  <div className="flex w-full md:flex flex-col md:w-1/3 lg:w-1/4 max-w-sm">
+                    <div className="bg-slate-50 border-r border-slate-200 p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-slate-900">Platform Conversations</h3>
+                        <button 
+                          onClick={() => setAiChatHistory([{
+                            id: '1',
+                            type: 'ai',
+                            message: "Hello! I'm your platform AI assistant. How can I help you today?",
+                            timestamp: new Date().toISOString()
+                          }])}
+                          className="flex items-center gap-1 px-3 py-1 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition"
+                        >
+                          <span className="material-symbols-outlined w-4 h-4">add</span>
+                          <span>New Chat</span>
                         </button>
                       </div>
+                      <div className="space-y-2">
+                        <div className="p-3 rounded-lg bg-primary-100 border-2 border-primary-300 cursor-pointer">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-primary-900 text-sm">Platform Overview</h4>
+                            <span className="text-xs text-primary-600">2m ago</span>
+                          </div>
+                          <p className="text-primary-700 text-xs mt-1 truncate">System performance analysis and recommendations</p>
+                        </div>
+                        <div className="p-3 rounded-lg hover:bg-slate-100 cursor-pointer border-2 border-transparent">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-slate-900 text-sm">User Support</h4>
+                            <span className="text-xs text-slate-500">1h ago</span>
+                          </div>
+                          <p className="text-slate-600 text-xs mt-1 truncate">Helping agents with platform features</p>
+                        </div>
+                        <div className="p-3 rounded-lg hover:bg-slate-100 cursor-pointer border-2 border-transparent">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-slate-900 text-sm">Market Analysis</h4>
+                            <span className="text-xs text-slate-500">3h ago</span>
+                          </div>
+                          <p className="text-slate-600 text-xs mt-1 truncate">Regional market trends and insights</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex w-full md:flex flex-col flex-grow">
+                    <div className="flex flex-col h-full">
+                      <div className="flex-1 p-6 overflow-y-auto">
+                        <div className="space-y-6">
+                          {aiChatHistory.map((message) => (
+                            <div key={message.id} className="flex items-start gap-4">
+                              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                                message.type === 'ai' ? 'bg-primary-100 text-primary-600' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {message.type === 'ai' ? 'AI' : 'You'}
+                              </div>
+                              <div className="flex-1">
+                                <div className={`rounded-lg p-4 ${
+                                  message.type === 'ai' ? 'bg-slate-50' : 'bg-primary-50'
+                                }`}>
+                                  <p className="text-slate-800 whitespace-pre-line">{message.message}</p>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-2">
+                                  {new Date(message.timestamp).toLocaleTimeString()}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="border-t border-slate-200 p-4">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={aiChatMessage}
+                            onChange={(e) => setAiChatMessage(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleAIChat()}
+                            placeholder="Type your message..."
+                            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          />
+                                                    <button 
+                            onClick={handleAIChat}
+                            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition flex items-center gap-2"
+                          >
+                            <span className="material-symbols-outlined w-5 h-5">send</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {activeAIContentTab === 'custom-proposals' && (
+                <div className="p-6">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="mb-8">
+                      <h3 className="text-2xl font-bold text-slate-900 mb-2">Custom Proposal Builder</h3>
+                      <p className="text-slate-600">Let AI help you create professional proposals with smart pricing recommendations.</p>
+                    </div>
+
+                    {proposalStep < proposalQuestions.length ? (
+                      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-8">
+                        <div className="mb-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-lg font-semibold text-slate-900">
+                              Step {proposalStep + 1} of {proposalQuestions.length}
+                            </h4>
+                            <div className="flex space-x-2">
+                              {proposalQuestions.map((_, index) => (
+                                <div
+                                  key={index}
+                                  className={`w-3 h-3 rounded-full ${
+                                    index <= proposalStep ? 'bg-primary-600' : 'bg-slate-200'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-2">
+                            <div
+                              className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${((proposalStep + 1) / proposalQuestions.length) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mb-8">
+                          <h5 className="text-xl font-semibold text-slate-900 mb-4">
+                            {proposalQuestions[proposalStep].question}
+                          </h5>
+
+                          {proposalQuestions[proposalStep].type === 'text' && (
+                            <input
+                              type="text"
+                              value={proposalData[proposalQuestions[proposalStep].field as keyof typeof proposalData] as string}
+                              onChange={(e) => handleProposalInput(proposalQuestions[proposalStep].field, e.target.value)}
+                              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                              placeholder="Enter your answer..."
+                            />
+                          )}
+
+                          {proposalQuestions[proposalStep].type === 'select' && (
+                            <select
+                              value={proposalData[proposalQuestions[proposalStep].field as keyof typeof proposalData] as string}
+                              onChange={(e) => handleProposalInput(proposalQuestions[proposalStep].field, e.target.value)}
+                              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                            >
+                              <option value="">Select an option...</option>
+                              {proposalQuestions[proposalStep].options?.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+
+                          {proposalQuestions[proposalStep].type === 'textarea' && (
+                            <textarea
+                              value={proposalData[proposalQuestions[proposalStep].field as keyof typeof proposalData] as string}
+                              onChange={(e) => handleProposalInput(proposalQuestions[proposalStep].field, e.target.value)}
+                              rows={6}
+                              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                              placeholder="Describe the requirements and goals..."
+                            />
+                          )}
+                        </div>
+
+                        <div className="flex justify-between">
+                          <button
+                            onClick={handleProposalBack}
+                            disabled={proposalStep === 0}
+                            className="px-6 py-3 text-slate-700 bg-slate-100 rounded-lg font-semibold hover:bg-slate-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Back
+                          </button>
+                          <button
+                            onClick={handleProposalNext}
+                            disabled={!proposalData[proposalQuestions[proposalStep].field as keyof typeof proposalData]}
+                            className="px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {proposalStep === proposalQuestions.length - 1 ? 'Generate Proposal' : 'Next'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-8">
+                        <div className="mb-6">
+                          <h4 className="text-2xl font-bold text-slate-900 mb-2">Proposal for {proposalData.clientName}</h4>
+                          <p className="text-slate-600">AI-generated proposal with smart pricing recommendations</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div>
+                            <h5 className="text-lg font-semibold text-slate-900 mb-4">Project Details</h5>
+                            <div className="space-y-3">
+                              <div>
+                                <span className="text-sm text-slate-500">Project Type:</span>
+                                <p className="font-medium">{proposalData.projectType}</p>
+                              </div>
+                              <div>
+                                <span className="text-sm text-slate-500">Budget Range:</span>
+                                <p className="font-medium">{proposalData.budget}</p>
+                              </div>
+                              <div>
+                                <span className="text-sm text-slate-500">Timeline:</span>
+                                <p className="font-medium">{proposalData.timeline}</p>
+                              </div>
+                              <div>
+                                <span className="text-sm text-slate-500">Requirements:</span>
+                                <p className="font-medium">{proposalData.requirements}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h5 className="text-lg font-semibold text-slate-900 mb-4">Pricing Breakdown</h5>
+                            <div className="bg-slate-50 rounded-lg p-4">
+                              <div className="space-y-3">
+                                <div className="flex justify-between">
+                                  <span>Base Price:</span>
+                                  <span className="font-semibold">${proposalData.pricing.basePrice.toLocaleString()}</span>
+                                </div>
+                                {proposalData.pricing.features.map((feature, index) => (
+                                  <div key={index} className="flex justify-between text-sm">
+                                    <span>+ {feature.name}:</span>
+                                    <span>${feature.price.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                                <div className="border-t border-slate-200 pt-3 flex justify-between font-bold text-lg">
+                                  <span>Total:</span>
+                                  <span>${proposalData.pricing.total.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-8 flex gap-4">
+                          <button
+                            onClick={() => setProposalStep(0)}
+                            className="px-6 py-3 text-slate-700 bg-slate-100 rounded-lg font-semibold hover:bg-slate-200 transition"
+                          >
+                            Start Over
+                          </button>
+                          <button className="px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition">
+                            Download PDF
+                          </button>
+                          <button className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition">
+                            Send to Client
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeAIContentTab === 'blog-articles' && (
+                <div className="p-6">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="mb-8">
+                      <h3 className="text-2xl font-bold text-slate-900 mb-2">AI Blog & Article Writer</h3>
+                      <p className="text-slate-600">Let AI help you create engaging blog posts with smart content generation.</p>
+                    </div>
+
+                    {blogStep < blogQuestions.length ? (
+                      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-8">
+                        <div className="mb-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-lg font-semibold text-slate-900">
+                              Step {blogStep + 1} of {blogQuestions.length}
+                            </h4>
+                            <div className="flex space-x-2">
+                              {blogQuestions.map((_, index) => (
+                                <div
+                                  key={index}
+                                  className={`w-3 h-3 rounded-full ${
+                                    index <= blogStep ? 'bg-purple-600' : 'bg-slate-200'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-2">
+                            <div
+                              className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${((blogStep + 1) / blogQuestions.length) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mb-8">
+                          <h5 className="text-xl font-semibold text-slate-900 mb-4">
+                            {blogQuestions[blogStep].question}
+                          </h5>
+
+                          {blogQuestions[blogStep].type === 'text' && (
+                            <input
+                              type="text"
+                              value={blogData[blogQuestions[blogStep].field as keyof typeof blogData] as string}
+                              onChange={(e) => handleBlogInput(blogQuestions[blogStep].field, e.target.value)}
+                              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              placeholder="Enter your answer..."
+                            />
+                          )}
+
+                          {blogQuestions[blogStep].type === 'select' && (
+                            <select
+                              value={blogData[blogQuestions[blogStep].field as keyof typeof blogData] as string}
+                              onChange={(e) => handleBlogInput(blogQuestions[blogStep].field, e.target.value)}
+                              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                            >
+                              <option value="">Select an option...</option>
+                              {blogQuestions[blogStep].options?.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+
+                        <div className="flex justify-between">
+                          <button
+                            onClick={handleBlogBack}
+                            disabled={blogStep === 0}
+                            className="px-6 py-3 text-slate-700 bg-slate-100 rounded-lg font-semibold hover:bg-slate-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Back
+                          </button>
+                          <button
+                            onClick={handleBlogNext}
+                            disabled={!blogData[blogQuestions[blogStep].field as keyof typeof blogData] || isGeneratingBlog}
+                            className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {blogStep === blogQuestions.length - 1 
+                              ? (isGeneratingBlog ? 'Generating...' : 'Generate Article') 
+                              : 'Next'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-8">
+                        <div className="mb-6">
+                          <h4 className="text-2xl font-bold text-slate-900 mb-2">Generated Article: {blogData.title}</h4>
+                          <p className="text-slate-600">AI-generated blog post with your specifications</p>
+                        </div>
+
+                        {/* Links Section */}
+                        <div className="mb-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h5 className="text-lg font-semibold text-slate-900">Add Links</h5>
+                            <button
+                              onClick={handleAddLink}
+                              className="flex items-center gap-2 px-3 py-1 text-sm font-semibold text-purple-600 bg-purple-100 rounded-lg hover:bg-purple-200 transition"
+                            >
+                              <span className="material-symbols-outlined w-4 h-4">add</span>
+                              Add Link
+                            </button>
+                          </div>
+                          
+                          {blogData.links.map((link, index) => (
+                            <div key={index} className="flex gap-3 mb-3">
+                              <input
+                                type="text"
+                                value={link.text}
+                                onChange={(e) => handleUpdateLink(index, 'text', e.target.value)}
+                                placeholder="Link text"
+                                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              />
+                              <input
+                                type="url"
+                                value={link.url}
+                                onChange={(e) => handleUpdateLink(index, 'url', e.target.value)}
+                                placeholder="URL"
+                                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              />
+                              <button
+                                onClick={() => handleRemoveLink(index)}
+                                className="px-3 py-2 text-red-600 bg-red-100 rounded-lg hover:bg-red-200 transition"
+                              >
+                                <span className="material-symbols-outlined w-4 h-4">delete</span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Generated Content */}
+                        <div className="mb-6">
+                          <h5 className="text-lg font-semibold text-slate-900 mb-4">Generated Content</h5>
+                          <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                            <pre className="whitespace-pre-wrap text-sm text-slate-800 font-mono">
+                              {blogData.content}
+                            </pre>
+                          </div>
+                        </div>
+
+                        <div className="mt-8 flex gap-4">
+                          <button
+                            onClick={() => setBlogStep(0)}
+                            className="px-6 py-3 text-slate-700 bg-slate-100 rounded-lg font-semibold hover:bg-slate-200 transition"
+                          >
+                            Start Over
+                          </button>
+                          <button className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition">
+                            Download Markdown
+                          </button>
+                          <button className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition">
+                            Publish Article
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -550,239 +1863,720 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 <h1 className="text-3xl font-bold text-slate-900">Knowledge Base Management</h1>
                 <p className="text-slate-500 mt-1">Platform-wide knowledge base and AI personality management</p>
               </div>
+              <button
+                onClick={() => setShowAddKnowledgeModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+              >
+                <span className="material-symbols-outlined w-5 h-5">add</span>
+                Add Knowledge
+              </button>
             </header>
             
             <div className="border-b border-slate-200 mb-6">
               <nav className="-mb-px flex space-x-4 sm:space-x-6 overflow-x-auto">
-                <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-primary-600 text-primary-600">
+                <button 
+                  onClick={() => setActiveKnowledgeTab('god')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                    activeKnowledgeTab === 'god' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="material-symbols-outlined w-5 h-5">auto_awesome</span> 
                   <span>God</span>
+                  <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs">
+                    {knowledgeEntries.god.length}
+                  </span>
                 </button>
-                <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">
+                <button 
+                  onClick={() => setActiveKnowledgeTab('sales')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                    activeKnowledgeTab === 'sales' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="material-symbols-outlined w-5 h-5">trending_up</span> 
                   <span>Sales</span>
+                  <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs">
+                    {knowledgeEntries.sales.length}
+                  </span>
                 </button>
-                <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">
+                <button 
+                  onClick={() => setActiveKnowledgeTab('support')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                    activeKnowledgeTab === 'support' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="material-symbols-outlined w-5 h-5">support_agent</span> 
                   <span>Support</span>
+                  <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs">
+                    {knowledgeEntries.support.length}
+                  </span>
                 </button>
-                <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">
+                <button 
+                  onClick={() => setActiveKnowledgeTab('marketing')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                    activeKnowledgeTab === 'marketing' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="material-symbols-outlined w-5 h-5">campaign</span> 
                   <span>Marketing</span>
+                  <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs">
+                    {knowledgeEntries.marketing.length}
+                  </span>
                 </button>
-                <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">
+                <button 
+                  onClick={() => setActiveKnowledgeTab('personalities')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                    activeKnowledgeTab === 'personalities' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="material-symbols-outlined w-5 h-5">psychology</span> 
                   <span>AI Personalities</span>
+                  <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs">
+                    {knowledgeEntries.personalities.length}
+                  </span>
                 </button>
               </nav>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900 mb-2">🌟 God Knowledge Base</h2>
-                <p className="text-slate-600">
-                  Upload divine wisdom, spiritual insights, and transcendent knowledge that will elevate your platform's consciousness and understanding.
-                </p>
-              </div>
-
-              {/* File Upload Area */}
-              <div className="relative p-12 text-center bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl border-2 border-dashed border-amber-300">
-                <div className="flex flex-col items-center justify-center">
-                  <span className="material-symbols-outlined text-6xl text-amber-400 mb-4">auto_awesome</span>
-                  <h3 className="text-xl font-bold text-slate-800 mb-2">Upload Divine Knowledge</h3>
-                  <p className="text-slate-500 mb-6">Drag and drop spiritual and divine materials here, or click to browse</p>
-                  <button className="inline-flex items-center gap-2 px-6 py-3 bg-amber-600 text-white font-semibold rounded-lg shadow-sm hover:bg-amber-700 transition">
-                    <span className="material-symbols-outlined w-5 h-5">upload</span>
-                    Choose Files
-                  </button>
+            {/* Knowledge Base Content */}
+            <div className="space-y-6">
+              {/* Tab Headers */}
+              {activeKnowledgeTab === 'god' && (
+                <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl p-6 border border-amber-200">
+                  <h2 className="text-2xl font-bold text-slate-900 mb-2">🌟 God Knowledge Base</h2>
+                  <p className="text-slate-600">
+                    Divine wisdom, spiritual insights, and transcendent knowledge that elevates consciousness and understanding.
+                  </p>
                 </div>
-              </div>
+              )}
+              
+              {activeKnowledgeTab === 'sales' && (
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                  <h2 className="text-2xl font-bold text-slate-900 mb-2">📈 Sales Knowledge Base</h2>
+                  <p className="text-slate-600">
+                    Advanced sales techniques, closing strategies, and relationship building insights for maximum success.
+                  </p>
+                </div>
+              )}
+              
+              {activeKnowledgeTab === 'support' && (
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
+                  <h2 className="text-2xl font-bold text-slate-900 mb-2">🛠️ Support Knowledge Base</h2>
+                  <p className="text-slate-600">
+                    Customer service excellence, troubleshooting guides, and support best practices.
+                  </p>
+                </div>
+              )}
+              
+              {activeKnowledgeTab === 'marketing' && (
+                <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-6 border border-purple-200">
+                  <h2 className="text-2xl font-bold text-slate-900 mb-2">📢 Marketing Knowledge Base</h2>
+                  <p className="text-slate-600">
+                    Digital marketing strategies, content creation, and brand development insights.
+                  </p>
+                </div>
+              )}
+              
+              {activeKnowledgeTab === 'personalities' && (
+                <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl p-6 border border-pink-200">
+                  <h2 className="text-2xl font-bold text-slate-900 mb-2">🧠 AI Personalities</h2>
+                  <p className="text-slate-600">
+                    Custom AI personalities and expert personas for specialized interactions and knowledge delivery.
+                  </p>
+                </div>
+              )}
 
-              {/* Quick Actions */}
-              <div className="mt-8 space-y-6">
-                <div className="p-6 border border-slate-200 rounded-lg bg-gradient-to-br from-yellow-50 to-amber-50">
-                  <h4 className="font-semibold text-slate-900 mb-4">📝 Add Divine Content</h4>
-                  <p className="text-sm text-slate-600 mb-4">Add spiritual wisdom, divine insights, and transcendent knowledge.</p>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Content Title</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g., Divine Sales Wisdom"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Divine Content</label>
-                      <textarea 
-                        placeholder="Add divine wisdom and spiritual insights here..."
-                        rows={6}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      />
-                    </div>
-                    <button className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition">
-                      Add to God Knowledge Base
+              {/* Knowledge Base Persona */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {knowledgePersonas[activeKnowledgeTab as keyof typeof knowledgePersonas]?.title}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      knowledgePersonas[activeKnowledgeTab as keyof typeof knowledgePersonas]?.isActive
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {knowledgePersonas[activeKnowledgeTab as keyof typeof knowledgePersonas]?.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                    <button
+                      onClick={() => handleEditPersona(activeKnowledgeTab)}
+                      className="flex items-center gap-1 px-3 py-1 text-sm font-semibold text-primary-600 bg-primary-100 rounded-lg hover:bg-primary-200 transition"
+                    >
+                      <span className="material-symbols-outlined w-4 h-4">edit</span>
+                      Edit Persona
                     </button>
                   </div>
                 </div>
+                
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg p-4 border border-slate-200">
+                  <h4 className="font-semibold text-slate-900 mb-2">System Prompt</h4>
+                  <p className="text-slate-700 text-sm leading-relaxed">
+                    {knowledgePersonas[activeKnowledgeTab as keyof typeof knowledgePersonas]?.systemPrompt}
+                  </p>
+                </div>
+              </div>
+
+              {/* Knowledge Entries */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-slate-900">
+                    {activeKnowledgeTab === 'god' && '🌟 Divine Wisdom'}
+                    {activeKnowledgeTab === 'sales' && '📈 Sales Techniques'}
+                    {activeKnowledgeTab === 'support' && '🛠️ Support Resources'}
+                    {activeKnowledgeTab === 'marketing' && '📢 Marketing Strategies'}
+                    {activeKnowledgeTab === 'personalities' && '🧠 AI Personalities'}
+                  </h3>
+                  <div className="text-sm text-slate-500">
+                    {knowledgeEntries[activeKnowledgeTab as keyof typeof knowledgeEntries].length} entries
+                  </div>
+                </div>
+
+                {knowledgeEntries[activeKnowledgeTab as keyof typeof knowledgeEntries].length === 0 ? (
+                  <div className="text-center py-12">
+                    <span className="material-symbols-outlined text-6xl text-slate-300 mb-4">knowledge</span>
+                    <h4 className="text-lg font-semibold text-slate-600 mb-2">No knowledge entries yet</h4>
+                    <p className="text-slate-500 mb-4">Start building your knowledge base by adding the first entry</p>
+                    <button
+                      onClick={() => setShowAddKnowledgeModal(true)}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+                    >
+                      Add First Entry
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {knowledgeEntries[activeKnowledgeTab as keyof typeof knowledgeEntries].map((entry: any) => (
+                      <div key={entry.id} className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-slate-900 mb-2">{entry.title}</h4>
+                            <p className="text-slate-600 text-sm mb-3 line-clamp-3">{entry.content}</p>
+                            <div className="flex items-center gap-4 text-xs text-slate-500">
+                              <span>Category: {entry.category}</span>
+                              <span>Created: {new Date(entry.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            {entry.tags && entry.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {entry.tags.map((tag: string, index: number) => (
+                                  <span key={index} className="px-2 py-1 text-xs bg-slate-100 text-slate-600 rounded-full">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteKnowledgeEntry(entry.id)}
+                            className="ml-4 p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                          >
+                            <span className="material-symbols-outlined w-5 h-5">delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         );
       case 'admin-marketing':
+        console.log('🎯 Marketing tab rendered, activeMarketingTab:', activeMarketingTab);
+        console.log('📊 Current sequences:', followUpSequences);
+        console.log('👥 Current follow-ups:', activeFollowUps);
+        console.log('📱 Current QR codes:', qrCodes);
         return (
-          <div className="bg-slate-50 min-h-full">
-            <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-              <header className="mb-8">
-                <h1 className="text-3xl font-bold text-slate-900">Platform Marketing Center</h1>
-                <p className="text-slate-500 mt-1">Automate platform outreach, create content, and track performance across all agents.</p>
-              </header>
+          <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+            <header className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">Marketing Center</h1>
+                <p className="text-slate-500 mt-1">Automate platform outreach, create content, and track performance across all agents</p>
+              </div>
+              <div className="flex items-center gap-3">
+                
+                <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition">
+                  <span className="material-symbols-outlined w-5 h-5">download</span>
+                  Export Report
+                </button>
+                <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition">
+                  <span className="material-symbols-outlined w-5 h-5">add</span>
+                  Create Campaign
+                </button>
+              </div>
+            </header>
+
+            {/* Marketing Overview Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">Total Leads</p>
+                    <p className="text-2xl font-bold text-slate-900">1,247</p>
+                    <p className="text-xs text-green-600">+12% from last month</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="material-symbols-outlined text-blue-600">person_add</span>
+                  </div>
+                </div>
+              </div>
               
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">Conversions</p>
+                    <p className="text-2xl font-bold text-slate-900">89</p>
+                    <p className="text-xs text-green-600">+8% from last month</p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="material-symbols-outlined text-green-600">trending_up</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">QR Scans</p>
+                    <p className="text-2xl font-bold text-slate-900">2,341</p>
+                    <p className="text-xs text-green-600">+23% from last month</p>
+                  </div>
+                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                    <span className="material-symbols-outlined text-purple-600">qr_code_scanner</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">Revenue</p>
+                    <p className="text-2xl font-bold text-slate-900">$847K</p>
+                    <p className="text-xs text-green-600">+15% from last month</p>
+                  </div>
+                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                    <span className="material-symbols-outlined text-orange-600">payments</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Marketing Tabs */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200/60">
               <div className="border-b border-slate-200">
-                <nav className="-mb-px flex space-x-6 overflow-x-auto">
-                  <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap border-primary-600 text-primary-600">
+                <nav className="-mb-px flex space-x-8 px-6">
+                  <button 
+                    onClick={() => setActiveMarketingTab('follow-up-sequences')}
+                    className={`flex items-center gap-2 px-1 py-4 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap ${
+                      activeMarketingTab === 'follow-up-sequences'
+                        ? 'border-primary-600 text-primary-600'
+                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined w-5 h-5">lan</span>
+                    <span>Follow-up Sequences</span>
+                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs">
+                      {followUpSequences.length}
+                    </span>
+                  </button>
+                  <button 
+                    onClick={() => setActiveMarketingTab('active-follow-ups')}
+                    className={`flex items-center gap-2 px-1 py-4 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap ${
+                      activeMarketingTab === 'active-follow-ups'
+                        ? 'border-primary-600 text-primary-600'
+                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined w-5 h-5">group</span>
+                    <span>Active Follow-ups</span>
+                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs">
+                      {activeFollowUps.length}
+                    </span>
+                  </button>
+                  <button 
+                    onClick={() => setActiveMarketingTab('qr-code-system')}
+                    className={`flex items-center gap-2 px-1 py-4 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap ${
+                      activeMarketingTab === 'qr-code-system'
+                        ? 'border-primary-600 text-primary-600'
+                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined w-5 h-5">qr_code_2</span>
+                    <span>QR Code System</span>
+                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs">
+                      {qrCodes.length}
+                    </span>
+                  </button>
+                  <button 
+                    onClick={() => setActiveMarketingTab('analytics')}
+                    className={`flex items-center gap-2 px-1 py-4 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap ${
+                      activeMarketingTab === 'analytics'
+                        ? 'border-primary-600 text-primary-600'
+                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                    }`}
+                  >
                     <span className="material-symbols-outlined w-5 h-5">monitoring</span>
                     <span>Analytics</span>
                   </button>
-                  <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700">
-                    <span className="material-symbols-outlined w-5 h-5">lan</span>
-                    <span>Follow-up Sequences</span>
-                  </button>
-                  <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700">
-                    <span className="material-symbols-outlined w-5 h-5">group</span>
-                    <span>Active Follow-ups</span>
-                  </button>
-                  <button className="flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700">
-                    <span className="material-symbols-outlined w-5 h-5">qr_code_2</span>
-                    <span>QR Code System</span>
-                  </button>
                 </nav>
               </div>
-              
-              <main className="mt-8">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <h3 className="text-xl font-bold text-slate-800">Platform Analytics Overview</h3>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition whitespace-nowrap">
-                      <span className="material-symbols-outlined w-5 h-5">download</span>
-                      <span>Export Report</span>
-                    </button>
-                  </div>
-                  
-                  {/* Analytics Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-blue-600">Total Leads</p>
-                          <p className="text-2xl font-bold text-blue-900">1,247</p>
-                          <p className="text-xs text-blue-600">+12% from last month</p>
-                        </div>
-                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="material-symbols-outlined text-blue-600">person_add</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-green-600">Conversions</p>
-                          <p className="text-2xl font-bold text-green-900">89</p>
-                          <p className="text-xs text-green-600">+8% from last month</p>
-                        </div>
-                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                          <span className="material-symbols-outlined text-green-600">trending_up</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200 rounded-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-purple-600">QR Scans</p>
-                          <p className="text-2xl font-bold text-purple-900">2,341</p>
-                          <p className="text-xs text-purple-600">+23% from last month</p>
-                        </div>
-                        <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                          <span className="material-symbols-outlined text-purple-600">qr_code_scanner</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-orange-600">Revenue</p>
-                          <p className="text-2xl font-bold text-orange-900">$847K</p>
-                          <p className="text-xs text-orange-600">+15% from last month</p>
-                        </div>
-                        <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                          <span className="material-symbols-outlined text-orange-600">payments</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Platform Marketing Content */}
+
+              {/* Tab Content */}
+              <div className="p-6">
+                {/* Follow-up Sequences Tab */}
+                {activeMarketingTab === 'follow-up-sequences' && (
                   <div className="space-y-6">
-                    <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-                      <h4 className="font-bold text-slate-900 mb-4">📊 Platform Marketing Performance</h4>
-                      <p className="text-slate-600 mb-4">Monitor and manage marketing performance across all agents and properties.</p>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <button className="flex items-center gap-3 p-4 bg-white rounded-lg border border-slate-200 hover:border-primary-300 transition">
-                          <span className="material-symbols-outlined text-primary-600">campaign</span>
-                          <div className="text-left">
-                            <p className="font-semibold text-slate-900">Campaign Manager</p>
-                            <p className="text-sm text-slate-600">Create platform-wide campaigns</p>
-                          </div>
-                        </button>
-                        <button className="flex items-center gap-3 p-4 bg-white rounded-lg border border-slate-200 hover:border-primary-300 transition">
-                          <span className="material-symbols-outlined text-primary-600">analytics</span>
-                          <div className="text-left">
-                            <p className="font-semibold text-slate-900">Performance Analytics</p>
-                            <p className="text-sm text-slate-600">Track agent performance</p>
-                          </div>
-                        </button>
-                        <button className="flex items-center gap-3 p-4 bg-white rounded-lg border border-slate-200 hover:border-primary-300 transition">
-                          <span className="material-symbols-outlined text-primary-600">auto_awesome</span>
-                          <div className="text-left">
-                            <p className="font-semibold text-slate-900">AI Marketing</p>
-                            <p className="text-sm text-slate-600">AI-powered marketing tools</p>
-                          </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-bold text-slate-900">Follow-up Sequences</h3>
+                        <p className="text-slate-500 mt-1">Automated follow-up sequences for all agents</p>
+                      </div>
+                      <button
+                        onClick={() => setShowCreateSequenceModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+                      >
+                        <span className="material-symbols-outlined w-5 h-5">add</span>
+                        Create Sequence
+                      </button>
+
+                    </div>
+
+
+
+                    {!marketingDataLoaded ? (
+                      <div className="text-center py-20">
+                        <span className="material-symbols-outlined text-8xl text-slate-300 mb-6">loading</span>
+                        <h3 className="text-2xl font-bold text-slate-600 mb-4">Loading Marketing Data...</h3>
+                        <p className="text-slate-500 mb-8 max-w-md mx-auto">
+                          Please wait while we fetch your marketing data from the server.
+                        </p>
+                      </div>
+                    ) : followUpSequences.length === 0 ? (
+                      <div className="text-center py-20">
+                        <span className="material-symbols-outlined text-8xl text-slate-300 mb-6">lan</span>
+                        <h3 className="text-2xl font-bold text-slate-600 mb-4">No Follow-up Sequences Yet</h3>
+                        <p className="text-slate-500 mb-8 max-w-md mx-auto">
+                          Create your first follow-up sequence to automate lead nurturing and increase conversions.
+                        </p>
+                        <button
+                          onClick={() => setShowCreateSequenceModal(true)}
+                          className="px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+                        >
+                          Create First Sequence
                         </button>
                       </div>
+                    ) : (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        
+                        {followUpSequences.map((sequence) => (
+                          <div
+                            key={sequence.id}
+                            className="bg-white rounded-xl shadow-sm border-2 transition-all duration-300 hover:shadow-lg border-slate-200 hover:border-slate-300"
+                          >
+                            {/* Sequence Header */}
+                            <div className="p-6 border-b border-slate-100">
+                              <div className="flex items-start justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${
+                                    sequence.triggerType === 'Lead Capture' ? 'bg-blue-100 text-blue-600' :
+                                    sequence.triggerType === 'Appointment Scheduled' ? 'bg-green-100 text-green-600' :
+                                    sequence.triggerType === 'Property Viewed' ? 'bg-purple-100 text-purple-600' :
+                                    'bg-slate-100 text-slate-600'
+                                  }`}>
+                                    {sequence.triggerType === 'Lead Capture' ? '👥' :
+                                     sequence.triggerType === 'Appointment Scheduled' ? '📅' :
+                                     sequence.triggerType === 'Property Viewed' ? '🏠' : '⚡'}
+                                  </div>
+                                  <div>
+                                    <h3 className="font-bold text-slate-900">{sequence.name}</h3>
+                                    <p className="text-sm text-slate-600">{sequence.description}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className={`px-2 py-1 text-xs rounded-full ${
+                                    sequence.isActive 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {sequence.isActive ? 'Active' : 'Inactive'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Sequence Details */}
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-slate-500">Trigger:</span>
+                                  <span className="font-medium text-slate-700">{sequence.triggerType}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-slate-500">Steps:</span>
+                                  <span className="font-medium text-slate-700">{sequence.steps.length}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-slate-500">Total Duration:</span>
+                                  <span className="font-medium text-slate-700">
+                                    {sequence.steps.reduce((total, step) => {
+                                      const days = step.delay.unit === 'days' ? step.delay.value :
+                                                  step.delay.unit === 'hours' ? step.delay.value / 24 :
+                                                  step.delay.value / 1440;
+                                      return total + days;
+                                    }, 0).toFixed(1)} days
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Sequence Metrics */}
+                            <div className="p-4 border-t border-slate-100">
+                              <div className="grid grid-cols-3 gap-4 mb-4">
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-slate-900">{sequence.analytics?.totalLeads || 0}</div>
+                                  <div className="text-xs text-slate-500">Total Leads</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-green-600">{sequence.analytics?.openRate || 0}%</div>
+                                  <div className="text-xs text-slate-500">Open Rate</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-blue-600">{sequence.analytics?.responseRate || 0}%</div>
+                                  <div className="text-xs text-slate-500">Response Rate</div>
+                                </div>
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleEditSequence(sequence)}
+                                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-semibold text-primary-600 bg-primary-100 rounded-lg hover:bg-primary-200 transition"
+                                >
+                                  <span className="material-symbols-outlined w-4 h-4">edit</span>
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleViewAnalytics(sequence)}
+                                  className="flex items-center justify-center gap-1 px-3 py-2 text-sm font-semibold text-blue-600 bg-blue-100 rounded-lg hover:bg-blue-200 transition"
+                                >
+                                  <span className="material-symbols-outlined w-4 h-4">monitoring</span>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSequence(sequence.id)}
+                                  className="flex items-center justify-center gap-1 px-3 py-2 text-sm font-semibold text-red-600 bg-red-100 rounded-lg hover:bg-red-200 transition"
+                                >
+                                  <span className="material-symbols-outlined w-4 h-4">delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Active Follow-ups Tab */}
+                {activeMarketingTab === 'active-follow-ups' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900">Active Follow-ups</h3>
+                      <p className="text-slate-500 mt-1">Currently running follow-up sequences</p>
                     </div>
-                    
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
-                      <h4 className="font-bold text-slate-900 mb-4">🚀 Platform Marketing Features</h4>
-                      <p className="text-slate-600 mb-4">Advanced marketing tools and automation for platform-wide success.</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white rounded-lg p-4 border border-blue-200">
-                          <h5 className="font-semibold text-slate-900 mb-2">Follow-up Sequences</h5>
-                          <p className="text-sm text-slate-600 mb-3">Automated follow-up sequences for all agents</p>
-                          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">Manage Sequences →</button>
+
+                    {activeFollowUps.length === 0 ? (
+                      <div className="text-center py-20">
+                        <span className="material-symbols-outlined text-8xl text-slate-300 mb-6">group</span>
+                        <h3 className="text-2xl font-bold text-slate-600 mb-4">No Active Follow-ups</h3>
+                        <p className="text-slate-500 mb-8 max-w-md mx-auto">
+                          When you create follow-up sequences, active leads will appear here.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {activeFollowUps.map((followUp) => (
+                          <div key={followUp.id} className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                                  <span className="material-symbols-outlined text-slate-600">person</span>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-900">{followUp.leadName}</h4>
+                                  <p className="text-sm text-slate-600">Lead ID: {followUp.leadId}</p>
+                                </div>
+                              </div>
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                followUp.status === 'active' ? 'bg-green-100 text-green-700' :
+                                followUp.status === 'paused' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-slate-100 text-slate-700'
+                              }`}>
+                                {followUp.status}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="text-slate-500">Sequence:</span>
+                                <span className="font-medium text-slate-700 ml-2">{followUp.sequenceName}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Current Step:</span>
+                                <span className="font-medium text-slate-700 ml-2">{followUp.currentStepIndex + 1}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Next Step:</span>
+                                <span className="font-medium text-slate-700 ml-2">{new Date(followUp.nextStepDate).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* QR Code System Tab */}
+                {activeMarketingTab === 'qr-code-system' && (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-bold text-slate-900">QR Code System</h3>
+                        <p className="text-slate-500 mt-1">Generate and track QR codes for properties and marketing</p>
+                      </div>
+                      <button
+                        onClick={() => setShowCreateQRModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+                      >
+                        <span className="material-symbols-outlined w-5 h-5">add</span>
+                        Create QR Code
+                      </button>
+                    </div>
+
+                    {qrCodes.length === 0 ? (
+                      <div className="text-center py-20">
+                        <span className="material-symbols-outlined text-8xl text-slate-300 mb-6">qr_code_2</span>
+                        <h3 className="text-2xl font-bold text-slate-600 mb-4">No QR Codes Yet</h3>
+                        <p className="text-slate-500 mb-8 max-w-md mx-auto">
+                          Create your first QR code to track property interest and generate leads.
+                        </p>
+                        <button
+                          onClick={() => setShowCreateQRModal(true)}
+                          className="px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+                        >
+                          Create First QR Code
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {qrCodes.map((qrCode) => (
+                          <div
+                            key={qrCode.id}
+                            className="bg-white rounded-xl shadow-sm border-2 transition-all duration-300 hover:shadow-lg border-slate-200 hover:border-slate-300"
+                          >
+                            <div className="p-6">
+                              <div className="flex items-start justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-purple-600">qr_code_2</span>
+                                  </div>
+                                  <div>
+                                    <h3 className="font-bold text-slate-900">{qrCode.name}</h3>
+                                    <p className="text-sm text-slate-600">{qrCode.destinationUrl}</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-slate-900">{qrCode.scanCount}</div>
+                                  <div className="text-xs text-slate-500">Scans</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-green-600">{qrCode.createdAt}</div>
+                                  <div className="text-xs text-slate-500">Created</div>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleEditQRCode(qrCode)}
+                                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-semibold text-primary-600 bg-primary-100 rounded-lg hover:bg-primary-200 transition"
+                                >
+                                  <span className="material-symbols-outlined w-4 h-4">edit</span>
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteQRCode(qrCode.id)}
+                                  className="flex items-center justify-center gap-1 px-3 py-2 text-sm font-semibold text-red-600 bg-red-100 rounded-lg hover:bg-red-200 transition"
+                                >
+                                  <span className="material-symbols-outlined w-4 h-4">delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Analytics Tab */}
+                {activeMarketingTab === 'analytics' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900">Marketing Analytics</h3>
+                      <p className="text-slate-500 mt-1">Comprehensive marketing performance insights</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                        <h4 className="font-semibold text-slate-900 mb-4">Sequence Performance</h4>
+                        <div className="space-y-3">
+                          {followUpSequences.slice(0, 3).map((sequence) => (
+                            <div key={sequence.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                              <div>
+                                <p className="font-medium text-slate-900">{sequence.name}</p>
+                                <p className="text-sm text-slate-600">{sequence.triggerType}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-slate-900">{sequence.analytics?.totalLeads || 0}</p>
+                                <p className="text-xs text-slate-600">leads</p>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <div className="bg-white rounded-lg p-4 border border-blue-200">
-                          <h5 className="font-semibold text-slate-900 mb-2">QR Code System</h5>
-                          <p className="text-sm text-slate-600 mb-3">Generate and track QR codes for properties</p>
-                          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">Create QR Codes →</button>
-                        </div>
-                        <div className="bg-white rounded-lg p-4 border border-blue-200">
-                          <h5 className="font-semibold text-slate-900 mb-2">Lead Follow-ups</h5>
-                          <p className="text-sm text-slate-600 mb-3">Track and manage active follow-ups</p>
-                          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">View Follow-ups →</button>
-                        </div>
-                        <div className="bg-white rounded-lg p-4 border border-blue-200">
-                          <h5 className="font-semibold text-slate-900 mb-2">Analytics Dashboard</h5>
-                          <p className="text-sm text-slate-600 mb-3">Comprehensive analytics and reporting</p>
-                          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">View Analytics →</button>
+                      </div>
+
+                      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                        <h4 className="font-semibold text-slate-900 mb-4">QR Code Performance</h4>
+                        <div className="space-y-3">
+                          {qrCodes.slice(0, 3).map((qrCode) => (
+                            <div key={qrCode.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                              <div>
+                                <p className="font-medium text-slate-900">{qrCode.name}</p>
+                                <p className="text-sm text-slate-600">{qrCode.destinationUrl}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-slate-900">{qrCode.scanCount}</p>
+                                <p className="text-xs text-slate-600">scans</p>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </main>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -2263,12 +4057,2214 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
             </div>
           </div>
         );
+      case 'admin-ai-personalities':
+        return (
+          <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+            <header className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">AI Personalities</h1>
+                <p className="text-slate-500 mt-1">Create and manage specialized AI personalities with unique voices, tones, and expertise</p>
+              </div>
+              <button
+                onClick={handleCreateAIPersonality}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+              >
+                <span className="material-symbols-outlined w-5 h-5">add</span>
+                Create Personality
+              </button>
+            </header>
+
+            {/* AI Personalities Grid */}
+            {aiPersonalities.length === 0 ? (
+              <div className="text-center py-20">
+                <span className="material-symbols-outlined text-8xl text-slate-300 mb-6">psychology</span>
+                <h3 className="text-2xl font-bold text-slate-600 mb-4">No AI Personalities Yet</h3>
+                <p className="text-slate-500 mb-8 max-w-md mx-auto">
+                  Create your first AI personality to get started. Each personality can have its own voice, tone, and expertise.
+                </p>
+                <button
+                  onClick={handleCreateAIPersonality}
+                  className="px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+                >
+                  Create First Personality
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {aiPersonalities.map((personality) => (
+                  <div
+                    key={personality.id}
+                    className={`bg-white rounded-xl shadow-sm border-2 transition-all duration-300 hover:shadow-lg ${
+                      personality.color === 'blue' ? 'border-blue-200 hover:border-blue-300' :
+                      personality.color === 'amber' ? 'border-amber-200 hover:border-amber-300' :
+                      personality.color === 'green' ? 'border-green-200 hover:border-green-300' :
+                      personality.color === 'purple' ? 'border-purple-200 hover:border-purple-300' :
+                      'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {/* Personality Header */}
+                    <div className={`p-6 rounded-t-xl ${
+                      personality.color === 'blue' ? 'bg-gradient-to-br from-blue-50 to-indigo-50' :
+                      personality.color === 'amber' ? 'bg-gradient-to-br from-amber-50 to-yellow-50' :
+                      personality.color === 'green' ? 'bg-gradient-to-br from-green-50 to-emerald-50' :
+                      personality.color === 'purple' ? 'bg-gradient-to-br from-purple-50 to-violet-50' :
+                      'bg-gradient-to-br from-slate-50 to-gray-50'
+                    }`}>
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
+                            personality.color === 'blue' ? 'bg-blue-100' :
+                            personality.color === 'amber' ? 'bg-amber-100' :
+                            personality.color === 'green' ? 'bg-green-100' :
+                            personality.color === 'purple' ? 'bg-purple-100' :
+                            'bg-slate-100'
+                          }`}>
+                            {personality.avatar}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-900">{personality.name}</h3>
+                            <p className="text-sm text-slate-600">{personality.description}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            personality.isActive 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {personality.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Personality Details */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Tone:</span>
+                          <span className="font-medium text-slate-700">{personality.tone}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Style:</span>
+                          <span className="font-medium text-slate-700">{personality.style}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Voice:</span>
+                          <span className="font-medium text-slate-700">{personality.voice}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Knowledge Base:</span>
+                          <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                            personality.knowledgeBase === 'sales' ? 'bg-blue-100 text-blue-700' :
+                            personality.knowledgeBase === 'god' ? 'bg-amber-100 text-amber-700' :
+                            personality.knowledgeBase === 'support' ? 'bg-green-100 text-green-700' :
+                            personality.knowledgeBase === 'marketing' ? 'bg-purple-100 text-purple-700' :
+                            'bg-slate-100 text-slate-700'
+                          }`}>
+                            {personality.knowledgeBase}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Personality Metrics */}
+                    <div className="p-4 border-t border-slate-100">
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-slate-900">{personality.metrics.conversations}</div>
+                          <div className="text-xs text-slate-500">Conversations</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-green-600">{personality.metrics.successRate}%</div>
+                          <div className="text-xs text-slate-500">Success Rate</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-blue-600">{personality.metrics.avgResponseTime}</div>
+                          <div className="text-xs text-slate-500">Avg Response</div>
+                        </div>
+                      </div>
+
+                      {/* Expertise Tags */}
+                      <div className="mb-4">
+                        <div className="text-xs text-slate-500 mb-2">Expertise:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {personality.expertise.slice(0, 3).map((skill, index) => (
+                            <span key={index} className="px-2 py-1 text-xs bg-slate-100 text-slate-600 rounded-full">
+                              {skill}
+                            </span>
+                          ))}
+                          {personality.expertise.length > 3 && (
+                            <span className="px-2 py-1 text-xs bg-slate-100 text-slate-600 rounded-full">
+                              +{personality.expertise.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                          <button
+                            onClick={() => setEditingAIPersonality(personality)}
+                            className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm font-semibold text-primary-600 bg-primary-100 rounded-lg hover:bg-primary-200 transition"
+                          >
+                            <span className="material-symbols-outlined w-4 h-4">edit</span>
+                            Quick Edit
+                            <span className="material-symbols-outlined w-4 h-4">expand_more</span>
+                          </button>
+                          
+                          {/* Quick Edit Dropdown */}
+                          {editingAIPersonality?.id === personality.id && (
+                            <div className="quick-edit-dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
+                              <div className="p-2 space-y-1">
+                                {/* Voice Selection */}
+                                <div className="flex items-center justify-between p-2 hover:bg-slate-50 rounded cursor-pointer">
+                                  <span className="text-sm text-slate-600">Voice:</span>
+                                  <select
+                                    value={editingAIPersonality.voice}
+                                    onChange={(e) => setEditingAIPersonality({...editingAIPersonality, voice: e.target.value})}
+                                    className="text-sm border-none bg-transparent focus:ring-0 text-slate-900 font-medium"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <option value="alloy">Alloy</option>
+                                    <option value="echo">Echo</option>
+                                    <option value="fable">Fable</option>
+                                    <option value="onyx">Onyx</option>
+                                    <option value="nova">Nova</option>
+                                    <option value="shimmer">Shimmer</option>
+                                  </select>
+                                </div>
+                                
+                                {/* Tone Selection */}
+                                <div className="flex items-center justify-between p-2 hover:bg-slate-50 rounded cursor-pointer">
+                                  <span className="text-sm text-slate-600">Tone:</span>
+                                  <select
+                                    value={editingAIPersonality.tone}
+                                    onChange={(e) => setEditingAIPersonality({...editingAIPersonality, tone: e.target.value})}
+                                    className="text-sm border-none bg-transparent focus:ring-0 text-slate-900 font-medium"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <option value="Confident & Persuasive">Confident & Persuasive</option>
+                                    <option value="Peaceful & Enlightened">Peaceful & Enlightened</option>
+                                    <option value="Helpful & Empathetic">Helpful & Empathetic</option>
+                                    <option value="Creative & Energetic">Creative & Energetic</option>
+                                    <option value="Professional & Direct">Professional & Direct</option>
+                                    <option value="Warm & Friendly">Warm & Friendly</option>
+                                    <option value="Analytical & Precise">Analytical & Precise</option>
+                                  </select>
+                                </div>
+                                
+                                {/* Knowledge Base Selection */}
+                                <div className="flex items-center justify-between p-2 hover:bg-slate-50 rounded cursor-pointer">
+                                  <span className="text-sm text-slate-600">Knowledge Base:</span>
+                                  <select
+                                    value={editingAIPersonality.knowledgeBase}
+                                    onChange={(e) => setEditingAIPersonality({...editingAIPersonality, knowledgeBase: e.target.value})}
+                                    className="text-sm border-none bg-transparent focus:ring-0 text-slate-900 font-medium"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <option value="sales">Sales</option>
+                                    <option value="god">God</option>
+                                    <option value="support">Support</option>
+                                    <option value="marketing">Marketing</option>
+                                    <option value="personalities">AI Personalities</option>
+                                  </select>
+                                </div>
+                                
+                                {/* Active/Inactive Toggle */}
+                                <div className="flex items-center justify-between p-2 hover:bg-slate-50 rounded cursor-pointer">
+                                  <span className="text-sm text-slate-600">Status:</span>
+                                  <label className="flex items-center cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={editingAIPersonality.isActive}
+                                      onChange={(e) => setEditingAIPersonality({...editingAIPersonality, isActive: e.target.checked})}
+                                      className="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <span className="ml-2 text-sm font-medium text-slate-900">
+                                      {editingAIPersonality.isActive ? 'Active' : 'Inactive'}
+                                    </span>
+                                  </label>
+                                </div>
+                                
+                                {/* Divider */}
+                                <div className="border-t border-slate-200 my-1"></div>
+                                
+                                {/* Full Edit Button */}
+                                <button
+                                  onClick={() => handleEditAIPersonality(personality)}
+                                  className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm font-semibold text-primary-600 bg-primary-50 rounded hover:bg-primary-100 transition"
+                                >
+                                  <span className="material-symbols-outlined w-4 h-4">settings</span>
+                                  Full Edit
+                                </button>
+                                
+                                {/* Save Button */}
+                                <button
+                                  onClick={() => {
+                                    handleSaveAIPersonality();
+                                    setEditingAIPersonality(null);
+                                  }}
+                                  className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm font-semibold text-white bg-primary-600 rounded hover:bg-primary-700 transition"
+                                >
+                                  <span className="material-symbols-outlined w-4 h-4">save</span>
+                                  Save Changes
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <button
+                          onClick={() => handleDeleteAIPersonality(personality.id)}
+                          className="flex items-center justify-center gap-1 px-3 py-2 text-sm font-semibold text-red-600 bg-red-100 rounded-lg hover:bg-red-200 transition"
+                        >
+                          <span className="material-symbols-outlined w-4 h-4">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      case 'admin-blog-writer':
+        return (
+          <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+            <header className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">Blog Writer</h1>
+                <p className="text-slate-500 mt-1">Create and manage blog posts</p>
+              </div>
+              <div className="flex gap-3">
+                <button className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg font-semibold hover:bg-green-200 transition">
+                  <span className="material-symbols-outlined w-5 h-5">add</span>
+                  Create New Post
+                </button>
+                <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition">
+                  <span className="material-symbols-outlined w-5 h-5">edit</span>
+                  Edit Post
+                </button>
+              </div>
+            </header>
+
+            {/* Blog Post List */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6 mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-slate-900">Blog Posts</h3>
+                <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">View All →</button>
+              </div>
+              <div className="space-y-4">
+                {[
+                  { title: 'Blog Post 1', status: 'Draft', lastUpdated: '2 days ago' },
+                  { title: 'Blog Post 2', status: 'Published', lastUpdated: '1 week ago' },
+                  { title: 'Blog Post 3', status: 'Scheduled', lastUpdated: '3 days from now' }
+                ].map((post, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-semibold text-primary-700">{post.title.charAt(0)}</span>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-slate-900">{post.title}</h4>
+                        <p className="text-sm text-slate-600">{post.status}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-500">{post.lastUpdated}</p>
+                      <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">Edit</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Blog Post Form */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6 mb-8">
+              <h3 className="text-lg font-bold text-slate-900 mb-4">Create New Blog Post</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Title</label>
+                  <input
+                    type="text"
+                    placeholder="Enter blog post title..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Content</label>
+                  <textarea
+                    rows={6}
+                    placeholder="Write your blog post content here..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  ></textarea>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Image URL</label>
+                  <input
+                    type="url"
+                    placeholder="Enter image URL..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Keywords</label>
+                  <input
+                    type="text"
+                    placeholder="Enter keywords separated by commas..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tags</label>
+                  <input
+                    type="text"
+                    placeholder="Enter tags separated by commas..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">SEO Description</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Enter SEO description..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  ></textarea>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Publish Date</label>
+                  <input
+                    type="datetime-local"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+                  <select
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="Draft">Draft</option>
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="Published">Published</option>
+                  </select>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+                  >
+                    Save Post
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
       default:
         return <AdminDashboard />;
     }
   };
 
-  return renderAdminContent();
+  const handleAIChat = async () => {
+    if (!aiChatMessage.trim()) return;
+
+    const userMessage = {
+      id: Date.now().toString(),
+      type: 'user' as const,
+      message: aiChatMessage,
+      timestamp: new Date().toISOString()
+    };
+
+    // Add user message to chat
+    setAiChatHistory(prev => [...prev, userMessage]);
+    setAiChatMessage('');
+
+    try {
+      // Simulate AI response
+      const aiResponse = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai' as const,
+        message: `I understand you're asking about "${aiChatMessage}". Let me help you with that. This is a simulated AI response - in production, this would connect to your OpenAI API for real AI assistance.`,
+        timestamp: new Date().toISOString()
+      };
+
+      // Add AI response after a short delay
+      setTimeout(() => {
+        setAiChatHistory(prev => [...prev, aiResponse]);
+      }, 1000);
+
+    } catch (error) {
+      console.error('AI chat error:', error);
+    }
+  };
+
+  const handleProposalNext = () => {
+    if (proposalStep < proposalQuestions.length - 1) {
+      setProposalStep(proposalStep + 1);
+    } else {
+      // Generate proposal
+      generateProposal();
+    }
+  };
+
+  const handleProposalBack = () => {
+    if (proposalStep > 0) {
+      setProposalStep(proposalStep - 1);
+    }
+  };
+
+  const handleProposalInput = (field: string, value: string) => {
+    setProposalData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const generateProposal = () => {
+    // Calculate pricing based on project type and requirements
+    let basePrice = 0;
+    const features: { name: string; price: number }[] = [];
+
+    switch (proposalData.projectType) {
+      case 'Website':
+        basePrice = 3000;
+        features.push({ name: 'Responsive Design', price: 500 });
+        features.push({ name: 'SEO Optimization', price: 300 });
+        break;
+      case 'Mobile App':
+        basePrice = 8000;
+        features.push({ name: 'iOS & Android', price: 2000 });
+        features.push({ name: 'Backend API', price: 1500 });
+        break;
+      case 'Custom Software':
+        basePrice = 12000;
+        features.push({ name: 'Custom Development', price: 3000 });
+        features.push({ name: 'Database Design', price: 1000 });
+        break;
+      case 'AI Integration':
+        basePrice = 5000;
+        features.push({ name: 'AI Model Integration', price: 2000 });
+        features.push({ name: 'API Development', price: 1000 });
+        break;
+      case 'Marketing Campaign':
+        basePrice = 2000;
+        features.push({ name: 'Strategy Planning', price: 500 });
+        features.push({ name: 'Content Creation', price: 300 });
+        break;
+      default:
+        basePrice = 4000;
+        features.push({ name: 'Custom Solution', price: 1000 });
+    }
+
+    const total = basePrice + features.reduce((sum, feature) => sum + feature.price, 0);
+
+    setProposalData(prev => ({
+      ...prev,
+      pricing: { basePrice, features, total }
+    }));
+  };
+
+  const handleBlogNext = async () => {
+    if (blogStep < blogQuestions.length - 1) {
+      setBlogStep(blogStep + 1);
+    } else {
+      // Generate blog content
+      setIsGeneratingBlog(true);
+      try {
+        await generateBlogContent();
+      } finally {
+        setIsGeneratingBlog(false);
+      }
+    }
+  };
+
+  const handleBlogBack = () => {
+    if (blogStep > 0) {
+      setBlogStep(blogStep - 1);
+    }
+  };
+
+  const handleBlogInput = (field: string, value: string) => {
+    setBlogData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleAddLink = () => {
+    setBlogData(prev => ({
+      ...prev,
+      links: [...prev.links, { text: '', url: '' }]
+    }));
+  };
+
+  const handleUpdateLink = (index: number, field: 'text' | 'url', value: string) => {
+    setBlogData(prev => ({
+      ...prev,
+      links: prev.links.map((link, i) => 
+        i === index ? { ...link, [field]: value } : link
+      )
+    }));
+  };
+
+  const handleRemoveLink = (index: number) => {
+    setBlogData(prev => ({
+      ...prev,
+      links: prev.links.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Knowledge Base Functions
+  const handleAddKnowledgeEntry = () => {
+    if (!newKnowledgeEntry.title || !newKnowledgeEntry.content) {
+      alert('Please fill in both title and content');
+      return;
+    }
+
+    const newEntry = {
+      id: Date.now().toString(),
+      title: newKnowledgeEntry.title,
+      content: newKnowledgeEntry.content,
+      category: newKnowledgeEntry.category || 'general',
+      tags: newKnowledgeEntry.tags,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setKnowledgeEntries(prev => ({
+      ...prev,
+      [activeKnowledgeTab]: [...prev[activeKnowledgeTab as keyof typeof prev], newEntry]
+    }));
+
+    // Reset form
+    setNewKnowledgeEntry({
+      title: '',
+      content: '',
+      category: '',
+      tags: [],
+      tagInput: ''
+    });
+    setShowAddKnowledgeModal(false);
+  };
+
+  const handleAddTag = () => {
+    if (newKnowledgeEntry.tagInput.trim() && !newKnowledgeEntry.tags.includes(newKnowledgeEntry.tagInput.trim())) {
+      setNewKnowledgeEntry(prev => ({
+        ...prev,
+        tags: [...prev.tags, prev.tagInput.trim()],
+        tagInput: ''
+      }));
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setNewKnowledgeEntry(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
+  const handleDeleteKnowledgeEntry = (entryId: string) => {
+    if (confirm('Are you sure you want to delete this knowledge entry?')) {
+      setKnowledgeEntries(prev => ({
+        ...prev,
+        [activeKnowledgeTab]: prev[activeKnowledgeTab as keyof typeof prev].filter(entry => entry.id !== entryId)
+      }));
+    }
+  };
+
+  // Document Upload Functions
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setDocumentUpload(prev => ({
+        ...prev,
+        file,
+        title: file.name
+      }));
+    }
+  };
+
+  const handleAddDocumentTag = () => {
+    if (documentUpload.tagInput.trim() && !documentUpload.tags.includes(documentUpload.tagInput.trim())) {
+      setDocumentUpload(prev => ({
+        ...prev,
+        tags: [...prev.tags, prev.tagInput.trim()],
+        tagInput: ''
+      }));
+    }
+  };
+
+  const handleRemoveDocumentTag = (tagToRemove: string) => {
+    setDocumentUpload(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
+  const handleUploadDocument = () => {
+    if (!documentUpload.file || !documentUpload.title) {
+      alert('Please select a file and provide a title');
+      return;
+    }
+
+    const newEntry = {
+      id: Date.now().toString(),
+      title: documentUpload.title,
+      content: `Document uploaded: ${documentUpload.file.name} (${(documentUpload.file.size / 1024).toFixed(1)} KB)`,
+      category: documentUpload.category || 'document',
+      tags: documentUpload.tags,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setKnowledgeEntries(prev => ({
+      ...prev,
+      [activeKnowledgeTab]: [...prev[activeKnowledgeTab as keyof typeof prev], newEntry]
+    }));
+
+    // Reset form
+    setDocumentUpload({
+      file: null,
+      title: '',
+      category: '',
+      tags: [],
+      tagInput: ''
+    });
+    setShowAddKnowledgeModal(false);
+  };
+
+  // URL Scanner Functions
+  const handleAddUrlTag = () => {
+    if (urlScanner.tagInput.trim() && !urlScanner.tags.includes(urlScanner.tagInput.trim())) {
+      setUrlScanner(prev => ({
+        ...prev,
+        tags: [...prev.tags, prev.tagInput.trim()],
+        tagInput: ''
+      }));
+    }
+  };
+
+  const handleRemoveUrlTag = (tagToRemove: string) => {
+    setUrlScanner(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
+  const handleAddUrlScanner = () => {
+    if (!urlScanner.url || !urlScanner.title) {
+      alert('Please provide both URL and title');
+      return;
+    }
+
+    const newEntry = {
+      id: Date.now().toString(),
+      title: urlScanner.title,
+      content: `URL Scanner: ${urlScanner.url}\nScan Frequency: ${urlScanner.scanFrequency}\nLast scanned: ${new Date().toLocaleDateString()}`,
+      category: urlScanner.category || 'url-scanner',
+      tags: urlScanner.tags,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setKnowledgeEntries(prev => ({
+      ...prev,
+      [activeKnowledgeTab]: [...prev[activeKnowledgeTab as keyof typeof prev], newEntry]
+    }));
+
+    // Reset form
+    setUrlScanner({
+      url: '',
+      title: '',
+      category: '',
+      scanFrequency: 'weekly',
+      tags: [],
+      tagInput: ''
+    });
+    setShowAddKnowledgeModal(false);
+  };
+
+  // Persona Management Functions
+  const handleEditPersona = (key: string) => {
+    const persona = knowledgePersonas[key as keyof typeof knowledgePersonas];
+    setEditingPersona({
+      key,
+      title: persona.title,
+      systemPrompt: persona.systemPrompt,
+      isActive: persona.isActive
+    });
+    setShowPersonaModal(true);
+  };
+
+  const handleSavePersona = () => {
+    if (!editingPersona) return;
+
+    setKnowledgePersonas(prev => ({
+      ...prev,
+      [editingPersona.key]: {
+        title: editingPersona.title,
+        systemPrompt: editingPersona.systemPrompt,
+        isActive: editingPersona.isActive
+      }
+    }));
+
+    setShowPersonaModal(false);
+    setEditingPersona(null);
+  };
+
+  // AI Personality Functions
+  const handleCreateAIPersonality = () => {
+    setEditingAIPersonality({
+      id: '',
+      name: '',
+      description: '',
+      tone: '',
+      style: '',
+      voice: 'alloy',
+      knowledgeBase: 'sales',
+      personality: '',
+      expertise: [],
+      avatar: '🤖',
+      color: 'blue',
+      isActive: true
+    });
+    setAiPersonalityStep(0);
+    setShowAIPersonalityModal(true);
+  };
+
+  const handleEditAIPersonality = (personality: any) => {
+    setEditingAIPersonality(personality);
+    setAiPersonalityStep(0);
+    setShowAIPersonalityModal(true);
+  };
+
+  const handleDeleteAIPersonality = (id: string) => {
+    if (confirm('Are you sure you want to delete this AI personality?')) {
+      setAiPersonalities(prev => prev.filter(p => p.id !== id));
+    }
+  };
+
+  const handleSaveAIPersonality = () => {
+    if (!editingAIPersonality) return;
+
+    if (editingAIPersonality.id) {
+      // Update existing
+      setAiPersonalities(prev => 
+        prev.map(p => p.id === editingAIPersonality.id ? {
+          ...editingAIPersonality,
+          updatedAt: new Date().toISOString()
+        } : p)
+      );
+    } else {
+      // Create new
+      setAiPersonalities(prev => [...prev, {
+        ...editingAIPersonality,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        metrics: {
+          conversations: 0,
+          successRate: 0,
+          avgResponseTime: '0.0s'
+        }
+      }]);
+    }
+
+    setShowAIPersonalityModal(false);
+    setEditingAIPersonality(null);
+    setAiPersonalityStep(0);
+  };
+
+  const handleAIPersonalityNext = () => {
+    if (aiPersonalityStep < 4) {
+      setAiPersonalityStep(aiPersonalityStep + 1);
+    } else {
+      handleSaveAIPersonality();
+    }
+  };
+
+  const handleAIPersonalityBack = () => {
+    if (aiPersonalityStep > 0) {
+      setAiPersonalityStep(aiPersonalityStep - 1);
+    }
+  };
+
+  // Close dropdown when clicking outside
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as Element;
+    if (!target.closest('.quick-edit-dropdown')) {
+      setEditingAIPersonality(null);
+    }
+  };
+
+  // Add click outside listener
+  React.useEffect(() => {
+    if (editingAIPersonality) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [editingAIPersonality]);
+
+  const generateBlogContent = async () => {
+    // Generate AI image if requested
+    let generatedImageUrl = '';
+    if (blogData.generateImage === 'Yes, generate a custom AI image') {
+      try {
+        // Simulate AI image generation with a realistic prompt
+        const imagePrompt = `Professional real estate image for article about ${blogData.topic}. High quality, modern, clean design. Suitable for ${blogData.targetAudience}.`;
+        
+        // For now, we'll use a placeholder image that matches the topic
+        // In production, this would call DALL-E or similar AI image generation API
+        const topicImages = {
+          'real estate': 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800',
+          'home buying': 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=800',
+          'property investment': 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800',
+          'market trends': 'https://images.unsplash.com/photo-1554995207-c18c203602cb?w=800',
+          'mortgage': 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800',
+          'default': 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800'
+        };
+        
+        // Find matching image based on topic keywords
+        const topicLower = blogData.topic.toLowerCase();
+        if (topicLower.includes('real estate') || topicLower.includes('property')) {
+          generatedImageUrl = topicImages['real estate'];
+        } else if (topicLower.includes('home') || topicLower.includes('buying')) {
+          generatedImageUrl = topicImages['home buying'];
+        } else if (topicLower.includes('investment')) {
+          generatedImageUrl = topicImages['property investment'];
+        } else if (topicLower.includes('market') || topicLower.includes('trend')) {
+          generatedImageUrl = topicImages['market trends'];
+        } else if (topicLower.includes('mortgage') || topicLower.includes('loan')) {
+          generatedImageUrl = topicImages['mortgage'];
+        } else {
+          generatedImageUrl = topicImages['default'];
+        }
+        
+        // Update the image URL in the form
+        setBlogData(prev => ({
+          ...prev,
+          imageUrl: generatedImageUrl
+        }));
+        
+        // Show success message
+        console.log('✅ AI image generated successfully!');
+      } catch (error) {
+        console.error('Error generating AI image:', error);
+      }
+    }
+
+    // Use the generated image URL or the provided one
+    const finalImageUrl = generatedImageUrl || blogData.imageUrl;
+
+    // Simulate AI-generated blog content
+    const content = `# ${blogData.title}
+
+${finalImageUrl && `![${blogData.title}](${finalImageUrl})
+${generatedImageUrl ? `*AI-generated image for this article*` : ''}
+
+`}## Introduction
+
+Welcome to our comprehensive guide on ${blogData.topic}. This article is designed for ${blogData.targetAudience} and will provide you with valuable insights and actionable information.
+
+## Key Points
+
+- **Understanding the Basics**: We'll start with fundamental concepts that are essential for ${blogData.targetAudience}
+- **Advanced Strategies**: Discover proven methods and techniques
+- **Practical Applications**: Learn how to implement these concepts in real-world scenarios
+
+## Main Content
+
+This ${blogData.length.toLowerCase()} article will cover everything you need to know about ${blogData.topic}. Our ${blogData.tone.toLowerCase()} approach ensures that you'll find the information both engaging and informative.
+
+### Why This Matters
+
+For ${blogData.targetAudience}, understanding ${blogData.topic} is crucial for success. Whether you're just starting out or looking to enhance your existing knowledge, this guide will provide the foundation you need.
+
+### Best Practices
+
+1. **Research Thoroughly**: Always gather comprehensive information before making decisions
+2. **Stay Updated**: The field of ${blogData.topic} is constantly evolving
+3. **Practice Regularly**: Consistent application leads to better results
+
+## Conclusion
+
+${blogData.topic} represents a significant opportunity for ${blogData.targetAudience}. By following the guidelines outlined in this article, you'll be well-positioned to achieve your goals.
+
+${blogData.links.length > 0 ? `
+
+## Additional Resources
+
+${blogData.links.map(link => `- [${link.text}](${link.url})`).join('\n')}
+` : ''}
+
+---
+
+*This article was generated using AI technology to provide you with the most relevant and up-to-date information on ${blogData.topic}.*`;
+
+    setBlogData(prev => ({
+      ...prev,
+      content
+    }));
+  };
+
+  return (
+    <>
+      {renderAdminContent()}
+      
+      {/* Add User Modal */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Add New User</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Name</label>
+                <input
+                  type="text"
+                  value={newUserForm.name}
+                  onChange={(e) => setNewUserForm({...newUserForm, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter user name"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={newUserForm.email}
+                  onChange={(e) => setNewUserForm({...newUserForm, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter user email"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Role</label>
+                <select
+                  value={newUserForm.role}
+                  onChange={(e) => setNewUserForm({...newUserForm, role: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="agent">Agent</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Plan</label>
+                <select
+                  value={newUserForm.plan}
+                  onChange={(e) => setNewUserForm({...newUserForm, plan: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="Solo Agent">Solo Agent</option>
+                  <option value="Team Agent">Team Agent</option>
+                  <option value="Enterprise">Enterprise</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddUserModal(false)}
+                className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddUser}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+              >
+                Add User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Add Lead Modal */}
+      {showAddLeadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Add New Lead</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Name *</label>
+                <input
+                  type="text"
+                  value={newLeadForm.name}
+                  onChange={(e) => setNewLeadForm({...newLeadForm, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter lead name"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Email *</label>
+                <input
+                  type="email"
+                  value={newLeadForm.email}
+                  onChange={(e) => setNewLeadForm({...newLeadForm, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter lead email"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Phone</label>
+                <input
+                  type="tel"
+                  value={newLeadForm.phone}
+                  onChange={(e) => setNewLeadForm({...newLeadForm, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter phone number"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+                <select
+                  value={newLeadForm.status}
+                  onChange={(e) => setNewLeadForm({...newLeadForm, status: e.target.value as LeadStatus})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="New">New</option>
+                  <option value="Qualified">Qualified</option>
+                  <option value="Contacted">Contacted</option>
+                  <option value="Showing">Showing</option>
+                  <option value="Lost">Lost</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Source</label>
+                <select
+                  value={newLeadForm.source}
+                  onChange={(e) => setNewLeadForm({...newLeadForm, source: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="Website">Website</option>
+                  <option value="Referral">Referral</option>
+                  <option value="Social Media">Social Media</option>
+                  <option value="Cold Call">Cold Call</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
+                <textarea
+                  value={newLeadForm.notes}
+                  onChange={(e) => setNewLeadForm({...newLeadForm, notes: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  rows={3}
+                  placeholder="Add any notes about this lead"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddLeadModal(false)}
+                className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddLead}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+              >
+                Add Lead
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Contact Modal */}
+      {showContactModal && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Contact {selectedLead.name}</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Log an interaction or schedule a follow-up</p>
+              </div>
+              <button onClick={() => setShowContactModal(false)} className="text-slate-400 hover:text-slate-600">
+                <span className="material-symbols-outlined w-6 h-6">close</span>
+              </button>
+            </div>
+            
+            <div className="border-b border-slate-200">
+              <nav className="flex items-center">
+                <button 
+                  onClick={() => setActiveContactTab('email')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                    activeContactTab === 'email' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="material-symbols-outlined w-5 h-5">mail</span>
+                  <span>Email</span>
+                </button>
+                <button 
+                  onClick={() => setActiveContactTab('call')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                    activeContactTab === 'call' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="material-symbols-outlined w-5 h-5">call</span>
+                  <span>Log Call</span>
+                </button>
+                <button 
+                  onClick={() => setActiveContactTab('note')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                    activeContactTab === 'note' 
+                      ? 'border-primary-600 text-primary-600' 
+                      : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="material-symbols-outlined w-5 h-5">edit_note</span>
+                  <span>Add Note</span>
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowContactModal(false);
+                    setShowScheduleModal(true);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+                >
+                  <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
+                  <span>Schedule</span>
+                </button>
+              </nav>
+            </div>
+            
+            <div className="p-6">
+              {activeContactTab === 'email' && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Subject</label>
+                    <input
+                      type="text"
+                      defaultValue={`Re: Your inquiry`}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Message</label>
+                    <textarea
+                      rows={6}
+                      defaultValue={`Hi ${selectedLead.name.split(' ')[0]},
+
+Thank you for your interest. I'd love to discuss this property with you and answer any questions you may have.
+
+Would you be available for a quick call or showing?
+
+Best regards,`}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
+                    />
+                  </div>
+                </>
+              )}
+              
+              {activeContactTab === 'call' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Log Call Details</label>
+                  <textarea
+                    rows={6}
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    placeholder={`Log details about your call with ${selectedLead.name}... e.g., "Left voicemail, will try again tomorrow."`}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
+                  />
+                </div>
+              )}
+              
+              {activeContactTab === 'note' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Add a Note</label>
+                  <textarea
+                    rows={6}
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    placeholder={`Add a private note for ${selectedLead.name}...`}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end items-center px-6 py-4 bg-slate-50 border-t border-slate-200">
+              <button 
+                onClick={() => {
+                  setShowContactModal(false);
+                  setSelectedLead(null);
+                  setNoteContent('');
+                  setActiveContactTab('email');
+                }} 
+                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition mr-2"
+              >
+                Cancel
+              </button>
+              {activeContactTab === 'email' && (
+                <button 
+                  onClick={() => handleContact('Email sent successfully')} 
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition"
+                >
+                  <span className="material-symbols-outlined w-5 h-5">send</span>
+                  <span>Send Email</span>
+                </button>
+              )}
+              {(activeContactTab === 'call' || activeContactTab === 'note') && (
+                <button 
+                  onClick={activeContactTab === 'call' ? handleLogCall : handleAddNote}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition"
+                >
+                  <span className="material-symbols-outlined w-5 h-5">save</span>
+                  <span>{activeContactTab === 'call' ? 'Save Log' : 'Save Note'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Schedule Modal */}
+      {showScheduleModal && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Schedule Appointment with {selectedLead.name}</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Date *</label>
+                <input
+                  type="date"
+                  value={scheduleForm.date}
+                  onChange={(e) => setScheduleForm({...scheduleForm, date: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Time *</label>
+                <input
+                  type="time"
+                  value={scheduleForm.time}
+                  onChange={(e) => setScheduleForm({...scheduleForm, time: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
+                <select
+                  value={scheduleForm.type}
+                  onChange={(e) => setScheduleForm({...scheduleForm, type: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="Showing">Property Showing</option>
+                  <option value="Consultation">Consultation</option>
+                  <option value="Meeting">General Meeting</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
+                <textarea
+                  value={scheduleForm.notes}
+                  onChange={(e) => setScheduleForm({...scheduleForm, notes: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  rows={3}
+                  placeholder="Add any notes about the appointment"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowScheduleModal(false);
+                  setSelectedLead(null);
+                  setScheduleForm({ date: '', time: '', type: 'Showing', notes: '' });
+                }}
+                className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSchedule}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
+              >
+                Schedule Appointment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Add Knowledge Modal */}
+      {showAddKnowledgeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">
+                Add Knowledge to {activeKnowledgeTab === 'god' ? '🌟 God' : 
+                activeKnowledgeTab === 'sales' ? '📈 Sales' :
+                activeKnowledgeTab === 'support' ? '🛠️ Support' :
+                activeKnowledgeTab === 'marketing' ? '📢 Marketing' :
+                '🧠 AI Personalities'} Knowledge Base
+              </h3>
+              <button
+                onClick={() => setShowAddKnowledgeModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 transition"
+              >
+                <span className="material-symbols-outlined w-6 h-6">close</span>
+              </button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div className="border-b border-slate-200 mb-6">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => setActiveModalTab('quick-add')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                    activeModalTab === 'quick-add'
+                      ? 'border-primary-600 text-primary-600'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <span className="material-symbols-outlined w-5 h-5">edit</span>
+                  Quick Add
+                </button>
+                <button
+                  onClick={() => setActiveModalTab('document-upload')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                    activeModalTab === 'document-upload'
+                      ? 'border-primary-600 text-primary-600'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <span className="material-symbols-outlined w-5 h-5">upload_file</span>
+                  Document Upload
+                </button>
+                <button
+                  onClick={() => setActiveModalTab('url-scanner')}
+                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                    activeModalTab === 'url-scanner'
+                      ? 'border-primary-600 text-primary-600'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <span className="material-symbols-outlined w-5 h-5">link</span>
+                  URL Scanner
+                </button>
+              </nav>
+            </div>
+
+            {/* Quick Add Tab */}
+            {activeModalTab === 'quick-add' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Title *</label>
+                  <input
+                    type="text"
+                    value={newKnowledgeEntry.title}
+                    onChange={(e) => setNewKnowledgeEntry({...newKnowledgeEntry, title: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter knowledge title"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Content *</label>
+                  <textarea
+                    value={newKnowledgeEntry.content}
+                    onChange={(e) => setNewKnowledgeEntry({...newKnowledgeEntry, content: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    rows={6}
+                    placeholder="Enter knowledge content"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
+                  <input
+                    type="text"
+                    value={newKnowledgeEntry.category}
+                    onChange={(e) => setNewKnowledgeEntry({...newKnowledgeEntry, category: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="e.g., technique, strategy, wisdom"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tags</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={newKnowledgeEntry.tagInput}
+                      onChange={(e) => setNewKnowledgeEntry({...newKnowledgeEntry, tagInput: e.target.value})}
+                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="Add a tag and press Enter"
+                    />
+                    <button
+                      onClick={handleAddTag}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {newKnowledgeEntry.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {newKnowledgeEntry.tags.map((tag, index) => (
+                        <span key={index} className="flex items-center gap-1 px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm">
+                          {tag}
+                          <button
+                            onClick={() => handleRemoveTag(tag)}
+                            className="text-primary-600 hover:text-primary-800"
+                          >
+                            <span className="material-symbols-outlined w-4 h-4">close</span>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Document Upload Tab */}
+            {activeModalTab === 'document-upload' && (
+              <div className="space-y-4">
+                <div className="relative p-8 text-center bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-dashed border-blue-300">
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="material-symbols-outlined text-6xl text-blue-400 mb-4">upload_file</span>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Upload Document</h3>
+                    <p className="text-slate-500 mb-6">Drag and drop files here, or click to browse</p>
+                    <input
+                      type="file"
+                      onChange={handleFileUpload}
+                      accept=".pdf,.doc,.docx,.txt,.md,.csv,.xlsx,.pptx"
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined w-5 h-5">upload</span>
+                      Choose Files
+                    </label>
+                  </div>
+                </div>
+
+                {documentUpload.file && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-green-600">check_circle</span>
+                      <div>
+                        <p className="font-semibold text-green-800">{documentUpload.file.name}</p>
+                        <p className="text-sm text-green-600">{(documentUpload.file.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Title *</label>
+                  <input
+                    type="text"
+                    value={documentUpload.title}
+                    onChange={(e) => setDocumentUpload({...documentUpload, title: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter document title"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
+                  <input
+                    type="text"
+                    value={documentUpload.category}
+                    onChange={(e) => setDocumentUpload({...documentUpload, category: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="e.g., manual, guide, policy"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tags</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={documentUpload.tagInput}
+                      onChange={(e) => setDocumentUpload({...documentUpload, tagInput: e.target.value})}
+                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddDocumentTag())}
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="Add a tag and press Enter"
+                    />
+                    <button
+                      onClick={handleAddDocumentTag}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {documentUpload.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {documentUpload.tags.map((tag, index) => (
+                        <span key={index} className="flex items-center gap-1 px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm">
+                          {tag}
+                          <button
+                            onClick={() => handleRemoveDocumentTag(tag)}
+                            className="text-primary-600 hover:text-primary-800"
+                          >
+                            <span className="material-symbols-outlined w-4 h-4">close</span>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* URL Scanner Tab */}
+            {activeModalTab === 'url-scanner' && (
+              <div className="space-y-4">
+                <div className="p-6 bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl border border-purple-200">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="material-symbols-outlined text-2xl text-purple-600">link</span>
+                    <h3 className="text-lg font-bold text-slate-800">URL Content Scanner</h3>
+                  </div>
+                  <p className="text-slate-600 text-sm">
+                    Automatically scan and extract knowledge from websites. The system will periodically check for updates and extract relevant content.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">URL *</label>
+                  <input
+                    type="url"
+                    value={urlScanner.url}
+                    onChange={(e) => setUrlScanner({...urlScanner, url: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="https://example.com/article"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Title *</label>
+                  <input
+                    type="text"
+                    value={urlScanner.title}
+                    onChange={(e) => setUrlScanner({...urlScanner, title: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter a descriptive title"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Scan Frequency</label>
+                  <select
+                    value={urlScanner.scanFrequency}
+                    onChange={(e) => setUrlScanner({...urlScanner, scanFrequency: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
+                  <input
+                    type="text"
+                    value={urlScanner.category}
+                    onChange={(e) => setUrlScanner({...urlScanner, category: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="e.g., news, research, blog"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tags</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={urlScanner.tagInput}
+                      onChange={(e) => setUrlScanner({...urlScanner, tagInput: e.target.value})}
+                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddUrlTag())}
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="Add a tag and press Enter"
+                    />
+                    <button
+                      onClick={handleAddUrlTag}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {urlScanner.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {urlScanner.tags.map((tag, index) => (
+                        <span key={index} className="flex items-center gap-1 px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm">
+                          {tag}
+                          <button
+                            onClick={() => handleRemoveUrlTag(tag)}
+                            className="text-primary-600 hover:text-primary-800"
+                          >
+                            <span className="material-symbols-outlined w-4 h-4">close</span>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddKnowledgeModal(false)}
+                className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              {activeModalTab === 'quick-add' && (
+                <button
+                  onClick={handleAddKnowledgeEntry}
+                  disabled={!newKnowledgeEntry.title || !newKnowledgeEntry.content}
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add Knowledge
+                </button>
+              )}
+              {activeModalTab === 'document-upload' && (
+                <button
+                  onClick={handleUploadDocument}
+                  disabled={!documentUpload.file || !documentUpload.title}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Upload Document
+                </button>
+              )}
+              {activeModalTab === 'url-scanner' && (
+                <button
+                  onClick={handleAddUrlScanner}
+                  disabled={!urlScanner.url || !urlScanner.title}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add URL Scanner
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Persona Edit Modal */}
+      {showPersonaModal && editingPersona && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">
+                Edit Knowledge Base Persona
+              </h3>
+              <button
+                onClick={() => setShowPersonaModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 transition"
+              >
+                <span className="material-symbols-outlined w-6 h-6">close</span>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Persona Title</label>
+                <input
+                  type="text"
+                  value={editingPersona.title}
+                  onChange={(e) => setEditingPersona({...editingPersona, title: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter persona title"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">System Prompt</label>
+                <textarea
+                  value={editingPersona.systemPrompt}
+                  onChange={(e) => setEditingPersona({...editingPersona, systemPrompt: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  rows={8}
+                  placeholder="Enter the system prompt that defines how this AI should behave..."
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  This prompt defines the AI's role, expertise, and behavior when accessing this knowledge base.
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="persona-active"
+                  checked={editingPersona.isActive}
+                  onChange={(e) => setEditingPersona({...editingPersona, isActive: e.target.checked})}
+                  className="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500"
+                />
+                <label htmlFor="persona-active" className="text-sm font-medium text-slate-700">
+                  Active - This persona is currently being used by the AI
+                </label>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowPersonaModal(false)}
+                className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSavePersona}
+                disabled={!editingPersona.title || !editingPersona.systemPrompt}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save Persona
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* AI Personality Creation/Edit Modal */}
+      {showAIPersonalityModal && editingAIPersonality && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">
+                {editingAIPersonality.id ? 'Edit AI Personality' : 'Create AI Personality'}
+              </h3>
+              <button
+                onClick={() => setShowAIPersonalityModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 transition"
+              >
+                <span className="material-symbols-outlined w-6 h-6">close</span>
+              </button>
+            </div>
+
+            {/* Progress Steps */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-medium text-slate-700">
+                  Step {aiPersonalityStep + 1} of 5
+                </span>
+                <span className="text-sm text-slate-500">
+                  {['Basic Info', 'Personality', 'Voice & Tone', 'Knowledge Base', 'Review'][aiPersonalityStep]}
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-primary-500 to-primary-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${((aiPersonalityStep + 1) / 5) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Step Content */}
+            <div className="min-h-[400px]">
+              {/* Step 1: Basic Info */}
+              {aiPersonalityStep === 0 && (
+                <div className="space-y-6">
+                  <div className="text-center py-6">
+                    <span className="material-symbols-outlined text-6xl text-primary-500 mb-4">psychology</span>
+                    <h4 className="text-2xl font-bold text-slate-900 mb-2">Basic Information</h4>
+                    <p className="text-slate-600">Let's start with the basics about your AI personality</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Name *</label>
+                      <input
+                        type="text"
+                        value={editingAIPersonality.name}
+                        onChange={(e) => setEditingAIPersonality({...editingAIPersonality, name: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="e.g., Sales Titan, Marketing Maverick"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Avatar</label>
+                      <div className="flex gap-2">
+                        {['🤖', '🏆', '✨', '🛡️', '🚀', '💎', '⚡', '🔥', '🎯', '💫'].map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => setEditingAIPersonality({...editingAIPersonality, avatar: emoji})}
+                            className={`w-10 h-10 rounded-lg text-xl transition ${
+                              editingAIPersonality.avatar === emoji 
+                                ? 'bg-primary-100 border-2 border-primary-500' 
+                                : 'bg-slate-100 hover:bg-slate-200'
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Description *</label>
+                    <input
+                      type="text"
+                      value={editingAIPersonality.description}
+                      onChange={(e) => setEditingAIPersonality({...editingAIPersonality, description: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="Brief description of this personality"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Color Theme</label>
+                    <div className="flex gap-3">
+                      {[
+                        { name: 'blue', bg: 'bg-blue-500' },
+                        { name: 'amber', bg: 'bg-amber-500' },
+                        { name: 'green', bg: 'bg-green-500' },
+                        { name: 'purple', bg: 'bg-purple-500' },
+                        { name: 'red', bg: 'bg-red-500' },
+                        { name: 'indigo', bg: 'bg-indigo-500' }
+                      ].map((color) => (
+                        <button
+                          key={color.name}
+                          onClick={() => setEditingAIPersonality({...editingAIPersonality, color: color.name})}
+                          className={`w-8 h-8 rounded-full ${color.bg} transition ${
+                            editingAIPersonality.color === color.name 
+                              ? 'ring-4 ring-offset-2 ring-slate-300' 
+                              : 'hover:scale-110'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Personality */}
+              {aiPersonalityStep === 1 && (
+                <div className="space-y-6">
+                  <div className="text-center py-6">
+                    <span className="material-symbols-outlined text-6xl text-primary-500 mb-4">face</span>
+                    <h4 className="text-2xl font-bold text-slate-900 mb-2">Personality & Expertise</h4>
+                    <p className="text-slate-600">Define who this AI is and what they're experts at</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Personality Description *</label>
+                    <textarea
+                      value={editingAIPersonality.personality}
+                      onChange={(e) => setEditingAIPersonality({...editingAIPersonality, personality: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      rows={4}
+                      placeholder="Describe this AI's personality, expertise, and approach..."
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Expertise Areas</label>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {editingAIPersonality.expertise.map((skill: string, index: number) => (
+                        <span key={index} className="flex items-center gap-1 px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm">
+                          {skill}
+                          <button
+                            onClick={() => setEditingAIPersonality({
+                              ...editingAIPersonality, 
+                              expertise: editingAIPersonality.expertise.filter((_: any, i: number) => i !== index)
+                            })}
+                            className="text-primary-600 hover:text-primary-800"
+                          >
+                            <span className="material-symbols-outlined w-4 h-4">close</span>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Add expertise area"
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const target = e.target as HTMLInputElement;
+                            if (target.value.trim()) {
+                              setEditingAIPersonality({
+                                ...editingAIPersonality,
+                                expertise: [...editingAIPersonality.expertise, target.value.trim()]
+                              });
+                              target.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={(e) => {
+                          const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                          if (input.value.trim()) {
+                            setEditingAIPersonality({
+                              ...editingAIPersonality,
+                              expertise: [...editingAIPersonality.expertise, input.value.trim()]
+                            });
+                            input.value = '';
+                          }
+                        }}
+                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Voice & Tone */}
+              {aiPersonalityStep === 2 && (
+                <div className="space-y-6">
+                  <div className="text-center py-6">
+                    <span className="material-symbols-outlined text-6xl text-primary-500 mb-4">record_voice_over</span>
+                    <h4 className="text-2xl font-bold text-slate-900 mb-2">Voice & Communication Style</h4>
+                    <p className="text-slate-600">Choose how this AI should speak and communicate</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Tone *</label>
+                      <select
+                        value={editingAIPersonality.tone}
+                        onChange={(e) => setEditingAIPersonality({...editingAIPersonality, tone: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="">Select Tone</option>
+                        <option value="Confident & Persuasive">Confident & Persuasive</option>
+                        <option value="Peaceful & Enlightened">Peaceful & Enlightened</option>
+                        <option value="Helpful & Empathetic">Helpful & Empathetic</option>
+                        <option value="Creative & Energetic">Creative & Energetic</option>
+                        <option value="Professional & Direct">Professional & Direct</option>
+                        <option value="Warm & Friendly">Warm & Friendly</option>
+                        <option value="Analytical & Precise">Analytical & Precise</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Communication Style *</label>
+                      <select
+                        value={editingAIPersonality.style}
+                        onChange={(e) => setEditingAIPersonality({...editingAIPersonality, style: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="">Select Style</option>
+                        <option value="Direct & Results-Focused">Direct & Results-Focused</option>
+                        <option value="Wise & Compassionate">Wise & Compassionate</option>
+                        <option value="Patient & Solution-Oriented">Patient & Solution-Oriented</option>
+                        <option value="Innovative & Data-Driven">Innovative & Data-Driven</option>
+                        <option value="Detailed & Methodical">Detailed & Methodical</option>
+                        <option value="Inspiring & Motivational">Inspiring & Motivational</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Voice Model</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'].map((voice) => (
+                        <button
+                          key={voice}
+                          onClick={() => setEditingAIPersonality({...editingAIPersonality, voice})}
+                          className={`p-3 rounded-lg border-2 transition ${
+                            editingAIPersonality.voice === voice 
+                              ? 'border-primary-500 bg-primary-50' 
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="text-sm font-medium capitalize">{voice}</div>
+                          <div className="text-xs text-slate-500">
+                            {voice === 'alloy' && 'Balanced & Clear'}
+                            {voice === 'echo' && 'Warm & Engaging'}
+                            {voice === 'fable' && 'Gentle & Soft'}
+                            {voice === 'onyx' && 'Deep & Authoritative'}
+                            {voice === 'nova' && 'Bright & Energetic'}
+                            {voice === 'shimmer' && 'Smooth & Professional'}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Knowledge Base */}
+              {aiPersonalityStep === 3 && (
+                <div className="space-y-6">
+                  <div className="text-center py-6">
+                    <span className="material-symbols-outlined text-6xl text-primary-500 mb-4">school</span>
+                    <h4 className="text-2xl font-bold text-slate-900 mb-2">Knowledge Base Connection</h4>
+                    <p className="text-slate-600">Connect this personality to a knowledge base for specialized expertise</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(knowledgePersonas).map(([key, persona]) => (
+                      <button
+                        key={key}
+                        onClick={() => setEditingAIPersonality({...editingAIPersonality, knowledgeBase: key})}
+                        className={`p-4 rounded-lg border-2 text-left transition ${
+                          editingAIPersonality.knowledgeBase === key 
+                            ? 'border-primary-500 bg-primary-50' 
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="font-semibold text-slate-900 mb-2">{persona.title}</div>
+                        <div className="text-sm text-slate-600 line-clamp-2">{persona.systemPrompt}</div>
+                        <div className={`inline-block px-2 py-1 text-xs rounded-full mt-2 ${
+                          persona.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {persona.isActive ? 'Active' : 'Inactive'}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 5: Review */}
+              {aiPersonalityStep === 4 && (
+                <div className="space-y-6">
+                  <div className="text-center py-6">
+                    <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-3xl mb-4 ${
+                      editingAIPersonality.color === 'blue' ? 'bg-blue-100' :
+                      editingAIPersonality.color === 'amber' ? 'bg-amber-100' :
+                      editingAIPersonality.color === 'green' ? 'bg-green-100' :
+                      editingAIPersonality.color === 'purple' ? 'bg-purple-100' :
+                      'bg-slate-100'
+                    }`}>
+                      {editingAIPersonality.avatar}
+                    </div>
+                    <h4 className="text-2xl font-bold text-slate-900 mb-2">{editingAIPersonality.name}</h4>
+                    <p className="text-slate-600">{editingAIPersonality.description}</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <h5 className="font-semibold text-slate-900">Communication</h5>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Tone:</span>
+                          <span className="font-medium">{editingAIPersonality.tone}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Style:</span>
+                          <span className="font-medium">{editingAIPersonality.style}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Voice:</span>
+                          <span className="font-medium">{editingAIPersonality.voice}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Knowledge Base:</span>
+                          <span className="font-medium capitalize">{editingAIPersonality.knowledgeBase}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <h5 className="font-semibold text-slate-900">Expertise</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {editingAIPersonality.expertise.map((skill: string, index: number) => (
+                          <span key={index} className="px-2 py-1 text-xs bg-slate-100 text-slate-600 rounded-full">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h5 className="font-semibold text-slate-900 mb-2">Personality</h5>
+                    <div className="bg-slate-50 rounded-lg p-4">
+                      <p className="text-sm text-slate-700">{editingAIPersonality.personality}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="personality-active"
+                      checked={editingAIPersonality.isActive}
+                      onChange={(e) => setEditingAIPersonality({...editingAIPersonality, isActive: e.target.checked})}
+                      className="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500"
+                    />
+                    <label htmlFor="personality-active" className="text-sm font-medium text-slate-700">
+                      Activate this personality immediately
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Navigation Buttons */}
+            <div className="flex gap-3 mt-8 pt-6 border-t border-slate-200">
+              <button
+                onClick={() => setShowAIPersonalityModal(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              
+              {aiPersonalityStep > 0 && (
+                <button
+                  onClick={handleAIPersonalityBack}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+                >
+                  Back
+                </button>
+              )}
+              
+              <button
+                onClick={handleAIPersonalityNext}
+                disabled={
+                  (aiPersonalityStep === 0 && (!editingAIPersonality.name || !editingAIPersonality.description)) ||
+                  (aiPersonalityStep === 1 && !editingAIPersonality.personality) ||
+                  (aiPersonalityStep === 2 && (!editingAIPersonality.tone || !editingAIPersonality.style))
+                }
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {aiPersonalityStep === 4 ? 'Create Personality' : 'Next'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
 
 export default AdminLayout;
