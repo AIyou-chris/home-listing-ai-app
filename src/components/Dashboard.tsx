@@ -151,8 +151,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         <div className="grid grid-cols-7 gap-1 text-xs">
                             {/* Day headers */}
-                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => (
-                                <div key={day} className="text-center text-slate-500 font-medium py-1">
+                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                                <div key={index} className="text-center text-slate-500 font-medium py-1">
                                     {day}
                                 </div>
                             ))}

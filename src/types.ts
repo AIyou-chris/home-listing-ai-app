@@ -21,7 +21,7 @@ export function isAIDescription(description: any): description is AIDescription 
   return description && typeof description === 'object' && typeof description.title === 'string' && Array.isArray(description.paragraphs);
 }
 
-export type View = 'dashboard' | 'analytics' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'new-landing' | 'signup' | 'signin' | 'admin-dashboard' | 'admin-users' | 'admin-leads' | 'admin-ai-content' | 'admin-knowledge-base' | 'admin-marketing' | 'admin-analytics' | 'admin-security' | 'admin-billing' | 'admin-settings' | 'admin-setup';
+export type View = 'dashboard' | 'analytics' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'new-landing' | 'signup' | 'signin' | 'admin-dashboard' | 'admin-users' | 'admin-leads' | 'admin-ai-content' | 'admin-knowledge-base' | 'admin-ai-personalities' | 'admin-marketing' | 'admin-analytics' | 'admin-security' | 'admin-billing' | 'admin-settings' | 'admin-setup' | 'admin-blog-writer' | 'blog' | 'blog-post' | 'test-page' | 'openai-test';
 
 export interface Property {
   id: string;
@@ -66,6 +66,48 @@ export type SocialPlatform = 'facebook' | 'instagram' | 'twitter' | 'linkedin';
 export interface AIBlogPost {
     title: string;
     body: string; // HTML content
+}
+
+export interface BlogPost {
+    id: string;
+    title: string;
+    slug: string;
+    content: string;
+    excerpt: string;
+    author: string;
+    publishedAt: string;
+    status: 'draft' | 'published' | 'scheduled';
+    tags: string[];
+    imageUrl: string;
+    readTime: string;
+    // AIO Optimization fields
+    metaDescription?: string;
+    focusKeyword?: string;
+    semanticKeywords?: string[];
+    aioScore?: number;
+    structuredData?: {
+        type: 'Article' | 'NewsArticle' | 'BlogPosting';
+        headline: string;
+        description: string;
+        author: string;
+        publisher: string;
+        datePublished: string;
+        dateModified: string;
+        wordCount: number;
+        readingTime: string;
+        categories: string[];
+        keywords: string[];
+    };
+    socialMeta?: {
+        ogTitle?: string;
+        ogDescription?: string;
+        ogImage?: string;
+        twitterTitle?: string;
+        twitterDescription?: string;
+        twitterImage?: string;
+        linkedinTitle?: string;
+        linkedinDescription?: string;
+    };
 }
 
 export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost';

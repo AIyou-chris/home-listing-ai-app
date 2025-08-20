@@ -2,10 +2,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Conversation, ChatMessage, Property, AgentProfile, AIBlogPost } from '../types';
 import { 
-    continueConversation, 
     generatePropertyReport, 
     generateBlogPost
 } from '../services/geminiService';
+import { continueConversation } from '../services/openaiService';
 import { datafiniti, DatafinitiProperty } from '../services/datafiniti';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';

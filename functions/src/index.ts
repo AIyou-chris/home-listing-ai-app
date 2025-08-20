@@ -5,11 +5,17 @@ import pdfParse from "pdf-parse";
 import * as mammoth from "mammoth";
 import { createWorker } from "tesseract.js";
 import * as crypto from "crypto";
+import * as dotenv from "dotenv";
+import { config } from "./config";
+
+// Load environment variables
+dotenv.config();
+
 // Initialize Firebase Admin SDK
 admin.initializeApp();
 
 // Initialize Google AI (Gemini)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
 
 // Admin service functions for data migration and seeding
 export const seedAdminData = functions.https.onCall(async (data: any, context: any) => {
@@ -351,86 +357,28 @@ export { setupInitialAdmin, setupInitialAdminHttp } from './setupAdmin';
 
 // Firestore references
 const db = admin.firestore();
-const propertiesCollection = db.collection('properties');
 
-// Voice transcription using Google Speech-to-Text (via Gemini)
-export const transcribeVoice = functions.https.onCall(async (data: any, context) => {
-    try {
-        // const { audioData } = data; // Not used in demo
-        
-        // For now, we'll use a placeholder since Google Speech-to-Text requires additional setup
-        // In production, you'd use Google Cloud Speech-to-Text API
-        console.log("Audio transcription requested");
-        
-        // Placeholder response - in production, implement Google Speech-to-Text
-        return { text: "Voice transcription will be implemented with Google Speech-to-Text" };
-    } catch (error) {
-        console.error("Transcription error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to transcribe audio");
-    }
-});
 
-// Get AI response for voice chat using Gemini
-export const voiceChatResponse = functions.https.onCall(async (data: any, context) => {
-    try {
-        const { message, propertyId, chatHistory } = data;
 
-        let propertyContext = '';
-        if (propertyId) {
-            const propertyDoc = await propertiesCollection.doc(propertyId).get();
-            if (propertyDoc.exists) {
-                const propertyData = propertyDoc.data();
-                propertyContext = `The property is located at ${propertyData?.address}, has ${propertyData?.bedrooms} bedrooms, ${propertyData?.bathrooms} bathrooms, and is ${propertyData?.squareFeet} square feet. Its description is: ${propertyData?.description?.paragraphs?.join(' ') || propertyData?.description}. Key features include: ${propertyData?.features?.join(', ')}.`;
-            }
-        }
 
-        // Use Gemini for chat response
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        
-        const prompt = `You are a helpful AI assistant for a real estate app. Your goal is to answer questions about properties. Keep responses conversational and under 100 words. If the question is about a specific property, use the provided property context. If you don't know the answer, politely state that you don't have that information.
+// Convert text to speech using OpenAI TTS
 
-Property Context: ${propertyContext}
 
-Chat History: ${(chatHistory || []).map((msg: { sender: string; text: string }) => `${msg.sender}: ${msg.text}`).join('\n')}
-
-User Question: ${message}
-
-Please provide a helpful response:`;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        return { text };
-    } catch (error) {
-        console.error("Chat error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to get AI response");
-    }
-});
-
-// Convert text to speech using Google Text-to-Speech
-export const generateSpeech = functions.https.onCall(async (data: any, context) => {
-    try {
-        const { text } = data; // voice removed for simplicity
-        
-        // For now, we'll use a placeholder since Google Text-to-Speech requires additional setup
-        // In production, you'd use Google Cloud Text-to-Speech API
-        console.log("Speech generation requested for text:", text);
-        
-        // Placeholder response - in production, implement Google Text-to-Speech
-        return { audioUrl: "Speech generation will be implemented with Google Text-to-Speech" };
-    } catch (error) {
-        console.error("Speech generation error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to generate speech");
-    }
-});
-
-// Generate property description using Gemini
+// Generate property description using OpenAI GPT-5.0 with GPT-4.0 mini fallback
 export const generatePropertyDescription = functions.https.onCall(async (data: any, context) => {
     try {
         const { property } = data;
         
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // Check OpenAI API key
+        if (!process.env.OPENAI_API_KEY) {
+            console.error("generatePropertyDescription: OpenAI API key is not configured");
+            throw new functions.https.HttpsError("failed-precondition", "AI service is not properly configured");
+        }
+
+        const OpenAI = require('openai');
+        const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
+        });
         
         const prompt = `Create a compelling property description for a real estate listing. The property details are:
 
@@ -452,31 +400,95 @@ Please create a structured description with:
 
 Format the response as JSON with "title" and "paragraphs" fields.`;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        
-        // Try to parse as JSON, fallback to plain text
+        const messages = [
+            {
+                role: "system",
+                content: "You are a professional real estate copywriter. Create compelling property descriptions that are honest, engaging, and persuasive."
+            },
+            {
+                role: "user",
+                content: prompt
+            }
+        ];
+
+        console.log("generatePropertyDescription: Calling OpenAI GPT-5.0");
+
         try {
-            return JSON.parse(text);
-        } catch {
-            return {
-                title: "Property Description",
-                paragraphs: [text]
-            };
+            // Try GPT-5.0 first
+            const completion = await openai.chat.completions.create({
+                model: "gpt-5",
+                messages: messages,
+                max_completion_tokens: 2048
+            });
+
+            const responseText = completion.choices[0]?.message?.content;
+            if (responseText) {
+                console.log("generatePropertyDescription: GPT-5.0 response successful");
+                
+                // Try to parse as JSON, fallback to plain text
+                try {
+                    return JSON.parse(responseText);
+                } catch {
+                    return {
+                        title: "Property Description",
+                        paragraphs: [responseText]
+                    };
+                }
+            }
+        } catch (gpt5Error) {
+            console.log("generatePropertyDescription: GPT-5.0 failed, trying GPT-4.0 mini fallback");
+            
+            try {
+                // Fallback to GPT-4.0 mini
+                const fallbackCompletion = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: messages,
+                    max_tokens: 2048,
+                    temperature: 0.7
+                });
+
+                const fallbackResponseText = fallbackCompletion.choices[0]?.message?.content;
+                if (fallbackResponseText) {
+                    console.log("generatePropertyDescription: GPT-4.0 mini fallback successful");
+                    
+                    // Try to parse as JSON, fallback to plain text
+                    try {
+                        return JSON.parse(fallbackResponseText);
+                    } catch {
+                        return {
+                            title: "Property Description",
+                            paragraphs: [fallbackResponseText]
+                        };
+                    }
+                }
+            } catch (fallbackError) {
+                console.error("generatePropertyDescription: Both GPT-5.0 and GPT-4.0 mini failed");
+                throw new functions.https.HttpsError("internal", "Failed to generate property description from both models");
+            }
         }
+
+        throw new functions.https.HttpsError("internal", "Failed to generate property description");
     } catch (error) {
         console.error("Property description generation error:", error);
         throw new functions.https.HttpsError("internal", "Failed to generate property description");
     }
 });
 
-// Answer property questions using Gemini
+// Answer property questions using OpenAI GPT-5.0 with GPT-4.0 mini fallback
 export const answerPropertyQuestion = functions.https.onCall(async (data: any, context) => {
     try {
         const { property, question } = data;
         
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // Check OpenAI API key
+        if (!process.env.OPENAI_API_KEY) {
+            console.error("answerPropertyQuestion: OpenAI API key is not configured");
+            throw new functions.https.HttpsError("failed-precondition", "AI service is not properly configured");
+        }
+
+        const OpenAI = require('openai');
+        const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
+        });
         
         const prompt = `You are a helpful real estate assistant. Answer the following question about this property:
 
@@ -495,44 +507,63 @@ Question: ${question}
 
 Please provide a helpful, accurate answer based on the property information. Keep it conversational and under 100 words.`;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+        const messages = [
+            {
+                role: "system",
+                content: "You are a helpful real estate assistant. Provide accurate, helpful answers about properties based on the information provided."
+            },
+            {
+                role: "user",
+                content: prompt
+            }
+        ];
 
-        return { text };
+        console.log("answerPropertyQuestion: Calling OpenAI GPT-5.0");
+
+        try {
+            // Try GPT-5.0 first
+            const completion = await openai.chat.completions.create({
+                model: "gpt-5",
+                messages: messages,
+                max_completion_tokens: 1024
+            });
+
+            const responseText = completion.choices[0]?.message?.content;
+            if (responseText) {
+                console.log("answerPropertyQuestion: GPT-5.0 response successful");
+                return { text: responseText };
+            }
+        } catch (gpt5Error) {
+            console.log("answerPropertyQuestion: GPT-5.0 failed, trying GPT-4.0 mini fallback");
+            
+            try {
+                // Fallback to GPT-4.0 mini
+                const fallbackCompletion = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: messages,
+                    max_tokens: 1024,
+                    temperature: 0.7
+                });
+
+                const fallbackResponseText = fallbackCompletion.choices[0]?.message?.content;
+                if (fallbackResponseText) {
+                    console.log("answerPropertyQuestion: GPT-4.0 mini fallback successful");
+                    return { text: fallbackResponseText };
+                }
+            } catch (fallbackError) {
+                console.error("answerPropertyQuestion: Both GPT-5.0 and GPT-4.0 mini failed");
+                throw new functions.https.HttpsError("internal", "Failed to answer property question from both models");
+            }
+        }
+
+        throw new functions.https.HttpsError("internal", "Failed to answer property question");
     } catch (error) {
         console.error("Property question error:", error);
         throw new functions.https.HttpsError("internal", "Failed to answer property question");
     }
 });
 
-// Continue conversation using Gemini
-export const continueConversation = functions.https.onCall(async (data: any, context) => {
-    try {
-        const { messages } = data;
-        
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        
-        const conversationHistory = messages.map((msg: { sender: string; text: string }) => 
-            `${msg.sender}: ${msg.text}`
-        ).join('\n');
-        
-        const prompt = `You are a helpful AI assistant for a real estate app. Continue this conversation naturally:
 
-${conversationHistory}
-
-Please provide a helpful response that continues the conversation:`;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        return { text };
-    } catch (error) {
-        console.error("Conversation error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to continue conversation");
-    }
-});
 
 // Generate market analysis using Gemini
 export const getMarketAnalysis = functions.https.onCall(async (data: any, context) => {
@@ -5290,1531 +5321,192 @@ export const manageUserRole = functions.https.onCall(async (data: any, context: 
     }
 });
 
-// Data retention and cleanup
-export const cleanupExpiredData = functions.https.onCall(async (data: any, context: any) => {
+
+
+// Add voice functions directly to main index.ts
+export const transcribeVoiceDirect = functions.https.onCall(async (data: any, context) => {
     try {
-        const { dataType, retentionDays, dryRun } = data;
+        const { audioData } = data;
         
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+        if (!audioData) {
+            throw new functions.https.HttpsError("invalid-argument", "Audio data is required");
         }
-
-        const requestingUserId = context.auth.uid;
         
-        // Check admin permissions
-        const userDoc = await db.collection('users').doc(requestingUserId).get();
-        const userData = userDoc.data();
-        if (userData?.role !== 'admin') {
-            throw new functions.https.HttpsError("permission-denied", "Admin access required");
+        // Check OpenAI API key
+        if (!process.env.OPENAI_API_KEY) {
+            console.error("transcribeVoiceDirect: OpenAI API key is not configured");
+            throw new functions.https.HttpsError("failed-precondition", "AI service is not properly configured");
         }
-
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - (retentionDays || 90));
-
-        let deletedCount = 0;
-        const collections = dataType ? [dataType] : ['auditLogs', 'emailEvents', 'qrScans', 'userInteractions'];
-
-        for (const collectionName of collections) {
-            try {
-                const query = db.collection(collectionName)
-                    .where('timestamp', '<', cutoffDate)
-                    .limit(1000);
-
-                const snapshot = await query.get();
-                
-                if (!dryRun) {
-                    const batch = db.batch();
-                    snapshot.docs.forEach(doc => {
-                        batch.delete(doc.ref);
-                    });
-                    await batch.commit();
-                }
-                
-                deletedCount += snapshot.docs.length;
-                console.log(`${dryRun ? 'Would delete' : 'Deleted'} ${snapshot.docs.length} documents from ${collectionName}`);
-                
-            } catch (error) {
-                console.error(`Error cleaning up ${collectionName}:`, error);
-            }
-        }
-
-        // Log cleanup action
-        await logAuditAction({
-            action: 'data_cleanup_performed',
-            resourceType: 'system',
-            details: {
-                dataType,
-                retentionDays,
-                deletedCount,
-                dryRun
-            },
-            severity: 'info'
-        }, context);
-
-        return {
-            success: true,
-            deletedCount,
-            dryRun,
-            message: `${dryRun ? 'Would delete' : 'Deleted'} ${deletedCount} expired documents`
-        };
+        
+        const OpenAI = require('openai');
+        const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
+        });
+        
+        console.log("transcribeVoiceDirect: Calling OpenAI Whisper API");
+        
+        // Convert base64 audio to buffer
+        const audioBuffer = Buffer.from(audioData, 'base64');
+        
+        // Create a file-like object for OpenAI
+        const audioFile = new File([audioBuffer], 'audio.webm', { type: 'audio/webm' });
+        
+        // Call OpenAI Whisper API
+        const transcription = await openai.audio.transcriptions.create({
+            file: audioFile,
+            model: "whisper-1",
+            language: "en"
+        });
+        
+        console.log("transcribeVoiceDirect: Transcription successful");
+        
+        return { text: transcription.text };
     } catch (error) {
-        console.error("Data cleanup error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to cleanup expired data");
+        console.error("Transcription error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to transcribe audio");
     }
 });
 
-// GDPR compliance - Right to be forgotten
-export const deleteUserData = functions.https.onCall(async (data: any, context: any) => {
+export const voiceChatResponseDirect = functions.https.onCall(async (data: any, context) => {
     try {
-        const { userId, reason, includeAuditLogs } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
+        const { message, propertyId, chatHistory } = data;
 
-        const requestingUserId = context.auth.uid;
-        
-        // Check admin permissions or self-deletion
-        if (userId !== requestingUserId) {
-            const userDoc = await db.collection('users').doc(requestingUserId).get();
-            const userData = userDoc.data();
-            if (userData?.role !== 'admin') {
-                throw new functions.https.HttpsError("permission-denied", "Admin access required for deleting other users");
+        let propertyContext = '';
+        if (propertyId) {
+            const propertyDoc = await db.collection('properties').doc(propertyId).get();
+            if (propertyDoc.exists) {
+                const propertyData = propertyDoc.data();
+                propertyContext = `The property is located at ${propertyData?.address}, has ${propertyData?.bedrooms} bedrooms, ${propertyData?.bathrooms} bathrooms, and is ${propertyData?.squareFeet} square feet. Its description is: ${propertyData?.description?.paragraphs?.join(' ') || propertyData?.description}. Key features include: ${propertyData?.features?.join(', ')}.`;
             }
         }
 
-        if (!userId) {
-            throw new functions.https.HttpsError("invalid-argument", "User ID is required");
+        // Check OpenAI API key
+        if (!process.env.OPENAI_API_KEY) {
+            console.error("voiceChatResponseDirect: OpenAI API key is not configured");
+            throw new functions.https.HttpsError("failed-precondition", "AI service is not properly configured");
         }
 
-        // Create deletion record
-        const deletionRecord = {
-            userId,
-            requestedBy: requestingUserId,
-            reason: reason || 'Right to be forgotten',
-            requestedAt: admin.firestore.FieldValue.serverTimestamp(),
-            status: 'pending',
-            includeAuditLogs: includeAuditLogs || false
-        };
-
-        const deletionRef = await db.collection('dataDeletions').add(deletionRecord);
-
-        // Mark user for deletion (soft delete)
-        await db.collection('users').doc(userId).update({
-            status: 'deletion_pending',
-            deletionRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
-            deletionReason: reason
+        const OpenAI = require('openai');
+        const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
         });
 
-        // Log deletion request
-        await logAuditAction({
-            action: 'user_deletion_requested',
-            resourceType: 'user',
-            resourceId: userId,
-            details: {
-                reason,
-                includeAuditLogs,
-                deletionId: deletionRef.id
+        const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+            {
+                role: "system",
+                content: "You are a helpful AI assistant for a real estate app. Your goal is to answer questions about properties. Keep responses conversational and under 100 words. If the question is about a specific property, use the provided property context. If you don't know the answer, politely state that you don't have that information."
             },
-            severity: 'warning'
-        }, context);
-
-        return {
-            success: true,
-            deletionId: deletionRef.id,
-            message: 'User deletion request submitted successfully'
-        };
-    } catch (error) {
-        console.error("User deletion error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to delete user data");
-    }
-});
-
-// Data export for GDPR compliance
-export const exportUserData = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        const { userId, dataTypes } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        const requestingUserId = context.auth.uid;
-        
-        // Check permissions
-        if (userId !== requestingUserId) {
-            const userDoc = await db.collection('users').doc(requestingUserId).get();
-            const userData = userDoc.data();
-            if (userData?.role !== 'admin') {
-                throw new functions.https.HttpsError("permission-denied", "Admin access required for exporting other users' data");
+            {
+                role: "user",
+                content: `Property Context: ${propertyContext}\n\nChat History: ${(chatHistory || []).map((msg: { sender: string; text: string }) => `${msg.sender}: ${msg.text}`).join('\n')}\n\nUser Question: ${message}`
             }
-        }
+        ];
 
-        if (!userId) {
-            throw new functions.https.HttpsError("invalid-argument", "User ID is required");
-        }
+        console.log("voiceChatResponseDirect: Calling OpenAI GPT-5.0");
 
-        const typesToExport = dataTypes || ['properties', 'emails', 'auditLogs', 'files'];
-        const exportData: any = {};
+        try {
+            // Try GPT-5.0 first
+            const completion = await openai.chat.completions.create({
+                model: "gpt-5",
+                messages: messages,
+                max_completion_tokens: 1024
+            });
 
-        // Export user data from different collections
-        for (const collectionName of typesToExport) {
+            const responseText = completion.choices[0]?.message?.content;
+            if (responseText) {
+                console.log("voiceChatResponseDirect: GPT-5.0 response successful");
+                return { text: responseText };
+            }
+        } catch (gpt5Error) {
+            console.log("voiceChatResponseDirect: GPT-5.0 failed, trying GPT-4.0 mini fallback");
+            
             try {
-                const query = db.collection(collectionName).where('userId', '==', userId);
-                const snapshot = await query.get();
-                
-                exportData[collectionName] = snapshot.docs.map((doc: any) => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                
-            } catch (error) {
-                console.error(`Error exporting ${collectionName}:`, error);
-                exportData[collectionName] = [];
-            }
-        }
+                // Fallback to GPT-4.0 mini
+                const fallbackCompletion = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: messages,
+                    max_tokens: 1024,
+                    temperature: 0.7
+                });
 
-        // Store export record
-        const exportRecord = {
-            userId,
-            requestedBy: requestingUserId,
-            dataTypes: typesToExport,
-            exportedAt: admin.firestore.FieldValue.serverTimestamp(),
-            recordCount: Object.values(exportData).reduce((sum: number, arr: any) => sum + arr.length, 0)
-        };
-
-        const exportRef = await db.collection('dataExports').add(exportRecord);
-
-        // Log export action
-        await logAuditAction({
-            action: 'user_data_exported',
-            resourceType: 'user',
-            resourceId: userId,
-            details: {
-                dataTypes: typesToExport,
-                exportId: exportRef.id,
-                recordCount: exportRecord.recordCount
-            },
-            severity: 'info'
-        }, context);
-
-        return {
-            success: true,
-            exportId: exportRef.id,
-            data: exportData,
-            recordCount: exportRecord.recordCount
-        };
-    } catch (error) {
-        console.error("Data export error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to export user data");
-    }
-});
-
-// Security policy management
-export const updateSecurityPolicy = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        const { policyType, policyData, enabled } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        const requestingUserId = context.auth.uid;
-        
-        // Check admin permissions
-        const userDoc = await db.collection('users').doc(requestingUserId).get();
-        const userData = userDoc.data();
-        if (userData?.role !== 'admin') {
-            throw new functions.https.HttpsError("permission-denied", "Admin access required");
-        }
-
-        if (!policyType) {
-            throw new functions.https.HttpsError("invalid-argument", "Policy type is required");
-        }
-
-        // Update security policy
-        const policyRef = db.collection('securityPolicies').doc(policyType);
-        await policyRef.set({
-            type: policyType,
-            data: policyData || {},
-            enabled: enabled !== undefined ? enabled : true,
-            updatedBy: requestingUserId,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        // Log policy update
-        await logAuditAction({
-            action: 'security_policy_updated',
-            resourceType: 'securityPolicy',
-            resourceId: policyType,
-            details: {
-                policyType,
-                enabled,
-                changes: policyData
-            },
-            severity: 'warning'
-        }, context);
-
-        return {
-            success: true,
-            policyType,
-            enabled,
-            message: `Security policy ${policyType} updated successfully`
-        };
-    } catch (error) {
-        console.error("Security policy update error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to update security policy");
-    }
-});
-
-// Get security policies
-export const getSecurityPolicies = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        const { policyType } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        const requestingUserId = context.auth.uid;
-        
-        // Check admin permissions
-        const userDoc = await db.collection('users').doc(requestingUserId).get();
-        const userData = userDoc.data();
-        if (userData?.role !== 'admin') {
-            throw new functions.https.HttpsError("permission-denied", "Admin access required");
-        }
-
-        let query: any = db.collection('securityPolicies');
-        
-        if (policyType) {
-            const policyDoc = await query.doc(policyType).get();
-            if (policyDoc.exists) {
-                return { policies: [policyDoc.data()] };
-            } else {
-                return { policies: [] };
-            }
-        }
-
-        const snapshot = await query.get();
-        const policies = snapshot.docs.map((doc: any) => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-
-        return { policies };
-    } catch (error) {
-        console.error("Get security policies error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to get security policies");
-    }
-});
-
-// Automated security checks
-export const runSecurityChecks = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        const { checkTypes } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        const requestingUserId = context.auth.uid;
-        
-        // Check admin permissions
-        const userDoc = await db.collection('users').doc(requestingUserId).get();
-        const userData = userDoc.data();
-        if (userData?.role !== 'admin') {
-            throw new functions.https.HttpsError("permission-denied", "Admin access required");
-        }
-
-        const checksToRun = checkTypes || ['permissions', 'encryption', 'backup', 'audit'];
-        const results: any = {};
-
-        for (const checkType of checksToRun) {
-            try {
-                switch (checkType) {
-                    case 'permissions':
-                        results.permissions = await checkUserPermissions();
-                        break;
-                    case 'encryption':
-                        results.encryption = await checkEncryptionStatus();
-                        break;
-                    case 'backup':
-                        results.backup = await checkBackupStatus();
-                        break;
-                    case 'audit':
-                        results.audit = await checkAuditLogStatus();
-                        break;
-                    default:
-                        results[checkType] = { status: 'unknown', message: 'Unknown check type' };
+                const fallbackResponseText = fallbackCompletion.choices[0]?.message?.content;
+                if (fallbackResponseText) {
+                    console.log("voiceChatResponseDirect: GPT-4.0 mini fallback successful");
+                    return { text: fallbackResponseText };
                 }
-            } catch (error) {
-                results[checkType] = { status: 'error', message: error instanceof Error ? error.message : 'Unknown error' };
+            } catch (fallbackError) {
+                console.error("voiceChatResponseDirect: Both GPT-5.0 and GPT-4.0 mini failed");
+                throw new functions.https.HttpsError("internal", "Failed to get AI response from both models");
             }
         }
 
-        // Log security check
-        await logAuditAction({
-            action: 'security_checks_run',
-            resourceType: 'system',
-            details: {
-                checkTypes: checksToRun,
-                results
-            },
-            severity: 'info'
-        }, context);
+        throw new functions.https.HttpsError("internal", "Failed to get AI response");
+    } catch (error) {
+        console.error("Chat error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to get AI response");
+    }
+});
+
+// Export admin functions
+export { 
+    getAllUsers,
+    updateUserStatus,
+    updateSystemSettings,
+    sendBroadcastMessage,
+    getAdminDashboardMetrics,
+    getUserEngagementMetrics,
+    getSystemPerformanceMetrics,
+    getRetentionMetrics
+} from './admin';
+
+// Simple admin function for testing
+export const testAdminFunction = functions.https.onCall(async (data: any, context: any) => {
+    try {
+        // Check if user is authenticated
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+        }
+
+        // Check if user is admin
+        const userRecord = await admin.auth().getUser(context.auth.uid);
+        if (userRecord.customClaims?.role !== 'admin') {
+            throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+        }
 
         return {
-            success: true,
-            results,
+            message: 'Admin function working!',
+            userId: context.auth.uid,
             timestamp: new Date().toISOString()
         };
     } catch (error) {
-        console.error("Security checks error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to run security checks");
+        console.error('testAdminFunction error:', error);
+        throw new functions.https.HttpsError('internal', 'Admin function failed');
     }
 });
 
-// Helper functions for security checks
-async function checkUserPermissions() {
-    const usersSnapshot = await db.collection('users').get();
-    const users = usersSnapshot.docs.map((doc: any) => doc.data());
-    
-    const issues = [];
-    const totalUsers = users.length;
-    const adminUsers = users.filter(user => user.role === 'admin').length;
-    const usersWithoutPermissions = users.filter(user => !user.permissions || user.permissions.length === 0).length;
-
-    if (adminUsers > 3) {
-        issues.push('Too many admin users detected');
-    }
-    if (usersWithoutPermissions > 0) {
-        issues.push(`${usersWithoutPermissions} users without defined permissions`);
-    }
-
-    return {
-        status: issues.length === 0 ? 'pass' : 'warning',
-        totalUsers,
-        adminUsers,
-        usersWithoutPermissions,
-        issues
-    };
-}
-
-async function checkEncryptionStatus() {
-    const encryptedDataSnapshot = await db.collection('encryptedData').get();
-    const encryptionKeysSnapshot = await db.collection('encryptionKeys').get();
-    
-    const totalEncrypted = encryptedDataSnapshot.docs.length;
-    const totalKeys = encryptionKeysSnapshot.docs.length;
-    const activeKeys = encryptionKeysSnapshot.docs.filter(doc => doc.data().status === 'active').length;
-
-    const issues = [];
-    if (totalEncrypted > 0 && totalKeys === 0) {
-        issues.push('Encrypted data found but no encryption keys');
-    }
-    if (activeKeys > 10) {
-        issues.push('Too many active encryption keys');
-    }
-
-    return {
-        status: issues.length === 0 ? 'pass' : 'warning',
-        totalEncrypted,
-        totalKeys,
-        activeKeys,
-        issues
-    };
-}
-
-async function checkBackupStatus() {
-    const backupsSnapshot = await db.collection('backups')
-        .where('status', '==', 'completed')
-        .orderBy('endTime', 'desc')
-        .limit(1)
-        .get();
-
-    if (backupsSnapshot.empty) {
-        return {
-            status: 'error',
-            message: 'No completed backups found',
-            lastBackup: null
-        };
-    }
-
-    const lastBackup = backupsSnapshot.docs[0].data();
-    const daysSinceBackup = Math.floor((Date.now() - lastBackup.endTime.toDate().getTime()) / (1000 * 60 * 60 * 24));
-
-    return {
-        status: daysSinceBackup <= 7 ? 'pass' : 'warning',
-        lastBackup: lastBackup.endTime.toDate(),
-        daysSinceBackup,
-        message: daysSinceBackup <= 7 ? 'Backup is recent' : 'Backup is older than 7 days'
-    };
-}
-
-async function checkAuditLogStatus() {
-    const auditLogsSnapshot = await db.collection('auditLogs')
-        .orderBy('timestamp', 'desc')
-        .limit(1000)
-        .get();
-
-    const logs = auditLogsSnapshot.docs.map((doc: any) => doc.data());
-    const criticalLogs = logs.filter(log => log.severity === 'critical').length;
-    const recentLogs = logs.filter(log => {
-        const logTime = log.timestamp.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
-        return (Date.now() - logTime.getTime()) < (24 * 60 * 60 * 1000); // Last 24 hours
-    }).length;
-
-    return {
-        status: criticalLogs === 0 ? 'pass' : 'warning',
-        totalLogs: logs.length,
-        criticalLogs,
-        recentLogs,
-        message: criticalLogs === 0 ? 'No critical audit logs' : `${criticalLogs} critical logs found`
-    };
-}
-
-// ========================================
-// PAYPAL WEBHOOK HANDLER
-// ========================================
-
-// Handle PayPal webhook events
-export const paypalWebhook = functions.https.onRequest(async (req, res) => {
+// Simple admin function for testing deployment
+export const simpleAdminFunction = functions.https.onCall(async (data: any, context: any) => {
     try {
-        const event = req.body;
-        
-        // Verify webhook signature (in production, implement proper verification)
-        console.log('PayPal webhook received:', event.event_type);
-        
-        switch (event.event_type) {
-            case 'BILLING.SUBSCRIPTION.ACTIVATED':
-                await handleSubscriptionActivated(event);
-                break;
-            case 'BILLING.SUBSCRIPTION.CANCELLED':
-                await handleSubscriptionCancelled(event);
-                break;
-            case 'BILLING.SUBSCRIPTION.EXPIRED':
-                await handleSubscriptionExpired(event);
-                break;
-            case 'PAYMENT.SALE.COMPLETED':
-                await handlePaymentCompleted(event);
-                break;
-            default:
-                console.log('Unhandled PayPal event:', event.event_type);
-        }
-        
-        res.status(200).send('OK');
-    } catch (error) {
-        console.error('PayPal webhook error:', error);
-        res.status(500).send('Error processing webhook');
-    }
-});
-
-// Handle subscription activation
-async function handleSubscriptionActivated(event: any) {
-    try {
-        const subscriptionId = event.resource.id;
-        const customId = event.resource.custom_id; // This should be our subscription ID
-        
-        // Update subscription status
-        await db.collection('subscriptions').doc(customId).update({
-            status: 'active',
-            paypalSubscriptionId: subscriptionId,
-            activatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-        
-        // Update user status
-        const subscriptionDoc = await db.collection('subscriptions').doc(customId).get();
-        const subscriptionData = subscriptionDoc.data();
-        
-        if (subscriptionData) {
-            await db.collection('users').doc(subscriptionData.userId).update({
-                subscriptionStatus: 'active',
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-        }
-        
-        console.log(`Subscription activated: ${customId}`);
-    } catch (error) {
-        console.error('Error handling subscription activation:', error);
-    }
-}
-
-// Handle subscription cancellation
-async function handleSubscriptionCancelled(event: any) {
-    try {
-        const subscriptionId = event.resource.id;
-        
-        // Find subscription by PayPal ID
-        const subscriptionsQuery = await db.collection('subscriptions')
-            .where('paypalSubscriptionId', '==', subscriptionId)
-            .get();
-        
-        if (!subscriptionsQuery.empty) {
-            const subscriptionDoc = subscriptionsQuery.docs[0];
-            const subscriptionData = subscriptionDoc.data();
-            
-            // Update subscription status
-            await subscriptionDoc.ref.update({
-                status: 'cancelled',
-                cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            
-            // Update user status
-            if (subscriptionData) {
-                await db.collection('users').doc(subscriptionData.userId).update({
-                    subscriptionStatus: 'cancelled',
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-            }
-        }
-        
-        console.log(`Subscription cancelled: ${subscriptionId}`);
-    } catch (error) {
-        console.error('Error handling subscription cancellation:', error);
-    }
-}
-
-// Handle subscription expiration
-async function handleSubscriptionExpired(event: any) {
-    try {
-        const subscriptionId = event.resource.id;
-        
-        // Find subscription by PayPal ID
-        const subscriptionsQuery = await db.collection('subscriptions')
-            .where('paypalSubscriptionId', '==', subscriptionId)
-            .get();
-        
-        if (!subscriptionsQuery.empty) {
-            const subscriptionDoc = subscriptionsQuery.docs[0];
-            const subscriptionData = subscriptionDoc.data();
-            
-            // Update subscription status
-            await subscriptionDoc.ref.update({
-                status: 'expired',
-                expiredAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            
-            // Update user status
-            if (subscriptionData) {
-                await db.collection('users').doc(subscriptionData.userId).update({
-                    subscriptionStatus: 'expired',
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-            }
-        }
-        
-        console.log(`Subscription expired: ${subscriptionId}`);
-    } catch (error) {
-        console.error('Error handling subscription expiration:', error);
-    }
-}
-
-// Handle payment completion
-async function handlePaymentCompleted(event: any) {
-    try {
-        const paymentId = event.resource.id;
-        const subscriptionId = event.resource.billing_agreement_id;
-        
-        // Find subscription by PayPal ID
-        const subscriptionsQuery = await db.collection('subscriptions')
-            .where('paypalSubscriptionId', '==', subscriptionId)
-            .get();
-        
-        if (!subscriptionsQuery.empty) {
-            const subscriptionDoc = subscriptionsQuery.docs[0];
-            
-            // Record payment
-            await db.collection('payments').add({
-                subscriptionId: subscriptionDoc.id,
-                paypalPaymentId: paymentId,
-                paypalSubscriptionId: subscriptionId,
-                amount: event.resource.amount.total,
-                currency: event.resource.amount.currency,
-                status: 'completed',
-                paidAt: admin.firestore.FieldValue.serverTimestamp(),
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-        }
-        
-        console.log(`Payment completed: ${paymentId}`);
-    } catch (error) {
-        console.error('Error handling payment completion:', error);
-    }
-}
-
-// ========================================
-// SCHEDULED SECURITY FUNCTIONS
-// ========================================
-
-// Daily automated backup
-export const scheduledBackup = functions.scheduler.onSchedule('every 24 hours', async (event) => {
-    try {
-        console.log('Starting scheduled backup...');
-        
-        const backupData = {
-            backupType: 'scheduled',
-            collections: ['users', 'properties', 'auditLogs', 'encryptedData', 'securityAlerts'],
-            includeMetadata: true
-        };
-
-        // Create backup using existing function logic
-        const backupId = `backup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const backupStartTime = new Date();
-
-        // Create backup record
-        await db.collection('backups').doc(backupId).set({
-            backupId,
-            backupType: 'scheduled',
-            collections: backupData.collections,
-            startedBy: 'system',
-            startTime: backupStartTime,
-            status: 'in_progress',
-            metadata: {
-                totalCollections: backupData.collections.length,
-                includeMetadata: true,
-                version: '1.0'
-            }
-        });
-
-        console.log(`Scheduled backup ${backupId} initiated successfully`);
-    } catch (error) {
-        console.error('Scheduled backup error:', error);
-    }
-});
-
-// Weekly data cleanup
-export const scheduledDataCleanup = functions.scheduler.onSchedule('every 168 hours', async (event) => {
-    try {
-        console.log('Starting scheduled data cleanup...');
-        
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - 90); // 90 days retention
-
-        const collections = ['auditLogs', 'emailEvents', 'qrScans', 'userInteractions'];
-        let totalDeleted = 0;
-
-        for (const collectionName of collections) {
-            try {
-                const query = db.collection(collectionName)
-                    .where('timestamp', '<', cutoffDate)
-                    .limit(1000);
-
-                const snapshot = await query.get();
-                
-                if (snapshot.docs.length > 0) {
-                    const batch = db.batch();
-                    snapshot.docs.forEach(doc => {
-                        batch.delete(doc.ref);
-                    });
-                    await batch.commit();
-                    totalDeleted += snapshot.docs.length;
-                }
-                
-                console.log(`Cleaned up ${snapshot.docs.length} documents from ${collectionName}`);
-                
-            } catch (error) {
-                console.error(`Error cleaning up ${collectionName}:`, error);
-            }
+        // Check if user is authenticated
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
         }
 
-        console.log(`Scheduled cleanup completed. Total deleted: ${totalDeleted}`);
-    } catch (error) {
-        console.error('Scheduled cleanup error:', error);
-    }
-});
-
-// Daily security health check
-export const scheduledSecurityCheck = functions.scheduler.onSchedule('every 24 hours', async (event) => {
-    try {
-        console.log('Starting scheduled security health check...');
-        
-        const checkTypes = ['permissions', 'encryption', 'backup', 'audit'];
-        const results: any = {};
-
-        for (const checkType of checkTypes) {
-            try {
-                switch (checkType) {
-                    case 'permissions':
-                        results.permissions = await checkUserPermissions();
-                        break;
-                    case 'encryption':
-                        results.encryption = await checkEncryptionStatus();
-                        break;
-                    case 'backup':
-                        results.backup = await checkBackupStatus();
-                        break;
-                    case 'audit':
-                        results.audit = await checkAuditLogStatus();
-                        break;
-                }
-            } catch (error) {
-                results[checkType] = { status: 'error', message: error instanceof Error ? error.message : 'Unknown error' };
-            }
+        // Simple admin check - just check if user has admin custom claim
+        const userRecord = await admin.auth().getUser(context.auth.uid);
+        if (userRecord.customClaims?.role !== 'admin') {
+            throw new functions.https.HttpsError('permission-denied', 'Admin access required');
         }
-
-        // Store health check results
-        await db.collection('securityHealthChecks').add({
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            results,
-            status: 'completed'
-        });
-
-        console.log('Scheduled security health check completed');
-    } catch (error) {
-        console.error('Scheduled security check error:', error);
-    }
-});
-
-// Monthly security report generation
-export const scheduledSecurityReport = functions.scheduler.onSchedule('0 0 1 * *', async (event) => {
-    try {
-        console.log('Starting scheduled security report generation...');
-        
-        const startTime = new Date();
-        startTime.setDate(startTime.getDate() - 30); // Last 30 days
-
-        const securityReport = await generateComprehensiveSecurityReport(startTime);
-
-        // Store monthly report
-        await db.collection('monthlySecurityReports').add({
-            month: new Date().toISOString().slice(0, 7), // YYYY-MM format
-            report: securityReport,
-            generatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            status: 'completed'
-        });
-
-        console.log('Monthly security report generated successfully');
-    } catch (error) {
-        console.error('Scheduled security report error:', error);
-    }
-});
-
-// ========================================
-// PAYMENT PROCESSING FUNCTIONS
-// ========================================
-
-// Create PayPal subscription
-export const createPayPalSubscription = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        const { planId, userId, paymentMethod, returnUrl, cancelUrl } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        if (!planId || !userId) {
-            throw new functions.https.HttpsError("invalid-argument", "Plan ID and user ID are required");
-        }
-
-        // Get plan details
-        const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
-        if (!plan) {
-            throw new functions.https.HttpsError("not-found", "Plan not found");
-        }
-
-        // Create PayPal subscription request
-        const subscriptionRequest = {
-            plan_id: plan.paypalPlanId || 'P-5ML4271244454362XMQIZHI', // Default plan ID
-            start_time: new Date(Date.now() + 60 * 1000).toISOString(), // Start in 1 minute
-            application_context: {
-                brand_name: 'Home Listing AI',
-                locale: 'en-US',
-                shipping_preference: 'NO_SHIPPING',
-                user_action: 'SUBSCRIBE_NOW',
-                payment_method: {
-                    payer_selected: 'PAYPAL',
-                    payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED'
-                },
-                return_url: returnUrl || 'https://your-domain.com/success',
-                cancel_url: cancelUrl || 'https://your-domain.com/cancel'
-            }
-        };
-
-        // Create subscription record in database
-        const subscriptionRef = await db.collection('subscriptions').add({
-            userId,
-            planId,
-            planName: plan.name,
-            status: 'pending',
-            currentPeriodStart: admin.firestore.FieldValue.serverTimestamp(),
-            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
-            cancelAtPeriodEnd: false,
-            paypalSubscriptionId: null, // Will be updated when PayPal confirms
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        // Update user subscription status
-        await db.collection('users').doc(userId).update({
-            subscriptionId: subscriptionRef.id,
-            subscriptionStatus: 'pending',
-            planId: planId,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        // Log subscription creation
-        await logAuditAction({
-            action: 'subscription_created',
-            resourceType: 'subscription',
-            resourceId: subscriptionRef.id,
-            details: {
-                planId,
-                planName: plan.name,
-                paymentMethod,
-                paypalRequest: subscriptionRequest
-            },
-            severity: 'info'
-        }, context);
 
         return {
-            success: true,
-            subscriptionId: subscriptionRef.id,
-            status: 'pending',
-            planName: plan.name,
-            paypalRequest: subscriptionRequest,
-            message: 'PayPal subscription request created. Redirect user to PayPal for payment.'
-        };
-    } catch (error) {
-        console.error("PayPal subscription creation error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to create subscription");
-    }
-});
-
-// Cancel PayPal subscription
-export const cancelPayPalSubscription = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        const { subscriptionId, userId, reason } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        if (!subscriptionId || !userId) {
-            throw new functions.https.HttpsError("invalid-argument", "Subscription ID and user ID are required");
-        }
-
-        // Get subscription
-        const subscriptionDoc = await db.collection('subscriptions').doc(subscriptionId).get();
-        if (!subscriptionDoc.exists) {
-            throw new functions.https.HttpsError("not-found", "Subscription not found");
-        }
-
-        const subscription = subscriptionDoc.data();
-        if (subscription?.userId !== userId) {
-            throw new functions.https.HttpsError("permission-denied", "You don't have permission to cancel this subscription");
-        }
-
-        // Update subscription status
-        await db.collection('subscriptions').doc(subscriptionId).update({
-            status: 'cancelled',
-            cancelAtPeriodEnd: true,
-            cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-            cancellationReason: reason || 'Cancelled by user',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        // Update user subscription status
-        await db.collection('users').doc(userId).update({
-            subscriptionStatus: 'cancelled',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        // Log subscription cancellation
-        await logAuditAction({
-            action: 'subscription_cancelled',
-            resourceType: 'subscription',
-            resourceId: subscriptionId,
-            details: {
-                reason,
-                planName: subscription?.planName
-            },
-            severity: 'warning'
-        }, context);
-
-        return {
-            success: true,
-            subscriptionId,
-            status: 'cancelled',
-            message: 'Subscription cancelled successfully'
-        };
-    } catch (error) {
-        console.error("PayPal subscription cancellation error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to cancel subscription");
-    }
-});
-
-// Upgrade PayPal subscription
-export const upgradePayPalSubscription = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        const { subscriptionId, newPlanId, userId } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        if (!subscriptionId || !newPlanId || !userId) {
-            throw new functions.https.HttpsError("invalid-argument", "Subscription ID, new plan ID, and user ID are required");
-        }
-
-        // Get new plan details
-        const newPlan = SUBSCRIPTION_PLANS.find(p => p.id === newPlanId);
-        if (!newPlan) {
-            throw new functions.https.HttpsError("not-found", "New plan not found");
-        }
-
-        // Get current subscription
-        const subscriptionDoc = await db.collection('subscriptions').doc(subscriptionId).get();
-        if (!subscriptionDoc.exists) {
-            throw new functions.https.HttpsError("not-found", "Subscription not found");
-        }
-
-        const subscription = subscriptionDoc.data();
-        if (subscription?.userId !== userId) {
-            throw new functions.https.HttpsError("permission-denied", "You don't have permission to upgrade this subscription");
-        }
-
-        const oldPlanName = subscription?.planName;
-
-        // Update subscription
-        await db.collection('subscriptions').doc(subscriptionId).update({
-            planId: newPlanId,
-            planName: newPlan.name,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            upgradeHistory: admin.firestore.FieldValue.arrayUnion({
-                fromPlan: oldPlanName,
-                toPlan: newPlan.name,
-                upgradedAt: admin.firestore.FieldValue.serverTimestamp()
-            })
-        });
-
-        // Update user subscription status
-        await db.collection('users').doc(userId).update({
-            planId: newPlanId,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        // Log subscription upgrade
-        await logAuditAction({
-            action: 'subscription_upgraded',
-            resourceType: 'subscription',
-            resourceId: subscriptionId,
-            details: {
-                fromPlan: oldPlanName,
-                toPlan: newPlan.name
-            },
-            severity: 'info'
-        }, context);
-
-        return {
-            success: true,
-            subscriptionId,
-            newPlanName: newPlan.name,
-            message: 'Subscription upgraded successfully'
-        };
-    } catch (error) {
-        console.error("PayPal subscription upgrade error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to upgrade subscription");
-    }
-});
-
-// ========================================
-// ADDITIONAL AI CONTENT GENERATION FUNCTIONS
-// ========================================
-
-// Generate video script
-export const generateVideoScript = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        const { property, scriptType, duration, tone, targetAudience } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        if (!property) {
-            throw new functions.https.HttpsError("invalid-argument", "Property details are required");
-        }
-
-        // Use Gemini to generate video script
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        
-        const prompt = `Create a ${scriptType || 'property tour'} video script for this real estate property:
-
-Property Details:
-- Title: ${property.title}
-- Address: ${property.address}
-- Price: $${property.price?.toLocaleString()}
-- Bedrooms: ${property.bedrooms}
-- Bathrooms: ${property.bathrooms}
-- Square Feet: ${property.squareFeet?.toLocaleString()}
-- Features: ${property.features?.join(', ')}
-
-Script Requirements:
-- Type: ${scriptType || 'property tour'}
-- Duration: ${duration || '2-3 minutes'}
-- Tone: ${tone || 'professional and engaging'}
-- Target Audience: ${targetAudience || 'potential buyers'}
-
-Please create a structured script with:
-1. Opening hook (15-20 seconds)
-2. Property overview (30-45 seconds)
-3. Key features highlight (60-90 seconds)
-4. Neighborhood and amenities (30-45 seconds)
-5. Call to action (15-20 seconds)
-
-Include specific camera directions, transitions, and speaking points.`;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const script = response.text();
-
-        // Store script in database
-        const scriptRef = await db.collection('videoScripts').add({
-            propertyId: property.id,
+            message: 'Simple admin function working!',
             userId: context.auth.uid,
-            scriptType: scriptType || 'property tour',
-            duration: duration || '2-3 minutes',
-            tone: tone || 'professional',
-            targetAudience: targetAudience || 'potential buyers',
-            script: script,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            status: 'generated'
-        });
-
-        return {
-            success: true,
-            scriptId: scriptRef.id,
-            script: script,
-            metadata: {
-                scriptType: scriptType || 'property tour',
-                duration: duration || '2-3 minutes',
-                tone: tone || 'professional'
-            }
+            timestamp: new Date().toISOString(),
+            data: data
         };
     } catch (error) {
-        console.error("Video script generation error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to generate video script");
+        console.error('simpleAdminFunction error:', error);
+        throw new functions.https.HttpsError('internal', 'Admin function failed');
     }
 });
 
-// Generate general text content
-export const generateText = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        const { prompt, contentType, tone, length, variables } = data;
-        
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        if (!prompt) {
-            throw new functions.https.HttpsError("invalid-argument", "Prompt is required");
-        }
-
-        // Use Gemini to generate text
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        
-        let enhancedPrompt = prompt;
-        
-        // Add content type specific instructions
-        switch (contentType) {
-            case 'email':
-                enhancedPrompt = `Write a professional email with the following requirements:
-                ${prompt}
-                
-                Requirements:
-                - Tone: ${tone || 'professional'}
-                - Length: ${length || '150-200 words'}
-                - Include proper greeting and closing
-                - Clear call to action`;
-                break;
-                
-            case 'social_media':
-                enhancedPrompt = `Create a social media post with the following requirements:
-                ${prompt}
-                
-                Requirements:
-                - Tone: ${tone || 'engaging'}
-                - Length: ${length || '100-150 characters'}
-                - Include relevant hashtags
-                - Encourage engagement`;
-                break;
-                
-            case 'description':
-                enhancedPrompt = `Write a compelling description with the following requirements:
-                ${prompt}
-                
-                Requirements:
-                - Tone: ${tone || 'descriptive'}
-                - Length: ${length || '200-300 words'}
-                - Highlight key benefits
-                - Use persuasive language`;
-                break;
-                
-            default:
-                enhancedPrompt = `${prompt}
-                
-                Requirements:
-                - Tone: ${tone || 'professional'}
-                - Length: ${length || '150-200 words'}`;
-        }
-
-        // Replace variables in prompt
-        if (variables) {
-            for (const [key, value] of Object.entries(variables)) {
-                const placeholder = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-                enhancedPrompt = enhancedPrompt.replace(placeholder, value as string);
-            }
-        }
-
-        const result = await model.generateContent(enhancedPrompt);
-        const response = await result.response;
-        const generatedText = response.text();
-
-        // Store generated content
-        const contentRef = await db.collection('generatedContent').add({
-            userId: context.auth.uid,
-            contentType: contentType || 'general',
-            prompt: prompt,
-            generatedText: generatedText,
-            tone: tone || 'professional',
-            length: length || '150-200 words',
-            variables: variables || {},
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            status: 'generated'
-        });
-
-        return {
-            success: true,
-            contentId: contentRef.id,
-            text: generatedText,
-            metadata: {
-                contentType: contentType || 'general',
-                tone: tone || 'professional',
-                length: length || '150-200 words'
-            }
-        };
-    } catch (error) {
-        console.error("Text generation error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to generate text");
-    }
-});
-
-// ========================================
-// SUBSCRIPTION PLANS CONSTANT
-// ========================================
-
-const SUBSCRIPTION_PLANS = [
-    {
-        id: 'solo-agent',
-        name: 'Solo Agent',
-        price: 69,
-        features: [
-            'Full Dashboard Access',
-            'AI Content Studio',
-            'Automated Follow-up Sequences',
-            'AI Inbox & Lead Management',
-            'Standard Support',
-            'Up to 5 Active Listings',
-            'Email Automation',
-            'QR Code Tracking',
-            'Basic Analytics'
-        ],
-        limitations: {
-            listings: 5
-        },
-        paypalPlanId: 'P-5ML4271244454362XMQIZHI'
-    },
-    {
-        id: 'pro-team',
-        name: 'Pro Team',
-        price: 149,
-        features: [
-            'Everything in Solo Agent',
-            'Team Management',
-            'Advanced Analytics',
-            'Priority Support',
-            'Up to 25 Active Listings',
-            'Custom Branding',
-            'API Access',
-            'Advanced Automation'
-        ],
-        limitations: {
-            listings: 25,
-            agents: 5
-        },
-        paypalPlanId: 'P-5ML4271244454362XMQIZHI'
-    },
-    {
-        id: 'brokerage',
-        name: 'Brokerage',
-        price: 299,
-        features: [
-            'Everything in Pro Team',
-            'Unlimited Listings',
-            'Unlimited Agents',
-            'White-label Solution',
-            'Dedicated Support',
-            'Custom Integrations',
-            'Advanced Reporting',
-            'Multi-location Support'
-        ],
-        limitations: {
-            listings: -1, // unlimited
-            agents: -1 // unlimited
-        },
-        paypalPlanId: 'P-5ML4271244454362XMQIZHI'
-    }
-];
-
-// Trigger onboarding sequence for new users
-export const triggerOnboardingSequence = functions.https.onCall(async (data: any, context: any) => {
-    try {
-        if (!context?.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-        }
-
-        const userId = context.auth.uid;
-        const { userEmail, userName } = data;
-
-        // Create onboarding sequence for new user
-        const onboardingSequence = {
-            id: `onboarding-${userId}`,
-            name: 'Post-Signup Onboarding',
-            description: 'Welcome new users and guide them through platform features',
-            triggerType: 'Account Created',
-            isActive: true,
-            userId: userId,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            steps: [
-                {
-                    id: 'step-1',
-                    type: 'email',
-                    delay: { value: 5, unit: 'minutes' },
-                    subject: 'Welcome to HomeListingAI! 🏠',
-                    content: `Hi ${userName || 'there'},
-
-Welcome to HomeListingAI! I'm excited to help you revolutionize your real estate business with AI-powered tools.
-
-Your 7-day free trial is now active, and you have full access to all features. Here's what you can do right now:
-
-🎯 Quick Start Guide:
-1. Add your first property listing
-2. Set up your AI assistant personality
-3. Create your first follow-up sequence
-4. Generate QR codes for your listings
-
-Need help getting started? Reply to this email or check out our quick tutorial videos in the dashboard.
-
-Best regards,
-The HomeListingAI Team`,
-                    status: 'pending',
-                    scheduledFor: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes from now
-                },
-                {
-                    id: 'step-2',
-                    type: 'email',
-                    delay: { value: 1, unit: 'days' },
-                    subject: 'Your First Property Listing - Let\'s Get Started!',
-                    content: `Hi ${userName || 'there'},
-
-I noticed you haven't added your first property listing yet. Let me show you how easy it is!
-
-🚀 Add Your First Listing:
-• Upload photos and details
-• Generate AI-powered descriptions
-• Create professional marketing materials
-• Track visitor engagement
-
-This takes just 5 minutes and will help you see immediate results.
-
-Need help? I'm here to guide you through every step.
-
-Best,
-The HomeListingAI Team`,
-                    status: 'pending',
-                    scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000) // 1 day from now
-                },
-                {
-                    id: 'step-3',
-                    type: 'email',
-                    delay: { value: 3, unit: 'days' },
-                    subject: 'See How Other Agents Are Succeeding',
-                    content: `Hi ${userName || 'there'},
-
-Here are some real results from agents using HomeListingAI:
-
-📈 Success Stories:
-• Sarah M. increased her lead conversion by 3x
-• Mike R. saved 15 hours per week on follow-ups
-• Lisa K. generated 47 new leads in her first month
-
-Your trial ends in 4 days. Want to join these success stories?
-
-Upgrade now and get:
-✅ Unlimited property listings
-✅ Advanced AI features
-✅ Priority support
-✅ 30-day money-back guarantee
-
-Ready to transform your business?
-
-Best,
-The HomeListingAI Team`,
-                    status: 'pending',
-                    scheduledFor: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days from now
-                },
-                {
-                    id: 'step-4',
-                    type: 'email',
-                    delay: { value: 5, unit: 'days' },
-                    subject: 'Last 2 Days: Don\'t Lose Your Progress!',
-                    content: `Hi ${userName || 'there'},
-
-Your free trial ends in 2 days. Here's what happens next:
-
-⏰ Trial Ending Soon:
-• Your account will be paused
-• All your data will be saved for 30 days
-• You can reactivate anytime
-
-💡 What You'll Lose Access To:
-• AI-powered lead generation
-• Automated follow-up sequences
-• Property analytics and insights
-• QR code tracking
-
-🔒 What You'll Keep:
-• All your property data
-• Lead information
-• Templates and sequences
-
-Upgrade now to continue growing your business with AI!
-
-Best,
-The HomeListingAI Team`,
-                    status: 'pending',
-                    scheduledFor: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // 5 days from now
-                },
-                {
-                    id: 'step-5',
-                    type: 'email',
-                    delay: { value: 6, unit: 'days' },
-                    subject: 'Final Day: Your Trial Ends Tomorrow',
-                    content: `Hi ${userName || 'there'},
-
-This is your final reminder - your trial ends tomorrow at midnight.
-
-🎯 Last Chance to Upgrade:
-• Keep all your data and progress
-• Continue using all AI features
-• No setup required - instant access
-
-💳 Simple Upgrade Process:
-• Click the upgrade button in your dashboard
-• Choose your plan (starting at $59/month)
-• Continue using all features immediately
-
-Questions? Reply to this email - I'm here to help!
-
-Best,
-The HomeListingAI Team`,
-                    status: 'pending',
-                    scheduledFor: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000) // 6 days from now
-                },
-                {
-                    id: 'step-6',
-                    type: 'email',
-                    delay: { value: 7, unit: 'days' },
-                    subject: 'Your Trial Has Ended - Here\'s What\'s Next',
-                    content: `Hi ${userName || 'there'},
-
-Your 7-day free trial has ended. Here's what happens now:
-
-📊 Your Trial Summary:
-• You explored our AI-powered platform
-• Created property listings
-• Generated leads
-• Saved time with automation
-
-🔄 Reactivate Anytime:
-• Your data is safe for 30 days
-• Upgrade anytime to continue
-• No setup required
-
-💡 Special Offer:
-Upgrade within the next 7 days and get 20% off your first month!
-
-Ready to continue? Click here to upgrade.
-
-Best,
-The HomeListingAI Team`,
-                    status: 'pending',
-                    scheduledFor: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
-                }
-            ]
-        };
-
-        // Save the onboarding sequence to Firestore
-        await db.collection('onboardingSequences').doc(userId).set(onboardingSequence);
-
-        // Schedule the first email
-        await scheduleOnboardingEmail(userId, userEmail, onboardingSequence.steps[0]);
-
-        // Log the onboarding trigger
-        await logAuditAction({
-            action: 'onboarding_sequence_triggered',
-            resourceType: 'user',
-            resourceId: userId,
-            details: {
-                sequenceId: onboardingSequence.id,
-                userEmail: userEmail,
-                stepsCount: onboardingSequence.steps.length
-            },
-            severity: 'info'
-        }, context);
-
-        return {
-            success: true,
-            message: 'Onboarding sequence triggered successfully',
-            sequenceId: onboardingSequence.id
-        };
-    } catch (error) {
-        console.error("Onboarding sequence error:", error);
-        throw new functions.https.HttpsError("internal", "Failed to trigger onboarding sequence");
-    }
-});
-
-// Helper function to schedule onboarding emails
-async function scheduleOnboardingEmail(userId: string, userEmail: string, step: any) {
-    try {
-        // For now, we'll use a simple approach - in production, you'd use a proper email scheduling service
-        const emailData = {
-            to: userEmail,
-            subject: step.subject,
-            content: step.content,
-            userId: userId,
-            stepId: step.id,
-            scheduledFor: step.scheduledFor,
-            status: 'scheduled'
-        };
-
-        // Save to scheduled emails collection
-        await db.collection('scheduledEmails').add(emailData);
-
-        console.log(`Scheduled onboarding email for user ${userId}, step ${step.id}`);
-    } catch (error) {
-        console.error("Error scheduling onboarding email:", error);
-    }
-}
-
-// Export admin functions
-export * from './admin';
-
-// Export monitoring functions
-export * from './monitoring';
-
-// Export notification functions
-export * from './notifications';

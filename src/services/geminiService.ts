@@ -89,11 +89,68 @@ export const answerPropertyQuestion = async (property: Property, question: strin
 
 export const continueConversation = async (messages: ChatMessage[]): Promise<string> => {
   try {
-    const result = await continueConversationFunction({ messages });
-    return (result.data as { text: string }).text;
+    // Validate input
+    if (!messages || messages.length === 0) {
+      throw new Error("No messages provided for conversation");
+    }
+    
+    // Add a timeout to the Firebase function call
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Request timed out")), 45000); // 45 seconds timeout (increased from 30)
+    });
+    
+    console.log("Calling continueConversation function with", messages.length, "messages");
+    
+    // Prepare the messages for the API
+    // Make sure each message has the required properties
+    const validatedMessages = messages.map(msg => ({
+      sender: msg.sender,
+      text: msg.text || ""
+    }));
+    
+    // Race between the actual function call and the timeout
+    const result = await Promise.race([
+      continueConversationFunction({ messages: validatedMessages }),
+      timeoutPromise
+    ]);
+    
+    console.log("Received response from continueConversation function");
+    
+    // Check if we have a valid response
+    if (result && result.data && typeof (result.data as { text: string }).text === 'string') {
+      const responseText = (result.data as { text: string }).text;
+      console.log("Valid response received, length:", responseText.length);
+      return responseText;
+    } else {
+      console.error("Invalid response format:", result);
+      throw new Error("Invalid response format from AI service");
+    }
   } catch (error) {
     console.error("Error continuing conversation:", error);
-    return "I'm having trouble connecting right now. Please try again in a moment.";
+    
+    // Check for specific error types and provide appropriate messages
+    if (error instanceof Error) {
+      const errorMsg = error.message;
+      
+      if (errorMsg.includes("timed out")) {
+        throw new Error("The request took too long to process. Please try again with a shorter message.");
+      } else if (errorMsg.includes("network") || errorMsg.includes("connection")) {
+        throw new Error("Network connection issue. Please check your internet connection.");
+      } else if (errorMsg.includes("not properly configured") || errorMsg.includes("AI service")) {
+        throw new Error("The AI service is currently unavailable. Please try again later or contact support.");
+      } else if (errorMsg.includes("permission") || errorMsg.includes("unauthorized")) {
+        throw new Error("You don't have permission to use this feature. Please contact support.");
+      } else if (errorMsg.includes("quota") || errorMsg.includes("limit")) {
+        throw new Error("Usage limit reached. Please try again later.");
+      } else if (errorMsg.includes("API key") || errorMsg.includes("invalid")) {
+        throw new Error("There's an issue with the AI service configuration. Please contact support.");
+      } else if (errorMsg.includes("model") || errorMsg.includes("not found")) {
+        throw new Error("The AI model is currently unavailable. Please try again later or contact support.");
+      }
+    }
+    
+    // Provide a generic error message if we can't determine the specific issue
+    throw new Error("Unable to get a response from the AI assistant. Please try again later.");
   }
 };
 

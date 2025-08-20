@@ -28,9 +28,13 @@ import AdminLayout from './components/AdminLayout';
 import AdminLogin from './components/AdminLogin';
 import AdminSetup from './components/AdminSetup';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import BlogPage from './components/BlogPage';
+import BlogPostPage from './components/BlogPostPage';
+import TestPage from './pages/TestPage';
 import PropertyComparison from './components/PropertyComparison';
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
+import OpenAITestPage from './components/OpenAITestPage';
 import { getProperties, addProperty } from './services/firestoreService';
 import { LogoWithName } from './components/LogoWithName';
 
@@ -108,6 +112,10 @@ const App: React.FC = () => {
                 setView('signin');
             } else if (hash === 'signup') {
                 setView('signup');
+            } else if (hash === 'test') {
+                setView('test-page');
+            } else if (hash === 'openai-test') {
+                setView('openai-test');
             }
         };
 
@@ -431,11 +439,16 @@ const App: React.FC = () => {
         if (user || isDemoMode) {
              const mainContent = () => {
                 switch(view) {
+                    case 'test-page':
+                        return <TestPage />;
+                    case 'openai-test':
+                        return <OpenAITestPage />;
                     case 'admin-dashboard': 
                     case 'admin-users': 
                     case 'admin-leads': 
                     case 'admin-ai-content': 
                     case 'admin-knowledge-base': 
+                    case 'admin-ai-personalities':
                     case 'admin-marketing': 
                     case 'admin-analytics': 
                     case 'admin-security': 
@@ -604,6 +617,10 @@ const App: React.FC = () => {
                 />;
             case 'new-landing':
                 return <NewLandingPage />;
+            case 'blog':
+                return <BlogPage />;
+            case 'blog-post':
+                return <BlogPostPage />;
             case 'admin-setup':
                 // Admin setup page should be standalone, not showing modals
                 // Force close admin login modal when rendering admin setup
