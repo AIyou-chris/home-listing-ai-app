@@ -111,7 +111,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, setView, isOpen
                     <span>System Alerts</span>
                 </button>
                 <button 
-                    onClick={() => setView('dashboard')}
+                    onClick={() => setView('landing')}
                     className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 transition-colors"
                 >
                     <Icon name="arrow_back" className="text-slate-500" />

@@ -65,8 +65,14 @@ class GoogleOAuthService {
 
   private setupGoogleAuth(): void {
     try {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      if (!clientId) {
+        throw new Error('Google Client ID is not configured. Please set VITE_GOOGLE_CLIENT_ID in your .env file');
+      }
+      console.log('🔧 Setting up Google Auth with client ID:', clientId.substring(0, 8) + '...');
+      
       this.googleAuth = window.google.accounts.oauth2.initTokenClient({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+        client_id: clientId,
         scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.compose',
         callback: (response: any) => {
           console.log('✅ OAuth callback received:', response);

@@ -604,6 +604,38 @@ export class AuthService {
             throw error;
         }
     }
+
+    // Get current user's auth token
+    async getAuthToken(): Promise<string | null> {
+        const user = auth.currentUser;
+        if (!user) return null;
+
+        try {
+            return await user.getIdToken();
+        } catch (error) {
+            console.error('Error getting auth token:', error);
+            return null;
+        }
+    }
+
+    // Make authenticated API request
+    async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
+        const token = await this.getAuthToken();
+        if (!token) {
+            throw new Error('No authentication token available');
+        }
+
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            ...options.headers
+        };
+
+        return fetch(url, {
+            ...options,
+            headers
+        });
+    }
 }
 
 export const authService = AuthService.getInstance();

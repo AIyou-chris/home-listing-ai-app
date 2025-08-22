@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from './services/firebase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, AIPersonality, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence, AIAssignment } from './types';
@@ -22,12 +22,11 @@ import SettingsPage from './components/SettingsPage';
 import SupportFAB from './components/SupportFAB';
 import VoiceAssistant from './components/VoiceAssistant';
 import ConsultationModal from './components/ConsultationModal';
-import AdminDashboard from './components/AdminDashboard';
-import AdminSidebar from './components/AdminSidebar';
-import AdminLayout from './components/AdminLayout';
-import AdminLogin from './components/AdminLogin';
-import AdminSetup from './components/AdminSetup';
-import AnalyticsDashboard from './components/AnalyticsDashboard';
+// Lazy load admin components for better performance
+const AdminSidebar = lazy(() => import('./components/AdminSidebar'));
+const AdminLayout = lazy(() => import('./components/AdminLayout'));
+const AdminLogin = lazy(() => import('./components/AdminLogin'));
+const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
 import TestPage from './pages/TestPage';
@@ -37,6 +36,10 @@ import LoadingSpinner from './components/LoadingSpinner';
 import OpenAITestPage from './components/OpenAITestPage';
 import { getProperties, addProperty } from './services/firestoreService';
 import { LogoWithName } from './components/LogoWithName';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { EnvValidation } from './utils/envValidation';
+import { SessionService } from './services/sessionService';
+import { PerformanceService } from './services/performanceService';
 
 // A helper function to delay execution
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -58,13 +61,13 @@ const App: React.FC = () => {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
     const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState(false);
-    const [selectedLead] = useState<Lead | null>(null);
+    // Removed unused selectedLead state
     const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
     const [scrollToSection, setScrollToSection] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     // Notification system is now handled by NotificationSystem component
     const [isPropertyComparisonOpen, setIsPropertyComparisonOpen] = useState(false);
-    const [analyticsTimeRange, setAnalyticsTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
+    // Removed unused analyticsTimeRange state
     const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
     const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
     const [isAdminLoginLoading, setIsAdminLoginLoading] = useState(false);
@@ -93,15 +96,19 @@ const App: React.FC = () => {
     const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
     const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({ integrationType: 'google', aiScheduling: true, conflictDetection: true, emailReminders: true, autoConfirm: false });
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid'}] });
-    const [personalities, setPersonalities] = useState<AIPersonality[]>(AI_PERSONALITIES);
-    const [assignments, setAssignments] = useState<AIAssignment[]>(DEFAULT_AI_ASSIGNMENTS);
+    // Removed unused state variables
 
 
     // Handle URL hash routing
     useEffect(() => {
         const handleHashChange = () => {
             const hash = window.location.hash.substring(1); // Remove the #
-            if (hash === 'admin-setup') {
+            if (hash === 'admin-dashboard') {
+                setView('admin-dashboard');
+                // Reset admin login modal state when going to admin-dashboard
+                setIsAdminLoginOpen(false);
+                setAdminLoginError(null);
+            } else if (hash === 'admin-setup') {
                 setView('admin-setup');
                 // Reset admin login modal state when going to admin-setup
                 setIsAdminLoginOpen(false);
@@ -128,8 +135,14 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        // Temporary: Clear any existing authentication to show landing page
-        auth.signOut();
+        // Validate environment on app startup
+        EnvValidation.logValidationResults();
+        
+        // Initialize session tracking
+        SessionService.initialize();
+        
+        // Initialize performance monitoring
+        PerformanceService.initialize();
         
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setIsLoading(true);
@@ -139,18 +152,17 @@ const App: React.FC = () => {
             if (currentUser) {
                 console.log(`User signed in: ${currentUser.uid}`);
                 
-                // Check if user is an admin
-                const token = await currentUser.getIdTokenResult();
-                const isAdmin = token?.claims?.role === 'admin';
+                // Check if user is the specific admin
+                const isAdmin = currentUser.email === 'us@homelistingai.com';
                 
                 if (isAdmin) {
-                    console.log("Admin user detected, going to landing page");
+                    console.log("Admin user detected, going to admin dashboard");
                     setUser(currentUser);
                     setUserProfile({
                         ...SAMPLE_AGENT,
-                        name: currentUser.displayName ?? 'System Administrator',
+                        name: 'System Administrator',
                         email: currentUser.email ?? '',
-                        headshotUrl: currentUser.photoURL ?? `https://i.pravatar.cc/150?u=${currentUser.uid}`,
+                        headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                     });
                     setProperties([]);
                     setLeads([]);
@@ -159,7 +171,7 @@ const App: React.FC = () => {
                     setTasks([]);
                     setConversations([]);
                     setSequences([]);
-                    setView('landing');
+                    setView('admin-dashboard');
                     setIsLoading(false);
                     return;
                 }
@@ -437,15 +449,41 @@ const App: React.FC = () => {
     const renderViewContent = () => {
         // Logged-in or Demo views
         if (user || isDemoMode) {
+            // If explicitly viewing landing, render standalone marketing page
+            if (view === 'landing') {
+                return (
+                    <LandingPage 
+                        onNavigateToSignUp={handleNavigateToSignUp} 
+                        onNavigateToSignIn={handleNavigateToSignIn} 
+                        onEnterDemoMode={handleEnterDemoMode}
+                        scrollToSection={scrollToSection}
+                        onScrollComplete={() => setScrollToSection(null)}
+                        onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                        onNavigateToAdmin={handleNavigateToAdmin}
+                    />
+                );
+            }
              const mainContent = () => {
                 switch(view) {
+                    case 'landing':
+                        return (
+                            <LandingPage 
+                                onNavigateToSignUp={handleNavigateToSignUp} 
+                                onNavigateToSignIn={handleNavigateToSignIn} 
+                                onEnterDemoMode={handleEnterDemoMode}
+                                scrollToSection={scrollToSection}
+                                onScrollComplete={() => setScrollToSection(null)}
+                                onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                                onNavigateToAdmin={handleNavigateToAdmin}
+                            />
+                        );
                     case 'test-page':
                         return <TestPage />;
                     case 'openai-test':
                         return <OpenAITestPage />;
-                    case 'admin-dashboard': 
+                    case 'admin-dashboard':
+                        return <AdminLayout currentView={view} />;
                     case 'admin-users': 
-                    case 'admin-leads': 
                     case 'admin-ai-content': 
                     case 'admin-knowledge-base': 
                     case 'admin-ai-personalities':
@@ -454,6 +492,8 @@ const App: React.FC = () => {
                     case 'admin-security': 
                     case 'admin-billing': 
                     case 'admin-settings': 
+                        return <AdminLayout currentView={view} />;
+                    case 'admin-leads':
                         return <AdminLayout currentView={view} />;
                                 case 'dashboard':
                 return <Dashboard 
@@ -525,9 +565,19 @@ const App: React.FC = () => {
                 const checkAdminAccess = async () => {
                     try {
                         const token = await user?.getIdTokenResult();
-                        if (token?.claims?.role !== 'admin') {
+                        const isAdmin = token?.claims?.role === 'admin' || token?.claims?.isAdmin === true;
+                        
+                        // Only bypass in development mode
+                        const isDevelopment = import.meta.env.DEV;
+                        
+                        if (!isAdmin && !isDevelopment) {
+                            console.warn('Unauthorized admin access attempt');
                             setView('dashboard');
                             return;
+                        }
+                        
+                        if (isDevelopment && !isAdmin) {
+                            console.warn('Admin access granted in development mode only');
                         }
                     } catch (error) {
                         console.error('Failed to verify admin access:', error);
@@ -543,7 +593,9 @@ const App: React.FC = () => {
 
                 return (
                     <div className="flex h-screen bg-slate-50">
-                        <AdminSidebar activeView={view} setView={setView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <AdminSidebar activeView={view} setView={setView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                        </Suspense>
                         <div className="flex-1 flex flex-col overflow-hidden">
                             <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
                                 <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
@@ -628,7 +680,11 @@ const App: React.FC = () => {
                     setIsAdminLoginOpen(false);
                     setAdminLoginError(null);
                 }
-                return <AdminSetup />;
+                return (
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <AdminSetup />
+                    </Suspense>
+                );
             default:
                 return <LandingPage 
                     onNavigateToSignUp={handleNavigateToSignUp} 
@@ -643,7 +699,7 @@ const App: React.FC = () => {
     }
     
     return (
-        <>
+        <ErrorBoundary>
             {renderViewContent()}
             
             {isConsultationModalOpen && <ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => {
@@ -653,12 +709,14 @@ const App: React.FC = () => {
             
             {/* Don't show admin login modal on admin-setup page */}
             {isAdminLoginOpen && view !== 'admin-setup' && (
-                <AdminLogin 
-                    onLogin={handleAdminLogin}
-                    onBack={handleAdminLoginClose}
-                    isLoading={isAdminLoginLoading}
-                    error={adminLoginError}
-                />
+                <Suspense fallback={<LoadingSpinner />}>
+                    <AdminLogin 
+                        onLogin={handleAdminLogin}
+                        onBack={handleAdminLoginClose}
+                        isLoading={isAdminLoginLoading}
+                        error={adminLoginError || undefined}
+                    />
+                </Suspense>
             )}
             
             {isPropertyComparisonOpen && (
@@ -671,9 +729,7 @@ const App: React.FC = () => {
             {/* Don't show SupportFAB on admin-setup page */}
             {view !== 'admin-setup' && <SupportFAB onClick={() => setIsVoiceAssistantOpen(true)} />}
             {isVoiceAssistantOpen && <VoiceAssistant onClose={() => setIsVoiceAssistantOpen(false)} />}
-            
-
-        </>
+        </ErrorBoundary>
     )
 }
 

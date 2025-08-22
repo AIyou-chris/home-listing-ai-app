@@ -1,6 +1,6 @@
 import { ChatMessage } from '../types';
 
-const API_BASE_URL = 'http://localhost:3002/api';
+const API_BASE_URL = 'http://localhost:5001/home-listing-ai/us-central1/api';
 
 /**
  * Continues a conversation using the local AI server
