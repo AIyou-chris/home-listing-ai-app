@@ -17,9 +17,9 @@ export class SecurityService {
 			const validateUserFunction = httpsCallable(functions, 'validateUser');
 			const result = await validateUserFunction(params);
 			return result.data;
-		} catch (error) {
+		} catch (error: any) {
 			console.error('User validation error:', error);
-			throw error;
+			throw new Error(`User validation failed: ${error.message || 'Unknown error'}`);
 		}
 	}
 

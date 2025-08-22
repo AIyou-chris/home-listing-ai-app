@@ -16,7 +16,7 @@ const BlogPostPage: React.FC = () => {
   const fetchPost = async (slug: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3002/api/blog/${slug}`);
+      const response = await fetch(`http://localhost:5001/home-listing-ai/us-central1/api/blog/${slug}`);
       
       if (!response.ok) {
         throw new Error('Blog post not found');

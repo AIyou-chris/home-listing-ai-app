@@ -1,7 +1,24 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import cors from 'cors';
 
 const db = admin.firestore();
+
+// Create a CORS middleware instance
+export const corsHandler = cors({
+  origin: true, // Allow requests from any origin in development
+  // For production, you might want to restrict to specific origins:
+  // origin: ['https://home-listing-ai.web.app', 'https://home-listing-ai.firebaseapp.com']
+});
+
+// Apply CORS middleware to an HTTP function
+export const applyCors = (req: any, res: any) => {
+  return new Promise((resolve, reject) => {
+    corsHandler(req, res, () => {
+      resolve(true);
+    });
+  });
+};
 
 // Admin middleware for Cloud Functions
 export const requireAdmin = (context: any) => {

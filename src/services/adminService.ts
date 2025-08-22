@@ -52,18 +52,18 @@ export interface RenewalData {
     riskLevel: 'low' | 'medium' | 'high';
 }
 
-const API_BASE_URL = 'http://localhost:3002/api';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from './firebase';
+
+const API_BASE_URL = 'http://localhost:5001/home-listing-ai/us-central1/api';
 
 export class AdminService {
     // User Management
     static async getAllUsers(): Promise<User[]> {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/users`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
-            return data.users || [];
+            const getAllUsersFunction = httpsCallable(functions, 'getAllUsers');
+            const result = await getAllUsersFunction();
+            return (result.data as any).users || [];
         } catch (error) {
             console.error('Error fetching users:', error);
             // Fallback to database service
@@ -231,21 +231,9 @@ export class AdminService {
     // System Monitoring
     static async getSystemHealth(): Promise<SystemHealth> {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/dashboard-metrics`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
-            return data.systemHealth || {
-                database: 'healthy',
-                api: 'healthy',
-                ai: 'healthy',
-                email: 'healthy',
-                storage: 'healthy',
-                overall: 'healthy',
-                lastChecked: new Date().toISOString(),
-                issues: []
-            };
+            const getSystemHealthFunction = httpsCallable(functions, 'getSystemHealth');
+            const result = await getSystemHealthFunction();
+            return (result.data as any);
         } catch (error) {
             console.error('Error fetching system health:', error);
             return {

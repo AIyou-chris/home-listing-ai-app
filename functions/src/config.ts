@@ -55,8 +55,18 @@ export const config = {
 
   // Security Configuration
   security: {
-    jwtSecret: process.env.JWT_SECRET || 'your-jwt-secret-here',
-    encryptionKey: process.env.ENCRYPTION_KEY || 'your-encryption-key-here',
+    jwtSecret: process.env.JWT_SECRET || (() => {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('JWT_SECRET must be set in production');
+      }
+      return 'dev-jwt-secret-' + Math.random().toString(36);
+    })(),
+    encryptionKey: process.env.ENCRYPTION_KEY || (() => {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('ENCRYPTION_KEY must be set in production');
+      }
+      return 'dev-encryption-key-' + Math.random().toString(36);
+    })(),
     bcryptRounds: 12,
     sessionTimeout: 24 * 60 * 60 * 1000 // 24 hours
   },

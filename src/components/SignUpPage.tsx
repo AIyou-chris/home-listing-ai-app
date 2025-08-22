@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from '../services/firebase';
+import { callFunctionWithFallback } from '../utils/functionUtils';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
 import { Logo } from './Logo';
@@ -26,7 +27,7 @@ const FeatureHighlight: React.FC<{ icon: string, title: string, children: React.
     </div>
 );
 
-const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSection, onEnterDemoMode }) => {
+const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSection, onEnterDemoMode }: SignUpPageProps): JSX.Element => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
@@ -36,42 +37,89 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateToSignIn, onNavigateT
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        if (!auth.currentUser) {
-            try {
+
+        // Validate inputs
+        if (!email || !password || !fullName) {
+            setError('Please fill in all fields');
+            return;
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            setError('Please enter a valid email address');
+            return;
+        }
+
+        // Validate password strength
+        if (password.length < 6) {
+            setError('Password must be at least 6 characters long');
+            return;
+        }
+
+        // Create user
+        try {
+            console.log('Attempting to create user with email:', email);
+            
+            // Call the addNewUser function with fallback
+            const result = await callFunctionWithFallback('addNewUser', {
+                email: email,
+                password: password,
+                name: fullName,
+                role: 'agent',
+                plan: 'Solo Agent'
+            });
+            
+            if (!result.success) {
+                console.error('All function attempts failed, falling back to client-side user creation...');
+                
+                // If both functions fail, fall back to the client-side method
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                console.log('User created successfully via client:', userCredential.user.uid);
+                
                 // After user is created, update their profile with the full name
                 await updateProfile(userCredential.user, {
                     displayName: fullName,
                 });
+            }
 
-                // Trigger onboarding sequence
-                try {
-                    const triggerOnboardingSequence = httpsCallable(functions, 'triggerOnboardingSequence');
-                    await triggerOnboardingSequence({
-                        userEmail: email,
-                        userName: fullName
-                    });
-                    console.log('Onboarding sequence triggered successfully');
-                } catch (onboardingError) {
-                    console.error('Failed to trigger onboarding sequence:', onboardingError);
-                    // Don't fail the signup if onboarding fails
-                }
-
-                // App.tsx's onAuthStateChanged will handle navigation
-            } catch (err: any) {
-                if (err.code === 'auth/email-already-in-use') {
-                    setError(
-                        <span>
-                            This email address is already in use. Please{' '}
-                            <button type="button" onClick={onNavigateToSignIn} className="font-semibold text-primary-600 hover:underline focus:outline-none">
-                                sign in
-                            </button>
-                            {' '}or use a different email.
-                        </span>
-                    );
-                } else {
-                    console.error("Firebase SignUp Error:", err);
-                    setError('Sign-up failed. Please check your details and try again.');
+            // Trigger onboarding sequence with fallback
+            const onboardingResult = await callFunctionWithFallback('triggerOnboardingSequence', {
+                userEmail: email,
+                userName: fullName
+            });
+            
+            if (onboardingResult.success) {
+                console.log('Onboarding sequence triggered successfully');
+            } else {
+                console.error('Failed to trigger onboarding sequence:', onboardingResult.error);
+                // Don't fail the signup if onboarding fails
+            }
+        } catch (error: any) {
+            console.error('Signup error:', error);
+            if (error.code === 'auth/email-already-in-use') {
+                setError(
+                    <span>
+                        This email address is already in use. Please{' '}
+                        <button type="button" onClick={onNavigateToSignIn} className="font-semibold text-primary-600 hover:underline focus:outline-none">
+                            sign in
+                        </button>
+                        {' '}or use a different email.
+                    </span>
+                );
+            } else {
+                switch (error.code) {
+                    case 'auth/invalid-email':
+                        setError('Please enter a valid email address.');
+                        break;
+                    case 'auth/operation-not-allowed':
+                        setError('Email/password accounts are not enabled. Please contact support.');
+                        break;
+                    case 'auth/weak-password':
+                        setError('Please choose a stronger password (at least 6 characters).');
+                        break;
+                    default:
+                        setError(error.message || 'An error occurred during sign up. Please try again.');
                 }
             }
         }

@@ -24,7 +24,7 @@ const BlogPage: React.FC = () => {
       if (searchTerm) params.append('search', searchTerm);
       if (selectedTag) params.append('tag', selectedTag);
       
-      const response = await fetch(`http://localhost:3002/api/blog?${params}`);
+      const response = await fetch(`http://localhost:5001/home-listing-ai/us-central1/api/blog?${params}`);
       const data = await response.json();
       
       setPosts(data.posts);
