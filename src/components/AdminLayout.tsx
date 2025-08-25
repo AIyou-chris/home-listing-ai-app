@@ -1,13 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { View, User, Lead, LeadStatus, SequenceStep } from '../types';
 import AdminDashboard from './AdminDashboard';
+import ExportModal from './ExportModal';
 import { AuthService } from '../services/authService';
+import { googleOAuthService } from '../services/googleOAuthService';
+import { useScheduler } from '../context/SchedulerContext';
 
 interface AdminLayoutProps {
   currentView: View;
 }
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
+  const { openScheduler } = useScheduler();
+  const [googleConnected, setGoogleConnected] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Lightweight check on mount
+    try {
+      setGoogleConnected(googleOAuthService.isAuthenticated());
+    } catch {}
+  }, []);
   const [users, setUsers] = useState<User[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -62,6 +74,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       timestamp: new Date(Date.now() - 120000).toISOString()
     }
   ]);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const [scheduleForm, setScheduleForm] = useState({
     date: '',
@@ -1196,15 +1209,33 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     <span className="material-symbols-outlined w-5 h-5">add</span>
                     <span>Add New Lead</span>
                   </button>
+                  {!googleConnected ? (
+                    <button 
+                      onClick={async () => {
+                        const ok = await googleOAuthService.requestAccess()
+                        setGoogleConnected(ok)
+                        if (!ok) alert('Google auth failed. Check VITE_GOOGLE_CLIENT_ID')
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg font-semibold shadow-sm hover:bg-slate-50 transition"
+                    >
+                      <span className="material-symbols-outlined w-5 h-5">link</span>
+                      <span>Connect Google Calendar</span>
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg bg-green-50 text-green-700 border border-green-200">
+                      <span className="material-symbols-outlined w-5 h-5">check_circle</span>
+                      Connected
+                    </span>
+                  )}
                   <button 
-                    onClick={() => alert('Schedule Appointment functionality coming soon!')}
+                    onClick={() => openScheduler({ kind: 'Consultation' })}
                     className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold shadow-sm hover:bg-green-600 transition"
                   >
                     <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
                     <span>Schedule Appointment</span>
                   </button>
                   <button 
-                    onClick={() => alert('Export functionality coming soon!')}
+                    onClick={() => setIsExportModalOpen(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg font-semibold shadow-sm hover:bg-slate-700 transition"
                   >
                     <span className="material-symbols-outlined w-5 h-5">download</span>
@@ -1385,7 +1416,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           <button 
                             onClick={() => {
                               setSelectedLead(lead);
-                              setShowScheduleModal(true);
+                              openScheduler({
+                                name: lead.name,
+                                email: lead.email,
+                                phone: lead.phone,
+                                kind: 'Showing'
+                              });
                             }}
                             className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg shadow-sm hover:bg-green-600 transition"
                           >
@@ -1409,7 +1445,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           <h3 className="text-lg font-semibold text-slate-900 mb-2">No Appointments Yet</h3>
                           <p className="text-slate-500 mb-6">Schedule appointments with your leads to track showings and meetings.</p>
                           <button 
-                            onClick={() => setShowScheduleModal(true)}
+                            onClick={() => openScheduler({ kind: 'Consultation' })}
                             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold shadow-sm hover:bg-green-700 transition mx-auto"
                           >
                             <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
@@ -1463,7 +1499,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                               <button 
                                 onClick={() => {
                                   setSelectedLead(lead);
-                                  setShowScheduleModal(true);
+                                  openScheduler({
+                                    name: lead.name,
+                                    email: lead.email,
+                                    phone: lead.phone,
+                                    kind: 'Showing'
+                                  });
                                 }}
                                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg shadow-sm hover:bg-green-600 transition"
                               >
@@ -1615,6 +1656,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 </div>
               </main>
             </div>
+            {isExportModalOpen && (
+              <ExportModal
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                leads={leads}
+                appointments={[]}
+              />
+            )}
           </>
         );
       case 'admin-ai-content':
@@ -5537,7 +5586,16 @@ ${blogData.links.map(link => `- [${link.text}](${link.url})`).join('\n')}
               <button
                 onClick={() => {
                     setShowContactModal(false);
-                    setShowScheduleModal(true);
+                    if (selectedLead) {
+                      openScheduler({
+                        name: selectedLead.name,
+                        email: selectedLead.email,
+                        phone: selectedLead.phone,
+                        kind: 'Follow-up'
+                      })
+                    } else {
+                      openScheduler({ kind: 'Consultation' })
+                    }
                   }}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
                 >

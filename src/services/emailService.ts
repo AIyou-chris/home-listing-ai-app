@@ -1,4 +1,5 @@
 // Email service for sending consultation confirmations and notifications
+import { googleOAuthService } from './googleOAuthService'
 
 export interface ConsultationData {
     name: string;
@@ -24,6 +25,45 @@ class EmailService {
             EmailService.instance = new EmailService();
         }
         return EmailService.instance;
+    }
+
+    private async sendViaGmail(to: string, subject: string, html: string): Promise<boolean> {
+        try {
+            if (!googleOAuthService.isAuthenticated()) {
+                return false
+            }
+            const accessToken = googleOAuthService.getAccessToken()
+            if (!accessToken) {
+                return false
+            }
+
+            const message = [
+                `To: ${to}`,
+                'Content-Type: text/html; charset=UTF-8',
+                `Subject: ${subject}`,
+                '',
+                html
+            ].join('\r\n')
+
+            const raw = btoa(unescape(encodeURIComponent(message)))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '')
+
+            const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ raw })
+            })
+
+            return resp.ok
+        } catch (e) {
+            console.error('Gmail send error', e)
+            return false
+        }
     }
 
     // Send confirmation email to client
@@ -64,10 +104,10 @@ class EmailService {
                 `
             };
 
-            // Here you would send the actual email using your email service
-            // Example with a hypothetical email service:
-            // await emailProvider.send(emailContent);
-            
+            const sent = await this.sendViaGmail(emailContent.to, emailContent.subject, emailContent.html)
+            if (!sent) {
+                console.log('Falling back to log-only confirmation (no Gmail token)')
+            }
             console.log('Confirmation email content:', emailContent);
             return true;
         } catch (error) {
@@ -82,7 +122,7 @@ class EmailService {
             // This would send an email to you about the new appointment
             console.log('Sending admin notification about new consultation');
             
-            const adminEmail = 'us@homelistign.com'; // Your actual Gmail address
+            const adminEmail = 'us@homelistingai.com';
             const emailContent = {
                 to: adminEmail,
                 subject: 'New Consultation Request - HomeListingAI',
@@ -115,10 +155,10 @@ class EmailService {
                 `
             };
 
-            // Here you would send the actual email using your email service
-            // Example with a hypothetical email service:
-            // await emailProvider.send(emailContent);
-            
+            const sent = await this.sendViaGmail(adminEmail, emailContent.subject, emailContent.html)
+            if (!sent) {
+                console.log('Falling back to log-only admin notification (no Gmail token)')
+            }
             console.log('Admin notification email content:', emailContent);
             return true;
         } catch (error) {
