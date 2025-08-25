@@ -60,7 +60,7 @@ ${formData.message || 'No additional message provided'}
 This consultation was booked through the HomeListingAI website.`,
                 startTime: dateTime.toISOString(),
                 endTime: endTime.toISOString(),
-                attendees: [formData.email, 'us@homelistign.com'] // Your actual Gmail address
+                attendees: [formData.email, 'us@homelistingai.com']
             };
 
             // Add to Google Calendar

@@ -4,6 +4,7 @@ class GoogleOAuthService {
   private refreshToken: string | null = null;
   private tokenExpiry: number | null = null;
   private googleAuth: any = null;
+  private userEmail: string | null = null;
 
   constructor() {
     this.loadTokensFromStorage();
@@ -19,6 +20,7 @@ class GoogleOAuthService {
       this.refreshToken = localStorage.getItem('google_refresh_token');
       const expiry = localStorage.getItem('google_token_expiry');
       this.tokenExpiry = expiry ? parseInt(expiry) : null;
+      this.userEmail = localStorage.getItem('google_user_email');
       
       console.log('📦 Tokens loaded from localStorage:', {
         hasAccessToken: !!this.accessToken,
@@ -40,6 +42,9 @@ class GoogleOAuthService {
       }
       if (this.tokenExpiry) {
         localStorage.setItem('google_token_expiry', this.tokenExpiry.toString());
+      }
+      if (this.userEmail) {
+        localStorage.setItem('google_user_email', this.userEmail);
       }
       console.log('💾 Tokens saved to localStorage');
     } catch (error) {
@@ -81,6 +86,7 @@ class GoogleOAuthService {
             this.tokenExpiry = Date.now() + (response.expires_in * 1000);
             this.saveTokensToStorage();
             console.log('✅ Access token saved successfully');
+            this.fetchUserEmail().catch(() => {});
           }
         },
       });
@@ -184,16 +190,39 @@ class GoogleOAuthService {
     return this.accessToken;
   }
 
+  getUserEmail(): string | null {
+    return this.userEmail;
+  }
+
+  async fetchUserEmail(): Promise<string | null> {
+    try {
+      if (!this.accessToken) return null;
+      const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+        headers: { 'Authorization': `Bearer ${this.accessToken}` }
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      this.userEmail = data.emailAddress || null;
+      this.saveTokensToStorage();
+      console.log('📧 Google user email:', this.userEmail || 'none');
+      return this.userEmail;
+    } catch (e) {
+      return null;
+    }
+  }
+
   logout(): void {
     console.log('🚪 Logging out, clearing tokens...');
     this.accessToken = null;
     this.refreshToken = null;
     this.tokenExpiry = null;
+    this.userEmail = null;
     
     try {
       localStorage.removeItem('google_access_token');
       localStorage.removeItem('google_refresh_token');
       localStorage.removeItem('google_token_expiry');
+      localStorage.removeItem('google_user_email');
       console.log('🧹 Tokens cleared from localStorage');
     } catch (error) {
       console.error('Error clearing tokens from storage:', error);

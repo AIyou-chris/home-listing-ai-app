@@ -100,7 +100,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
                         <FormRow>
                             <Label htmlFor="appt-date">Preferred Date *</Label>
                             <div className="relative">
-                                <Input type="text" id="appt-date" name="date" placeholder="mm/dd/yyyy" value={formData.date} onChange={handleChange} required className="pl-3 pr-10" />
+                                <Input type="date" id="appt-date" name="date" value={formData.date} onChange={handleChange} required className="pl-3 pr-10" min={new Date().toISOString().split('T')[0]} />
                                 <span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">calendar_month</span>
                             </div>
                         </FormRow>
