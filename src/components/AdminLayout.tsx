@@ -6207,7 +6207,43 @@ Best regards,`}
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">System Prompt</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-slate-700">System Prompt</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-500">Tone preset</label>
+                    <select
+                      onChange={(e) => {
+                        const preset = e.target.value;
+                        if (!preset) return;
+                        const map: Record<string, string> = {
+                          professional: 'Tone: Professional. Use clear, concise, authoritative language with precise terminology. Avoid slang.',
+                          friendly: 'Tone: Friendly. Warm, approachable, encouraging. Use simple language and positive phrasing.',
+                          enthusiastic: 'Tone: Enthusiastic. High energy and motivational. Keep sentences short and impactful.',
+                          empathetic: 'Tone: Empathetic. Validate feelings first, then guide with calm, supportive language.',
+                          direct: 'Tone: Direct. Be brief and to the point. Present steps and recommendations without fluff.',
+                          playful: 'Tone: Playful. Light, creative, lightly humorous while remaining helpful and respectful.'
+                        };
+                        const directive = map[preset];
+                        if (!directive) return;
+                        setEditingPersona({
+                          ...editingPersona,
+                          systemPrompt: `${directive}\n\n${editingPersona.systemPrompt || ''}`.trim()
+                        });
+                        e.currentTarget.value = '';
+                      }}
+                      defaultValue=""
+                      className="px-2 py-1 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="" disabled>Apply preset…</option>
+                      <option value="professional">Professional</option>
+                      <option value="friendly">Friendly</option>
+                      <option value="enthusiastic">Enthusiastic</option>
+                      <option value="empathetic">Empathetic</option>
+                      <option value="direct">Direct</option>
+                      <option value="playful">Playful</option>
+                    </select>
+                  </div>
+                </div>
                 <textarea
                   value={editingPersona.systemPrompt}
                   onChange={(e) => setEditingPersona({...editingPersona, systemPrompt: e.target.value})}
