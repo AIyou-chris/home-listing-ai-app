@@ -21,7 +21,44 @@ export function isAIDescription(description: any): description is AIDescription 
   return description && typeof description === 'object' && typeof description.title === 'string' && Array.isArray(description.paragraphs);
 }
 
-export type View = 'dashboard' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'signup' | 'signin' | 'admin-dashboard';
+// Keep View in sync with src/types.ts to avoid mismatches when files import from different locations
+export type View =
+    | 'dashboard'
+    | 'analytics'
+    | 'listings'
+    | 'leads'
+    | 'property'
+    | 'add-listing'
+    | 'inbox'
+    | 'knowledge-base'
+    | 'marketing'
+    | 'settings'
+    | 'demo-dashboard'
+    | 'landing'
+    | 'new-landing'
+    | 'signup'
+    | 'signin'
+    | 'admin-dashboard'
+    | 'admin-users'
+    | 'admin-leads'
+    | 'admin-knowledge-base'
+    | 'admin-ai-personalities'
+    | 'admin-ai-content'
+    | 'admin-marketing'
+    | 'admin-analytics'
+    | 'admin-security'
+    | 'admin-billing'
+    | 'admin-settings'
+    | 'admin-setup'
+    | 'admin-blog-writer'
+    | 'blog'
+    | 'blog-post'
+    | 'test-page'
+    | 'ai-content'
+    | 'openai-test'
+    | 'vapi-test'
+    | 'test'
+    ;
 
 export interface Property {
   id: string;

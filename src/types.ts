@@ -21,7 +21,45 @@ export function isAIDescription(description: any): description is AIDescription 
   return description && typeof description === 'object' && typeof description.title === 'string' && Array.isArray(description.paragraphs);
 }
 
-export type View = 'dashboard' | 'analytics' | 'listings' | 'leads' | 'property' | 'add-listing' | 'inbox' | 'ai-content' | 'knowledge-base' | 'marketing' | 'settings' | 'demo-dashboard' | 'landing' | 'new-landing' | 'signup' | 'signin' | 'admin-dashboard' | 'admin-users' | 'admin-leads' | 'admin-ai-content' | 'admin-knowledge-base' | 'admin-ai-personalities' | 'admin-marketing' | 'admin-analytics' | 'admin-security' | 'admin-billing' | 'admin-settings' | 'admin-setup' | 'admin-blog-writer' | 'blog' | 'blog-post' | 'test-page' | 'openai-test';
+// Expanded View union to include additional development/test routes used in the app
+export type View =
+    | 'dashboard'
+    | 'analytics'
+    | 'listings'
+    | 'leads'
+    | 'property'
+    | 'add-listing'
+    | 'inbox'
+    | 'knowledge-base'
+    | 'marketing'
+    | 'settings'
+    | 'demo-dashboard'
+    | 'landing'
+    | 'new-landing'
+    | 'signup'
+    | 'signin'
+    | 'admin-dashboard'
+    | 'admin-users'
+    | 'admin-leads'
+    | 'admin-knowledge-base'
+    | 'admin-ai-personalities'
+    | 'admin-ai-content'
+    | 'admin-marketing'
+    | 'admin-analytics'
+    | 'admin-security'
+    | 'admin-billing'
+    | 'admin-settings'
+    | 'admin-setup'
+    | 'admin-blog-writer'
+    | 'blog'
+    | 'blog-post'
+
+    // App routes used during development and feature flags
+    | 'ai-content'
+    | 'openai-test'
+    | 'vapi-test'
+    | 'test'
+    ;
 
 export interface Property {
   id: string;
@@ -44,8 +82,9 @@ export interface Property {
 }
 
 export interface ChatMessage {
-  sender: 'user' | 'ai';
+  sender: 'user' | 'ai' | 'assistant';
   text: string;
+  timestamp?: Date;
 }
 
 export interface School {
@@ -208,7 +247,7 @@ export interface PersonalityTest {
     }[];
 }
 
-export type TriggerType = 'Lead Capture' | 'Appointment Scheduled' | 'Property Viewed' | 'Market Update' | 'Custom';
+export type TriggerType = 'Lead Capture' | 'Appointment Scheduled' | 'Property Viewed' | 'Market Update' | 'Custom' | 'Account Created';
 
 export interface SequenceStep {
     id: string;

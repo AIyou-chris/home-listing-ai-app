@@ -463,7 +463,7 @@ const AIPersonalityTemplatePage: React.FC<AIPersonalityTemplatePageProps> = ({ a
                                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                         />
                                         <p className="text-xs text-slate-500 mt-1">
-                                            Use {{clientName}}, {{propertyAddress}}, {{agentName}} etc. for variables
+                                            Use {'{{clientName}}'}, {'{{propertyAddress}}'}, {'{{agentName}}'} etc. for variables
                                         </p>
                                     </div>
 

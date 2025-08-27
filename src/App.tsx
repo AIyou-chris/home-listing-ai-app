@@ -1,9 +1,10 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { AdminModalProvider } from './context/AdminModalContext';
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from './services/firebase';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, AIPersonality, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence, AIAssignment } from './types';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
-import { SAMPLE_AGENT, SAMPLE_TASKS, SAMPLE_CONVERSATIONS, SAMPLE_INTERACTIONS, AI_PERSONALITIES, DEFAULT_AI_ASSIGNMENTS } from './constants';
+import { SAMPLE_AGENT, SAMPLE_TASKS, SAMPLE_CONVERSATIONS, SAMPLE_INTERACTIONS } from './constants';
 import LandingPage from './components/LandingPage';
 import NewLandingPage from './components/NewLandingPage';
 import SignUpPage from './components/SignUpPage';
@@ -15,12 +16,12 @@ import ListingsPage from './components/ListingsPage';
 import AddListingPage from './components/AddListingPage';
 import LeadsAndAppointmentsPage from './components/LeadsAndAppointmentsPage';
 import InteractionHubPage from './components/InteractionHubPage';
-import AIChatPage from './components/AIChatPage';
+
 import KnowledgeBasePage from './components/KnowledgeBasePage';
 import MarketingPage from './components/MarketingPage';
 import SettingsPage from './components/SettingsPage';
-import SupportFAB from './components/SupportFAB';
-import VoiceAssistant from './components/VoiceAssistant';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+
 import ConsultationModal from './components/ConsultationModal';
 // Lazy load admin components for better performance
 const AdminSidebar = lazy(() => import('./components/AdminSidebar'));
@@ -29,17 +30,23 @@ const AdminLogin = lazy(() => import('./components/AdminLogin'));
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
-import TestPage from './pages/TestPage';
+
+
+import AILeadQualificationTestPage from './components/AILeadQualificationTestPage';
+import HelpSalesChatBotTestPage from './components/HelpSalesChatBotTestPage';
+import AITestNavigation from './components/AITestNavigation';
+import ChatBotFAB from './components/ChatBotFAB';
 import PropertyComparison from './components/PropertyComparison';
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
-import OpenAITestPage from './components/OpenAITestPage';
+
 import { getProperties, addProperty } from './services/firestoreService';
 import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
 import { SessionService } from './services/sessionService';
 import { PerformanceService } from './services/performanceService';
+
 
 // A helper function to delay execution
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -49,7 +56,9 @@ const App: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSettingUp, setIsSettingUp] = useState(false);
     const [isDemoMode, setIsDemoMode] = useState(false);
-    const [view, setView] = useState<View>('landing');
+    // Use a plain string for view to avoid mismatches between multiple View type declarations
+    // (several `types.ts` files exist in the repo). We'll keep runtime checks as strings.
+    const [view, setView] = useState<string>('landing');
     
 
     const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
@@ -60,7 +69,7 @@ const App: React.FC = () => {
     const [tasks, setTasks] = useState<AgentTask[]>([]);
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
-    const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState(false);
+
     // Removed unused selectedLead state
     const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
     const [scrollToSection, setScrollToSection] = useState<string | null>(null);
@@ -113,6 +122,9 @@ const App: React.FC = () => {
                 // Reset admin login modal state when going to admin-setup
                 setIsAdminLoginOpen(false);
                 setAdminLoginError(null);
+            } else if (hash === 'ai-content') {
+                // Chat bots disabled: ignore ai-content route
+                setView('dashboard');
             } else if (hash === 'landing') {
                 setView('landing');
             } else if (hash === 'signin') {
@@ -120,9 +132,10 @@ const App: React.FC = () => {
             } else if (hash === 'signup') {
                 setView('signup');
             } else if (hash === 'test') {
-                setView('test-page');
+                setView('landing');
             } else if (hash === 'openai-test') {
-                setView('openai-test');
+                // removed
+                setView('dashboard');
             }
         };
 
@@ -430,6 +443,10 @@ const App: React.FC = () => {
 
     const selectedProperty = properties.find(p => p.id === selectedPropertyId);
 
+    // Small no-op to prevent unused variable diagnostics for `conversations` while it
+    // is wired up (we update it in several places but don't directly read it yet).
+    void conversations;
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-screen bg-slate-50">
@@ -477,14 +494,28 @@ const App: React.FC = () => {
                                 onNavigateToAdmin={handleNavigateToAdmin}
                             />
                         );
-                    case 'test-page':
-                        return <TestPage />;
+                    
+                    case 'ai-lead-test':
+                        return <AILeadQualificationTestPage />;
+                    case 'help-sales-chat-test':
+                        return <HelpSalesChatBotTestPage />;
+                    case 'ai-test-nav':
+                        return <AITestNavigation onNavigate={setView} currentView={view} />;
                     case 'openai-test':
-                        return <OpenAITestPage />;
+                        // Chat bots disabled: hide test page
+                        return <LandingPage 
+                            onNavigateToSignUp={handleNavigateToSignUp} 
+                            onNavigateToSignIn={handleNavigateToSignIn} 
+                            onEnterDemoMode={handleEnterDemoMode}
+                            scrollToSection={scrollToSection}
+                            onScrollComplete={() => setScrollToSection(null)}
+                            onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                            onNavigateToAdmin={handleNavigateToAdmin}
+                        />;
                     case 'admin-dashboard':
-                        return <AdminLayout currentView={view} />;
+                        return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
                     case 'admin-users': 
-                    case 'admin-ai-content': 
+                    // case 'admin-ai-content': 
                     case 'admin-knowledge-base': 
                     case 'admin-ai-personalities':
                     case 'admin-marketing': 
@@ -492,9 +523,9 @@ const App: React.FC = () => {
                     case 'admin-security': 
                     case 'admin-billing': 
                     case 'admin-settings': 
-                        return <AdminLayout currentView={view} />;
+                        return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
                     case 'admin-leads':
-                        return <AdminLayout currentView={view} />;
+                        return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
                                 case 'dashboard':
                 return <Dashboard 
                     agentProfile={userProfile} 
@@ -518,8 +549,20 @@ const App: React.FC = () => {
                         return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
                     case 'inbox': 
                         return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
-                    case 'ai-content': 
-                        return <AIChatPage properties={properties} agentProfile={userProfile} conversations={conversations} setConversations={setConversations} onBackToDashboard={() => setView('dashboard')} />;
+                    case 'ai-content':
+                        // Chat bots disabled: fall back to dashboard
+                        return <Dashboard 
+                            agentProfile={userProfile} 
+                            properties={properties} 
+                            leads={leads} 
+                            appointments={appointments} 
+                            tasks={tasks} 
+                            onSelectProperty={handleSelectProperty} 
+                            onAddNew={() => setView('add-listing')}
+                            onTaskUpdate={handleTaskUpdate}
+                            onTaskAdd={handleTaskAdd}
+                            onTaskDelete={handleTaskDelete}
+                        />;
                     case 'knowledge-base': 
                         return <KnowledgeBasePage 
                             agentProfile={userProfile}
@@ -594,7 +637,8 @@ const App: React.FC = () => {
                 return (
                     <div className="flex h-screen bg-slate-50">
                         <Suspense fallback={<LoadingSpinner />}>
-                            <AdminSidebar activeView={view} setView={setView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                            {/* cast to any to avoid prop-type mismatch between multiple View declarations in the repo */}
+                            <AdminSidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
                         </Suspense>
                         <div className="flex-1 flex flex-col overflow-hidden">
                             <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
@@ -613,7 +657,8 @@ const App: React.FC = () => {
 
             return (
                 <div className="flex h-screen bg-slate-50">
-                    <Sidebar activeView={view} setView={setView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                    {/* cast to any to avoid prop-type mismatch between multiple View declarations in the repo */}
+                    <Sidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
                     <div className="flex-1 flex flex-col overflow-hidden">
                          <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
                             <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
@@ -637,6 +682,29 @@ const App: React.FC = () => {
                             {mainContent()}
                         </main>
                     </div>
+                    
+                    {/* Chat Bot FAB for authenticated users */}
+                    <ChatBotFAB
+                        context={{
+                            userType: isDemoMode ? 'prospect' : 'client',
+                            currentPage: view,
+                            previousInteractions: 1,
+                            userInfo: {
+                                name: userProfile.name,
+                                email: userProfile.email,
+                                company: userProfile.company
+                            }
+                        }}
+                        onLeadGenerated={(leadInfo) => {
+                            console.log('Lead generated from chat:', leadInfo);
+                            // Could add to leads state or send to analytics
+                        }}
+                        onSupportTicket={(ticketInfo) => {
+                            console.log('Support ticket created from chat:', ticketInfo);
+                            // Could create actual support ticket or notification
+                        }}
+                        position="bottom-right"
+                    />
                 </div>
             );
         }
@@ -673,6 +741,17 @@ const App: React.FC = () => {
                 return <BlogPage />;
             case 'blog-post':
                 return <BlogPostPage />;
+            case 'vapi-test':
+                // Chat/voice tests disabled
+                return <LandingPage 
+                    onNavigateToSignUp={handleNavigateToSignUp} 
+                    onNavigateToSignIn={handleNavigateToSignIn} 
+                    onEnterDemoMode={handleEnterDemoMode}
+                    scrollToSection={scrollToSection}
+                    onScrollComplete={() => setScrollToSection(null)}
+                    onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                    onNavigateToAdmin={handleNavigateToAdmin}
+                />;
             case 'admin-setup':
                 // Admin setup page should be standalone, not showing modals
                 // Force close admin login modal when rendering admin setup
@@ -726,9 +805,8 @@ const App: React.FC = () => {
                 />
             )}
             
-            {/* Don't show SupportFAB on admin-setup page */}
-            {view !== 'admin-setup' && <SupportFAB onClick={() => setIsVoiceAssistantOpen(true)} />}
-            {isVoiceAssistantOpen && <VoiceAssistant onClose={() => setIsVoiceAssistantOpen(false)} />}
+            {/* Chat bots disabled */}
+
         </ErrorBoundary>
     )
 }

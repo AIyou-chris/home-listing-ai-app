@@ -1,11 +1,29 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+// Load environment variables from .env files in emulator/development
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config({ path: '.env.local' });
+  // Fallback to generic .env if present
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config();
+  // If using Firebase emulator, also try parent dir .env files
+  if (process.env.FUNCTIONS_EMULATOR === 'true') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('dotenv').config({ path: '../.env.local' });
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('dotenv').config({ path: '../.env' });
+  }
+} catch {}
 
 // Initialize Firebase Admin SDK
 admin.initializeApp();
 
 // Export the API
 export { api } from './api';
+
+// Export OpenAI/GPT-related callable functions
+export * from './openai-index';
 
 // Keep essential functions
 export const addNewUser = functions.https.onCall(async (data: any, context: any) => {
