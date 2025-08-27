@@ -174,11 +174,7 @@ const requireAdmin = async (req: express.Request, res: express.Response, next: e
 app.get('/admin/users', requireAdmin, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     if (isEmulator) {
-      const users = [
-        { id: '1', name: 'John Doe', email: 'john@example.com', role: 'agent', status: 'Active', dateJoined: '2024-01-15', lastActive: '2024-02-01', plan: 'Solo Agent', propertiesCount: 3, leadsCount: 12, aiInteractions: 45, subscriptionStatus: 'active', renewalDate: '2025-01-01' },
-        { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'admin', status: 'Active', dateJoined: '2024-01-10', lastActive: '2024-02-02', plan: 'Pro Team', propertiesCount: 8, leadsCount: 30, aiInteractions: 120, subscriptionStatus: 'active', renewalDate: '2025-01-01' },
-        { id: '3', name: 'Bob Johnson', email: 'bob@example.com', role: 'agent', status: 'Pending', dateJoined: '2024-01-20', lastActive: '2024-01-25', plan: 'Solo Agent', propertiesCount: 1, leadsCount: 5, aiInteractions: 10, subscriptionStatus: 'trial', renewalDate: '2025-01-01' }
-      ];
+      const users: any[] = [];
       res.json({ success: true, users });
       return;
     }
@@ -243,28 +239,19 @@ app.get('/admin/leads', requireAdmin, async (req: express.Request, res: express.
     if (isEmulator) {
       const leads = [
         {
-          id: 'L1',
-          name: 'Alex Carter',
-          email: 'alex@example.com',
-          phone: '+1-555-0101',
-          status: 'New',
+          id: 'L3',
+          name: 'Fred Potter',
+          email: 'fred.potter@example.com',
+          phone: '+1-555-0103',
+          status: 'Qualified',
           source: 'Website',
-          notes: 'Wants downtown condo',
+          notes: 'Interested in 4BR family home',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          lastMessage: 'Submitted contact form'
-        },
-        {
-          id: 'L2',
-          name: 'Maria Lopez',
-          email: 'maria@example.com',
-          phone: '+1-555-0102',
-          status: 'Contacted',
-          source: 'Referral',
-          notes: 'Looking for 3BR house',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          lastMessage: 'Called and left voicemail'
+          lastMessage: 'Ready to schedule showing for this weekend',
+          score: 50,
+          tier: 'Warm',
+          date: new Date().toISOString().split('T')[0]
         }
       ];
       res.json({ success: true, leads, total: leads.length });
@@ -311,6 +298,8 @@ app.post('/admin/leads', requireAdmin, async (req: express.Request, res: express
       status: status || 'New',
       source: source || 'Manual',
       notes: notes || '',
+      score: 0,
+      tier: 'Cold',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       createdBy: req.user?.uid
@@ -325,6 +314,8 @@ app.post('/admin/leads', requireAdmin, async (req: express.Request, res: express
         status: leadData.status,
         source: leadData.source,
         notes: leadData.notes,
+        score: leadData.score,
+        tier: leadData.tier,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         createdBy: leadData.createdBy
@@ -351,8 +342,8 @@ app.post('/admin/leads', requireAdmin, async (req: express.Request, res: express
 app.put('/admin/leads/:id', requireAdmin, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params as { id: string };
-    const { status, lastMessage, name, email, phone, source, notes } = req.body as {
-      status?: string; lastMessage?: string; name?: string; email?: string; phone?: string; source?: string; notes?: string;
+    const { status, lastMessage, name, email, phone, source, notes, score, tier } = req.body as {
+      status?: string; lastMessage?: string; name?: string; email?: string; phone?: string; source?: string; notes?: string; score?: number; tier?: string;
     };
 
     const update: Record<string, any> = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
@@ -363,6 +354,8 @@ app.put('/admin/leads/:id', requireAdmin, async (req: express.Request, res: expr
     if (typeof phone === 'string') update.phone = phone;
     if (typeof source === 'string') update.source = source;
     if (typeof notes === 'string') update.notes = notes;
+    if (typeof score === 'number') update.score = score;
+    if (typeof tier === 'string') update.tier = tier;
 
     if (isEmulator) {
       res.json({ success: true, lead: { id, ...update } });

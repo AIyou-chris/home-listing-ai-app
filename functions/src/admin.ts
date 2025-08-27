@@ -561,9 +561,9 @@ export const getAdminDashboardMetrics = functions.https.onCall(async (data: any,
     
     let systemHealth = {
       status: 'healthy' as 'healthy' | 'warning' | 'critical',
-      uptime: 99.9,
-      responseTime: 200,
-      errorRate: 0.1
+      uptime: 0,
+      responseTime: 0,
+      errorRate: 0
     };
 
     if (!healthSnapshot.empty) {
@@ -700,12 +700,12 @@ export const getSystemPerformanceMetrics = functions.https.onCall(async (data: a
       .limit(1)
       .get();
 
-    let responseTime = { average: 200, p95: 500, p99: 1000 };
-    let errorRate = 0.1;
-    let throughput = { requestsPerMinute: 100, requestsPerHour: 6000 };
-    let resourceUsage = { cpu: 45, memory: 60, storage: 30 };
+    let responseTime = { average: 0, p95: 0, p99: 0 };
+    let errorRate = 0;
+    let throughput = { requestsPerMinute: 0, requestsPerHour: 0 };
+    let resourceUsage = { cpu: 0, memory: 0, storage: 0 };
     let functionPerformance: any[] = [];
-    let uptime = 99.9;
+    let uptime = 0;
 
     if (!performanceSnapshot.empty) {
       const perfData = performanceSnapshot.docs[0].data();
@@ -746,36 +746,32 @@ export const getRetentionMetrics = functions.https.onCall(async (data: any, cont
       throw new functions.https.HttpsError('permission-denied', 'Admin access required');
     }
 
-    // Calculate overall retention (placeholder)
+    // Calculate overall retention (no data yet)
     const overallRetention = {
-      day1: 85,
-      day7: 65,
-      day30: 45,
-      day90: 25
+      day1: 0,
+      day7: 0,
+      day30: 0,
+      day90: 0
     };
 
-    // Generate cohort analysis (placeholder)
-    const cohortAnalysis = [
-      { cohort: '2024-01', day1: 90, day7: 70, day30: 50, day90: 30 },
-      { cohort: '2024-02', day1: 88, day7: 68, day30: 48, day90: 28 },
-      { cohort: '2024-03', day1: 92, day7: 72, day30: 52, day90: 32 }
-    ];
+    // Generate cohort analysis (no data yet)
+    const cohortAnalysis: any[] = [];
 
     // Calculate churn rate
     const churnRate = {
-      monthly: 15,
-      quarterly: 35
+      monthly: 0,
+      quarterly: 0
     };
 
     // Retention by segment
     const retentionBySegment = {
-      premium: 75,
-      standard: 45,
-      free: 25
+      premium: 0,
+      standard: 0,
+      free: 0
     };
 
     // Revenue retention
-    const revenueRetention = 85;
+    const revenueRetention = 0;
 
     return {
       overallRetention,
