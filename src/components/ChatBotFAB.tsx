@@ -52,16 +52,16 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   };
 
   const positionClasses = {
-    'bottom-right': 'bottom-6 right-6',
-    'bottom-left': 'bottom-6 left-6'
+    'bottom-right': 'bottom-4 right-4 sm:bottom-6 sm:right-6',
+    'bottom-left': 'bottom-4 left-4 sm:bottom-6 sm:left-6'
   };
 
   return (
     <>
       {/* Chat Window */}
       {isOpen && (
-        <div className={`fixed ${positionClasses[position]} z-50 ${className}`}>
-          <div className="bg-white rounded-lg shadow-2xl border border-gray-200 w-96 h-[500px] flex flex-col">
+        <div className={`fixed ${positionClasses[position]} z-50 max-w-[95vw] ${className}`}>
+          <div className="bg-white rounded-lg shadow-2xl border border-gray-200 w-[min(90vw,420px)] h-[min(80vh,640px)] sm:w-[380px] sm:h-[560px] flex flex-col pb-[env(safe-area-inset-bottom)]">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-blue-600 text-white rounded-t-lg">
               <div className="flex items-center space-x-2">
@@ -86,7 +86,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
             </div>
 
             {/* Chat Component */}
-            <div className="flex-1">
+            <div className="flex-1 min-h-0">
               <HelpSalesChatBotComponent
                 context={context}
                 onLeadGenerated={handleLeadGenerated}
