@@ -16,13 +16,37 @@ const BlogPostPage: React.FC = () => {
   const fetchPost = async (slug: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5001/home-listing-ai/us-central1/api/blog/${slug}`);
-      
-      if (!response.ok) {
-        throw new Error('Blog post not found');
+      let data: BlogPost | null = null;
+      try {
+        const response = await fetch(`http://localhost:5001/home-listing-ai/us-central1/api/blog/${slug}`);
+        if (response.ok) {
+          data = await response.json();
+        }
+      } catch {}
+
+      if (!data) {
+        const localRaw = localStorage.getItem('localBlogPosts');
+        if (localRaw) {
+          const local = (JSON.parse(localRaw) as any[]).find(p => p.slug === slug);
+          if (local) {
+            data = {
+              id: local.id,
+              title: local.title,
+              slug: local.slug,
+              content: local.content,
+              excerpt: local.excerpt,
+              author: local.author,
+              publishedAt: local.publishedAt,
+              status: 'published',
+              tags: local.tags || [],
+              imageUrl: local.imageUrl,
+              readTime: local.readTime || '4 min'
+            } as BlogPost;
+          }
+        }
       }
-      
-      const data = await response.json();
+
+      if (!data) throw new Error('Blog post not found');
       setPost(data);
     } catch (error) {
       console.error('Error fetching blog post:', error);

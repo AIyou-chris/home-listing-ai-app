@@ -23,8 +23,7 @@ export class EnvValidation {
 
   private static optionalEnvVars = [
     'VITE_DATAFINITI_API_KEY',
-    'VITE_GOOGLE_CLIENT_ID',
-    'VITE_SENTRY_DSN'
+    'VITE_GOOGLE_CLIENT_ID'
   ];
 
   static validateEnvironment(): { isValid: boolean; errors: string[]; warnings: string[] } {

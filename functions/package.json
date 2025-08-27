@@ -16,11 +16,7 @@
   },
   "main": "lib/index.js",
   "dependencies": {
-    "@google-cloud/speech": "^6.0.0",
-    "@google-cloud/text-to-speech": "^5.0.0",
     "@google/generative-ai": "^0.24.1",
-    "@paypal/paypal-server-sdk": "^1.1.0",
-    "@sendgrid/mail": "^8.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
@@ -35,7 +31,6 @@
     "pdf-parse": "^1.1.1",
     "rate-limiter-flexible": "^3.0.0",
     "sharp": "^0.33.2",
-    "stripe": "^14.0.0",
     "tesseract.js": "^5.0.4"
   },
   "devDependencies": {

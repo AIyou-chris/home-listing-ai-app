@@ -1,4 +1,3 @@
-
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
@@ -13,7 +12,9 @@ const functions = getFunctions(app, 'us-central1');
 
 // Connect to functions emulator in development
 if (import.meta.env.DEV) {
-    connectFunctionsEmulator(functions, 'localhost', 5001);
+  const port = Number(import.meta.env.VITE_FUNCTIONS_EMULATOR_PORT || 5001);
+  connectFunctionsEmulator(functions, 'localhost', port);
 }
 
-export { auth, db, functions };
+// Export initialized SDK instances (app exported to support services needing it)
+export { app, auth, db, functions };

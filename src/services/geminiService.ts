@@ -318,6 +318,7 @@ export const generateBlogPost = async (options: {
     style: string;
     audience: string;
     cta: string;
+    urls?: string[];
 }): Promise<AIBlogPost> => {
      try {
         const result = await generateBlogPostFunction({ options });

@@ -38,6 +38,99 @@ app.use(cors({
 // Handle preflight requests explicitly
 app.options('*', cors());
 
+// Helpers
+const toSlug = (text: string): string => {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+};
+
+// Blog API
+app.post('/blog', async (req, res) => {
+  try {
+    const { title, content, excerpt, author, tags, imageUrl } = req.body || {};
+    if (!title || !content) {
+      res.status(400).json({ error: 'Missing title or content' });
+      return;
+    }
+
+    let baseSlug = toSlug(title);
+    let slug = baseSlug;
+    let i = 1;
+    while (true) {
+      const existing = await db.collection('blogPosts').where('slug', '==', slug).limit(1).get();
+      if (existing.empty) break;
+      slug = `${baseSlug}-${++i}`;
+    }
+
+    const doc = {
+      title,
+      slug,
+      content,
+      excerpt: excerpt || String(content).replace(/<[^>]+>/g, '').slice(0, 180) + '...',
+      author: author || 'HomeListingAI',
+      publishedAt: new Date().toISOString(),
+      status: 'published',
+      tags: Array.isArray(tags) ? tags : [],
+      imageUrl: imageUrl || null,
+      readTime: '4 min'
+    };
+
+    const ref = await db.collection('blogPosts').add(doc);
+    res.json({ id: ref.id, ...doc });
+  } catch (error: any) {
+    console.error('POST /blog error', error);
+    res.status(500).json({ error: 'Failed to create blog post' });
+  }
+});
+
+app.get('/blog', async (req, res) => {
+  try {
+    const page = parseInt(String(req.query.page || '1')) || 1;
+    const limit = parseInt(String(req.query.limit || '6')) || 6;
+    const search = String(req.query.search || '').trim().toLowerCase();
+    const tag = String(req.query.tag || '').trim().toLowerCase();
+
+    let snap = await db.collection('blogPosts').orderBy('publishedAt', 'desc').get();
+    let posts = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+
+    if (search) {
+      posts = posts.filter(p =>
+        p.title?.toLowerCase().includes(search) ||
+        p.excerpt?.toLowerCase().includes(search)
+      );
+    }
+    if (tag) {
+      posts = posts.filter(p => Array.isArray(p.tags) && p.tags.map((t: string) => t.toLowerCase()).includes(tag));
+    }
+
+    const totalPages = Math.max(1, Math.ceil(posts.length / limit));
+    const start = (page - 1) * limit;
+    const paged = posts.slice(start, start + limit);
+    res.json({ posts: paged, totalPages });
+  } catch (error: any) {
+    console.error('GET /blog error', error);
+    res.status(500).json({ error: 'Failed to fetch blog posts' });
+  }
+});
+
+app.get('/blog/:slug', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const snap = await db.collection('blogPosts').where('slug', '==', slug).limit(1).get();
+    if (snap.empty) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    const doc = snap.docs[0];
+    res.json({ id: doc.id, ...(doc.data() as any) });
+  } catch (error: any) {
+    console.error('GET /blog/:slug error', error);
+    res.status(500).json({ error: 'Failed to fetch blog post' });
+  }
+});
+
 app.use(express.json());
 
 // Middleware to verify admin access
@@ -147,6 +240,37 @@ app.post('/admin/users', requireAdmin, async (req: express.Request, res: express
 // Admin leads endpoints
 app.get('/admin/leads', requireAdmin, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
+    if (isEmulator) {
+      const leads = [
+        {
+          id: 'L1',
+          name: 'Alex Carter',
+          email: 'alex@example.com',
+          phone: '+1-555-0101',
+          status: 'New',
+          source: 'Website',
+          notes: 'Wants downtown condo',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastMessage: 'Submitted contact form'
+        },
+        {
+          id: 'L2',
+          name: 'Maria Lopez',
+          email: 'maria@example.com',
+          phone: '+1-555-0102',
+          status: 'Contacted',
+          source: 'Referral',
+          notes: 'Looking for 3BR house',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastMessage: 'Called and left voicemail'
+        }
+      ];
+      res.json({ success: true, leads, total: leads.length });
+      return;
+    }
+
     const leadsSnapshot = await db.collection('leads')
       .orderBy('createdAt', 'desc')
       .limit(100)
@@ -192,6 +316,23 @@ app.post('/admin/leads', requireAdmin, async (req: express.Request, res: express
       createdBy: req.user?.uid
     };
 
+    if (isEmulator) {
+      const createdLead = {
+        id: `L${Date.now()}`,
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone,
+        status: leadData.status,
+        source: leadData.source,
+        notes: leadData.notes,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: leadData.createdBy
+      };
+      res.json({ success: true, lead: createdLead });
+      return;
+    }
+
     const leadRef = await db.collection('leads').add(leadData);
     const createdSnap = await leadRef.get();
     const createdLead = { id: leadRef.id, ...createdSnap.data() };
@@ -223,6 +364,11 @@ app.put('/admin/leads/:id', requireAdmin, async (req: express.Request, res: expr
     if (typeof source === 'string') update.source = source;
     if (typeof notes === 'string') update.notes = notes;
 
+    if (isEmulator) {
+      res.json({ success: true, lead: { id, ...update } });
+      return;
+    }
+
     await db.collection('leads').doc(id).set(update, { merge: true });
     const snap = await db.collection('leads').doc(id).get();
     res.json({ success: true, lead: { id, ...snap.data() } });
@@ -236,6 +382,10 @@ app.put('/admin/leads/:id', requireAdmin, async (req: express.Request, res: expr
 app.delete('/admin/leads/:id', requireAdmin, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params as { id: string };
+    if (isEmulator) {
+      res.json({ success: true });
+      return;
+    }
     await db.collection('leads').doc(id).delete();
     res.json({ success: true });
   } catch (error) {

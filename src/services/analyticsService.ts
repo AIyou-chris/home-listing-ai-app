@@ -144,6 +144,34 @@ export interface RealTimeData {
 	};
 }
 
+// Generic callable response shapes used by frontend consumers
+export interface CalculateMetricsResult {
+	success: boolean;
+	metrics?: any;
+	message?: string;
+	data?: any;
+}
+
+export interface GenerateReportResult {
+	success: boolean;
+	reportId?: string;
+	reportType?: string;
+	content?: string;
+	data?: any;
+	generatedAt?: string;
+}
+
+export interface ExportDataResult {
+	success: boolean;
+	data?: any;
+	message?: string;
+}
+
+export interface TrackInteractionResult {
+	success: boolean;
+	data?: any;
+}
+
 // Analytics Service for tracking interactions and generating reports
 export class AnalyticsService {
 	private static instance: AnalyticsService;
@@ -174,7 +202,7 @@ export class AnalyticsService {
 				...data,
 				timestamp: data.timestamp?.toISOString()
 			});
-			return result.data;
+			return result.data as TrackInteractionResult;
 		} catch (error) {
 			console.error('Error tracking interaction:', error);
 			throw error;
@@ -192,7 +220,7 @@ export class AnalyticsService {
 		try {
 			const calculateMetricsFunction = httpsCallable(this.functions, 'calculateMetrics');
 			const result = await calculateMetricsFunction(data);
-			return result.data;
+			return result.data as CalculateMetricsResult;
 		} catch (error) {
 			console.error('Error calculating metrics:', error);
 			throw error;
@@ -212,7 +240,7 @@ export class AnalyticsService {
 		try {
 			const generateReportFunction = httpsCallable(this.functions, 'generateReport');
 			const result = await generateReportFunction(data);
-			return result.data;
+			return result.data as GenerateReportResult;
 		} catch (error) {
 			console.error('Error generating report:', error);
 			throw error;
@@ -236,7 +264,7 @@ export class AnalyticsService {
 		try {
 			const exportDataFunction = httpsCallable(this.functions, 'exportData');
 			const result = await exportDataFunction(data);
-			return result.data;
+			return result.data as ExportDataResult;
 		} catch (error) {
 			console.error('Error exporting data:', error);
 			throw error;
@@ -433,10 +461,11 @@ export class AnalyticsService {
 			});
 
 			// Create and download file
-			if (format === 'csv' && typeof exportResult.data === 'string') {
-				this.downloadCSV(exportResult.data, `report_${reportId}.csv`);
+			const payload = exportResult.data ?? exportResult;
+			if (format === 'csv' && typeof payload === 'string') {
+				this.downloadCSV(payload, `report_${reportId}.csv`);
 			} else if (format === 'excel') {
-				this.downloadExcel(exportResult.data, `report_${reportId}.xlsx`);
+				this.downloadExcel(payload, `report_${reportId}.xlsx`);
 			}
 
 			return exportResult;
@@ -527,11 +556,11 @@ export class AnalyticsService {
 	// ===== REAL-TIME LISTENERS =====
 
 	// Listen to real-time user activity
-	listenToUserActivity(callback: (data: any) => void, limit: number = 50): () => void {
+	listenToUserActivity(callback: (data: any) => void, maxResults: number = 50): () => void {
 		const q = query(
 			collection(db, 'userInteractions'),
 			orderBy('timestamp', 'desc'),
-			limit(limit)
+			limit(maxResults)
 		);
 
 		const unsubscribe = onSnapshot(q, (snapshot) => {

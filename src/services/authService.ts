@@ -620,16 +620,17 @@ export class AuthService {
 
     // Make authenticated API request
     async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
+        const isLocalApi = url.startsWith('http://localhost:5001/') || url.startsWith('http://127.0.0.1:5001/');
         const token = await this.getAuthToken();
-        if (!token) {
+        if (!token && !isLocalApi) {
             throw new Error('No authentication token available');
         }
 
         const headers = {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             ...options.headers
-        };
+        } as Record<string, string>;
 
         return fetch(url, {
             ...options,

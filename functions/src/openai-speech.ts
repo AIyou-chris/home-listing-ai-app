@@ -19,7 +19,10 @@ export const transcribeVoice = functions.https.onCall(async (data: any, context)
         }
         
         const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY
+            apiKey: process.env.OPENAI_API_KEY,
+            organization: process.env.OPENAI_ORG || process.env.OPENAI_ORGANIZATION,
+            project: process.env.OPENAI_PROJECT,
+            baseURL: process.env.OPENAI_BASE_URL || undefined
         });
         
         console.log("transcribeVoice: Calling OpenAI Whisper API");
@@ -75,7 +78,10 @@ export const transcribeVoiceHttp = functions.https.onRequest(async (req: any, re
         }
         
         const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY
+            apiKey: process.env.OPENAI_API_KEY,
+            organization: process.env.OPENAI_ORG || process.env.OPENAI_ORGANIZATION,
+            project: process.env.OPENAI_PROJECT,
+            baseURL: process.env.OPENAI_BASE_URL || undefined
         });
         
         console.log("transcribeVoiceHttp: Calling OpenAI Whisper API");
@@ -106,66 +112,87 @@ export const transcribeVoiceHttp = functions.https.onRequest(async (req: any, re
 export const generateSpeech = functions.https.onCall(async (data: any, context) => {
     try {
         console.log("generateSpeech: Function started with OpenAI");
-        
+
+        // Normalize payload shape to tolerate SDK/emulator differences
+        const payload = (data && typeof data === 'object')
+            ? (('text' in data)
+                ? data
+                : (data && (data as any).data && 'text' in (data as any).data
+                    ? (data as any).data
+                    : {}))
+            : {};
+        try {
+            console.log(
+                'generateSpeech: payload keys:',
+                Object.keys(payload as Record<string, unknown>)
+            );
+        } catch {}
+
         // Validate data parameter
-        if (!data) {
-            console.error("generateSpeech: No data provided");
-            throw new functions.https.HttpsError("invalid-argument", "No data provided");
+        if (!payload || typeof payload !== 'object') {
+            console.error('generateSpeech: No data/payload provided');
+            throw new functions.https.HttpsError('invalid-argument', 'No data provided');
         }
-        
+
+        // Extract values
+        const text = (payload as any).text;
+        const voice = (payload as any).voice || 'alloy'; // Default voice
+
         // Validate text parameter
-        if (!data.text || typeof data.text !== 'string' || data.text.trim() === '') {
-            console.error("generateSpeech: Invalid or missing text", data);
-            throw new functions.https.HttpsError("invalid-argument", "Text must be a non-empty string");
+        if (!text || typeof text !== 'string' || text.trim() === '') {
+            console.error('generateSpeech: Invalid or missing text', payload);
+            throw new functions.https.HttpsError('invalid-argument', 'Text must be a non-empty string');
         }
-        
-        const { text } = data;
-        const voice = data.voice || "alloy"; // Default voice
-        
+
         // Log text for debugging (truncated to avoid huge logs)
-        console.log("generateSpeech: Text to convert (truncated):", 
-            text.substring(0, 100) + (text.length > 100 ? "..." : ""));
-        
+        console.log(
+            'generateSpeech: Text to convert (truncated):',
+            text.substring(0, 100) + (text.length > 100 ? '...' : '')
+        );
+
         // Check API key configuration
         if (!process.env.OPENAI_API_KEY) {
-            console.error("generateSpeech: OpenAI API key is not configured");
-            throw new functions.https.HttpsError("failed-precondition", "AI service is not properly configured");
+            console.error('generateSpeech: OpenAI API key is not configured');
+            throw new functions.https.HttpsError('failed-precondition', 'AI service is not properly configured');
         }
-        
+
         // Initialize OpenAI client
         const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY
+            apiKey: process.env.OPENAI_API_KEY,
+            organization: process.env.OPENAI_ORG || process.env.OPENAI_ORGANIZATION,
+            project: process.env.OPENAI_PROJECT,
+            baseURL: process.env.OPENAI_BASE_URL || undefined
         });
-        
-        console.log("generateSpeech: OpenAI client initialized");
-        
+
+        console.log('generateSpeech: OpenAI client initialized');
+
         try {
-            console.log("generateSpeech: Calling OpenAI TTS API");
-            
+            console.log('generateSpeech: Calling OpenAI TTS API');
+
             // Call OpenAI API for text-to-speech with the latest model
             const mp3Response = await openai.audio.speech.create({
-                model: "tts-1-hd", // Using the high-definition model for better quality
+                model: 'tts-1-hd', // Using the high-definition model for better quality
                 voice: voice,
                 input: text,
                 speed: 1.0, // Normal speed
-                response_format: "mp3", // Specify mp3 format explicitly
+                response_format: 'mp3', // Specify mp3 format explicitly
             });
-            
-            console.log("generateSpeech: OpenAI TTS response received");
-            
+
+            console.log('generateSpeech: OpenAI TTS response received');
+
             // Get the audio buffer
             const buffer = Buffer.from(await mp3Response.arrayBuffer());
-            
+
             // Generate a unique filename
             const filename = `speech_${Date.now()}.mp3`;
             const bucket = admin.storage().bucket();
             const file = bucket.file(`speech/${filename}`);
-            
+
             // Create a stream from the buffer
             const stream = new Readable();
             stream.push(buffer);
             stream.push(null);
-            
+
             // Upload to Firebase Storage
             await new Promise<void>((resolve, reject) => {
                 stream
@@ -177,48 +204,48 @@ export const generateSpeech = functions.https.onCall(async (data: any, context) 
                     .on('error', reject)
                     .on('finish', resolve);
             });
-            
+
             // Make the file publicly accessible
             await file.makePublic();
-            
+
             // Get the public URL
             const audioUrl = `https://storage.googleapis.com/${bucket.name}/${file.name}`;
-            
-            console.log("generateSpeech: Audio file uploaded to:", audioUrl);
-            
-            return { 
+
+            console.log('generateSpeech: Audio file uploaded to:', audioUrl);
+
+            return {
                 success: true,
                 audioUrl,
                 duration: buffer.length / 1024, // Rough estimate of duration in seconds
             };
         } catch (ttsError) {
-            console.error("generateSpeech: OpenAI TTS-HD API error:", ttsError);
-            
+            console.error('generateSpeech: OpenAI TTS-HD API error:', ttsError);
+
             // Try with standard TTS model as fallback
             try {
-                console.log("generateSpeech: Trying fallback to standard TTS model");
-                
+                console.log('generateSpeech: Trying fallback to standard TTS model');
+
                 const fallbackMp3Response = await openai.audio.speech.create({
-                    model: "tts-1", // Standard model as fallback
+                    model: 'tts-1', // Standard model as fallback
                     voice: voice,
                     input: text,
                 });
-                
-                console.log("generateSpeech: Fallback TTS response received");
-                
+
+                console.log('generateSpeech: Fallback TTS response received');
+
                 // Get the audio buffer
                 const buffer = Buffer.from(await fallbackMp3Response.arrayBuffer());
-                
+
                 // Generate a unique filename
                 const filename = `speech_fallback_${Date.now()}.mp3`;
                 const bucket = admin.storage().bucket();
                 const file = bucket.file(`speech/${filename}`);
-                
+
                 // Create a stream from the buffer
                 const stream = new Readable();
                 stream.push(buffer);
                 stream.push(null);
-                
+
                 // Upload to Firebase Storage
                 await new Promise<void>((resolve, reject) => {
                     stream
@@ -230,35 +257,35 @@ export const generateSpeech = functions.https.onCall(async (data: any, context) 
                         .on('error', reject)
                         .on('finish', resolve);
                 });
-                
+
                 // Make the file publicly accessible
                 await file.makePublic();
-                
+
                 // Get the public URL
                 const audioUrl = `https://storage.googleapis.com/${bucket.name}/${file.name}`;
-                
-                console.log("generateSpeech: Fallback audio file uploaded to:", audioUrl);
-                
-                return { 
+
+                console.log('generateSpeech: Fallback audio file uploaded to:', audioUrl);
+
+                return {
                     success: true,
                     audioUrl,
                     duration: buffer.length / 1024, // Rough estimate of duration in seconds
                     fallback: true // Indicate that this is a fallback response
                 };
             } catch (fallbackError) {
-                console.error("generateSpeech: Fallback TTS also failed:", fallbackError);
+                console.error('generateSpeech: Fallback TTS also failed:', fallbackError);
                 throw new functions.https.HttpsError(
-                    "internal", 
-                    "Speech generation failed with all models: " + 
+                    'internal',
+                    'Speech generation failed with all models: ' +
                     (ttsError instanceof Error ? ttsError.message : String(ttsError))
                 );
             }
         }
     } catch (error) {
-        console.error("generateSpeech: Speech generation error:", error);
+        console.error('generateSpeech: Speech generation error:', error);
         throw new functions.https.HttpsError(
-            "internal", 
-            "Failed to generate speech: " + 
+            'internal',
+            'Failed to generate speech: ' +
             (error instanceof Error ? error.message : String(error))
         );
     }

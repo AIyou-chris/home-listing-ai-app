@@ -14,23 +14,45 @@ const propertiesCollection = db.collection('properties');
 export const continueConversation = functions.https.onCall(async (data: any, context) => {
     try {
         console.log("continueConversation: Function started with OpenAI");
-        console.log("continueConversation: Raw data received:", JSON.stringify(data, null, 2));
+        // Normalize payload shape to tolerate SDK differences
+        const payload = (data && typeof data === 'object')
+            ? (('messages' in data) ? data
+               : (data && (data as any).data && 'messages' in (data as any).data
+                  ? (data as any).data
+                  : {}))
+            : {};
+        // Safe logging
+        try {
+            console.log(
+                "continueConversation: Payload keys:",
+                Object.keys(payload as Record<string, unknown>)
+            );
+            const sample = Array.isArray((payload as any).messages)
+                ? (payload as any).messages.slice(0,1)
+                : [];
+            console.log(
+                "continueConversation: messages present:",
+                Array.isArray((payload as any).messages),
+                "len:", Array.isArray((payload as any).messages) ? (payload as any).messages.length : 0,
+                "first:", JSON.stringify(sample)
+            );
+        } catch {}
         
         // Validate data parameter
-        if (!data) {
+        if (!payload) {
             console.error("continueConversation: No data provided");
             throw new functions.https.HttpsError("invalid-argument", "No data provided");
         }
         
         // Validate messages parameter
-        if (!data.messages || !Array.isArray(data.messages) || data.messages.length === 0) {
-            console.error("continueConversation: Invalid or missing messages array", data);
+        if (!(payload as any).messages || !Array.isArray((payload as any).messages) || (payload as any).messages.length === 0) {
+            console.error("continueConversation: Invalid or missing messages array");
             console.error("continueConversation: data.messages type:", typeof data.messages);
             console.error("continueConversation: data.messages value:", data.messages);
             throw new functions.https.HttpsError("invalid-argument", "Messages must be a non-empty array");
         }
         
-        const { messages } = data;
+        const { messages } = payload as { messages: Array<{ sender: string; text: string }> };
         
         // Log first message for debugging (truncated to avoid huge logs)
         console.log("continueConversation: First message:", 
@@ -43,15 +65,25 @@ export const continueConversation = functions.https.onCall(async (data: any, con
             textPreview: msg.text ? msg.text.substring(0, 50) : 'undefined'
         })));
         
-        // Check API key configuration
+        // Check API key configuration (allow emulator fallback)
+        const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
         if (!process.env.OPENAI_API_KEY) {
+            if (isEmulator) {
+                console.warn("continueConversation: No OPENAI_API_KEY in emulator — returning dev echo response");
+                const lastUser = [...messages].reverse().find(m => m.sender === 'user');
+                const echo = lastUser?.text || 'Hello! How can I help?';
+                return { text: `Dev (echo): ${echo}` };
+            }
             console.error("continueConversation: OpenAI API key is not configured");
             throw new functions.https.HttpsError("failed-precondition", "AI service is not properly configured");
         }
         
         // Initialize OpenAI client
         const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY
+            apiKey: process.env.OPENAI_API_KEY,
+            organization: process.env.OPENAI_ORG || process.env.OPENAI_ORGANIZATION,
+            project: process.env.OPENAI_PROJECT,
+            baseURL: process.env.OPENAI_BASE_URL || undefined
         });
         
         console.log("continueConversation: OpenAI client initialized");
@@ -66,103 +98,114 @@ export const continueConversation = functions.https.onCall(async (data: any, con
         
         // Convert messages to OpenAI format
         const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-            // System message to set the context
+            // Enhanced system message for real estate context
             {
                 role: "system",
-                content: "You are a helpful AI assistant for a real estate app. Provide concise, accurate, and helpful responses about properties, real estate, and related topics."
+                content: `You are an expert real estate AI assistant with deep knowledge of property markets, home buying/selling processes, and client needs. Your expertise includes:
+
+CORE COMPETENCIES:
+- Property valuation and market analysis
+- Lead qualification and client needs assessment
+- Home buying/selling process guidance
+- Mortgage and financing advice
+- Neighborhood and location insights
+- Property features and benefits explanation
+- Investment property analysis
+- First-time buyer education
+
+COMMUNICATION STYLE:
+- Professional yet approachable and conversational
+- Ask clarifying questions to better understand client needs
+- Provide specific, actionable advice
+- Use real estate terminology appropriately
+- Be empathetic to client concerns and emotions
+- Focus on building trust and demonstrating expertise
+
+RESPONSE GUIDELINES:
+- Keep responses concise but comprehensive (2-4 sentences typically)
+- Always prioritize the client's best interests
+- When you don't know specific local market data, acknowledge this and suggest consulting local resources
+- Encourage next steps that move the client forward in their real estate journey
+- Extract and remember key client information for personalized responses
+
+Remember: You're not just answering questions - you're helping people make one of the biggest decisions of their lives. Be helpful, trustworthy, and solution-oriented.`
             },
             // User conversation history
-            ...messages.map((msg: { sender: string; text: string }) => ({
-                role: msg.sender === 'user' ? 'user' : 'assistant' as const,
-                content: msg.text
-            }))
+            ...messages.map((msg: { sender: string; text: string }) => {
+                const role: 'user' | 'assistant' = msg.sender === 'user' ? 'user' : 'assistant';
+                return { role, content: msg.text };
+            })
         ];
         
         console.log("continueConversation: Messages formatted for OpenAI, count:", openaiMessages.length);
         
         try {
-            console.log("continueConversation: Calling OpenAI API");
-            
-            // Call OpenAI API with GPT-5
-            const params: any = {
-                model: "gpt-5", // Using GPT-5, can fallback to "gpt-4" or "gpt-3.5-turbo" if needed
+            console.log("continueConversation: Calling OpenAI API (gpt-5-mini)");
+            const completion = await openai.chat.completions.create({
+                model: "gpt-5-mini",
                 messages: openaiMessages,
-                max_completion_tokens: 1024, // Use max_completion_tokens for GPT-5
-                // GPT-5 only supports default temperature (1)
-            };
-            
-            const completion = await openai.chat.completions.create(params);
-            
-            console.log("continueConversation: OpenAI response received");
-            
-            // Extract the response text
+                max_completion_tokens: 1024,
+                temperature: 0.7
+            });
             const responseText = completion.choices[0]?.message?.content;
-            
-            if (!responseText) {
-                console.error("continueConversation: Empty response from OpenAI API");
-                throw new Error("Empty response from OpenAI API");
-            }
-            
-            console.log("continueConversation: Response text length:", responseText.length);
-            console.log("continueConversation: Returning successful response");
-            
+            if (!responseText) throw new Error("Empty response from gpt-5-mini");
             return { text: responseText };
         } catch (aiError) {
-            console.error("continueConversation: OpenAI API error:", aiError);
+            console.error(
+                "continueConversation: OpenAI API error:",
+                aiError instanceof Error ? aiError.message : String(aiError)
+            );
             
-            // Try with GPT-4 as fallback if GPT-5 fails
+            // Fallbacks: gpt-5 → gpt-4-turbo → o1-mini → echo
             try {
-                console.log("continueConversation: Trying fallback to GPT-4");
-                
-                const fallbackCompletion = await openai.chat.completions.create({
-                    model: "gpt-4",
+                console.log("continueConversation: Trying fallback to gpt-5");
+                const m5 = await openai.chat.completions.create({
+                    model: "gpt-5",
                     messages: openaiMessages,
                     temperature: 0.7,
-                    max_tokens: 1024,
+                    max_completion_tokens: 1024
                 });
-                
-                const fallbackResponseText = fallbackCompletion.choices[0]?.message?.content;
-                
-                if (!fallbackResponseText) {
-                    throw new Error("Empty response from fallback OpenAI API");
-                }
-                
-                console.log("continueConversation: Fallback to GPT-4 successful, response length:", fallbackResponseText.length);
-                
-                return { text: fallbackResponseText };
-            } catch (fallbackError) {
-                // Try with GPT-3.5 as a second fallback
+                const t5 = m5.choices[0]?.message?.content;
+                if (t5) return { text: t5 };
+                throw new Error("Empty response from gpt-5");
+            } catch (e5) {
                 try {
-                    console.log("continueConversation: Trying second fallback to GPT-3.5-turbo");
-                    
-                    const secondFallbackCompletion = await openai.chat.completions.create({
-                        model: "gpt-3.5-turbo",
+                    console.log("continueConversation: Trying fallback to gpt-4-turbo");
+                    const m4t = await openai.chat.completions.create({
+                        model: "gpt-4-turbo",
                         messages: openaiMessages,
                         temperature: 0.7,
-                        max_tokens: 1024,
+                        max_tokens: 1024
                     });
-                    
-                    const secondFallbackResponseText = secondFallbackCompletion.choices[0]?.message?.content;
-                    
-                    if (!secondFallbackResponseText) {
-                        throw new Error("Empty response from second fallback OpenAI API");
+                    const t4t = m4t.choices[0]?.message?.content;
+                    if (t4t) return { text: t4t };
+                    throw new Error("Empty response from gpt-4-turbo");
+                } catch (e4t) {
+                    try {
+                        console.log("continueConversation: Trying fallback to o1-mini");
+                        const m1m = await openai.chat.completions.create({
+                            model: "o1-mini",
+                            messages: openaiMessages,
+                            temperature: 0.7,
+                            max_tokens: 1024
+                        });
+                        const t1m = m1m.choices[0]?.message?.content;
+                        if (t1m) return { text: t1m };
+                        throw new Error("Empty response from o1-mini");
+                    } catch (e1m) {
+                        const lastUser = [...messages].reverse().find(m => m.sender === 'user');
+                        const echo = lastUser?.text || 'Hello! How can I help?';
+                        console.warn("continueConversation: All models unavailable, returning echo");
+                        return { text: `Echo: ${echo}` };
                     }
-                    
-                    console.log("continueConversation: Second fallback successful, response length:", secondFallbackResponseText.length);
-                    
-                    return { text: secondFallbackResponseText };
-                } catch (secondFallbackError) {
-                    console.error("continueConversation: All fallbacks failed:", secondFallbackError);
-                    throw new functions.https.HttpsError(
-                        "internal", 
-                        "AI service failed to generate a response with any model: " + 
-                        (aiError instanceof Error ? aiError.message : String(aiError))
-                    );
                 }
             }
         }
     } catch (error) {
-        console.error("continueConversation: Conversation error:", error);
+        console.error(
+            "continueConversation: Conversation error:",
+            error instanceof Error ? error.message : String(error)
+        );
         throw new functions.https.HttpsError(
             "internal", 
             "Failed to continue conversation: " + 
@@ -206,23 +249,24 @@ export const voiceChatResponse = functions.https.onCall(async (data: any, contex
             }
         ];
 
-        console.log("voiceChatResponse: Calling OpenAI GPT-5.0");
+        console.log("voiceChatResponse: Calling OpenAI GPT-4");
 
         try {
-            // Try GPT-5.0 first
+            // Try GPT-4 first
             const completion = await openai.chat.completions.create({
-                model: "gpt-5",
+                model: "gpt-4",
                 messages: messages,
-                max_completion_tokens: 1024
+                max_tokens: 1024,
+                temperature: 0.7
             });
 
             const responseText = completion.choices[0]?.message?.content;
             if (responseText) {
-                console.log("voiceChatResponse: GPT-5.0 response successful");
+                console.log("voiceChatResponse: GPT-4 response successful");
                 return { text: responseText };
             }
-        } catch (gpt5Error) {
-            console.log("voiceChatResponse: GPT-5.0 failed, trying GPT-4.0 mini fallback");
+        } catch (gpt4Error) {
+            console.log("voiceChatResponse: GPT-4 failed, trying GPT-4o-mini fallback");
             
             try {
                 // Fallback to GPT-4.0 mini
@@ -235,11 +279,11 @@ export const voiceChatResponse = functions.https.onCall(async (data: any, contex
 
                 const fallbackResponseText = fallbackCompletion.choices[0]?.message?.content;
                 if (fallbackResponseText) {
-                    console.log("voiceChatResponse: GPT-4.0 mini fallback successful");
+                    console.log("voiceChatResponse: GPT-4o-mini fallback successful");
                     return { text: fallbackResponseText };
                 }
             } catch (fallbackError) {
-                console.error("voiceChatResponse: Both GPT-5.0 and GPT-4.0 mini failed");
+                console.error("voiceChatResponse: Both GPT-4 and GPT-4o-mini failed");
                 throw new functions.https.HttpsError("internal", "Failed to get AI response from both models");
             }
         }

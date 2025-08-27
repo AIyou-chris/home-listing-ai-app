@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAdminModal } from '../context/AdminModalContext';
+import { AdminModals } from './AdminModals';
 import { View, User, Lead, LeadStatus, SequenceStep } from '../types';
 import AdminDashboard from './AdminDashboard';
 import ExportModal from './ExportModal';
@@ -12,7 +14,17 @@ interface AdminLayoutProps {
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
   const { openScheduler } = useScheduler();
-  const [googleConnected, setGoogleConnected] = useState<boolean>(false);
+  // Use centralized modal context
+  const {
+    setShowAddUserModal,
+    setShowEditUserModal,
+    setEditingUser,
+    setEditUserForm,
+    setShowAddLeadModal,
+    setShowEditLeadModal,
+    setEditingLead,
+    setEditLeadForm
+  } = useAdminModal();  const [googleConnected, setGoogleConnected] = useState<boolean>(false);
 
   useEffect(() => {
     // Lightweight check on mount
@@ -22,32 +34,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
   }, []);
   const [users, setUsers] = useState<User[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [newUserForm, setNewUserForm] = useState({
-    name: '',
-    email: '',
-    role: 'agent',
-    plan: 'Solo Agent'
-  });
 
   // Edit user state (for Users tab actions)
-  const [showEditUserModal, setShowEditUserModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editUserForm, setEditUserForm] = useState<{
-    name: string;
-    email: string;
-    role: User['role'];
-    plan: User['plan'];
-  }>({
-    name: '',
-    email: '',
-    role: 'agent',
-    plan: 'Solo Agent'
-  });
 
 
 
-  const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+
   const [newLeadForm, setNewLeadForm] = useState({
     name: '',
     email: '',
@@ -1432,7 +1424,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       </div>
                     ))
                   )}
-                    </>
+
+      {/* Centralized Modals */}
+      <AdminModals
+        users={users}
+        leads={leads}
+        onAddUser={handleAddUser}
+        onEditUser={handleEditUser}
+        onAddLead={handleAddLead}
+        onEditLead={handleEditLead}
+      />                    </>
                   )}
                   
                   {activeLeadsTab === 'appointments' && (
@@ -1515,7 +1516,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           </div>
                         ))
                       )}
-                    </>
+
+      {/* Centralized Modals */}
+      <AdminModals
+        users={users}
+        leads={leads}
+        onAddUser={handleAddUser}
+        onEditUser={handleEditUser}
+        onAddLead={handleAddLead}
+        onEditLead={handleEditLead}
+      />                    </>
                   )}
                   
                   {activeLeadsTab === 'scoring' && (
@@ -1651,7 +1661,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           )}
                         </div>
                       </div>
-                    </>
+
+      {/* Centralized Modals */}
+      <AdminModals
+        users={users}
+        leads={leads}
+        onAddUser={handleAddUser}
+        onEditUser={handleEditUser}
+        onAddLead={handleAddLead}
+        onEditLead={handleEditLead}
+      />                    </>
                   )}
                 </div>
               </main>
@@ -1664,7 +1683,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 appointments={[]}
               />
             )}
-          </>
+
+      {/* Centralized Modals */}
+      <AdminModals
+        users={users}
+        leads={leads}
+        onAddUser={handleAddUser}
+        onEditUser={handleEditUser}
+        onAddLead={handleAddLead}
+        onEditLead={handleEditLead}
+      />          </>
         );
       case 'admin-ai-content':
         return (
@@ -2526,6 +2554,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     </div>
 
 
+
+                    {/* INSERTED: Custom content goes here, right after marketing data row in Follow-up Sequences section */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="text-sm text-yellow-800">Custom content placeholder — add your component or markup here.</div>
+                    </div>
 
                     {!marketingDataLoaded ? (
                       <div className="text-center py-20">
@@ -5630,7 +5663,16 @@ Best regards,`}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
                     />
                   </div>
-                </>
+
+      {/* Centralized Modals */}
+      <AdminModals
+        users={users}
+        leads={leads}
+        onAddUser={handleAddUser}
+        onEditUser={handleEditUser}
+        onAddLead={handleAddLead}
+        onEditLead={handleEditLead}
+      />                </>
               )}
               
               {activeContactTab === 'call' && (
@@ -6614,7 +6656,16 @@ Best regards,`}
           </div>
         </div>
       )}
-    </>
+
+      {/* Centralized Modals */}
+      <AdminModals
+        users={users}
+        leads={leads}
+        onAddUser={handleAddUser}
+        onEditUser={handleEditUser}
+        onAddLead={handleAddLead}
+        onEditLead={handleEditLead}
+      />    </>
   );
 };
 

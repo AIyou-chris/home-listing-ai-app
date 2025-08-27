@@ -234,7 +234,8 @@ export const ListingAppModals: React.FC<ListingAppModalsProps> = ({ activeModal,
     case 'share':
       return <ShareModal onClose={onClose} />;
     case 'voice':
-      return <VoiceAssistantModal property={property} onClose={onClose} />;
+      // Voice chat disabled
+      return null;
     default:
       return null;
   }

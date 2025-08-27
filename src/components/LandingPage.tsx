@@ -3,7 +3,8 @@ import { LogoWithName } from './LogoWithName';
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
 import { Property, isAIDescription } from '../types';
 import { ListingAppModals } from './ListingAppModals';
-import VoiceChat from './VoiceChat';
+import ChatBotFAB from './ChatBotFAB';
+
 
 type ModalType = 'schools' | 'financing' | 'schedule' | 'save' | 'share' | 'voice' | null;
 
@@ -1656,7 +1657,7 @@ interface LandingPageProps {
 
 const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin }) => {
     const [activeModal, setActiveModal] = useState<ModalType>(null);
-    const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
+
     // Use a real property from demo data for the interactive embed
     const propertyForDemo = DEMO_FAT_PROPERTIES[0]; 
 
@@ -1690,6 +1691,25 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
             </main>
             <FooterNew onNavigateToAdmin={onNavigateToAdmin} />
+            
+            {/* Chat Bot FAB for visitors */}
+            <ChatBotFAB
+                context={{
+                    userType: 'visitor',
+                    currentPage: 'landing',
+                    previousInteractions: 0,
+                    userInfo: {}
+                }}
+                onLeadGenerated={(leadInfo) => {
+                    console.log('Lead generated from landing page chat:', leadInfo);
+                    // Could trigger analytics event or save lead
+                }}
+                onSupportTicket={(ticketInfo) => {
+                    console.log('Support ticket created from landing page:', ticketInfo);
+                    // Could create support ticket or send notification
+                }}
+                position="bottom-right"
+            />
         </div>
     );
 };
