@@ -7,6 +7,7 @@ import ExportModal from './ExportModal';
 import { AuthService } from '../services/authService';
 import { googleOAuthService } from '../services/googleOAuthService';
 import { useScheduler } from '../context/SchedulerContext';
+import CalendarView from './CalendarView';
 
 interface AdminLayoutProps {
   currentView: View;
@@ -16,15 +17,69 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
   const { openScheduler } = useScheduler();
   // Use centralized modal context
   const {
+    showAddUserModal,
+    showEditUserModal,
     setShowAddUserModal,
     setShowEditUserModal,
     setEditingUser,
     setEditUserForm,
+    editingUser,
+    newUserForm,
+    editUserForm,
+    setNewUserForm,
+    showAddLeadModal,
+    showEditLeadModal,
     setShowAddLeadModal,
     setShowEditLeadModal,
     setEditingLead,
-    setEditLeadForm
-  } = useAdminModal();  const [googleConnected, setGoogleConnected] = useState<boolean>(false);
+    setEditLeadForm,
+    editingLead,
+    newLeadForm,
+    editLeadForm,
+    setNewLeadForm,
+    closeAllModals
+  } = useAdminModal();
+  
+  // Local state for data management (should be moved to context later)
+  const [users, setUsers] = useState<User[]>(() => {
+    const savedUsers = localStorage.getItem('adminUsers');
+    const defaultUsers = [
+      { id: '1', name: 'John Smith', email: 'john@example.com', role: 'agent', plan: 'Solo Agent', status: 'active', lastLogin: '2024-01-15' },
+      { id: '2', name: 'Sarah Johnson', email: 'sarah@example.com', role: 'manager', plan: 'Team Leader', status: 'active', lastLogin: '2024-01-14' },
+      { id: '3', name: 'Mike Davis', email: 'mike@example.com', role: 'agent', plan: 'Solo Agent', status: 'inactive', lastLogin: '2024-01-10' }
+    ];
+    
+    if (savedUsers) {
+      try {
+        return JSON.parse(savedUsers);
+      } catch (error) {
+        console.error('Error parsing saved users:', error);
+        return defaultUsers;
+      }
+    }
+    return defaultUsers;
+  });
+
+  const [leads, setLeads] = useState<Lead[]>(() => {
+    const savedLeads = localStorage.getItem('adminLeads');
+    const defaultLeads = [
+      { id: '1', name: 'Alice Cooper', email: 'alice@example.com', phone: '(555) 123-4567', status: 'new', source: 'Website', notes: 'Interested in downtown properties', createdAt: '2024-01-15' },
+      { id: '2', name: 'Bob Wilson', email: 'bob@example.com', phone: '(555) 987-6543', status: 'contacted', source: 'Referral', notes: 'Looking for family home', createdAt: '2024-01-14' },
+      { id: '3', name: 'Carol Brown', email: 'carol@example.com', phone: '(555) 456-7890', status: 'qualified', source: 'Social Media', notes: 'First-time buyer', createdAt: '2024-01-13' }
+    ];
+    
+    if (savedLeads) {
+      try {
+        return JSON.parse(savedLeads);
+      } catch (error) {
+        console.error('Error parsing saved leads:', error);
+        return defaultLeads;
+      }
+    }
+    return defaultLeads;
+  });
+  
+  const [googleConnected, setGoogleConnected] = useState<boolean>(false);
 
   useEffect(() => {
     // Lightweight check on mount
@@ -32,22 +87,22 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       setGoogleConnected(googleOAuthService.isAuthenticated());
     } catch {}
   }, []);
-  const [users, setUsers] = useState<User[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
 
-  // Edit user state (for Users tab actions)
+  // Save users to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('adminUsers', JSON.stringify(users));
+  }, [users]);
+
+  // Save leads to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('adminLeads', JSON.stringify(leads));
+  }, [leads]);
+  // Local state for component functionality
 
 
 
 
-  const [newLeadForm, setNewLeadForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    status: 'New' as LeadStatus,
-    source: 'Website',
-    notes: ''
-  });
+
 
   const [showContactModal, setShowContactModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -432,53 +487,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
             }
           }
         } catch {}
-        const defaults: User[] = [
-          {
-            id: '1',
-            name: 'John Doe',
-            email: 'john@example.com',
-            role: 'agent',
-            status: 'Active',
-            dateJoined: '2024-01-15',
-            lastActive: '2024-02-01',
-            plan: 'Solo Agent',
-            propertiesCount: 3,
-            leadsCount: 12,
-            aiInteractions: 45,
-            subscriptionStatus: 'active',
-            renewalDate: '2025-01-01'
-          },
-          {
-            id: '2',
-            name: 'Jane Smith',
-            email: 'jane@example.com',
-            role: 'admin',
-            status: 'Active',
-            dateJoined: '2024-01-10',
-            lastActive: '2024-02-02',
-            plan: 'Pro Team',
-            propertiesCount: 8,
-            leadsCount: 30,
-            aiInteractions: 120,
-            subscriptionStatus: 'active',
-            renewalDate: '2025-01-01'
-          },
-          {
-            id: '3',
-            name: 'Bob Johnson',
-            email: 'bob@example.com',
-            role: 'agent',
-            status: 'Pending',
-            dateJoined: '2024-01-20',
-            lastActive: '2024-01-25',
-            plan: 'Solo Agent',
-            propertiesCount: 1,
-            leadsCount: 5,
-            aiInteractions: 10,
-            subscriptionStatus: 'trial',
-            renewalDate: '2025-01-01'
-          }
-        ];
+        const defaults: User[] = [];
         setUsers(defaults);
         try { localStorage.setItem('adminUsers', JSON.stringify(defaults)); } catch {}
       };
@@ -604,63 +613,33 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       return;
     }
 
-    try {
-      const response = await AuthService.getInstance().makeAuthenticatedRequest('http://localhost:5001/home-listing-ai/us-central1/api/admin/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newUserForm),
-      });
-
-      if (!response.ok) {
-        throw new Error('api-failed');
-      }
-
-      const created = await response.json();
-      alert(`User ${created.name || newUserForm.name} added successfully!`);
+    // Create new user object locally
+    const newUser: User = {
+      id: Date.now().toString(),
+      name: newUserForm.name,
+      email: newUserForm.email,
+      role: newUserForm.role as User['role'],
+      plan: newUserForm.plan as User['plan'],
+      status: 'Active',
+      lastLogin: new Date().toLocaleDateString(),
+      dateJoined: new Date().toISOString().slice(0,10),
+      lastActive: new Date().toISOString(),
+      propertiesCount: 0,
+      leadsCount: 0,
+      revenue: 0,
+      aiInteractions: 0,
+      subscriptionStatus: 'active',
+      renewalDate: new Date(new Date().getFullYear()+1,0,1).toISOString().slice(0,10)
+    };
     
-    // Reset form and close modal
-    setNewUserForm({
-      name: '',
-      email: '',
-      role: 'agent',
-      plan: 'Solo Agent'
-    });
+    // Add to state (localStorage will be updated automatically via useEffect)
+    setUsers(prev => [newUser, ...prev]);
+    
+    // Close modal and reset form
     setShowAddUserModal(false);
-      
-      // Refresh users list
-      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('http://localhost:5001/home-listing-ai/us-central1/api/admin/users');
-      if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setUsers(data.users || []);
-        try { localStorage.setItem('adminUsers', JSON.stringify(data.users || [])); } catch {}
-      }
-    } catch (err) {
-      // Fallback: add locally and persist
-      const id = crypto.randomUUID?.() || String(Date.now());
-      const localUser: User = {
-        id,
-        name: newUserForm.name,
-        email: newUserForm.email,
-        role: newUserForm.role as User['role'],
-        status: 'Active',
-        dateJoined: new Date().toISOString().slice(0,10),
-        lastActive: new Date().toISOString(),
-        plan: newUserForm.plan as User['plan'],
-        propertiesCount: 0,
-        leadsCount: 0,
-        aiInteractions: 0,
-        subscriptionStatus: 'active',
-        renewalDate: new Date(new Date().getFullYear()+1,0,1).toISOString().slice(0,10)
-      };
-      setUsers(prev => {
-        const next = [localUser, ...prev];
-        try { localStorage.setItem('adminUsers', JSON.stringify(next)); } catch {}
-        return next;
-      });
-      alert(`User ${newUserForm.name} added locally.`);
-    }
+    setNewUserForm({ name: '', email: '', role: 'agent', plan: 'Solo Agent' });
+    
+    console.log(`User ${newUserForm.name} added successfully!`);
   };
 
   // Users tab: open edit modal prefilled
@@ -676,17 +655,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
   };
 
   // Users tab: save edits
-  const handleSaveUserEdit = () => {
-    if (!editingUser) return;
-    const updated = users.map(u =>
-      u.id === editingUser.id
-        ? { ...u, ...editUserForm }
-        : u
-    );
-    setUsers(updated);
-    try { localStorage.setItem('adminUsers', JSON.stringify(updated)); } catch {}
-    setShowEditUserModal(false);
-    setEditingUser(null);
+  const handleSaveUserEdit = async (userData: any) => {
+    setUsers(prev => prev.map(user => 
+      user.id === userData.id ? { ...user, ...userData } : user
+    ));
+    console.log(`User ${userData.name} updated successfully!`);
   };
 
   // Users tab: delete user locally for now
@@ -699,66 +672,45 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     });
   };
 
-  const handleAddLead = async () => {
-    if (!newLeadForm.name || !newLeadForm.email) {
-      alert('Please fill in both name and email');
-      return;
-    }
+  // Leads tab: delete lead locally
+  const handleDeleteLead = (leadId: string) => {
+    if (!confirm('Delete this lead?')) return;
+    setLeads(prev => {
+      const next = prev.filter(l => l.id !== leadId);
+      try { localStorage.setItem('adminLeads', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
+  const handleAddLead = async (leadData: any) => {
+    // Create new lead object locally  
+    const newLead = {
+      id: Date.now().toString(),
+      name: leadData.name,
+      email: leadData.email,
+      phone: leadData.phone,
+      status: leadData.status as LeadStatus,
+      source: leadData.source,
+      notes: leadData.notes,
+      createdAt: new Date().toISOString().split('T')[0]
+    };
+    
+    // Add to state (localStorage will be updated automatically via useEffect)
+    setLeads(prev => [newLead, ...prev]);
+    
+    console.log(`Lead ${leadData.name} added successfully!`);
+  };
+
+  const handleEditLead = async (leadData: any) => {
     try {
-      const response = await AuthService.getInstance().makeAuthenticatedRequest('http://localhost:5001/home-listing-ai/us-central1/api/admin/leads', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newLeadForm),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add lead');
-      }
-
-      const newLead = await response.json();
-      alert(`Lead ${newLead.lead.name} added successfully!`);
-      
-      // Reset form and close modal
-      setNewLeadForm({
-        name: '',
-        email: '',
-        phone: '',
-        status: 'New',
-        source: 'Website',
-        notes: ''
-      });
-      setShowAddLeadModal(false);
-      
-      // Refresh leads list
-      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('http://localhost:5001/home-listing-ai/us-central1/api/admin/leads');
-      if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setLeads(data.leads || []);
-        try { localStorage.setItem('adminLeads', JSON.stringify(data.leads || [])); } catch {}
-      }
-    } catch (err) {
-      // Fallback: add locally and persist
-      const id = crypto.randomUUID?.() || String(Date.now());
-      const localLead = {
-        id,
-        name: newLeadForm.name,
-        email: newLeadForm.email,
-        phone: newLeadForm.phone,
-        status: newLeadForm.status as LeadStatus,
-        source: newLeadForm.source,
-        notes: newLeadForm.notes,
-        lastMessage: newLeadForm.notes,
-        date: new Date().toLocaleDateString('en-US')
-      } as any;
-      setLeads(prev => {
-        const next = [localLead, ...prev];
-        try { localStorage.setItem('adminLeads', JSON.stringify(next)); } catch {}
-        return next;
-      });
-      alert(`Lead ${newLeadForm.name} added locally.`);
+      // Update leads array
+      setLeads(prev => prev.map(lead => 
+        lead.id === leadData.id ? { ...lead, ...leadData } : lead
+      ));
+      alert(`Lead ${leadData.name} updated successfully!`);
+    } catch (error) {
+      console.error('Error updating lead:', error);
+      alert('Error updating lead. Please try again.');
     }
   };
 
@@ -1051,7 +1003,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
   const renderAdminContent = () => {
     switch (currentView) {
       case 'admin-dashboard':
-        return <AdminDashboard />;
+        return <AdminDashboard users={users} leads={leads} onDeleteUser={handleDeleteUser} onDeleteLead={handleDeleteLead} />;
       case 'admin-users':
         return (
           <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
@@ -1204,9 +1156,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   {!googleConnected ? (
                     <button 
                       onClick={async () => {
-                        const ok = await googleOAuthService.requestAccess()
-                        setGoogleConnected(ok)
-                        if (!ok) alert('Google auth failed. Check VITE_GOOGLE_CLIENT_ID')
+                        try {
+                          const ok = await googleOAuthService.requestAccess()
+                          setGoogleConnected(ok)
+                          if (!ok) {
+                            console.log('Google auth cancelled or failed')
+                          }
+                        } catch (error) {
+                          console.error('Google auth error:', error)
+                        }
                       }}
                       className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg font-semibold shadow-sm hover:bg-slate-50 transition"
                     >
@@ -1271,6 +1229,24 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   <div>
                     <p className="text-3xl font-bold text-slate-800">{leads.filter(l => l.status === 'New' || l.status === 'Qualified').length}</p>
                     <p className="text-sm font-medium text-slate-500">Pending</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Calendar Section */}
+              <section className="mb-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2">
+                    <CalendarView appointments={[]} />
+                  </div>
+                  <div className="bg-white rounded-lg shadow-sm border border-slate-200/80 p-5">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">Upcoming Appointments</h3>
+                    <div className="space-y-3">
+                      <div className="text-center text-slate-500 py-8">
+                        <span className="material-symbols-outlined text-4xl mb-2 block">event_available</span>
+                        <p>No appointments scheduled</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -1397,6 +1373,33 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                         <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
                           <button 
                             onClick={() => {
+                              setEditingLead(lead);
+                              setEditLeadForm({
+                                name: lead.name,
+                                email: lead.email,
+                                phone: lead.phone,
+                                status: lead.status,
+                                source: lead.source || '',
+                                notes: lead.notes || ''
+                              });
+                              setShowEditLeadModal(true);
+                            }}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 transition"
+                            title="Edit lead"
+                          >
+                            <span className="material-symbols-outlined w-5 h-5">edit</span>
+                            <span>Edit</span>
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteLead(lead.id)}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-500 rounded-lg shadow-sm hover:bg-red-600 transition"
+                            title="Delete lead"
+                          >
+                            <span className="material-symbols-outlined w-5 h-5">delete</span>
+                            <span>Delete</span>
+                          </button>
+                          <button 
+                            onClick={() => {
                               setSelectedLead(lead);
                               setShowContactModal(true);
                             }}
@@ -1430,7 +1433,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         users={users}
         leads={leads}
         onAddUser={handleAddUser}
-        onEditUser={handleEditUser}
+        onEditUser={handleSaveUserEdit}
         onAddLead={handleAddLead}
         onEditLead={handleEditLead}
       />                    </>
@@ -1522,7 +1525,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         users={users}
         leads={leads}
         onAddUser={handleAddUser}
-        onEditUser={handleEditUser}
+        onEditUser={handleSaveUserEdit}
         onAddLead={handleAddLead}
         onEditLead={handleEditLead}
       />                    </>
@@ -1667,7 +1670,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         users={users}
         leads={leads}
         onAddUser={handleAddUser}
-        onEditUser={handleEditUser}
+        onEditUser={handleSaveUserEdit}
         onAddLead={handleAddLead}
         onEditLead={handleEditLead}
       />                    </>
@@ -1689,7 +1692,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         users={users}
         leads={leads}
         onAddUser={handleAddUser}
-        onEditUser={handleEditUser}
+        onEditUser={handleSaveUserEdit}
         onAddLead={handleAddLead}
         onEditLead={handleEditLead}
       />          </>
@@ -4775,7 +4778,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
           </div>
         );
       default:
-        return <AdminDashboard />;
+        return <AdminDashboard users={users} leads={leads} onDeleteUser={handleDeleteUser} onDeleteLead={handleDeleteLead} />;
     }
   };
 
@@ -5669,7 +5672,7 @@ Best regards,`}
         users={users}
         leads={leads}
         onAddUser={handleAddUser}
-        onEditUser={handleEditUser}
+        onEditUser={handleSaveUserEdit}
         onAddLead={handleAddLead}
         onEditLead={handleEditLead}
       />                </>
@@ -6662,7 +6665,7 @@ Best regards,`}
         users={users}
         leads={leads}
         onAddUser={handleAddUser}
-        onEditUser={handleEditUser}
+        onEditUser={handleSaveUserEdit}
         onAddLead={handleAddLead}
         onEditLead={handleEditLead}
       />    </>

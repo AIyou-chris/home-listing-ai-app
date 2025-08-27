@@ -56,24 +56,7 @@ const AIMarketingProposalPage: React.FC = () => {
 
 	const loadProposals = async () => {
 		// In a real app, you'd fetch from Firestore
-		setProposals([
-			{
-				id: '1',
-				propertyAddress: '123 Main St, City, State',
-				agentInfo: {
-					name: 'John Doe',
-					email: 'john@example.com',
-					phone: '(555) 123-4567',
-					experience: '5+ years'
-				},
-				executiveSummary: 'This stunning 3-bedroom home offers modern amenities and prime location.',
-				marketAnalysis: 'Current market shows strong demand with 15% appreciation year-over-year.',
-				pricingStrategy: 'Competitive pricing strategy targeting $450,000 with room for negotiation.',
-				marketingPlan: 'Multi-channel approach including digital marketing, open houses, and MLS listing.',
-				timeline: '30-day marketing campaign with weekly progress reviews.',
-				createdAt: new Date()
-			}
-		]);
+		setProposals([]);
 	};
 
 	const startAIQuestionnaire = async () => {

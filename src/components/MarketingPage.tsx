@@ -536,7 +536,7 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
             case 'sequences':
                 return <SequencesContent sequences={sequences} setSequences={setSequences} openModal={(seq) => { setEditingSequence(seq); setIsSequenceModalOpen(true); }} />;
             case 'follow-ups':
-                 return <LeadFollowUpsPage leads={DEMO_FAT_LEADS} sequences={sequences} activeFollowUps={DEMO_ACTIVE_FOLLOWUPS} />;
+                 return <LeadFollowUpsPage leads={[]} sequences={sequences} activeFollowUps={[]} />;
             case 'qr-code':
                 return <QRCodeSystem properties={properties} />;
             default:

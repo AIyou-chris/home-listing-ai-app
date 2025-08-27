@@ -5,6 +5,7 @@ import Modal from './Modal';
 import { googleMeetService } from '../services/googleMeetService';
 import { emailService } from '../services/emailService';
 import { addConsultation } from '../services/firestoreService';
+import { ValidationUtils } from '../utils/validation';
 
 interface ConsultationModalProps {
     onClose: () => void;
@@ -22,12 +23,29 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [emailError, setEmailError] = useState<string>('');
 
     const handleInputChange = (field: string, value: string) => {
         setFormData(prev => ({
             ...prev,
             [field]: value
         }));
+
+        // Enhanced email validation with typo detection
+        if (field === 'email') {
+            setEmailError('');
+            if (value.trim()) {
+                if (!ValidationUtils.isValidEmail(value)) {
+                    setEmailError('Please enter a valid email address');
+                } else {
+                    // Check for common typos using centralized validation
+                    const suggestedEmail = ValidationUtils.detectEmailTypos(value);
+                    if (suggestedEmail) {
+                        setEmailError(`Did you mean ${suggestedEmail}?`);
+                    }
+                }
+            }
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -39,6 +57,11 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
             // Validate required fields
             if (!formData.name || !formData.email || !formData.date || !formData.time) {
                 throw new Error('Please fill in all required fields');
+            }
+
+            // Enhanced email validation
+            if (!ValidationUtils.isValidEmail(formData.email)) {
+                throw new Error('Please enter a valid email address');
             }
 
             // Combine date and time
@@ -64,12 +87,20 @@ This consultation was booked through the HomeListingAI website.`,
             };
 
             // Add to Google Calendar
-            const calendarResult = await googleMeetService.createMeetEvent(event);
+            let calendarResult = { meetLink: '', eventId: '' };
+            try {
+                calendarResult = await googleMeetService.createMeetEvent(event);
+                console.log('📅 Calendar event created successfully');
+            } catch (error) {
+                console.log('⚠️ Calendar creation failed, continuing with booking:', error);
+            }
 
             // Send confirmation email to client
+            console.log('📧 Sending confirmation email...');
             await emailService.sendConsultationConfirmation(formData, calendarResult.meetLink);
 
             // Send notification email to admin
+            console.log('📧 Sending admin notification...');
             await emailService.sendAdminNotification(formData, calendarResult.meetLink);
 
             // Save to admin dashboard
@@ -148,9 +179,17 @@ This consultation was booked through the HomeListingAI website.`,
                             required
                             value={formData.email}
                             onChange={(e) => handleInputChange('email', e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
+                            className={`w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition ${
+                                emailError ? 'border-orange-300 bg-orange-50' : 'border-slate-300'
+                            }`}
                             placeholder="Enter your email address"
                         />
+                        {emailError && (
+                            <p className="mt-1 text-sm text-orange-600 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">info</span>
+                                {emailError}
+                            </p>
+                        )}
                     </div>
 
                     {/* Phone */}

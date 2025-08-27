@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAdminModal } from '../context/AdminModalContext';
 import { User, Lead } from '../types';
+import { ValidationUtils } from '../utils/validation';
 
 interface AdminModalsProps {
   users: User[];
@@ -48,6 +49,12 @@ export const AdminModals: React.FC<AdminModalsProps> = ({
       return;
     }
 
+    // Enhanced email validation
+    if (!ValidationUtils.isValidEmail(newUserForm.email)) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
     try {
       await onAddUser(newUserForm);
       resetUserForms();
@@ -61,6 +68,12 @@ export const AdminModals: React.FC<AdminModalsProps> = ({
   const handleEditUser = async () => {
     if (!editUserForm.name || !editUserForm.email) {
       alert('Please fill in all required fields');
+      return;
+    }
+
+    // Enhanced email validation
+    if (!ValidationUtils.isValidEmail(editUserForm.email)) {
+      alert('Please enter a valid email address');
       return;
     }
 
@@ -80,6 +93,12 @@ export const AdminModals: React.FC<AdminModalsProps> = ({
       return;
     }
 
+    // Enhanced email validation
+    if (!ValidationUtils.isValidEmail(newLeadForm.email)) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
     try {
       await onAddLead(newLeadForm);
       resetLeadForms();
@@ -93,6 +112,12 @@ export const AdminModals: React.FC<AdminModalsProps> = ({
   const handleEditLead = async () => {
     if (!editLeadForm.name || !editLeadForm.email) {
       alert('Please fill in all required fields');
+      return;
+    }
+
+    // Enhanced email validation
+    if (!ValidationUtils.isValidEmail(editLeadForm.email)) {
+      alert('Please enter a valid email address');
       return;
     }
 

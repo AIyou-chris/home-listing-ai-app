@@ -45,7 +45,19 @@ const MetricWidget: React.FC<{ title: string; value: string; change: string; ico
 };
 
 // Main AdminDashboard component
-const AdminDashboard: React.FC = () => {
+interface AdminDashboardProps {
+  users?: any[];
+  leads?: any[];
+  onDeleteUser?: (userId: string) => void;
+  onDeleteLead?: (leadId: string) => void;
+}
+
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
+    users: propUsers = [], 
+    leads: propLeads = [], 
+    onDeleteUser,
+    onDeleteLead 
+}) => {
     const [isLoading, setIsLoading] = useState(true);
     
     // Use centralized modal context instead of local state
@@ -58,63 +70,9 @@ const AdminDashboard: React.FC = () => {
         setEditLeadForm
     } = useAdminModal();
 
-    const [users, setUsers] = useState(() => {
-        // Load users from localStorage or use default
-        const savedUsers = localStorage.getItem('adminUsers');
-        console.log('Loading users from localStorage:', savedUsers);
-        
-        const defaultUsers = [
-            { id: '1', name: 'John Smith', email: 'john@example.com', role: 'agent', plan: 'Solo Agent', status: 'active', lastLogin: '2024-01-15' },
-            { id: '2', name: 'Sarah Johnson', email: 'sarah@example.com', role: 'manager', plan: 'Team Leader', status: 'active', lastLogin: '2024-01-14' },
-            { id: '3', name: 'Mike Davis', email: 'mike@example.com', role: 'agent', plan: 'Solo Agent', status: 'inactive', lastLogin: '2024-01-10' }
-        ];
-        
-        if (savedUsers) {
-            try {
-                return JSON.parse(savedUsers);
-            } catch (error) {
-                console.error('Error parsing saved users:', error);
-                return defaultUsers;
-            }
-        }
-        
-        return defaultUsers;
-    });
-
-    // Add leads state with localStorage
-    const [leads, setLeads] = useState(() => {
-        const savedLeads = localStorage.getItem('adminLeads');
-        console.log('Loading leads from localStorage:', savedLeads);
-        
-        const defaultLeads = [
-            { id: '1', name: 'Alice Cooper', email: 'alice@example.com', phone: '(555) 123-4567', status: 'new', source: 'Website', notes: 'Interested in downtown properties', createdAt: '2024-01-15' },
-            { id: '2', name: 'Bob Wilson', email: 'bob@example.com', phone: '(555) 987-6543', status: 'contacted', source: 'Referral', notes: 'Looking for family home', createdAt: '2024-01-14' },
-            { id: '3', name: 'Carol Brown', email: 'carol@example.com', phone: '(555) 456-7890', status: 'qualified', source: 'Social Media', notes: 'First-time buyer', createdAt: '2024-01-13' }
-        ];
-        
-        if (savedLeads) {
-            try {
-                return JSON.parse(savedLeads);
-            } catch (error) {
-                console.error('Error parsing saved leads:', error);
-                return defaultLeads;
-            }
-        }
-        
-        return defaultLeads;
-    });
-
-    // Save users to localStorage whenever users change
-    useEffect(() => {
-        console.log('Saving users to localStorage:', users);
-        localStorage.setItem('adminUsers', JSON.stringify(users));
-    }, [users]);
-
-    // Save leads to localStorage whenever leads change
-    useEffect(() => {
-        console.log('Saving leads to localStorage:', leads);
-        localStorage.setItem('adminLeads', JSON.stringify(leads));
-    }, [leads]);
+    // Use the users and leads directly from props - no local state needed
+    const users = propUsers;
+    const leads = propLeads;
 
     useEffect(() => {
         // Simulate loading
@@ -125,32 +83,6 @@ const AdminDashboard: React.FC = () => {
         return () => clearTimeout(timer);
     }, []);
 
-    const handleAddUser = async (userData: any) => {
-        const newUser = {
-            id: Date.now().toString(),
-            ...userData,
-            status: 'active',
-            lastLogin: new Date().toISOString().split('T')[0]
-        };
-        
-        setUsers(prev => [...prev, newUser]);
-        console.log(`User ${userData.name} added successfully!`);
-    };
-
-    const handleEditUser = async (userData: any) => {
-        setUsers(prev => prev.map(user => 
-            user.id === userData.id ? { ...user, ...userData } : user
-        ));
-        console.log(`User ${userData.name} updated successfully!`);
-    };
-
-    const handleDeleteUser = (userId: string) => {
-        if (window.confirm('Are you sure you want to delete this user?')) {
-            setUsers(prev => prev.filter(user => user.id !== userId));
-            console.log('User deleted successfully!');
-        }
-    };
-
     const handleEditUserClick = (user: any) => {
         setEditingUser(user);
         setEditUserForm({
@@ -159,31 +91,6 @@ const AdminDashboard: React.FC = () => {
             role: user.role || 'agent',
             plan: user.plan || 'Solo Agent'
         });
-    };
-
-    const handleAddLead = async (leadData: any) => {
-        const newLead = {
-            id: Date.now().toString(),
-            ...leadData,
-            createdAt: new Date().toISOString().split('T')[0]
-        };
-        
-        setLeads(prev => [...prev, newLead]);
-        console.log(`Lead ${leadData.name} added successfully!`);
-    };
-
-    const handleEditLead = async (leadData: any) => {
-        setLeads(prev => prev.map(lead => 
-            lead.id === leadData.id ? { ...lead, ...leadData } : lead
-        ));
-        console.log(`Lead ${leadData.name} updated successfully!`);
-    };
-
-    const handleDeleteLead = (leadId: string) => {
-        if (window.confirm('Are you sure you want to delete this lead?')) {
-            setLeads(prev => prev.filter(lead => lead.id !== leadId));
-            console.log('Lead deleted successfully!');
-        }
     };
 
     const handleEditLeadClick = (lead: any) => {
@@ -196,6 +103,18 @@ const AdminDashboard: React.FC = () => {
             source: lead.source || '',
             notes: lead.notes || ''
         });
+    };
+
+    const handleDeleteUser = (userId: string) => {
+        if (window.confirm('Are you sure you want to delete this user?')) {
+            onDeleteUser?.(userId);
+        }
+    };
+
+    const handleDeleteLead = (leadId: string) => {
+        if (window.confirm('Are you sure you want to delete this lead?')) {
+            onDeleteLead?.(leadId);
+        }
     };
 
     if (isLoading) {
@@ -336,12 +255,14 @@ const AdminDashboard: React.FC = () => {
                                                 <button
                                                     onClick={() => handleEditUserClick(user)}
                                                     className="text-blue-400 hover:text-blue-300 transition"
+                                                    title="Edit user"
                                                 >
                                                     <span className="material-symbols-outlined text-sm">edit</span>
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteUser(user.id)}
                                                     className="text-red-400 hover:text-red-300 transition"
+                                                    title="Delete user"
                                                 >
                                                     <span className="material-symbols-outlined text-sm">delete</span>
                                                 </button>
@@ -409,12 +330,14 @@ const AdminDashboard: React.FC = () => {
                                                 <button
                                                     onClick={() => handleEditLeadClick(lead)}
                                                     className="text-blue-400 hover:text-blue-300 transition"
+                                                    title="Edit lead"
                                                 >
                                                     <span className="material-symbols-outlined text-sm">edit</span>
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteLead(lead.id)}
                                                     className="text-red-400 hover:text-red-300 transition"
+                                                    title="Delete lead"
                                                 >
                                                     <span className="material-symbols-outlined text-sm">delete</span>
                                                 </button>
@@ -428,14 +351,14 @@ const AdminDashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* Centralized Modals */}
+            {/* Centralized Modals - handlers are managed by AdminLayout */}
             <AdminModals
                 users={users}
                 leads={leads}
-                onAddUser={handleAddUser}
-                onEditUser={handleEditUser}
-                onAddLead={handleAddLead}
-                onEditLead={handleEditLead}
+                onAddUser={() => console.log('Add user handled by AdminLayout')}
+                onEditUser={() => console.log('Edit user handled by AdminLayout')}
+                onAddLead={() => console.log('Add lead handled by AdminLayout')}
+                onEditLead={() => console.log('Edit lead handled by AdminLayout')}
             />
         </div>
     );

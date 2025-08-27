@@ -683,28 +683,7 @@ const App: React.FC = () => {
                         </main>
                     </div>
                     
-                    {/* Chat Bot FAB for authenticated users */}
-                    <ChatBotFAB
-                        context={{
-                            userType: isDemoMode ? 'prospect' : 'client',
-                            currentPage: view,
-                            previousInteractions: 1,
-                            userInfo: {
-                                name: userProfile.name,
-                                email: userProfile.email,
-                                company: userProfile.company
-                            }
-                        }}
-                        onLeadGenerated={(leadInfo) => {
-                            console.log('Lead generated from chat:', leadInfo);
-                            // Could add to leads state or send to analytics
-                        }}
-                        onSupportTicket={(ticketInfo) => {
-                            console.log('Support ticket created from chat:', ticketInfo);
-                            // Could create actual support ticket or notification
-                        }}
-                        position="bottom-right"
-                    />
+
                 </div>
             );
         }
@@ -807,6 +786,28 @@ const App: React.FC = () => {
             
             {/* Chat bots disabled */}
 
+            {/* Global Chat Bot FAB - appears on all pages */}
+            <ChatBotFAB
+                context={{
+                    userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
+                    currentPage: view,
+                    previousInteractions: user ? 1 : 0,
+                    userInfo: user ? {
+                        name: user.displayName || 'User',
+                        email: user.email || '',
+                        company: 'Real Estate'
+                    } : undefined
+                }}
+                onLeadGenerated={(leadInfo) => {
+                    console.log('Lead generated from chat:', leadInfo);
+                    // Could add to leads state or send to analytics
+                }}
+                onSupportTicket={(ticketInfo) => {
+                    console.log('Support ticket created from chat:', ticketInfo);
+                    // Could create actual support ticket or notification
+                }}
+                position="bottom-right"
+            />
         </ErrorBoundary>
     )
 }

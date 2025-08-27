@@ -1,9 +1,33 @@
 // Input validation utilities
 export class ValidationUtils {
-  // Email validation
+  // Email validation with enhanced checks
   static isValidEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
+  }
+
+  // Common email typo detection
+  static detectEmailTypos(email: string): string | null {
+    const commonTypos = [
+      { typo: '@gmai.com', correct: '@gmail.com' },
+      { typo: '@gmial.com', correct: '@gmail.com' },
+      { typo: '@gamil.com', correct: '@gmail.com' },
+      { typo: '@yahoo.co', correct: '@yahoo.com' },
+      { typo: '@yahoocom', correct: '@yahoo.com' },
+      { typo: '@hotmai.com', correct: '@hotmail.com' },
+      { typo: '@hotmial.com', correct: '@hotmail.com' },
+      { typo: '@me.co', correct: '@me.com' },
+      { typo: '@iclou.com', correct: '@icloud.com' },
+      { typo: '@icoud.com', correct: '@icloud.com' },
+      // Common character substitutions
+      { typo: 'cdipoitter@me.com', correct: 'cdipotter@me.com' }
+    ];
+
+    const foundTypo = commonTypos.find(item => 
+      email.toLowerCase().includes(item.typo) || email.toLowerCase() === item.typo
+    );
+    
+    return foundTypo ? email.replace(foundTypo.typo, foundTypo.correct) : null;
   }
 
   // Phone validation

@@ -1659,7 +1659,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
     const [activeModal, setActiveModal] = useState<ModalType>(null);
 
     // Use a real property from demo data for the interactive embed
-    const propertyForDemo = DEMO_FAT_PROPERTIES[0]; 
+    const propertyForDemo = DEMO_FAT_PROPERTIES[0] || null; 
 
     return (
         <div className="bg-white font-sans">

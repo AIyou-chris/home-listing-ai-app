@@ -72,7 +72,9 @@ class GoogleOAuthService {
     try {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
       if (!clientId) {
-        throw new Error('Google Client ID is not configured. Please set VITE_GOOGLE_CLIENT_ID in your .env file');
+        console.warn('⚠️ Google Client ID is not configured. Google services will be disabled.');
+        this.isAvailable = false;
+        return;
       }
       console.log('🔧 Setting up Google Auth with client ID:', clientId.substring(0, 8) + '...');
       
@@ -89,10 +91,19 @@ class GoogleOAuthService {
             this.fetchUserEmail().catch(() => {});
           }
         },
+        error_callback: (error: any) => {
+          console.error('❌ OAuth error:', error);
+          // Handle COOP and other popup errors gracefully
+          if (error.type === 'popup_closed_by_user') {
+            console.log('User closed OAuth popup');
+          }
+        }
       });
       console.log('🔧 Google Auth client initialized');
+      this.isAvailable = true;
     } catch (error) {
       console.error('❌ Error initializing Google Auth:', error);
+      this.isAvailable = false;
     }
   }
 
