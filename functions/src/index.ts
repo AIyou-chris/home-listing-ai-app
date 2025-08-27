@@ -25,6 +25,11 @@ export { api } from './api';
 // Export OpenAI/GPT-related callable functions
 export * from './openai-index';
 
+// Export migrated Gemini functions (now using OpenAI)
+export * from './gemini-to-openai';
+
+
+
 // Keep essential functions
 export const addNewUser = functions.https.onCall(async (data: any, context: any) => {
     try {
