@@ -28,6 +28,9 @@ export * from './openai-index';
 // Export migrated Gemini functions (now using OpenAI)
 export * from './gemini-to-openai';
 
+// Export knowledge base functions
+export * from './knowledge-base';
+
 
 
 // Keep essential functions
