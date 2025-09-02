@@ -1,17 +1,4 @@
-import { auth, db, functions } from './firebase';
-import { 
-    doc, 
-    getDoc, 
-    setDoc, 
-    updateDoc,
-    collection,
-    query,
-    where,
-    getDocs,
-    addDoc,
-    serverTimestamp
-} from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
+// Firebase removed — using local storage stubs for billing flows
 
 export interface SubscriptionPlan {
     id: string;
@@ -106,199 +93,91 @@ export class BillingService {
 
     // Get current subscription
     async getCurrentSubscription(agentId: string): Promise<Subscription | null> {
-        try {
-            const subscriptionDoc = await getDoc(doc(db, 'subscriptions', agentId));
-            if (subscriptionDoc.exists()) {
-                const data = subscriptionDoc.data();
-                return {
-                    id: subscriptionDoc.id,
-                    ...data,
-                    currentPeriodStart: data.currentPeriodStart?.toDate(),
-                    currentPeriodEnd: data.currentPeriodEnd?.toDate(),
-                    createdAt: data.createdAt?.toDate(),
-                    updatedAt: data.updatedAt?.toDate()
-                } as Subscription;
-            }
-            return null;
-        } catch (error) {
-            console.error('Get subscription error:', error);
-            return null;
+        const raw = localStorage.getItem(`hlai_sub_${agentId}`)
+        if (!raw) return null
+        const data = JSON.parse(raw)
+        return {
+            ...(data as Subscription),
+            currentPeriodStart: new Date(data.currentPeriodStart),
+            currentPeriodEnd: new Date(data.currentPeriodEnd),
+            createdAt: new Date(data.createdAt),
+            updatedAt: new Date(data.updatedAt)
         }
     }
 
     // Create PayPal subscription
     async createPayPalSubscription(agentId: string, planId: string): Promise<{ success: boolean; subscriptionId?: string; error?: string }> {
-        try {
-            const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
-            if (!plan) {
-                throw new Error('Invalid plan');
-            }
-
-            // Call Firebase function to create PayPal subscription
-            const createSubscription = httpsCallable(functions, 'createPayPalSubscription');
-            const result = await createSubscription({
-                agentId,
-                planId,
-                planName: plan.name,
-                price: plan.price
-            });
-
-            const data = result.data as any;
-            
-            if (data.success) {
-                // Store subscription in Firestore
-                const subscription: Subscription = {
-                    id: agentId,
-                    agentId,
-                    planId,
-                    planName: plan.name,
-                    status: 'active',
-                    currentPeriodStart: new Date(),
-                    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-                    cancelAtPeriodEnd: false,
-                    paypalSubscriptionId: data.subscriptionId,
-                    createdAt: new Date(),
-                    updatedAt: new Date()
-                };
-
-                await setDoc(doc(db, 'subscriptions', agentId), subscription);
-
-                // Create invoice
-                await this.createInvoice(agentId, data.subscriptionId, plan.price);
-
-                return { success: true, subscriptionId: data.subscriptionId };
-            } else {
-                return { success: false, error: data.error };
-            }
-        } catch (error) {
-            console.error('Create PayPal subscription error:', error);
-            return { success: false, error: error.message };
+        const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId)
+        if (!plan) return { success: false, error: 'Invalid plan' }
+        const subscriptionId = `sub_${Date.now()}`
+        const subscription: Subscription = {
+            id: agentId,
+            agentId,
+            planId,
+            planName: plan.name,
+            status: 'active',
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            cancelAtPeriodEnd: false,
+            paypalSubscriptionId: subscriptionId,
+            createdAt: new Date(),
+            updatedAt: new Date()
         }
+        localStorage.setItem(`hlai_sub_${agentId}`, JSON.stringify(subscription))
+        await this.createInvoice(agentId, subscriptionId, plan.price)
+        return { success: true, subscriptionId }
     }
 
     // Cancel subscription
     async cancelSubscription(agentId: string, cancelImmediately: boolean = false): Promise<{ success: boolean; error?: string }> {
-        try {
-            const subscription = await this.getCurrentSubscription(agentId);
-            if (!subscription) {
-                throw new Error('No active subscription found');
-            }
-
-            // Call Firebase function to cancel PayPal subscription
-            const cancelSubscription = httpsCallable(functions, 'cancelPayPalSubscription');
-            const result = await cancelSubscription({
-                subscriptionId: subscription.paypalSubscriptionId,
-                cancelImmediately
-            });
-
-            const data = result.data as any;
-            
-            if (data.success) {
-                // Update subscription in Firestore
-                await updateDoc(doc(db, 'subscriptions', agentId), {
-                    status: cancelImmediately ? 'cancelled' : 'active',
-                    cancelAtPeriodEnd: !cancelImmediately,
-                    updatedAt: new Date()
-                });
-
-                return { success: true };
-            } else {
-                return { success: false, error: data.error };
-            }
-        } catch (error) {
-            console.error('Cancel subscription error:', error);
-            return { success: false, error: error.message };
+        const sub = await this.getCurrentSubscription(agentId)
+        if (!sub) return { success: false, error: 'No active subscription found' }
+        const next = {
+            ...sub,
+            status: cancelImmediately ? 'cancelled' : 'active',
+            cancelAtPeriodEnd: !cancelImmediately,
+            updatedAt: new Date()
         }
+        localStorage.setItem(`hlai_sub_${agentId}`, JSON.stringify(next))
+        return { success: true }
     }
 
     // Upgrade subscription
     async upgradeSubscription(agentId: string, newPlanId: string): Promise<{ success: boolean; error?: string }> {
-        try {
-            const currentSubscription = await this.getCurrentSubscription(agentId);
-            if (!currentSubscription) {
-                throw new Error('No active subscription found');
-            }
-
-            const newPlan = SUBSCRIPTION_PLANS.find(p => p.id === newPlanId);
-            if (!newPlan) {
-                throw new Error('Invalid plan');
-            }
-
-            // Call Firebase function to upgrade PayPal subscription
-            const upgradeSubscription = httpsCallable(functions, 'upgradePayPalSubscription');
-            const result = await upgradeSubscription({
-                subscriptionId: currentSubscription.paypalSubscriptionId,
-                newPlanId,
-                newPlanName: newPlan.name,
-                newPrice: newPlan.price
-            });
-
-            const data = result.data as any;
-            
-            if (data.success) {
-                // Update subscription in Firestore
-                await updateDoc(doc(db, 'subscriptions', agentId), {
-                    planId: newPlanId,
-                    planName: newPlan.name,
-                    updatedAt: new Date()
-                });
-
-                return { success: true };
-            } else {
-                return { success: false, error: data.error };
-            }
-        } catch (error) {
-            console.error('Upgrade subscription error:', error);
-            return { success: false, error: error.message };
-        }
+        const current = await this.getCurrentSubscription(agentId)
+        if (!current) return { success: false, error: 'No active subscription found' }
+        const newPlan = SUBSCRIPTION_PLANS.find(p => p.id === newPlanId)
+        if (!newPlan) return { success: false, error: 'Invalid plan' }
+        const next = { ...current, planId: newPlanId, planName: newPlan.name, updatedAt: new Date() }
+        localStorage.setItem(`hlai_sub_${agentId}`, JSON.stringify(next))
+        return { success: true }
     }
 
     // Create invoice
     private async createInvoice(agentId: string, subscriptionId: string, amount: number): Promise<void> {
-        try {
-            const invoice: Invoice = {
-                id: `inv_${Date.now()}`,
-                subscriptionId,
-                agentId,
-                amount,
-                currency: 'USD',
-                status: 'paid',
-                createdAt: new Date(),
-                paidAt: new Date()
-            };
-
-            await addDoc(collection(db, 'invoices'), invoice);
-        } catch (error) {
-            console.error('Create invoice error:', error);
+        const key = `hlai_invoices_${agentId}`
+        const raw = localStorage.getItem(key)
+        const items: Invoice[] = raw ? JSON.parse(raw) : []
+        const invoice: Invoice = {
+            id: `inv_${Date.now()}`,
+            subscriptionId,
+            agentId,
+            amount,
+            currency: 'USD',
+            status: 'paid',
+            createdAt: new Date(),
+            paidAt: new Date()
         }
+        localStorage.setItem(key, JSON.stringify([invoice, ...items]))
     }
 
     // Get billing history
     async getBillingHistory(agentId: string): Promise<Invoice[]> {
-        try {
-            const invoicesQuery = query(
-                collection(db, 'invoices'),
-                where('agentId', '==', agentId)
-            );
-            
-            const snapshot = await getDocs(invoicesQuery);
-            const invoices: Invoice[] = [];
-            
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                invoices.push({
-                    id: doc.id,
-                    ...data,
-                    createdAt: data.createdAt?.toDate(),
-                    paidAt: data.paidAt?.toDate()
-                } as Invoice);
-            });
-
-            return invoices.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-        } catch (error) {
-            console.error('Get billing history error:', error);
-            return [];
-        }
+        const key = `hlai_invoices_${agentId}`
+        const raw = localStorage.getItem(key)
+        const invoices: Invoice[] = raw ? JSON.parse(raw) : []
+        return invoices.map(i => ({ ...i, createdAt: new Date(i.createdAt), paidAt: i.paidAt ? new Date(i.paidAt) : undefined }))
+            .sort((a, b) => a.createdAt < b.createdAt ? 1 : -1)
     }
 
     // Get plan by ID

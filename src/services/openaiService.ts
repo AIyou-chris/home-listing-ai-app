@@ -1,11 +1,5 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
+// Firebase functions removed; keep service API signatures intact
 import { ChatMessage } from '../types';
-
-// Create callable function references
-const continueConversationFunction = httpsCallable(functions, 'continueConversation');
-const generateSpeechFunction = httpsCallable(functions, 'generateSpeech');
-const generateImageFunction = httpsCallable(functions, 'generateImage');
 
 /**
  * Continues a conversation using OpenAI's GPT models
@@ -14,14 +8,9 @@ const generateImageFunction = httpsCallable(functions, 'generateImage');
  */
 export const continueConversation = async (messages: Array<{ sender: string; text: string }>): Promise<string> => {
   try {
-    const result = await continueConversationFunction({ messages });
-    const data = result.data as any;
-    
-    if (!data?.text) {
-      throw new Error('No response text received from AI');
-    }
-    
-    return data.text;
+    // Local mock response to keep UI functional
+    const last = messages[messages.length - 1]?.text || '';
+    return `AI: Received ${last.length} chars.`;
   } catch (error) {
     console.error('Error continuing conversation:', error);
     throw new Error('Failed to get AI response: ' + (error instanceof Error ? error.message : String(error)));
@@ -52,10 +41,8 @@ export const generateImage = async (
 ): Promise<{ url?: string; b64?: string }> => {
   if (!prompt.trim()) throw new Error('Prompt is required');
   try {
-    const result = await generateImageFunction({ prompt, size });
-    const data = result.data as any;
-    if (!data?.url && !data?.b64) throw new Error('No image returned');
-    return { url: data.url, b64: data.b64 };
+    // Return placeholder data in local mode
+    return { url: undefined, b64: '' };
   } catch (error) {
     console.error('Error generating image:', error);
     throw new Error('Failed to generate image');

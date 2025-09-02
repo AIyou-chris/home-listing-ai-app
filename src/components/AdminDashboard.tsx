@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminModal } from '../context/AdminModalContext';
 import { AdminModals } from './AdminModals';
+import AddContactModal from './AddContactModal';
+import { supabase } from '../services/supabase';
 
 // Simple status widget
 const StatusWidget: React.FC<{ serviceName: string; status: 'Online' | 'Offline' | 'Error' }> = ({ serviceName, status }) => {
@@ -59,6 +61,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onDeleteLead 
 }) => {
     const [isLoading, setIsLoading] = useState(true);
+    const [showAddContactModal, setShowAddContactModal] = useState(false);
+    const [contacts, setContacts] = useState<any[]>([]);
     
     // Use centralized modal context instead of local state
     const {
@@ -75,12 +79,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const leads = propLeads;
 
     useEffect(() => {
-        // Simulate loading
-        const timer = setTimeout(() => {
+        const loadContacts = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data, error } = await supabase
+                        .from('contacts')
+                        .select('*')
+                        .eq('user_id', user.id);
+                    
+                    if (error) {
+                        console.error('Error loading contacts:', error);
+                    } else {
+                        setContacts(data || []);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading contacts:', error);
+            }
+            
             setIsLoading(false);
-        }, 1000);
+        };
 
-        return () => clearTimeout(timer);
+        loadContacts();
     }, []);
 
     const handleEditUserClick = (user: any) => {
@@ -139,18 +160,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                     <div className="flex items-center gap-3">
                         <button 
-                            onClick={() => setShowAddUserModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold shadow-sm hover:bg-green-700 transition"
-                        >
-                            <span className="material-symbols-outlined h-5 w-5">person_add</span>
-                            Add User
-                        </button>
-                        <button 
-                            onClick={() => setShowAddLeadModal(true)}
+                            onClick={() => setShowAddContactModal(true)}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow-sm hover:bg-blue-700 transition"
                         >
                             <span className="material-symbols-outlined h-5 w-5">person_add</span>
-                            Add Lead
+                            Add Contact
                         </button>
                     </div>
                 </div>
@@ -167,17 +181,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     />
                     <MetricWidget 
                         title="Active Leads" 
-                        value={leads.length.toString()} 
-                        change="+8%" 
+                        value={contacts.filter(c => c.role === 'lead').length.toString()} 
+                        change="Live" 
                         icon="trending_up" 
                         iconBg="bg-green-500" 
                         changeUp={true} 
                     />
                     <MetricWidget 
-                        title="Properties Listed" 
-                        value="47" 
-                        change="+15%" 
-                        icon="home" 
+                        title="Total Contacts" 
+                        value={contacts.length.toString()} 
+                        change="Live" 
+                        icon="contacts" 
                         iconBg="bg-purple-500" 
                         changeUp={true} 
                     />
@@ -198,146 +212,72 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <StatusWidget serviceName="AI Services" status="Online" />
                 </div>
 
-                {/* Users Table */}
+                {/* Recent Contacts Table */}
                 <div className="bg-slate-800 rounded-lg border border-slate-700/50 mb-8">
                     <div className="px-6 py-4 border-b border-slate-700/50">
-                        <h3 className="text-lg font-semibold text-white">Recent Users</h3>
-                        <p className="text-sm text-slate-400">Manage platform users and their access</p>
+                        <h3 className="text-lg font-semibold text-white">Recent Contacts</h3>
+                        <p className="text-sm text-slate-400">Manage your leads and clients</p>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="text-xs text-slate-400 uppercase bg-slate-700/30">
                                 <tr>
-                                    <th className="px-6 py-3">User</th>
-                                    <th className="px-6 py-3">Role</th>
-                                    <th className="px-6 py-3">Plan</th>
-                                    <th className="px-6 py-3">Status</th>
-                                    <th className="px-6 py-3">Last Login</th>
-                                    <th className="px-6 py-3">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {users.map((user) => (
-                                    <tr key={user.id} className="bg-slate-800 border-b border-slate-700/50 hover:bg-slate-700/30">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center">
-                                                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
-                                                    <span className="text-white text-sm font-semibold">
-                                                        {user.name.charAt(0).toUpperCase()}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <div className="font-medium text-white">{user.name}</div>
-                                                    <div className="text-slate-400">{user.email}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                                user.role === 'admin' ? 'bg-red-100 text-red-800' :
-                                                user.role === 'manager' ? 'bg-blue-100 text-blue-800' :
-                                                'bg-green-100 text-green-800'
-                                            }`}>
-                                                {user.role}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-slate-300">{user.plan}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                                user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                            }`}>
-                                                {user.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-slate-300">{user.lastLogin}</td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => handleEditUserClick(user)}
-                                                    className="text-blue-400 hover:text-blue-300 transition"
-                                                    title="Edit user"
-                                                >
-                                                    <span className="material-symbols-outlined text-sm">edit</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteUser(user.id)}
-                                                    className="text-red-400 hover:text-red-300 transition"
-                                                    title="Delete user"
-                                                >
-                                                    <span className="material-symbols-outlined text-sm">delete</span>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* Leads Table */}
-                <div className="bg-slate-800 rounded-lg border border-slate-700/50">
-                    <div className="px-6 py-4 border-b border-slate-700/50">
-                        <h3 className="text-lg font-semibold text-white">Recent Leads</h3>
-                        <p className="text-sm text-slate-400">Track and manage potential clients</p>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-slate-400 uppercase bg-slate-700/30">
-                                <tr>
-                                    <th className="px-6 py-3">Lead</th>
                                     <th className="px-6 py-3">Contact</th>
-                                    <th className="px-6 py-3">Status</th>
-                                    <th className="px-6 py-3">Source</th>
+                                    <th className="px-6 py-3">Role</th>
+                                    <th className="px-6 py-3">Stage</th>
+                                    <th className="px-6 py-3">Contact Info</th>
                                     <th className="px-6 py-3">Created</th>
                                     <th className="px-6 py-3">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {leads.map((lead) => (
-                                    <tr key={lead.id} className="bg-slate-800 border-b border-slate-700/50 hover:bg-slate-700/30">
+                                {contacts.slice(0, 5).map((contact) => (
+                                    <tr key={contact.id} className="bg-slate-800 border-b border-slate-700/50 hover:bg-slate-700/30">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center">
-                                                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-3">
+                                                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
                                                     <span className="text-white text-sm font-semibold">
-                                                        {lead.name.charAt(0).toUpperCase()}
+                                                        {contact.name.charAt(0).toUpperCase()}
                                                     </span>
                                                 </div>
                                                 <div>
-                                                    <div className="font-medium text-white">{lead.name}</div>
-                                                    <div className="text-slate-400 text-xs">{lead.notes}</div>
+                                                    <div className="font-medium text-white">{contact.name}</div>
+                                                    <div className="text-slate-400 text-xs">{contact.pipeline_note || 'No notes'}</div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="text-slate-300">{lead.email}</div>
-                                            <div className="text-slate-400 text-xs">{lead.phone}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
                                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                                lead.status === 'new' ? 'bg-blue-100 text-blue-800' :
-                                                lead.status === 'contacted' ? 'bg-yellow-100 text-yellow-800' :
-                                                lead.status === 'qualified' ? 'bg-purple-100 text-purple-800' :
-                                                'bg-green-100 text-green-800'
+                                                contact.role === 'lead' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
                                             }`}>
-                                                {lead.status}
+                                                {contact.role === 'lead' ? 'Lead' : 'Client'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-slate-300">{lead.source}</td>
-                                        <td className="px-6 py-4 text-slate-300">{lead.createdAt}</td>
+                                        <td className="px-6 py-4">
+                                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                                                {contact.stage}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-slate-300">{contact.email}</div>
+                                            <div className="text-slate-400 text-xs">{contact.phone || 'No phone'}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-slate-300">
+                                            {new Date(contact.created_at).toLocaleDateString()}
+                                        </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
                                                 <button
-                                                    onClick={() => handleEditLeadClick(lead)}
+                                                    onClick={() => console.log('Edit contact:', contact.id)}
                                                     className="text-blue-400 hover:text-blue-300 transition"
-                                                    title="Edit lead"
+                                                    title="Edit contact"
                                                 >
                                                     <span className="material-symbols-outlined text-sm">edit</span>
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteLead(lead.id)}
+                                                    onClick={() => console.log('Delete contact:', contact.id)}
                                                     className="text-red-400 hover:text-red-300 transition"
-                                                    title="Delete lead"
+                                                    title="Delete contact"
                                                 >
                                                     <span className="material-symbols-outlined text-sm">delete</span>
                                                 </button>
@@ -345,20 +285,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         </td>
                                     </tr>
                                 ))}
+                                {contacts.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                                            No contacts found. Add your first contact to get started!
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
                 </div>
+
+
             </div>
 
             {/* Centralized Modals - handlers are managed by AdminLayout */}
             <AdminModals
                 users={users}
                 leads={leads}
-                onAddUser={() => console.log('Add user handled by AdminLayout')}
-                onEditUser={() => console.log('Edit user handled by AdminLayout')}
-                onAddLead={() => console.log('Add lead handled by AdminLayout')}
-                onEditLead={() => console.log('Edit lead handled by AdminLayout')}
+                onAddUser={async () => { console.log('Add user handled by AdminLayout') }}
+                onEditUser={async () => { console.log('Edit user handled by AdminLayout') }}
+                onAddLead={async () => { console.log('Add lead handled by AdminLayout') }}
+                onEditLead={async () => { console.log('Edit lead handled by AdminLayout') }}
+            />
+            
+            {/* Add Contact Modal */}
+            <AddContactModal
+                isOpen={showAddContactModal}
+                onClose={() => setShowAddContactModal(false)}
+                onContactAdded={async () => {
+                    // Refresh contacts data
+                    try {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (user) {
+                            const { data, error } = await supabase
+                                .from('contacts')
+                                .select('*')
+                                .eq('user_id', user.id);
+                            
+                            if (!error) {
+                                setContacts(data || []);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error refreshing contacts:', error);
+                    }
+                    console.log('Contact added successfully');
+                }}
             />
         </div>
     );

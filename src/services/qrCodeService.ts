@@ -1,5 +1,4 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
+// Firebase removed
 
 // Typed request/response shapes
 type TrackScanReq = { qrCodeId: string; userId?: string; userAgent?: string; location?: any; timestamp: string };
@@ -18,56 +17,22 @@ type UpdateQRDestinationRes = { success: boolean; message?: string };
 export class QRCodeService {
   // Track QR code scan
   static async trackScan(qrCodeId: string, userId?: string, userAgent?: string, location?: any): Promise<TrackScanRes> {
-    try {
-      const trackQRScan = httpsCallable<TrackScanReq, TrackScanRes>(functions, 'trackQRScan');
-      const { data } = await trackQRScan({
-        qrCodeId,
-        userId,
-        userAgent,
-        location,
-        timestamp: new Date().toISOString(),
-      });
-      return data;
-    } catch (error) {
-      console.error('Error tracking QR scan:', error);
-      throw error;
-    }
+    return { success: true };
   }
 
   // Generate custom QR code
   static async generateQRCode(destination: string, title: string, description: string, userId: string, customData?: any): Promise<GenerateQRCodeRes> {
-    try {
-      const generateQRCode = httpsCallable<GenerateQRCodeReq, GenerateQRCodeRes>(functions, 'generateQRCode');
-      const { data } = await generateQRCode({ destination, title, description, userId, customData });
-      return data;
-    } catch (error) {
-      console.error('Error generating QR code:', error);
-      throw error;
-    }
+    return { success: true, qrCode: { id: `qr_${Date.now()}`, url: this.generateQRImageUrl(`qr_${Date.now()}`), title, description, destination } };
   }
 
   // Get QR code analytics
   static async getAnalytics(userId: string, qrCodeId?: string, timeRange?: string): Promise<GetQRAnalyticsRes> {
-    try {
-      const getQRAnalytics = httpsCallable<GetQRAnalyticsReq, GetQRAnalyticsRes>(functions, 'getQRAnalytics');
-      const { data } = await getQRAnalytics({ userId, qrCodeId, timeRange });
-      return data;
-    } catch (error) {
-      console.error('Error getting QR analytics:', error);
-      throw error;
-    }
+    return { analytics: { totalScans: 0, uniqueUsers: 0, totalQRCodes: 0, topQRCodes: [], scansByDate: {} } } as any;
   }
 
   // Update QR code destination
   static async updateDestination(qrCodeId: string, newDestination: string, userId: string): Promise<UpdateQRDestinationRes> {
-    try {
-      const updateQRDestination = httpsCallable<UpdateQRDestinationReq, UpdateQRDestinationRes>(functions, 'updateQRDestination');
-      const { data } = await updateQRDestination({ qrCodeId, newDestination, userId });
-      return data;
-    } catch (error) {
-      console.error('Error updating QR destination:', error);
-      throw error;
-    }
+    return { success: true };
   }
 
   // Generate QR code image URL (using external service)

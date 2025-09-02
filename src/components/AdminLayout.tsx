@@ -2,12 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { useAdminModal } from '../context/AdminModalContext';
 import { AdminModals } from './AdminModals';
 import { View, User, Lead, LeadStatus, SequenceStep } from '../types';
+import { auth, db, functions } from '../services/firebase';
+// Firebase functions/firestore removed
+import { fileUploadService } from '../services/fileUploadService';
 import AdminDashboard from './AdminDashboard';
 import ExportModal from './ExportModal';
 import { AuthService } from '../services/authService';
 import { googleOAuthService } from '../services/googleOAuthService';
 import { useScheduler } from '../context/SchedulerContext';
 import CalendarView from './CalendarView';
+import AdminContactsPage from './AdminContactsPage';
+import AdminCRMContactsSupabase from './AdminCRMContactsSupabase';
+import AdminAgentsPage from './AdminAgentsPage';
+import AIAgentHub from './AIAgentHub';
+import { personaService } from '../services/personaService';
+
+// Utility: sanitize objects for Firestore by removing undefined values
+const sanitizeForFirebase = (data: any): any => {
+  if (data === null || data === undefined) return null;
+  if (typeof data !== 'object' || data === null) return data;
+  if (Array.isArray(data)) return data.map(item => sanitizeForFirebase(item));
+  const sanitized: any = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) continue; // skip undefined
+    const v = sanitizeForFirebase(value);
+    // Only include keys whose sanitized value is not undefined
+    if (v !== undefined) sanitized[key] = v;
+  }
+  return sanitized;
+};
 
 interface AdminLayoutProps {
   currentView: View;
@@ -43,10 +66,52 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
   // Local state for data management (should be moved to context later)
   const [users, setUsers] = useState<User[]>(() => {
     const savedUsers = localStorage.getItem('adminUsers');
-    const defaultUsers = [
-      { id: '1', name: 'John Smith', email: 'john@example.com', role: 'agent', plan: 'Solo Agent', status: 'active', lastLogin: '2024-01-15' },
-      { id: '2', name: 'Sarah Johnson', email: 'sarah@example.com', role: 'manager', plan: 'Team Leader', status: 'active', lastLogin: '2024-01-14' },
-      { id: '3', name: 'Mike Davis', email: 'mike@example.com', role: 'agent', plan: 'Solo Agent', status: 'inactive', lastLogin: '2024-01-10' }
+    const defaultUsers: User[] = [
+      {
+        id: '1',
+        name: 'John Smith',
+        email: 'john@example.com',
+        role: 'agent',
+        plan: 'Solo Agent',
+        status: 'Active',
+        dateJoined: '2024-01-01',
+        lastActive: '2024-01-15T12:00:00Z',
+        propertiesCount: 0,
+        leadsCount: 0,
+        aiInteractions: 0,
+        subscriptionStatus: 'active',
+        renewalDate: '2025-01-01'
+      },
+      {
+        id: '2',
+        name: 'Sarah Johnson',
+        email: 'sarah@example.com',
+        role: 'admin',
+        plan: 'Pro Team',
+        status: 'Active',
+        dateJoined: '2024-01-01',
+        lastActive: '2024-01-14T09:00:00Z',
+        propertiesCount: 0,
+        leadsCount: 0,
+        aiInteractions: 0,
+        subscriptionStatus: 'active',
+        renewalDate: '2025-01-01'
+      },
+      {
+        id: '3',
+        name: 'Mike Davis',
+        email: 'mike@example.com',
+        role: 'agent',
+        plan: 'Solo Agent',
+        status: 'Inactive',
+        dateJoined: '2023-12-15',
+        lastActive: '2024-01-10T15:00:00Z',
+        propertiesCount: 0,
+        leadsCount: 0,
+        aiInteractions: 0,
+        subscriptionStatus: 'expired',
+        renewalDate: '2024-01-01'
+      }
     ];
     
     if (savedUsers) {
@@ -621,12 +686,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       role: newUserForm.role as User['role'],
       plan: newUserForm.plan as User['plan'],
       status: 'Active',
-      lastLogin: new Date().toLocaleDateString(),
       dateJoined: new Date().toISOString().slice(0,10),
       lastActive: new Date().toISOString(),
       propertiesCount: 0,
       leadsCount: 0,
-      revenue: 0,
       aiInteractions: 0,
       subscriptionStatus: 'active',
       renewalDate: new Date(new Date().getFullYear()+1,0,1).toISOString().slice(0,10)
@@ -684,7 +747,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
 
   const handleAddLead = async (leadData: any) => {
     // Create new lead object locally  
-    const newLead = {
+    const newLead: Lead = {
       id: Date.now().toString(),
       name: leadData.name,
       email: leadData.email,
@@ -692,7 +755,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       status: leadData.status as LeadStatus,
       source: leadData.source,
       notes: leadData.notes,
-      createdAt: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      lastMessage: ''
     };
     
     // Add to state (localStorage will be updated automatically via useEffect)
@@ -1001,9 +1065,19 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
   };
 
   const renderAdminContent = () => {
-    switch (currentView) {
+    // Force Contacts/Users/Leads to a fresh, stripped CRM shell
+    if (
+      currentView === 'admin-contacts' ||
+      currentView === 'admin-users' ||
+      currentView === 'admin-leads'
+    ) {
+      		return <AdminCRMContactsSupabase />;
+    }
+    switch (currentView as any) {
       case 'admin-dashboard':
         return <AdminDashboard users={users} leads={leads} onDeleteUser={handleDeleteUser} onDeleteLead={handleDeleteLead} />;
+      case 'admin-contacts':
+        return <AdminCRMContactsSupabase />;
       case 'admin-users':
         return (
           <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
@@ -1115,12 +1189,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                         </td>
                         <td className="px-6 py-4 text-slate-600">{user.dateJoined}</td>
                         <td className="px-6 py-4">
-                          <button
-                            onClick={() => handleEditUser(user)}
-                            className="text-blue-600 hover:text-blue-700 mr-3"
-                          >
-                            Edit
-                          </button>
+                          
                           <button
                             onClick={() => handleDeleteUser(user.id)}
                             className="text-red-600 hover:text-red-700"
@@ -1371,25 +1440,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           </div>
                         )}
                         <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
-                          <button 
-                            onClick={() => {
-                              setEditingLead(lead);
-                              setEditLeadForm({
-                                name: lead.name,
-                                email: lead.email,
-                                phone: lead.phone,
-                                status: lead.status,
-                                source: lead.source || '',
-                                notes: lead.notes || ''
-                              });
-                              setShowEditLeadModal(true);
-                            }}
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 transition"
-                            title="Edit lead"
-                          >
-                            <span className="material-symbols-outlined w-5 h-5">edit</span>
-                            <span>Edit</span>
-                          </button>
+                          
                           <button 
                             onClick={() => handleDeleteLead(lead.id)}
                             className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-500 rounded-lg shadow-sm hover:bg-red-600 transition"
@@ -2161,6 +2212,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
           </div>
         );
       case 'admin-knowledge-base':
+        return <AIAgentHub />;
+      case 'admin-knowledge-base-legacy':
         return (
           <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
             <header className="flex items-center justify-between mb-8">
@@ -2235,20 +2288,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     {knowledgeEntries.marketing.length}
                   </span>
                 </button>
-                <button 
-                  onClick={() => setActiveKnowledgeTab('personalities')}
-                  className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-                    activeKnowledgeTab === 'personalities' 
-                      ? 'border-primary-600 text-primary-600' 
-                      : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  <span className="material-symbols-outlined w-5 h-5">psychology</span> 
-                  <span>AI Personalities</span>
-                  <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs">
-                    {knowledgeEntries.personalities.length}
-                  </span>
-                </button>
+                {/* Removed AI Personalities tab: now managed at KB level */}
               </nav>
             </div>
 
@@ -2291,14 +2331,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 </div>
               )}
               
-              {activeKnowledgeTab === 'personalities' && (
-                <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl p-6 border border-pink-200">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-2">🧠 AI Personalities</h2>
-                  <p className="text-slate-600">
-                    Custom AI personalities and expert personas for specialized interactions and knowledge delivery.
-                  </p>
-                </div>
-              )}
+              {/* Deprecated personalities header removed */}
 
               {/* Knowledge Base Persona */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
@@ -2325,7 +2358,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 </div>
                 
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg p-4 border border-slate-200">
-                  <h4 className="font-semibold text-slate-900 mb-2">System Prompt</h4>
+                  <h4 className="font-semibold text-slate-900 mb-2">AI Personality</h4>
                   <p className="text-slate-700 text-sm leading-relaxed">
                     {knowledgePersonas[activeKnowledgeTab as keyof typeof knowledgePersonas]?.systemPrompt}
                   </p>
@@ -2340,7 +2373,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     {activeKnowledgeTab === 'sales' && '📈 Sales Techniques'}
                     {activeKnowledgeTab === 'support' && '🛠️ Support Resources'}
                     {activeKnowledgeTab === 'marketing' && '📢 Marketing Strategies'}
-                    {activeKnowledgeTab === 'personalities' && '🧠 AI Personalities'}
+                    
                   </h3>
                   <div className="text-sm text-slate-500">
                     {knowledgeEntries[activeKnowledgeTab as keyof typeof knowledgeEntries].length} entries
@@ -2369,7 +2402,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                             <p className="text-slate-600 text-sm mb-3 line-clamp-3">{entry.content}</p>
                             <div className="flex items-center gap-4 text-xs text-slate-500">
                               <span>Category: {entry.category}</span>
-                              <span>Created: {new Date(entry.createdAt).toLocaleDateString()}</span>
+                              <span>
+                                Created: {
+                                  entry.createdAt && (entry.createdAt.seconds || entry.createdAt.nanoseconds)
+                                    ? new Date(
+                                        (entry.createdAt.seconds || 0) * 1000 + Math.floor((entry.createdAt.nanoseconds || 0) / 1e6)
+                                      ).toLocaleDateString()
+                                    : (typeof entry.createdAt === 'string' && entry.createdAt)
+                                      ? new Date(entry.createdAt).toLocaleDateString()
+                                      : 'Just now'
+                                }
+                              </span>
                             </div>
                             {entry.tags && entry.tags.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-2">
@@ -4932,26 +4975,45 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
   };
 
   // Knowledge Base Functions
-  const handleAddKnowledgeEntry = () => {
+  const handleAddKnowledgeEntry = async () => {
     if (!newKnowledgeEntry.title || !newKnowledgeEntry.content) {
       alert('Please fill in both title and content');
       return;
     }
 
-    const newEntry = {
-      id: Date.now().toString(),
-      title: newKnowledgeEntry.title,
-      content: newKnowledgeEntry.content,
-      category: newKnowledgeEntry.category || 'general',
-      tags: newKnowledgeEntry.tags,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    try {
+      const userId = auth.currentUser?.uid || 'local-dev';
+      const kbCol = collection(db, 'knowledgeBase');
+      const ref = await addDoc(kbCol, {
+        userId,
+        category: activeKnowledgeTab,
+        title: newKnowledgeEntry.title,
+        content: newKnowledgeEntry.content,
+        tags: newKnowledgeEntry.tags,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
 
-    setKnowledgeEntries(prev => ({
-      ...prev,
-      [activeKnowledgeTab]: [...prev[activeKnowledgeTab as keyof typeof prev], newEntry]
-    }));
+      setKnowledgeEntries(prev => ({
+        ...prev,
+        [activeKnowledgeTab]: [
+          ...prev[activeKnowledgeTab as keyof typeof prev],
+          {
+            id: ref.id,
+            title: newKnowledgeEntry.title,
+            content: newKnowledgeEntry.content,
+            category: newKnowledgeEntry.category || 'general',
+            tags: newKnowledgeEntry.tags,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ]
+      }));
+    } catch (e) {
+      console.error('Failed to save knowledge entry:', e);
+      alert('Failed to save knowledge. Please try again.');
+      return;
+    }
 
     // Reset form
     setNewKnowledgeEntry({
@@ -4981,12 +5043,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     }));
   };
 
-  const handleDeleteKnowledgeEntry = (entryId: string) => {
+  const handleDeleteKnowledgeEntry = async (entryId: string) => {
     if (confirm('Are you sure you want to delete this knowledge entry?')) {
-      setKnowledgeEntries(prev => ({
-        ...prev,
-        [activeKnowledgeTab]: prev[activeKnowledgeTab as keyof typeof prev].filter(entry => entry.id !== entryId)
-      }));
+      try {
+        await deleteDoc(doc(db, 'knowledgeBase', entryId));
+        await refreshKnowledgeFromFirestore();
+      } catch (e) {
+        console.error('Failed to delete knowledge entry:', e);
+        alert('Failed to delete entry.');
+      }
     }
   };
 
@@ -5019,26 +5084,31 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     }));
   };
 
-  const handleUploadDocument = () => {
+  const handleUploadDocument = async () => {
     if (!documentUpload.file || !documentUpload.title) {
       alert('Please select a file and provide a title');
       return;
     }
 
-    const newEntry = {
-      id: Date.now().toString(),
-      title: documentUpload.title,
-      content: `Document uploaded: ${documentUpload.file.name} (${(documentUpload.file.size / 1024).toFixed(1)} KB)`,
-      category: documentUpload.category || 'document',
-      tags: documentUpload.tags,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    setKnowledgeEntries(prev => ({
-      ...prev,
-      [activeKnowledgeTab]: [...prev[activeKnowledgeTab as keyof typeof prev], newEntry]
-    }));
+    try {
+      const uid = auth.currentUser?.uid || 'local-dev';
+      const upload = await fileUploadService.uploadFile(documentUpload.file, uid);
+      await fileUploadService.processDocument(
+        upload.fileId,
+        documentUpload.file.type || 'application/octet-stream'
+      );
+      await fileUploadService.storeKnowledgeBase(
+        upload.fileId,
+        activeKnowledgeTab,
+        documentUpload.tags,
+        uid
+      );
+      await refreshKnowledgeFromFirestore();
+    } catch (e) {
+      console.error('Document upload failed:', e);
+      alert('Failed to upload document.');
+      return;
+    }
 
     // Reset form
     setDocumentUpload({
@@ -5075,19 +5145,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       return;
     }
 
-    const newEntry = {
-      id: Date.now().toString(),
-      title: urlScanner.title,
-      content: `URL Scanner: ${urlScanner.url}\nScan Frequency: ${urlScanner.scanFrequency}\nLast scanned: ${new Date().toLocaleDateString()}`,
-      category: urlScanner.category || 'url-scanner',
-      tags: urlScanner.tags,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
+    // For now, do not persist scraper placeholder entries
     setKnowledgeEntries(prev => ({
       ...prev,
-      [activeKnowledgeTab]: [...prev[activeKnowledgeTab as keyof typeof prev], newEntry]
+      [activeKnowledgeTab]: prev[activeKnowledgeTab as keyof typeof prev]
     }));
 
     // Reset form
@@ -5114,20 +5175,44 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     setShowPersonaModal(true);
   };
 
-  const handleSavePersona = () => {
+  const handleSavePersona = async () => {
     if (!editingPersona) return;
 
-    setKnowledgePersonas(prev => ({
-      ...prev,
-      [editingPersona.key]: {
-        title: editingPersona.title,
-        systemPrompt: editingPersona.systemPrompt,
-        isActive: editingPersona.isActive
-      }
-    }));
+    try {
+      const uid = auth.currentUser?.uid || 'local-dev';
+      const key = editingPersona.key;
+      // Build a minimal persona payload expected by the persona service
+      const currentPersona = {
+        kbPersonas: {
+          [key]: {
+            title: editingPersona.title,
+            systemPrompt: editingPersona.systemPrompt,
+            isActive: editingPersona.isActive,
+            voiceId: (editingPersona as any).voiceId ?? null
+          }
+        }
+      };
 
-    setShowPersonaModal(false);
-    setEditingPersona(null);
+      await personaService.savePersona(uid, currentPersona);
+      console.log('Persona saved successfully');
+
+      // Update local UI state
+      setKnowledgePersonas(prev => ({
+        ...prev,
+        [key]: {
+          title: editingPersona.title,
+          systemPrompt: editingPersona.systemPrompt,
+          isActive: editingPersona.isActive,
+          voiceId: (editingPersona as any).voiceId || (prev as any)[key]?.voiceId
+        }
+      }));
+
+      setShowPersonaModal(false);
+      setEditingPersona(null);
+    } catch (error) {
+      console.error('Failed to save persona:', error);
+      // Keep modal open for correction; optionally show toast/error UI here
+    }
   };
 
   // AI Personality Functions
@@ -5192,6 +5277,19 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     setEditingAIPersonality(null);
     setAiPersonalityStep(0);
   };
+
+  // Load persisted knowledge entries from Firestore (disabled during migration)
+  const refreshKnowledgeFromFirestore = async () => {
+    try {
+      // Firebase client is disabled; keep UI stable with empty data
+      setKnowledgeEntries({ god: [], sales: [], support: [], marketing: [] } as any);
+    } catch {}
+  };
+
+  // Load persisted knowledge entries on mount and when user changes
+  useEffect(() => {
+    refreshKnowledgeFromFirestore();
+  }, []);
 
   const handleAIPersonalityNext = () => {
     if (aiPersonalityStep < 4) {
@@ -6208,7 +6306,7 @@ Best regards,`}
               
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-slate-700">System Prompt</label>
+                  <label className="block text-sm font-medium text-slate-700">AI Personality</label>
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-slate-500">Tone preset</label>
                     <select
@@ -6249,11 +6347,44 @@ Best regards,`}
                   onChange={(e) => setEditingPersona({...editingPersona, systemPrompt: e.target.value})}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   rows={8}
-                  placeholder="Enter the system prompt that defines how this AI should behave..."
+                  placeholder="Enter a custom personality prompt to override the generated one..."
                 />
                 <p className="text-xs text-slate-500 mt-1">
-                  This prompt defines the AI's role, expertise, and behavior when accessing this knowledge base.
+                  Define the AI's role, expertise, and behavior for this knowledge base.
                 </p>
+              </div>
+
+              {/* Voice selection placeholder */}
+              <div className="mt-5">
+                <label className="block text-sm font-medium text-slate-700 mb-2">Voice</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { id: 'voice-a', name: 'Clarity', desc: 'Crisp, professional' },
+                    { id: 'voice-b', name: 'Warmth', desc: 'Friendly, empathetic' },
+                    { id: 'voice-c', name: 'Spark', desc: 'Energetic, upbeat' },
+                    { id: 'voice-d', name: 'Calm', desc: 'Relaxed, reassuring' }
+                  ].map(v => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setEditingPersona({ ...editingPersona, voiceId: v.id } as any)}
+                      className={`p-3 rounded-lg border text-left transition ${
+                        (editingPersona as any)?.voiceId === v.id
+                          ? 'border-primary-500 ring-2 ring-primary-200 bg-primary-50'
+                          : 'border-slate-200 hover:border-primary-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-800">{v.name}</span>
+                        <span className={`material-symbols-outlined text-xl ${
+                          (editingPersona as any)?.voiceId === v.id ? 'text-primary-600' : 'text-slate-400'
+                        }`}>graphic_eq</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">{v.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500 mt-2">Placeholder voices. Final voice options will be connected to the speech service. Your custom prompt above will still override behavior if provided.</p>
               </div>
               
               <div className="flex items-center gap-3">

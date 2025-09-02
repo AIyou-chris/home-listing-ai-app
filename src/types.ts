@@ -41,6 +41,7 @@ export type View =
     | 'admin-dashboard'
     | 'admin-users'
     | 'admin-leads'
+    | 'admin-contacts'
     | 'admin-knowledge-base'
     | 'admin-ai-personalities'
     | 'admin-ai-content'

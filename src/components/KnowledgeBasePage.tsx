@@ -111,22 +111,16 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
                     file.type
                 );
 
-                // Process knowledge base
+                // Mid-way progress before storing in knowledge base
                 setUploadProgress(prev => ({ ...prev, [file.name]: 50 }));
-                
-                const knowledgeResult = await fileUploadService.processKnowledgeBase(
-                    uploadResult.fileId,
-                    auth.currentUser.uid,
-                    activeTab,
-                    []
-                );
 
-                // Store in knowledge base
+                // Store in knowledge base (map to admin categories)
                 setUploadProgress(prev => ({ ...prev, [file.name]: 75 }));
-                
+                const categoryMap: any = { agent: 'god', listing: 'sales', personalities: 'support', conversations: 'support', marketing: 'marketing' };
+                const savedCategory = categoryMap[activeTab] || 'god';
                 await fileUploadService.storeKnowledgeBase(
                     uploadResult.fileId,
-                    activeTab,
+                    savedCategory,
                     [],
                     auth.currentUser.uid
                 );
@@ -266,11 +260,11 @@ const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ agentProfile }) =
             // Upload and process the text content
             const uploadResult = await fileUploadService.uploadFile(textFile, auth.currentUser!.uid);
             const processResult = await fileUploadService.processDocument(uploadResult.fileId, 'text/plain');
-            const knowledgeResult = await fileUploadService.processKnowledgeBase(
+            await fileUploadService.storeKnowledgeBase(
                 uploadResult.fileId,
-                auth.currentUser!.uid,
                 activeTab,
-                []
+                [],
+                auth.currentUser!.uid
             );
             
             // Clear form

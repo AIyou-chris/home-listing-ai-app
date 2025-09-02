@@ -17,7 +17,9 @@ try {
 } catch {}
 
 // Initialize Firebase Admin SDK
-admin.initializeApp();
+admin.initializeApp({
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'home-listing-ai.appspot.com'
+});
 
 // Export the API
 export { api } from './api';

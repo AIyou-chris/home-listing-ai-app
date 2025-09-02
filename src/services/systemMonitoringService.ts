@@ -413,7 +413,7 @@ export class SystemMonitoringService {
   }
 
   // Alert management
-  async createAlert(alert: Omit<SystemAlert, 'id' | 'createdAt'>): Promise<void> {
+  async createAlert(alert: Omit<SystemAlert, 'id'>): Promise<void> {
     try {
       await AdminService.createSystemAlert(
         alert.type,
@@ -482,8 +482,10 @@ export class SystemMonitoringService {
       title: `System Health Error: ${healthStatus.message}`,
       description: healthStatus.message,
       severity: 'high',
-      component: 'system-monitoring'
-    });
+      component: 'system-monitoring',
+      status: 'active',
+      createdAt: new Date().toISOString()
+    } as any);
   }
 
   private async handleHealthCheckWarning(healthStatus: HealthStatus): Promise<void> {
@@ -494,8 +496,10 @@ export class SystemMonitoringService {
       title: `System Health Warning: ${healthStatus.message}`,
       description: healthStatus.message,
       severity: 'medium',
-      component: 'system-monitoring'
-    });
+      component: 'system-monitoring',
+      status: 'open',
+      createdAt: new Date().toISOString()
+    } as any);
   }
 
   // Configuration methods

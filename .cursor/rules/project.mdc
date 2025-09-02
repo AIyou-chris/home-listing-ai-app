@@ -1,0 +1,4 @@
+Features must be planned: PLAN first, approval required, then PATCH.  
+React: functional components with typed props; forms use React Hook Form + Zod.  
+Security: sanitize user input with DOMPurify before dangerouslySetInnerHTML.  
+

@@ -1,9 +1,7 @@
 
 import React, { useState } from 'react';
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { httpsCallable } from 'firebase/functions';
-import { auth, functions } from '../services/firebase';
-import { callFunctionWithFallback } from '../utils/functionUtils';
+// Supabase auth
+import { supabase } from '../services/supabase';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
 import { Logo } from './Logo';
@@ -61,40 +59,21 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
         try {
             console.log('Attempting to create user with email:', email);
             
-            // Call the addNewUser function with fallback
-            const result = await callFunctionWithFallback('addNewUser', {
-                email: email,
-                password: password,
-                name: fullName,
-                role: 'agent',
-                plan: 'Solo Agent'
+            const { error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        name: fullName,
+                        role: 'agent',
+                        plan: 'Solo Agent'
+                    }
+                }
             });
             
-            if (!result.success) {
-                console.error('All function attempts failed, falling back to client-side user creation...');
-                
-                // If both functions fail, fall back to the client-side method
-                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                console.log('User created successfully via client:', userCredential.user.uid);
-                
-                // After user is created, update their profile with the full name
-                await updateProfile(userCredential.user, {
-                    displayName: fullName,
-                });
-            }
-
-            // Trigger onboarding sequence with fallback
-            const onboardingResult = await callFunctionWithFallback('triggerOnboardingSequence', {
-                userEmail: email,
-                userName: fullName
-            });
+            if (error) throw error;
             
-            if (onboardingResult.success) {
-                console.log('Onboarding sequence triggered successfully');
-            } else {
-                console.error('Failed to trigger onboarding sequence:', onboardingResult.error);
-                // Don't fail the signup if onboarding fails
-            }
+            alert('Account created! Please check your email to confirm your account.');
         } catch (error: any) {
             console.error('Signup error:', error);
             if (error.code === 'auth/email-already-in-use') {

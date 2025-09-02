@@ -1,5 +1,4 @@
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth';
+// Firebase removed
 
 const functions = getFunctions();
 const auth = getAuth();

@@ -1,0 +1,4 @@
+Scope: Vite React TS web app (/) + Supabase client/server services (/src/services/supabase*).  
+All data, auth, and storage must go through Supabase (no Firebase or other backends).  
+Styling: TailwindCSS only; no raw CSS imports, no inline styles except trivial fixes.  
+

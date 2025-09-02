@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import QRCodeService from '../services/qrCodeService';
-import { auth } from '../services/firebase';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { supabase } from '../services/supabase';
 
 interface QRCode {
 	id: string;
@@ -22,7 +21,7 @@ interface QRStats {
 }
 
 const QRCodeManagementPage: React.FC = () => {
-	const [user] = useAuthState(auth);
+	const [user, setUser] = useState<any>(null);
 	const [qrCodes, setQrCodes] = useState<QRCode[]>([]);
 	const [stats, setStats] = useState<QRStats | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -34,17 +33,28 @@ const QRCodeManagementPage: React.FC = () => {
 	});
 
 	useEffect(() => {
-		if (user) {
-			loadQRData();
+		let mounted = true
+		supabase.auth.getUser().then(({ data }) => {
+			if (!mounted) return
+			setUser(data.user || null)
+			if (data.user) loadQRData()
+		})
+		const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+			setUser(session?.user || null)
+			if (session?.user) loadQRData()
+		})
+		return () => {
+			mounted = false
+			sub.subscription.unsubscribe()
 		}
-	}, [user]);
+	}, [])
 
 	const loadQRData = async () => {
 		if (!user) return;
 		
 		try {
 			setLoading(true);
-			const dashboardStats = await QRCodeService.getDashboardStats(user.uid);
+			const dashboardStats = await QRCodeService.getDashboardStats(user.id);
 			setStats(dashboardStats as QRStats);
 			// Note: In a real app, you'd fetch QR codes from Firestore
 			// For now, we'll use the top QR codes from analytics
@@ -64,7 +74,7 @@ const QRCodeManagementPage: React.FC = () => {
 				newQRCode.destination,
 				newQRCode.title,
 				newQRCode.description,
-				user.uid
+				user.id
 			);
 
 			if (result.success) {
@@ -81,7 +91,7 @@ const QRCodeManagementPage: React.FC = () => {
 		if (!user) return;
 
 		try {
-			await QRCodeService.updateDestination(qrCodeId, newDestination, user.uid);
+			await QRCodeService.updateDestination(qrCodeId, newDestination, user.id);
 			loadQRData(); // Reload data
 		} catch (error) {
 			console.error('Error updating destination:', error);
@@ -175,7 +185,7 @@ const QRCodeManagementPage: React.FC = () => {
 												<span>Created: {qrCode.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'}</span>
 												<span className={`px-2 py-1 rounded-full text-xs ${
 													qrCode.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-												}`}>
+												}` }>
 													{qrCode.isActive ? 'Active' : 'Inactive'}
 												</span>
 											</div>

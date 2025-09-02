@@ -1,7 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { AdminModalProvider } from './context/AdminModalContext';
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from './services/firebase';
+import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_TASKS, SAMPLE_CONVERSATIONS, SAMPLE_INTERACTIONS } from './constants';
@@ -39,8 +38,13 @@ import ChatBotFAB from './components/ChatBotFAB';
 import PropertyComparison from './components/PropertyComparison';
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
+import { adminAuthService } from './services/adminAuthService';
+import AIAgentHub from './components/AIAgentHub';
 
-import { getProperties, addProperty } from './services/firestoreService';
+// import { getProperties, addProperty } from './services/firestoreService';
+// Temporary stubs while migrating off Firebase
+const getProperties = async (_uid: string) => [] as any[];
+const addProperty = async (_data: any, _uid: string) => `prop_${Date.now()}`;
 import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
@@ -52,7 +56,7 @@ import { PerformanceService } from './services/performanceService';
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const App: React.FC = () => {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSettingUp, setIsSettingUp] = useState(false);
     const [isDemoMode, setIsDemoMode] = useState(false);
@@ -136,6 +140,8 @@ const App: React.FC = () => {
             } else if (hash === 'openai-test') {
                 // removed
                 setView('dashboard');
+            } else if (hash === 'ai-sidekicks') {
+                setView('ai-sidekicks');
             }
         };
 
@@ -157,10 +163,22 @@ const App: React.FC = () => {
         // Initialize performance monitoring
         PerformanceService.initialize();
         
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        const initAuth = async () => {
+            const { data } = await supabase.auth.getUser();
+            const currentUser = data.user
+                ? { uid: data.user.id, email: data.user.email, displayName: data.user.user_metadata?.name }
+                : null;
             setIsLoading(true);
             setIsSettingUp(false); // Reset on every auth change
             setIsDemoMode(false); // Reset demo mode on any auth change
+
+            // Force signup mode - bypass auth check
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('force') === 'signup') {
+                setView('signup');
+                setIsLoading(false);
+                return;
+            }
 
             if (currentUser) {
                 console.log(`User signed in: ${currentUser.uid}`);
@@ -235,7 +253,7 @@ const App: React.FC = () => {
                         ...SAMPLE_AGENT,
                         name: currentUser.displayName ?? 'New Agent',
                         email: currentUser.email ?? '',
-                        headshotUrl: currentUser.photoURL ?? `https://i.pravatar.cc/150?u=${currentUser.uid}`,
+                        headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                     });
                     setLeads([]);
                     setAppointments([]);
@@ -263,9 +281,29 @@ const App: React.FC = () => {
                 }
             }
             setIsLoading(false);
+        };
+
+        initAuth();
+
+        const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            const currentUser = session?.user
+                ? { uid: session.user.id, email: session.user.email, displayName: session.user.user_metadata?.name }
+                : null;
+            // Re-run the same flow with new user
+            setIsLoading(true);
+            setIsSettingUp(false);
+            setIsDemoMode(false);
+            if (currentUser) {
+                console.log(`User signed in: ${currentUser.uid}`);
+                setUser(currentUser);
+            } else {
+                console.log('User signed out.');
+                setUser(null);
+            }
+            setIsLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => { sub.subscription.unsubscribe(); };
     }, []);
 
 
@@ -297,34 +335,42 @@ const App: React.FC = () => {
         setAdminLoginError(null);
         
         try {
-            // Use Firebase Auth to sign in
-            const { signInWithEmailAndPassword } = await import('firebase/auth');
-            const { auth } = await import('./services/firebase');
+            const trimmedEmail = email.trim();
+            const trimmedPassword = password.trim();
+
+            // Try local demo credentials first for immediate access
+            const demo = await adminAuthService.login(trimmedEmail, trimmedPassword);
+            if (demo.success) {
+                setIsAdminLoginOpen(false);
+                setView('admin-dashboard');
+                window.location.hash = 'admin-dashboard';
+                return;
+            }
+
+            // If demo credentials don't match, try Supabase Auth
+            const { error } = await supabase.auth.signInWithPassword({
+                email: trimmedEmail,
+                password: trimmedPassword
+            });
             
-            await signInWithEmailAndPassword(auth, email, password);
+            if (error) {
+                setAdminLoginError('Invalid login credentials');
+                return;
+            }
             
-            // Check if user has admin role
-            const token = await auth.currentUser?.getIdTokenResult();
-            if (token?.claims?.role !== 'admin') {
-                // If no admin role, set custom claims via Firebase Function
-                const { getFunctions, httpsCallable } = await import('firebase/functions');
-                const functions = getFunctions();
-                const setAdminRole = httpsCallable(functions, 'setAdminRole');
-                
-                try {
-                    await setAdminRole({ email });
-                    // Refresh token to get updated claims
-                    await auth.currentUser?.getIdToken(true);
-                } catch (error) {
-                    console.error('Failed to set admin role:', error);
-                }
+            // Ensure admin metadata
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.user_metadata?.role !== 'admin') {
+                await supabase.auth.updateUser({
+                    data: { role: 'admin', name: 'Admin User', plan: 'Admin' }
+                });
             }
             
             setIsAdminLoginOpen(false);
             setView('admin-dashboard');
+            window.location.hash = 'admin-dashboard';
         } catch (error: any) {
-            console.error('Admin login error:', error);
-            setAdminLoginError(error.message || 'Failed to login. Please check your credentials.');
+            setAdminLoginError('Invalid login credentials');
         } finally {
             setIsAdminLoginLoading(false);
         }
@@ -441,375 +487,259 @@ const App: React.FC = () => {
         setView('leads'); 
     };
 
-    const selectedProperty = properties.find(p => p.id === selectedPropertyId);
+	// Track which property is currently selected
+	const selectedProperty = properties.find(p => p.id === selectedPropertyId);
+	// Detect local admin mode via persisted flag
+	const isLocalAdmin = Boolean(localStorage.getItem('adminUser'));
 
-    // Small no-op to prevent unused variable diagnostics for `conversations` while it
-    // is wired up (we update it in several places but don't directly read it yet).
-    void conversations;
+	if (isLoading) {
+		return (
+			<div className="flex items-center justify-center h-screen bg-slate-50">
+				<LoadingSpinner size="xl" type="dots" text="Loading Application..." />
+			</div>
+		);
+	}
+	
+	if (isSettingUp) {
+		return (
+			<div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+				<LoadingSpinner size="xl" type="pulse" text="Setting up your new account..." />
+			</div>
+		);
+	}
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-screen bg-slate-50">
-                <LoadingSpinner size="xl" type="dots" text="Loading Application..." />
-            </div>
-        );
-    }
-    
-    if (isSettingUp) {
-        return (
-            <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
-                <LoadingSpinner size="xl" type="pulse" text="Setting up your new account..." />
-            </div>
-        );
-    }
+	const renderViewContent = () => {
+		// Logged-in, Demo, or Local Admin views
+		if (user || isDemoMode || isLocalAdmin) {
+			// If explicitly viewing landing, render standalone marketing page
+			if (view === 'landing') {
+				return (
+					<LandingPage 
+						onNavigateToSignUp={handleNavigateToSignUp} 
+						onNavigateToSignIn={handleNavigateToSignIn} 
+						onEnterDemoMode={handleEnterDemoMode}
+						scrollToSection={scrollToSection}
+						onScrollComplete={() => setScrollToSection(null)}
+						onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+						onNavigateToAdmin={handleNavigateToAdmin}
+					/>
+				);
+			}
+			const mainContent = () => {
+				switch(view) {
+					case 'landing':
+						return (
+							<LandingPage 
+								onNavigateToSignUp={handleNavigateToSignUp} 
+								onNavigateToSignIn={handleNavigateToSignIn} 
+								onEnterDemoMode={handleEnterDemoMode}
+								scrollToSection={scrollToSection}
+								onScrollComplete={() => setScrollToSection(null)}
+								onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+								onNavigateToAdmin={handleNavigateToAdmin}
+							/>
+						);
+					case 'openai-test':
+						return <LandingPage 
+							onNavigateToSignUp={handleNavigateToSignUp} 
+							onNavigateToSignIn={handleNavigateToSignIn} 
+							onEnterDemoMode={handleEnterDemoMode}
+							scrollToSection={scrollToSection}
+							onScrollComplete={() => setScrollToSection(null)}
+							onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+							onNavigateToAdmin={handleNavigateToAdmin}
+						/>;
+					case 'admin-dashboard':
+						return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
+					case 'admin-users':
+					case 'admin-knowledge-base': 
+					case 'admin-ai-personalities':
+					case 'admin-marketing': 
+					case 'admin-analytics': 
+					case 'admin-security': 
+					case 'admin-billing': 
+					case 'admin-settings': 
+						return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
+					case 'admin-leads':
+					case 'admin-contacts':
+						return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
+					case 'dashboard':
+						return <Dashboard 
+							agentProfile={userProfile} 
+							properties={properties} 
+							leads={leads} 
+							appointments={appointments} 
+							tasks={tasks} 
+							onSelectProperty={handleSelectProperty} 
+							onAddNew={() => setView('add-listing')}
+							onTaskUpdate={handleTaskUpdate}
+							onTaskAdd={handleTaskAdd}
+							onTaskDelete={handleTaskDelete}
+						/>;
+					case 'property': 
+						return selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setView('listings')} /> : <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')} />;
+					case 'listings': 
+						return <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')}/>;
+					case 'add-listing': 
+						return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} />;
+					case 'leads': 
+						return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
+					case 'inbox': 
+						return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
+					case 'ai-content':
+						return <Dashboard 
+							agentProfile={userProfile} 
+							properties={properties} 
+							leads={leads} 
+							appointments={appointments} 
+							tasks={tasks} 
+							onSelectProperty={handleSelectProperty} 
+							onAddNew={() => setView('add-listing')}
+							onTaskUpdate={handleTaskUpdate}
+							onTaskAdd={handleTaskAdd}
+							onTaskDelete={handleTaskDelete}
+						/>;
+					case 'knowledge-base': 
+						return <KnowledgeBasePage agentProfile={userProfile} />;
+					case 'marketing': 
+						return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
+					case 'analytics': 
+						return <AnalyticsDashboard />;
+					case 'ai-sidekicks':
+						return <AIAgentHub />;
+					case 'settings': 
+						return <SettingsPage 
+							userProfile={userProfile}
+							onSaveProfile={setUserProfile}
+							notificationSettings={notificationSettings}
+							onSaveNotifications={setNotificationSettings}
+							emailSettings={emailSettings}
+							onSaveEmailSettings={setEmailSettings}
+							calendarSettings={calendarSettings}
+							onSaveCalendarSettings={setCalendarSettings}
+							billingSettings={billingSettings}
+							onSaveBillingSettings={setBillingSettings}
+							onBackToDashboard={() => setView('dashboard')}
+						/>;
+					default:
+						return <Dashboard 
+							agentProfile={userProfile} 
+							properties={properties} 
+							leads={leads} 
+							appointments={appointments} 
+							tasks={tasks} 
+							onSelectProperty={handleSelectProperty} 
+							onAddNew={() => setView('add-listing')}
+							onTaskUpdate={handleTaskUpdate}
+							onTaskAdd={handleTaskAdd}
+							onTaskDelete={handleTaskDelete}
+						/>;
+				}
+			};
 
-    const renderViewContent = () => {
-        // Logged-in or Demo views
-        if (user || isDemoMode) {
-            // If explicitly viewing landing, render standalone marketing page
-            if (view === 'landing') {
-                return (
-                    <LandingPage 
-                        onNavigateToSignUp={handleNavigateToSignUp} 
-                        onNavigateToSignIn={handleNavigateToSignIn} 
-                        onEnterDemoMode={handleEnterDemoMode}
-                        scrollToSection={scrollToSection}
-                        onScrollComplete={() => setScrollToSection(null)}
-                        onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-                        onNavigateToAdmin={handleNavigateToAdmin}
-                    />
-                );
-            }
-             const mainContent = () => {
-                switch(view) {
-                    case 'landing':
-                        return (
-                            <LandingPage 
-                                onNavigateToSignUp={handleNavigateToSignUp} 
-                                onNavigateToSignIn={handleNavigateToSignIn} 
-                                onEnterDemoMode={handleEnterDemoMode}
-                                scrollToSection={scrollToSection}
-                                onScrollComplete={() => setScrollToSection(null)}
-                                onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-                                onNavigateToAdmin={handleNavigateToAdmin}
-                            />
-                        );
-                    
-                    case 'ai-lead-test':
-                        return <AILeadQualificationTestPage />;
-                    case 'help-sales-chat-test':
-                        return <HelpSalesChatBotTestPage />;
-                    case 'ai-test-nav':
-                        return <AITestNavigation onNavigate={setView} currentView={view} />;
-                    case 'openai-test':
-                        // Chat bots disabled: hide test page
-                        return <LandingPage 
-                            onNavigateToSignUp={handleNavigateToSignUp} 
-                            onNavigateToSignIn={handleNavigateToSignIn} 
-                            onEnterDemoMode={handleEnterDemoMode}
-                            scrollToSection={scrollToSection}
-                            onScrollComplete={() => setScrollToSection(null)}
-                            onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-                            onNavigateToAdmin={handleNavigateToAdmin}
-                        />;
-                    case 'admin-dashboard':
-                        return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
-                    case 'admin-users': 
-                    // case 'admin-ai-content': 
-                    case 'admin-knowledge-base': 
-                    case 'admin-ai-personalities':
-                    case 'admin-marketing': 
-                    case 'admin-analytics': 
-                    case 'admin-security': 
-                    case 'admin-billing': 
-                    case 'admin-settings': 
-                        return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
-                    case 'admin-leads':
-                        return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
-                                case 'dashboard':
-                return <Dashboard 
-                    agentProfile={userProfile} 
-                    properties={properties} 
-                    leads={leads} 
-                    appointments={appointments} 
-                    tasks={tasks} 
-                    onSelectProperty={handleSelectProperty} 
-                    onAddNew={() => setView('add-listing')}
-                    onTaskUpdate={handleTaskUpdate}
-                    onTaskAdd={handleTaskAdd}
-                    onTaskDelete={handleTaskDelete}
-                />;
-                    case 'property': 
-                        return selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setView('listings')} /> : <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')} />;
-                    case 'listings': 
-                        return <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')}/>;
-                    case 'add-listing': 
-                        return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} />;
-                    case 'leads': 
-                        return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
-                    case 'inbox': 
-                        return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
-                    case 'ai-content':
-                        // Chat bots disabled: fall back to dashboard
-                        return <Dashboard 
-                            agentProfile={userProfile} 
-                            properties={properties} 
-                            leads={leads} 
-                            appointments={appointments} 
-                            tasks={tasks} 
-                            onSelectProperty={handleSelectProperty} 
-                            onAddNew={() => setView('add-listing')}
-                            onTaskUpdate={handleTaskUpdate}
-                            onTaskAdd={handleTaskAdd}
-                            onTaskDelete={handleTaskDelete}
-                        />;
-                    case 'knowledge-base': 
-                        return <KnowledgeBasePage 
-                            agentProfile={userProfile}
-                        />;
-                    case 'marketing': 
-                        return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
-                    case 'analytics': 
-                        return <AnalyticsDashboard />;
-                    case 'settings': 
-                        return <SettingsPage 
-                            userProfile={userProfile}
-                            onSaveProfile={setUserProfile}
-                            notificationSettings={notificationSettings}
-                            onSaveNotifications={setNotificationSettings}
-                            emailSettings={emailSettings}
-                            onSaveEmailSettings={setEmailSettings}
-                            calendarSettings={calendarSettings}
-                            onSaveCalendarSettings={setCalendarSettings}
-                            billingSettings={billingSettings}
-                            onSaveBillingSettings={setBillingSettings}
-                            onBackToDashboard={() => setView('dashboard')}
-                        />;
-                    // Default to dashboard if logged in and view is somehow invalid
-                    default:
-                        return <Dashboard 
-                            agentProfile={userProfile} 
-                            properties={properties} 
-                            leads={leads} 
-                            appointments={appointments} 
-                            tasks={tasks} 
-                            onSelectProperty={handleSelectProperty} 
-                            onAddNew={() => setView('add-listing')}
-                            onTaskUpdate={handleTaskUpdate}
-                            onTaskAdd={handleTaskAdd}
-                            onTaskDelete={handleTaskDelete}
-                        />;
-                }
-            };
-            
-            // Admin views get the admin sidebar
-            if (view.startsWith('admin-')) {
-                // Check if user has admin role
-                const checkAdminAccess = async () => {
-                    try {
-                        const token = await user?.getIdTokenResult();
-                        const isAdmin = token?.claims?.role === 'admin' || token?.claims?.isAdmin === true;
-                        
-                        // Only bypass in development mode
-                        const isDevelopment = import.meta.env.DEV;
-                        
-                        if (!isAdmin && !isDevelopment) {
-                            console.warn('Unauthorized admin access attempt');
-                            setView('dashboard');
-                            return;
-                        }
-                        
-                        if (isDevelopment && !isAdmin) {
-                            console.warn('Admin access granted in development mode only');
-                        }
-                    } catch (error) {
-                        console.error('Failed to verify admin access:', error);
-                        setView('dashboard');
-                        return;
-                    }
-                };
+			// Admin views get the admin sidebar
+			if (view.startsWith('admin-')) {
+				return (
+					<div className="flex h-screen bg-slate-50">
+						<Suspense fallback={<LoadingSpinner />}>
+							<AdminSidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+						</Suspense>
+						<div className="flex-1 flex flex-col overflow-hidden">
+							<header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
+								<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
+									<span className="material-symbols-outlined">menu</span>
+								</button>
+								<LogoWithName />
+							</header>
+							<main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+								<Suspense fallback={<LoadingSpinner />}>
+									{mainContent()}
+								</Suspense>
+							</main>
+						</div>
+					</div>
+				);
+			}
 
-                // Check admin access on mount
-                if (user) {
-                    checkAdminAccess();
-                }
+			return (
+				<div className="flex h-screen bg-slate-50">
+					<Sidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+					<div className="flex-1 flex flex-col overflow-hidden">
+						<header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
+							<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
+								<span className="material-symbols-outlined">menu</span>
+							</button>
+							<LogoWithName />
+							<div className="flex items-center space-x-2">
+								<NotificationSystem userId={user?.uid || ''} />
+								<button onClick={() => setIsPropertyComparisonOpen(true)} className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Compare properties">
+									<span className="material-symbols-outlined">compare</span>
+								</button>
+							</div>
+						</header>
+						<main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+							{mainContent()}
+						</main>
+					</div>
+				</div>
+			);
+		}
 
-                return (
-                    <div className="flex h-screen bg-slate-50">
-                        <Suspense fallback={<LoadingSpinner />}>
-                            {/* cast to any to avoid prop-type mismatch between multiple View declarations in the repo */}
-                            <AdminSidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-                        </Suspense>
-                        <div className="flex-1 flex flex-col overflow-hidden">
-                            <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
-                                <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
-                                    <span className="material-symbols-outlined">menu</span>
-                                </button>
-                                <LogoWithName />
-                            </header>
-                            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
-                                {mainContent()}
-                            </main>
-                        </div>
-                    </div>
-                );
-            }
+		// Unauthenticated views
+		switch(view) {
+			case 'signup':
+				return <SignUpPage onNavigateToSignIn={handleNavigateToSignIn} onNavigateToLanding={handleNavigateToLanding} onNavigateToSection={handleNavigateToSection} onEnterDemoMode={handleEnterDemoMode} />;
+			case 'signin':
+				return <SignInPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToLanding={handleNavigateToLanding} onNavigateToSection={handleNavigateToSection} onEnterDemoMode={handleEnterDemoMode} />;
+			case 'landing':
+				return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
+			case 'new-landing':
+				return <NewLandingPage />;
+			case 'blog':
+				return <BlogPage />;
+			case 'blog-post':
+				return <BlogPostPage />;
+			case 'vapi-test':
+				return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
+			case 'admin-setup':
+				if (isAdminLoginOpen) {
+					setIsAdminLoginOpen(false);
+					setAdminLoginError(null);
+				}
+				return (
+					<Suspense fallback={<LoadingSpinner />}>
+						<AdminSetup />
+					</Suspense>
+				);
+			default:
+				return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
+		}
+	};
 
-            return (
-                <div className="flex h-screen bg-slate-50">
-                    {/* cast to any to avoid prop-type mismatch between multiple View declarations in the repo */}
-                    <Sidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                         <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
-                            <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
-                                <span className="material-symbols-outlined">menu</span>
-                            </button>
-                            <LogoWithName />
-                            <div className="flex items-center space-x-2">
-                                <NotificationSystem 
-                                    userId={user?.uid || ''}
-                                />
-                                <button 
-                                    onClick={() => setIsPropertyComparisonOpen(true)}
-                                    className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-                                    aria-label="Compare properties"
-                                >
-                                    <span className="material-symbols-outlined">compare</span>
-                                </button>
-                            </div>
-                        </header>
-                        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
-                            {mainContent()}
-                        </main>
-                    </div>
-                    
-
-                </div>
-            );
-        }
-
-        // Unauthenticated views
-        switch(view) {
-            case 'signup':
-                return <SignUpPage 
-                    onNavigateToSignIn={handleNavigateToSignIn} 
-                    onNavigateToLanding={handleNavigateToLanding} 
-                    onNavigateToSection={handleNavigateToSection} 
-                    onEnterDemoMode={handleEnterDemoMode} 
-                />;
-            case 'signin':
-                return <SignInPage 
-                    onNavigateToSignUp={handleNavigateToSignUp} 
-                    onNavigateToLanding={handleNavigateToLanding} 
-                    onNavigateToSection={handleNavigateToSection} 
-                    onEnterDemoMode={handleEnterDemoMode} 
-                />;
-            case 'landing':
-                return <LandingPage 
-                    onNavigateToSignUp={handleNavigateToSignUp} 
-                    onNavigateToSignIn={handleNavigateToSignIn} 
-                    onEnterDemoMode={handleEnterDemoMode}
-                    scrollToSection={scrollToSection}
-                    onScrollComplete={() => setScrollToSection(null)}
-                    onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-                    onNavigateToAdmin={handleNavigateToAdmin}
-                />;
-            case 'new-landing':
-                return <NewLandingPage />;
-            case 'blog':
-                return <BlogPage />;
-            case 'blog-post':
-                return <BlogPostPage />;
-            case 'vapi-test':
-                // Chat/voice tests disabled
-                return <LandingPage 
-                    onNavigateToSignUp={handleNavigateToSignUp} 
-                    onNavigateToSignIn={handleNavigateToSignIn} 
-                    onEnterDemoMode={handleEnterDemoMode}
-                    scrollToSection={scrollToSection}
-                    onScrollComplete={() => setScrollToSection(null)}
-                    onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-                    onNavigateToAdmin={handleNavigateToAdmin}
-                />;
-            case 'admin-setup':
-                // Admin setup page should be standalone, not showing modals
-                // Force close admin login modal when rendering admin setup
-                if (isAdminLoginOpen) {
-                    setIsAdminLoginOpen(false);
-                    setAdminLoginError(null);
-                }
-                return (
-                    <Suspense fallback={<LoadingSpinner />}>
-                        <AdminSetup />
-                    </Suspense>
-                );
-            default:
-                return <LandingPage 
-                    onNavigateToSignUp={handleNavigateToSignUp} 
-                    onNavigateToSignIn={handleNavigateToSignIn} 
-                    onEnterDemoMode={handleEnterDemoMode}
-                    scrollToSection={scrollToSection}
-                    onScrollComplete={() => setScrollToSection(null)}
-                    onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-                    onNavigateToAdmin={handleNavigateToAdmin}
-                />;
-        }
-    }
-    
-    return (
-        <ErrorBoundary>
-            {renderViewContent()}
-            
-            {isConsultationModalOpen && <ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => {
-                // Success notification is now handled by NotificationSystem component
-                console.log('Consultation scheduled successfully!');
-            }} />}
-            
-            {/* Don't show admin login modal on admin-setup page */}
-            {isAdminLoginOpen && view !== 'admin-setup' && (
-                <Suspense fallback={<LoadingSpinner />}>
-                    <AdminLogin 
-                        onLogin={handleAdminLogin}
-                        onBack={handleAdminLoginClose}
-                        isLoading={isAdminLoginLoading}
-                        error={adminLoginError || undefined}
-                    />
-                </Suspense>
-            )}
-            
-            {isPropertyComparisonOpen && (
-                <PropertyComparison 
-                    properties={properties}
-                    onClose={() => setIsPropertyComparisonOpen(false)}
-                />
-            )}
-            
-            {/* Chat bots disabled */}
-
-            {/* Global Chat Bot FAB - appears on all pages */}
-            <ChatBotFAB
-                context={{
-                    userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
-                    currentPage: view,
-                    previousInteractions: user ? 1 : 0,
-                    userInfo: user ? {
-                        name: user.displayName || 'User',
-                        email: user.email || '',
-                        company: 'Real Estate'
-                    } : undefined
-                }}
-                onLeadGenerated={(leadInfo) => {
-                    console.log('Lead generated from chat:', leadInfo);
-                    // Could add to leads state or send to analytics
-                }}
-                onSupportTicket={(ticketInfo) => {
-                    console.log('Support ticket created from chat:', ticketInfo);
-                    // Could create actual support ticket or notification
-                }}
-                position="bottom-right"
-            />
-        </ErrorBoundary>
-    )
-}
+	return (
+		<ErrorBoundary>
+			{renderViewContent()}
+			{isConsultationModalOpen && (
+				<ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
+			)}
+			{isAdminLoginOpen && view !== 'admin-setup' && (
+				<Suspense fallback={<LoadingSpinner />}>
+					<AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
+				</Suspense>
+			)}
+			<ChatBotFAB
+				context={{
+					userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
+					currentPage: view,
+					previousInteractions: user ? 1 : 0,
+					userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
+				}}
+				onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
+				onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
+				position="bottom-right"
+			/>
+		</ErrorBoundary>
+	);
+};
 
 export default App;

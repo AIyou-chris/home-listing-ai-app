@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // Prevent multiple React copies which cause "Invalid hook call"
+    dedupe: ['react', 'react-dom']
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,
@@ -27,9 +31,6 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    hmr: {
-      port: 5173
-    },
     headers: {
       'Cross-Origin-Embedder-Policy': 'credentialless',
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
