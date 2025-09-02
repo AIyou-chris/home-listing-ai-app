@@ -1,15 +1,32 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const db = admin.firestore();
 const storage = admin.storage();
 
 // Upload file to Firebase Storage and extract text
-export const uploadFile = functions.https.onCall(async (data: any, context) => {
+export const uploadFile = functions.https.onCall(async (req: any) => {
   try {
     // Skip auth check for now
-
-    const { file, fileName, fileType, userId, propertyId } = data;
+    const payload = (req && typeof req === 'object')
+      ? (req.data ?? req)
+      : {};
+    let { file, fileName, fileType, userId, propertyId } = payload as any;
+    // Accept data URLs and extract base64 portion
+    if (typeof file === 'string' && file.includes('base64,')) {
+      file = file.split('base64,')[1];
+    } else if (typeof file === 'string' && file.includes(',')) {
+      file = file.split(',')[1];
+    }
+    console.log('uploadFile: received', {
+      hasFile: !!file,
+      fileLen: typeof file === 'string' ? file.length : 0,
+      fileName,
+      fileType,
+      userId,
+      propertyId
+    });
     
     if (!file || !fileName || !userId) {
       throw new functions.https.HttpsError('invalid-argument', 'Missing required fields');
@@ -21,12 +38,23 @@ export const uploadFile = functions.https.onCall(async (data: any, context) => {
     
     // Upload to Firebase Storage
     const bucket = storage.bucket();
-    const fileBuffer = Buffer.from(file, 'base64');
+    let fileBuffer: Buffer;
+    try {
+      fileBuffer = Buffer.from(file as string, 'base64');
+    } catch {
+      // If not pure base64, attempt to parse data URL again
+      if (typeof file === 'string' && file.includes('base64,')) {
+        const base = file.split('base64,')[1];
+        fileBuffer = Buffer.from(base, 'base64');
+      } else {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid file encoding');
+      }
+    }
     const fileRef = bucket.file(filePath);
     
     await fileRef.save(fileBuffer, {
       metadata: {
-        contentType: fileType,
+        contentType: fileType || 'application/octet-stream',
         metadata: {
           uploadedBy: userId,
           originalName: fileName,
@@ -36,11 +64,17 @@ export const uploadFile = functions.https.onCall(async (data: any, context) => {
       }
     });
 
-    // Get download URL
-    const [downloadUrl] = await fileRef.getSignedUrl({
-      action: 'read',
-      expires: '03-01-2500'
-    });
+    // Get download URL (emulator-safe)
+    let downloadUrl = '';
+    const isEmulator = !!process.env.FIREBASE_STORAGE_EMULATOR_HOST || process.env.FUNCTIONS_EMULATOR === 'true';
+    if (isEmulator) {
+      const host = process.env.FIREBASE_STORAGE_EMULATOR_HOST || '127.0.0.1:9199';
+      const bucketName = bucket.name;
+      downloadUrl = `http://${host}/v0/b/${bucketName}/o/${encodeURIComponent(filePath)}?alt=media`;
+    } else {
+      const [signed] = await fileRef.getSignedUrl({ action: 'read', expires: '03-01-2500' });
+      downloadUrl = signed;
+    }
 
     // Enforce per-agent 1GB quota (1_073_741_824 bytes)
     const quota = 1073741824;
@@ -62,7 +96,7 @@ export const uploadFile = functions.https.onCall(async (data: any, context) => {
       downloadUrl,
       uploadedBy: userId,
       propertyId: propertyId || null,
-      uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+      uploadedAt: FieldValue.serverTimestamp(),
       status: 'uploaded',
       size: fileBuffer.length
     });
@@ -83,11 +117,12 @@ export const uploadFile = functions.https.onCall(async (data: any, context) => {
 });
 
 // Process document to extract text content
-export const processDocument = functions.https.onCall(async (data: any, context) => {
+export const processDocument = functions.https.onCall(async (req: any) => {
   try {
+    const data = (req && typeof req === 'object') ? (req.data ?? req) : {};
     // Skip auth check for now
 
-    const { fileId, fileType } = data;
+    const { fileId, fileType } = data as any;
     
     if (!fileId) {
       throw new functions.https.HttpsError('invalid-argument', 'File ID is required');
@@ -110,9 +145,9 @@ export const processDocument = functions.https.onCall(async (data: any, context)
       const [contents] = await file.download();
       extractedText = contents.toString('utf-8');
     } else if (fileType === 'application/pdf') {
-      // For PDFs, we'd need a PDF processing library
-      // For now, just set a placeholder
-      extractedText = 'PDF content extraction not yet implemented';
+      // Lightweight fallback: show filename and size so cards have meaningful text
+      const sizeKb = Math.max(1, Math.round((fileData.size || 0) / 1024));
+      extractedText = `PDF: ${fileData.fileName} (${sizeKb} KB)`;
     } else {
       extractedText = 'Text extraction not supported for this file type';
     }
@@ -121,7 +156,7 @@ export const processDocument = functions.https.onCall(async (data: any, context)
     await db.collection('files').doc(fileId).update({
       extractedText,
       status: 'processed',
-      processedAt: admin.firestore.FieldValue.serverTimestamp()
+      processedAt: FieldValue.serverTimestamp()
     });
 
     return {
@@ -137,11 +172,12 @@ export const processDocument = functions.https.onCall(async (data: any, context)
 });
 
 // Store processed content in knowledge base
-export const storeKnowledgeBase = functions.https.onCall(async (data: any, context) => {
+export const storeKnowledgeBase = functions.https.onCall(async (req: any) => {
   try {
+    const data = (req && typeof req === 'object') ? (req.data ?? req) : {};
     // Skip auth check for now
 
-    const { fileId, category, tags, userId } = data;
+    const { fileId, category, tags, userId } = data as any;
     
     if (!fileId || !category || !userId) {
       throw new functions.https.HttpsError('invalid-argument', 'Missing required fields');
@@ -164,8 +200,8 @@ export const storeKnowledgeBase = functions.https.onCall(async (data: any, conte
       content: fileData.extractedText || '',
       userId,
       propertyId: fileData.propertyId || null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastAccessed: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      lastAccessed: FieldValue.serverTimestamp(),
       accessCount: 0
     });
 
@@ -241,11 +277,12 @@ export const searchKnowledgeBase = functions.https.onCall(async (data: any, cont
 });
 
 // Get user files
-export const getUserFiles = functions.https.onCall(async (data: any, context) => {
+export const getUserFiles = functions.https.onCall(async (req: any) => {
   try {
+    const data = (req && typeof req === 'object') ? (req.data ?? req) : {};
     // Skip auth check for now
 
-    const { userId, propertyId } = data;
+    const { userId, propertyId } = data as any;
     
     if (!userId) {
       throw new functions.https.HttpsError('invalid-argument', 'User ID is required');
@@ -272,6 +309,30 @@ export const getUserFiles = functions.https.onCall(async (data: any, context) =>
   } catch (error) {
     console.error('Get user files error:', error);
     throw new functions.https.HttpsError('internal', 'Failed to get user files');
+  }
+});
+
+// List knowledge base entries by user (and optional category)
+export const listKnowledge = functions.https.onCall(async (req: any) => {
+  try {
+    const data = (req && typeof req === 'object') ? (req.data ?? req) : {};
+    const { userId, category, limit = 50 } = data as any;
+    if (!userId) {
+      throw new functions.https.HttpsError('invalid-argument', 'User ID is required');
+    }
+    let q = db.collection('knowledgeBase').where('userId', '==', userId);
+    if (category) q = q.where('category', '==', category);
+    const snap = await q.orderBy('createdAt', 'desc').limit(limit).get();
+    const entries = await Promise.all(snap.docs.map(async d => {
+      const data = d.data() as any;
+      // also return related file id if present
+      const fileId = data.fileId || null;
+      return { id: d.id, fileId, ...data };
+    }));
+    return { entries };
+  } catch (error) {
+    console.error('List knowledge error:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to list knowledge');
   }
 });
 
@@ -418,7 +479,7 @@ export const setSystemPrompt = functions.https.onCall(async (data: any, context)
     await db.collection('settings').doc('ai').set({
       systemPrompt: systemPrompt.trim(),
       updatedBy: adminUid,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
 
     return { status: 'success' };

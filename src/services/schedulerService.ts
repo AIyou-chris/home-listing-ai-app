@@ -1,6 +1,6 @@
 import { googleMeetService } from './googleMeetService'
 import { emailService } from './emailService'
-import { addConsultation } from './firestoreService'
+// import { addConsultation } from './firestoreService' // removed with Firebase
 import { googleOAuthService } from './googleOAuthService'
 
 export type AppointmentKind =
@@ -108,17 +108,7 @@ ${input.message || 'No additional notes'}
     calendar.meetLink
   )
 
-  await addConsultation({
-    name: input.name,
-    email: input.email,
-    phone: input.phone || '',
-    date: input.date,
-    time: input.time,
-    message: input.message || '',
-    calendarEventId: calendar.eventId,
-    meetLink: calendar.meetLink,
-    status: 'scheduled'
-  })
+  // Firebase removed: persist via Supabase later if needed
 
   return { eventId: calendar.eventId, meetLink: calendar.meetLink }
 }

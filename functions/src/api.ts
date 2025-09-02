@@ -461,6 +461,61 @@ app.get('/admin/marketing/qr-codes', requireAdmin, async (req: express.Request, 
   }
 });
 
+// Knowledge Base lightweight endpoints (CORS enabled)
+app.post('/kb/list', async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { userId, category, limit = 50 } = req.body || {};
+    if (!userId) {
+      res.status(400).json({ error: 'userId required' });
+      return;
+    }
+    let q = db.collection('knowledgeBase').where('userId', '==', userId);
+    if (category) {
+      q = q.where('category', '==', String(category));
+    }
+    const snap = await q.orderBy('createdAt', 'desc').limit(Number(limit)).get();
+    const entries = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+    res.json({ entries });
+  } catch (error) {
+    console.error('POST /kb/list error', error);
+    res.status(500).json({ error: 'Failed to list knowledge' });
+  }
+});
+
+app.post('/kb/delete', async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { fileId } = req.body || {};
+    if (!fileId) {
+      res.status(400).json({ error: 'fileId required' });
+      return;
+    }
+    const fileDoc = await db.collection('files').doc(String(fileId)).get();
+    if (!fileDoc.exists) {
+      res.json({ status: 'success' });
+      return;
+    }
+    const fileData = fileDoc.data() as any;
+    try {
+      const bucket = admin.storage().bucket();
+      await bucket.file(fileData.filePath).delete({ ignoreNotFound: true });
+    } catch (e) {
+      console.warn('Storage delete warning:', e);
+    }
+    if (fileData.knowledgeBaseId) {
+      await db.collection('knowledgeBase').doc(fileData.knowledgeBaseId).delete();
+    } else {
+      // best-effort delete by fileId field
+      const q = await db.collection('knowledgeBase').where('fileId', '==', String(fileId)).get();
+      await Promise.all(q.docs.map(d => d.ref.delete()));
+    }
+    await db.collection('files').doc(String(fileId)).delete();
+    res.json({ status: 'success' });
+  } catch (error) {
+    console.error('POST /kb/delete error', error);
+    res.status(500).json({ error: 'Failed to delete knowledge' });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req: express.Request, res: express.Response): void => {
   res.json({ 

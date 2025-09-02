@@ -104,8 +104,14 @@ const AnalyticsDashboard: React.FC = () => {
 			});
 
 			if (result.success) {
-				// Add new report to the list
-				setReports(prev => [result, ...prev.slice(0, 9)]);
+				// Add new report to the list; coerce to ReportData shape
+				setReports((prev: ReportData[]) => [{
+					reportId: (result as any).reportId || crypto.randomUUID(),
+					reportType: (result as any).reportType || (selectedReportType as string),
+					content: (result as any).content || '',
+					data: (result as any).data || null,
+					generatedAt: new Date()
+				}, ...prev.slice(0, 9)] as ReportData[]);
 			}
 		} catch (error) {
 			console.error('Error generating report:', error);

@@ -52,7 +52,7 @@ export interface RenewalData {
     riskLevel: 'low' | 'medium' | 'high';
 }
 
-import { httpsCallable } from 'firebase/functions';
+// Firebase removed
 import { functions } from './firebase';
 
 const API_BASE_URL = 'http://localhost:5001/home-listing-ai/us-central1/api';

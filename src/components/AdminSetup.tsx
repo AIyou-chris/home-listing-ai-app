@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+// Firebase removed
 
 const AdminSetup: React.FC = () => {
     const [email, setEmail] = useState('');

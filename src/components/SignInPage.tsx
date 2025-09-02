@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from '../services/firebase';
+import { authService } from '../services/authService';
+import { supabase } from '../services/supabase';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
 
@@ -19,12 +19,16 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
     const [error, setError] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
+
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         try {
-            await signInWithEmailAndPassword(auth, email, password);
-            // App.tsx's onAuthStateChanged will handle navigation
+            const { error } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+            if (error) throw error;
         } catch (err: any) {
             setError(err.message);
             alert(`Sign-in failed: ${err.message}`);
@@ -63,6 +67,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                                     Sign In
                                 </button>
                             </div>
+
                         </form>
                         <p className="text-center text-sm text-slate-600 mt-8">
                             Don't have an account?{' '}

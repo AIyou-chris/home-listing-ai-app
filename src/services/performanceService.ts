@@ -144,7 +144,7 @@ export class PerformanceService {
               response: Math.round(entry.responseEnd - entry.responseStart),
               dom: Math.round(entry.domContentLoadedEventEnd - entry.responseEnd),
               load: Math.round(entry.loadEventEnd - entry.loadEventStart),
-              total: Math.round(entry.loadEventEnd - entry.navigationStart)
+              total: Math.round(entry.loadEventEnd - entry.startTime)
             };
             
             Object.entries(metrics).forEach(([key, value]) => {
@@ -167,18 +167,19 @@ export class PerformanceService {
   private static trackPageLoadPerformance(): void {
     window.addEventListener('load', () => {
       setTimeout(() => {
-        const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+        const navigation = performance.getEntriesByType('navigation')[0] as any;
         
         if (navigation) {
+          const navStart = navigation.startTime ?? 0
           const metrics = {
             ttfb: navigation.responseStart - navigation.requestStart,
-            domContentLoaded: navigation.domContentLoadedEventEnd - navigation.navigationStart,
-            windowLoad: navigation.loadEventEnd - navigation.navigationStart,
-            domInteractive: navigation.domInteractive - navigation.navigationStart
-          };
+            domContentLoaded: navigation.domContentLoadedEventEnd - navStart,
+            windowLoad: navigation.loadEventEnd - navStart,
+            domInteractive: navigation.domInteractive - navStart
+          } as any;
           
           Object.entries(metrics).forEach(([key, value]) => {
-            SessionService.trackPerformance(key, Math.round(value), 'ms');
+            SessionService.trackPerformance(key, Math.round(value as number), 'ms');
           });
         }
       }, 0);
@@ -230,15 +231,16 @@ export class PerformanceService {
 
   // Get current performance metrics
   static getCurrentMetrics(): Record<string, any> {
-    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    const navigation = performance.getEntriesByType('navigation')[0] as any;
     
     if (!navigation) return {};
     
+    const navStart = navigation.startTime ?? 0
     return {
       ttfb: Math.round(navigation.responseStart - navigation.requestStart),
-      domContentLoaded: Math.round(navigation.domContentLoadedEventEnd - navigation.navigationStart),
-      windowLoad: Math.round(navigation.loadEventEnd - navigation.navigationStart),
-      domInteractive: Math.round(navigation.domInteractive - navigation.navigationStart),
+      domContentLoaded: Math.round(navigation.domContentLoadedEventEnd - navStart),
+      windowLoad: Math.round(navigation.loadEventEnd - navStart),
+      domInteractive: Math.round(navigation.domInteractive - navStart),
       timestamp: Date.now()
     };
   }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { auth, functions } from '../services/firebase';
-import { httpsCallable } from 'firebase/functions';
+// Firebase removed
 import { Logo } from './Logo';
 
 interface AgentOnboardingPageProps {

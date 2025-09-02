@@ -7,10 +7,10 @@ import { SchedulerProvider } from './context/SchedulerContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ErrorBoundary>
-      <SchedulerProvider>
-        <App />
-      </SchedulerProvider>
-    </ErrorBoundary>
+    	<ErrorBoundary>
+		<SchedulerProvider>
+			<App />
+		</SchedulerProvider>
+	</ErrorBoundary>
   </StrictMode>
 )

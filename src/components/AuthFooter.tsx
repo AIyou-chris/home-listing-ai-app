@@ -49,6 +49,17 @@ export const AuthFooter: React.FC = () => {
                             </li>
                         </ul>
                     </div>
+                    <div className="col-span-1">
+                        <h4 className="text-sm font-semibold text-slate-300 mb-3">Admin</h4>
+                        <ul className="space-y-2 text-sm">
+                            <li>
+                                <a href="#admin-dashboard" 
+                                   className="hover:text-white transition-colors">
+                                    Admin Dashboard
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </footer>

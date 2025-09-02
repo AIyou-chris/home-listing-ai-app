@@ -1,5 +1,4 @@
-import { functions } from './firebase';
-import { httpsCallable } from 'firebase/functions';
+// Firebase removed; implement local no-op service
 
 export interface FileUploadResponse {
   fileId: string;
@@ -53,24 +52,9 @@ class FileUploadService {
     userId: string,
     propertyId?: string
   ): Promise<FileUploadResponse> {
-    try {
-      // Convert file to base64
-      const base64 = await this.fileToBase64(file);
-      
-      const uploadFileFunction = httpsCallable(functions, 'uploadFile');
-      const result = await uploadFileFunction({
-        file: base64,
-        fileName: file.name,
-        fileType: file.type,
-        userId,
-        propertyId
-      });
-
-      return result.data as FileUploadResponse;
-    } catch (error) {
-      console.error('File upload error:', error);
-      throw new Error('Failed to upload file');
-    }
+    // Local: create object URL and return mock response
+    const blobUrl = URL.createObjectURL(file);
+    return { fileId: `file_${Date.now()}`, fileName: file.name, downloadUrl: blobUrl, status: 'uploaded' };
   }
 
   // Process document to extract text
@@ -78,18 +62,7 @@ class FileUploadService {
     fileId: string,
     fileType: string
   ): Promise<ProcessDocumentResponse> {
-    try {
-      const processDocumentFunction = httpsCallable(functions, 'processDocument');
-      const result = await processDocumentFunction({
-        fileId,
-        fileType
-      });
-
-      return result.data as ProcessDocumentResponse;
-    } catch (error) {
-      console.error('Document processing error:', error);
-      throw new Error('Failed to process document');
-    }
+    return { fileId, extractedText: '', status: 'processed' };
   }
 
   // Store processed content in knowledge base
@@ -99,46 +72,17 @@ class FileUploadService {
     tags: string[],
     userId: string
   ): Promise<KnowledgeBaseResponse> {
-    try {
-      const storeKnowledgeBaseFunction = httpsCallable(functions, 'storeKnowledgeBase');
-      const result = await storeKnowledgeBaseFunction({
-        fileId,
-        category,
-        tags,
-        userId
-      });
-
-      return result.data as KnowledgeBaseResponse;
-    } catch (error) {
-      console.error('Knowledge base storage error:', error);
-      throw new Error('Failed to store in knowledge base');
-    }
+    return { knowledgeId: `kb_${Date.now()}`, status: 'stored' };
   }
 
   // Delete file and associated knowledge
   async deleteFile(fileId: string): Promise<{ status: string; message: string }> {
-    try {
-      const deleteFileFunction = httpsCallable(functions, 'deleteFile');
-      const result = await deleteFileFunction({ fileId });
-
-      return result.data as { status: string; message: string };
-    } catch (error) {
-      console.error('File deletion error:', error);
-      throw new Error('Failed to delete file');
-    }
+    return { status: 'deleted', message: 'Local delete' };
   }
 
   // Get user's files
   async getUserFiles(userId: string, propertyId?: string): Promise<{ files: FileData[] }> {
-    try {
-      const getUserFilesFunction = httpsCallable(functions, 'getUserFiles');
-      const result = await getUserFilesFunction({ userId, propertyId });
-
-      return result.data as { files: FileData[] };
-    } catch (error) {
-      console.error('Get user files error:', error);
-      throw new Error('Failed to get user files');
-    }
+    return { files: [] };
   }
 
   // Search knowledge base
@@ -147,19 +91,7 @@ class FileUploadService {
     userId: string,
     category?: string
   ): Promise<{ results: KnowledgeBaseEntry[] }> {
-    try {
-      const searchKnowledgeBaseFunction = httpsCallable(functions, 'searchKnowledgeBase');
-      const result = await searchKnowledgeBaseFunction({
-        query,
-        userId,
-        category
-      });
-
-      return result.data as { results: KnowledgeBaseEntry[] };
-    } catch (error) {
-      console.error('Knowledge base search error:', error);
-      throw new Error('Failed to search knowledge base');
-    }
+    return { results: [] };
   }
 
   // Process knowledge base content
@@ -169,20 +101,7 @@ class FileUploadService {
     category: string,
     tags: string[]
   ): Promise<{ knowledgeId: string; status: string; analysis: any }> {
-    try {
-      const processKnowledgeBaseFunction = httpsCallable(functions, 'processKnowledgeBase');
-      const result = await processKnowledgeBaseFunction({
-        fileId,
-        userId,
-        category,
-        tags
-      });
-
-      return result.data as { knowledgeId: string; status: string; analysis: any };
-    } catch (error) {
-      console.error('Knowledge base processing error:', error);
-      throw new Error('Failed to process knowledge base');
-    }
+    return { knowledgeId: `kb_${Date.now()}`, status: 'processed', analysis: {} };
   }
 
   // Update AI context
@@ -191,19 +110,7 @@ class FileUploadService {
     category: string,
     personality: string
   ): Promise<{ contextId: string; status: string; context: any }> {
-    try {
-      const updateAIContextFunction = httpsCallable(functions, 'updateAIContext');
-      const result = await updateAIContextFunction({
-        userId,
-        category,
-        personality
-      });
-
-      return result.data as { contextId: string; status: string; context: any };
-    } catch (error) {
-      console.error('AI context update error:', error);
-      throw new Error('Failed to update AI context');
-    }
+    return { contextId: `ctx_${Date.now()}`, status: 'updated', context: {} };
   }
 
   // Train AI personality
@@ -213,20 +120,7 @@ class FileUploadService {
     trainingData: string,
     voiceSettings: any
   ): Promise<{ personalityId: string; status: string; profile: any }> {
-    try {
-      const trainAIPersonalityFunction = httpsCallable(functions, 'trainAIPersonality');
-      const result = await trainAIPersonalityFunction({
-        userId,
-        personalityType,
-        trainingData,
-        voiceSettings
-      });
-
-      return result.data as { personalityId: string; status: string; profile: any };
-    } catch (error) {
-      console.error('AI personality training error:', error);
-      throw new Error('Failed to train AI personality');
-    }
+    return { personalityId: `per_${Date.now()}`, status: 'trained', profile: {} };
   }
 
   // Get AI response with context
@@ -237,21 +131,7 @@ class FileUploadService {
     personalityType: string,
     chatHistory: any[]
   ): Promise<{ text: string }> {
-    try {
-      const getAIResponseWithContextFunction = httpsCallable(functions, 'getAIResponseWithContext');
-      const result = await getAIResponseWithContextFunction({
-        message,
-        userId,
-        category,
-        personalityType,
-        chatHistory
-      });
-
-      return result.data as { text: string };
-    } catch (error) {
-      console.error('AI response with context error:', error);
-      throw new Error('Failed to get AI response');
-    }
+    return { text: `AI: ${message}` };
   }
 
   // Create custom AI personality
@@ -264,23 +144,7 @@ class FileUploadService {
     voiceSettings: any,
     trainingData: string
   ): Promise<{ personalityId: string; status: string; profile: any }> {
-    try {
-      const createAIPersonalityFunction = httpsCallable(functions, 'createAIPersonality');
-      const result = await createAIPersonalityFunction({
-        userId,
-        personalityName,
-        personalityType,
-        traits,
-        communicationStyle,
-        voiceSettings,
-        trainingData
-      });
-
-      return result.data as { personalityId: string; status: string; profile: any };
-    } catch (error) {
-      console.error('AI personality creation error:', error);
-      throw new Error('Failed to create AI personality');
-    }
+    return { personalityId: `per_${Date.now()}`, status: 'created', profile: {} };
   }
 
   // Generate response using agent's style
@@ -291,21 +155,7 @@ class FileUploadService {
     context: string,
     responseType: string
   ): Promise<{ response: string; personalityName: string; confidence: number }> {
-    try {
-      const generateResponseFunction = httpsCallable(functions, 'generateResponse');
-      const result = await generateResponseFunction({
-        userId,
-        personalityId,
-        message,
-        context,
-        responseType
-      });
-
-      return result.data as { response: string; personalityName: string; confidence: number };
-    } catch (error) {
-      console.error('Response generation error:', error);
-      throw new Error('Failed to generate response');
-    }
+    return { response: `AI: ${message}`, personalityName: 'Local', confidence: 0.5 };
   }
 
   // Save email/message template
@@ -318,23 +168,7 @@ class FileUploadService {
     category: string,
     tags: string[]
   ): Promise<{ templateId: string; status: string; analysis: any }> {
-    try {
-      const saveTemplateFunction = httpsCallable(functions, 'saveTemplate');
-      const result = await saveTemplateFunction({
-        userId,
-        templateName,
-        templateType,
-        content,
-        variables,
-        category,
-        tags
-      });
-
-      return result.data as { templateId: string; status: string; analysis: any };
-    } catch (error) {
-      console.error('Template save error:', error);
-      throw new Error('Failed to save template');
-    }
+    return { templateId: `tpl_${Date.now()}`, status: 'saved', analysis: {} };
   }
 
   // Apply template with dynamic data
@@ -343,19 +177,7 @@ class FileUploadService {
     variables: any,
     context: string
   ): Promise<{ originalContent: string; enhancedContent: string; templateName: string; templateType: string }> {
-    try {
-      const applyTemplateFunction = httpsCallable(functions, 'applyTemplate');
-      const result = await applyTemplateFunction({
-        templateId,
-        variables,
-        context
-      });
-
-      return result.data as { originalContent: string; enhancedContent: string; templateName: string; templateType: string };
-    } catch (error) {
-      console.error('Template application error:', error);
-      throw new Error('Failed to apply template');
-    }
+    return { originalContent: '', enhancedContent: '', templateName: 'Local', templateType: 'text' };
   }
 
   // Get user's templates
@@ -364,19 +186,7 @@ class FileUploadService {
     templateType?: string,
     category?: string
   ): Promise<{ templates: any[] }> {
-    try {
-      const getUserTemplatesFunction = httpsCallable(functions, 'getUserTemplates');
-      const result = await getUserTemplatesFunction({
-        userId,
-        templateType,
-        category
-      });
-
-      return result.data as { templates: any[] };
-    } catch (error) {
-      console.error('Get user templates error:', error);
-      throw new Error('Failed to get templates');
-    }
+    return { templates: [] };
   }
 
   // Get user's AI personalities
@@ -384,18 +194,7 @@ class FileUploadService {
     userId: string,
     personalityType?: string
   ): Promise<{ personalities: any[] }> {
-    try {
-      const getUserPersonalitiesFunction = httpsCallable(functions, 'getUserPersonalities');
-      const result = await getUserPersonalitiesFunction({
-        userId,
-        personalityType
-      });
-
-      return result.data as { personalities: any[] };
-    } catch (error) {
-      console.error('Get user personalities error:', error);
-      throw new Error('Failed to get personalities');
-    }
+    return { personalities: [] };
   }
 
   // Send email using AI-enhanced content
@@ -409,24 +208,7 @@ class FileUploadService {
     variables?: any,
     priority?: string
   ): Promise<{ emailId: string; status: string; message: string }> {
-    try {
-      const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-      const result = await sendEmailFunction({
-        userId,
-        to,
-        subject,
-        content,
-        templateId,
-        personalityId,
-        variables,
-        priority
-      });
-
-      return result.data as { emailId: string; status: string; message: string };
-    } catch (error) {
-      console.error('Email sending error:', error);
-      throw new Error('Failed to send email');
-    }
+    return { emailId: `email_${Date.now()}`, status: 'queued', message: 'Local' };
   }
 
   // Schedule email for later delivery
@@ -441,25 +223,7 @@ class FileUploadService {
     variables?: any,
     priority?: string
   ): Promise<{ emailId: string; status: string; scheduledAt: Date; message: string }> {
-    try {
-      const scheduleEmailFunction = httpsCallable(functions, 'scheduleEmail');
-      const result = await scheduleEmailFunction({
-        userId,
-        to,
-        subject,
-        content,
-        scheduledAt,
-        templateId,
-        personalityId,
-        variables,
-        priority
-      });
-
-      return result.data as { emailId: string; status: string; scheduledAt: Date; message: string };
-    } catch (error) {
-      console.error('Email scheduling error:', error);
-      throw new Error('Failed to schedule email');
-    }
+    return { emailId: `email_${Date.now()}`, status: 'scheduled', scheduledAt: new Date(scheduledAt), message: 'Local' };
   }
 
   // Get email templates with AI suggestions
@@ -468,19 +232,7 @@ class FileUploadService {
     category?: string,
     templateType?: string
   ): Promise<{ templates: any[]; aiSuggestions: any[] }> {
-    try {
-      const getEmailTemplatesFunction = httpsCallable(functions, 'getEmailTemplates');
-      const result = await getEmailTemplatesFunction({
-        userId,
-        category,
-        templateType
-      });
-
-      return result.data as { templates: any[]; aiSuggestions: any[] };
-    } catch (error) {
-      console.error('Get email templates error:', error);
-      throw new Error('Failed to get email templates');
-    }
+    return { templates: [], aiSuggestions: [] };
   }
 
   // Track email metrics and analytics
@@ -490,20 +242,7 @@ class FileUploadService {
     recipientEmail: string,
     timestamp?: Date
   ): Promise<{ status: string }> {
-    try {
-      const trackEmailMetricsFunction = httpsCallable(functions, 'trackEmailMetrics');
-      const result = await trackEmailMetricsFunction({
-        emailId,
-        event,
-        recipientEmail,
-        timestamp
-      });
-
-      return result.data as { status: string };
-    } catch (error) {
-      console.error('Email metrics tracking error:', error);
-      throw new Error('Failed to track email metrics');
-    }
+    return { status: 'logged' };
   }
 
   // Send bulk emails with personalization
@@ -517,24 +256,7 @@ class FileUploadService {
     variables?: any,
     scheduleAt?: string
   ): Promise<{ status: string; totalRecipients: number; results: any[] }> {
-    try {
-      const sendBulkEmailFunction = httpsCallable(functions, 'sendBulkEmail');
-      const result = await sendBulkEmailFunction({
-        userId,
-        recipients,
-        subject,
-        content,
-        templateId,
-        personalityId,
-        variables,
-        scheduleAt
-      });
-
-      return result.data as { status: string; totalRecipients: number; results: any[] };
-    } catch (error) {
-      console.error('Bulk email sending error:', error);
-      throw new Error('Failed to send bulk emails');
-    }
+    return { status: 'queued', totalRecipients: recipients.length, results: [] };
   }
 
   // Get email analytics and reports
@@ -544,20 +266,7 @@ class FileUploadService {
     endDate?: string,
     groupBy?: string
   ): Promise<{ metrics: any; recentEvents: any[]; emails: any[] }> {
-    try {
-      const getEmailAnalyticsFunction = httpsCallable(functions, 'getEmailAnalytics');
-      const result = await getEmailAnalyticsFunction({
-        userId,
-        startDate,
-        endDate,
-        groupBy
-      });
-
-      return result.data as { metrics: any; recentEvents: any[]; emails: any[] };
-    } catch (error) {
-      console.error('Email analytics error:', error);
-      throw new Error('Failed to get email analytics');
-    }
+    return { metrics: {}, recentEvents: [], emails: [] };
   }
 
   // Sync existing email conversations
@@ -567,20 +276,7 @@ class FileUploadService {
     credentials: any,
     syncOptions: any
   ): Promise<{ syncId: string; status: string; importedCount: number; analysis: any; message: string }> {
-    try {
-      const syncEmailFunction = httpsCallable(functions, 'syncEmail');
-      const result = await syncEmailFunction({
-        userId,
-        emailProvider,
-        credentials,
-        syncOptions
-      });
-
-      return result.data as { syncId: string; status: string; importedCount: number; analysis: any; message: string };
-    } catch (error) {
-      console.error('Email sync error:', error);
-      throw new Error('Failed to sync emails');
-    }
+    return { syncId: `sync_${Date.now()}`, status: 'ok', importedCount: 0, analysis: {}, message: 'Local' };
   }
 
   // Get synced email conversations
@@ -591,21 +287,7 @@ class FileUploadService {
     startDate?: string,
     endDate?: string
   ): Promise<{ emails: any[]; threads: any; totalEmails: number; totalThreads: number }> {
-    try {
-      const getSyncedEmailsFunction = httpsCallable(functions, 'getSyncedEmails');
-      const result = await getSyncedEmailsFunction({
-        userId,
-        syncId,
-        threadId,
-        startDate,
-        endDate
-      });
-
-      return result.data as { emails: any[]; threads: any; totalEmails: number; totalThreads: number };
-    } catch (error) {
-      console.error('Get synced emails error:', error);
-      throw new Error('Failed to get synced emails');
-    }
+    return { emails: [], threads: {}, totalEmails: 0, totalThreads: 0 };
   }
 
   // Helper function to convert file to base64

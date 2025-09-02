@@ -250,11 +250,25 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                     }
 
                     {activeTab === 'leads' ? (
-                        <LeadsList leads={leads} onSchedule={handleOpenScheduleModal} onContact={handleOpenContactModal} />
+                        <div className="space-y-8">
+                            <LeadsList leads={leads} onSchedule={handleOpenScheduleModal} onContact={handleOpenContactModal} />
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                <div className="lg:col-span-2">
+                                    <div className="rounded-lg overflow-hidden border border-slate-200">
+                                        <CalendarView appointments={appointments} />
+                                    </div>
+                                </div>
+                                <div className="lg:col-span-1">
+                                    <AppointmentsList appointments={appointments} />
+                                </div>
+                            </div>
+                        </div>
                     ) : activeTab === 'appointments' ? (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="lg:col-span-2">
-                                <CalendarView appointments={appointments} />
+                                <div className="scale-95 origin-top rounded-lg overflow-hidden border border-slate-200">
+                                    <CalendarView appointments={appointments} />
+                                </div>
                             </div>
                             <div className="lg:col-span-1">
                                 <AppointmentsList appointments={appointments} />

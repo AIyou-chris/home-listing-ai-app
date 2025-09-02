@@ -1,30 +1,20 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../services/firebase';
-
-// Create a callable reference to the test function
-const testFunctionCallable = httpsCallable(functions, 'testFunction');
-
-// Function to call the test function
+// Replaced Firebase callable with direct REST call to emulator Functions
 export const callTestFunction = async (data: any): Promise<string> => {
   try {
-    console.log("Calling testFunction with data:", data);
-    
-    // Call the Firebase function
-    const result = await testFunctionCallable(data);
-    
-    console.log("Received response from testFunction:", result);
-    
-    // Check if we have a valid response
-    if (result && result.data && typeof (result.data as { text: string }).text === 'string') {
-      const responseText = (result.data as { text: string }).text;
-      console.log("Valid response received:", responseText);
-      return responseText;
-    } else {
-      console.error("Invalid response format:", result);
-      throw new Error("Invalid response format from test function");
-    }
+    const url =
+      import.meta.env?.VITE_FUNCTIONS_URL ||
+      'http://127.0.0.1:5001/home-listing-ai/us-central1/testFunction'
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const result = await res.json()
+    if (result && typeof result.text === 'string') return result.text
+    throw new Error('Invalid response format from test function')
   } catch (error) {
-    console.error("Error calling test function:", error);
-    throw error;
+    console.error('Error calling test function:', error)
+    throw error
   }
-};
+}

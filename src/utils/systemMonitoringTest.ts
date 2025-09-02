@@ -181,7 +181,9 @@ export const testExtendedNotificationService = async () => {
             priority: 'medium',
             targetAudience: [testUser1Id, testUser2Id],
             sentBy: 'admin',
-            status: 'sent'
+            status: 'sent',
+            sentAt: new Date().toISOString(),
+            deliveryStats: { totalRecipients: 2, delivered: 0, read: 0, failed: 0 }
         });
         console.log('✅ Broadcast notification sent');
 

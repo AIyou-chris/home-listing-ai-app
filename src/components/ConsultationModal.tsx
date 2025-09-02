@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Modal from './Modal';
 import { googleMeetService } from '../services/googleMeetService';
 import { emailService } from '../services/emailService';
-import { addConsultation } from '../services/firestoreService';
+// import { addConsultation } from '../services/firestoreService'; // removed with Firebase
 import { ValidationUtils } from '../utils/validation';
 
 interface ConsultationModalProps {
@@ -122,23 +122,9 @@ This consultation was booked through the HomeListingAI website.`,
 
 
 
-    const saveToAdminDashboard = async (data: any, calendarResult: any) => {
-        try {
-            await addConsultation({
-                name: data.name,
-                email: data.email,
-                phone: data.phone,
-                date: data.date,
-                time: data.time,
-                message: data.message,
-                calendarEventId: calendarResult.eventId,
-                meetLink: calendarResult.meetLink,
-                status: 'scheduled'
-            });
-            console.log('Consultation saved to admin dashboard');
-        } catch (error) {
-            console.error('Error saving consultation to dashboard:', error);
-        }
+    const saveToAdminDashboard = async (_data: any, _calendarResult: any) => {
+        // Firebase removed: persist via Supabase later if needed
+        return;
     };
 
     const titleNode = (

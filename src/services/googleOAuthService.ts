@@ -5,6 +5,7 @@ class GoogleOAuthService {
   private tokenExpiry: number | null = null;
   private googleAuth: any = null;
   private userEmail: string | null = null;
+  public isAvailable: boolean = false;
 
   constructor() {
     this.loadTokensFromStorage();

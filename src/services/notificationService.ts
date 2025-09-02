@@ -55,7 +55,8 @@ export class NotificationService {
             content,
             type,
             priority,
-            expiresAt
+            expiresAt,
+            read: false
         });
     }
 
@@ -110,7 +111,9 @@ export class NotificationService {
             targetAudience,
             sentBy,
             scheduledFor,
-            status: scheduledFor ? 'scheduled' : 'draft'
+            status: scheduledFor ? 'scheduled' : 'draft',
+            sentAt: scheduledFor ? undefined : new Date().toISOString(),
+            deliveryStats: { totalRecipients: targetAudience.length, delivered: 0, read: 0, failed: 0 }
         });
     }
 
@@ -129,7 +132,9 @@ export class NotificationService {
             priority,
             targetAudience,
             sentBy,
-            status: 'sent'
+            status: 'sent',
+            sentAt: new Date().toISOString(),
+            deliveryStats: { totalRecipients: targetAudience.length, delivered: 0, read: 0, failed: 0 }
         });
 
         // Send notifications to all target users
@@ -153,11 +158,11 @@ export class NotificationService {
     }
 
     // NEW: Broadcast notifications
-    static async sendBroadcastNotification(message: Omit<BroadcastMessage, 'id' | 'sentAt' | 'deliveryStats'>): Promise<void> {
-        const messageId = await DatabaseService.createBroadcastMessage({
+    static async sendBroadcastNotification(message: Omit<BroadcastMessage, 'id'>): Promise<void> {
+        await DatabaseService.createBroadcastMessage({
             ...message,
-            sentAt: new Date().toISOString(),
-            deliveryStats: {
+            sentAt: message.sentAt || new Date().toISOString(),
+            deliveryStats: message.deliveryStats || {
                 totalRecipients: message.targetAudience.length,
                 delivered: 0,
                 read: 0,
@@ -173,8 +178,6 @@ export class NotificationService {
             'broadcast',
             message.priority
         );
-
-        console.log(`Broadcast notification sent to ${message.targetAudience.length} users`);
     }
 
     // NEW: Send user notification with full object
@@ -182,7 +185,6 @@ export class NotificationService {
         await DatabaseService.createUserNotification({
             ...notification,
             userId,
-            createdAt: new Date().toISOString(),
             read: false
         });
     }
@@ -225,13 +227,7 @@ export class NotificationService {
 
     static async sendScheduledEmail(scheduledEmail: Omit<ScheduledEmail, 'id' | 'status'>): Promise<string> {
         try {
-            // In a real implementation, you would:
-            // 1. Store the scheduled email in a database
-            // 2. Set up a cron job or scheduler to send at the specified time
-            // 3. Update status when sent
-
             const emailId = `scheduled_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
             console.log(`Scheduled email created:`, {
                 id: emailId,
                 scheduledFor: scheduledEmail.scheduledFor,
@@ -239,13 +235,11 @@ export class NotificationService {
                 subject: scheduledEmail.template.subject
             });
 
-            // Simulate scheduling (in real app, this would be stored in database)
             const scheduledTime = new Date(scheduledEmail.scheduledFor);
             const now = new Date();
             const delay = scheduledTime.getTime() - now.getTime();
 
             if (delay > 0) {
-                // Schedule the email to be sent
                 setTimeout(async () => {
                     try {
                         await this.sendEmailToUsers(scheduledEmail.userIds, scheduledEmail.template);
@@ -255,7 +249,6 @@ export class NotificationService {
                     }
                 }, delay);
             } else {
-                // Send immediately if scheduled time has passed
                 await this.sendEmailToUsers(scheduledEmail.userIds, scheduledEmail.template);
             }
 
@@ -269,20 +262,12 @@ export class NotificationService {
     // NEW: Push notifications
     static async sendPushNotification(userIds: string[], notification: PushNotification): Promise<void> {
         try {
-            // Simulate push notification sending (replace with actual push service)
             console.log(`Sending push notification to ${userIds.length} users:`, {
                 title: notification.title,
                 body: notification.body,
                 tag: notification.tag
             });
 
-            // In a real implementation, you would:
-            // 1. Get user push tokens from the database
-            // 2. Send push notifications using Firebase Cloud Messaging, OneSignal, etc.
-            // 3. Track delivery and engagement
-            // 4. Handle token updates and invalidations
-
-            // For now, we'll create in-app notifications for the push recipients
             await this.sendNotificationToMultipleUsers(
                 userIds,
                 notification.title,
@@ -291,7 +276,6 @@ export class NotificationService {
                 'medium'
             );
 
-            // Simulate push notification delivery
             for (const userId of userIds) {
                 console.log(`Push notification sent to user ${userId}: ${notification.title}`);
             }
@@ -315,7 +299,9 @@ export class NotificationService {
             title,
             description,
             severity,
-            component
+            component,
+            status: 'active',
+            // createdAt handled by DatabaseService
         });
     }
 
@@ -365,22 +351,19 @@ export class NotificationService {
         content: string,
         priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium'
     ): Promise<string> {
-        // Get all active users
         const users = await DatabaseService.getUsersByStatus('Active');
         const userIds = users.map(user => user.id);
 
-        // Create broadcast message
         const messageId = await this.createBroadcastMessage(
             title,
             content,
             'Maintenance',
             priority,
             userIds,
-            'system', // sentBy
-            undefined // scheduledFor
+            'system',
+            undefined
         );
 
-        // Send notifications to all users
         await this.sendNotificationToMultipleUsers(
             userIds,
             title,

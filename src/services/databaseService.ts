@@ -1,22 +1,5 @@
-import { 
-    collection, 
-    doc, 
-    getDoc, 
-    getDocs, 
-    addDoc, 
-    updateDoc, 
-    deleteDoc, 
-    query, 
-    where, 
-    orderBy, 
-    limit, 
-    Timestamp,
-    writeBatch,
-    onSnapshot,
-    QuerySnapshot,
-    DocumentData
-} from 'firebase/firestore';
-import { db } from './firebase';
+// Firebase removed; keeping API signatures for future Supabase port
+const Timestamp = { now: () => new Date(), fromDate: (d: Date) => d } as any;
 import { 
     User, 
     AdminSettings, 

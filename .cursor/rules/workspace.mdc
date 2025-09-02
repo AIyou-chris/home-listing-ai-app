@@ -1,0 +1,5 @@
+
+Always reply with PLAN → PATCH → RUN format.  
+Never modify files outside the PLAN; if additional files are needed, stop and propose an updated PLAN first.  
+Do not edit generated code (/dist, /functions/lib, /supabase/.temp); instead change source and rerun build/codegen.  
+

@@ -50,7 +50,7 @@ const SecurityDashboard: React.FC = () => {
 	const [backupHistory, setBackupHistory] = useState<any[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [activeTab, setActiveTab] = useState('overview');
-	const [timeRange, setTimeRange] = useState('24h');
+	const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d'>('24h');
 	const { logAction } = useSecurity();
 
 	useEffect(() => {
@@ -61,9 +61,17 @@ const SecurityDashboard: React.FC = () => {
 	const loadSecurityData = async () => {
 		try {
 			setLoading(true);
+			const now = new Date()
+			const start = new Date(now)
+			switch (timeRange) {
+				case '1h': start.setHours(start.getHours() - 1); break
+				case '24h': start.setHours(start.getHours() - 24); break
+				case '7d': start.setDate(start.getDate() - 7); break
+				case '30d': start.setDate(start.getDate() - 30); break
+			}
 			const [status, logs, alerts, backups] = await Promise.all([
 				SecurityService.getSecurityStatus(),
-				SecurityService.getAuditLogs({ timeRange, limit: 50 }),
+				SecurityService.getAuditLogs({ startDate: start.toISOString(), endDate: now.toISOString(), limit: 50 }),
 				SecurityService.getSecurityAlerts({ limit: 20 }),
 				SecurityService.getBackupHistory({ limit: 10 })
 			]);
@@ -145,7 +153,7 @@ const SecurityDashboard: React.FC = () => {
 						<div className="flex items-center gap-4">
 							<select
 								value={timeRange}
-								onChange={(e) => setTimeRange(e.target.value)}
+								onChange={(e) => setTimeRange(e.target.value as '1h' | '24h' | '7d' | '30d')}
 								className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 							>
 								<option value="1h">Last Hour</option>

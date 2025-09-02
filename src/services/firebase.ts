@@ -1,20 +1,17 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
-import { firebaseConfig } from '../config';
+// Firebase no-op shim to allow the app to compile while we migrate to Supabase.
+// Any code importing these should gracefully no-op during the migration.
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const functions = getFunctions(app, 'us-central1');
+// Minimal stubs
+export const app = {} as any;
+export const auth = {
+	currentUser: null,
+	onAuthStateChanged: (_cb: any) => () => {}
+} as any;
+export const db = {} as any;
+export const functions = {} as any;
+export const storage = {} as any;
 
-// Connect to functions emulator in development
-if (import.meta.env.DEV) {
-  const port = Number(import.meta.env.VITE_FUNCTIONS_EMULATOR_PORT || 5001);
-  connectFunctionsEmulator(functions, 'localhost', port);
-}
-
-// Export initialized SDK instances (app exported to support services needing it)
-export { app, auth, db, functions };
+// Prevent accidental usage (silenced per request)
+// if (import.meta.env.DEV) {
+// 	console.warn('[firebase shim] Firebase services are stubbed. No network calls will be made.');
+// }
