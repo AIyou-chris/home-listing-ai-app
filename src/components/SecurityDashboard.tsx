@@ -53,43 +53,105 @@ const SecurityDashboard: React.FC = () => {
 	const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d'>('24h');
 	const { logAction } = useSecurity();
 
-	useEffect(() => {
-		loadSecurityData();
-		logAction('security_dashboard_accessed', 'security', { timeRange });
-	}, [timeRange]);
+	const API_BASE = (import.meta as any)?.env?.VITE_API_URL || 'http://localhost:3002';
 
-	const loadSecurityData = async () => {
-		try {
-			setLoading(true);
-			const now = new Date()
-			const start = new Date(now)
-			switch (timeRange) {
-				case '1h': start.setHours(start.getHours() - 1); break
-				case '24h': start.setHours(start.getHours() - 24); break
-				case '7d': start.setDate(start.getDate() - 7); break
-				case '30d': start.setDate(start.getDate() - 30); break
+		useEffect(() => {
+			let cancelled = false;
+			const run = async () => {
+				await loadSecurityData(cancelled);
+				if (!cancelled) {
+					logAction('security_dashboard_accessed', 'security', { timeRange });
+				}
+			};
+			run();
+			return () => {
+				cancelled = true;
+			};
+		}, [timeRange]);
+
+		const loadSecurityData = async (cancelled?: boolean) => {
+			try {
+				if (!cancelled) setLoading(true);
+
+				// Compute time window
+				const now = new Date();
+				const start = new Date(now);
+				switch (timeRange) {
+					case '1h': start.setHours(start.getHours() - 1); break;
+					case '24h': start.setHours(start.getHours() - 24); break;
+					case '7d': start.setDate(start.getDate() - 7); break;
+					case '30d': start.setDate(start.getDate() - 30); break;
+				}
+
+				// Fetch in parallel
+				const [statusRes, logsRes, alertsRes, backupsRes] = await Promise.all([
+					SecurityService.getSecurityStatus(),
+					SecurityService.getAuditLogs({ startDate: start.toISOString(), endDate: now.toISOString(), limit: 50 }),
+					SecurityService.getSecurityAlerts({ limit: 20 }),
+					SecurityService.getBackupHistory({ limit: 10 })
+				]);
+
+				// Mappers to normalize shapes
+				const mapAudit = (log: any): AuditLog => ({
+					id: log.id || log.log_id || `${log.action || 'action'}_${log.created_at || Date.now()}`,
+					action: log.action || log.event || 'unknown',
+					resourceType: log.resourceType || log.resource_type || 'unknown',
+					severity: log.severity || 'info',
+					performedBy: log.performedBy || log.user_id || 'system',
+					timestamp: log.timestamp || log.created_at || new Date().toISOString(),
+					details: log.details || {}
+				});
+
+				const mapAlert = (a: any): SecurityAlert => ({
+					id: a.id || `${a.alert_type || a.alertType || 'alert'}_${a.created_at || Date.now()}`,
+					alertType: a.alertType || a.alert_type || 'unknown',
+					description: a.description || '',
+					severity: a.severity || 'warning',
+					timestamp: a.timestamp || a.created_at || new Date().toISOString(),
+					resolved: typeof a.resolved === 'boolean' ? a.resolved : false
+				});
+
+				const mapBackup = (b: any) => ({
+					id: b.id || b.backupId || `${b.created_at || Date.now()}`,
+					backupId: b.backupId || b.id || 'unknown',
+					backupType: b.backupType || b.backup_type || 'manual',
+					status: b.status || 'completed',
+					totalDocuments: b.totalDocuments || 0,
+					startTime: b.startTime || b.created_at || new Date().toISOString()
+				});
+
+				const mappedLogs: AuditLog[] = (logsRes?.auditLogs || []).map(mapAudit);
+				const mappedAlerts: SecurityAlert[] = (alertsRes?.alerts || []).map(mapAlert);
+				const mappedBackups = (backupsRes?.backups || []).map(mapBackup);
+
+				// Derive a minimal status summary for header metrics if service doesn't provide totals
+				const derivedStatus: SecurityStatus = {
+					auditStatus: { totalActions: mappedLogs.length },
+					alertsStatus: { total: mappedAlerts.length },
+					backupStatus: { total: mappedBackups.length },
+					lastUpdated: new Date().toISOString()
+				};
+
+				if (!cancelled) {
+					setSecurityStatus(statusRes || derivedStatus);
+					setAuditLogs(mappedLogs);
+					setSecurityAlerts(mappedAlerts);
+					setBackupHistory(mappedBackups);
+				}
+			} catch (error) {
+				console.error('Error loading security data:', error);
+			} finally {
+				if (!cancelled) setLoading(false);
 			}
-			const [status, logs, alerts, backups] = await Promise.all([
-				SecurityService.getSecurityStatus(),
-				SecurityService.getAuditLogs({ startDate: start.toISOString(), endDate: now.toISOString(), limit: 50 }),
-				SecurityService.getSecurityAlerts({ limit: 20 }),
-				SecurityService.getBackupHistory({ limit: 10 })
-			]);
-
-			setSecurityStatus(status);
-			setAuditLogs(logs.auditLogs || []);
-			setSecurityAlerts(alerts.alerts || []);
-			setBackupHistory(backups.backups || []);
-		} catch (error) {
-			console.error('Error loading security data:', error);
-		} finally {
-			setLoading(false);
-		}
-	};
+		};
 
 	const handleCreateBackup = async () => {
 		try {
-			await SecurityService.createBackup();
+			await fetch(`${API_BASE}/api/security/backup`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			});
 			await loadSecurityData();
 			logAction('backup_created', 'security', { type: 'manual' });
 		} catch (error) {
@@ -99,9 +161,18 @@ const SecurityDashboard: React.FC = () => {
 
 	const handleResolveAlert = async (alertId: string) => {
 		try {
-			await SecurityService.resolveSecurityAlert({ alertId });
-			await loadSecurityData();
-			logAction('security_alert_resolved', 'security', { alertId });
+			const res = await fetch(`${API_BASE}/api/security/alerts/${alertId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ resolution: 'resolved via UI' })
+			});
+			if (!res.ok) {
+				const err = await res.text();
+				console.error('Resolve Alert API error', res.status, err);
+			} else {
+				await loadSecurityData();
+				logAction('security_alert_resolved', 'security', { alertId });
+			}
 		} catch (error) {
 			console.error('Error resolving alert:', error);
 		}
@@ -161,8 +232,8 @@ const SecurityDashboard: React.FC = () => {
 								<option value="7d">Last 7 Days</option>
 								<option value="30d">Last 30 Days</option>
 							</select>
-							<button
-								onClick={loadSecurityData}
+											<button
+												onClick={() => loadSecurityData()}
 								className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
 							>
 								<RefreshCw className="w-4 h-4" />
@@ -203,6 +274,54 @@ const SecurityDashboard: React.FC = () => {
 
 				{/* Content */}
 				<div className="space-y-6">
+					{/* Quick test actions */}
+					<div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-4 flex flex-wrap gap-2">
+						<button
+							onClick={async () => {
+								try {
+									const res = await fetch(`${API_BASE}/api/security/audit`, {
+										method: 'POST',
+										headers: { 'Content-Type': 'application/json' },
+										body: JSON.stringify({ action: 'test_event', resourceType: 'security', severity: 'info', details: { note: 'Manual test audit' } })
+									});
+									if (!res.ok) {
+										const err = await res.text();
+										console.error('Audit API error', res.status, err);
+									} else {
+										await loadSecurityData();
+									}
+								} catch (e) {
+									console.error('Audit API network error', e);
+								}
+							}}
+							className="px-3 py-2 rounded-lg bg-slate-900 text-white text-sm"
+						>
+							Log Test Event
+						</button>
+						<button
+							onClick={async () => {
+								try {
+									const res = await fetch(`${API_BASE}/api/security/alerts`, {
+										method: 'POST',
+										headers: { 'Content-Type': 'application/json' },
+										body: JSON.stringify({ alertType: 'manual_test', description: 'Manual test alert', severity: 'warning' })
+									});
+									if (!res.ok) {
+										const err = await res.text();
+										console.error('Create Alert API error', res.status, err);
+									} else {
+										await loadSecurityData();
+									}
+								} catch (e) {
+									console.error('Create Alert API network error', e);
+								}
+							}}
+							className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm"
+						>
+							Create Test Alert
+						</button>
+						<button onClick={handleCreateBackup} className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm">Create Backup</button>
+					</div>
 					{/* Overview Tab */}
 					{activeTab === 'overview' && (
 						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

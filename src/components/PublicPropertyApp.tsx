@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import ViewingModal from './ViewingModal'
 import { Property, isAIDescription } from '../types';
 
 // Locally defined Brand Icons for stability
@@ -11,6 +12,7 @@ interface PublicPropertyAppProps {
     property: Property;
     onExit: () => void;
     onTalkToHome: () => void;
+    showBackButton?: boolean;
 }
 
 const ImageCarousel: React.FC<{ images: string[] }> = ({ images }) => {
@@ -60,12 +62,13 @@ const FeatureButton: React.FC<{ icon: string, label: string, enabled?: boolean }
 };
 
 
-const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit, onTalkToHome }) => {
+const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit, onTalkToHome, showBackButton = true }) => {
     const descriptionText = isAIDescription(property.description)
         ? property.description.paragraphs.join(' ')
         : (typeof property.description === 'string' ? property.description : '');
 
     const agent = property.agent;
+    const [showViewing, setShowViewing] = useState(false)
 
     const allAppFeatures = {
         gallery: { icon: 'photo_camera', label: "Gallery" },
@@ -80,20 +83,24 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
         virtualTour: { icon: '3d_rotation', label: "Virtual Tour" },
     };
 
+    const scrollerRef = useRef<HTMLDivElement | null>(null)
+
     return (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-sm mb-4">
-                <button 
-                    onClick={onExit}
-                    className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 font-semibold rounded-lg shadow-md hover:bg-slate-100 transition-all"
-                >
-                    <span className="material-symbols-outlined">arrow_back</span>
-                    Back to Editor
-                </button>
-            </div>
+        <div className="flex flex-col items-center justify-center p-0">
+            {showBackButton && (
+                <div className="w-full max-w-sm mb-4">
+                    <button 
+                        onClick={onExit}
+                        className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 font-semibold rounded-lg shadow-md hover:bg-slate-100 transition-all"
+                    >
+                        <span className="material-symbols-outlined">arrow_back</span>
+                        Back to Editor
+                    </button>
+                </div>
+            )}
 
             <div className="relative w-full max-w-sm h-[85vh] max-h-[700px] bg-slate-100 rounded-[40px] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-                <main className="flex-1 overflow-y-auto pb-24">
+                <main ref={scrollerRef} className="flex-1 overflow-y-auto pb-24">
                     <ImageCarousel images={property.heroPhotos?.filter((img): img is string => typeof img === 'string') || [property.imageUrl]} />
 
                     <div className="p-6">
@@ -109,30 +116,51 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                             <InfoPill icon="bathtub" value={property.bathrooms} label="Bathrooms" />
                             <InfoPill icon="fullscreen" value={property.squareFeet.toLocaleString()} label="Sq Ft" />
                         </div>
-                        
-                        <button onClick={onTalkToHome} className="mt-6 w-full flex items-center justify-center gap-3 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition-shadow">
+                    </div>
+
+                    {/* Sticky Talk to the Home bar */}
+                    <div className="sticky top-0 z-10 px-6 pt-2 pb-3 bg-white/90 backdrop-blur border-b border-slate-200">
+                        <button onClick={onTalkToHome} className="w-full flex items-center justify-center gap-3 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-2xl shadow">
                             <span className="material-symbols-outlined w-6 h-6">mic</span>
                             <span>Talk to the Home Now</span>
                         </button>
                     </div>
-                    
+
                     <div className="px-6 py-4">
                         <div className="p-6 bg-white rounded-2xl shadow-sm border border-slate-200/60">
                              <h2 className="text-xl font-bold text-slate-800 mb-2">{isAIDescription(property.description) ? property.description.title : 'About This Property'}</h2>
                              <p className="text-slate-600 leading-relaxed">{descriptionText.replace("Read More", "")} <a href="#" className="text-blue-600 font-semibold">Read More</a></p>
                         </div>
+                        {/* Center CTA buttons */}
+                        <div className="mt-5 grid grid-cols-2 gap-3">
+                          <a href={((property as any).ctaListingUrl || '#')} target="_blank" rel="noreferrer" className="h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2">
+                            <span className="material-symbols-outlined">open_in_new</span>
+                            <span>To Listing</span>
+                          </a>
+                          <a href={((property as any).ctaMediaUrl || '#')} target="_blank" rel="noreferrer" className="h-12 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2">
+                            <span className="material-symbols-outlined">play_circle</span>
+                            <span>Media</span>
+                          </a>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                          <button onClick={() => setShowViewing(true)} className="h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2">
+                            <span className="material-symbols-outlined">event_available</span>
+                            <span>See the house</span>
+                          </button>
+                          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(property.address)}`} target="_blank" rel="noreferrer" className="h-12 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-semibold flex items-center justify-center gap-2">
+                            <span className="material-symbols-outlined">map</span>
+                            <span>Map</span>
+                          </a>
+                        </div>
+                        {/* Gallery button */}
+                        <div className="mt-3">
+                          <button onClick={() => scrollerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })} className="w-full h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center justify-center gap-2">
+                            <span className="material-symbols-outlined">photo_library</span>
+                            <span>Gallery</span>
+                          </button>
+                        </div>
                     </div>
-                    
-                     <div className="px-6 py-4 grid grid-cols-2 gap-4">
-                        {Object.entries(allAppFeatures).map(([key, feature]) => (
-                            <FeatureButton 
-                                key={key}
-                                icon={feature.icon}
-                                label={feature.label}
-                                enabled={property.appFeatures?.[key]}
-                            />
-                        ))}
-                    </div>
+
 
                     {agent && (
                         <div className="px-6 py-4">
@@ -171,6 +199,9 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                     </div>
                 </footer>
             </div>
+            {showViewing && (
+              <ViewingModal onClose={() => setShowViewing(false)} propertyAddress={property.address} />
+            )}
         </div>
     );
 };

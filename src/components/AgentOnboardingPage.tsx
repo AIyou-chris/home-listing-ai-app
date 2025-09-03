@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { auth, functions } from '../services/firebase';
-// Firebase removed
+import { supabase } from '../services/supabase'
+import { upsertAgentProfile } from '../services/sidekickProfilesService'
 import { Logo } from './Logo';
 
 interface AgentOnboardingPageProps {
@@ -107,54 +107,44 @@ const AgentOnboardingPage: React.FC<AgentOnboardingPageProps> = ({ onComplete })
     };
 
     const handleSubmit = async () => {
-        if (!auth.currentUser) return;
-
-        setIsLoading(true);
+        setIsLoading(true)
         try {
-            // Create AI personality
-            const createPersonality = httpsCallable(functions, 'createAIPersonality');
-            await createPersonality({
-                agentId: auth.currentUser.uid,
-                personality: {
-                    communicationStyle: formData.communicationStyle,
-                    tone: formData.tone,
-                    expertise: formData.expertise,
-                    specialties: formData.specialties,
-                    customPrompts: [
-                        `You are a real estate agent with ${formData.yearsExperience} years of experience.`,
-                        `Your target markets are: ${formData.targetMarkets.join(', ')}`,
-                        `Your average property price range is: ${formData.averagePropertyPrice}`,
-                        `Your bio: ${formData.bio}`,
-                        `Common questions you handle: ${formData.commonQuestions.join(', ')}`,
-                        `Your unique selling points: ${formData.uniqueSellingPoints.join(', ')}`
-                    ]
-                }
-            });
+            const { data: user } = await supabase.auth.getUser()
+            const uid = user?.user?.id
+            const email = user?.user?.email
+            if (!uid) throw new Error('Not signed in')
 
-            // Update user profile in Firestore
-            const { doc, setDoc } = await import('firebase/firestore');
-            const { db } = await import('../services/firebase');
-            
-            await setDoc(doc(db, 'agents', auth.currentUser.uid), {
+            // Save agent onboarding info (basic profile) into a simple table
+            const { error: upErr } = await supabase
+              .from('agents')
+              .upsert({
+                id: uid,
                 name: formData.fullName,
                 company: formData.company,
                 phone: formData.phone,
                 website: formData.website,
-                email: auth.currentUser.email,
-                yearsExperience: formData.yearsExperience,
-                targetMarkets: formData.targetMarkets,
-                averagePropertyPrice: formData.averagePropertyPrice,
+                email,
+                years_experience: formData.yearsExperience,
+                target_markets: formData.targetMarkets,
+                average_price_band: formData.averagePropertyPrice,
                 bio: formData.bio,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
+                updated_at: new Date().toISOString()
+              })
+            if (upErr) throw upErr
 
-            onComplete();
+            // Create agent-level default sidekick profile
+            await upsertAgentProfile(uid, {
+              persona_preset: 'custom',
+              description: `You are an agent with ${formData.yearsExperience} years experience. Markets: ${formData.targetMarkets.join(', ')}. Avg price: ${formData.averagePropertyPrice}. Bio: ${formData.bio}.` ,
+              traits: [...formData.specialties, ...formData.uniqueSellingPoints]
+            })
+
+            onComplete()
         } catch (error) {
-            console.error('Onboarding error:', error);
-            alert('There was an error setting up your profile. Please try again.');
+            console.error('Onboarding error:', error)
+            alert('There was an error setting up your profile. Please try again.')
         } finally {
-            setIsLoading(false);
+            setIsLoading(false)
         }
     };
 

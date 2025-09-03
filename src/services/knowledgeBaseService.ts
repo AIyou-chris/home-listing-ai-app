@@ -1,5 +1,5 @@
 // Minimal client for Knowledge Base callable functions
-// Step 1: implement file upload to backend (no UI wiring yet)
+// Consolidated and deduplicated implementation
 
 const getFunctionsBase = (): string => {
   const project = 'home-listing-ai';
@@ -17,7 +17,6 @@ const toBase64 = (file: File): Promise<string> => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = String(reader.result || '');
-      // Return data URL for compatibility with backend parser
       resolve(result);
     };
     reader.onerror = () => reject(reader.error);
@@ -74,13 +73,22 @@ export const processUploadedDocument = async (
 ): Promise<{ fileId: string; extractedText: string; status: string }> => {
   const baseUrl = getFunctionsBase();
   const url = `${baseUrl}/processDocument`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileId, fileType })
-  });
-  if (!res.ok) throw new Error('processDocument failed');
-  return (await res.json()) as any;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId, fileType })
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`Process document error: ${res.status}`, errorText);
+      throw new Error('processDocument failed');
+    }
+    return (await res.json()) as any;
+  } catch (error) {
+    console.error('Process document error:', error);
+    throw error;
+  }
 };
 
 export const storeKnowledgeBaseEntry = async (
@@ -91,13 +99,22 @@ export const storeKnowledgeBaseEntry = async (
 ): Promise<{ knowledgeId: string; status: string }> => {
   const baseUrl = getFunctionsBase();
   const url = `${baseUrl}/storeKnowledgeBase`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileId, userId, category, tags })
-  });
-  if (!res.ok) throw new Error('storeKnowledgeBase failed');
-  return (await res.json()) as any;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId, userId, category, tags })
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`Store knowledge error: ${res.status}`, errorText);
+      throw new Error('storeKnowledgeBase failed');
+    }
+    return (await res.json()) as any;
+  } catch (error) {
+    console.error('Store knowledge error:', error);
+    throw error;
+  }
 };
 
 export const listKnowledgeEntries = async (
@@ -105,9 +122,7 @@ export const listKnowledgeEntries = async (
   category?: string
 ): Promise<{ entries: Array<{ id: string; title?: string; fileName?: string; createdAt?: any }> }> => {
   const baseUrl = getFunctionsBase();
-  // FIXED: Removed 'api/' prefix from URL path
   const url = `${baseUrl}/kb/list`;
-  
   try {
     console.log(`Fetching knowledge entries from: ${url}`);
     const res = await fetch(url, {
@@ -115,13 +130,11 @@ export const listKnowledgeEntries = async (
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, category })
     });
-    
     if (!res.ok) {
       const errorText = await res.text();
       console.error(`Knowledge list error: ${res.status}`, errorText);
       throw new Error('listKnowledge failed');
     }
-    
     return (await res.json()) as any;
   } catch (error) {
     console.error('Knowledge list error:', error);
@@ -131,25 +144,46 @@ export const listKnowledgeEntries = async (
 
 export const deleteKnowledgeFile = async (fileId: string): Promise<{ status: string }> => {
   const baseUrl = getFunctionsBase();
-  // FIXED: Removed 'api/' prefix from URL path
   const url = `${baseUrl}/kb/delete`;
-  
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileId })
     });
-    
     if (!res.ok) {
       const errorText = await res.text();
       console.error(`Delete file error: ${res.status}`, errorText);
       throw new Error('deleteFile failed');
     }
-    
     return (await res.json()) as any;
   } catch (error) {
     console.error('Delete file error:', error);
+    throw error;
+  }
+};
+
+export const searchKnowledgeBase = async (
+  userId: string,
+  query: string,
+  category?: string
+): Promise<{ results: Array<{ id: string; title?: string; content: string; score: number }> }> => {
+  const baseUrl = getFunctionsBase();
+  const url = `${baseUrl}/searchKnowledgeBase`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, query, category })
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`Knowledge search error: ${res.status}`, errorText);
+      throw new Error('searchKnowledgeBase failed');
+    }
+    return (await res.json()) as any;
+  } catch (error) {
+    console.error('Knowledge search error:', error);
     throw error;
   }
 };

@@ -77,7 +77,7 @@ const AIMarketingProposalPage: React.FC = () => {
 
 		try {
 			// Generate AI questions based on context
-			const generateQuestions = httpsCallable(functions, 'generateAIQuestions');
+			  // Firebase functions removed - using mock implementation
 			const result = { data: { success: true, questions: getDefaultQuestions() } } as any
 
 			if (result.data.success) {
@@ -176,7 +176,7 @@ const AIMarketingProposalPage: React.FC = () => {
 		setLoading(true);
 
 		try {
-			const generateMarketingProposal = httpsCallable(functions, 'generateMarketingProposal');
+			  // Firebase functions removed - using mock implementation
 			
 			const result = { data: { success: true, proposal: {
 				id: 'demo',

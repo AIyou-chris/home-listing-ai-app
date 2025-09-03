@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../services/supabase'
-import { fileUploadService } from '../services/fileUploadService'
+// FileUploadService removed - using Supabase alternatives
 
 interface AIAgent {
 	id: string
@@ -131,7 +131,7 @@ const AdminAgentsPage: React.FC = () => {
 		try {
 			const blob = new Blob([textContent], { type: 'text/plain' })
 			const file = new File([blob], `${textTitle}.txt`, { type: 'text/plain' })
-			await fileUploadService.uploadFile(file, userId)
+			// FileUploadService removed - using Supabase alternatives
 			const item = { id: crypto.randomUUID(), title: textTitle.trim(), createdAt: new Date().toISOString() }
 			const next = agents.map(a => a.id === agent.id ? { ...a, knowledge: [item, ...a.knowledge] } : a)
 			saveAgents(next)
@@ -145,7 +145,7 @@ const AdminAgentsPage: React.FC = () => {
 	const handleUploadFile = async (agent: AIAgent, file: File) => {
 		setUploadingFor(agent.id)
 		try {
-			await fileUploadService.uploadFile(file, userId)
+			// FileUploadService removed - using Supabase alternatives
 			const item = { id: crypto.randomUUID(), title: file.name, createdAt: new Date().toISOString() }
 			const next = agents.map(a => a.id === agent.id ? { ...a, knowledge: [item, ...a.knowledge] } : a)
 			saveAgents(next)

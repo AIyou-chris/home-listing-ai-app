@@ -27,6 +27,7 @@ export type View =
     | 'analytics'
     | 'listings'
     | 'leads'
+    | 'ai-conversations'
     | 'property'
     | 'add-listing'
     | 'inbox'
@@ -58,6 +59,7 @@ export type View =
     // App routes used during development and feature flags
     | 'ai-content'
     | 'openai-test'
+    | 'demo-listing'
     | 'vapi-test'
     | 'test'
     ;
@@ -80,6 +82,8 @@ export interface Property {
   propertyType: string;
   features: string[];
   imageUrl: string;
+  ctaListingUrl?: string;
+  ctaMediaUrl?: string;
 }
 
 export interface ChatMessage {
@@ -480,7 +484,7 @@ export interface AgentTask {
 export interface AIAssignment {
     id: string;
     name: string;
-    type: 'listing' | 'agent' | 'helper';
+    type: 'listing' | 'agent' | 'helper' | 'marketing' | 'sales' | 'god';
     description: string;
     personalityId?: string;
     voiceId?: string;

@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const OpenAI = require('openai');
+const helmet = require('helmet');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
@@ -9,11 +11,17 @@ const port = process.env.PORT || 3002;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(helmet());
 
 // Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'your-api-key-here'
 });
+
+// Supabase (uses env when provided; falls back to client values for dev)
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yocchddxdsaldgsibmmc.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvY2NoZGR4ZHNhbGRnc2libW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1ODEwNDgsImV4cCI6MjA3MjE1NzA0OH0.02jE3WPLnb-DDexNqSnfIPfmPZldsby1dPOu5-BlSDw';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // In-memory storage for real data (in production, this would be a database)
 let users = [];
@@ -284,7 +292,7 @@ const calculateUserStats = () => {
 // Continue conversation endpoint
 app.post('/api/continue-conversation', async (req, res) => {
   try {
-    const { messages } = req.body;
+    const { messages, role, personalityId, systemPrompt } = req.body;
     console.log('Received messages:', messages);
     
     if (!messages || !Array.isArray(messages)) {
@@ -292,11 +300,9 @@ app.post('/api/continue-conversation', async (req, res) => {
     }
     
     // Convert messages to OpenAI format
+    const system = systemPrompt || 'You are a helpful AI assistant for a real estate app.';
     const openaiMessages = [
-      {
-        role: 'system',
-        content: 'You are a helpful AI assistant for a real estate app. Provide concise, accurate, and helpful responses about properties, real estate, and related topics.'
-      },
+      { role: 'system', content: system },
       ...messages.map(msg => ({
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.text
@@ -317,7 +323,34 @@ app.post('/api/continue-conversation', async (req, res) => {
       throw new Error('Empty response from OpenAI');
     }
     
-    res.json({ response });
+    const usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    const costUsd = (usage.total_tokens / 1000) * 0.01; // placeholder pricing
+    // Persist audit and usage (best-effort)
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: req.headers['x-user-id'] || 'server',
+        action: 'ai_call',
+        resource_type: 'ai',
+        severity: 'info',
+        details: { role, personalityId, prompt_tokens: usage.prompt_tokens, completion_tokens: usage.completion_tokens }
+      });
+      await supabase.from('ai_usage_monthly').upsert({
+        user_id: req.headers['x-user-id'] || 'server',
+        role: role || 'agent',
+        date: new Date().toISOString().slice(0,7),
+        requests: 1,
+        prompt_tokens: usage.prompt_tokens,
+        completion_tokens: usage.completion_tokens,
+        total_tokens: usage.total_tokens,
+        cost_usd: costUsd
+      }, { onConflict: 'user_id,role,date' });
+    } catch(e) { console.warn('usage/audit insert failed', e?.message); }
+    res.json({ response, usage: { 
+      prompt: usage.prompt_tokens, 
+      completion: usage.completion_tokens, 
+      total: usage.total_tokens, 
+      costUsd 
+    }, role, personalityId });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: error.message });
@@ -350,6 +383,78 @@ app.post('/api/generate-speech', async (req, res) => {
   } catch (error) {
     console.error('Speech generation error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== Security API =====
+
+// Write audit log
+app.post('/api/security/audit', async (req, res) => {
+  try {
+    const { action, resourceType, severity = 'info', details } = req.body || {};
+    if (!action || !resourceType) return res.status(400).json({ error: 'action and resourceType are required' });
+    const { error } = await supabase.from('audit_logs').insert({
+      user_id: req.headers['x-user-id'] || 'server',
+      action,
+      resource_type: resourceType,
+      severity,
+      details: details || null
+    });
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (e) {
+    console.error('audit insert failed', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create security alert
+app.post('/api/security/alerts', async (req, res) => {
+  try {
+    const { alertType, description, severity = 'warning' } = req.body || {};
+    if (!alertType || !description) return res.status(400).json({ error: 'alertType and description are required' });
+    const { data, error } = await supabase.from('security_alerts').insert({
+      alert_type: alertType,
+      description,
+      severity,
+      resolved: false
+    }).select('*').single();
+    if (error) throw error;
+    res.json({ success: true, alert: data });
+  } catch (e) {
+    console.error('create alert failed', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Resolve alert
+app.patch('/api/security/alerts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from('security_alerts').update({ resolved: true, resolution: req.body?.resolution || null }).eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (e) {
+    console.error('resolve alert failed', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create backup manifest
+app.post('/api/security/backup', async (req, res) => {
+  try {
+    const collections = req.body?.collections || ['users','properties','audit_logs','security_alerts'];
+    const bucket = 'backups';
+    const filename = `backup_${Date.now()}.json`;
+    const manifest = { collections, created_at: new Date().toISOString() };
+    const { error: uploadErr } = await supabase.storage.from(bucket).upload(filename, Buffer.from(JSON.stringify(manifest, null, 2)), { upsert: true, contentType: 'application/json' });
+    if (uploadErr) throw uploadErr;
+    const { error } = await supabase.from('backups').insert({ backup_type: 'manual', status: 'completed', file_path: filename });
+    if (error) throw error;
+    res.json({ success: true, file: filename });
+  } catch (e) {
+    console.error('backup failed', e);
+    res.status(500).json({ error: e.message });
   }
 });
 

@@ -7,7 +7,10 @@ const API_BASE_URL = 'http://localhost:5001/home-listing-ai/us-central1/api';
  * @param messages Array of chat messages to continue the conversation from
  * @returns A promise that resolves to the AI's response text
  */
-export const continueConversation = async (messages: Array<{ sender: string; text: string }>): Promise<string> => {
+export const continueConversation = async (
+  messages: Array<{ sender: string; text: string }>,
+  meta?: { role?: string; personalityId?: string; systemPrompt?: string }
+): Promise<string> => {
   try {
     console.log("Calling local AI server with", messages.length, "messages");
     
@@ -16,7 +19,7 @@ export const continueConversation = async (messages: Array<{ sender: string; tex
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, ...meta }),
     });
 
     if (!response.ok) {
@@ -25,9 +28,9 @@ export const continueConversation = async (messages: Array<{ sender: string; tex
     }
 
     const data = await response.json();
-    console.log("Received AI response:", data.text ? data.text.substring(0, 50) + "..." : "empty");
-    
-    return data.text;
+    const text = data.text || data.response || '';
+    console.log("Received AI response:", text ? text.substring(0, 50) + "..." : "empty");
+    return text;
   } catch (error) {
     console.error("Error calling local AI server:", error);
     throw error;

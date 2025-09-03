@@ -18,21 +18,63 @@ export const continueConversation = async (messages: Array<{ sender: string; tex
 };
 
 /**
- * Generates speech from text using OpenAI's text-to-speech API
+ * Generates speech from text using OpenAI's text-to-speech API via local server
  * @param text The text to convert to speech
  * @param voice The voice to use (default: "alloy")
  * @returns A promise that resolves to an object containing the audio URL and duration
  */
 export const generateSpeech = async (
-  _text: string, 
-  _voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova'
+  text: string, 
+  voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova'
 ): Promise<{ audioUrl: string; duration: number; fallback?: boolean }> => {
-  // Speech disabled
-  return {
-    audioUrl: '',
-    duration: 0,
-    fallback: true
-  };
+  try {
+    console.log("🎤 Generating speech with OpenAI:", { text: text.substring(0, 50) + '...', voice });
+    
+    const response = await fetch('http://localhost:3002/api/generate-speech', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text, voice }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("❌ OpenAI speech error:", errorData);
+      
+      // Fallback to browser speech synthesis
+      return {
+        audioUrl: '',
+        duration: 0,
+        fallback: true
+      };
+    }
+
+    // Create audio blob from response
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    
+    // Estimate duration (rough calculation: ~150 words per minute)
+    const wordCount = text.split(' ').length;
+    const estimatedDuration = (wordCount / 150) * 60;
+    
+    console.log("✅ OpenAI speech generated successfully");
+    
+    return {
+      audioUrl,
+      duration: estimatedDuration,
+      fallback: false
+    };
+  } catch (error) {
+    console.error("❌ Error generating OpenAI speech:", error);
+    
+    // Fallback to browser speech synthesis
+    return {
+      audioUrl: '',
+      duration: 0,
+      fallback: true
+    };
+  }
 };
 
 export const generateImage = async (
