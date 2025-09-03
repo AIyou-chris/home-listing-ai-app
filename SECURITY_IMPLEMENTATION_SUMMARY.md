@@ -1,3 +1,9 @@
+### Supabase Chat Persistence
+
+- Conversations and messages tables proposed with RLS.
+- Client service: `src/services/chatService.ts`.
+- Listing scope supports anonymous sessions; agent scope bound to `auth.uid()`.
+
 # Security & Compliance System - Implementation Summary
 
 ## 🎯 **Complete Implementation Status**

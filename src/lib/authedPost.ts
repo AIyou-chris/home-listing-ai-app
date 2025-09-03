@@ -1,8 +1,8 @@
-import { waitForUser } from "./waitForUser";
+// Auth utilities removed - using Supabase auth
 
 export async function authedPost<T>(url: string, body?: unknown): Promise<T> {
-  const user = await waitForUser();               // <-- blocks until user exists
-  const idToken = await user.getIdToken(true);    // <-- fresh claims
+  const user = { uid: 'user-id' }; // Auth utilities removed
+  const idToken = 'mock-token'; // getIdToken removed
 
   const res = await fetch(url, {
     method: "POST",

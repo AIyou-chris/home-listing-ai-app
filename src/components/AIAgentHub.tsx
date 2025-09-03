@@ -1,4 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react'
+import { saveTranscript } from '../services/aiTranscriptsService'
+import { resolveUserId } from '../services/userId'
 import { continueConversation as aiContinue } from '../services/openaiService'
 import { listKb, uploadFileKb, addTextKb, addUrlKb, deleteKb, getEntry, getPublicUrl, type KbEntry } from '../services/supabaseKb'
 
@@ -97,6 +99,9 @@ const AIAgentHub: React.FC = () => {
   const [kbTarget, setKbTarget] = useState<SidekickConfig['id'] | null>(null)
   const [testLoading, setTestLoading] = useState(false)
   const [testResponse, setTestResponse] = useState('')
+  const [isRecording, setIsRecording] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   // Legacy per-card knowledge (no longer surfaced on cards)
   const [knowledge, setKnowledge] = useState<Array<{ id: string; title: string; createdAt: string; for: SidekickConfig['id']; fileId?: string }>>([])
   // Modal-scoped knowledge list for the active sidekick
@@ -131,6 +136,54 @@ const AIAgentHub: React.FC = () => {
     support: { preset: 'custom', description: 'You are the Support Sidekick. Empathetic, clear, and solutions-oriented. Resolve issues and guide next actions.', traits: [] }
   })
   const [traitDraft, setTraitDraft] = useState('')
+
+  // Map friendly labels to OpenAI voice IDs per request
+  const OPENAI_VOICE_BY_LABEL: Record<VoiceOption, string> = {
+    'Female Voice 1': 'nova',
+    'Female Voice 2': 'shimmer',
+    'Male Voice 1': 'onyx',
+    'Male Voice 2': 'ash',
+    'Neutral Voice 1': 'alloy'
+  }
+
+  // Five preset personalities for dropdown
+  const PRESET_PERSONALITIES: Array<{ key: string; name: string; description: string; traits: string[] }> = [
+    {
+      key: 'sales_closer',
+      name: 'Sales Closer',
+      description:
+        'You are a persuasive real estate sales professional. Qualify quickly, handle objections with empathy, and drive to the next step (call, tour, or offer) with crisp CTAs.',
+      traits: ['Persuasive', 'Calm', 'Outcome-driven']
+    },
+    {
+      key: 'marketing_strategist',
+      name: 'Marketing Strategist',
+      description:
+        'You craft on-brand hooks, compelling descriptions, and multi-channel content (social, email, blog) that highlight benefits and generate inquiries.',
+      traits: ['Creative', 'On-brand', 'Conversion-focused']
+    },
+    {
+      key: 'listing_specialist',
+      name: 'Listing Specialist',
+      description:
+        'You present properties with clarity and accuracy. Emphasize features, location, and lifestyle; maintain MLS-appropriate tone and disclosure awareness.',
+      traits: ['Detail-oriented', 'Accurate', 'Clear']
+    },
+    {
+      key: 'buyers_consultant',
+      name: "Buyer’s Agent Consultant",
+      description:
+        'You advise buyers with data and care. Compare comps, outline trade-offs, and guide financing, inspections, and offer strategy with steady confidence.',
+      traits: ['Advisory', 'Empathetic', 'Analytical']
+    },
+    {
+      key: 'luxury_concierge',
+      name: 'Luxury Concierge',
+      description:
+        'You serve high-net-worth clients with refined, discreet communication. Emphasize exclusivity, craftsmanship, and privacy while remaining succinct.',
+      traits: ['Sophisticated', 'Discreet', 'Premium']
+    }
+  ]
 
   // Load saved state from localStorage on mount
   useEffect(() => {
@@ -180,10 +233,9 @@ const AIAgentHub: React.FC = () => {
   })
 
   const [sidekicks, setSidekicks] = useState<SidekickConfig[]>([
-    { id: 'main', title: 'Main Sidekick', icon: 'account_circle', tone: 'Professional', voice: 'Female Voice 1', accent: 'blue' },
-    { id: 'sales', title: 'Sales Sidekick', icon: 'trending_up', tone: 'Friendly', voice: 'Male Voice 1', accent: 'emerald' },
+    { id: 'agent', title: 'Agent Sidekick', icon: 'person', tone: 'Professional', voice: 'Female Voice 1', accent: 'violet' },
     { id: 'marketing', title: 'Marketing Sidekick', icon: 'campaign', tone: 'Enthusiastic', voice: 'Female Voice 2', accent: 'amber' },
-    { id: 'support', title: 'Support Sidekick', icon: 'support_agent', tone: 'Professional', voice: 'Male Voice 2', accent: 'violet' }
+    { id: 'listing', title: 'Listing Sidekick', icon: 'home', tone: 'Professional', voice: 'Neutral Voice 1', accent: 'rose' }
   ])
 
   const setTone = (id: SidekickConfig['id'], tone: PersonaOption) => setSidekicks(prev => prev.map(s => s.id === id ? { ...s, tone } : s))
@@ -228,6 +280,95 @@ const AIAgentHub: React.FC = () => {
     } finally {
       setTestLoading(false)
     }
+  }
+
+  // =============== Voice helpers ===============
+  const getSelectedVoiceLabel = (id: SidekickConfig['id']): VoiceOption => {
+    const v = sidekicks.find(s => s.id === id)?.voice
+    return (v || 'Neutral Voice 1') as VoiceOption
+  }
+
+  const pickVoice = (label: VoiceOption): SpeechSynthesisVoice | null => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null
+    if (!voices || voices.length === 0) return null
+    const isFemale = label.toLowerCase().includes('female')
+    const isMale = label.toLowerCase().includes('male')
+    const candidates = voices.filter(v => (v.lang || '').toLowerCase().startsWith('en'))
+    const nameMatch = (names: string[]) => candidates.find(v => names.some(n => v.name.toLowerCase().includes(n)))
+    // Heuristic name lists by gender
+    const female = nameMatch(['samantha', 'victoria', 'karen', 'zira', 'eva', 'serena', 'female'])
+    const male = nameMatch(['alex', 'daniel', 'fred', 'liam', 'male'])
+    if (isFemale && female) return female
+    if (isMale && male) return male
+    return candidates[0] || voices[0]
+  }
+
+  const speak = (text: string, label: VoiceOption) => {
+    if (!text) return
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    // Ensure voices are loaded (Chrome lazy-loads voices)
+    const synth = window.speechSynthesis
+    if (!voices || voices.length === 0) {
+      try { synth.getVoices() } catch {}
+      setTimeout(() => speak(text, label), 250)
+      return
+    }
+    try { synth.cancel() } catch {}
+    const utter = new SpeechSynthesisUtterance(text)
+    const v = pickVoice(label)
+    if (v) {
+      utter.voice = v
+      if (v.lang) utter.lang = v.lang
+    } else {
+      utter.lang = 'en-US'
+    }
+    utter.rate = 1
+    utter.pitch = 1
+    utter.volume = 1
+    synth.speak(utter)
+  }
+
+  // Load voices ASAP
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    const synth = window.speechSynthesis
+    const load = () => {
+      const list = synth.getVoices()
+      if (list && list.length) setVoices(list)
+    }
+    try { load() } catch {}
+    try { synth.onvoiceschanged = load } catch {}
+    const t = setTimeout(load, 500)
+    return () => { clearTimeout(t); try { synth.onvoiceschanged = null as any } catch {} }
+  }, [])
+
+  const startRecording = () => {
+    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR || !showTest) return
+    const rec = new SR()
+    recognitionRef.current = rec
+    rec.lang = 'en-US'
+    rec.continuous = true
+    rec.interimResults = true
+    let finalText = ''
+    rec.onresult = (e: any) => {
+      let interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i]
+        if (r.isFinal) finalText += r[0].transcript
+        else interim += r[0].transcript
+      }
+      const merged = (finalText + ' ' + interim).trim()
+      setTestInputs(prev => ({ ...prev, [showTest]: merged }))
+    }
+    rec.onend = () => setIsRecording(false)
+    rec.start()
+    setIsRecording(true)
+  }
+
+  const stopRecording = () => {
+    try { recognitionRef.current?.stop() } catch {}
+    setIsRecording(false)
   }
 
   return (
@@ -337,15 +478,36 @@ const AIAgentHub: React.FC = () => {
             <div className='mt-8 rounded-2xl border border-slate-200 p-4'>
               <h4 className='text-sm font-semibold text-slate-900 mb-3'>Sample Voices</h4>
               <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-                {(['Female Voice 1','Female Voice 2','Male Voice 1','Male Voice 2','Neutral Voice 1'] as VoiceOption[]).map(v => (
+                {([
+                  'Female Voice 1',
+                  'Female Voice 2',
+                  'Male Voice 1',
+                  'Male Voice 2',
+                  'Neutral Voice 1'
+                ] as VoiceOption[]).map(v => (
                   <div key={v} className='rounded-xl border border-slate-200 p-3'>
-                    <div className='font-medium text-slate-900 text-sm mb-2'>{v}</div>
+                    <div className='font-medium text-slate-900 text-sm mb-2'>
+                      {v} • {OPENAI_VOICE_BY_LABEL[v]}
+                    </div>
                     <div className='flex items-center gap-2'>
-                      <button onClick={() => {
-                        const u = new SpeechSynthesisUtterance('This is a sample voice.');
-                        window.speechSynthesis.cancel();
-                        window.speechSynthesis.speak(u);
+                      <button onClick={async () => {
+                        try {
+                          const base = (import.meta as any)?.env?.VITE_API_URL || 'http://localhost:3002'
+                          const resp = await fetch(`${base}/api/generate-speech`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: `This is a sample for ${v}.`, voice: OPENAI_VOICE_BY_LABEL[v] })
+                          })
+                          const blob = await resp.blob()
+                          const url = URL.createObjectURL(blob)
+                          const audio = new Audio(url)
+                          audio.onended = () => URL.revokeObjectURL(url)
+                          audio.play()
+                        } catch (e) {
+                          speak(`This is ${v}.`, v)
+                        }
                       }} className='px-4 py-2 rounded-full bg-blue-600 text-white text-sm hover:bg-blue-700'>Play</button>
+                      <button onClick={() => { try { window.speechSynthesis.cancel() } catch {} }} className='px-3 py-2 rounded-full bg-slate-100 text-slate-700 text-sm hover:bg-slate-200'>Stop</button>
                     </div>
                   </div>
                 ))}
@@ -359,7 +521,7 @@ const AIAgentHub: React.FC = () => {
           <div className='fixed inset-0 z-50 flex items-center justify-center p-4'>
             <div className='absolute inset-0 bg-black/40' onClick={() => setShowPersona(null)} />
             <div className='relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden'>
-              <div className='flex items-center justify-between px-5 py-4 border-b border-slate-200'>
+              <div className='flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-blue-50'>
                 <div className='flex items-center gap-2'>
                   <span className='material-symbols-outlined text-primary-600'>magic_button</span>
                   <h3 className='text-base font-semibold text-slate-900'>AI Personality Editor</h3>
@@ -367,11 +529,38 @@ const AIAgentHub: React.FC = () => {
                 <button onClick={() => setShowPersona(null)} className='p-1 rounded-md hover:bg-slate-100'><span className='material-symbols-outlined'>close</span></button>
               </div>
               <div className='p-5 space-y-5 max-h-[75vh] overflow-y-auto'>
+                {/* Preset dropdown */}
                 <div>
                   <div className='text-sm font-semibold text-slate-900 mb-2'>Who You Are</div>
-                  <div className='rounded-xl border border-slate-200 p-3 bg-slate-50'>
-                    <div className='text-[13px] font-medium text-slate-900 mb-2'>Custom Personality</div>
-                    <div className='text-xs text-slate-600'>Create your own unique AI personality with custom traits & behavior.</div>
+                  <div className='rounded-xl border border-slate-200 p-3 bg-white'>
+                    <label className='block text-xs text-slate-600 mb-1'>Choose a preset or keep Custom</label>
+                    <select
+                      value={personas[showPersona]?.preset || 'custom'}
+                      onChange={e => {
+                        const key = e.target.value
+                        if (key === 'custom') {
+                          setPersonas(prev => ({ ...prev, [showPersona]: { ...(prev[showPersona] || { preset: 'custom', description: '', traits: [] }), preset: 'custom' } }))
+                          return
+                        }
+                        const preset = PRESET_PERSONALITIES.find(p => p.key === key)
+                        if (!preset) return
+                        setPersonas(prev => ({
+                          ...prev,
+                          [showPersona]: {
+                            preset: key,
+                            description: preset.description,
+                            traits: preset.traits
+                          }
+                        }))
+                      }}
+                      className='w-full border border-slate-300 rounded-lg px-3 py-2 text-sm'
+                    >
+                      <option value='custom'>Custom Personality</option>
+                      {PRESET_PERSONALITIES.map(p => (
+                        <option key={p.key} value={p.key}>{p.name}</option>
+                      ))}
+                    </select>
+                    <p className='mt-2 text-xs text-slate-600'>Presets pre-fill the description and traits. You can still edit everything below.</p>
                   </div>
                 </div>
 
@@ -401,7 +590,7 @@ const AIAgentHub: React.FC = () => {
                   {(personas[showPersona]?.traits?.length || 0) > 0 && (
                     <div className='mt-2 flex flex-wrap gap-2'>
                       {(personas[showPersona]?.traits || []).map((t, i) => (
-                        <span key={i} className='inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-slate-100 text-slate-700 border border-slate-200'>
+                        <span key={i} className='inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200'>
                           {t}
                           <button onClick={() => setPersonas(prev => ({ ...prev, [showPersona]: { ...(prev[showPersona] || { preset: 'custom', description: '', traits: [] }), traits: (prev[showPersona]?.traits || []).filter((_, idx) => idx !== i) } }))} className='text-slate-500 hover:text-slate-900'>×</button>
                         </span>
@@ -412,7 +601,7 @@ const AIAgentHub: React.FC = () => {
 
                 <div>
                   <div className='text-sm font-semibold text-slate-900 mb-2'>Preview</div>
-                  <div className='rounded-xl border border-slate-200 p-3 text-sm text-slate-800 bg-slate-50'>
+                  <div className='rounded-xl border border-slate-200 p-3 text-sm text-slate-800 bg-gradient-to-br from-blue-50 to-indigo-50'>
                     {personas[showPersona]?.description || 'Nothing to preview yet.'}
                   </div>
                 </div>
@@ -670,8 +859,26 @@ const AIAgentHub: React.FC = () => {
                     {testLoading ? 'Testing...' : 'Run Test'}
                   </button>
                 </div>
+                <div className='flex items-center gap-3'>
+                  <button onClick={() => (isRecording ? stopRecording() : startRecording())} className={`px-3 py-2 rounded-lg text-sm ${isRecording ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                    {isRecording ? 'Stop Recording' : 'Record Mic'}
+                  </button>
+                  <button onClick={() => speak(testResponse, getSelectedVoiceLabel(showTest))} className='px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm'>Speak Reply</button>
+                </div>
                 <div className='rounded-xl border border-slate-200 p-3 text-sm text-slate-700 bg-slate-50 whitespace-pre-wrap'>
                   {testResponse || 'Preview will appear here.'}
+                </div>
+                <div className='flex items-center justify-end gap-2'>
+                  <button onClick={async () => {
+                    if (!showTest) return
+                    const uid = resolveUserId()
+                    const title = `${showTest} • ${new Date().toLocaleString()}`
+                    await saveTranscript(uid, showTest, `${testInputs[showTest] || ''}\n\nAI: ${testResponse || ''}`, title, { source: 'AIAgentHub' })
+                    // Bridge to chat input in other tabs
+                    try {
+                      localStorage.setItem('hlai_transcript_draft', `${testInputs[showTest] || ''}\n\nAI: ${testResponse || ''}`)
+                    } catch {}
+                  }} className='px-3 py-2 rounded-lg bg-slate-900 text-white text-sm'>Save & Send to Chat</button>
                 </div>
               </div>
             </div>

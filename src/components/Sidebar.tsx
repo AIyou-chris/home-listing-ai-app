@@ -50,9 +50,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
   const navItems = [
     { view: 'dashboard', icon: 'home', label: 'Overview' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
-    { view: 'listings', icon: 'storefront', label: 'Listings' },
+    { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
+    { view: 'listings', icon: 'storefront', label: 'AI Listings' },
     { view: 'ai-content', icon: 'forum', label: 'AI Content' },
-    { view: 'knowledge-base', icon: 'description', label: 'Knowledge Base' },
+    { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
     { view: 'marketing', icon: 'campaign', label: 'Marketing' },
     { view: 'blog', icon: 'article', label: 'Blog' },
     { view: 'settings', icon: 'settings', label: 'Settings' },

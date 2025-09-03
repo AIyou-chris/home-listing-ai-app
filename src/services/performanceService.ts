@@ -1,4 +1,4 @@
-import { SessionService } from './sessionService';
+// SessionService removed
 
 export class PerformanceService {
   private static observers: PerformanceObserver[] = [];
@@ -35,7 +35,7 @@ export class PerformanceService {
           const entries = list.getEntries();
           const lastEntry = entries[entries.length - 1];
           
-          SessionService.trackPerformance('LCP', Math.round(lastEntry.startTime), 'ms');
+          // SessionService removed - no-op
         });
         
         lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
@@ -47,7 +47,7 @@ export class PerformanceService {
         const fidObserver = new PerformanceObserver((list) => {
           const entries = list.getEntries();
           entries.forEach((entry: any) => {
-            SessionService.trackPerformance('FID', Math.round(entry.processingStart - entry.startTime), 'ms');
+            // SessionService removed - no-op
           });
         });
         
@@ -66,7 +66,7 @@ export class PerformanceService {
             }
           });
           
-          SessionService.trackPerformance('CLS', Math.round(clsValue * 1000) / 1000, 'score');
+          // SessionService removed - no-op
         });
         
         clsObserver.observe({ entryTypes: ['layout-shift'] });
@@ -87,12 +87,7 @@ export class PerformanceService {
           entries.forEach((entry: any) => {
             // Track slow resources (> 1 second)
             if (entry.duration > 1000) {
-              SessionService.trackEvent('slow_resource', {
-                name: entry.name,
-                duration: Math.round(entry.duration),
-                type: entry.initiatorType,
-                size: entry.transferSize || 0
-              });
+              // SessionService removed - no-op
             }
           });
         });
@@ -113,11 +108,7 @@ export class PerformanceService {
           const entries = list.getEntries();
           
           entries.forEach((entry: any) => {
-            SessionService.trackEvent('long_task', {
-              duration: Math.round(entry.duration),
-              startTime: Math.round(entry.startTime),
-              attribution: entry.attribution?.[0]?.name || 'unknown'
-            });
+            // SessionService removed - no-op
           });
         });
         
@@ -149,7 +140,7 @@ export class PerformanceService {
             
             Object.entries(metrics).forEach(([key, value]) => {
               if (value > 0) {
-                SessionService.trackPerformance(`navigation_${key}`, value, 'ms');
+                // SessionService removed - no-op
               }
             });
           });
@@ -179,7 +170,7 @@ export class PerformanceService {
           } as any;
           
           Object.entries(metrics).forEach(([key, value]) => {
-            SessionService.trackPerformance(key, Math.round(value as number), 'ms');
+            // SessionService removed - no-op
           });
         }
       }, 0);
@@ -188,31 +179,22 @@ export class PerformanceService {
 
   // Track custom performance metrics
   static trackCustomMetric(name: string, value: number, unit: string = 'ms'): void {
-    SessionService.trackPerformance(`custom_${name}`, value, unit);
+    // SessionService removed - no-op
   }
 
   // Track API response times
   static trackApiCall(endpoint: string, duration: number, status: number): void {
-    SessionService.trackEvent('api_call', {
-      endpoint,
-      duration: Math.round(duration),
-      status,
-      timestamp: Date.now()
-    });
+    // SessionService removed - no-op
 
     // Track slow API calls
     if (duration > 2000) {
-      SessionService.trackEvent('slow_api_call', {
-        endpoint,
-        duration: Math.round(duration),
-        status
-      });
+      // SessionService removed - no-op
     }
   }
 
   // Track component render times
   static trackComponentRender(componentName: string, renderTime: number): void {
-    SessionService.trackPerformance(`component_${componentName}`, renderTime, 'ms');
+    // SessionService removed - no-op
   }
 
   // Track memory usage
@@ -220,12 +202,7 @@ export class PerformanceService {
     if ('memory' in performance) {
       const memory = (performance as any).memory;
       
-      SessionService.trackEvent('memory_usage', {
-        used: Math.round(memory.usedJSHeapSize / 1024 / 1024), // MB
-        total: Math.round(memory.totalJSHeapSize / 1024 / 1024), // MB
-        limit: Math.round(memory.jsHeapSizeLimit / 1024 / 1024), // MB
-        timestamp: Date.now()
-      });
+      // SessionService removed - no-op
     }
   }
 

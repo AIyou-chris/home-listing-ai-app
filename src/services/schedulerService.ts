@@ -1,5 +1,7 @@
 import { googleMeetService } from './googleMeetService'
 import { emailService } from './emailService'
+import { insertAppointment } from './appointmentsService'
+import { supabase } from './supabase'
 // import { addConsultation } from './firestoreService' // removed with Firebase
 import { googleOAuthService } from './googleOAuthService'
 
@@ -109,6 +111,26 @@ ${input.message || 'No additional notes'}
   )
 
   // Firebase removed: persist via Supabase later if needed
+  try {
+    const { data: user } = await supabase.auth.getUser()
+    const uid = user?.user?.id || 'dev-admin'
+    await insertAppointment({
+      user_id: uid,
+      lead_id: null,
+      property_id: 'unknown',
+      kind: input.kind,
+      name: input.name,
+      email: input.email,
+      phone: input.phone,
+      date: input.date,
+      time_label: input.time,
+      start_iso: start,
+      end_iso: end,
+      meet_link: calendar.meetLink,
+      notes: input.message || '',
+      status: 'Scheduled'
+    })
+  } catch {}
 
   return { eventId: calendar.eventId, meetLink: calendar.meetLink }
 }

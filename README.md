@@ -1,3 +1,62 @@
+## Supabase Chat Tables
+
+Run this SQL in Supabase to enable persistent conversations and messages:
+
+```sql
+create table if not exists conversations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid null,
+  scope text not null check (scope in ('agent','listing','marketing')),
+  listing_id uuid null,
+  lead_id uuid null,
+  title text null,
+  status text not null default 'active',
+  last_message_at timestamptz null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references conversations(id) on delete cascade,
+  user_id uuid null,
+  role text not null check (role in ('user','ai','system')),
+  content text not null,
+  metadata jsonb null,
+  created_at timestamptz not null default now()
+);
+
+alter table conversations enable row level security;
+alter table messages enable row level security;
+
+-- Conversations RLS
+create policy conv_owner_rw on conversations
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Allow anonymous listing conversations to be created (no user_id)
+create policy conv_listing_insert_anon on conversations
+  for insert with check (scope = 'listing' and user_id is null);
+
+-- Messages RLS: allowed if parent conversation is accessible
+create policy msg_parent_access on messages
+  for all using (
+    exists (
+      select 1 from conversations c
+      where c.id = conversation_id
+        and (
+          c.user_id = auth.uid() or (c.scope = 'listing' and c.user_id is null)
+        )
+    )
+  ) with check (
+    exists (
+      select 1 from conversations c
+      where c.id = conversation_id
+        and (
+          c.user_id = auth.uid() or (c.scope = 'listing' and c.user_id is null)
+        )
+    )
+  );
+```
+
 # 🏠 Home Listing AI App
 
 A comprehensive AI-powered platform for real estate agents to generate stunning property listings with interactive features like an AI assistant, analytics dashboard, and advanced lead management.

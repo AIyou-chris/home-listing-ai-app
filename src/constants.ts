@@ -316,6 +316,30 @@ export const DEFAULT_AI_ASSIGNMENTS: AIAssignment[] = [
         description: 'Helps agents navigate the dashboard and maximize ROI',
         knowledgePriority: 'balanced',
         status: 'active'
+    },
+    {
+        id: 'marketing-sidekick',
+        name: 'Marketing Sidekick',
+        type: 'marketing',
+        description: 'Creates blogs, social posts, email copy, and campaigns',
+        knowledgePriority: 'marketing',
+        status: 'active'
+    },
+    {
+        id: 'sales-sidekick',
+        name: 'Sales Sidekick',
+        type: 'sales',
+        description: 'Handles sales scripts, objections, and follow-ups',
+        knowledgePriority: 'agent',
+        status: 'active'
+    },
+    {
+        id: 'god-sidekick',
+        name: 'God Mode Sidekick',
+        type: 'god',
+        description: 'Meta assistant that coordinates other sidekicks when needed',
+        knowledgePriority: 'dynamic',
+        status: 'active'
     }
 ];
 

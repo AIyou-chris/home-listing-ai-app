@@ -6,6 +6,8 @@ import { getLocalInfo } from '../services/geminiService';
 import Modal from './Modal';
 import AddTextKnowledgeModal from './AddTextKnowledgeModal';
 import AddUrlScraperModal from './AddUrlScraperModal';
+import ListingSidekickWidget from './ListingSidekickWidget'
+import { continueConversation } from '../services/openaiService'
 import PublicPropertyApp from './PublicPropertyApp';
 
 interface AddListingPageProps {
@@ -190,6 +192,11 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
     });
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [sidekickDescription, setSidekickDescription] = useState('You are the Listing Sidekick. Detail-oriented and helpful. Present property highlights and answer questions clearly.');
+    const [sidekickVoice, setSidekickVoice] = useState('Neutral Voice 1');
+    const [sidekickTestInput, setSidekickTestInput] = useState('');
+    const [sidekickTestReply, setSidekickTestReply] = useState('');
+    const [sidekickTesting, setSidekickTesting] = useState(false);
 
     const [localInfoModal, setLocalInfoModal] = useState<{
         isOpen: boolean;
@@ -229,6 +236,8 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
             propertyType: 'Single-Family Home',
             features: formData.rawAmenities.split(',').map(s => s.trim()).filter(f => f),
             imageUrl: heroPhotos[0],
+            ctaListingUrl: formData.ctaListingUrl,
+            ctaMediaUrl: formData.ctaMediaUrl,
         };
     };
 
@@ -277,7 +286,9 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
             heroPhotos: formData.heroPhotos.map(p => typeof p === 'string' ? p : p.name),
             galleryPhotos: formData.galleryPhotos.map(p => typeof p === 'string' ? p : p.name),
             appFeatures: formData.appFeatures,
-            agent: { ...formData.agent, socials: [] } // Simplify for demo
+            agent: { ...formData.agent, socials: [] }, // Simplify for demo
+            ctaListingUrl: formData.ctaListingUrl,
+            ctaMediaUrl: formData.ctaMediaUrl
         };
         onSave(saveData);
     };
@@ -460,56 +471,64 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                             </div>
                         </CollapsibleSection>
                         
-                        <CollapsibleSection title="Media Links" icon="videocam">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Virtual Tour URL</label><input type="url" name="virtualTourUrl" placeholder="https://matterport.com/..." className={inputClasses} /></div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Video URL</label><input type="url" name="propertyVideoUrl" placeholder="https://youtube.com/..." className={inputClasses} /></div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Drone Footage URL</label><input type="url" name="droneFootageUrl" placeholder="https://vimeo.com/..." className={inputClasses} /></div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Neighborhood Video URL</label><input type="url" name="neighborhoodVideoUrl" placeholder="https://youtube.com/..." className={inputClasses} /></div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Agent Interview URL</label><input type="url" name="agentInterviewUrl" placeholder="https://youtube.com/..." className={inputClasses} /></div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Additional Media URL</label><input type="url" name="additionalMediaUrl" placeholder="Link to floor plans, etc." className={inputClasses} /></div>
-                          </div>
-                        </CollapsibleSection>
-                        
-                         <CollapsibleSection title="Amenities Editor" icon="home_work">
-                            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800 mb-4">
-                              Paste raw amenities text from any website (Zillow, Realtor.com, etc.) and we'll automatically organize it into beautiful, categorized sections for your mobile app.
+                        <CollapsibleSection title="Buttons & Links" icon="smart_display">
+                          <div className="grid grid-cols-1 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                                <button type="button" className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2">
+                                  <span className="material-symbols-outlined">open_in_new</span>
+                                  <span>To Listing</span>
+                                </button>
+                                <label className="block text-xs text-slate-600 mt-3 mb-1">Listing URL</label>
+                                <input type="url" placeholder="https://your-listing-url.com" className={inputClasses} />
+                              </div>
+                              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                <button type="button" className="w-full h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2">
+                                  <span className="material-symbols-outlined">play_circle</span>
+                                  <span>Media</span>
+                                </button>
+                                <label className="block text-xs text-slate-600 mt-3 mb-1">Media URL</label>
+                                <input type="url" placeholder="https://your-media-url.com" className={inputClasses} />
+                              </div>
                             </div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Paste Raw Amenities Text</label>
-                            <textarea name="rawAmenities" value={formData.rawAmenities} onChange={handleSimpleChange} rows={5} className={inputClasses}></textarea>
-                            <button type="button" className="mt-2 text-sm font-semibold text-primary-600 flex items-center gap-1"><span className="material-symbols-outlined w-4 h-4">auto_awesome</span> Process Amenities</button>
-                        </CollapsibleSection>
-                        
-                        <CollapsibleSection title="App Features & Buttons" icon="settings">
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {featureList.map(feature => (
-                              <FeatureToggle 
-                                key={feature.id}
-                                icon={feature.icon}
-                                title={feature.title}
-                                description={feature.desc}
-                                enabled={formData.appFeatures[feature.id as keyof typeof formData.appFeatures]}
-                                setEnabled={(enabled) => handleFeatureToggle(feature.id, enabled)}
-                                onInfoClick={feature.category ? () => handleFetchLocalInfo(feature.category!, feature.title) : undefined}
-                              />
-                            ))}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                                <button type="button" className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2">
+                                  <span className="material-symbols-outlined">event_available</span>
+                                  <span>See the house</span>
+                                </button>
+                                <p className="mt-2 text-xs text-emerald-800">Opens booking modal in the app.</p>
+                              </div>
+                              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <button type="button" className="w-full h-12 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold flex items-center justify-center gap-2">
+                                  <span className="material-symbols-outlined">map</span>
+                                  <span>Map</span>
+                                </button>
+                                <label className="block text-xs text-slate-600 mt-3 mb-1">Generated from Address</label>
+                                <input type="text" readOnly value={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formData.address || '')}`} className={`${inputClasses} bg-slate-100`} />
+                              </div>
+                            </div>
                           </div>
                         </CollapsibleSection>
+                        
+                        {/* Amenities Editor removed for simplified app build */}
+                        
+                        {/* App Features & Buttons section removed per simplification */}
                         
                          <CollapsibleSection title="Agent Information" icon="account_circle">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Agent Name</label><input type="text" className={inputClasses} value={formData.agent.name} /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Phone</label><input type="tel" className={inputClasses} value={formData.agent.phone} /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Email</label><input type="email" className={inputClasses} value={formData.agent.email} /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Website</label><input type="url" className={inputClasses} value={formData.agent.website} /></div>
-                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Bio</label><textarea rows={3} className={inputClasses} value={formData.agent.bio}></textarea></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Agent Name</label><input type="text" className={inputClasses} value={formData.agent.name} readOnly /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Phone</label><input type="tel" className={inputClasses} value={formData.agent.phone} readOnly /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Email</label><input type="email" className={inputClasses} value={formData.agent.email} readOnly /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Website</label><input type="url" className={inputClasses} value={formData.agent.website} readOnly /></div>
+                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Bio</label><textarea rows={3} className={inputClasses} value={formData.agent.bio} readOnly></textarea></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Logo</label><input type="file" className={inputClasses} /></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Headshot</label><input type="file" className={inputClasses} /></div>
                                 <div className="md:col-span-2"><h4 className="font-semibold text-slate-700 mb-2 mt-4">Social Media Links</h4>
                                   {formData.agent.socials.map((social, i) =>(
                                     <div key={i} className="flex items-center gap-2 mb-2">
                                       <span className="font-medium text-slate-600 w-24">{social.platform}</span>
-                                      <input type="url" className={inputClasses} placeholder={`https://...`} value={social.url}/>
+                                      <input type="url" className={inputClasses} placeholder={`https://...`} value={social.url} readOnly/>
                                     </div>
                                   ))}
                                 </div>
@@ -520,104 +539,82 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                             </div>
                         </CollapsibleSection>
                         
-                        <CollapsibleSection title="AI Knowledge Base & Personality" icon="auto_awesome">
-                            <p className="text-sm text-slate-500 mb-6">
-                                Upload documents, scripts, and materials that will help your AI understand this specific property's details, the neighborhood, and your unique selling points.
-                            </p>
-
-                            {/* File Upload Section */}
-                            <div 
-                                onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
-                                onDragOver={handleDragOver} onDrop={handleDrop}
-                                className={`relative p-8 text-center bg-white rounded-xl border-2 border-dashed ${isDragging ? 'border-primary-500 bg-primary-50' : 'border-slate-300'}`}
-                            >
-                                <div className="flex flex-col items-center justify-center">
-                                    <span className="material-symbols-outlined text-5xl text-slate-400">publish</span>
-                                    <h3 className="mt-4 text-xl font-bold text-slate-800">Upload Files for this Listing</h3>
-                                    <p className="mt-1 text-slate-500">Drag and drop files here, or click to browse</p>
-                                    <label htmlFor="kb-file-upload" className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white font-semibold rounded-lg shadow-sm hover:bg-primary-700 transition cursor-pointer">
-                                        <span className="material-symbols-outlined w-5 h-5">upload</span>
-                                        Choose Files
-                                    </label>
-                                    <input id="kb-file-upload" type="file" multiple className="hidden" onChange={handleFileChange} />
+                        <CollapsibleSection title="Listing Sidekick" icon="smart_toy">
+                          <div className="grid grid-cols-1 gap-6">
+                            <div className="rounded-2xl border border-rose-200 bg-rose-50 overflow-hidden">
+                              <div className="px-4 py-3 border-b border-rose-200 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-rose-600">home</span>
+                                <div className="font-semibold text-slate-900">Listing Sidekick</div>
+                              </div>
+                              <div className="p-4 space-y-4">
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-800 mb-1">Who I am</div>
+                                  <textarea
+                                    rows={3}
+                                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                    value={sidekickDescription}
+                                    onChange={(e) => setSidekickDescription(e.target.value)}
+                                  />
                                 </div>
-                            </div>
-
-                            {/* Uploaded Files Section */}
-                            <div className="mt-10">
-                                <h2 className="text-xl font-bold text-slate-800">Uploaded Files</h2>
-                                <div className="mt-4 space-y-3">
-                                    {uploadedFiles.length === 0 ? (
-                                        <div className="text-center py-12 text-slate-400">
-                                            <span className="material-symbols-outlined text-6xl">draft</span>
-                                            <p className="mt-4 font-semibold text-slate-500">No files uploaded yet.</p>
-                                            <p className="text-sm">Upload documents to train your AI assistant for this listing.</p>
-                                        </div>
-                                    ) : (
-                                        uploadedFiles.map(file => (
-                                            <div key={file.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200 flex items-center gap-4">
-                                                <span className="material-symbols-outlined text-3xl text-slate-400">description</span>
-                                                <div className="flex-grow">
-                                                    <div className="flex justify-between items-start">
-                                                        <p className="font-semibold text-slate-800">{file.name}</p>
-                                                        <p className="text-sm text-slate-500">{file.size}</p>
-                                                    </div>
-                                                    <div className="mt-1 flex items-center gap-2">
-                                                        <div className="w-full bg-slate-200 rounded-full h-1.5">
-                                                            <div 
-                                                                className={`h-1.5 rounded-full transition-all duration-300 ${file.status === 'complete' ? 'bg-green-500' : 'bg-primary-500'}`} 
-                                                                style={{width: `${file.progress}%`}}
-                                                            ></div>
-                                                        </div>
-                                                        {file.status === 'complete' ? (
-                                                             <span className="material-symbols-outlined text-green-500">check_circle</span>
-                                                        ) : file.status === 'uploading' ? (
-                                                            <span className="text-xs font-semibold text-slate-500">{file.progress}%</span>
-                                                        ) : (
-                                                            <span className="material-symbols-outlined text-red-500">error</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <button onClick={() => handleRemoveFile(file.id)} className="p-1.5 rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600">
-                                                    <span className="material-symbols-outlined">delete</span>
-                                                </button>
-                                            </div>
-                                        ))
-                                    )}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <button type="button" className="px-3 py-2 rounded-xl text-sm bg-rose-600 hover:bg-rose-700 text-white">AI Personality</button>
+                                  <button type="button" onClick={() => setIsTextModalOpen(true)} className="px-3 py-2 rounded-xl bg-white border border-rose-200 text-sm text-rose-700 hover:bg-rose-100">Add Knowledge</button>
                                 </div>
-                            </div>
-                            
-                            <div className="mt-10 pt-6 border-t border-slate-200 space-y-4">
-                                {/* Add Text Knowledge */}
-                                <div className="flex items-center justify-between p-2">
-                                    <div className="flex items-center gap-4">
-                                        <span className="material-symbols-outlined text-3xl text-slate-500">edit_note</span>
-                                        <div>
-                                            <h3 className="font-bold text-slate-800">Add Text Knowledge</h3>
-                                            <p className="text-sm text-slate-500">Manually add text snippets or Q&A.</p>
-                                        </div>
-                                    </div>
-                                    <button type="button" onClick={() => setIsTextModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg font-semibold shadow-sm hover:bg-slate-700 transition">
-                                        <span className="material-symbols-outlined w-5 h-5">add</span>
-                                        <span>Add Text</span>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs text-slate-600 mb-1">Voice</label>
+                                    <select value={sidekickVoice} onChange={(e) => setSidekickVoice(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+                                      <option>Female Voice 1</option>
+                                      <option>Female Voice 2</option>
+                                      <option>Male Voice 1</option>
+                                      <option>Male Voice 2</option>
+                                      <option>Neutral Voice 1</option>
+                                    </select>
+                                  </div>
+                                </div>
+                                <div className="rounded-xl border border-rose-200 p-3 bg-white">
+                                  <div className="text-sm font-semibold text-slate-900 mb-2">Test Personality</div>
+                                  <div className="flex items-center gap-3">
+                                    <input
+                                      value={sidekickTestInput}
+                                      onChange={(e) => setSidekickTestInput(e.target.value)}
+                                      className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                      placeholder="Enter a question or statement to test..."
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const q = sidekickTestInput.trim(); if (!q || sidekickTesting) return;
+                                        setSidekickTesting(true); setSidekickTestReply('');
+                                        try {
+                                          const text = await continueConversation([
+                                            { sender: 'system', text: sidekickDescription },
+                                            { sender: 'user', text: q }
+                                          ]);
+                                          setSidekickTestReply(text);
+                                        } catch {
+                                          setSidekickTestReply('Failed to get response');
+                                        } finally {
+                                          setSidekickTesting(false);
+                                        }
+                                      }}
+                                      className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm"
+                                    >
+                                      {sidekickTesting ? 'Testing...' : 'Test Responses'}
                                     </button>
+                                  </div>
+                                  {sidekickTestReply && (
+                                    <div className="mt-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700 bg-slate-50 whitespace-pre-wrap">{sidekickTestReply}</div>
+                                  )}
                                 </div>
-
-                                {/* URL Scraper */}
-                                <div className="flex items-center justify-between p-2">
-                                    <div className="flex items-center gap-4">
-                                        <span className="material-symbols-outlined text-3xl text-slate-500">language</span>
-                                        <div>
-                                            <h3 className="font-bold text-slate-800">URL Scraper</h3>
-                                            <p className="text-sm text-slate-500">Add a webpage for the AI to learn from.</p>
-                                        </div>
-                                    </div>
-                                    <button type="button" onClick={() => setIsUrlModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg font-semibold shadow-sm hover:bg-slate-700 transition">
-                                        <span className="material-symbols-outlined w-5 h-5">add</span>
-                                        <span>Add URL</span>
-                                    </button>
-                                </div>
+                              </div>
                             </div>
+
+                            <div>
+                              <div className="mb-2 text-sm text-slate-600">Live preview:</div>
+                              <ListingSidekickWidget property={generatePreviewProperty()} />
+                            </div>
+                          </div>
                         </CollapsibleSection>
                     </form>
                 </div>

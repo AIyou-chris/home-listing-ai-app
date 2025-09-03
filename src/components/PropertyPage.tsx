@@ -1,7 +1,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { listTranscripts, deleteTranscript } from '../services/aiTranscriptsService';
+import { resolveUserId } from '../services/userId';
 import { Property, ChatMessage, AIDescription, isAIDescription } from '../types';
 import { generatePropertyDescription, answerPropertyQuestion } from '../services/geminiService';
+import ListingSidekickWidget from './ListingSidekickWidget'
 
 interface PropertyPageProps {
   property: Property;
@@ -116,6 +119,11 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [userInput, setUserInput] = useState('');
     const [isAiReplying, setIsAiReplying] = useState(false);
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const [pickerLoading, setPickerLoading] = useState(false);
+    const [pickerItems, setPickerItems] = useState<Array<{id: string; title: string; content: string; sidekick: string; created_at: string}>>([]);
+    const [pickerQuery, setPickerQuery] = useState('');
+    const [pickerSidekick, setPickerSidekick] = useState<'all' | 'main' | 'sales' | 'marketing' | 'listing' | 'agent' | 'helper' | 'support'>('all');
     
     const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -144,6 +152,17 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
         e.preventDefault();
         handleSendMessage(userInput);
     };
+
+    // Insert transcript bridge if present on mount
+    useEffect(() => {
+        try {
+            const draft = localStorage.getItem('hlai_transcript_draft');
+            if (draft && draft.trim()) {
+                setUserInput(draft);
+                localStorage.removeItem('hlai_transcript_draft');
+            }
+        } catch {}
+    }, []);
 
     return (
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 h-full flex flex-col lg:sticky lg:top-24">
@@ -182,11 +201,73 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                         className="flex-grow bg-white border border-slate-300 rounded-full py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
                         disabled={isAiReplying}
                     />
+                    <button type="button" onClick={async () => {
+                        setIsPickerOpen(true);
+                        setPickerLoading(true);
+                        try {
+                            const uid = resolveUserId();
+                            const rows = await listTranscripts(uid, 50);
+                            setPickerItems(rows.map(r => ({ id: r.id, title: r.title || r.content.slice(0, 60), content: r.content, sidekick: r.sidekick, created_at: r.created_at })));
+                        } catch {}
+                        setPickerLoading(false);
+                    }} className="p-2.5 rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-300" title="Browse transcripts">
+                        <span className="material-symbols-outlined w-5 h-5">description</span>
+                    </button>
+                    <button type="button" onClick={() => {
+                        try {
+                            const draft = localStorage.getItem('hlai_transcript_draft');
+                            if (draft && draft.trim()) setUserInput(draft);
+                        } catch {}
+                    }} className="p-2.5 rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-300" title="Insert from transcript">
+                        <span className="material-symbols-outlined w-5 h-5">content_paste</span>
+                    </button>
                      <button type="submit" disabled={!userInput.trim() || isAiReplying} className="p-2.5 rounded-full bg-primary-600 text-white hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors">
                         <span className="material-symbols-outlined w-5 h-5">send</span>
                     </button>
                 </div>
             </form>
+            {isPickerOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40" onClick={() => setIsPickerOpen(false)} />
+                    <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+                            <h3 className="text-base font-semibold text-slate-900">Transcripts</h3>
+                            <button onClick={() => setIsPickerOpen(false)} className="p-1 rounded-md hover:bg-slate-100"><span className="material-symbols-outlined">close</span></button>
+                        </div>
+                        <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
+                            <div className="flex items-center gap-2">
+                                <input value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search…" className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                                <select value={pickerSidekick} onChange={e => setPickerSidekick(e.target.value as any)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                                    {['all','main','sales','marketing','listing','agent','helper','support'].map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                            {pickerLoading ? (
+                                <div className="text-sm text-slate-500">Loading…</div>
+                            ) : (
+                                <ul className="space-y-2">
+                                    {pickerItems
+                                        .filter(i => (pickerSidekick === 'all' || i.sidekick === pickerSidekick) && (pickerQuery.trim() === '' || (i.title + i.content).toLowerCase().includes(pickerQuery.toLowerCase())))
+                                        .map(i => (
+                                            <li key={i.id} className="border border-slate-200 rounded-lg p-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="text-sm font-medium text-slate-900 truncate pr-2">{i.title}</div>
+                                                    <div className="text-xs text-slate-500">{new Date(i.created_at).toLocaleString()}</div>
+                                                </div>
+                                                <div className="mt-2 text-xs text-slate-600 line-clamp-2">{i.content}</div>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <button onClick={() => { setUserInput(prev => prev ? (prev + '\n\n' + i.content) : i.content); setIsPickerOpen(false); }} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs">Insert (Append)</button>
+                                                    <button onClick={() => { setUserInput(i.content); setIsPickerOpen(false); }} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs">Insert (Replace)</button>
+                                                    <button onClick={() => navigator.clipboard.writeText(i.content)} className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs">Copy</button>
+                                                    <button onClick={async () => { if (await deleteTranscript(i.id)) setPickerItems(prev => prev.filter(x => x.id !== i.id)) }} className="px-3 py-1.5 rounded-lg bg-white border border-red-300 text-red-600 text-xs">Delete</button>
+                                                </div>
+                                            </li>
+                                        ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -233,7 +314,8 @@ const PropertyPage: React.FC<PropertyPageProps> = ({ property, setProperty, onBa
             <KeyFeaturesSection features={property.features} />
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
+            <ListingSidekickWidget property={property} />
             <AIAssistant property={property} />
         </div>
       </div>

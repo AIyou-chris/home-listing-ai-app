@@ -1,0 +1,169 @@
+[dotenv@17.2.1] injecting env (3) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+🚀 AI Server running on http://localhost:3002 (NEW PORT!)
+📝 Available endpoints:
+   POST /api/continue-conversation
+   POST /api/generate-speech
+   GET  /api/admin/dashboard-metrics
+   GET  /api/admin/users
+   POST /api/admin/users
+   PUT  /api/admin/users/:userId
+   DELETE /api/admin/users/:userId
+   POST /api/admin/broadcast
+   GET  /api/admin/broadcast-history
+   GET  /api/admin/performance
+   GET  /api/admin/settings
+   POST /api/admin/settings
+   GET  /api/admin/alerts
+   POST /api/admin/alerts/:alertId/acknowledge
+   POST /api/admin/maintenance
+   GET  /api/admin/ai-model
+   POST /api/admin/ai-model
+   GET  /api/admin/leads
+   POST /api/admin/leads
+   PUT  /api/admin/leads/:leadId
+   DELETE /api/admin/leads/:leadId
+   GET  /api/admin/leads/stats
+   GET  /api/admin/marketing/sequences
+   POST /api/admin/marketing/sequences
+   PUT  /api/admin/marketing/sequences/:sequenceId
+   DELETE /api/admin/marketing/sequences/:sequenceId
+   GET  /api/admin/marketing/active-followups
+   GET  /api/admin/marketing/qr-codes
+   POST /api/admin/marketing/qr-codes
+   PUT  /api/admin/marketing/qr-codes/:qrCodeId
+   DELETE /api/admin/marketing/qr-codes/:qrCodeId
+   GET  /api/blog
+   GET  /api/blog/:slug
+   POST /api/blog
+Speech generation error: AuthenticationError: 401 Incorrect API key provided: your-ope************here. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/core/error.js:48:20)
+    at OpenAI.makeStatusError (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/client.js:159:32)
+    at OpenAI.makeRequest (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/client.js:304:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /Volumes/GFY/EatADick/home-listing-ai-app/server.cjs:369:17 {
+  status: 401,
+  headers: Headers {
+    date: 'Wed, 03 Sep 2025 18:14:52 GMT',
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': '274',
+    connection: 'keep-alive',
+    vary: 'Origin',
+    'x-request-id': 'req_0d5c915e33a2493ca310365d28fddfc1',
+    'cf-cache-status': 'DYNAMIC',
+    'set-cookie': '__cf_bm=.Jk3AoazcPiIqZGO4i8G5xtDwumdQZCAK9gBoBTCUE0-1756923292-1.0.1.1-zd890lawGkjJ4jCmB_MLQjbwKUMgfJYPMUoQgqCdoz.bYuov8.kb.tWMM9D_.QPttQYqWcnoxdJXWox3N1vO_Yc7b5s5ImUrU1nEZkSgekI; path=/; expires=Wed, 03-Sep-25 18:44:52 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=fOeOa5eliY.aeLHsM.WKXH1b6nY4EoGM6k5f59nBWQM-1756923292756-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'x-content-type-options': 'nosniff',
+    server: 'cloudflare',
+    'cf-ray': '97973ab32acda35a-SEA',
+    'alt-svc': 'h3=":443"; ma=86400'
+  },
+  requestID: 'req_0d5c915e33a2493ca310365d28fddfc1',
+  error: {
+    message: 'Incorrect API key provided: your-ope************here. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+Speech generation error: AuthenticationError: 401 Incorrect API key provided: your-ope************here. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/core/error.js:48:20)
+    at OpenAI.makeStatusError (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/client.js:159:32)
+    at OpenAI.makeRequest (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/client.js:304:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /Volumes/GFY/EatADick/home-listing-ai-app/server.cjs:369:17 {
+  status: 401,
+  headers: Headers {
+    date: 'Wed, 03 Sep 2025 18:14:54 GMT',
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': '274',
+    connection: 'keep-alive',
+    vary: 'Origin',
+    'x-request-id': 'req_57dca0916b5545a2b8fa23387bd07fa5',
+    'cf-cache-status': 'DYNAMIC',
+    'set-cookie': '__cf_bm=gOR8kvKw2MQZv0WIovA.JUz35CEPMWQqxkjgrP2b2K8-1756923294-1.0.1.1-gLwi0mU4ewkysu2_eKmkWIYiEKIwDI3d2lmmdXdU.CawPX2enpcPLw59ngV9U08vmT4yamk9cH2lW.MdITzZO3m5pcckxu7Jv_P.WuVtPT8; path=/; expires=Wed, 03-Sep-25 18:44:54 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=eU0LuAn.TlziEI.1arH5Lu3rTmp6.PpMHH8kHqz7BFA-1756923294091-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'x-content-type-options': 'nosniff',
+    server: 'cloudflare',
+    'cf-ray': '97973abb19f8a35a-SEA',
+    'alt-svc': 'h3=":443"; ma=86400'
+  },
+  requestID: 'req_57dca0916b5545a2b8fa23387bd07fa5',
+  error: {
+    message: 'Incorrect API key provided: your-ope************here. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+Speech generation error: AuthenticationError: 401 Incorrect API key provided: your-ope************here. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/core/error.js:48:20)
+    at OpenAI.makeStatusError (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/client.js:159:32)
+    at OpenAI.makeRequest (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/client.js:304:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /Volumes/GFY/EatADick/home-listing-ai-app/server.cjs:369:17 {
+  status: 401,
+  headers: Headers {
+    date: 'Wed, 03 Sep 2025 18:15:04 GMT',
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': '274',
+    connection: 'keep-alive',
+    vary: 'Origin',
+    'x-request-id': 'req_1f46a8e0d26e4383bc21cc6fd4638a2a',
+    'cf-cache-status': 'DYNAMIC',
+    'set-cookie': '__cf_bm=dU3EbiMvOlPtu6zcXOolnZ6KdehXzgF_Fs51KJLyLxU-1756923304-1.0.1.1-7p57r7MNQ5_TpeGRAm1IxwQ8pm2vYzpklpx1vGqYZNsxQOAxhY_aoISWLMhO4e9cv0.QO8RiclN.OrDnlMZuqsiXHUR6Q7p7SlAts7yjrFA; path=/; expires=Wed, 03-Sep-25 18:45:04 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=W36R3WF.FYhyWG.ciT3Teyywf8gEsTbwNcvR2.6ZU1s-1756923304818-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'x-content-type-options': 'nosniff',
+    server: 'cloudflare',
+    'cf-ray': '97973afe7a62682b-SEA',
+    'alt-svc': 'h3=":443"; ma=86400'
+  },
+  requestID: 'req_1f46a8e0d26e4383bc21cc6fd4638a2a',
+  error: {
+    message: 'Incorrect API key provided: your-ope************here. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+Speech generation error: AuthenticationError: 401 Incorrect API key provided: your-ope************here. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/core/error.js:48:20)
+    at OpenAI.makeStatusError (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/client.js:159:32)
+    at OpenAI.makeRequest (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/openai/client.js:304:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /Volumes/GFY/EatADick/home-listing-ai-app/server.cjs:369:17 {
+  status: 401,
+  headers: Headers {
+    date: 'Wed, 03 Sep 2025 18:22:49 GMT',
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': '274',
+    connection: 'keep-alive',
+    vary: 'Origin',
+    'x-request-id': 'req_070e07b0005e4887bc8ed11a0d6c671c',
+    'cf-cache-status': 'DYNAMIC',
+    'set-cookie': '__cf_bm=XCk6uh2jvCSrw1tRrgpSTMiQHKvvh48Oz0MGxjbK_E4-1756923769-1.0.1.1-xhPTy1pZhB.G6cJnldGucFGyt8QV5IImspjaGtdqAc.WeyjgBX8h2zkz.fEtD0RsX7tT_8FSaphFRrjdTYGj5NTKX.WNkILfRTtst9WA52I; path=/; expires=Wed, 03-Sep-25 18:52:49 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=mtPubYABY.IBq40qns6zxicOsmTk6BcjNi6DmVc6JDw-1756923769651-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'x-content-type-options': 'nosniff',
+    server: 'cloudflare',
+    'cf-ray': '97974657f81eb9a6-SEA',
+    'alt-svc': 'h3=":443"; ma=86400'
+  },
+  requestID: 'req_070e07b0005e4887bc8ed11a0d6c671c',
+  error: {
+    message: 'Incorrect API key provided: your-ope************here. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}

@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Lead, Appointment, LeadStatus } from '../types';
+import { scheduleAppointment } from '../services/schedulerService';
 import AddLeadModal from './AddLeadModal';
 import ScheduleAppointmentModal from './ScheduleAppointmentModal';
 import ContactLeadModal from './ContactLeadModal';
@@ -117,9 +118,10 @@ interface LeadsAndAppointmentsPageProps {
     appointments: Appointment[];
     onAddNewLead: (leadData: any) => void;
     onBackToDashboard: () => void;
+    onNewAppointment?: (appt: Appointment) => void;
 }
 
-const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ leads, appointments, onAddNewLead, onBackToDashboard }) => {
+const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ leads, appointments, onAddNewLead, onBackToDashboard, onNewAppointment }) => {
     const [activeTab, setActiveTab] = useState<'leads' | 'appointments' | 'scoring'>('leads');
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -298,8 +300,30 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                 <ScheduleAppointmentModal 
                     lead={schedulingLead}
                     onClose={handleCloseScheduleModal}
-                    onSchedule={(apptData) => {
-                        console.log('New Appointment:', apptData);
+                    onSchedule={async (apptData) => {
+                        try {
+                            await scheduleAppointment({
+                                name: apptData.name,
+                                email: apptData.email,
+                                phone: apptData.phone,
+                                date: apptData.date,
+                                time: apptData.time,
+                                message: apptData.message,
+                                kind: 'Consultation'
+                            });
+                        } catch {}
+                        const appt: Appointment = {
+                            id: `appt-${Date.now()}`,
+                            type: 'Consultation',
+                            date: apptData.date,
+                            time: apptData.time,
+                            leadId: schedulingLead?.id || 'manual',
+                            propertyId: '',
+                            notes: apptData.message || '',
+                            status: 'Scheduled',
+                            leadName: apptData.name
+                        };
+                        onNewAppointment && onNewAppointment(appt);
                         handleCloseScheduleModal();
                     }}
                 />

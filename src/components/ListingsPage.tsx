@@ -68,11 +68,11 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect, onDelet
                             <span>Edit</span>
                         </button>
                         <button
-                            onClick={(e) => { e.stopPropagation(); alert('Knowledge Base functionality coming soon!'); }}
+                            onClick={(e) => { e.stopPropagation(); alert('Listing Sidekick setup coming soon.'); }}
                             className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-slate-600 rounded-lg shadow-sm hover:bg-slate-700 transition"
                         >
-                            <span className="material-symbols-outlined w-4 h-4">database</span>
-                            <span>Knowledge Base</span>
+                            <span className="material-symbols-outlined w-4 h-4">smart_toy</span>
+                            <span>Listing Sidekick</span>
                         </button>
                     </div>
                     <button
@@ -109,8 +109,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties, onSelectPropert
             </button>
             <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900">Property Listings</h1>
-                    <p className="text-slate-500 mt-1">Manage all your active and draft property listings.</p>
+                    <h1 className="text-3xl font-bold text-slate-900">AI Listings</h1>
+                    <p className="text-slate-500 mt-1">Manage your listings and their Listing Sidekick brains.</p>
                 </div>
                 <button
                     onClick={onAddNew}

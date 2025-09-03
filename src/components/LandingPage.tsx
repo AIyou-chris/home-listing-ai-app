@@ -640,113 +640,16 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ o
     );
 };
 
-const InteractiveListingAppEmbed: React.FC<{ onOpenModal: (modal: ModalType) => void }> = ({ onOpenModal }) => {
-    const property = DEMO_FAT_PROPERTIES[0];
-    if (!property) return null; // Guard against no demo data
-
-    const heroImageUrls = property.heroPhotos && property.heroPhotos.length > 0
-        ? property.heroPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p))
-        : [property.imageUrl];
-
-    const descriptionText = isAIDescription(property.description)
-        ? property.description.paragraphs.join(' ')
-        : (typeof property.description === 'string' ? property.description : '');
-
-    const agent = property.agent;
-
-    const allAppFeatures: { [key: string]: { icon: string; label: string; modal?: ModalType } } = {
-        gallery: { icon: 'photo_camera', label: "Gallery" },
-        schools: { icon: 'school', label: "Schools", modal: 'schools' },
-        financing: { icon: 'payments', label: "Financing", modal: 'financing' },
-        virtualTour: { icon: 'videocam', label: "Tour" },
-        amenities: { icon: 'home_work', label: "Features" },
-        history: { icon: 'schedule', label: "History" },
-    };
-
+const InteractiveListingAppEmbed: React.FC<{ onOpenModal: (modal: ModalType) => void }> = () => {
+    // Phone frame with an iframe that loads the live demo route
     return (
-        <div className="relative mx-auto border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
+        <div className="relative mx-auto border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[760px] w-[425px] shadow-xl">
             <div className="w-[148px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
             <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[72px] rounded-l-lg"></div>
             <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[124px] rounded-l-lg"></div>
             <div className="h-[64px] w-[3px] bg-gray-800 absolute -right-[17px] top-[142px] rounded-r-lg"></div>
             <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white">
-                <div className="relative w-full h-full bg-slate-100 flex flex-col">
-                    <main className="flex-1 overflow-y-auto pb-16">
-                        <ImageCarousel images={heroImageUrls} />
-                        <div className="p-4 space-y-4">
-                            <div>
-                                <h1 className="text-lg font-bold text-slate-900">{property.title}</h1>
-                                <p className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-                                    <span className="material-symbols-outlined w-4 h-4">location_on</span>
-                                    <span>{property.address}</span>
-                                </p>
-                                <p className="text-2xl font-extrabold text-green-600 mt-2">${property.price.toLocaleString('en-US')}</p>
-                            </div>
-                            
-                            <div className="p-3 bg-white rounded-2xl shadow-md border border-slate-200/60 flex justify-around">
-                                <InfoPill icon="bed" value={property.bedrooms} label="Beds" />
-                                <InfoPill icon="bathtub" value={property.bathrooms} label="Baths" />
-                                <InfoPill icon="fullscreen" value={property.squareFeet.toLocaleString()} label="Sq Ft" />
-                            </div>
-
-                             <button onClick={() => onOpenModal('voice')} className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-shadow">
-                                <span className="material-symbols-outlined text-xl">mic</span>
-                                <span className="text-sm">Talk to the Home Now</span>
-                            </button>
-                            
-                            <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200/60">
-                                <h2 className="text-md font-bold text-slate-800 mb-2">{isAIDescription(property.description) ? property.description.title : 'About This Property'}</h2>
-                                <p className="text-sm text-slate-600 leading-relaxed">{descriptionText.substring(0, 100)}... <a href="#" onClick={(e) => e.preventDefault()} className="text-blue-600 font-semibold">Read More</a></p>
-                            </div>
-                            
-                            <div className="grid grid-cols-3 gap-2">
-                                {Object.entries(allAppFeatures).map(([key, feature]) => (
-                                    <FeatureButton 
-                                        key={key}
-                                        icon={feature.icon}
-                                        label={feature.label}
-                                        enabled={property.appFeatures?.[key]}
-                                        onClick={feature.modal ? () => onOpenModal(feature.modal) : undefined}
-                                    />
-                                ))}
-                            </div>
-                            
-                            {agent && (
-                                <div>
-                                     <h2 className="text-md font-bold text-slate-800 mb-2">Contact Agent</h2>
-                                     <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200/60">
-                                        <div className="flex items-center gap-3">
-                                            <img src={agent.headshotUrl} alt={agent.name} className="w-12 h-12 rounded-full object-cover" />
-                                            <div>
-                                                <h3 className="font-bold text-slate-900 text-sm">{agent.name}</h3>
-                                                <p className="text-xs text-slate-600">{agent.company}</p>
-                                            </div>
-                                        </div>
-                                        <div className="mt-3 grid grid-cols-2 gap-2">
-                                            <button className="w-full py-2 bg-green-500 text-white font-bold rounded-lg text-xs">Call</button>
-                                            <button className="w-full py-2 bg-blue-600 text-white font-bold rounded-lg text-xs">Email</button>
-                                        </div>
-                                         <div className="mt-3 flex justify-center items-center gap-2">
-                                            {agent.socials.find(s => s.platform === 'Twitter') && <a href="#" onClick={e=>e.preventDefault()} className="w-7 h-7 flex items-center justify-center bg-sky-500 text-white rounded-full"><TwitterIcon className="w-4 h-4" /></a>}
-                                            {agent.socials.find(s => s.platform === 'Pinterest') && <a href="#" onClick={e=>e.preventDefault()} className="w-7 h-7 flex items-center justify-center bg-red-600 text-white rounded-full"><PinterestIcon className="w-4 h-4" /></a>}
-                                            {agent.socials.find(s => s.platform === 'LinkedIn') && <a href="#" onClick={e=>e.preventDefault()} className="w-7 h-7 flex items-center justify-center bg-blue-700 text-white rounded-full"><LinkedInIcon className="w-4 h-4" /></a>}
-                                            {agent.socials.find(s => s.platform === 'YouTube') && <a href="#" onClick={e=>e.preventDefault()} className="w-7 h-7 flex items-center justify-center bg-red-500 text-white rounded-full"><YouTubeIcon className="w-5 h-5" /></a>}
-                                        </div>
-                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    </main>
-
-                    <footer className="absolute bottom-0 left-0 right-0 z-10 bg-white/80 backdrop-blur-sm border-t border-slate-200/80">
-                        <div className="flex justify-around items-center h-16">
-                            <FeatureButton icon="calendar_month" label="Showings" onClick={() => onOpenModal('schedule')}/>
-                            <FeatureButton icon="bookmark" label="Save" onClick={() => onOpenModal('save')}/>
-                            <FeatureButton icon="chat_bubble" label="Contact" />
-                            <FeatureButton icon="share" label="Share" onClick={() => onOpenModal('share')}/>
-                        </div>
-                    </footer>
-                </div>
+                <iframe src="/#demo-listing" title="Listing Demo" className="w-full h-full" style={{ border: '0' }} />
             </div>
         </div>
     );
@@ -811,9 +714,8 @@ const AIAppShowcaseSection: React.FC<{ onOpenModal: (modal: ModalType) => void }
                     </p>
                 </div>
                 <div className="mt-16 grid lg:grid-cols-2 gap-16 items-center animate-fade-in-up animation-delay-400">
-                    <div className="flex justify-center animate-fade-in-left">
-                        <InteractiveListingAppEmbed onOpenModal={onOpenModal} />
-                    </div>
+                    {/* Demo embed removed for now */}
+                    <div className="hidden lg:block"></div>
                     <div className="space-y-8 animate-fade-in-right">
                         {highlights.map((item, index) => (
                             <div key={item.title} className="flex items-start gap-5 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 

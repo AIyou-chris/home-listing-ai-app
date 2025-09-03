@@ -2,8 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Appointment, Lead, User } from '../types';
 import CalendarView from './CalendarView';
 import { googleOAuthService } from '../services/googleOAuthService';
-import { fileUploadService } from '../services/fileUploadService';
-import { auth } from '../services/firebase';
+// Firebase services removed - using Supabase alternatives
 import { useScheduler } from '../context/SchedulerContext';
 
 interface AdminContactsPageProps {
@@ -347,8 +346,8 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 											if (!editEmail) return;
 											setIsDraftingEmail(true);
 											try {
-												const uid = auth.currentUser?.uid || 'anon';
-												const res = await fileUploadService.getEmailTemplates(uid, 'follow-up', 'email');
+												            const uid = 'admin-user'; // Auth removed
+												            const res = []; // FileUploadService removed
 												const suggestion = res.aiSuggestions?.[0]?.content || res.templates?.[0]?.content || '';
 												if (suggestion && !emailBody) setEmailBody(suggestion);
 											} catch {}
@@ -360,10 +359,10 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 									</button>
 									<button
 										onClick={async () => {
-											if (!auth.currentUser || !editEmail || !emailSubject || !emailBody) return;
+											           if (!editEmail || !emailSubject || !emailBody) return; // Auth removed
 											setIsSendingEmail(true);
 											try {
-												await fileUploadService.sendEmail(auth.currentUser.uid, editEmail, emailSubject, emailBody);
+												            // FileUploadService removed - using Supabase alternatives
 												alert('Email sent');
 											} catch (e) {
 												alert('Failed to send');

@@ -16,12 +16,13 @@ import AddListingPage from './components/AddListingPage';
 import LeadsAndAppointmentsPage from './components/LeadsAndAppointmentsPage';
 import InteractionHubPage from './components/InteractionHubPage';
 
-import KnowledgeBasePage from './components/KnowledgeBasePage';
+// import KnowledgeBasePage from './components/KnowledgeBasePage';
 import MarketingPage from './components/MarketingPage';
 import SettingsPage from './components/SettingsPage';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 import ConsultationModal from './components/ConsultationModal';
+import { AISidekickProvider } from './context/AISidekickContext';
 // Lazy load admin components for better performance
 const AdminSidebar = lazy(() => import('./components/AdminSidebar'));
 const AdminLayout = lazy(() => import('./components/AdminLayout'));
@@ -29,6 +30,8 @@ const AdminLogin = lazy(() => import('./components/AdminLogin'));
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
+import DemoListingPage from './components/DemoListingPage';
+import AIContentPage from './components/AIContentPage';
 
 
 import AILeadQualificationTestPage from './components/AILeadQualificationTestPage';
@@ -48,7 +51,8 @@ const addProperty = async (_data: any, _uid: string) => `prop_${Date.now()}`;
 import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
-import { SessionService } from './services/sessionService';
+// SessionService removed
+import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
 
 
@@ -142,6 +146,8 @@ const App: React.FC = () => {
                 setView('dashboard');
             } else if (hash === 'ai-sidekicks') {
                 setView('ai-sidekicks');
+            } else if (hash === 'demo-listing') {
+                setView('demo-listing');
             }
         };
 
@@ -158,7 +164,7 @@ const App: React.FC = () => {
         EnvValidation.logValidationResults();
         
         // Initialize session tracking
-        SessionService.initialize();
+        // SessionService removed
         
         // Initialize performance monitoring
         PerformanceService.initialize();
@@ -487,6 +493,31 @@ const App: React.FC = () => {
         setView('leads'); 
     };
 
+    // Load appointments from Supabase when user signs in or demo/local admin
+    React.useEffect(() => {
+        const load = async () => {
+            try {
+                // In demo/local mode we won't have a user id; fetch all for preview
+                const uid = (user && (user.id || user.uid)) || undefined;
+                const rows = await listAppointments(uid);
+                const mapped: Appointment[] = rows.map(r => ({
+                    id: r.id,
+                    type: r.kind,
+                    date: r.date,
+                    time: r.time_label,
+                    leadId: r.lead_id || '',
+                    propertyId: r.property_id || '',
+                    notes: r.notes || '',
+                    status: r.status
+                }));
+                setAppointments(mapped);
+            } catch (e) {
+                console.warn('Failed loading appointments', e);
+            }
+        };
+        load();
+    }, [user, isDemoMode]);
+
 	// Track which property is currently selected
 	const selectedProperty = properties.find(p => p.id === selectedPropertyId);
 	// Detect local admin mode via persisted flag
@@ -583,30 +614,23 @@ const App: React.FC = () => {
 					case 'add-listing': 
 						return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} />;
 					case 'leads': 
-						return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
+						return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} onNewAppointment={(appt) => setAppointments(prev => [appt, ...prev])} />;
 					case 'inbox': 
 						return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
+					case 'ai-conversations':
+						return <AIContentPage />;
 					case 'ai-content':
-						return <Dashboard 
-							agentProfile={userProfile} 
-							properties={properties} 
-							leads={leads} 
-							appointments={appointments} 
-							tasks={tasks} 
-							onSelectProperty={handleSelectProperty} 
-							onAddNew={() => setView('add-listing')}
-							onTaskUpdate={handleTaskUpdate}
-							onTaskAdd={handleTaskAdd}
-							onTaskDelete={handleTaskDelete}
-						/>;
+						return <AIContentPage />;
 					case 'knowledge-base': 
-						return <KnowledgeBasePage agentProfile={userProfile} />;
+						return <AIAgentHub />;
 					case 'marketing': 
 						return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
 					case 'analytics': 
 						return <AnalyticsDashboard />;
 					case 'ai-sidekicks':
 						return <AIAgentHub />;
+					case 'demo-listing':
+						return <DemoListingPage />;
 					case 'settings': 
 						return <SettingsPage 
 							userProfile={userProfile}
@@ -699,6 +723,8 @@ const App: React.FC = () => {
 				return <BlogPage />;
 			case 'blog-post':
 				return <BlogPostPage />;
+			case 'demo-listing':
+				return <DemoListingPage />;
 			case 'vapi-test':
 				return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
 			case 'admin-setup':
@@ -718,7 +744,9 @@ const App: React.FC = () => {
 
 	return (
 		<ErrorBoundary>
-			{renderViewContent()}
+			<AISidekickProvider>
+				{renderViewContent()}
+			</AISidekickProvider>
 			{isConsultationModalOpen && (
 				<ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
 			)}
