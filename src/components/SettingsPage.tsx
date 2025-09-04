@@ -1796,11 +1796,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     <div className="bg-gradient-to-tr from-primary-700 to-primary-500 text-white rounded-2xl p-8 shadow-2xl">
                                         <div className="flex items-center justify-between mb-6">
                                             <div>
-                                                <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
-                                                <p className="text-slate-300">Everything you need to dominate your market</p>
+                                                <h3 className="text-2xl font-bold text-white">Solo Agent</h3>
+                                                <p className="text-slate-300">For the individual agent ready to supercharge their business</p>
                                             </div>
                                             <div className="text-right">
-                                                <div className="text-3xl font-bold">$79<span className="text-lg font-medium">/mo</span></div>
+                                                <div className="text-3xl font-bold">$6<span className="text-lg font-medium">/mo</span></div>
                                                 <div className="text-sm text-slate-300">Next billing: Jan 15, 2025</div>
                                             </div>
                                         </div>
@@ -1885,7 +1885,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                     <tr>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Dec 15, 2024</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$79.00</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$6.00</td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
                                                         </td>
@@ -1896,7 +1896,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                     <tr>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Nov 15, 2024</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$79.00</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$6.00</td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
                                                         </td>
@@ -1907,7 +1907,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                     <tr>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Oct 15, 2024</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$79.00</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$6.00</td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
                                                         </td>
