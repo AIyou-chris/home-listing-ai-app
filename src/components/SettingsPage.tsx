@@ -1866,9 +1866,114 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     </div>
                                 </FeatureSection>
 
-                                {/* More sections coming... */}
-                                <div className="text-center py-4">
-                                    <p className="text-slate-500">Adding more sections...</p>
+                                {/* Billing History */}
+                                <FeatureSection title="Billing History" icon="receipt">
+                                    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead className="bg-slate-50">
+                                                    <tr>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Invoice</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200">
+                                                    <tr>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Dec 15, 2024</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$79.00</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                            <button className="text-primary-600 hover:text-primary-700">Download</button>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Nov 15, 2024</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$79.00</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                            <button className="text-primary-600 hover:text-primary-700">Download</button>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Oct 15, 2024</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$79.00</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                            <button className="text-primary-600 hover:text-primary-700">Download</button>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </FeatureSection>
+
+                                {/* PayPal Security & Actions */}
+                                <FeatureSection title="Payment Security" icon="security">
+                                    <div className="space-y-6">
+                                        {/* PayPal Security Info */}
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                                            <div className="flex items-start gap-4">
+                                                <div className="w-16 h-10 bg-blue-600 rounded flex items-center justify-center flex-shrink-0">
+                                                    <span className="text-white font-bold text-lg">PayPal</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className="text-lg font-semibold text-blue-900 mb-2">Secured by PayPal</h3>
+                                                    <div className="text-sm text-blue-800 space-y-2">
+                                                        <p>🔒 <strong>Bank-level security:</strong> Your payment information is encrypted and protected by PayPal's advanced security systems.</p>
+                                                        <p>🚫 <strong>No contracts:</strong> Cancel anytime with no hidden fees or long-term commitments.</p>
+                                                        <p>🛡️ <strong>Buyer protection:</strong> PayPal's purchase protection covers your subscription payments.</p>
+                                                        <p>💳 <strong>Flexible payments:</strong> Use your PayPal balance, bank account, or credit/debit cards.</p>
+                                                        <p>🔄 <strong>Easy management:</strong> Update or cancel your subscription directly through PayPal.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex flex-wrap gap-4">
+                                            <button
+                                                onClick={handleContactSupport}
+                                                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                            >
+                                                <span className="material-symbols-outlined w-5 h-5">support_agent</span>
+                                                Contact Support
+                                            </button>
+                                            
+                                            <button
+                                                onClick={handleCancelMembership}
+                                                className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                            >
+                                                <span className="material-symbols-outlined w-5 h-5">cancel</span>
+                                                Cancel Membership
+                                            </button>
+                                        </div>
+                                    </div>
+                                </FeatureSection>
+
+                                <div className="flex items-center justify-between pt-8 border-t border-slate-200">
+                                    <button
+                                        type="button"
+                                        onClick={onBackToDashboard}
+                                        className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
+                                    >
+                                        ← Back to Dashboard
+                                    </button>
+                                    <div className="text-sm text-slate-500">
+                                        Questions? <a href="mailto:support@homelistingai.com" className="text-primary-600 hover:text-primary-700">Contact Support</a>
+                                    </div>
                                 </div>
                             </div>
                         )}
