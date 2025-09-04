@@ -386,32 +386,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         passwords.newPassword === passwords.confirmNewPassword &&
         passwords.currentPassword.length > 0;
 
-    // Billing handlers
-    const handleAddPaymentMethod = () => {
-        // Open PayPal payment method modal
-        window.open('https://www.paypal.com/billing/subscriptions', '_blank');
-        alert('PayPal payment setup opened in new tab');
-    };
-
-    const handleUpgradePlan = () => {
-        // For now, show upgrade options
-        alert('Plan upgrade options will be available soon! Contact support for custom plans.');
-    };
-
-    const handleUpdateBilling = () => {
-        // Open PayPal billing management
-        window.open('https://www.paypal.com/billing/subscriptions', '_blank');
-        alert('PayPal billing management opened in new tab');
-    };
-
-    const handleCancelSubscription = () => {
-        const confirmed = confirm('Are you sure you want to cancel your subscription? You will lose access to all AI features at the end of your current billing period.');
-        if (confirmed) {
-            // Here you would integrate with PayPal's subscription cancellation API
-            console.log('Subscription cancellation requested');
-            alert('Cancellation request submitted. You will receive a confirmation email shortly.');
-        }
-    };
 
     // Notification permission handlers
     const handleRequestNotificationPermission = async () => {
@@ -494,17 +468,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         { id: 'email', label: 'Email', icon: 'mail' },
         { id: 'calendar', label: 'Calendar', icon: 'calendar_today' },
         { id: 'security', label: 'Security', icon: 'shield' },
-        { id: 'billing', label: 'Billing', icon: 'credit_card' },
     ];
 
-    const getStatusColor = (status: 'Paid' | 'Pending' | 'Failed') => {
-      switch(status) {
-        case 'Paid': return 'bg-green-100 text-green-700';
-        case 'Pending': return 'bg-yellow-100 text-yellow-700';
-        case 'Failed': return 'bg-red-100 text-red-700';
-        default: return 'bg-slate-100 text-slate-700';
-      }
-    }
 
 
     return (
@@ -1784,160 +1749,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                             </form>
                         )}
                         
-                                                {activeTab === 'billing' && (
-                            <div className="p-8 space-y-8">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-slate-900">💳 Billing & Subscription</h2>
-                                    <p className="text-slate-500 mt-1">Manage your subscription, billing information, and payment methods.</p>
-                                </div>
-
-
-                                {/* Payment Method */}
-                                <FeatureSection title="Payment Method" icon="payment">
-                                    <div className="space-y-6">
-                                        <div className="bg-white border border-slate-200 rounded-lg p-6">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-8 bg-blue-600 rounded flex items-center justify-center">
-                                                        <span className="text-white font-bold text-sm">PP</span>
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-medium text-slate-900">PayPal</h4>
-                                                        <p className="text-sm text-slate-500">your.email@example.com</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Active</span>
-                                                    <button className="text-primary-600 text-sm font-medium hover:text-primary-700">
-                                                        Change
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <button
-                                            onClick={handleAddPaymentMethod}
-                                            className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-600 hover:border-primary-500 hover:text-primary-600 transition-colors w-full justify-center"
-                                        >
-                                            <span className="material-symbols-outlined w-5 h-5">add</span>
-                                            Add Payment Method
-                                        </button>
-                                    </div>
-                                </FeatureSection>
-
-                                {/* Billing History */}
-                                <FeatureSection title="Billing History" icon="receipt">
-                                    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full">
-                                                <thead className="bg-slate-50">
-                                                    <tr>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Invoice</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-200">
-                                                    <tr>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Dec 15, 2024</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$6.00</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                            <button className="text-primary-600 hover:text-primary-700">Download</button>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Nov 15, 2024</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$6.00</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                            <button className="text-primary-600 hover:text-primary-700">Download</button>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Oct 15, 2024</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$6.00</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                            <button className="text-primary-600 hover:text-primary-700">Download</button>
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
-                                {/* Subscription Management */}
-                                <FeatureSection title="Subscription Management" icon="settings">
-                                    <div className="space-y-4">
-                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                            <div className="flex items-start gap-3">
-                                                <span className="material-symbols-outlined w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5">info</span>
-                                                <div>
-                                                    <h4 className="font-medium text-amber-900">Subscription Changes</h4>
-                                                    <p className="text-sm text-amber-800 mt-1">
-                                                        Changes to your subscription will take effect at the next billing cycle.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-4">
-                                            <button
-                                                onClick={handleUpgradePlan}
-                                                className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                                            >
-                                                <span className="material-symbols-outlined w-5 h-5">upgrade</span>
-                                                Upgrade Plan
-                                            </button>
-                                            
-                                            <button
-                                                onClick={handleUpdateBilling}
-                                                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                            >
-                                                <span className="material-symbols-outlined w-5 h-5">edit</span>
-                                                Update Billing Info
-                                            </button>
-                                            
-                                            <button
-                                                onClick={handleCancelSubscription}
-                                                className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                                            >
-                                                <span className="material-symbols-outlined w-5 h-5">cancel</span>
-                                                Cancel Subscription
-                                            </button>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
-                                <div className="flex items-center justify-between pt-8 border-t border-slate-200">
-                                    <button
-                                        type="button"
-                                        onClick={onBackToDashboard}
-                                        className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
-                                    >
-                                        ← Back to Dashboard
-                                    </button>
-                                    <div className="text-sm text-slate-500">
-                                        Questions? <a href="mailto:support@homelistingai.com" className="text-primary-600 hover:text-primary-700">Contact Support</a>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                         
-                        {activeTab !== 'notifications' && activeTab !== 'email' && activeTab !== 'calendar' && activeTab !== 'security' && activeTab !== 'billing' && (
+                        {activeTab !== 'notifications' && activeTab !== 'email' && activeTab !== 'calendar' && activeTab !== 'security' && (
                             <div className="text-center py-20 p-8">
                                 <h2 className="text-xl font-semibold text-slate-700">Coming Soon</h2>
                                 <p className="text-slate-500 mt-2">This settings page is under construction.</p>
