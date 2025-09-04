@@ -1791,48 +1791,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     <p className="text-slate-500 mt-1">Manage your subscription, billing information, and payment methods.</p>
                                 </div>
 
-                                {/* Current Plan Status */}
-                                <FeatureSection title="Current Plan" icon="star">
-                                    <div className="bg-gradient-to-tr from-primary-700 to-primary-500 text-white rounded-2xl p-8 shadow-2xl">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div>
-                                                <h3 className="text-2xl font-bold text-white">Solo Agent</h3>
-                                                <p className="text-slate-300">For the individual agent ready to supercharge their business</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-3xl font-bold">$6<span className="text-lg font-medium">/mo</span></div>
-                                                <div className="text-sm text-slate-300">Next billing: Jan 15, 2025</div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-2 gap-4 text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>500 AI interactions/month</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>1GB storage space</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>200 emails/month</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>Advanced analytics</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>AI Content Studio</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>Priority support</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
 
                                 {/* Payment Method */}
                                 <FeatureSection title="Payment Method" icon="payment">
