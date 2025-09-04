@@ -199,6 +199,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
     const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([]);
     const [isConnecting, setIsConnecting] = useState<string | null>(null);
     
+    // Calendar connection state
+    const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
+    
     // Notification permission state
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
     const [isRequestingPermission, setIsRequestingPermission] = useState(false);
@@ -213,6 +216,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         if ('Notification' in window) {
             setNotificationPermission(Notification.permission);
         }
+        // Check Google Calendar connection status
+        import('../services/googleOAuthService').then(({ googleOAuthService }) => {
+            setIsGoogleCalendarConnected(googleOAuthService.isAuthenticated());
+        });
     }, [notificationSettings]);
 
     // Email connection handlers
@@ -249,6 +256,74 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         } catch (error) {
             console.error('Disconnect failed:', error);
         }
+    };
+
+    // Calendar connection handlers
+    const handleGoogleCalendarConnect = async () => {
+        setIsConnecting('google');
+        try {
+            const { googleOAuthService } = await import('../services/googleOAuthService');
+            const success = await googleOAuthService.requestAccess();
+            if (success) {
+                setIsGoogleCalendarConnected(true);
+                alert('Google Calendar connected successfully! Your consultations will now automatically sync to your calendar.');
+            } else {
+                alert('Failed to connect Google Calendar. Please try again.');
+            }
+        } catch (error) {
+            console.error('Google Calendar connection failed:', error);
+            alert('Failed to connect Google Calendar. Please try again.');
+        } finally {
+            setIsConnecting(null);
+        }
+    };
+
+    const handleCalendarInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        if (name === 'startTime' || name === 'endTime') {
+            setCalendarFormData(prev => ({
+                ...prev,
+                workingHours: {
+                    ...prev.workingHours,
+                    [name]: value
+                }
+            }));
+        } else {
+            setCalendarFormData(prev => ({
+                ...prev,
+                [name]: value
+            }));
+        }
+    };
+
+    const handleWorkingDayToggle = (day: string, checked: boolean) => {
+        setCalendarFormData(prev => {
+            const workingDays = prev.workingDays || [];
+            if (checked) {
+                return {
+                    ...prev,
+                    workingDays: [...workingDays, day]
+                };
+            } else {
+                return {
+                    ...prev,
+                    workingDays: workingDays.filter(d => d !== day)
+                };
+            }
+        });
+    };
+
+    const handleCalendarToggle = (setting: keyof CalendarSettings, value: boolean) => {
+        setCalendarFormData(prev => ({
+            ...prev,
+            [setting]: value
+        }));
+    };
+
+    const handleCalendarSettingsSave = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSaveCalendarSettings(calendarFormData);
+        alert('Calendar settings saved successfully!');
     };
 
     // Notification permission handlers
@@ -305,12 +380,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
     
     const handleCalendarSettingsChange = (field: keyof CalendarSettings | 'integrationType', value: any) => {
         setCalendarFormData(prev => ({...prev, [field]: value}));
-    }
-
-    const handleCalendarSettingsSave = (e: React.FormEvent) => {
-        e.preventDefault();
-        onSaveCalendarSettings(calendarFormData);
-        alert('Calendar settings saved!');
     }
 
     const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1212,6 +1281,223 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 </div>
                            </div>
                         )}
+                        {activeTab === 'calendar' && (
+                            <form onSubmit={handleCalendarSettingsSave} className="p-8 space-y-8">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-900">📅 Calendar Integration</h2>
+                                    <p className="text-slate-500 mt-1">Connect your Google Calendar to automatically schedule consultations and manage appointments.</p>
+                                </div>
+
+                                {/* Google Calendar Connection */}
+                                <FeatureSection title="Google Calendar Connection" icon="calendar_today">
+                                    <div className="space-y-6">
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                                            <div className="flex items-start gap-4">
+                                                <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                    <span className="material-symbols-outlined text-white w-6 h-6">calendar_today</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className="text-lg font-semibold text-blue-900 mb-2">Google Calendar Integration</h3>
+                                                    <div className="text-sm text-blue-800 space-y-1 mb-4">
+                                                        <p>• ✅ Automatic consultation scheduling</p>
+                                                        <p>• ✅ Google Meet video links generated</p>
+                                                        <p>• ✅ Calendar invites sent to clients</p>
+                                                        <p>• ✅ Appointment reminders & notifications</p>
+                                                        <p>• ✅ Sync with your existing calendar</p>
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center gap-4">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleGoogleCalendarConnect}
+                                                            disabled={isConnecting === 'google'}
+                                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                        >
+                                                            <span className="material-symbols-outlined w-4 h-4">link</span>
+                                                            {isConnecting === 'google' ? 'Connecting...' : 'Connect Google Calendar'}
+                                                        </button>
+                                                        
+                                                        {isGoogleCalendarConnected && (
+                                                            <div className="flex items-center gap-2 text-green-700">
+                                                                <span className="material-symbols-outlined w-4 h-4">check_circle</span>
+                                                                <span className="text-sm font-medium">Connected</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {isGoogleCalendarConnected && (
+                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="material-symbols-outlined w-5 h-5 text-green-600">check_circle</span>
+                                                    <div>
+                                                        <h4 className="font-medium text-green-900">Calendar Connected Successfully!</h4>
+                                                        <p className="text-sm text-green-700 mt-1">
+                                                            Consultations booked through your website will automatically appear in your Google Calendar with Meet links.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </FeatureSection>
+
+                                {/* Calendar Preferences */}
+                                <FeatureSection title="Booking Preferences" icon="tune">
+                                    <div className="space-y-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-3">Available Hours</label>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs text-slate-500 mb-1">Start Time</label>
+                                                    <input
+                                                        type="time"
+                                                        name="startTime"
+                                                        value={calendarFormData.workingHours?.start || '09:00'}
+                                                        onChange={handleCalendarInputChange}
+                                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-slate-500 mb-1">End Time</label>
+                                                    <input
+                                                        type="time"
+                                                        name="endTime"
+                                                        value={calendarFormData.workingHours?.end || '17:00'}
+                                                        onChange={handleCalendarInputChange}
+                                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-2">Clients can only book consultations during these hours</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-3">Working Days</label>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                                                    <label key={day} className="flex items-center space-x-2 p-2 border border-slate-200 rounded cursor-pointer hover:bg-slate-50">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={calendarFormData.workingDays?.includes(day.toLowerCase()) || false}
+                                                            onChange={(e) => handleWorkingDayToggle(day.toLowerCase(), e.target.checked)}
+                                                            className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                                        />
+                                                        <span className="text-sm text-slate-700">{day.slice(0, 3)}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-3">Consultation Duration</label>
+                                            <select
+                                                name="defaultDuration"
+                                                value={calendarFormData.defaultDuration || 30}
+                                                onChange={handleCalendarInputChange}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                            >
+                                                <option value={15}>15 minutes</option>
+                                                <option value={30}>30 minutes</option>
+                                                <option value={45}>45 minutes</option>
+                                                <option value={60}>1 hour</option>
+                                                <option value={90}>1.5 hours</option>
+                                            </select>
+                                            <p className="text-xs text-slate-500 mt-2">Default length for new consultations</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-3">Buffer Time</label>
+                                            <select
+                                                name="bufferTime"
+                                                value={calendarFormData.bufferTime || 15}
+                                                onChange={handleCalendarInputChange}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                            >
+                                                <option value={0}>No buffer</option>
+                                                <option value={5}>5 minutes</option>
+                                                <option value={10}>10 minutes</option>
+                                                <option value={15}>15 minutes</option>
+                                                <option value={30}>30 minutes</option>
+                                            </select>
+                                            <p className="text-xs text-slate-500 mt-2">Time between appointments for travel/preparation</p>
+                                        </div>
+                                    </div>
+                                </FeatureSection>
+
+                                {/* Notifications */}
+                                <FeatureSection title="Calendar Notifications" icon="notifications">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                                            <div>
+                                                <h4 className="font-medium text-slate-900">Email Reminders</h4>
+                                                <p className="text-sm text-slate-500">Send automatic email reminders to clients</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={calendarFormData.emailReminders !== false}
+                                                    onChange={(e) => handleCalendarToggle('emailReminders', e.target.checked)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                            </label>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                                            <div>
+                                                <h4 className="font-medium text-slate-900">SMS Reminders</h4>
+                                                <p className="text-sm text-slate-500">Send SMS reminders (requires phone number)</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={calendarFormData.smsReminders || false}
+                                                    onChange={(e) => handleCalendarToggle('smsReminders', e.target.checked)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                            </label>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                                            <div>
+                                                <h4 className="font-medium text-slate-900">New Appointment Alerts</h4>
+                                                <p className="text-sm text-slate-500">Get notified when someone books a consultation</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={calendarFormData.newAppointmentAlerts !== false}
+                                                    onChange={(e) => handleCalendarToggle('newAppointmentAlerts', e.target.checked)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </FeatureSection>
+
+                                <div className="flex items-center justify-between pt-8 border-t border-slate-200">
+                                    <button
+                                        type="button"
+                                        onClick={onBackToDashboard}
+                                        className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
+                                    >
+                                        ← Back to Dashboard
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                                    >
+                                        Save Calendar Settings
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+                        
                         {activeTab !== 'notifications' && activeTab !== 'email' && activeTab !== 'calendar' && activeTab !== 'security' && activeTab !== 'billing' && (
                             <div className="text-center py-20 p-8">
                                 <h2 className="text-xl font-semibold text-slate-700">Coming Soon</h2>
