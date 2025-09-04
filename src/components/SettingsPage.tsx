@@ -1715,52 +1715,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     </div>
                                 </FeatureSection>
 
-                                {/* Add-ons Section */}
-                                <FeatureSection title="Add-ons" icon="add_circle">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="bg-white border border-slate-200 rounded-lg p-6">
-                                            <h4 className="text-lg font-semibold text-slate-900 mb-2">Extra Listings</h4>
-                                            <p className="text-sm text-slate-500 mb-4">Add more active listings to your account</p>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-2xl font-bold text-slate-900">$</span>
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="0.00" 
-                                                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                />
-                                                <span className="text-sm text-slate-500">/mo</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-white border border-slate-200 rounded-lg p-6">
-                                            <h4 className="text-lg font-semibold text-slate-900 mb-2">Premium Support</h4>
-                                            <p className="text-sm text-slate-500 mb-4">24/7 priority support and dedicated account manager</p>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-2xl font-bold text-slate-900">$</span>
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="0.00" 
-                                                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                />
-                                                <span className="text-sm text-slate-500">/mo</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-white border border-slate-200 rounded-lg p-6">
-                                            <h4 className="text-lg font-semibold text-slate-900 mb-2">Advanced Analytics</h4>
-                                            <p className="text-sm text-slate-500 mb-4">Enhanced reporting and market insights</p>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-2xl font-bold text-slate-900">$</span>
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="0.00" 
-                                                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                />
-                                                <span className="text-sm text-slate-500">/mo</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
 
                                 {/* Billing History */}
                                 <FeatureSection title="Billing History" icon="receipt">
