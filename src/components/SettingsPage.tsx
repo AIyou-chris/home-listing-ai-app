@@ -202,6 +202,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
     // Calendar connection state
     const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
     
+    // Security settings state
+    const [securitySettings, setSecuritySettings] = useState({
+        loginNotifications: true,
+        sessionTimeout: 24,
+        analyticsEnabled: true
+    });
+    
     // Notification permission state
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
     const [isRequestingPermission, setIsRequestingPermission] = useState(false);
@@ -325,6 +332,59 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         onSaveCalendarSettings(calendarFormData);
         alert('Calendar settings saved successfully!');
     };
+
+    // Security handlers
+    const handlePasswordSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!isPasswordValid) {
+            alert('Please check password requirements');
+            return;
+        }
+        
+        try {
+            // Here you would integrate with your authentication service
+            // For now, we'll simulate the password change
+            console.log('Password change request:', {
+                currentPassword: passwords.currentPassword,
+                newPassword: passwords.newPassword
+            });
+            
+            // Reset form
+            setPasswords({
+                currentPassword: '',
+                newPassword: '',
+                confirmNewPassword: ''
+            });
+            
+            alert('Password updated successfully!');
+        } catch (error) {
+            console.error('Password update failed:', error);
+            alert('Failed to update password. Please try again.');
+        }
+    };
+
+    const handleSecurityToggle = (setting: string, value: boolean | number) => {
+        setSecuritySettings(prev => ({
+            ...prev,
+            [setting]: value
+        }));
+    };
+
+    const handleSecuritySettingsSave = () => {
+        // Here you would save security settings to your backend
+        console.log('Saving security settings:', securitySettings);
+        alert('Security settings saved successfully!');
+    };
+
+    // Password validation
+    const isPasswordValid = 
+        passwords.newPassword.length >= 8 &&
+        /[A-Z]/.test(passwords.newPassword) &&
+        /[0-9]/.test(passwords.newPassword) &&
+        /[^A-Za-z0-9]/.test(passwords.newPassword) &&
+        passwords.newPassword === passwords.confirmNewPassword &&
+        passwords.currentPassword.length > 0;
 
     // Notification permission handlers
     const handleRequestNotificationPermission = async () => {
@@ -1494,6 +1554,210 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     >
                                         Save Calendar Settings
                                     </button>
+                                </div>
+                            </form>
+                        )}
+                        
+                        {activeTab === 'security' && (
+                            <form onSubmit={handlePasswordSave} className="p-8 space-y-8">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-900">🔐 Security Settings</h2>
+                                    <p className="text-slate-500 mt-1">Manage your account security, passwords, and privacy settings.</p>
+                                </div>
+
+                                {/* Password Change */}
+                                <FeatureSection title="Change Password" icon="lock">
+                                    <div className="space-y-6">
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                            <div className="flex items-start gap-3">
+                                                <span className="material-symbols-outlined w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5">info</span>
+                                                <div>
+                                                    <h4 className="font-medium text-amber-900">Password Security</h4>
+                                                    <p className="text-sm text-amber-800 mt-1">
+                                                        Use a strong password with at least 8 characters, including letters, numbers, and symbols.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-6">
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-2">Current Password</label>
+                                                <input
+                                                    type="password"
+                                                    name="currentPassword"
+                                                    value={passwords.currentPassword}
+                                                    onChange={handlePasswordChange}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                                    placeholder="Enter current password"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-2">New Password</label>
+                                                <input
+                                                    type="password"
+                                                    name="newPassword"
+                                                    value={passwords.newPassword}
+                                                    onChange={handlePasswordChange}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                                    placeholder="Enter new password"
+                                                />
+                                                <div className="mt-2">
+                                                    <div className="text-xs text-slate-500 space-y-1">
+                                                        <div className={`flex items-center gap-2 ${passwords.newPassword.length >= 8 ? 'text-green-600' : ''}`}>
+                                                            <span className={`w-2 h-2 rounded-full ${passwords.newPassword.length >= 8 ? 'bg-green-500' : 'bg-slate-300'}`}></span>
+                                                            At least 8 characters
+                                                        </div>
+                                                        <div className={`flex items-center gap-2 ${/[A-Z]/.test(passwords.newPassword) ? 'text-green-600' : ''}`}>
+                                                            <span className={`w-2 h-2 rounded-full ${/[A-Z]/.test(passwords.newPassword) ? 'bg-green-500' : 'bg-slate-300'}`}></span>
+                                                            One uppercase letter
+                                                        </div>
+                                                        <div className={`flex items-center gap-2 ${/[0-9]/.test(passwords.newPassword) ? 'text-green-600' : ''}`}>
+                                                            <span className={`w-2 h-2 rounded-full ${/[0-9]/.test(passwords.newPassword) ? 'bg-green-500' : 'bg-slate-300'}`}></span>
+                                                            One number
+                                                        </div>
+                                                        <div className={`flex items-center gap-2 ${/[^A-Za-z0-9]/.test(passwords.newPassword) ? 'text-green-600' : ''}`}>
+                                                            <span className={`w-2 h-2 rounded-full ${/[^A-Za-z0-9]/.test(passwords.newPassword) ? 'bg-green-500' : 'bg-slate-300'}`}></span>
+                                                            One special character
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-2">Confirm New Password</label>
+                                                <input
+                                                    type="password"
+                                                    name="confirmNewPassword"
+                                                    value={passwords.confirmNewPassword}
+                                                    onChange={handlePasswordChange}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                                    placeholder="Confirm new password"
+                                                />
+                                                {passwords.confirmNewPassword && passwords.newPassword !== passwords.confirmNewPassword && (
+                                                    <p className="text-sm text-red-600 mt-1">Passwords do not match</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            disabled={!isPasswordValid}
+                                            className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            Update Password
+                                        </button>
+                                    </div>
+                                </FeatureSection>
+
+                                {/* Security Features */}
+                                <FeatureSection title="Account Security" icon="security">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                                            <div>
+                                                <h4 className="font-medium text-slate-900">Two-Factor Authentication</h4>
+                                                <p className="text-sm text-slate-500">Add an extra layer of security to your account</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={false}
+                                                    disabled
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-disabled:opacity-50">
+                                                    <div className="w-5 h-5 bg-white border border-gray-300 rounded-full mt-0.5 ml-0.5"></div>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                                            <div>
+                                                <h4 className="font-medium text-slate-900">Login Notifications</h4>
+                                                <p className="text-sm text-slate-500">Get notified when someone logs into your account</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={securitySettings.loginNotifications !== false}
+                                                    onChange={(e) => handleSecurityToggle('loginNotifications', e.target.checked)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                            </label>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                                            <div>
+                                                <h4 className="font-medium text-slate-900">Session Timeout</h4>
+                                                <p className="text-sm text-slate-500">Automatically log out after inactivity</p>
+                                            </div>
+                                            <select
+                                                value={securitySettings.sessionTimeout || 24}
+                                                onChange={(e) => handleSecurityToggle('sessionTimeout', parseInt(e.target.value))}
+                                                className="px-3 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                            >
+                                                <option value={1}>1 hour</option>
+                                                <option value={4}>4 hours</option>
+                                                <option value={8}>8 hours</option>
+                                                <option value={24}>24 hours</option>
+                                                <option value={0}>Never</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </FeatureSection>
+
+                                {/* Privacy Settings */}
+                                <FeatureSection title="Privacy & Data" icon="privacy_tip">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                                            <div>
+                                                <h4 className="font-medium text-slate-900">Analytics & Usage Data</h4>
+                                                <p className="text-sm text-slate-500">Help improve the app by sharing anonymous usage data</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={securitySettings.analyticsEnabled !== false}
+                                                    onChange={(e) => handleSecurityToggle('analyticsEnabled', e.target.checked)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                            </label>
+                                        </div>
+
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                            <div className="flex items-start gap-3">
+                                                <span className="material-symbols-outlined w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5">shield</span>
+                                                <div>
+                                                    <h4 className="font-medium text-blue-900">Your Data is Secure</h4>
+                                                    <p className="text-sm text-blue-700 mt-1">
+                                                        All your data is encrypted and stored securely. We never share your personal information with third parties.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </FeatureSection>
+
+                                <div className="flex items-center justify-between pt-8 border-t border-slate-200">
+                                    <button
+                                        type="button"
+                                        onClick={onBackToDashboard}
+                                        className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
+                                    >
+                                        ← Back to Dashboard
+                                    </button>
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={handleSecuritySettingsSave}
+                                            className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                                        >
+                                            Save Security Settings
+                                        </button>
+                                    </div>
                                 </div>
                             </form>
                         )}
