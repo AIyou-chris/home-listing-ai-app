@@ -1318,13 +1318,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
-                                                {billingSettings.history.map(invoice => (
+                                                {[
+                                                    { id: 'INV-001', date: 'Dec 15, 2024', amount: 79.00 },
+                                                    { id: 'INV-002', date: 'Nov 15, 2024', amount: 79.00 },
+                                                    { id: 'INV-003', date: 'Oct 15, 2024', amount: 79.00 }
+                                                ].map(invoice => (
                                                     <tr key={invoice.id}>
                                                         <td className="p-3 font-medium text-slate-700">{invoice.id}</td>
                                                         <td className="p-3 text-slate-600">{invoice.date}</td>
                                                         <td className="p-3 text-slate-600">${invoice.amount.toFixed(2)}</td>
                                                         <td className="p-3">
-                                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(invoice.status)}`}>{invoice.status}</span>
+                                                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">Paid</span>
                                                         </td>
                                                         <td className="p-3 text-right">
                                                             <button className="flex items-center gap-1 font-semibold text-primary-600 hover:text-primary-800">
