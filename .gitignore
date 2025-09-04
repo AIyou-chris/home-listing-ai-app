@@ -31,3 +31,7 @@ yarn-error.log*
 *.sln
 *.sw?.env
 .env.local
+.vercel
+
+# Local Netlify folder
+.netlify

@@ -185,8 +185,7 @@ const PlanFeature: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile, notificationSettings, onSaveNotifications, emailSettings, onSaveEmailSettings, calendarSettings, onSaveCalendarSettings, billingSettings, onSaveBillingSettings, onBackToDashboard }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('profile');
-    const [profileFormData, setProfileFormData] = useState<AgentProfile>(userProfile);
+    const [activeTab, setActiveTab] = useState<'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('notifications');
     const [emailFormData, setEmailFormData] = useState<EmailSettings>(emailSettings);
     const [calendarFormData, setCalendarFormData] = useState<CalendarSettings>(calendarSettings);
     const [currentNotifications, setCurrentNotifications] = useState<NotificationSettings>(notificationSettings);
@@ -286,20 +285,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
             console.error('Error showing test notification:', error);
         }
     };
-     useEffect(() => {
-        setProfileFormData(userProfile);
-    }, [userProfile]);
 
-    const handleProfileInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setProfileFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleProfileSave = (e: React.FormEvent) => {
-        e.preventDefault();
-        onSaveProfile(profileFormData);
-        alert('Profile saved!');
-    };
 
     const handleNotificationToggle = (key: keyof NotificationSettings, value: boolean) => {
         const updatedSettings = { ...currentNotifications, [key]: value };
@@ -353,7 +339,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
     };
     
     const tabs = [
-        { id: 'profile', label: 'Profile', icon: 'account_circle' },
         { id: 'notifications', label: 'Notifications', icon: 'notifications' },
         { id: 'email', label: 'Email', icon: 'mail' },
         { id: 'calendar', label: 'Calendar', icon: 'calendar_today' },
@@ -398,228 +383,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
 
                     {/* Main Content */}
                     <main className="flex-1">
-                        {activeTab === 'profile' && (
-                            <form onSubmit={handleProfileSave} className="p-8 space-y-8">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-slate-900">👤 Profile Information</h2>
-                                    <p className="text-slate-500 mt-1">Update your professional profile information and branding.</p>
-                                </div>
-
-                                {/* Basic Information */}
-                                <FeatureSection title="Basic Information" icon="person">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Full Name*</label>
-                                            <input
-                                                type="text"
-                                                name="name"
-                                                value={profileFormData.name}
-                                                onChange={handleProfileInputChange}
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                placeholder="Your full name"
-                                                required
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Professional Title*</label>
-                                            <input
-                                                type="text"
-                                                name="title"
-                                                value={profileFormData.title}
-                                                onChange={handleProfileInputChange}
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                placeholder="e.g. Senior Real Estate Agent"
-                                                required
-                                        />
-                                    </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Company*</label>
-                                            <input
-                                                type="text"
-                                                name="company"
-                                                value={profileFormData.company}
-                                                onChange={handleProfileInputChange}
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                placeholder="Your company or brokerage"
-                                                required
-                                            />
-                                </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Brand Color</label>
-                                            <div className="flex items-center gap-3">
-                                                <input
-                                                    type="color"
-                                                    name="brandColor"
-                                                    value={profileFormData.brandColor || '#0ea5e9'}
-                                                    onChange={handleProfileInputChange}
-                                                    className="w-12 h-12 border border-slate-300 rounded-lg cursor-pointer"
-                                                />
-                                                <input
-                                                    type="text"
-                                                    name="brandColor"
-                                                    value={profileFormData.brandColor || '#0ea5e9'}
-                                                    onChange={handleProfileInputChange}
-                                                    className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                    placeholder="#0ea5e9"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
-                                {/* Contact Information */}
-                                <FeatureSection title="Contact Information" icon="contact_phone">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Phone Number*</label>
-                                            <input
-                                                type="tel"
-                                                name="phone"
-                                                value={profileFormData.phone}
-                                                onChange={handleProfileInputChange}
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                placeholder="(555) 123-4567"
-                                                required
-                                            />
-                                            </div>
-                                            <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Email Address*</label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={profileFormData.email}
-                                                onChange={handleProfileInputChange}
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                placeholder="your@email.com"
-                                                required
-                                            />
-                                            </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Website URL</label>
-                                            <input
-                                                type="url"
-                                                name="website"
-                                                value={profileFormData.website || ''}
-                                                onChange={handleProfileInputChange}
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                placeholder="https://yourwebsite.com"
-                                            />
-                                        </div>
-                                    </div>
-                                    
-                                            <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">Professional Bio</label>
-                                        <textarea
-                                            name="bio"
-                                            value={profileFormData.bio || ''}
-                                            onChange={handleProfileInputChange}
-                                            rows={4}
-                                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                            placeholder="Tell clients about your experience and expertise..."
-                                        />
-                                                </div>
-                                </FeatureSection>
-
-                                {/* Media Assets */}
-                                <FeatureSection title="Media Assets" icon="photo_library">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Professional Headshot URL</label>
-                                            <input
-                                                type="url"
-                                                name="headshotUrl"
-                                                value={profileFormData.headshotUrl || ''}
-                                                onChange={handleProfileInputChange}
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                placeholder="https://images.example.com/headshot.jpg"
-                                            />
-                                            {profileFormData.headshotUrl && (
-                                                <div className="mt-3">
-                                                    <img src={profileFormData.headshotUrl} alt="Headshot preview" className="w-20 h-20 rounded-full object-cover border-2 border-slate-200" />
-                                            </div>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Company Logo URL</label>
-                                            <input
-                                                type="url"
-                                                name="logoUrl"
-                                                value={profileFormData.logoUrl || ''}
-                                                onChange={handleProfileInputChange}
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                placeholder="https://images.example.com/logo.png"
-                                            />
-                                            {profileFormData.logoUrl && (
-                                                <div className="mt-3">
-                                                    <img src={profileFormData.logoUrl} alt="Logo preview" className="h-12 w-auto object-contain border border-slate-200 rounded p-2 bg-white" />
-                                    </div>
-                                )}
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
-                                {/* Social Media Links */}
-                                <FeatureSection title="Social Media Links" icon="share">
-                                    <div className="space-y-4">
-                                        {[0, 1, 2, 3, 4].map((index) => {
-                                            const social = profileFormData.socials?.[index] || { platform: '', url: '' };
-                                            return (
-                                                <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                             <div>
-                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                            Platform {index + 1} {index === 0 && '(Optional)'}
-                                                        </label>
-                                                        <select
-                                                            value={social.platform}
-                                                            onChange={(e) => {
-                                                                const newSocials = [...(profileFormData.socials || [])];
-                                                                newSocials[index] = { ...social, platform: (e.target.value || 'Twitter') as 'Twitter' | 'Pinterest' | 'LinkedIn' | 'YouTube' | 'Facebook' | 'Instagram' };
-                                                                setProfileFormData(prev => ({ ...prev, socials: newSocials }));
-                                                            }}
-                                                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                        >
-                                                            <option value="">Select Platform</option>
-                                                            <option value="LinkedIn">LinkedIn</option>
-                                                            <option value="Facebook">Facebook</option>
-                                                            <option value="Instagram">Instagram</option>
-                                                            <option value="Twitter">Twitter</option>
-                                                            <option value="YouTube">YouTube</option>
-                                                            <option value="TikTok">TikTok</option>
-                                                            <option value="Pinterest">Pinterest</option>
-                                                            <option value="Website">Additional Website</option>
-                                                        </select>
-                                            </div>
-                                             <div>
-                                                        <label className="block text-sm font-medium text-slate-700 mb-2">URL</label>
-                                                        <input
-                                                            type="url"
-                                                            value={social.url}
-                                                            onChange={(e) => {
-                                                                const newSocials = [...(profileFormData.socials || [])];
-                                                                                                                                 newSocials[index] = { ...social, url: e.target.value, platform: social.platform || 'Twitter' as any };
-                                                                setProfileFormData(prev => ({ ...prev, socials: newSocials }));
-                                                            }}
-                                                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                            placeholder="https://..."
-                                                        />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </FeatureSection>
-
-                                {/* Save Button */}
-                                <div className="flex justify-end pt-6 border-t border-slate-200">
-                                    <button
-                                        type="submit"
-                                        className="px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
-                                    >
-                                        Save Profile
-                                    </button>
-                                </div>
-                            </form>
-                        )}
                         {activeTab === 'notifications' && (
                             <div className="p-8 space-y-8">
                                 <div>
@@ -1449,7 +1212,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 </div>
                            </div>
                         )}
-                        {activeTab !== 'profile' && activeTab !== 'notifications' && activeTab !== 'email' && activeTab !== 'calendar' && activeTab !== 'security' && activeTab !== 'billing' && (
+                        {activeTab !== 'notifications' && activeTab !== 'email' && activeTab !== 'calendar' && activeTab !== 'security' && activeTab !== 'billing' && (
                             <div className="text-center py-20 p-8">
                                 <h2 className="text-xl font-semibold text-slate-700">Coming Soon</h2>
                                 <p className="text-slate-500 mt-2">This settings page is under construction.</p>

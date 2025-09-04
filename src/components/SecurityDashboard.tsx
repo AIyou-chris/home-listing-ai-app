@@ -53,7 +53,7 @@ const SecurityDashboard: React.FC = () => {
 	const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d'>('24h');
 	const { logAction } = useSecurity();
 
-	const API_BASE = (import.meta as any)?.env?.VITE_API_URL || 'http://localhost:3002';
+	const API_BASE = (import.meta as any)?.env?.VITE_API_URL || 'https://ailisitnghome-43boqi59o-ai-you.vercel.app';
 
 		useEffect(() => {
 			let cancelled = false;

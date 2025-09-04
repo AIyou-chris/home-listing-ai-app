@@ -492,7 +492,7 @@ const AIAgentHub: React.FC = () => {
                     <div className='flex items-center gap-2'>
                       <button onClick={async () => {
                         try {
-                          const base = (import.meta as any)?.env?.VITE_API_URL || 'http://localhost:3002'
+                          const base = (import.meta as any)?.env?.VITE_API_URL || 'https://ailisitnghome-43boqi59o-ai-you.vercel.app'
                           const resp = await fetch(`${base}/api/generate-speech`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },

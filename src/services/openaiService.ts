@@ -30,7 +30,8 @@ export const generateSpeech = async (
   try {
     console.log("🎤 Generating speech with OpenAI:", { text: text.substring(0, 50) + '...', voice });
     
-    const response = await fetch('http://localhost:3002/api/generate-speech', {
+    const API_BASE = import.meta.env.VITE_API_URL || 'https://ailisitnghome-43boqi59o-ai-you.vercel.app';
+    const response = await fetch(`${API_BASE}/api/generate-speech`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
