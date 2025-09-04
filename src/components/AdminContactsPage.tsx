@@ -359,13 +359,22 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 									</button>
 									<button
 										onClick={async () => {
-											           if (!editEmail || !emailSubject || !emailBody) return; // Auth removed
+											if (!editEmail || !emailSubject || !emailBody) return;
 											setIsSendingEmail(true);
 											try {
-												            // FileUploadService removed - using Supabase alternatives
-												alert('Email sent');
+												const EmailService = (await import('../services/emailService')).default;
+												const emailService = EmailService.getInstance();
+												const success = await emailService.sendEmail(editEmail, emailSubject, emailBody);
+												if (success) {
+													alert('✅ Email sent successfully!');
+													setEditEmail('');
+													setEmailSubject('');
+													setEmailBody('');
+												} else {
+													alert('❌ Failed to send email. Please connect Gmail in Settings first.');
+												}
 											} catch (e) {
-												alert('Failed to send');
+												alert('❌ Email sending failed: ' + (e as Error).message);
 											}
 											setIsSendingEmail(false);
 										}}
