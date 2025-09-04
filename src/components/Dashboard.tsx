@@ -107,25 +107,25 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
       {/* Quick Actions Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-            <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-            <p className="text-slate-500 mt-1">Welcome back, {agentProfile.name}! Here's an overview of your real estate activity.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
+        <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
+            <p className="text-slate-500 mt-1 text-sm sm:text-base">Welcome back, {agentProfile.name}! Here's an overview of your real estate activity.</p>
         </div>
-        <div className="flex items-center gap-4">
-            {/* Hidden for launch - notification button will be re-enabled post-launch */}
+        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
             <button 
                 onClick={onAddNew}
-                className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105"
+                className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 text-sm sm:text-base"
             >
-                <span className="material-symbols-outlined h-5 w-5">add</span>
-                <span>Add New Listing</span>
+                <span className="material-symbols-outlined h-4 w-4 sm:h-5 sm:w-5">add</span>
+                <span className="hidden xs:inline">Add New Listing</span>
+                <span className="xs:hidden">Add Listing</span>
             </button>
             {agentProfile.headshotUrl ? (
-                <img src={agentProfile.headshotUrl} alt={agentProfile.name} className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" />
+                <img src={agentProfile.headshotUrl} alt={agentProfile.name} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-white shadow-sm" />
             ) : (
-                <div className="w-11 h-11 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 border-2 border-white shadow-sm">
-                    <span className="material-symbols-outlined">person</span>
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 border-2 border-white shadow-sm">
+                    <span className="material-symbols-outlined text-lg sm:text-xl">person</span>
                 </div>
             )}
         </div>

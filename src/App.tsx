@@ -15,6 +15,8 @@ import ListingsPage from './components/ListingsPage';
 import AddListingPage from './components/AddListingPage';
 import LeadsAndAppointmentsPage from './components/LeadsAndAppointmentsPage';
 import InteractionHubPage from './components/InteractionHubPage';
+import AIConversationsPage from './components/AIConversationsPage';
+import AICardPage from './components/AICardPage';
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
 import MarketingPage from './components/MarketingPage';
@@ -31,7 +33,6 @@ const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
 import DemoListingPage from './components/DemoListingPage';
-import AIContentPage from './components/AIContentPage';
 
 
 import AILeadQualificationTestPage from './components/AILeadQualificationTestPage';
@@ -130,8 +131,8 @@ const App: React.FC = () => {
                 // Reset admin login modal state when going to admin-setup
                 setIsAdminLoginOpen(false);
                 setAdminLoginError(null);
-            } else if (hash === 'ai-content') {
-                // Chat bots disabled: ignore ai-content route
+            } else if (hash === 'ai-card') {
+                // AI Card route
                 setView('dashboard');
             } else if (hash === 'landing') {
                 setView('landing');
@@ -618,9 +619,9 @@ const App: React.FC = () => {
 					case 'inbox': 
 						return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
 					case 'ai-conversations':
-						return <AIContentPage />;
-					case 'ai-content':
-						return <AIContentPage />;
+						return <AIConversationsPage />;
+					case 'ai-card':
+						return <AICardPage />;
 					case 'knowledge-base': 
 						return <AIAgentHub />;
 					case 'marketing': 
@@ -669,11 +670,14 @@ const App: React.FC = () => {
 							<AdminSidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 						</Suspense>
 						<div className="flex-1 flex flex-col overflow-hidden">
-							<header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
-								<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
-									<span className="material-symbols-outlined">menu</span>
+							<header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
+								<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
+									<span className="material-symbols-outlined text-xl">menu</span>
 								</button>
-								<LogoWithName />
+								<div className="flex-1 flex justify-center">
+									<LogoWithName />
+								</div>
+								<div className="w-10"></div> {/* Spacer for balance */}
 							</header>
 							<main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
 								<Suspense fallback={<LoadingSpinner />}>
@@ -689,15 +693,17 @@ const App: React.FC = () => {
 				<div className="flex h-screen bg-slate-50">
 					<Sidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 					<div className="flex-1 flex flex-col overflow-hidden">
-						<header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
-							<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
-								<span className="material-symbols-outlined">menu</span>
+						<header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
+							<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
+								<span className="material-symbols-outlined text-xl">menu</span>
 							</button>
-							<LogoWithName />
-							<div className="flex items-center space-x-2">
+							<div className="flex-1 flex justify-center">
+								<LogoWithName />
+							</div>
+							<div className="flex items-center space-x-1">
 								<NotificationSystem userId={user?.uid || ''} />
 								<button onClick={() => setIsPropertyComparisonOpen(true)} className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Compare properties">
-									<span className="material-symbols-outlined">compare</span>
+									<span className="material-symbols-outlined text-lg">compare</span>
 								</button>
 							</div>
 						</header>
@@ -755,17 +761,19 @@ const App: React.FC = () => {
 					<AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
 				</Suspense>
 			)}
-			<ChatBotFAB
-				context={{
-					userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
-					currentPage: view,
-					previousInteractions: user ? 1 : 0,
-					userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
-				}}
-				onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
-				onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
-				position="bottom-right"
-			/>
+			{view !== 'ai-card' && (
+				<ChatBotFAB
+					context={{
+						userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
+						currentPage: view,
+						previousInteractions: user ? 1 : 0,
+						userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
+					}}
+					onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
+					onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
+					position="bottom-right"
+				/>
+			)}
 		</ErrorBoundary>
 	);
 };

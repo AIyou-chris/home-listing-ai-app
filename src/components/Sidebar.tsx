@@ -24,9 +24,9 @@ const NavItem: React.FC<{
 }> = ({ viewName, activeView, setView, icon, children, onClose }) => {
   const isListingsActive = viewName === 'listings' && (activeView === 'listings' || activeView === 'property' || activeView === 'add-listing');
   const isLeadsActive = viewName === 'leads' && activeView === 'leads';
-  const isAiContentActive = viewName === 'ai-content' && (activeView === 'ai-content' || activeView === 'inbox');
+  const isAiCardActive = viewName === 'ai-card' && (activeView === 'ai-card' || activeView === 'inbox');
   
-  const isActive = activeView === viewName || isListingsActive || isLeadsActive || isAiContentActive;
+  const isActive = activeView === viewName || isListingsActive || isLeadsActive || isAiCardActive;
 
   return (
     <button
@@ -50,12 +50,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
   const navItems = [
     { view: 'dashboard', icon: 'home', label: 'Overview' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
+    { view: 'ai-card', icon: 'badge', label: 'AI Card' },
     { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
     { view: 'listings', icon: 'storefront', label: 'AI Listings' },
-    { view: 'ai-content', icon: 'forum', label: 'AI Content' },
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
-    { view: 'marketing', icon: 'campaign', label: 'Marketing' },
-    { view: 'blog', icon: 'article', label: 'Blog' },
+    { view: 'marketing', icon: 'filter_alt', label: 'AI Funnel' },
     { view: 'settings', icon: 'settings', label: 'Settings' },
   ];
   

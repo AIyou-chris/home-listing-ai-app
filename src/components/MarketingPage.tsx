@@ -482,7 +482,7 @@ const MessagingCenter: React.FC = () => {
 
 
 const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, setSequences, onBackToDashboard }) => {
-    const [activeTab, setActiveTab] = useState('analytics');
+    const [activeTab, setActiveTab] = useState('sequences');
 
     // Sequence state
     const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
@@ -520,11 +520,9 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
     }, []);
 
     const tabs = [
-        // { id: 'messaging', label: 'Notifications & Messaging', icon: 'notifications' }, // Hidden for launch - will re-enable post-launch
-        { id: 'analytics', label: 'Analytics', icon: 'monitoring' },
-        { id: 'sequences', label: 'Follow-up Sequences', icon: 'lan' },
+        { id: 'sequences', label: 'Lead Sequences', icon: 'filter_alt' },
         { id: 'follow-ups', label: 'Active Follow-ups', icon: 'group' },
-        { id: 'qr-code', label: 'QR Code System', icon: 'qr_code_2' },
+        { id: 'analytics', label: 'Lead Scoring', icon: 'grade' },
     ];
 
     const renderContent = () => {
@@ -537,8 +535,6 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
                 return <SequencesContent sequences={sequences} setSequences={setSequences} openModal={(seq) => { setEditingSequence(seq); setIsSequenceModalOpen(true); }} />;
             case 'follow-ups':
                  return <LeadFollowUpsPage leads={[]} sequences={sequences} activeFollowUps={[]} />;
-            case 'qr-code':
-                return <QRCodeSystem properties={properties} />;
             default:
                 return <div>Select a tab</div>;
         }
@@ -552,8 +548,11 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
                     <span>Back to Dashboard</span>
                 </button>
                 <header className="mb-8">
-                    <h1 className="text-3xl font-bold text-slate-900">Marketing Center</h1>
-                    <p className="text-slate-500 mt-1">Automate your outreach, create content, and track your performance.</p>
+                    <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                        <span className="material-symbols-outlined text-primary-600">filter_alt</span>
+                        AI Funnel
+                    </h1>
+                    <p className="text-slate-500 mt-1">Automate lead nurturing with intelligent sequences and track conversion performance.</p>
                 </header>
                 <div className="border-b border-slate-200">
                     <nav className="-mb-px flex space-x-6 overflow-x-auto">
