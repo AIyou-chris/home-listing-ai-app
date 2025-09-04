@@ -212,7 +212,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
     // Notification permission state
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
     const [isRequestingPermission, setIsRequestingPermission] = useState(false);
-    const [showCancelModal, setShowCancelModal] = useState(false);
 
 
     useEffect(() => {
@@ -1242,68 +1241,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     <h2 className="text-2xl font-bold text-slate-900">Billing & Plans</h2>
                                     <p className="text-slate-500 mt-1">Manage your subscription, view invoices, and change your plan.</p>
                                 </header>
-                                
-                                {/* Current Plan Card */}
-                                <div className="max-w-2xl">
-                                    <div className="p-8 rounded-2xl shadow-lg border-2 border-primary-500 bg-primary-50">
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div>
-                                                <h3 className="text-2xl font-bold text-slate-800">Solo Agent</h3>
-                                                <p className="mt-2 text-slate-600">For the individual agent ready to supercharge their business.</p>
-                                            </div>
-                                            <span className="px-3 py-1 bg-primary-600 text-white text-sm font-semibold rounded-full">Current Plan</span>
-                                        </div>
-                                        <div className="mb-6">
-                                            <p className="text-4xl font-extrabold text-slate-900">$69</p>
-                                            <p className="text-lg text-slate-600">per month</p>
-                                            <p className="mt-2 text-sm text-slate-500">Up to 5 Active Listings</p>
-                                        </div>
-                                        <ul className="space-y-3 mb-8">
-                                            <PlanFeature>Full Dashboard Access</PlanFeature>
-                                            <PlanFeature>AI Content Studio</PlanFeature>
-                                            <PlanFeature>Automated Follow-up Sequences</PlanFeature>
-                                            <PlanFeature>AI Inbox & Lead Management</PlanFeature>
-                                            <PlanFeature>Standard Support</PlanFeature>
-                                        </ul>
-                                        <div className="flex gap-4">
-                                            <button className="flex-1 py-3 px-6 text-lg font-bold rounded-lg transition-colors duration-300 bg-primary-600 text-white shadow-md hover:bg-primary-700">
-                                                Manage Plan
-                                            </button>
-                                            <button 
-                                                onClick={() => setShowCancelModal(true)}
-                                                className="flex-1 py-3 px-6 text-lg font-bold rounded-lg transition-colors duration-300 bg-red-600 text-white shadow-md hover:bg-red-700"
-                                            >
-                                                Cancel Subscription
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Cancel Subscription Modal */}
-                                {showCancelModal && (
-                                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                                        <div className="bg-white rounded-lg p-8 max-w-md mx-4">
-                                            <h3 className="text-xl font-bold text-slate-900 mb-4">Cancel Subscription</h3>
-                                            <p className="text-slate-600 mb-6">
-                                                Are you sure you want to cancel your subscription? You'll lose access to all premium features at the end of your current billing period.
-                                            </p>
-                                            <div className="flex gap-4">
-                                                <button 
-                                                    onClick={() => setShowCancelModal(false)}
-                                                    className="flex-1 py-2 px-4 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
-                                                >
-                                                    Keep Subscription
-                                                </button>
-                                                <button 
-                                                    onClick={handleCancelSubscription}
-                                                    className="flex-1 py-2 px-4 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700"
-                                                >
-                                                    Cancel Subscription
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
                                 <div className="mt-12 pt-8 border-t border-slate-200">
                                     <h3 className="text-lg font-bold text-slate-800 mb-4">Billing History</h3>
                                      <div className="overflow-x-auto">
