@@ -27,43 +27,76 @@ class EmailService {
         return EmailService.instance;
     }
 
-    private async sendViaGmail(to: string, subject: string, html: string): Promise<boolean> {
+    private async sendViaGmail(to: string, subject: string, html: string, fromEmail?: string): Promise<boolean> {
         try {
-            if (!googleOAuthService.isAuthenticated()) {
-                return false
-            }
-            const accessToken = googleOAuthService.getAccessToken()
-            if (!accessToken) {
-                return false
+            // Get Gmail connection
+            const gmailConnection = this.getGmailConnection();
+            if (!gmailConnection || !gmailConnection.accessToken) {
+                console.error('No Gmail connection or access token available');
+                return false;
             }
 
+            // Create email message
             const message = [
                 `To: ${to}`,
+                `From: ${fromEmail || gmailConnection.email}`,
                 'Content-Type: text/html; charset=UTF-8',
                 `Subject: ${subject}`,
                 '',
                 html
-            ].join('\r\n')
+            ].join('\r\n');
 
+            // Encode message for Gmail API
             const raw = btoa(unescape(encodeURIComponent(message)))
                 .replace(/\+/g, '-')
                 .replace(/\//g, '_')
-                .replace(/=+$/, '')
+                .replace(/=+$/, '');
 
-            const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+            const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${gmailConnection.accessToken}`,
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ raw })
-            })
+            });
 
-            return resp.ok
-        } catch (e) {
-            console.error('Gmail send error', e)
-            return false
+            if (!response.ok) {
+                console.error('Gmail API error:', await response.text());
+                return false;
+            }
+
+            const result = await response.json();
+            console.log('Email sent successfully:', result.id);
+            return true;
+
+        } catch (error) {
+            console.error('Error sending email via Gmail:', error);
+            return false;
         }
+    }
+
+    private getGmailConnection() {
+        try {
+            const stored = localStorage.getItem('gmail_connection');
+            if (stored) {
+                return JSON.parse(stored);
+            }
+        } catch (error) {
+            console.error('Error getting Gmail connection:', error);
+        }
+        return null;
+    }
+
+    async sendEmail(to: string, subject: string, html: string, fromEmail?: string): Promise<boolean> {
+        // Try Gmail first
+        const gmailResult = await this.sendViaGmail(to, subject, html, fromEmail);
+        if (gmailResult) {
+            return true;
+        }
+
+        console.log('Gmail sending failed, no fallback configured');
+        return false;
     }
 
     // Send confirmation email to client
@@ -71,10 +104,8 @@ class EmailService {
         try {
             console.log('📧 Attempting to send confirmation email to:', data.email);
             
-            const emailContent = {
-                to: data.email,
-                subject: 'Your Consultation Has Been Scheduled - HomeListingAI',
-                html: `
+            const subject = 'Your Consultation Has Been Scheduled - HomeListingAI';
+            const html = `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                         <h2 style="color: #1e40af;">Your Consultation Has Been Scheduled!</h2>
                         <p>Hi ${data.name},</p>
@@ -100,30 +131,17 @@ class EmailService {
                         
                         <p>Best regards,<br>The HomeListingAI Team</p>
                     </div>
-                `
-            };
+                `;
 
-            // Try Gmail first
-            const sentViaGmail = await this.sendViaGmail(emailContent.to, emailContent.subject, emailContent.html);
+            // Send the email using Gmail
+            const emailSent = await this.sendEmail(data.email, subject, html);
             
-            if (sentViaGmail) {
-                console.log('✅ Email sent successfully via Gmail');
+            if (emailSent) {
+                console.log('✅ Confirmation email sent successfully');
                 return true;
             }
 
-            // Gmail failed, try alternative methods
-            console.log('⚠️ Gmail sending failed, trying alternative methods...');
-            
-            // Try sending via backend API if available
-            const backendSent = await this.sendViaBackend(emailContent);
-            if (backendSent) {
-                console.log('✅ Email sent successfully via backend');
-                return true;
-            }
-
-            // All methods failed, show user what happened
-            console.log('❌ All email sending methods failed');
-            console.log('📋 Email that would have been sent:', emailContent);
+            console.log('❌ Failed to send confirmation email');
             
             // Show a user-friendly message about the booking
             alert(`✅ Consultation scheduled successfully!
