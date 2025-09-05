@@ -125,7 +125,11 @@ const QRCodeSystem: React.FC<{ properties: Property[] }> = ({ properties }) => {
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Link to Property (Optional)</label>
                         <select onChange={e => setSelectedPropertyId(e.target.value)} value={selectedPropertyId} className="w-full bg-white px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition">
-                            {properties.map(p => <option key={p.id} value={p.id}>{p.address}</option>)}
+                            {properties.map(p => (
+                                <option key={p.id} value={p.id}>
+                                    {p.address} - ${p.price?.toLocaleString() || 'N/A'}
+                                </option>
+                            ))}
                         </select>
                     </div>
                     <div>

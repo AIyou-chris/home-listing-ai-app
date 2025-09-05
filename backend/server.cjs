@@ -1222,6 +1222,10 @@ app.post('/api/admin/leads', (req, res) => {
       return res.status(400).json({ error: 'Name and email are required' });
     }
     
+    // Get agent profile for lead assignment
+    const agentId = req.body.agentId || 'default';
+    const agentProfile = aiCardProfiles[agentId] || aiCardProfiles.default;
+    
     let newLead = {
       id: Date.now().toString(),
       name,
@@ -1233,7 +1237,18 @@ app.post('/api/admin/leads', (req, res) => {
       lastMessage: lastMessage || '',
       date: new Date().toISOString(),
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      // Add agent information from centralized profile
+      assignedAgent: {
+        id: agentProfile.id,
+        name: agentProfile.fullName,
+        email: agentProfile.email,
+        phone: agentProfile.phone,
+        company: agentProfile.company,
+        title: agentProfile.professionalTitle
+      },
+      // Add agent signature for communications
+      agentSignature: `${agentProfile.fullName}\n${agentProfile.professionalTitle}\n${agentProfile.company}\n${agentProfile.phone}\n${agentProfile.email}${agentProfile.website ? '\n' + agentProfile.website : ''}`
     };
     
     // Auto-score the new lead
@@ -2008,49 +2023,864 @@ app.get('/api/training/insights/:sidekick', (req, res) => {
     }
 });
 
+// Conversation Management Endpoints
+let conversations = [];
+let messages = [];
+
+// In-memory storage for listings/properties
+let listings = [
+  {
+    id: 'listing-demo-1',
+    title: 'Stunning Modern Family Home',
+    address: '123 Oak Street, Beverly Hills, CA 90210',
+    price: 1250000,
+    bedrooms: 4,
+    bathrooms: 3,
+    squareFeet: 2800,
+    propertyType: 'Single-Family Home',
+    description: 'Beautiful modern home with open floor plan, gourmet kitchen, and stunning mountain views. Perfect for entertaining with spacious living areas and private backyard oasis.',
+    features: ['Hardwood floors', 'Granite countertops', 'Stainless steel appliances', 'Fireplace', 'Swimming pool', 'Two-car garage'],
+    heroPhotos: ['/demo/home-1.png'],
+    galleryPhotos: ['/demo/home-1.png', '/demo/home-2.png', '/demo/home-3.png'],
+    status: 'active',
+    listingDate: '2024-01-15',
+    // Agent info from centralized profile
+    agent: {
+      id: 'default',
+      name: 'Sarah Johnson',
+      title: 'Luxury Real Estate Specialist',
+      company: 'Prestige Properties',
+      phone: '(305) 555-1234',
+      email: 'sarah.j@prestigeprop.com',
+      website: 'https://prestigeproperties.com',
+      headshotUrl: null,
+      brandColor: '#0ea5e9'
+    },
+    // Marketing data
+    marketing: {
+      views: 1247,
+      inquiries: 23,
+      showings: 8,
+      favorites: 45,
+      socialShares: 12,
+      leadGenerated: 15
+    },
+    // AI-generated content
+    aiContent: {
+      marketingDescription: 'Discover luxury living at its finest in this stunning modern family home...',
+      socialMediaPosts: [
+        '🏠✨ JUST LISTED! Stunning modern family home with mountain views! 4BR/3BA, gourmet kitchen, pool & more! #RealEstate #JustListed #DreamHome',
+        'Open House this weekend! Come see this incredible property with all the luxury amenities you\'ve been dreaming of! 🏡💫'
+      ],
+      emailTemplate: 'Subject: New Listing Alert - Stunning Modern Family Home\n\nDear [Name],\n\nI\'m excited to share this incredible new listing...'
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+// In-memory storage for appointments
+let appointments = [
+  {
+    id: 'appt-demo-1',
+    type: 'Consultation',
+    date: '2024-01-20',
+    time: '10:00 AM',
+    leadId: 'lead-demo-1',
+    leadName: 'Sarah Johnson',
+    propertyId: '',
+    notes: 'Initial consultation for first-time buyer',
+    status: 'Scheduled',
+    agentInfo: {
+      name: 'Sarah Johnson',
+      email: 'sarah.j@prestigeprop.com',
+      phone: '(305) 555-1234',
+      company: 'Prestige Properties'
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+// In-memory storage for AI Card profiles
+let aiCardProfiles = {
+  default: {
+    id: 'default',
+    fullName: 'Sarah Johnson',
+    professionalTitle: 'Luxury Real Estate Specialist',
+    company: 'Prestige Properties',
+    phone: '(305) 555-1234',
+    email: 'sarah.j@prestigeprop.com',
+    website: 'https://prestigeproperties.com',
+    bio: 'With over 15 years of experience in the luxury market, Sarah Johnson combines deep market knowledge with personalized service for client success. Her dedication and expertise make her a trusted advisor for buyers and sellers of distinguished properties.',
+    brandColor: '#0ea5e9',
+    socialMedia: {
+      facebook: 'https://facebook.com/sarahjohnsonrealty',
+      instagram: 'https://instagram.com/sarahjohnsonrealty',
+      twitter: 'https://twitter.com/sjrealty',
+      linkedin: 'https://linkedin.com/in/sarahjohnsonrealtor',
+      youtube: 'https://youtube.com/@sarahjohnsonrealty'
+    },
+    headshot: null,
+    logo: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+};
+
+// Create a new conversation
+app.post('/api/conversations', (req, res) => {
+    try {
+        const { userId, scope, listingId, title } = req.body;
+        
+        const conversation = {
+            id: `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            user_id: userId || null,
+            scope: scope || 'agent',
+            listing_id: listingId || null,
+            lead_id: null,
+            title: title || null,
+            status: 'active',
+            last_message_at: new Date().toISOString(),
+            created_at: new Date().toISOString()
+        };
+        
+        conversations.push(conversation);
+        console.log(`💬 Created conversation: ${conversation.id} (scope: ${scope})`);
+        
+        res.json(conversation);
+    } catch (error) {
+        console.error('Error creating conversation:', error);
+        res.status(500).json({ error: 'Failed to create conversation' });
+    }
+});
+
+// List conversations
+app.get('/api/conversations', (req, res) => {
+    try {
+        const { userId, scope, listingId } = req.query;
+        
+        let filtered = conversations.filter(conv => conv.status === 'active');
+        
+        if (userId) filtered = filtered.filter(conv => conv.user_id === userId);
+        if (scope) filtered = filtered.filter(conv => conv.scope === scope);
+        if (listingId) filtered = filtered.filter(conv => conv.listing_id === listingId);
+        
+        // Sort by last message time
+        filtered.sort((a, b) => new Date(b.last_message_at || b.created_at).getTime() - new Date(a.last_message_at || a.created_at).getTime());
+        
+        res.json(filtered);
+    } catch (error) {
+        console.error('Error listing conversations:', error);
+        res.status(500).json({ error: 'Failed to list conversations' });
+    }
+});
+
+// Get messages for a conversation
+app.get('/api/conversations/:conversationId/messages', (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const { limit = 100 } = req.query;
+        
+        const conversationMessages = messages
+            .filter(msg => msg.conversation_id === conversationId)
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            .slice(-parseInt(limit));
+        
+        res.json(conversationMessages);
+    } catch (error) {
+        console.error('Error getting messages:', error);
+        res.status(500).json({ error: 'Failed to get messages' });
+    }
+});
+
+// Add a message to a conversation
+app.post('/api/conversations/:conversationId/messages', (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const { role, content, userId, metadata } = req.body;
+        
+        const message = {
+            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            conversation_id: conversationId,
+            user_id: userId || null,
+            role: role,
+            content: content,
+            metadata: metadata || null,
+            created_at: new Date().toISOString()
+        };
+        
+        messages.push(message);
+        
+        // Update conversation last_message_at
+        const conversation = conversations.find(conv => conv.id === conversationId);
+        if (conversation) {
+            conversation.last_message_at = message.created_at;
+        }
+        
+        console.log(`💬 Added ${role} message to conversation ${conversationId}`);
+        
+        res.json(message);
+    } catch (error) {
+        console.error('Error adding message:', error);
+        res.status(500).json({ error: 'Failed to add message' });
+    }
+});
+
+// Update conversation (e.g., title, status)
+app.put('/api/conversations/:conversationId', (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const { title, status, last_message_at } = req.body;
+        
+        const conversation = conversations.find(conv => conv.id === conversationId);
+        if (!conversation) {
+            return res.status(404).json({ error: 'Conversation not found' });
+        }
+        
+        if (title !== undefined) conversation.title = title;
+        if (status !== undefined) conversation.status = status;
+        if (last_message_at !== undefined) conversation.last_message_at = last_message_at;
+        
+        console.log(`💬 Updated conversation ${conversationId}`);
+        
+        res.json(conversation);
+    } catch (error) {
+        console.error('Error updating conversation:', error);
+        res.status(500).json({ error: 'Failed to update conversation' });
+    }
+});
+
+// Export conversations to CSV
+app.get('/api/conversations/export/csv', (req, res) => {
+    try {
+        const { scope, userId, startDate, endDate } = req.query;
+        
+        // Filter conversations based on query parameters
+        let filteredConversations = conversations;
+        
+        if (scope) filteredConversations = filteredConversations.filter(conv => conv.scope === scope);
+        if (userId) filteredConversations = filteredConversations.filter(conv => conv.user_id === userId);
+        if (startDate) filteredConversations = filteredConversations.filter(conv => new Date(conv.created_at) >= new Date(startDate));
+        if (endDate) filteredConversations = filteredConversations.filter(conv => new Date(conv.created_at) <= new Date(endDate));
+        
+        // Prepare CSV data with conversation and message details
+        const csvData = [];
+        
+        // Add header row
+        csvData.push([
+            'Conversation ID',
+            'Title',
+            'Scope',
+            'User ID',
+            'Listing ID',
+            'Status',
+            'Created At',
+            'Last Message At',
+            'Message ID',
+            'Message Role',
+            'Message Content',
+            'Message Created At'
+        ]);
+        
+        // Add data rows
+        filteredConversations.forEach(conversation => {
+            const conversationMessages = messages.filter(msg => msg.conversation_id === conversation.id);
+            
+            if (conversationMessages.length === 0) {
+                // Add conversation row without messages
+                csvData.push([
+                    conversation.id,
+                    conversation.title || '',
+                    conversation.scope,
+                    conversation.user_id || '',
+                    conversation.listing_id || '',
+                    conversation.status,
+                    conversation.created_at,
+                    conversation.last_message_at || '',
+                    '',
+                    '',
+                    '',
+                    ''
+                ]);
+            } else {
+                // Add one row per message
+                conversationMessages
+                    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                    .forEach(message => {
+                        csvData.push([
+                            conversation.id,
+                            conversation.title || '',
+                            conversation.scope,
+                            conversation.user_id || '',
+                            conversation.listing_id || '',
+                            conversation.status,
+                            conversation.created_at,
+                            conversation.last_message_at || '',
+                            message.id,
+                            message.role,
+                            message.content.replace(/"/g, '""'), // Escape quotes in CSV
+                            message.created_at
+                        ]);
+                    });
+            }
+        });
+        
+        // Convert to CSV format
+        const csvContent = csvData.map(row => 
+            row.map(field => `"${field}"`).join(',')
+        ).join('\n');
+        
+        // Set headers for file download
+        const filename = `conversations_export_${new Date().toISOString().split('T')[0]}.csv`;
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        
+        console.log(`📊 Exporting ${filteredConversations.length} conversations to CSV`);
+        
+        res.send(csvContent);
+    } catch (error) {
+        console.error('Error exporting conversations to CSV:', error);
+        res.status(500).json({ error: 'Failed to export conversations' });
+    }
+});
+
+// AI Card Profile Management Endpoints
+
+// Get AI Card profile
+app.get('/api/ai-card/profile', (req, res) => {
+    try {
+        const { userId } = req.query;
+        const profileId = userId || 'default';
+        const profile = aiCardProfiles[profileId] || aiCardProfiles.default;
+        
+        console.log(`🎴 Retrieved AI Card profile: ${profileId}`);
+        res.json(profile);
+    } catch (error) {
+        console.error('Error getting AI Card profile:', error);
+        res.status(500).json({ error: 'Failed to get AI Card profile' });
+    }
+});
+
+// Create new AI Card profile
+app.post('/api/ai-card/profile', (req, res) => {
+    try {
+        const { userId, ...profileData } = req.body;
+        const profileId = userId || `profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        const newProfile = {
+            id: profileId,
+            ...profileData,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        
+        aiCardProfiles[profileId] = newProfile;
+        
+        console.log(`🎴 Created AI Card profile: ${profileId}`);
+        res.json(newProfile);
+    } catch (error) {
+        console.error('Error creating AI Card profile:', error);
+        res.status(500).json({ error: 'Failed to create AI Card profile' });
+    }
+});
+
+// Update AI Card profile
+app.put('/api/ai-card/profile', (req, res) => {
+    try {
+        const { userId, ...profileData } = req.body;
+        const profileId = userId || 'default';
+        
+        if (!aiCardProfiles[profileId]) {
+            return res.status(404).json({ error: 'AI Card profile not found' });
+        }
+        
+        const updatedProfile = {
+            ...aiCardProfiles[profileId],
+            ...profileData,
+            updated_at: new Date().toISOString()
+        };
+        
+        aiCardProfiles[profileId] = updatedProfile;
+        
+        console.log(`🎴 Updated AI Card profile: ${profileId}`);
+        res.json(updatedProfile);
+    } catch (error) {
+        console.error('Error updating AI Card profile:', error);
+        res.status(500).json({ error: 'Failed to update AI Card profile' });
+    }
+});
+
+// Generate QR Code for AI Card
+app.post('/api/ai-card/generate-qr', (req, res) => {
+    try {
+        const { userId, cardUrl } = req.body;
+        const profileId = userId || 'default';
+        
+        // In a real implementation, you'd use a QR code library like 'qrcode'
+        // For now, we'll return a mock QR code data URL
+        const qrCodeData = `data:image/svg+xml;base64,${Buffer.from(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+                <rect width="200" height="200" fill="white"/>
+                <text x="100" y="100" text-anchor="middle" font-family="Arial" font-size="12" fill="black">
+                    QR Code for ${profileId}
+                </text>
+                <text x="100" y="120" text-anchor="middle" font-family="Arial" font-size="8" fill="gray">
+                    ${cardUrl || 'https://homelistingai.com/card/' + profileId}
+                </text>
+            </svg>
+        `).toString('base64')}`;
+        
+        console.log(`🎴 Generated QR code for AI Card: ${profileId}`);
+        res.json({ 
+            qrCode: qrCodeData,
+            url: cardUrl || `https://homelistingai.com/card/${profileId}`,
+            profileId 
+        });
+    } catch (error) {
+        console.error('Error generating QR code:', error);
+        res.status(500).json({ error: 'Failed to generate QR code' });
+    }
+});
+
+// Share AI Card
+app.post('/api/ai-card/share', (req, res) => {
+    try {
+        const { userId, method, recipient } = req.body;
+        const profileId = userId || 'default';
+        const profile = aiCardProfiles[profileId] || aiCardProfiles.default;
+        
+        const shareUrl = `https://homelistingai.com/card/${profileId}`;
+        const shareText = `Check out ${profile.fullName}'s AI Business Card - ${profile.professionalTitle} at ${profile.company}`;
+        
+        // In a real implementation, you'd integrate with email/SMS services
+        const shareData = {
+            url: shareUrl,
+            text: shareText,
+            method: method, // 'email', 'sms', 'social', 'copy'
+            recipient: recipient,
+            timestamp: new Date().toISOString()
+        };
+        
+        console.log(`🎴 Shared AI Card: ${profileId} via ${method}`);
+        res.json(shareData);
+    } catch (error) {
+        console.error('Error sharing AI Card:', error);
+        res.status(500).json({ error: 'Failed to share AI Card' });
+    }
+});
+
+// Appointment Management Endpoints
+
+// Get all appointments
+app.get('/api/appointments', (req, res) => {
+    try {
+        const { status, leadId, date } = req.query;
+        let filteredAppointments = [...appointments];
+        
+        // Filter by status
+        if (status && status !== 'all') {
+            filteredAppointments = filteredAppointments.filter(appt => appt.status === status);
+        }
+        
+        // Filter by lead ID
+        if (leadId) {
+            filteredAppointments = filteredAppointments.filter(appt => appt.leadId === leadId);
+        }
+        
+        // Filter by date
+        if (date) {
+            filteredAppointments = filteredAppointments.filter(appt => appt.date === date);
+        }
+        
+        // Sort by date and time
+        filteredAppointments.sort((a, b) => {
+            const dateA = new Date(`${a.date} ${a.time}`);
+            const dateB = new Date(`${b.date} ${b.time}`);
+            return dateA.getTime() - dateB.getTime();
+        });
+        
+        console.log(`📅 Retrieved ${filteredAppointments.length} appointments`);
+        res.json({
+            appointments: filteredAppointments,
+            total: filteredAppointments.length
+        });
+    } catch (error) {
+        console.error('Error getting appointments:', error);
+        res.status(500).json({ error: 'Failed to get appointments' });
+    }
+});
+
+// Create new appointment
+app.post('/api/appointments', (req, res) => {
+    try {
+        const { type, date, time, leadId, leadName, propertyId, notes, agentId } = req.body;
+        
+        if (!date || !time || !leadName) {
+            return res.status(400).json({ error: 'Date, time, and lead name are required' });
+        }
+        
+        // Get agent profile for appointment
+        const agentProfile = aiCardProfiles[agentId || 'default'] || aiCardProfiles.default;
+        
+        const newAppointment = {
+            id: `appt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: type || 'Consultation',
+            date,
+            time,
+            leadId: leadId || '',
+            leadName,
+            propertyId: propertyId || '',
+            notes: notes || '',
+            status: 'Scheduled',
+            // Add agent information from centralized profile
+            agentInfo: {
+                id: agentProfile.id,
+                name: agentProfile.fullName,
+                email: agentProfile.email,
+                phone: agentProfile.phone,
+                company: agentProfile.company,
+                title: agentProfile.professionalTitle,
+                brandColor: agentProfile.brandColor
+            },
+            // Add branded confirmation details
+            confirmationDetails: {
+                subject: `Appointment Confirmation - ${agentProfile.fullName}`,
+                message: `Your ${type || 'consultation'} appointment has been scheduled.\n\nDetails:\nDate: ${date}\nTime: ${time}\nAgent: ${agentProfile.fullName}\nCompany: ${agentProfile.company}\nPhone: ${agentProfile.phone}\nEmail: ${agentProfile.email}`,
+                signature: `${agentProfile.fullName}\n${agentProfile.professionalTitle}\n${agentProfile.company}\n${agentProfile.phone}\n${agentProfile.email}${agentProfile.website ? '\n' + agentProfile.website : ''}`
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        
+        appointments.push(newAppointment);
+        
+        console.log(`📅 Created appointment: ${type} with ${leadName} on ${date} at ${time} (Agent: ${agentProfile.fullName})`);
+        res.json(newAppointment);
+    } catch (error) {
+        console.error('Error creating appointment:', error);
+        res.status(500).json({ error: 'Failed to create appointment' });
+    }
+});
+
+// Update appointment
+app.put('/api/appointments/:appointmentId', (req, res) => {
+    try {
+        const { appointmentId } = req.params;
+        const updates = req.body;
+        
+        const appointmentIndex = appointments.findIndex(appt => appt.id === appointmentId);
+        if (appointmentIndex === -1) {
+            return res.status(404).json({ error: 'Appointment not found' });
+        }
+        
+        // Update appointment data
+        appointments[appointmentIndex] = {
+            ...appointments[appointmentIndex],
+            ...updates,
+            updated_at: new Date().toISOString()
+        };
+        
+        console.log(`📅 Updated appointment: ${appointmentId}`);
+        res.json(appointments[appointmentIndex]);
+    } catch (error) {
+        console.error('Error updating appointment:', error);
+        res.status(500).json({ error: 'Failed to update appointment' });
+    }
+});
+
+// Delete appointment
+app.delete('/api/appointments/:appointmentId', (req, res) => {
+    try {
+        const { appointmentId } = req.params;
+        
+        const appointmentIndex = appointments.findIndex(appt => appt.id === appointmentId);
+        if (appointmentIndex === -1) {
+            return res.status(404).json({ error: 'Appointment not found' });
+        }
+        
+        const deletedAppointment = appointments.splice(appointmentIndex, 1)[0];
+        
+        console.log(`📅 Deleted appointment: ${appointmentId}`);
+        res.json({ message: 'Appointment deleted successfully', appointment: deletedAppointment });
+    } catch (error) {
+        console.error('Error deleting appointment:', error);
+        res.status(500).json({ error: 'Failed to delete appointment' });
+    }
+});
+
+// Listing/Property Management Endpoints
+
+// Get all listings
+app.get('/api/listings', (req, res) => {
+    try {
+        const { status, agentId, priceMin, priceMax, bedrooms, propertyType } = req.query;
+        let filteredListings = [...listings];
+        
+        // Filter by status
+        if (status && status !== 'all') {
+            filteredListings = filteredListings.filter(listing => listing.status === status);
+        }
+        
+        // Filter by agent
+        if (agentId) {
+            filteredListings = filteredListings.filter(listing => listing.agent.id === agentId);
+        }
+        
+        // Filter by price range
+        if (priceMin) {
+            filteredListings = filteredListings.filter(listing => listing.price >= parseInt(priceMin));
+        }
+        if (priceMax) {
+            filteredListings = filteredListings.filter(listing => listing.price <= parseInt(priceMax));
+        }
+        
+        // Filter by bedrooms
+        if (bedrooms) {
+            filteredListings = filteredListings.filter(listing => listing.bedrooms >= parseInt(bedrooms));
+        }
+        
+        // Filter by property type
+        if (propertyType) {
+            filteredListings = filteredListings.filter(listing => listing.propertyType === propertyType);
+        }
+        
+        // Sort by listing date (newest first)
+        filteredListings.sort((a, b) => new Date(b.listingDate).getTime() - new Date(a.listingDate).getTime());
+        
+        console.log(`🏠 Retrieved ${filteredListings.length} listings`);
+        res.json({
+            listings: filteredListings,
+            total: filteredListings.length,
+            stats: {
+                active: listings.filter(l => l.status === 'active').length,
+                pending: listings.filter(l => l.status === 'pending').length,
+                sold: listings.filter(l => l.status === 'sold').length,
+                totalViews: listings.reduce((sum, l) => sum + (l.marketing?.views || 0), 0),
+                totalInquiries: listings.reduce((sum, l) => sum + (l.marketing?.inquiries || 0), 0)
+            }
+        });
+    } catch (error) {
+        console.error('Error getting listings:', error);
+        res.status(500).json({ error: 'Failed to get listings' });
+    }
+});
+
+// Create new listing
+app.post('/api/listings', (req, res) => {
+    try {
+        const { title, address, price, bedrooms, bathrooms, squareFeet, propertyType, description, features, heroPhotos, galleryPhotos, agentId } = req.body;
+        
+        if (!title || !address || !price) {
+            return res.status(400).json({ error: 'Title, address, and price are required' });
+        }
+        
+        // Get agent profile for listing
+        const agentProfile = aiCardProfiles[agentId || 'default'] || aiCardProfiles.default;
+        
+        const newListing = {
+            id: `listing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            title,
+            address,
+            price: parseInt(price),
+            bedrooms: parseInt(bedrooms) || 0,
+            bathrooms: parseInt(bathrooms) || 0,
+            squareFeet: parseInt(squareFeet) || 0,
+            propertyType: propertyType || 'Single-Family Home',
+            description: description || '',
+            features: features || [],
+            heroPhotos: heroPhotos || [],
+            galleryPhotos: galleryPhotos || [],
+            status: 'active',
+            listingDate: new Date().toISOString().split('T')[0],
+            // Add agent information from centralized profile
+            agent: {
+                id: agentProfile.id,
+                name: agentProfile.fullName,
+                title: agentProfile.professionalTitle,
+                company: agentProfile.company,
+                phone: agentProfile.phone,
+                email: agentProfile.email,
+                website: agentProfile.website,
+                headshotUrl: agentProfile.headshot,
+                brandColor: agentProfile.brandColor
+            },
+            // Initialize marketing data
+            marketing: {
+                views: 0,
+                inquiries: 0,
+                showings: 0,
+                favorites: 0,
+                socialShares: 0,
+                leadGenerated: 0
+            },
+            // AI-generated content placeholder
+            aiContent: {
+                marketingDescription: `Discover this amazing ${propertyType.toLowerCase()} at ${address}. ${description}`,
+                socialMediaPosts: [
+                    `🏠✨ NEW LISTING! ${title} - ${bedrooms}BR/${bathrooms}BA ${propertyType} for $${price.toLocaleString()}! ${address} #RealEstate #NewListing #${propertyType.replace(/\s+/g, '')}`,
+                    `Don't miss this incredible opportunity! ${title} offers ${squareFeet} sq ft of luxury living. Contact ${agentProfile.fullName} today! 🏡`
+                ],
+                emailTemplate: `Subject: New Listing - ${title}\n\nDear [Name],\n\nI'm excited to share this incredible new listing with you!\n\n${title}\n${address}\nPrice: $${price.toLocaleString()}\n${bedrooms} Bedrooms, ${bathrooms} Bathrooms\n${squareFeet} Square Feet\n\n${description}\n\nBest regards,\n${agentProfile.fullName}\n${agentProfile.company}`
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        
+        listings.push(newListing);
+        
+        console.log(`🏠 Created listing: ${title} at ${address} (Agent: ${agentProfile.fullName})`);
+        res.json(newListing);
+    } catch (error) {
+        console.error('Error creating listing:', error);
+        res.status(500).json({ error: 'Failed to create listing' });
+    }
+});
+
+// Update listing
+app.put('/api/listings/:listingId', (req, res) => {
+    try {
+        const { listingId } = req.params;
+        const updates = req.body;
+        
+        const listingIndex = listings.findIndex(listing => listing.id === listingId);
+        if (listingIndex === -1) {
+            return res.status(404).json({ error: 'Listing not found' });
+        }
+        
+        // Update listing data
+        listings[listingIndex] = {
+            ...listings[listingIndex],
+            ...updates,
+            updated_at: new Date().toISOString()
+        };
+        
+        console.log(`🏠 Updated listing: ${listingId}`);
+        res.json(listings[listingIndex]);
+    } catch (error) {
+        console.error('Error updating listing:', error);
+        res.status(500).json({ error: 'Failed to update listing' });
+    }
+});
+
+// Delete listing
+app.delete('/api/listings/:listingId', (req, res) => {
+    try {
+        const { listingId } = req.params;
+        
+        const listingIndex = listings.findIndex(listing => listing.id === listingId);
+        if (listingIndex === -1) {
+            return res.status(404).json({ error: 'Listing not found' });
+        }
+        
+        const deletedListing = listings.splice(listingIndex, 1)[0];
+        
+        console.log(`🏠 Deleted listing: ${listingId}`);
+        res.json({ message: 'Listing deleted successfully', listing: deletedListing });
+    } catch (error) {
+        console.error('Error deleting listing:', error);
+        res.status(500).json({ error: 'Failed to delete listing' });
+    }
+});
+
+// Get listing marketing data
+app.get('/api/listings/:listingId/marketing', (req, res) => {
+    try {
+        const { listingId } = req.params;
+        
+        const listing = listings.find(l => l.id === listingId);
+        if (!listing) {
+            return res.status(404).json({ error: 'Listing not found' });
+        }
+        
+        const marketingData = {
+            ...listing.marketing,
+            aiContent: listing.aiContent,
+            agent: listing.agent,
+            listingInfo: {
+                title: listing.title,
+                address: listing.address,
+                price: listing.price,
+                bedrooms: listing.bedrooms,
+                bathrooms: listing.bathrooms
+            }
+        };
+        
+        console.log(`📊 Retrieved marketing data for listing: ${listingId}`);
+        res.json(marketingData);
+    } catch (error) {
+        console.error('Error getting listing marketing data:', error);
+        res.status(500).json({ error: 'Failed to get marketing data' });
+    }
+});
+
 app.listen(port, () => {
   console.log(`🚀 AI Server running on http://localhost:${port} (NEW PORT!)`);
   console.log('📝 Available endpoints:');
-  console.log('   POST /api/continue-conversation');
-  console.log('   POST /api/generate-speech');
-  console.log('   GET  /api/admin/dashboard-metrics');
-  console.log('   GET  /api/admin/users');
-  console.log('   POST /api/admin/users');
-  console.log('   PUT  /api/admin/users/:userId');
-  console.log('   DELETE /api/admin/users/:userId');
-  console.log('   POST /api/admin/broadcast');
-  console.log('   GET  /api/admin/broadcast-history');
-  console.log('   GET  /api/admin/performance');
-  console.log('   GET  /api/admin/settings');
-  console.log('   POST /api/admin/settings');
-  console.log('   GET  /api/admin/alerts');
-  console.log('   POST /api/admin/alerts/:alertId/acknowledge');
-  console.log('   POST /api/training/feedback');
-  console.log('   GET  /api/training/feedback/:sidekick');
-  console.log('   GET  /api/training/insights/:sidekick');
-  console.log('   POST /api/admin/maintenance');
-  console.log('   GET  /api/admin/ai-model');
-  console.log('   POST /api/admin/ai-model');
-  console.log('   GET  /api/admin/leads');
-  console.log('   POST /api/admin/leads');
-  console.log('   PUT  /api/admin/leads/:leadId');
-  console.log('   DELETE /api/admin/leads/:leadId');
-  console.log('   GET  /api/admin/leads/stats');
-  console.log('   GET  /api/admin/marketing/sequences');
-  console.log('   POST /api/admin/marketing/sequences');
-  console.log('   PUT  /api/admin/marketing/sequences/:sequenceId');
-  console.log('   DELETE /api/admin/marketing/sequences/:sequenceId');
-  console.log('   GET  /api/admin/marketing/active-followups');
-  console.log('   GET  /api/admin/marketing/qr-codes');
-  console.log('   POST /api/admin/marketing/qr-codes');
-  console.log('   PUT  /api/admin/marketing/qr-codes/:qrCodeId');
-  console.log('   DELETE /api/admin/marketing/qr-codes/:qrCodeId');
-  console.log('   GET  /api/blog');
-  console.log('   GET  /api/blog/:slug');
-  console.log('   POST /api/blog');
-  console.log('   🎯 LEAD SCORING ENDPOINTS:');
-  console.log('   POST /api/leads/:leadId/score');
-  console.log('   GET  /api/leads/:leadId/score');
-  console.log('   POST /api/leads/score-all');
-  console.log('   GET  /api/leads/scoring-rules');
+console.log('   POST /api/continue-conversation');
+console.log('   POST /api/generate-speech');
+console.log('   GET  /api/admin/dashboard-metrics');
+console.log('   GET  /api/admin/users');
+console.log('   POST /api/admin/users');
+console.log('   PUT  /api/admin/users/:userId');
+console.log('   DELETE /api/admin/users/:userId');
+console.log('   POST /api/admin/broadcast');
+console.log('   GET  /api/admin/broadcast-history');
+console.log('   GET  /api/admin/performance');
+console.log('   GET  /api/admin/settings');
+console.log('   POST /api/admin/settings');
+console.log('   GET  /api/admin/alerts');
+console.log('   POST /api/admin/alerts/:alertId/acknowledge');
+console.log('   POST /api/training/feedback');
+console.log('   GET  /api/training/feedback/:sidekick');
+console.log('   GET  /api/training/insights/:sidekick');
+console.log('   POST /api/admin/maintenance');
+console.log('   GET  /api/admin/ai-model');
+console.log('   POST /api/admin/ai-model');
+console.log('   GET  /api/admin/leads');
+console.log('   POST /api/admin/leads');
+console.log('   PUT  /api/admin/leads/:leadId');
+console.log('   DELETE /api/admin/leads/:leadId');
+console.log('   GET  /api/admin/leads/stats');
+console.log('   GET  /api/admin/marketing/sequences');
+console.log('   POST /api/admin/marketing/sequences');
+console.log('   PUT  /api/admin/marketing/sequences/:sequenceId');
+console.log('   DELETE /api/admin/marketing/sequences/:sequenceId');
+console.log('   GET  /api/admin/marketing/active-followups');
+console.log('   GET  /api/admin/marketing/qr-codes');
+console.log('   POST /api/admin/marketing/qr-codes');
+console.log('   PUT  /api/admin/marketing/qr-codes/:qrCodeId');
+console.log('   DELETE /api/admin/marketing/qr-codes/:qrCodeId');
+console.log('   GET  /api/blog');
+console.log('   GET  /api/blog/:slug');
+console.log('   POST /api/blog');
+console.log('   🎯 LEAD SCORING ENDPOINTS:');
+console.log('   POST /api/leads/:leadId/score');
+console.log('   GET  /api/leads/:leadId/score');
+console.log('   POST /api/leads/score-all');
+console.log('   GET  /api/leads/scoring-rules');
+console.log('   💬 CONVERSATION ENDPOINTS:');
+console.log('   POST /api/conversations');
+console.log('   GET  /api/conversations');
+console.log('   GET  /api/conversations/:conversationId/messages');
+console.log('   POST /api/conversations/:conversationId/messages');
+console.log('   PUT  /api/conversations/:conversationId');
+console.log('   GET  /api/conversations/export/csv');
+console.log('   🎴 AI CARD ENDPOINTS:');
+console.log('   GET  /api/ai-card/profile');
+console.log('   POST /api/ai-card/profile');
+console.log('   PUT  /api/ai-card/profile');
+console.log('   POST /api/ai-card/generate-qr');
+console.log('   POST /api/ai-card/share');
+console.log('   📅 APPOINTMENT ENDPOINTS:');
+console.log('   GET  /api/appointments');
+console.log('   POST /api/appointments');
+console.log('   PUT  /api/appointments/:appointmentId');
+console.log('   DELETE /api/appointments/:appointmentId');
+console.log('   🏠 LISTING ENDPOINTS:');
+console.log('   GET  /api/listings');
+console.log('   POST /api/listings');
+console.log('   PUT  /api/listings/:listingId');
+console.log('   DELETE /api/listings/:listingId');
+console.log('   GET  /api/listings/:listingId/marketing');
 });

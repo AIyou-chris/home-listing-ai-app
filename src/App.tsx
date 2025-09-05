@@ -25,6 +25,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 import ConsultationModal from './components/ConsultationModal';
 import { AISidekickProvider } from './context/AISidekickContext';
+import { getProfileForDashboard, subscribeToProfileChanges } from './services/agentProfileService';
 // Lazy load admin components for better performance
 const AdminSidebar = lazy(() => import('./components/AdminSidebar'));
 const AdminLayout = lazy(() => import('./components/AdminLayout'));
@@ -56,6 +57,7 @@ import { EnvValidation } from './utils/envValidation';
 // SessionService removed
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
+import SequenceExecutionService from './services/sequenceExecutionService';
 
 
 // A helper function to delay execution
@@ -94,6 +96,7 @@ const App: React.FC = () => {
 
     // Mock data for settings
     const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
+    const [isProfileLoading, setIsProfileLoading] = useState(false);
         const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
         newLead: true,
         appointmentScheduled: true,
@@ -256,8 +259,6 @@ const App: React.FC = () => {
                     setUser(currentUser);
                     setUserProfile(profileToLoad);
                     setProperties(propertiesToLoad);
-                    // Load leads from backend
-                    loadLeadsFromBackend();
                     setAppointments(DEMO_FAT_APPOINTMENTS); // Using demo data for now
                     setInteractions(SAMPLE_INTERACTIONS); // Using demo data for now
                     setTasks(SAMPLE_TASKS);
@@ -327,6 +328,34 @@ const App: React.FC = () => {
         return () => { sub.subscription.unsubscribe(); };
     }, []);
 
+    // Load centralized agent profile and set up real-time updates
+    useEffect(() => {
+        if (user && !isDemoMode) {
+                    // Load centralized agent profile
+        loadAgentProfile();
+        
+        // Load listings from backend
+        loadListingsFromBackend();
+            
+            // Subscribe to profile changes for real-time updates
+            const unsubscribe = subscribeToProfileChanges((updatedProfile) => {
+                setUserProfile(prev => ({
+                    ...prev,
+                    name: updatedProfile.name,
+                    title: updatedProfile.title,
+                    company: updatedProfile.company,
+                    headshotUrl: updatedProfile.headshotUrl,
+                    email: updatedProfile.email,
+                    phone: updatedProfile.phone
+                }));
+                console.log('🔄 Profile updated across app');
+            });
+            
+            return () => {
+                unsubscribe();
+            };
+        }
+    }, [user, isDemoMode]);
 
     const handleNavigateToSignUp = () => setView('signup');
     const handleNavigateToSignIn = () => setView('signin');
@@ -346,6 +375,80 @@ const App: React.FC = () => {
         } catch (error) {
             console.error('Error loading leads from backend:', error);
             setLeads(DEMO_FAT_LEADS);
+        }
+    };
+
+    // Load centralized agent profile
+    const loadAgentProfile = async () => {
+        try {
+            setIsProfileLoading(true);
+            const profileData = await getProfileForDashboard();
+            setUserProfile(prev => ({
+                ...prev,
+                name: profileData.name,
+                title: profileData.title,
+                company: profileData.company,
+                headshotUrl: profileData.headshotUrl,
+                email: profileData.email,
+                phone: profileData.phone
+            }));
+            console.log('✅ Loaded centralized agent profile');
+        } catch (error) {
+            console.error('Failed to load agent profile:', error);
+            // Keep using SAMPLE_AGENT as fallback
+        } finally {
+            setIsProfileLoading(false);
+        }
+    };
+
+    // Load listings from backend
+    const loadListingsFromBackend = async () => {
+        try {
+            const response = await fetch('/api/listings');
+            if (response.ok) {
+                const data = await response.json();
+                // Convert backend format to frontend format
+                const backendListings = data.listings || [];
+                const frontendProperties = backendListings.map((listing: any) => ({
+                    id: listing.id,
+                    title: listing.title,
+                    address: listing.address,
+                    price: listing.price,
+                    bedrooms: listing.bedrooms,
+                    bathrooms: listing.bathrooms,
+                    squareFeet: listing.squareFeet,
+                    propertyType: listing.propertyType,
+                    description: listing.description || '',
+                    imageUrl: listing.heroPhotos?.[0] || '/demo/home-1.png',
+                    features: listing.features || [],
+                    heroPhotos: listing.heroPhotos || [],
+                    galleryPhotos: listing.galleryPhotos || [],
+                    agent: listing.agent,
+                    appFeatures: {
+                        gallery: true,
+                        schools: true,
+                        financing: true,
+                        virtualTour: true,
+                        amenities: true,
+                        schedule: true,
+                        map: true,
+                        history: true,
+                        neighborhood: true,
+                        reports: true,
+                        messaging: true
+                    },
+                    ctaListingUrl: '',
+                    ctaMediaUrl: ''
+                }));
+                setProperties(frontendProperties);
+                console.log('✅ Loaded listings from backend:', frontendProperties.length);
+            } else {
+                console.warn('Failed to load listings from backend, using demo data');
+                setProperties(DEMO_FAT_PROPERTIES);
+            }
+        } catch (error) {
+            console.error('Error loading listings from backend:', error);
+            setProperties(DEMO_FAT_PROPERTIES);
         }
     };
     
@@ -512,7 +615,7 @@ const App: React.FC = () => {
         }
     };
     
-    const handleAddNewLead = (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
+    const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
         const newLead: Lead = {
             id: `lead-${Date.now()}`,
             name: leadData.name,
@@ -523,6 +626,24 @@ const App: React.FC = () => {
             date: new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' })
         };
         setLeads(prev => [newLead, ...prev]);
+        
+        // Trigger follow-up sequences for new lead
+        try {
+            const sequenceService = SequenceExecutionService.getInstance();
+            await sequenceService.triggerSequences(
+                'Lead Capture',
+                {
+                    lead: newLead,
+                    agent: userProfile || SAMPLE_AGENT,
+                    property: selectedPropertyId ? properties.find(p => p.id === selectedPropertyId) : undefined
+                },
+                sequences
+            );
+            console.log('✅ Lead capture sequences triggered for:', newLead.name);
+        } catch (error) {
+            console.error('❌ Error triggering sequences:', error);
+        }
+        
         setView('leads'); 
     };
 
@@ -646,7 +767,29 @@ const App: React.FC = () => {
 					case 'add-listing': 
 						return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} />;
 					case 'leads': 
-						return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} onNewAppointment={(appt) => setAppointments(prev => [appt, ...prev])} />;
+						return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} onNewAppointment={async (appt) => {
+                            setAppointments(prev => [appt, ...prev]);
+                            
+                            // Trigger appointment sequences
+                            try {
+                                const sequenceService = SequenceExecutionService.getInstance();
+                                const lead = leads.find(l => l.id === appt.leadId);
+                                if (lead) {
+                                    await sequenceService.triggerSequences(
+                                        'Appointment Scheduled',
+                                        {
+                                            lead,
+                                            agent: userProfile || SAMPLE_AGENT,
+                                            property: properties.find(p => p.id === appt.propertyId)
+                                        },
+                                        sequences
+                                    );
+                                    console.log('✅ Appointment sequences triggered for:', lead.name);
+                                }
+                            } catch (error) {
+                                console.error('❌ Error triggering appointment sequences:', error);
+                            }
+                        }} />;
 					case 'inbox': 
 						return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
 					case 'ai-conversations':

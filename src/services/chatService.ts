@@ -30,19 +30,30 @@ export const createConversation = async (params: {
   listingId?: string | null
   title?: string | null
 }): Promise<ConversationRow> => {
-  const { data, error } = await supabase
-    .from('conversations')
-    .insert({
-      user_id: params.userId || null,
-      scope: params.scope,
-      listing_id: params.listingId || null,
-      title: params.title || null,
-      status: 'active'
-    })
-    .select('*')
-    .single()
-  if (error) throw error
-  return data as ConversationRow
+  try {
+    const response = await fetch('/api/conversations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: params.userId,
+        scope: params.scope,
+        listingId: params.listingId,
+        title: params.title
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data as ConversationRow;
+  } catch (error) {
+    console.error('Error creating conversation:', error);
+    throw error;
+  }
 }
 
 export const listConversations = async (params: {
@@ -50,32 +61,43 @@ export const listConversations = async (params: {
   scope?: ChatScope
   listingId?: string
 } = {}) => {
-  let query = supabase
-    .from('conversations')
-    .select('*')
-    .order('last_message_at', { ascending: false })
+  try {
+    const queryParams = new URLSearchParams();
+    if (params.userId) queryParams.append('userId', params.userId);
+    if (params.scope) queryParams.append('scope', params.scope);
+    if (params.listingId) queryParams.append('listingId', params.listingId);
 
-  if (params.userId) query = query.eq('user_id', params.userId)
-  if (params.scope) query = query.eq('scope', params.scope)
-  if (params.listingId) query = query.eq('listing_id', params.listingId)
+    const response = await fetch(`/api/conversations?${queryParams.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-  const { data, error } = await query
-  if (error) throw error
-  return (data || []) as ConversationRow[]
+    const data = await response.json();
+    return data as ConversationRow[];
+  } catch (error) {
+    console.error('Error listing conversations:', error);
+    return [] as ConversationRow[];
+  }
 }
 
 export const getMessages = async (
   conversationId: string,
   limit = 100
 ): Promise<MessageRow[]> => {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-    .limit(limit)
-  if (error) throw error
-  return (data || []) as MessageRow[]
+  try {
+    const response = await fetch(`/api/conversations/${conversationId}/messages?limit=${limit}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data as MessageRow[];
+  } catch (error) {
+    console.error('Error getting messages:', error);
+    return [] as MessageRow[];
+  }
 }
 
 export const appendMessage = async (params: {
@@ -85,36 +107,117 @@ export const appendMessage = async (params: {
   userId?: string | null
   metadata?: any
 }) => {
-  const { data, error } = await supabase
-    .from('messages')
-    .insert({
-      conversation_id: params.conversationId,
-      role: params.role,
-      content: params.content,
-      user_id: params.userId || null,
-      metadata: params.metadata || null
-    })
-    .select('*')
-    .single()
-  if (error) throw error
-  return data as MessageRow
+  try {
+    const response = await fetch(`/api/conversations/${params.conversationId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        role: params.role,
+        content: params.content,
+        userId: params.userId,
+        metadata: params.metadata
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data as MessageRow;
+  } catch (error) {
+    console.error('Error appending message:', error);
+    throw error;
+  }
 }
 
 export const touchConversation = async (conversationId: string) => {
-  await supabase
-    .from('conversations')
-    .update({ last_message_at: new Date().toISOString() })
-    .eq('id', conversationId)
+  try {
+    const response = await fetch(`/api/conversations/${conversationId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        last_message_at: new Date().toISOString()
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to touch conversation:', response.status);
+    }
+  } catch (error) {
+    console.error('Error touching conversation:', error);
+  }
 }
 
 export const updateConversationTitle = async (
   conversationId: string,
   title: string
 ) => {
-  await supabase
-    .from('conversations')
-    .update({ title })
-    .eq('id', conversationId)
+  try {
+    const response = await fetch(`/api/conversations/${conversationId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: title
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to update conversation title:', response.status);
+    }
+  } catch (error) {
+    console.error('Error updating conversation title:', error);
+  }
 }
 
+// Export conversations to CSV
+export const exportConversationsCSV = async (params: {
+  scope?: ChatScope
+  userId?: string
+  startDate?: string
+  endDate?: string
+} = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+    if (params.scope) queryParams.append('scope', params.scope);
+    if (params.userId) queryParams.append('userId', params.userId);
+    if (params.startDate) queryParams.append('startDate', params.startDate);
+    if (params.endDate) queryParams.append('endDate', params.endDate);
+
+    const response = await fetch(`/api/conversations/export/csv?${queryParams.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // Get the filename from the response headers
+    const contentDisposition = response.headers.get('Content-Disposition');
+    const filename = contentDisposition 
+      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') 
+      : `conversations_export_${new Date().toISOString().split('T')[0]}.csv`;
+
+    // Create blob and download
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    console.log('✅ CSV export downloaded successfully');
+    return { success: true, filename };
+  } catch (error) {
+    console.error('Error exporting conversations to CSV:', error);
+    throw error;
+  }
+}
 

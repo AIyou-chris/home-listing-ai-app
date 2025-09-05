@@ -47,6 +47,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, setView, isOpen
     { view: 'admin-contacts', icon: 'groups', label: 'Contacts' },
     // { view: 'admin-ai-content', icon: 'forum', label: 'AI Content' },
     { view: 'admin-knowledge-base', icon: 'robot_2', label: 'Enhanced AI Sidekicks' },
+    { view: 'admin-ai-card', icon: 'badge', label: 'AI Business Cards' },
     // Removed: AI Personalities now managed per-knowledge-base
     { view: 'admin-marketing', icon: 'filter_alt', label: 'AI Funnel' },
     { view: 'admin-analytics', icon: 'analytics', label: 'Analytics' },

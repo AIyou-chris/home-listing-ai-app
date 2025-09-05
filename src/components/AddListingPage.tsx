@@ -268,29 +268,68 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        // Here you would process the formData, upload files and get back URLs,
-        // then call the onSave prop.
-        const saveData: Omit<Property, 'id' | 'description' | 'imageUrl'> = {
-            title: formData.propertyTitle,
-            address: formData.address,
-            price: Number(formData.price),
-            bedrooms: Number(formData.beds),
-            bathrooms: Number(formData.baths),
-            squareFeet: Number(formData.sqft),
-            propertyType: 'Single-Family Home', // Example
-            features: formData.rawAmenities.split(',').map(s => s.trim()),
-            // In a real app, these would be URLs from a server
-            heroPhotos: formData.heroPhotos.map(p => typeof p === 'string' ? p : p.name),
-            galleryPhotos: formData.galleryPhotos.map(p => typeof p === 'string' ? p : p.name),
-            appFeatures: formData.appFeatures,
-            agent: { ...formData.agent, socials: [] }, // Simplify for demo
-            ctaListingUrl: formData.ctaListingUrl,
-            ctaMediaUrl: formData.ctaMediaUrl
-        };
-        onSave(saveData);
+        
+        try {
+            // Prepare listing data for backend
+            const listingData = {
+                title: formData.propertyTitle,
+                address: formData.address,
+                price: Number(formData.price),
+                bedrooms: Number(formData.beds),
+                bathrooms: Number(formData.baths),
+                squareFeet: Number(formData.sqft),
+                propertyType: 'Single-Family Home',
+                description: formData.description,
+                features: formData.rawAmenities.split(',').map(s => s.trim()),
+                heroPhotos: formData.heroPhotos.map(p => typeof p === 'string' ? p : p.name),
+                galleryPhotos: formData.galleryPhotos.map(p => typeof p === 'string' ? p : p.name),
+                agentId: 'default' // Use centralized profile
+            };
+            
+            // Save to backend
+            const response = await fetch('/api/listings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(listingData),
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to save listing');
+            }
+            
+            const savedListing = await response.json();
+            console.log('✅ Listing saved successfully:', savedListing);
+            
+            // Convert backend format to frontend format for onSave callback
+            const saveData: Omit<Property, 'id' | 'description' | 'imageUrl'> = {
+                title: savedListing.title,
+                address: savedListing.address,
+                price: savedListing.price,
+                bedrooms: savedListing.bedrooms,
+                bathrooms: savedListing.bathrooms,
+                squareFeet: savedListing.squareFeet,
+                propertyType: savedListing.propertyType,
+                features: savedListing.features,
+                heroPhotos: savedListing.heroPhotos,
+                galleryPhotos: savedListing.galleryPhotos,
+                appFeatures: formData.appFeatures,
+                agent: savedListing.agent,
+                ctaListingUrl: formData.ctaListingUrl,
+                ctaMediaUrl: formData.ctaMediaUrl
+            };
+            
+            onSave(saveData);
+        } catch (error) {
+            console.error('Error saving listing:', error);
+            alert('Failed to save listing. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // --- Knowledge Base Handlers ---

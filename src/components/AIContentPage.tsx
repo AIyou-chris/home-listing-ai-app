@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { continueConversation } from '../services/openaiService'
-import { appendMessage, createConversation, getMessages, touchConversation, listConversations, updateConversationTitle } from '../services/chatService'
+import { appendMessage, createConversation, getMessages, touchConversation, listConversations, updateConversationTitle, exportConversationsCSV } from '../services/chatService'
 
 type SourceScope = 'agent' | 'listing' | 'marketing'
 
@@ -216,6 +216,19 @@ Requirements:
           <p className='text-slate-500 text-sm'>Leverage AI to enhance your real estate business.</p>
         </div>
         <div className='flex items-center gap-3'>
+          <button 
+            onClick={async () => {
+              try {
+                await exportConversationsCSV({ scope });
+              } catch (error) {
+                console.error('Export failed:', error);
+              }
+            }}
+            className='inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+          >
+            <span className='material-symbols-outlined text-base'>download</span>
+            Export CSV
+          </button>
           <button onClick={() => setConvDrawer(true)} className='lg:hidden inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm bg-white text-slate-700 border-slate-200 hover:bg-slate-50'>
             <span className='material-symbols-outlined text-base'>forum</span>
             Conversations

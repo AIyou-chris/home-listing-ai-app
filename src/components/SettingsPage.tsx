@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
 import { emailAuthService, EmailConnection } from '../services/emailAuthService';
 import NotificationService from '../services/notificationService';
+import { getProfileForSettings, updateAgentProfileWithNotification } from '../services/agentProfileService';
 
 interface SettingsPageProps {
     userProfile: AgentProfile;

@@ -1,29 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageCircle, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import QRCodeManagementPage from './QRCodeManagementPage';
+import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, type AICardProfile } from '../services/aiCardService';
+import { continueConversation } from '../services/openaiService';
+import { notifyProfileChange } from '../services/agentProfileService';
 
-interface AgentProfile {
-  fullName: string;
-  professionalTitle: string;
-  company: string;
-  phone: string;
-  email: string;
-  website: string;
-  bio: string;
-  brandColor: string;
-  socialMedia: {
-    facebook: string;
-    instagram: string;
-    twitter: string;
-    linkedin: string;
-    youtube: string;
-  };
-  headshot: string | null;
-  logo: string | null;
-}
+// Use the AICardProfile type from the service
+type AgentProfile = AICardProfile;
 
 const AICardPage: React.FC = () => {
   const [profile, setProfile] = useState<AgentProfile>({
+    id: 'default',
     fullName: 'Sarah Johnson',
     professionalTitle: 'Luxury Real Estate Specialist',
     company: 'Prestige Properties',
@@ -43,6 +30,14 @@ const AICardPage: React.FC = () => {
     logo: null
   });
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{sender: 'user' | 'ai'; text: string}>>([
+    { sender: 'ai', text: `Hi! I'm ${profile.fullName}'s AI assistant. How can I help you today?` }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
   const [activeTab, setActiveTab] = useState<'edit' | 'preview' | 'qr-codes'>('edit');
   const [showAISidekick, setShowAISidekick] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -59,33 +54,141 @@ const AICardPage: React.FC = () => {
   const headshotInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  const handleInputChange = (field: keyof AgentProfile, value: any) => {
-    setProfile(prev => ({
-      ...prev,
+  // Load profile on component mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setIsLoading(true);
+        const loadedProfile = await getAICardProfile();
+        setProfile(loadedProfile);
+        setChatMessages([
+          { sender: 'ai', text: `Hi! I'm ${loadedProfile.fullName}'s AI assistant. How can I help you today?` }
+        ]);
+      } catch (error) {
+        console.error('Failed to load AI Card profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadProfile();
+  }, []);
+
+  const handleInputChange = async (field: keyof AgentProfile, value: any) => {
+    const updatedProfile = {
+      ...profile,
       [field]: value
-    }));
+    };
+    
+    setProfile(updatedProfile);
+    
+    // Auto-save changes to backend
+    try {
+      setIsSaving(true);
+      const savedProfile = await updateAICardProfile({ [field]: value });
+      
+      // Notify other components of profile change
+      notifyProfileChange({
+        id: savedProfile.id,
+        name: savedProfile.fullName,
+        title: savedProfile.professionalTitle,
+        company: savedProfile.company,
+        phone: savedProfile.phone,
+        email: savedProfile.email,
+        website: savedProfile.website,
+        bio: savedProfile.bio,
+        headshotUrl: savedProfile.headshot,
+        logoUrl: savedProfile.logo,
+        brandColor: savedProfile.brandColor,
+        socialMedia: savedProfile.socialMedia,
+        created_at: savedProfile.created_at,
+        updated_at: savedProfile.updated_at
+      });
+    } catch (error) {
+      console.error('Failed to save profile changes:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleSocialMediaChange = (platform: keyof AgentProfile['socialMedia'], value: string) => {
+  const handleSocialMediaChange = async (platform: keyof AgentProfile['socialMedia'], value: string) => {
+    const updatedSocialMedia = {
+      ...profile.socialMedia,
+      [platform]: value
+    };
+    
     setProfile(prev => ({
       ...prev,
-      socialMedia: {
-        ...prev.socialMedia,
-        [platform]: value
-      }
+      socialMedia: updatedSocialMedia
     }));
+    
+    // Auto-save changes to backend
+    try {
+      setIsSaving(true);
+      const savedProfile = await updateAICardProfile({ socialMedia: updatedSocialMedia });
+      
+      // Notify other components of profile change
+      notifyProfileChange({
+        id: savedProfile.id,
+        name: savedProfile.fullName,
+        title: savedProfile.professionalTitle,
+        company: savedProfile.company,
+        phone: savedProfile.phone,
+        email: savedProfile.email,
+        website: savedProfile.website,
+        bio: savedProfile.bio,
+        headshotUrl: savedProfile.headshot,
+        logoUrl: savedProfile.logo,
+        brandColor: savedProfile.brandColor,
+        socialMedia: savedProfile.socialMedia,
+        created_at: savedProfile.created_at,
+        updated_at: savedProfile.updated_at
+      });
+    } catch (error) {
+      console.error('Failed to save social media changes:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleImageUpload = (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const result = e.target?.result as string;
         setProfile(prev => ({
           ...prev,
           [type]: result
         }));
+        
+        // Auto-save image to backend
+        try {
+          setIsSaving(true);
+          const savedProfile = await updateAICardProfile({ [type]: result });
+          
+          // Notify other components of profile change
+          notifyProfileChange({
+            id: savedProfile.id,
+            name: savedProfile.fullName,
+            title: savedProfile.professionalTitle,
+            company: savedProfile.company,
+            phone: savedProfile.phone,
+            email: savedProfile.email,
+            website: savedProfile.website,
+            bio: savedProfile.bio,
+            headshotUrl: savedProfile.headshot,
+            logoUrl: savedProfile.logo,
+            brandColor: savedProfile.brandColor,
+            socialMedia: savedProfile.socialMedia,
+            created_at: savedProfile.created_at,
+            updated_at: savedProfile.updated_at
+          });
+        } catch (error) {
+          console.error('Failed to save image:', error);
+        } finally {
+          setIsSaving(false);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -98,14 +201,82 @@ const AICardPage: React.FC = () => {
     }));
   };
 
-  const generateQRCode = () => {
-    // TODO: Implement QR code generation
-    console.log('Generating QR code for AI Card...');
+  const handleGenerateQRCode = async () => {
+    try {
+      setIsLoading(true);
+      const qrData = await generateQRCode(profile.id);
+      
+      // Download the QR code
+      const link = document.createElement('a');
+      link.href = qrData.qrCode;
+      link.download = `ai-card-qr-${profile.fullName.replace(/\s+/g, '-').toLowerCase()}.svg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      console.log('✅ QR Code generated and downloaded');
+    } catch (error) {
+      console.error('Failed to generate QR code:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const downloadCard = () => {
-    // TODO: Implement card download as image
-    console.log('Downloading AI Card...');
+  const handleDownloadCard = async () => {
+    try {
+      setIsLoading(true);
+      await downloadAICard('ai-card-preview', `${profile.fullName.replace(/\s+/g, '-').toLowerCase()}-ai-card.png`);
+      console.log('✅ AI Card downloaded');
+    } catch (error) {
+      console.error('Failed to download AI Card:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle AI Chat
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || isChatLoading) return;
+    
+    const userMessage = { sender: 'user' as const, text: chatInput };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsChatLoading(true);
+    
+    try {
+      const aiResponse = await continueConversation([
+        { sender: 'system', text: `You are ${profile.fullName}'s AI assistant. Help visitors with real estate questions. Be professional and helpful.` },
+        { sender: 'user', text: chatInput }
+      ], 'agent');
+      
+      const aiMessage = { sender: 'ai' as const, text: aiResponse };
+      setChatMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      const errorMessage = { sender: 'ai' as const, text: 'Sorry, I had trouble processing that. Please try again.' };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // Handle sharing
+  const handleShare = async (method: string) => {
+    try {
+      setIsLoading(true);
+      const shareData = await shareAICard(method, profile.id);
+      
+      if (method === 'copy') {
+        await navigator.clipboard.writeText(shareData.url);
+        console.log('✅ AI Card URL copied to clipboard');
+      } else {
+        console.log(`✅ AI Card shared via ${method}`);
+      }
+    } catch (error) {
+      console.error('Failed to share AI Card:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const CollapsibleSection: React.FC<{
@@ -141,6 +312,7 @@ const AICardPage: React.FC = () => {
     <div className="relative">
       {/* AI Card Container */}
       <div 
+        id="ai-card-preview"
         className="relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-2xl overflow-hidden border border-gray-200"
         style={{ 
           width: '400px', 
@@ -252,11 +424,9 @@ const AICardPage: React.FC = () => {
           {/* Share Button */}
           <div className="flex justify-center">
             <button 
-              onClick={() => {
-                // TODO: Implement share functionality
-                console.log('Sharing AI Card...');
-              }}
-              className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 shadow-lg"
+              onClick={() => handleShare('copy')}
+              disabled={isLoading}
+              className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50"
               style={{ 
                 backgroundColor: profile.brandColor, 
                 color: 'white',
@@ -264,7 +434,7 @@ const AICardPage: React.FC = () => {
               }}
             >
               <Share2 className="w-5 h-5" />
-              <span>Share Card</span>
+              <span>{isLoading ? 'Sharing...' : 'Share Card'}</span>
             </button>
           </div>
         </div>
@@ -292,15 +462,20 @@ const AICardPage: React.FC = () => {
             
             {/* Chat Messages */}
             <div className="flex-1 p-4 space-y-3 overflow-y-auto">
-              <div className="bg-gray-100 rounded-lg p-3 max-w-xs">
-                <p className="text-sm">Hi! I'm {profile.fullName}'s AI assistant. How can I help you today?</p>
-              </div>
-              <div className="bg-blue-500 text-white rounded-lg p-3 max-w-xs ml-auto">
-                <p className="text-sm">I'm looking for a 3-bedroom home</p>
-              </div>
-              <div className="bg-gray-100 rounded-lg p-3 max-w-xs">
-                <p className="text-sm">Great! I can help you find the perfect 3-bedroom home. What's your preferred location and budget range?</p>
-              </div>
+              {chatMessages.map((message, index) => (
+                <div key={index} className={`rounded-lg p-3 max-w-xs ${
+                  message.sender === 'ai' 
+                    ? 'bg-gray-100' 
+                    : 'bg-blue-500 text-white ml-auto'
+                }`}>
+                  <p className="text-sm">{message.text}</p>
+                </div>
+              ))}
+              {isChatLoading && (
+                <div className="bg-gray-100 rounded-lg p-3 max-w-xs">
+                  <p className="text-sm">Typing...</p>
+                </div>
+              )}
             </div>
             
             {/* Chat Input */}
@@ -308,11 +483,17 @@ const AICardPage: React.FC = () => {
               <div className="flex space-x-2">
                 <input
                   type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleChatSend()}
                   placeholder="Type your message..."
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isChatLoading}
                 />
                 <button 
-                  className="px-4 py-2 text-white rounded-lg text-sm font-medium"
+                  onClick={handleChatSend}
+                  disabled={isChatLoading || !chatInput.trim()}
+                  className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50"
                   style={{ backgroundColor: profile.brandColor }}
                 >
                   Send
@@ -333,7 +514,11 @@ const AICardPage: React.FC = () => {
           {/* Title Section */}
           <div className="text-center lg:text-left">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Business Card</h1>
-            <p className="text-sm sm:text-base text-gray-600 mt-1">Create your interactive AI-powered business card</p>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">
+              Create your interactive AI-powered business card
+              {isSaving && <span className="text-blue-600 ml-2">• Saving...</span>}
+              {isLoading && <span className="text-blue-600 ml-2">• Loading...</span>}
+            </p>
           </div>
           
           {/* Controls Section */}
@@ -378,20 +563,22 @@ const AICardPage: React.FC = () => {
             {/* Action Buttons */}
             <div className="flex space-x-2 sm:space-x-3">
               <button
-                onClick={generateQRCode}
-                className="flex items-center justify-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm font-medium flex-1 sm:flex-none"
+                onClick={handleGenerateQRCode}
+                disabled={isLoading}
+                className="flex items-center justify-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm font-medium flex-1 sm:flex-none disabled:opacity-50"
               >
                 <QrCode className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden xs:inline">Generate QR</span>
+                <span className="hidden xs:inline">{isLoading ? 'Generating...' : 'Generate QR'}</span>
                 <span className="xs:hidden">QR</span>
               </button>
               
               <button
-                onClick={downloadCard}
-                className="flex items-center justify-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm font-medium flex-1 sm:flex-none"
+                onClick={handleDownloadCard}
+                disabled={isLoading}
+                className="flex items-center justify-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm font-medium flex-1 sm:flex-none disabled:opacity-50"
               >
                 <Download className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden xs:inline">Download</span>
+                <span className="hidden xs:inline">{isLoading ? 'Downloading...' : 'Download'}</span>
                 <span className="xs:hidden">Save</span>
               </button>
             </div>

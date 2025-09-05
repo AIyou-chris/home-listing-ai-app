@@ -254,4 +254,5 @@ We've logged your booking details for follow-up.`);
     }
 }
 
+export { EmailService };
 export const emailService = EmailService.getInstance();
