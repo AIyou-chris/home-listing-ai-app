@@ -89,21 +89,55 @@ const TimelineItem: React.FC<{ event: FollowUpHistoryEvent }> = ({ event }) => {
 
 const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences, activeFollowUps: initialActiveFollowUps }) => {
     const [activeFollowUps, setActiveFollowUps] = useState(initialActiveFollowUps);
-    const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(activeFollowUps[0]?.id || null);
+    const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(null);
+    const [isUpdating, setIsUpdating] = useState(false);
 
-    const handleStatusChange = (id: string, newStatus: 'active' | 'paused' | 'cancelled') => {
-        setActiveFollowUps(prev => prev.map(f => {
-            if (f.id === id) {
-                const historyEvent: FollowUpHistoryEvent = {
-                    id: `h-${Date.now()}`,
-                    type: newStatus === 'active' ? 'resume' : newStatus === 'paused' ? 'pause' : 'cancel',
-                    description: `Sequence ${newStatus}.`,
-                    date: new Date().toISOString(),
-                };
-                return { ...f, status: newStatus, history: [historyEvent, ...f.history] };
+    // Update local state when props change
+    React.useEffect(() => {
+        setActiveFollowUps(initialActiveFollowUps);
+        if (initialActiveFollowUps.length > 0 && !selectedFollowUpId) {
+            setSelectedFollowUpId(initialActiveFollowUps[0].id);
+        }
+    }, [initialActiveFollowUps, selectedFollowUpId]);
+
+    const handleStatusChange = async (id: string, newStatus: 'active' | 'paused' | 'cancelled') => {
+        setIsUpdating(true);
+        try {
+            const response = await fetch(`/api/admin/marketing/active-followups/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ status: newStatus }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setActiveFollowUps(prev => prev.map(f => 
+                    f.id === id ? data.followUp : f
+                ));
+                console.log(`✅ Follow-up ${newStatus}: ${id}`);
+            } else {
+                console.error('Failed to update follow-up status');
+                // Fallback to local update
+                setActiveFollowUps(prev => prev.map(f => {
+                    if (f.id === id) {
+                        const historyEvent: FollowUpHistoryEvent = {
+                            id: `h-${Date.now()}`,
+                            type: newStatus === 'active' ? 'resume' : newStatus === 'paused' ? 'pause' : 'cancel',
+                            description: `Sequence ${newStatus}.`,
+                            date: new Date().toISOString(),
+                        };
+                        return { ...f, status: newStatus, history: [historyEvent, ...f.history] };
+                    }
+                    return f;
+                }));
             }
-            return f;
-        }));
+        } catch (error) {
+            console.error('Error updating follow-up:', error);
+        } finally {
+            setIsUpdating(false);
+        }
     };
 
     const selectedFollowUp = useMemo(() => activeFollowUps.find(f => f.id === selectedFollowUpId), [activeFollowUps, selectedFollowUpId]);
@@ -112,17 +146,72 @@ const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences,
 
     const isDetailView = selectedFollowUpId !== null;
 
-    return (
-        <div className="flex h-full bg-white rounded-xl shadow-lg border border-slate-200/60 overflow-hidden">
-            {/* Lead List Pane */}
-            <aside className={`
-                ${isDetailView ? 'hidden' : 'flex'} w-full
-                md:flex flex-col md:w-2/5 lg:w-1/3 max-w-sm h-full border-r border-slate-200
-            `}>
-                <div className="p-4 border-b border-slate-200 flex-shrink-0">
-                    <h2 className="text-xl font-bold text-slate-800">Active Follow-ups</h2>
-                    <p className="text-sm text-slate-500">({activeFollowUps.length} leads in sequences)</p>
+    // Calculate stats
+    const stats = {
+        total: activeFollowUps.length,
+        active: activeFollowUps.filter(f => f.status === 'active').length,
+        paused: activeFollowUps.filter(f => f.status === 'paused').length,
+        completed: activeFollowUps.filter(f => f.status === 'completed').length,
+        cancelled: activeFollowUps.filter(f => f.status === 'cancelled').length,
+    };
+
+    if (activeFollowUps.length === 0) {
+        return (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-8">
+                <div className="text-center">
+                    <span className="material-symbols-outlined w-16 h-16 text-slate-300 mx-auto mb-4 block">group</span>
+                    <h3 className="text-lg font-semibold text-slate-800 mb-2">No Active Follow-ups</h3>
+                    <p className="text-slate-500 mb-4">
+                        Leads will appear here when they're enrolled in follow-up sequences.
+                    </p>
+                    <div className="text-sm text-slate-400">
+                        💡 Tip: Create sequences in the "Lead Sequences" tab and enroll leads to start automated follow-ups.
+                    </div>
                 </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Stats Header */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
+                <h2 className="text-xl font-bold text-slate-800 mb-4">Follow-up Overview</h2>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="text-center">
+                        <div className="text-2xl font-bold text-slate-800">{stats.total}</div>
+                        <div className="text-sm text-slate-500">Total</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+                        <div className="text-sm text-slate-500">Active</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-2xl font-bold text-yellow-600">{stats.paused}</div>
+                        <div className="text-sm text-slate-500">Paused</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">{stats.completed}</div>
+                        <div className="text-sm text-slate-500">Completed</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-2xl font-bold text-red-600">{stats.cancelled}</div>
+                        <div className="text-sm text-slate-500">Cancelled</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Follow-ups Interface */}
+            <div className="flex h-96 bg-white rounded-xl shadow-lg border border-slate-200/60 overflow-hidden">
+                {/* Lead List Pane */}
+                <aside className={`
+                    ${isDetailView ? 'hidden' : 'flex'} w-full
+                    md:flex flex-col md:w-2/5 lg:w-1/3 max-w-sm h-full border-r border-slate-200
+                `}>
+                    <div className="p-4 border-b border-slate-200 flex-shrink-0">
+                        <h3 className="text-lg font-bold text-slate-800">Active Follow-ups</h3>
+                        <p className="text-sm text-slate-500">({activeFollowUps.length} leads in sequences)</p>
+                    </div>
                 <div className="flex-grow overflow-y-auto">
                     <div className="divide-y divide-slate-200">
                         {activeFollowUps.map(followUp => (
@@ -169,14 +258,34 @@ const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences,
                         </div>
                         <footer className="p-4 bg-white border-t border-slate-200 flex-shrink-0">
                             <div className="flex items-center justify-end gap-2">
-                               {selectedFollowUp.status === 'active' &&
-                                    <button onClick={() => handleStatusChange(selectedFollowUp.id, 'paused')} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-yellow-100 border border-yellow-300 rounded-lg hover:bg-yellow-200 transition">Pause Sequence</button>
-                                }
-                                {selectedFollowUp.status === 'paused' &&
-                                     <button onClick={() => handleStatusChange(selectedFollowUp.id, 'active')} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-green-100 border border-green-300 rounded-lg hover:bg-green-200 transition">Resume Sequence</button>
-                                }
-                                <button onClick={() => handleStatusChange(selectedFollowUp.id, 'cancelled')} className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition">Cancel Sequence</button>
-                                <button className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition">Contact Manually</button>
+                               {selectedFollowUp.status === 'active' && (
+                                    <button 
+                                        onClick={() => handleStatusChange(selectedFollowUp.id, 'paused')} 
+                                        disabled={isUpdating}
+                                        className="px-4 py-2 text-sm font-semibold text-slate-700 bg-yellow-100 border border-yellow-300 rounded-lg hover:bg-yellow-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isUpdating ? 'Updating...' : 'Pause Sequence'}
+                                    </button>
+                                )}
+                                {selectedFollowUp.status === 'paused' && (
+                                     <button 
+                                        onClick={() => handleStatusChange(selectedFollowUp.id, 'active')} 
+                                        disabled={isUpdating}
+                                        className="px-4 py-2 text-sm font-semibold text-slate-700 bg-green-100 border border-green-300 rounded-lg hover:bg-green-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isUpdating ? 'Updating...' : 'Resume Sequence'}
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => handleStatusChange(selectedFollowUp.id, 'cancelled')} 
+                                    disabled={isUpdating}
+                                    className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isUpdating ? 'Updating...' : 'Cancel Sequence'}
+                                </button>
+                                <button className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition">
+                                    Contact Manually
+                                </button>
                             </div>
                         </footer>
                     </div>
@@ -188,6 +297,7 @@ const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences,
                     </div>
                 )}
             </main>
+            </div>
         </div>
     );
 };

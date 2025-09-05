@@ -492,6 +492,11 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
     const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
     const [analyticsSequence, setAnalyticsSequence] = useState<FollowUpSequence | null>(null);
 
+    // Follow-ups state
+    const [leads, setLeads] = useState<Lead[]>([]);
+    const [activeFollowUps, setActiveFollowUps] = useState<any[]>([]);
+    const [isLoadingFollowUps, setIsLoadingFollowUps] = useState(false);
+
     const handleSaveSequence = (sequenceData: FollowUpSequence) => {
         setSequences(prev => {
             const index = prev.findIndex(s => s.id === sequenceData.id);
@@ -505,6 +510,34 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
         });
         setIsSequenceModalOpen(false);
     };
+
+    // Load leads and active follow-ups
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                // Load leads
+                const leadsResponse = await fetch('/api/admin/leads');
+                if (leadsResponse.ok) {
+                    const leadsData = await leadsResponse.json();
+                    setLeads(leadsData.leads || []);
+                }
+
+                // Load active follow-ups
+                setIsLoadingFollowUps(true);
+                const followUpsResponse = await fetch('/api/admin/marketing/active-followups');
+                if (followUpsResponse.ok) {
+                    const followUpsData = await followUpsResponse.json();
+                    setActiveFollowUps(followUpsData.activeFollowUps || []);
+                }
+            } catch (error) {
+                console.error('Failed to load marketing data:', error);
+            } finally {
+                setIsLoadingFollowUps(false);
+            }
+        };
+
+        loadData();
+    }, []);
 
     // Listen for analytics modal events
     useEffect(() => {
@@ -534,7 +567,22 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
             case 'sequences':
                 return <SequencesContent sequences={sequences} setSequences={setSequences} openModal={(seq) => { setEditingSequence(seq); setIsSequenceModalOpen(true); }} />;
             case 'follow-ups':
-                 return <LeadFollowUpsPage leads={[]} sequences={sequences} activeFollowUps={[]} />;
+                 return (
+                    <div className="space-y-6">
+                        {isLoadingFollowUps ? (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                                <span className="ml-3 text-slate-600">Loading follow-ups...</span>
+                            </div>
+                        ) : (
+                            <LeadFollowUpsPage 
+                                leads={leads} 
+                                sequences={sequences} 
+                                activeFollowUps={activeFollowUps}
+                            />
+                        )}
+                    </div>
+                 );
             default:
                 return <div>Select a tab</div>;
         }

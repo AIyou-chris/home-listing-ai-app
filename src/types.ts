@@ -405,6 +405,15 @@ export interface CalendarSettings {
     conflictDetection: boolean;
     emailReminders: boolean;
     autoConfirm: boolean;
+    workingHours: {
+        start: string;
+        end: string;
+    };
+    workingDays: string[];
+    defaultDuration: number;
+    bufferTime: number;
+    smsReminders: boolean;
+    newAppointmentAlerts: boolean;
 }
 
 export interface EmailSettings {

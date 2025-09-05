@@ -14,6 +14,7 @@ import AdminContactsPage from './AdminContactsPage';
 import AdminCRMContactsSupabase from './AdminCRMContactsSupabase';
 import AdminAgentsPage from './AdminAgentsPage';
 import AIAgentHub from './AIAgentHub';
+import EnhancedAdminAISidekicksHub from './EnhancedAdminAISidekicksHub';
 // Persona service removed
 
 // Firebase utilities removed
@@ -2224,7 +2225,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
           </div>
         );
       case 'admin-knowledge-base':
-        return <AIAgentHub />;
+        return <EnhancedAdminAISidekicksHub agentProfile={agentProfile} />;
       case 'admin-knowledge-base-legacy':
         return (
           <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">

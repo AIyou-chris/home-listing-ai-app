@@ -44,6 +44,7 @@ import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
 import AIAgentHub from './components/AIAgentHub';
+import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
 
 // import { getProperties, addProperty } from './services/firestoreService';
 // Temporary stubs while migrating off Firebase
@@ -112,7 +113,19 @@ const App: React.FC = () => {
         monthlyInsights: true
     });
     const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
-    const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({ integrationType: 'google', aiScheduling: true, conflictDetection: true, emailReminders: true, autoConfirm: false });
+    	const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({ 
+		integrationType: 'google', 
+		aiScheduling: true, 
+		conflictDetection: true, 
+		emailReminders: true, 
+		autoConfirm: false,
+		workingHours: { start: '09:00', end: '17:00' },
+		workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+		defaultDuration: 60,
+		bufferTime: 15,
+		smsReminders: true,
+		newAppointmentAlerts: true
+	});
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid'}] });
     // Removed unused state variables
 
@@ -243,7 +256,8 @@ const App: React.FC = () => {
                     setUser(currentUser);
                     setUserProfile(profileToLoad);
                     setProperties(propertiesToLoad);
-                    setLeads(DEMO_FAT_LEADS); // Using demo data for now
+                    // Load leads from backend
+                    loadLeadsFromBackend();
                     setAppointments(DEMO_FAT_APPOINTMENTS); // Using demo data for now
                     setInteractions(SAMPLE_INTERACTIONS); // Using demo data for now
                     setTasks(SAMPLE_TASKS);
@@ -318,10 +332,28 @@ const App: React.FC = () => {
     const handleNavigateToSignIn = () => setView('signin');
     const handleNavigateToLanding = () => setView('landing');
     
+    const loadLeadsFromBackend = async () => {
+        try {
+            const response = await fetch('/api/admin/leads');
+            if (response.ok) {
+                const data = await response.json();
+                setLeads(data.leads || []);
+                console.log('✅ Loaded leads from backend:', data.leads?.length || 0);
+            } else {
+                console.warn('Failed to load leads from backend, using demo data');
+                setLeads(DEMO_FAT_LEADS);
+            }
+        } catch (error) {
+            console.error('Error loading leads from backend:', error);
+            setLeads(DEMO_FAT_LEADS);
+        }
+    };
+    
     const handleEnterDemoMode = () => {
         setIsDemoMode(true);
         setProperties(DEMO_FAT_PROPERTIES);
-        setLeads(DEMO_FAT_LEADS);
+        // Load leads from backend in demo mode too
+        loadLeadsFromBackend();
         setAppointments(DEMO_FAT_APPOINTMENTS);
         setInteractions(SAMPLE_INTERACTIONS);
         setTasks(SAMPLE_TASKS);
@@ -603,7 +635,6 @@ const App: React.FC = () => {
 							appointments={appointments} 
 							tasks={tasks} 
 							onSelectProperty={handleSelectProperty} 
-							onAddNew={() => setView('add-listing')}
 							onTaskUpdate={handleTaskUpdate}
 							onTaskAdd={handleTaskAdd}
 							onTaskDelete={handleTaskDelete}
@@ -623,13 +654,13 @@ const App: React.FC = () => {
 					case 'ai-card':
 						return <AICardPage />;
 					case 'knowledge-base': 
-						return <AIAgentHub />;
+						return <EnhancedAISidekicksHub />;
 					case 'marketing': 
 						return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
 					case 'analytics': 
 						return <AnalyticsDashboard />;
 					case 'ai-sidekicks':
-						return <AIAgentHub />;
+						return <EnhancedAISidekicksHub />;
 					case 'demo-listing':
 						return <DemoListingPage />;
 					case 'settings': 
@@ -654,7 +685,6 @@ const App: React.FC = () => {
 							appointments={appointments} 
 							tasks={tasks} 
 							onSelectProperty={handleSelectProperty} 
-							onAddNew={() => setView('add-listing')}
 							onTaskUpdate={handleTaskUpdate}
 							onTaskAdd={handleTaskAdd}
 							onTaskDelete={handleTaskDelete}
@@ -761,7 +791,8 @@ const App: React.FC = () => {
 					<AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
 				</Suspense>
 			)}
-			{view !== 'ai-card' && (
+			{/* Temporarily disabled while building */}
+			{/* {view !== 'ai-card' && (
 				<ChatBotFAB
 					context={{
 						userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
@@ -773,7 +804,7 @@ const App: React.FC = () => {
 					onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
 					position="bottom-right"
 				/>
-			)}
+			)} */}
 		</ErrorBoundary>
 	);
 };

@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Property, Lead, Appointment, LeadStatus, AgentTask, TaskPriority, AgentProfile } from '../types';
 import SmartTaskManager from './SmartTaskManager';
+import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor } from '../services/leadScoringService';
 // Hidden for launch - notification service will be re-enabled post-launch
 // import { notificationService } from '../services/notificationService';
 
@@ -12,7 +13,6 @@ interface DashboardProps {
   appointments: Appointment[];
   tasks: AgentTask[];
   onSelectProperty: (id: string) => void;
-  onAddNew: () => void;
   onTaskUpdate?: (taskId: string, updates: Partial<AgentTask>) => void;
   onTaskAdd?: (task: AgentTask) => void;
   onTaskDelete?: (taskId: string) => void;
@@ -86,7 +86,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   appointments, 
   tasks, 
   onSelectProperty, 
-  onAddNew,
   onTaskUpdate,
   onTaskAdd,
   onTaskDelete
@@ -94,10 +93,38 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isTaskManagerOpen, setIsTaskManagerOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [leadScores, setLeadScores] = useState<any[]>([]);
+  const [isLoadingScores, setIsLoadingScores] = useState(false);
   // Hidden for launch - notification states will be re-enabled post-launch
   // const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   // const notificationDropdownRef = useRef<HTMLDivElement>(null);
+  
   const newLeadsCount = leads.filter(l => l.status === 'New').length;
+  const hotLeadsCount = leadScores.filter(s => s.tier === 'Hot' || s.tier === 'Qualified').length;
+  const averageScore = leadScores.length > 0 ? 
+    Math.round(leadScores.reduce((sum, s) => sum + s.totalScore, 0) / leadScores.length) : 0;
+
+  // Load lead scores on component mount and when leads change
+  useEffect(() => {
+    const loadLeadScores = async () => {
+      if (leads.length === 0) return;
+      
+      setIsLoadingScores(true);
+      try {
+        const scores = await LeadScoringService.calculateBulkScores(leads);
+        setLeadScores(scores);
+      } catch (error) {
+        console.warn('Failed to load lead scores:', error);
+        // Fallback to client-side scoring
+        const fallbackScores = leads.map(lead => LeadScoringService.calculateLeadScoreClientSide(lead));
+        setLeadScores(fallbackScores);
+      } finally {
+        setIsLoadingScores(false);
+      }
+    };
+
+    loadLeadScores();
+  }, [leads]);
 
   // Hidden for launch - notification functions will be re-enabled post-launch
   // const handleSendTestNotification = async () => { ... };
@@ -112,15 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
             <p className="text-slate-500 mt-1 text-sm sm:text-base">Welcome back, {agentProfile.name}! Here's an overview of your real estate activity.</p>
         </div>
-        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
-            <button 
-                onClick={onAddNew}
-                className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 text-sm sm:text-base"
-            >
-                <span className="material-symbols-outlined h-4 w-4 sm:h-5 sm:w-5">add</span>
-                <span className="hidden xs:inline">Add New Listing</span>
-                <span className="xs:hidden">Add Listing</span>
-            </button>
+        <div className="flex items-center justify-end">
             {agentProfile.headshotUrl ? (
                 <img src={agentProfile.headshotUrl} alt={agentProfile.name} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-white shadow-sm" />
             ) : (
@@ -135,8 +154,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         <StatCard title="Active Listings" value={String(properties.length)} icon="home_work" bgColor="bg-blue-100" iconColor="text-blue-600" />
         <StatCard title="New Leads" value={String(newLeadsCount)} icon="group" bgColor="bg-green-100" iconColor="text-green-600" />
-        <StatCard title="Appointments" value={String(appointments.length)} icon="calendar_today" bgColor="bg-purple-100" iconColor="text-purple-600" />
-        <StatCard title="AI Interactions" value="0" icon="memory" bgColor="bg-orange-100" iconColor="text-orange-600" />
+        <StatCard title="Hot Leads" value={isLoadingScores ? "..." : String(hotLeadsCount)} icon="local_fire_department" bgColor="bg-red-100" iconColor="text-red-600" />
+        <StatCard title="Avg Score" value={isLoadingScores ? "..." : String(averageScore)} icon="trending_up" bgColor="bg-orange-100" iconColor="text-orange-600" />
       </div>
 
       {/* Main Content */}
@@ -202,18 +221,38 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </SectionCard>
 
-            {/* Card 2: Recent Leads */}
+            {/* Card 2: Recent Leads with Scoring */}
             <SectionCard title="Recent Leads" icon="groups">
                 <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {leads.slice(0, 5).map(lead => (
-                        <div key={lead.id} className="p-3 rounded-lg hover:bg-slate-50 transition-colors">
-                            <div className="flex justify-between items-start">
-                                <h4 className="font-semibold text-slate-800">{lead.name}</h4>
-                                <LeadStatusBadge status={lead.status} />
+                    {leads.slice(0, 5).map(lead => {
+                        const leadScore = leadScores.find(s => s.leadId === lead.id);
+                        const score = leadScore?.totalScore || 0;
+                        const tier = leadScore?.tier || 'Cold';
+                        
+                        return (
+                            <div key={lead.id} className="p-3 rounded-lg hover:bg-slate-50 transition-colors border-l-4" 
+                                 style={{borderLeftColor: tier === 'Qualified' ? '#10b981' : tier === 'Hot' ? '#f59e0b' : tier === 'Warm' ? '#3b82f6' : '#6b7280'}}>
+                                <div className="flex justify-between items-start mb-2">
+                                    <h4 className="font-semibold text-slate-800">{lead.name}</h4>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreBadgeColor(tier)}`}>
+                                            {tier}
+                                        </span>
+                                        <LeadStatusBadge status={lead.status} />
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <p className="text-xs text-slate-500 flex-1 mr-2">{lead.lastMessage || 'No message yet'}</p>
+                                    <div className="flex items-center gap-1">
+                                        <span className="material-symbols-outlined w-3 h-3 text-slate-400">trending_up</span>
+                                        <span className={`text-xs font-semibold ${getScoreColor(score)}`}>
+                                            {isLoadingScores ? '...' : score}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                            <p className="text-xs text-slate-500 mt-1">{lead.lastMessage}</p>
-                        </div>
-                    ))}
+                        );
+                    })}
                      {leads.length === 0 && <p className="text-center text-sm text-slate-400 p-4">No recent leads found.</p>}
                 </div>
             </SectionCard>
@@ -318,6 +357,91 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </SectionCard>
         </div>
+
+        {/* Lead Scoring Overview */}
+        {leads.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <SectionCard title="Lead Score Distribution" icon="analytics">
+                    <div className="space-y-3">
+                        {isLoadingScores ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+                                <span className="ml-2 text-sm text-slate-500">Loading scores...</span>
+                            </div>
+                        ) : (
+                            <>
+                                {['Qualified', 'Hot', 'Warm', 'Cold'].map(tier => {
+                                    const count = leadScores.filter(s => s.tier === tier).length;
+                                    const percentage = leadScores.length > 0 ? Math.round((count / leadScores.length) * 100) : 0;
+                                    const tierInfo = getScoreTierInfo(tier as any);
+                                    
+                                    return (
+                                        <div key={tier} className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-lg">{(tierInfo as any).emoji || '📊'}</span>
+                                                <span className="font-medium text-slate-700">{tier} Leads</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-16 bg-slate-200 rounded-full h-2">
+                                                    <div 
+                                                        className={`h-2 rounded-full ${
+                                                            tier === 'Qualified' ? 'bg-green-500' :
+                                                            tier === 'Hot' ? 'bg-orange-500' :
+                                                            tier === 'Warm' ? 'bg-blue-500' : 'bg-slate-400'
+                                                        }`}
+                                                        style={{ width: `${percentage}%` }}
+                                                    ></div>
+                                                </div>
+                                                <span className="text-sm font-semibold text-slate-600 w-8">{count}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </>
+                        )}
+                    </div>
+                </SectionCard>
+
+                <SectionCard title="Top Scoring Leads" icon="star">
+                    <div className="space-y-2">
+                        {isLoadingScores ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+                                <span className="ml-2 text-sm text-slate-500">Loading scores...</span>
+                            </div>
+                        ) : (
+                            leadScores
+                                .sort((a, b) => b.totalScore - a.totalScore)
+                                .slice(0, 3)
+                                .map(score => {
+                                    const lead = leads.find(l => l.id === score.leadId);
+                                    if (!lead) return null;
+                                    
+                                    return (
+                                        <div key={lead.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                                            <div>
+                                                <h4 className="font-semibold text-slate-800">{lead.name}</h4>
+                                                <p className="text-xs text-slate-500">{lead.email}</p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreBadgeColor(score.tier)}`}>
+                                                    {score.tier}
+                                                </span>
+                                                <span className={`text-lg font-bold ${getScoreColor(score.totalScore)}`}>
+                                                    {score.totalScore}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                        )}
+                        {!isLoadingScores && leadScores.length === 0 && (
+                            <p className="text-center text-sm text-slate-400 py-4">No scored leads yet</p>
+                        )}
+                    </div>
+                </SectionCard>
+            </div>
+        )}
 
         {/* Recent Listings - Full Width */}
         <div className="grid grid-cols-1 gap-6">

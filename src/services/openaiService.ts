@@ -4,16 +4,38 @@ import { ChatMessage } from '../types';
 /**
  * Continues a conversation using OpenAI's GPT models
  * @param messages Array of chat messages to continue the conversation from
+ * @param sidekick Optional sidekick type for training context
  * @returns A promise that resolves to the AI's response text
  */
-export const continueConversation = async (messages: Array<{ sender: string; text: string }>): Promise<string> => {
+export const continueConversation = async (
+  messages: Array<{ sender: string; text: string }>, 
+  sidekick?: string
+): Promise<string> => {
   try {
-    // Local mock response to keep UI functional
-    const last = messages[messages.length - 1]?.text || '';
-    return `AI: Received ${last.length} chars.`;
+    const response = await fetch('/api/continue-conversation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages,
+        sidekick,
+        role: 'agent',
+        systemPrompt: messages.find(m => m.sender === 'system')?.text
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.response || data.message || 'No response received';
   } catch (error) {
     console.error('Error continuing conversation:', error);
-    throw new Error('Failed to get AI response: ' + (error instanceof Error ? error.message : String(error)));
+    // Fallback response
+    const last = messages[messages.length - 1]?.text || '';
+    return `I apologize, but I'm having trouble connecting right now. You asked about: "${last.substring(0, 100)}${last.length > 100 ? '...' : ''}"`;
   }
 };
 

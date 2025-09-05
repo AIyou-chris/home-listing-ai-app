@@ -5,7 +5,6 @@ import { DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
 interface DemoDashboardProps {
   properties: Property[];
   onSelectProperty: (id: string) => void;
-  onAddNew: () => void;
 }
 
 const StatCard: React.FC<{ title: string; value: string; icon: string, bgColor: string, iconColor: string }> = ({ title, value, icon, bgColor, iconColor }) => (
@@ -43,7 +42,7 @@ const LeadStatusBadge: React.FC<{ status: 'New' | 'Qualified' | 'Contacted' | 'S
     return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${statusStyles[status]}`}>{status}</span>;
 };
 
-const DemoDashboard: React.FC<DemoDashboardProps> = ({ properties, onSelectProperty, onAddNew }) => {
+const DemoDashboard: React.FC<DemoDashboardProps> = ({ properties, onSelectProperty }) => {
     const leads = DEMO_FAT_LEADS;
     const appointments = DEMO_FAT_APPOINTMENTS;
     const newLeadsCount = leads.filter(l => l.status === 'New').length;
@@ -55,13 +54,6 @@ const DemoDashboard: React.FC<DemoDashboardProps> = ({ properties, onSelectPrope
                     <h1 className="text-3xl font-bold text-slate-900">Demo Dashboard</h1>
                     <p className="text-slate-500 mt-1">Here's a sample of a busy agent's dashboard.</p>
                 </div>
-                <button
-                    onClick={onAddNew}
-                    className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105"
-                >
-                    <span className="material-symbols-outlined h-5 w-5">add</span>
-                    <span>Add New Listing</span>
-                </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">

@@ -54,7 +54,7 @@ export const upsertAgentProfile = async (
   const payload = {
     user_id: userId,
     scope: 'agent' as const,
-    listing_id: null as const,
+    listing_id: null,
     voice_label: profile.voice_label ?? null,
     persona_preset: profile.persona_preset ?? 'custom',
     description: profile.description ?? null,

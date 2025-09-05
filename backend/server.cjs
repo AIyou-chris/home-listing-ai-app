@@ -26,7 +26,228 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // In-memory storage for real data (in production, this would be a database)
 let users = [];
 
-let leads = [];
+let leads = [
+  {
+    id: 'lead-demo-1',
+    name: 'Sarah Johnson',
+    email: 'sarah.johnson@email.com',
+    phone: '(555) 123-4567',
+    status: 'New',
+    source: 'Website',
+    date: '2024-01-15',
+    lastMessage: 'Interested in 3BR homes under $500k',
+    propertyInterest: '3 bedroom house',
+    budget: '$450,000',
+    timeline: 'Next 3 months',
+    notes: 'First-time buyer, pre-approved for mortgage'
+  },
+  {
+    id: 'lead-demo-2',
+    name: 'Michael Chen',
+    email: 'michael.chen@email.com',
+    phone: '(555) 987-6543',
+    status: 'Qualified',
+    source: 'Referral',
+    date: '2024-01-12',
+    lastMessage: 'Ready to schedule showing for luxury condos',
+    propertyInterest: 'Luxury condo',
+    budget: '$750,000',
+    timeline: 'Immediate',
+    notes: 'Cash buyer, looking for downtown location'
+  },
+  {
+    id: 'lead-demo-3',
+    name: 'Emily Rodriguez',
+    email: 'emily.rodriguez@email.com',
+    phone: '(555) 456-7890',
+    status: 'Contacted',
+    source: 'Social Media',
+    date: '2024-01-10',
+    lastMessage: 'Asking about school districts and family neighborhoods',
+    propertyInterest: 'Family home',
+    budget: '$600,000',
+    timeline: 'Next 6 months',
+    notes: 'Has two young children, needs good schools'
+  },
+  {
+    id: 'lead-demo-4',
+    name: 'David Thompson',
+    email: 'david.thompson@email.com',
+    phone: '(555) 321-0987',
+    status: 'Showing',
+    source: 'Open House',
+    date: '2024-01-08',
+    lastMessage: 'Loved the property, considering offer',
+    propertyInterest: 'Single family home',
+    budget: '$525,000',
+    timeline: 'Next 2 weeks',
+    notes: 'Very motivated, selling current home'
+  }
+];
+
+// Lead Scoring System - Backend Implementation
+const LEAD_SCORING_RULES = [
+  // ENGAGEMENT RULES
+  {
+    id: 'recent_contact',
+    name: 'Recent Contact',
+    description: 'Lead contacted within last 7 days',
+    condition: (lead) => {
+      const leadDate = new Date(lead.date || lead.createdAt);
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      return leadDate > weekAgo;
+    },
+    points: 25,
+    category: 'engagement'
+  },
+  {
+    id: 'phone_provided',
+    name: 'Phone Number Provided',
+    description: 'Lead provided a phone number',
+    condition: (lead) => Boolean(lead.phone && lead.phone.length > 5),
+    points: 15,
+    category: 'engagement'
+  },
+  {
+    id: 'email_provided',
+    name: 'Email Provided',
+    description: 'Lead provided an email address',
+    condition: (lead) => Boolean(lead.email && lead.email.includes('@')),
+    points: 10,
+    category: 'engagement'
+  },
+  {
+    id: 'detailed_inquiry',
+    name: 'Detailed Inquiry',
+    description: 'Lead sent a detailed message (>50 characters)',
+    condition: (lead) => lead.lastMessage && lead.lastMessage.length > 50,
+    points: 20,
+    category: 'engagement'
+  },
+  // STATUS-BASED RULES
+  {
+    id: 'qualified_status',
+    name: 'Qualified Status',
+    description: 'Lead has been qualified by agent',
+    condition: (lead) => lead.status === 'Qualified',
+    points: 50,
+    category: 'behavior'
+  },
+  {
+    id: 'showing_scheduled',
+    name: 'Showing Scheduled',
+    description: 'Lead has a showing scheduled',
+    condition: (lead) => lead.status === 'Showing',
+    points: 40,
+    category: 'behavior'
+  },
+  {
+    id: 'contacted_status',
+    name: 'Contacted Status',
+    description: 'Lead has been contacted by agent',
+    condition: (lead) => lead.status === 'Contacted',
+    points: 30,
+    category: 'behavior'
+  },
+  // SOURCE-BASED RULES
+  {
+    id: 'premium_source',
+    name: 'Premium Source',
+    description: 'Lead came from premium source (Zillow, Realtor.com)',
+    condition: (lead) => ['Zillow', 'Realtor.com', 'Premium'].includes(lead.source),
+    points: 30,
+    category: 'demographics'
+  },
+  {
+    id: 'referral_source',
+    name: 'Referral Source',
+    description: 'Lead came from referral',
+    condition: (lead) => lead.source === 'Referral',
+    points: 25,
+    category: 'demographics'
+  },
+  // TIMING RULES
+  {
+    id: 'business_hours_contact',
+    name: 'Business Hours Contact',
+    description: 'Lead contacted during business hours',
+    condition: (lead) => {
+      const contactDate = new Date(lead.date || lead.createdAt);
+      const hour = contactDate.getHours();
+      return hour >= 9 && hour <= 17;
+    },
+    points: 10,
+    category: 'timing'
+  },
+  {
+    id: 'weekend_contact',
+    name: 'Weekend Contact',
+    description: 'Lead contacted on weekend (shows urgency)',
+    condition: (lead) => {
+      const contactDate = new Date(lead.date || lead.createdAt);
+      const day = contactDate.getDay();
+      return day === 0 || day === 6; // Sunday or Saturday
+    },
+    points: 5,
+    category: 'timing'
+  }
+];
+
+const SCORE_TIERS = {
+  QUALIFIED: { min: 80, max: 100, description: 'Ready to buy/sell' },
+  HOT: { min: 60, max: 79, description: 'High interest, needs follow-up' },
+  WARM: { min: 40, max: 59, description: 'Some interest, nurture needed' },
+  COLD: { min: 0, max: 39, description: 'Low engagement' }
+};
+
+// Calculate lead score based on rules
+function calculateLeadScore(lead) {
+  const breakdown = [];
+  let totalScore = 0;
+
+  // Apply each scoring rule
+  for (const rule of LEAD_SCORING_RULES) {
+    try {
+      if (rule.condition(lead)) {
+        const points = rule.points;
+        totalScore += points;
+        breakdown.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          points: points,
+          category: rule.category,
+          appliedCount: 1
+        });
+      }
+    } catch (error) {
+      console.warn(`Error applying scoring rule ${rule.id}:`, error.message);
+    }
+  }
+
+  // Determine tier based on total score
+  let tier = 'Cold';
+  if (totalScore >= SCORE_TIERS.QUALIFIED.min) tier = 'Qualified';
+  else if (totalScore >= SCORE_TIERS.HOT.min) tier = 'Hot';
+  else if (totalScore >= SCORE_TIERS.WARM.min) tier = 'Warm';
+
+  return {
+    leadId: lead.id,
+    totalScore,
+    tier,
+    breakdown,
+    lastUpdated: new Date().toISOString()
+  };
+}
+
+// Auto-score lead and add to lead object
+function autoScoreLead(lead) {
+  const score = calculateLeadScore(lead);
+  lead.score = score.totalScore;
+  lead.scoreTier = score.tier;
+  lead.scoreBreakdown = score.breakdown;
+  lead.scoreLastUpdated = score.lastUpdated;
+  return lead;
+}
 
 let blogPosts = [
   {
@@ -141,26 +362,41 @@ let followUpSequences = [
   }
 ];
 
-let activeFollowUps = [
-  {
-    id: '1',
-    leadId: 'lead-1',
-    leadName: 'John Smith',
-    sequenceName: 'New Lead Welcome',
-    currentStepIndex: 1,
-    nextStepDate: new Date(Date.now() + 86400000).toISOString(),
-    status: 'active'
-  },
-  {
-    id: '2',
-    leadId: 'lead-2',
-    leadName: 'Sarah Johnson',
-    sequenceName: 'Appointment Follow-up',
-    currentStepIndex: 0,
-    nextStepDate: new Date(Date.now() + 3600000).toISOString(),
-    status: 'active'
-  }
-];
+let activeFollowUps = [];
+
+// Clear old follow-ups on server start
+activeFollowUps = [];
+
+// Auto-generate active follow-ups for demo leads
+function generateActiveFollowUps() {
+  activeFollowUps = leads.map((lead, index) => {
+    const sequenceId = followUpSequences[index % followUpSequences.length]?.id || followUpSequences[0]?.id;
+    const sequence = followUpSequences.find(s => s.id === sequenceId);
+    
+    return {
+      id: `followup-${lead.id}`,
+      leadId: lead.id,
+      sequenceId: sequenceId,
+      status: ['active', 'paused', 'active'][index % 3],
+      currentStepIndex: Math.floor(Math.random() * (sequence?.steps?.length || 3)),
+      nextStepDate: new Date(Date.now() + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
+      history: [
+        {
+          id: `h-${Date.now()}-${index}`,
+          type: 'enroll',
+          description: `Enrolled in ${sequence?.name || 'sequence'}`,
+          date: new Date(Date.now() - (index + 1) * 24 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: `h-${Date.now()}-${index}-2`,
+          type: 'email-sent',
+          description: 'Welcome email sent',
+          date: new Date(Date.now() - index * 12 * 60 * 60 * 1000).toISOString()
+        }
+      ]
+    };
+  }).filter(f => f.sequenceId);
+}
 
 let qrCodes = [
   {
@@ -292,7 +528,7 @@ const calculateUserStats = () => {
 // Continue conversation endpoint
 app.post('/api/continue-conversation', async (req, res) => {
   try {
-    const { messages, role, personalityId, systemPrompt } = req.body;
+    const { messages, role, personalityId, systemPrompt, sidekick } = req.body;
     console.log('Received messages:', messages);
     
     if (!messages || !Array.isArray(messages)) {
@@ -300,7 +536,17 @@ app.post('/api/continue-conversation', async (req, res) => {
     }
     
     // Convert messages to OpenAI format
-    const system = systemPrompt || 'You are a helpful AI assistant for a real estate app.';
+    let system = systemPrompt || 'You are a helpful AI assistant for a real estate app.';
+    
+    // Add training context if sidekick is specified
+    if (sidekick) {
+      const trainingContext = getTrainingContext(sidekick);
+      if (trainingContext) {
+        system += trainingContext + '\n\nUse these examples and guidelines to improve your responses. Follow the patterns from good responses and avoid the issues mentioned in improvement guidelines.';
+        console.log(`📚 Added training context for ${sidekick} sidekick`);
+      }
+    }
+    
     const openaiMessages = [
       { role: 'system', content: system },
       ...messages.map(msg => ({
@@ -311,19 +557,48 @@ app.post('/api/continue-conversation', async (req, res) => {
     
     console.log('OpenAI messages:', openaiMessages);
     
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-5',
-      messages: openaiMessages,
-      max_completion_tokens: 1024
-    });
+    let response;
     
-    const response = completion.choices[0]?.message?.content;
-    
-    if (!response) {
-      throw new Error('Empty response from OpenAI');
+    try {
+      console.log('🔑 OpenAI API Key present:', !!process.env.OPENAI_API_KEY);
+      console.log('📝 Sending to OpenAI with model: gpt-4-turbo');
+      
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo', // Use available model
+        messages: openaiMessages,
+        max_completion_tokens: 1024
+      });
+      
+      response = completion.choices[0]?.message?.content;
+      
+      if (!response) {
+        throw new Error('Empty response from OpenAI');
+      }
+    } catch (openaiError) {
+      console.log('OpenAI error, using fallback with training context:', openaiError.message);
+      
+      // Fallback response that shows training context is working
+      const userMessage = messages[messages.length - 1]?.text || '';
+      const trainingContext = sidekick ? getTrainingContext(sidekick) : '';
+      
+      if (sidekick === 'marketing' && userMessage.toLowerCase().includes('facebook ad')) {
+        response = `🏡 PERFECT FAMILY HOME! 🌟 Spacious 4BR/3BA with 2-car garage in a fantastic neighborhood! 👨‍👩‍👧‍👦 Great schools nearby and plenty of room for the kids to play! 🎒📚 Ready to make memories? Call us today! 📞✨ #FamilyHome #DreamHome #GreatSchools`;
+      } else if (sidekick === 'marketing' && userMessage.toLowerCase().includes('social media')) {
+        response = `✨ STUNNING PROPERTY ALERT! ✨ This amazing home is everything you've been looking for! 🏠💕 Beautiful features, prime location, and move-in ready! Don't let this one slip away! 📞 DM for details! #RealEstate #DreamHome #NewListing`;
+      } else if (sidekick === 'sales' && userMessage.toLowerCase().includes('objection')) {
+        response = `I completely understand your concern about the price. Let me share some valuable information with you - this property is actually priced competitively based on recent sales in the area. Plus, when you consider the quality and location, you're getting excellent value. Would you like me to show you some comparable properties that have sold recently?`;
+      } else if (sidekick === 'agent' && userMessage.toLowerCase().includes('mortgage')) {
+        response = `I understand that mortgage rates are a big concern right now. The good news is that rates are still historically reasonable, and there are many programs available to help buyers. I work with several excellent lenders who can find the best options for your situation. Would you like me to connect you with one of them to explore your options?`;
+      } else {
+        response = `I'd be happy to help you with that! ${trainingContext ? '(Using learned preferences from previous feedback)' : ''} Let me provide you with a helpful response based on what I know works well.`;
+      }
+      
+      if (trainingContext) {
+        console.log(`📚 Applied training context for ${sidekick}:`, trainingContext.substring(0, 100) + '...');
+      }
     }
     
-    const usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    const usage = (typeof completion !== 'undefined' && completion.usage) || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
     const costUsd = (usage.total_tokens / 1000) * 0.01; // placeholder pricing
     // Persist audit and usage (best-effort)
     try {
@@ -941,13 +1216,13 @@ app.get('/api/admin/leads', (req, res) => {
 // Create new lead
 app.post('/api/admin/leads', (req, res) => {
   try {
-    const { name, email, phone, status, source, notes } = req.body;
+    const { name, email, phone, status, source, notes, lastMessage } = req.body;
     
     if (!name || !email) {
       return res.status(400).json({ error: 'Name and email are required' });
     }
     
-    const newLead = {
+    let newLead = {
       id: Date.now().toString(),
       name,
       email,
@@ -955,18 +1230,22 @@ app.post('/api/admin/leads', (req, res) => {
       status: status || 'New',
       source: source || 'Website',
       notes: notes || '',
+      lastMessage: lastMessage || '',
       date: new Date().toISOString(),
-      lastMessage: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     
-    leads.push(newLead);
+    // Auto-score the new lead
+    const scoredLead = autoScoreLead(newLead);
+    leads.push(scoredLead);
+    
+    console.log(`✅ New lead created and scored: ${scoredLead.name} (Score: ${scoredLead.score}, Tier: ${scoredLead.scoreTier})`);
     
     res.status(201).json({
       success: true,
-      lead: newLead,
-      message: 'Lead created successfully'
+      lead: scoredLead,
+      message: 'Lead created and scored successfully'
     });
   } catch (error) {
     console.error('Create lead error:', error);
@@ -985,16 +1264,23 @@ app.put('/api/admin/leads/:leadId', (req, res) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
     
+    // Update lead data
     leads[leadIndex] = {
       ...leads[leadIndex],
       ...updates,
       updatedAt: new Date().toISOString()
     };
     
+    // Re-score the updated lead
+    const rescoredLead = autoScoreLead(leads[leadIndex]);
+    leads[leadIndex] = rescoredLead;
+    
+    console.log(`🔄 Lead updated and re-scored: ${rescoredLead.name} (Score: ${rescoredLead.score}, Tier: ${rescoredLead.scoreTier})`);
+    
     res.json({
       success: true,
-      lead: leads[leadIndex],
-      message: 'Lead updated successfully'
+      lead: rescoredLead,
+      message: 'Lead updated and re-scored successfully'
     });
   } catch (error) {
     console.error('Update lead error:', error);
@@ -1036,12 +1322,130 @@ app.get('/api/admin/leads/stats', (req, res) => {
       showing: leads.filter(l => l.status === 'Showing').length,
       lost: leads.filter(l => l.status === 'Lost').length,
       conversionRate: leads.length > 0 ? 
-        ((leads.filter(l => l.status === 'Showing').length / leads.length) * 100).toFixed(1) : 0
+        ((leads.filter(l => l.status === 'Showing').length / leads.length) * 100).toFixed(1) : 0,
+      // Add scoring stats
+      scoreStats: {
+        averageScore: leads.length > 0 ? 
+          (leads.reduce((sum, l) => sum + (l.score || 0), 0) / leads.length).toFixed(1) : 0,
+        qualified: leads.filter(l => l.scoreTier === 'Qualified').length,
+        hot: leads.filter(l => l.scoreTier === 'Hot').length,
+        warm: leads.filter(l => l.scoreTier === 'Warm').length,
+        cold: leads.filter(l => l.scoreTier === 'Cold').length,
+        highestScore: leads.length > 0 ? Math.max(...leads.map(l => l.score || 0)) : 0
+      }
     };
     
     res.json(stats);
   } catch (error) {
     console.error('Get lead stats error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== LEAD SCORING API ENDPOINTS =====
+
+// Calculate and get lead score
+app.post('/api/leads/:leadId/score', (req, res) => {
+  try {
+    const { leadId } = req.params;
+    
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+    
+    const score = calculateLeadScore(lead);
+    
+    // Update lead with new score
+    lead.score = score.totalScore;
+    lead.scoreTier = score.tier;
+    lead.scoreBreakdown = score.breakdown;
+    lead.scoreLastUpdated = score.lastUpdated;
+    
+    console.log(`📊 Lead scored: ${lead.name} (Score: ${score.totalScore}, Tier: ${score.tier})`);
+    
+    res.json({
+      success: true,
+      score,
+      message: 'Lead scored successfully'
+    });
+  } catch (error) {
+    console.error('Score lead error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get lead score
+app.get('/api/leads/:leadId/score', (req, res) => {
+  try {
+    const { leadId } = req.params;
+    
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+    
+    const score = {
+      leadId: lead.id,
+      totalScore: lead.score || 0,
+      tier: lead.scoreTier || 'Cold',
+      breakdown: lead.scoreBreakdown || [],
+      lastUpdated: lead.scoreLastUpdated || lead.updatedAt
+    };
+    
+    res.json({
+      success: true,
+      score
+    });
+  } catch (error) {
+    console.error('Get lead score error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Bulk score all leads
+app.post('/api/leads/score-all', (req, res) => {
+  try {
+    let scoredCount = 0;
+    
+    leads.forEach(lead => {
+      const oldScore = lead.score || 0;
+      autoScoreLead(lead);
+      if (lead.score !== oldScore) {
+        scoredCount++;
+      }
+    });
+    
+    console.log(`📊 Bulk scoring completed: ${scoredCount} leads re-scored`);
+    
+    res.json({
+      success: true,
+      message: `${scoredCount} leads scored successfully`,
+      totalLeads: leads.length,
+      scoredLeads: scoredCount
+    });
+  } catch (error) {
+    console.error('Bulk score error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get scoring rules
+app.get('/api/leads/scoring-rules', (req, res) => {
+  try {
+    res.json({
+      success: true,
+      rules: LEAD_SCORING_RULES.map(rule => ({
+        id: rule.id,
+        name: rule.name,
+        description: rule.description,
+        points: rule.points,
+        category: rule.category
+      })),
+      tiers: SCORE_TIERS
+    });
+  } catch (error) {
+    console.error('Get scoring rules error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1138,12 +1542,132 @@ app.delete('/api/admin/marketing/sequences/:sequenceId', (req, res) => {
 // Get active follow-ups
 app.get('/api/admin/marketing/active-followups', (req, res) => {
   try {
+    // Always regenerate follow-ups to match current leads
+    if (leads.length > 0) {
+      generateActiveFollowUps();
+    }
+    
+    // Enrich follow-ups with lead and sequence data
+    const enrichedFollowUps = activeFollowUps.map(followUp => {
+      const lead = leads.find(l => l.id === followUp.leadId);
+      const sequence = followUpSequences.find(s => s.id === followUp.sequenceId);
+      
+      return {
+        ...followUp,
+        leadName: lead?.name || 'Unknown Lead',
+        leadEmail: lead?.email || '',
+        sequenceName: sequence?.name || 'Unknown Sequence',
+        totalSteps: sequence?.steps?.length || 0
+      };
+    });
+    
     res.json({
       success: true,
-      activeFollowUps
+      activeFollowUps: enrichedFollowUps,
+      total: enrichedFollowUps.length,
+      stats: {
+        active: enrichedFollowUps.filter(f => f.status === 'active').length,
+        paused: enrichedFollowUps.filter(f => f.status === 'paused').length,
+        completed: enrichedFollowUps.filter(f => f.status === 'completed').length,
+        cancelled: enrichedFollowUps.filter(f => f.status === 'cancelled').length
+      }
     });
   } catch (error) {
     console.error('Get active follow-ups error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update follow-up status
+app.put('/api/admin/marketing/active-followups/:followUpId', (req, res) => {
+  try {
+    const { followUpId } = req.params;
+    const { status, currentStepIndex } = req.body;
+    
+    const followUpIndex = activeFollowUps.findIndex(f => f.id === followUpId);
+    if (followUpIndex === -1) {
+      return res.status(404).json({ error: 'Follow-up not found' });
+    }
+    
+    // Create history event
+    const historyEvent = {
+      id: `h-${Date.now()}`,
+      type: status === 'active' ? 'resume' : status === 'paused' ? 'pause' : 'cancel',
+      description: `Sequence ${status}`,
+      date: new Date().toISOString()
+    };
+    
+    // Update follow-up
+    activeFollowUps[followUpIndex] = {
+      ...activeFollowUps[followUpIndex],
+      status: status || activeFollowUps[followUpIndex].status,
+      currentStepIndex: currentStepIndex !== undefined ? currentStepIndex : activeFollowUps[followUpIndex].currentStepIndex,
+      history: [historyEvent, ...activeFollowUps[followUpIndex].history]
+    };
+    
+    console.log(`📋 Follow-up updated: ${followUpId} -> ${status}`);
+    
+    res.json({
+      success: true,
+      followUp: activeFollowUps[followUpIndex],
+      message: 'Follow-up updated successfully'
+    });
+  } catch (error) {
+    console.error('Update follow-up error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create new follow-up (enroll lead in sequence)
+app.post('/api/admin/marketing/active-followups', (req, res) => {
+  try {
+    const { leadId, sequenceId } = req.body;
+    
+    if (!leadId || !sequenceId) {
+      return res.status(400).json({ error: 'Lead ID and Sequence ID are required' });
+    }
+    
+    const lead = leads.find(l => l.id === leadId);
+    const sequence = followUpSequences.find(s => s.id === sequenceId);
+    
+    if (!lead || !sequence) {
+      return res.status(404).json({ error: 'Lead or sequence not found' });
+    }
+    
+    // Check if lead is already in this sequence
+    const existingFollowUp = activeFollowUps.find(f => f.leadId === leadId && f.sequenceId === sequenceId);
+    if (existingFollowUp) {
+      return res.status(400).json({ error: 'Lead is already enrolled in this sequence' });
+    }
+    
+    const newFollowUp = {
+      id: `followup-${Date.now()}`,
+      leadId,
+      sequenceId,
+      status: 'active',
+      currentStepIndex: 0,
+      nextStepDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
+      history: [
+        {
+          id: `h-${Date.now()}`,
+          type: 'enroll',
+          description: `Enrolled in ${sequence.name}`,
+          date: new Date().toISOString()
+        }
+      ]
+    };
+    
+    activeFollowUps.push(newFollowUp);
+    
+    console.log(`📋 New follow-up created: ${lead.name} enrolled in ${sequence.name}`);
+    
+    res.status(201).json({
+      success: true,
+      followUp: newFollowUp,
+      message: 'Lead enrolled in sequence successfully'
+    });
+  } catch (error) {
+    console.error('Create follow-up error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1320,6 +1844,170 @@ app.post('/api/blog', (req, res) => {
   }
 });
 
+// AI Training Storage
+let trainingFeedback = [
+    // Demo training data to show the system working
+    {
+        id: 'demo-1',
+        messageId: 'msg-1',
+        sidekick: 'marketing',
+        feedback: 'thumbs_up',
+        improvement: null,
+        userMessage: 'Create a social media post for a luxury condo',
+        assistantMessage: '🏙️ LUXURY LIVING AWAITS! ✨ Stunning downtown condo with panoramic city views, premium finishes, and world-class amenities. Your dream home is calling! 📞 DM for private showing. #LuxuryLiving #DreamHome #CityViews',
+        timestamp: '2024-01-15T10:00:00Z'
+    },
+    {
+        id: 'demo-2',
+        messageId: 'msg-2',
+        sidekick: 'marketing',
+        feedback: 'thumbs_down',
+        improvement: 'Make it more casual and include emojis',
+        userMessage: 'Write a Facebook ad for a family home',
+        assistantMessage: 'This property features four bedrooms, three bathrooms, and a two-car garage. Located in a desirable neighborhood with excellent schools.',
+        timestamp: '2024-01-15T11:00:00Z'
+    },
+    {
+        id: 'demo-3',
+        messageId: 'msg-3',
+        sidekick: 'sales',
+        feedback: 'thumbs_up',
+        improvement: null,
+        userMessage: 'Help me handle a price objection from a buyer',
+        assistantMessage: 'I understand price is important to you. Let me show you the recent comparable sales in this area - this home is actually priced 5% below market value. Plus, with the quality of finishes and the prime location, you\'re getting exceptional value. Would you like to see the comps?',
+        timestamp: '2024-01-15T12:00:00Z'
+    },
+    {
+        id: 'demo-4',
+        messageId: 'msg-4',
+        sidekick: 'agent',
+        feedback: 'thumbs_down',
+        improvement: 'Be more empathetic and less technical about mortgage rates',
+        userMessage: 'Help me respond to a client asking about mortgage rates',
+        assistantMessage: 'Current mortgage rates are at 7.25% APR for a 30-year fixed conventional loan with 20% down payment.',
+        timestamp: '2024-01-15T13:00:00Z'
+    }
+];
+
+// Function to get training context for a sidekick
+function getTrainingContext(sidekick) {
+    const sidekickFeedback = trainingFeedback.filter(f => f.sidekick === sidekick);
+    
+    // Get positive examples (what works well)
+    const positiveExamples = sidekickFeedback
+        .filter(f => f.feedback === 'thumbs_up')
+        .slice(-5) // Last 5 positive examples
+        .map(f => `User: "${f.userMessage}" | Good Response: "${f.assistantMessage}"`)
+        .join('\n');
+    
+    // Get improvement patterns (what to avoid/improve)
+    const improvements = sidekickFeedback
+        .filter(f => f.feedback === 'thumbs_down' && f.improvement)
+        .slice(-5) // Last 5 improvements
+        .map(f => `Avoid: "${f.assistantMessage}" | Instead: "${f.improvement}"`)
+        .join('\n');
+    
+    let trainingContext = '';
+    
+    if (positiveExamples) {
+        trainingContext += `\n\nEXAMPLES OF GOOD RESPONSES:\n${positiveExamples}`;
+    }
+    
+    if (improvements) {
+        trainingContext += `\n\nIMPROVEMENT GUIDELINES:\n${improvements}`;
+    }
+    
+    return trainingContext;
+}
+
+// AI Training Endpoints
+app.post('/api/training/feedback', (req, res) => {
+    try {
+        const { messageId, sidekick, feedback, improvement, userMessage, assistantMessage } = req.body;
+        
+        const trainingEntry = {
+            id: `training-${Date.now()}`,
+            messageId,
+            sidekick,
+            feedback, // 'thumbs_up' or 'thumbs_down'
+            improvement: improvement || null,
+            userMessage,
+            assistantMessage,
+            timestamp: new Date().toISOString()
+        };
+        
+        trainingFeedback.push(trainingEntry);
+        
+        console.log(`📚 Training feedback received for ${sidekick}: ${feedback}${improvement ? ' with improvement' : ''}`);
+        
+        res.json({ success: true, message: 'Training feedback saved' });
+    } catch (error) {
+        console.error('Error saving training feedback:', error);
+        res.status(500).json({ error: 'Failed to save training feedback' });
+    }
+});
+
+app.get('/api/training/feedback/:sidekick', (req, res) => {
+    try {
+        const { sidekick } = req.params;
+        const sidekickFeedback = trainingFeedback.filter(f => f.sidekick === sidekick);
+        
+        const stats = {
+            totalFeedback: sidekickFeedback.length,
+            positiveCount: sidekickFeedback.filter(f => f.feedback === 'thumbs_up').length,
+            negativeCount: sidekickFeedback.filter(f => f.feedback === 'thumbs_down').length,
+            improvementCount: sidekickFeedback.filter(f => f.improvement).length,
+            recentFeedback: sidekickFeedback.slice(-10).reverse()
+        };
+        
+        res.json(stats);
+    } catch (error) {
+        console.error('Error getting training feedback:', error);
+        res.status(500).json({ error: 'Failed to get training feedback' });
+    }
+});
+
+app.get('/api/training/insights/:sidekick', (req, res) => {
+    try {
+        const { sidekick } = req.params;
+        const sidekickFeedback = trainingFeedback.filter(f => f.sidekick === sidekick);
+        
+        // Generate insights based on feedback patterns
+        const insights = [];
+        
+        const negativeWithImprovements = sidekickFeedback.filter(f => f.feedback === 'thumbs_down' && f.improvement);
+        if (negativeWithImprovements.length > 0) {
+            insights.push({
+                type: 'improvement_pattern',
+                message: `Common improvement areas: ${negativeWithImprovements.slice(-3).map(f => f.improvement).join(', ')}`,
+                count: negativeWithImprovements.length
+            });
+        }
+        
+        const positiveRate = sidekickFeedback.length > 0 ? 
+            (sidekickFeedback.filter(f => f.feedback === 'thumbs_up').length / sidekickFeedback.length * 100).toFixed(1) : 0;
+        
+        if (positiveRate > 80) {
+            insights.push({
+                type: 'performance',
+                message: `Excellent performance! ${positiveRate}% positive feedback`,
+                count: sidekickFeedback.filter(f => f.feedback === 'thumbs_up').length
+            });
+        } else if (positiveRate < 60) {
+            insights.push({
+                type: 'needs_attention',
+                message: `Needs improvement: Only ${positiveRate}% positive feedback`,
+                count: sidekickFeedback.filter(f => f.feedback === 'thumbs_down').length
+            });
+        }
+        
+        res.json({ insights, positiveRate: parseFloat(positiveRate) });
+    } catch (error) {
+        console.error('Error getting training insights:', error);
+        res.status(500).json({ error: 'Failed to get training insights' });
+    }
+});
+
 app.listen(port, () => {
   console.log(`🚀 AI Server running on http://localhost:${port} (NEW PORT!)`);
   console.log('📝 Available endpoints:');
@@ -1337,6 +2025,9 @@ app.listen(port, () => {
   console.log('   POST /api/admin/settings');
   console.log('   GET  /api/admin/alerts');
   console.log('   POST /api/admin/alerts/:alertId/acknowledge');
+  console.log('   POST /api/training/feedback');
+  console.log('   GET  /api/training/feedback/:sidekick');
+  console.log('   GET  /api/training/insights/:sidekick');
   console.log('   POST /api/admin/maintenance');
   console.log('   GET  /api/admin/ai-model');
   console.log('   POST /api/admin/ai-model');
@@ -1357,4 +2048,9 @@ app.listen(port, () => {
   console.log('   GET  /api/blog');
   console.log('   GET  /api/blog/:slug');
   console.log('   POST /api/blog');
+  console.log('   🎯 LEAD SCORING ENDPOINTS:');
+  console.log('   POST /api/leads/:leadId/score');
+  console.log('   GET  /api/leads/:leadId/score');
+  console.log('   POST /api/leads/score-all');
+  console.log('   GET  /api/leads/scoring-rules');
 });

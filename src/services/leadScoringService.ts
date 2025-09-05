@@ -180,8 +180,31 @@ export const SCORE_TIERS = {
 };
 
 export class LeadScoringService {
-    // Calculate lead score based on rules
-    static calculateLeadScore(lead: Lead): LeadScore {
+    // Calculate lead score - now calls backend API
+    static async calculateLeadScore(lead: Lead): Promise<LeadScore> {
+        try {
+            const response = await fetch(`/api/leads/${lead.id}/score`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to calculate score: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return data.score;
+        } catch (error) {
+            console.warn('Backend scoring failed, falling back to client-side:', error);
+            // Fallback to client-side calculation
+            return this.calculateLeadScoreClientSide(lead);
+        }
+    }
+
+    // Fallback client-side calculation (keep for offline/error scenarios)
+    static calculateLeadScoreClientSide(lead: Lead): LeadScore {
         const breakdown: ScoreBreakdown[] = [];
         let totalScore = 0;
 
@@ -217,9 +240,61 @@ export class LeadScoringService {
         };
     }
 
-    // Calculate scores for multiple leads
-    static calculateBulkScores(leads: Lead[]): LeadScore[] {
-        return leads.map(lead => this.calculateLeadScore(lead));
+    // Calculate scores for multiple leads - now async
+    static async calculateBulkScores(leads: Lead[]): Promise<LeadScore[]> {
+        try {
+            // Try bulk scoring endpoint first
+            const response = await fetch('/api/leads/score-all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                // Get updated leads with scores
+                const leadsResponse = await fetch('/api/admin/leads');
+                if (leadsResponse.ok) {
+                    const leadsData = await leadsResponse.json();
+                    return leadsData.leads.map((lead: any) => ({
+                        leadId: lead.id,
+                        totalScore: lead.score || 0,
+                        tier: lead.scoreTier || 'Cold',
+                        breakdown: lead.scoreBreakdown || [],
+                        lastUpdated: lead.scoreLastUpdated || lead.updatedAt
+                    }));
+                }
+            }
+        } catch (error) {
+            console.warn('Bulk scoring failed, falling back to individual calculations:', error);
+        }
+
+        // Fallback to individual calculations
+        const scores = await Promise.all(
+            leads.map(async lead => {
+                try {
+                    return await this.calculateLeadScore(lead);
+                } catch (error) {
+                    return this.calculateLeadScoreClientSide(lead);
+                }
+            })
+        );
+        return scores;
+    }
+
+    // Get lead score from backend
+    static async getLeadScore(leadId: string): Promise<LeadScore | null> {
+        try {
+            const response = await fetch(`/api/leads/${leadId}/score`);
+            if (!response.ok) {
+                throw new Error(`Failed to get score: ${response.statusText}`);
+            }
+            const data = await response.json();
+            return data.score;
+        } catch (error) {
+            console.warn('Failed to get lead score from backend:', error);
+            return null;
+        }
     }
 
     // Get scoring insights for analytics
