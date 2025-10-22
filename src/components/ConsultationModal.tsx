@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import Modal from './Modal';
-import { googleMeetService } from '../services/googleMeetService';
 import { emailService } from '../services/emailService';
 // import { addConsultation } from '../services/firestoreService'; // removed with Firebase
 import { ValidationUtils } from '../utils/validation';
@@ -86,25 +85,16 @@ This consultation was booked through the HomeListingAI website.`,
                 attendees: [formData.email, 'us@homelistingai.com']
             };
 
-            // Add to Google Calendar
-            let calendarResult = { meetLink: '', eventId: '' };
-            try {
-                calendarResult = await googleMeetService.createMeetEvent(event);
-                console.log('📅 Calendar event created successfully');
-            } catch (error) {
-                console.log('⚠️ Calendar creation failed, continuing with booking:', error);
-            }
-
             // Send confirmation email to client
             console.log('📧 Sending confirmation email...');
-            await emailService.sendConsultationConfirmation(formData, calendarResult.meetLink);
+            await emailService.sendConsultationConfirmation(formData, undefined);
 
             // Send notification email to admin
             console.log('📧 Sending admin notification...');
-            await emailService.sendAdminNotification(formData, calendarResult.meetLink);
+            await emailService.sendAdminNotification(formData, undefined);
 
             // Save to admin dashboard
-            await saveToAdminDashboard(formData, calendarResult);
+            await saveToAdminDashboard(formData, { meetLink: '', eventId: `apt-${Date.now()}` });
 
             setSubmitStatus('success');
             setTimeout(() => {

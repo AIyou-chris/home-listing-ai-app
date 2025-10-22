@@ -1,5 +1,4 @@
 // Email service for sending consultation confirmations and notifications
-import { googleOAuthService } from './googleOAuthService'
 
 export interface ConsultationData {
     name: string;
@@ -25,45 +24,6 @@ class EmailService {
             EmailService.instance = new EmailService();
         }
         return EmailService.instance;
-    }
-
-    private async sendViaGmail(to: string, subject: string, html: string): Promise<boolean> {
-        try {
-            if (!googleOAuthService.isAuthenticated()) {
-                return false
-            }
-            const accessToken = googleOAuthService.getAccessToken()
-            if (!accessToken) {
-                return false
-            }
-
-            const message = [
-                `To: ${to}`,
-                'Content-Type: text/html; charset=UTF-8',
-                `Subject: ${subject}`,
-                '',
-                html
-            ].join('\r\n')
-
-            const raw = btoa(unescape(encodeURIComponent(message)))
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '')
-
-            const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ raw })
-            })
-
-            return resp.ok
-        } catch (e) {
-            console.error('Gmail send error', e)
-            return false
-        }
     }
 
     // Send confirmation email to client
@@ -103,17 +63,6 @@ class EmailService {
                 `
             };
 
-            // Try Gmail first
-            const sentViaGmail = await this.sendViaGmail(emailContent.to, emailContent.subject, emailContent.html);
-            
-            if (sentViaGmail) {
-                console.log('✅ Email sent successfully via Gmail');
-                return true;
-            }
-
-            // Gmail failed, try alternative methods
-            console.log('⚠️ Gmail sending failed, trying alternative methods...');
-            
             // Try sending via backend API if available
             const backendSent = await this.sendViaBackend(emailContent);
             if (backendSent) {
@@ -201,15 +150,7 @@ We've logged your booking details for follow-up.`);
                 `
             };
 
-            // Try Gmail first
-            const sentViaGmail = await this.sendViaGmail(adminEmail, emailContent.subject, emailContent.html);
-            
-            if (sentViaGmail) {
-                console.log('✅ Admin notification sent successfully via Gmail');
-                return true;
-            }
-
-            // Gmail failed, try backend
+            // Try backend
             const backendSent = await this.sendViaBackend(emailContent);
             if (backendSent) {
                 console.log('✅ Admin notification sent successfully via backend');

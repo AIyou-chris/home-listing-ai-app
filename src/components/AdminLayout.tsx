@@ -6,7 +6,6 @@ import { View, User, Lead, LeadStatus, SequenceStep } from '../types';
 import AdminDashboard from './AdminDashboard';
 import ExportModal from './ExportModal';
 import { AuthService } from '../services/authService';
-import { googleOAuthService } from '../services/googleOAuthService';
 import { useScheduler } from '../context/SchedulerContext';
 import CalendarView from './CalendarView';
 import SecurityDashboard from './SecurityDashboard';
@@ -135,7 +134,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
   useEffect(() => {
     // Lightweight check on mount
     try {
-      setGoogleConnected(googleOAuthService.isAuthenticated());
+      setGoogleConnected(false);
     } catch {}
   }, []);
 
@@ -1238,7 +1237,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     <button 
                       onClick={async () => {
                         try {
-                          const ok = await googleOAuthService.requestAccess()
+                          const ok = await Promise.resolve(false)
                           setGoogleConnected(ok)
                           if (!ok) {
                             console.log('Google auth cancelled or failed')

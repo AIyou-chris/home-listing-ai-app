@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Appointment, Lead, User } from '../types';
 import CalendarView from './CalendarView';
-import { googleOAuthService } from '../services/googleOAuthService';
 // Firebase services removed - using Supabase alternatives
 import { useScheduler } from '../context/SchedulerContext';
 
@@ -22,8 +21,6 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 	const [query, setQuery] = useState('');
 	const [sideTab, setSideTab] = useState<'details' | 'activity' | 'appointments' | 'invoices' | 'email' | 'schedule'>('details');
 	const [selectedId, setSelectedId] = useState<string | null>(null);
-
-	const [googleConnected, setGoogleConnected] = useState(false);
 
 	const [localAppointments, setLocalAppointments] = useState<Appointment[]>(
 		() => appointments || []
@@ -186,27 +183,6 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 					<div className="bg-white rounded-xl shadow-sm border border-slate-200/80">
 						<div className="p-4 border-b border-slate-200 flex items-center justify-between">
 							<h2 className="text-sm font-semibold text-slate-800">Calendar</h2>
-							<div className="flex items-center gap-2">
-								{!googleConnected ? (
-									<button
-										onClick={async () => {
-											try {
-												const ok = await googleOAuthService.requestAccess();
-												setGoogleConnected(!!ok);
-											} catch {}
-										}}
-										className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
-									>
-										<span className="material-symbols-outlined w-4 h-4">link</span>
-										Connect Google
-									</button>
-								) : (
-									<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
-										<span className="material-symbols-outlined w-4 h-4">check_circle</span>
-										Connected
-									</span>
-								)}
-							</div>
 						</div>
 						<div className="p-3">
 							<CalendarView appointments={localAppointments} />

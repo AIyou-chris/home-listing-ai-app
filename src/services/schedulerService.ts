@@ -1,9 +1,7 @@
-import { googleMeetService } from './googleMeetService'
 import { emailService } from './emailService'
 import { insertAppointment } from './appointmentsService'
 import { supabase } from './supabase'
 // import { addConsultation } from './firestoreService' // removed with Firebase
-import { googleOAuthService } from './googleOAuthService'
 
 export type AppointmentKind =
   | 'Showing'
@@ -71,21 +69,7 @@ Notes:
 ${input.message || 'No additional notes'}
 `
 
-  const attendees = [
-    input.email,
-    input.agentEmail || (googleOAuthService.getUserEmail?.() || 'us@homelistingai.com')
-  ]
-
-  const event = {
-    summary,
-    description,
-    startTime: start,
-    endTime: end,
-    attendees
-  }
-
-  const calendar = await googleMeetService.createMeetEvent(event)
-
+  // Send confirmation emails (without Google Meet link)
   await emailService.sendConsultationConfirmation(
     {
       name: input.name,
@@ -95,7 +79,7 @@ ${input.message || 'No additional notes'}
       time: input.time,
       message: input.message || ''
     },
-    calendar.meetLink
+    undefined // No meet link
   )
 
   await emailService.sendAdminNotification(
@@ -107,7 +91,7 @@ ${input.message || 'No additional notes'}
       time: input.time,
       message: input.message || ''
     },
-    calendar.meetLink
+    undefined // No meet link
   )
 
   // Firebase removed: persist via Supabase later if needed
@@ -126,13 +110,13 @@ ${input.message || 'No additional notes'}
       time_label: input.time,
       start_iso: start,
       end_iso: end,
-      meet_link: calendar.meetLink,
+      meet_link: undefined,
       notes: input.message || '',
       status: 'Scheduled'
     })
   } catch {}
 
-  return { eventId: calendar.eventId, meetLink: calendar.meetLink }
+  return { eventId: `apt-${Date.now()}`, meetLink: undefined }
 }
 
 

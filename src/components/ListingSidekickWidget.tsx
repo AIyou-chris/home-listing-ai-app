@@ -21,7 +21,7 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
   const [conversationId, setConversationId] = useState<string | null>(null)
 
   useEffect(() => {
-    ;(async () => {
+    (async () => {
       try { setProfile(await getListingProfile(uid, property.id)) } catch {}
     })()
   }, [uid, property.id])

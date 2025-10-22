@@ -396,7 +396,7 @@ const App: React.FC = () => {
     };
 
     // Notification handler for future use - will be used when implementing real notifications
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     // Notification handling is now managed by NotificationSystem component
 
     // Notification handling is now managed by NotificationSystem component
