@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
-import { emailAuthService, EmailConnection } from '../services/emailAuthService';
 import NotificationService from '../services/notificationService';
 
 interface SettingsPageProps {
@@ -196,10 +195,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         confirmNewPassword: '',
     });
     
-    // Email connection state
-    const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([]);
-    const [isConnecting, setIsConnecting] = useState<string | null>(null);
-    
     // Notification permission state
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
     const [isRequestingPermission, setIsRequestingPermission] = useState(false);
@@ -208,49 +203,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
 
     useEffect(() => {
         setCurrentNotifications(notificationSettings);
-        // Load existing email connections
-        setEmailConnections(emailAuthService.getConnections());
         // Check notification permission
         if ('Notification' in window) {
             setNotificationPermission(Notification.permission);
         }
     }, [notificationSettings]);
-
-    // Email connection handlers
-    const handleGmailConnect = async () => {
-        setIsConnecting('gmail');
-        try {
-            const connection = await emailAuthService.connectGmail();
-            setEmailConnections(prev => [...prev.filter(c => c.provider !== 'gmail'), connection]);
-        } catch (error) {
-            console.error('Gmail connection failed:', error);
-            alert('Failed to connect Gmail. Please try again.');
-        } finally {
-            setIsConnecting(null);
-        }
-    };
-
-    const handleOutlookConnect = async () => {
-        setIsConnecting('outlook');
-        try {
-            const connection = await emailAuthService.connectOutlook();
-            setEmailConnections(prev => [...prev.filter(c => c.provider !== 'outlook'), connection]);
-        } catch (error) {
-            console.error('Outlook connection failed:', error);
-            alert('Failed to connect Outlook. Please try again.');
-        } finally {
-            setIsConnecting(null);
-        }
-    };
-
-    const handleEmailDisconnect = async (provider: 'gmail' | 'outlook') => {
-        try {
-            await emailAuthService.disconnect(provider);
-            setEmailConnections(prev => prev.filter(c => c.provider !== provider));
-        } catch (error) {
-            console.error('Disconnect failed:', error);
-        }
-    };
 
     // Notification permission handlers
     const handleRequestNotificationPermission = async () => {
@@ -996,156 +953,35 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                             <form onSubmit={handleEmailSettingsSave} className="p-8 space-y-8">
                                 <div>
                                     <h2 className="text-2xl font-bold text-slate-900">📧 Email Settings</h2>
-                                    <p className="text-slate-500 mt-1">Connect your email accounts and configure your email preferences for automated sequences.</p>
+                                    <p className="text-slate-500 mt-1">Configure your email preferences for automated sequences using Mailgun.</p>
                                 </div>
 
-                                {/* Email Account Connections */}
+                                {/* Email Service Setup */}
                                 <div className="bg-white rounded-lg border border-slate-200 p-6">
-                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Email Account Connections</h3>
+                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">📬 Email Service</h3>
                                     <p className="text-sm text-slate-600 mb-4">
-                                        Connect your email accounts to send follow-up sequences and automated emails directly from your own inbox.
+                                        Your platform uses Mailgun for sending automated emails and follow-up sequences.
                                     </p>
                                     
                                     <div className="space-y-4">
-                                        {/* Connection Options */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                            {/* OAuth Connection */}
-                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                                <h4 className="text-sm font-semibold text-blue-800 mb-2">🔐 Direct Connection (Recommended)</h4>
-                                                <div className="text-xs text-blue-700 space-y-1">
-                                                    <p>• Works with Gmail & Outlook</p>
-                                                    <p>• 100% authentic emails (no "via" tags)</p>
-                                                    <p>• Best deliverability & reputation</p>
-                                                    <p>• One-click setup with OAuth</p>
-                                                </div>
-                                            </div>
-
-                                            {/* Email Forwarding */}
-                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                                <h4 className="text-sm font-semibold text-green-800 mb-2">📧 Email Forwarding (Any Provider)</h4>
-                                                <div className="text-xs text-green-700 space-y-1">
-                                                    <p>• Works with ANY email provider</p>
-                                                    <p>• Yahoo, AOL, custom domains, etc.</p>
-                                                    <p>• Simple forwarding rule setup</p>
-                                                    <p>• All replies come to your inbox</p>
-                                                </div>
+                                        {/* Mailgun Setup Info */}
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                            <h4 className="text-sm font-semibold text-blue-800 mb-2">✉️ Mailgun Email Service</h4>
+                                            <div className="text-xs text-blue-700 space-y-1">
+                                                <p>• Professional email delivery</p>
+                                                <p>• High deliverability rates</p>
+                                                <p>• Automated follow-up sequences</p>
+                                                <p>• Configured and ready to use</p>
                                             </div>
                                         </div>
 
-                                        {/* Current Setup Status */}
-                                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
-                                            <h4 className="text-sm font-semibold text-slate-700 mb-2">📬 Your Unique Forwarding Address</h4>
-                                            <div className="flex items-center gap-3">
-                                                <input
-                                                    type="text"
-                                                    readOnly
-                                                    value={`agent-${userProfile.email?.split('@')[0] || 'demo'}@homelistingai.com`}
-                                                    className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded text-sm font-mono"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => navigator.clipboard.writeText(`agent-${userProfile.email?.split('@')[0] || 'demo'}@homelistingai.com`)}
-                                                    className="px-3 py-2 bg-slate-600 text-white text-xs rounded hover:bg-slate-700 transition"
-                                                >
-                                                    Copy
-                                                </button>
-                                            </div>
-                                            <p className="text-xs text-slate-600 mt-2">
-                                                Set up a forwarding rule in your email client to forward leads to this address. 
-                                                <a href="#" className="text-blue-600 hover:underline ml-1">View setup guide →</a>
-                                            </p>
-                                        </div>
-
-                                        {/* Email preview */}
+                                        {/* Email Preview */}
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-2">Email Preview</label>
-                                                <div className="mt-2 p-3 bg-white border border-slate-200 rounded-md text-sm">
-                                                    <p><strong>From:</strong> {userProfile.name} &lt;{userProfile.email}&gt;</p>
-                                                    <p className="text-xs text-green-600">✓ Looks 100% authentic</p>
-                                                </div>
+                                            <div className="mt-2 p-3 bg-white border border-slate-200 rounded-md text-sm">
+                                                <p><strong>From:</strong> {userProfile.name} &lt;{userProfile.email}&gt;</p>
+                                                <p className="text-xs text-green-600">✓ Looks 100% authentic</p>
                                             </div>
-
-                                        {/* Connection Status */}
-                                        <div className="space-y-4">
-                                            {/* Connected Accounts */}
-                                            {emailConnections.length > 0 && (
-                                                <div className="space-y-2">
-                                                    <h4 className="text-sm font-medium text-slate-700">Connected Accounts</h4>
-                                                    {emailConnections.map(connection => (
-                                                        <div key={connection.provider} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="text-lg">
-                                                                    {connection.provider === 'gmail' ? '📧' : '📬'}
-                                                                </span>
-                                                                <div>
-                                                                    <p className="font-medium text-green-800">{connection.email}</p>
-                                                                    <p className="text-xs text-green-600">Connected {new Date(connection.connectedAt).toLocaleDateString()}</p>
-                                                                </div>
-                                                            </div>
-                                                            <button
-                                                                onClick={() => handleEmailDisconnect(connection.provider)}
-                                                                className="text-xs px-3 py-1 text-red-600 hover:bg-red-100 rounded"
-                                                            >
-                                                                Disconnect
-                                                 </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            {/* Connection Buttons */}
-                                            <div className="flex flex-col sm:flex-row gap-3">
-                                                {!emailConnections.find(c => c.provider === 'gmail') && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleGmailConnect}
-                                                        disabled={isConnecting === 'gmail'}
-                                                        className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 transition"
-                                                    >
-                                                        {isConnecting === 'gmail' ? (
-                                                            <>
-                                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                                <span className="font-semibold">Connecting...</span>
-                                                            </>
-                                                        ) : (
-                                                            <span className="font-semibold">📧 Connect Gmail</span>
-                                                        )}
-                                                 </button>
-                                                )}
-
-                                                {!emailConnections.find(c => c.provider === 'outlook') && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleOutlookConnect}
-                                                        disabled={isConnecting === 'outlook'}
-                                                        className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-orange-600 text-white rounded-lg shadow-sm hover:bg-orange-700 disabled:opacity-50 transition"
-                                                    >
-                                                        {isConnecting === 'outlook' ? (
-                                                            <>
-                                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                                <span className="font-semibold">Connecting...</span>
-                                                            </>
-                                                        ) : (
-                                                            <span className="font-semibold">📬 Connect Outlook</span>
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            {/* Help Text */}
-                                            {emailConnections.length === 0 && (
-                                                <div className="space-y-3">
-                                                    <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded p-3">
-                                                        <p className="font-medium text-blue-800 mb-1">🔐 OAuth Connection</p>
-                                                        <p>Secure authentication. Your password is never stored or seen by our app.</p>
-                                                    </div>
-                                                    
-                                                    <div className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded p-3">
-                                                        <p className="font-medium text-amber-800 mb-1">💡 Don't have Gmail or Outlook?</p>
-                                                        <p>No problem! Use the forwarding address above with any email provider (Yahoo, AOL, custom domain, etc.). Just set up email forwarding in your current email client.</p>
-                                        </div>
-                                    </div>
-                                )}
                                         </div>
                                     </div>
                                 </div>
