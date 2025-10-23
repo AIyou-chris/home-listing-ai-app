@@ -622,16 +622,16 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ o
                 </div>
 
                 <div className="mt-12 animate-fade-in-up animation-delay-800 flex justify-center gap-4">
+                    <button onClick={onNavigateToSignUp} className="px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg shadow-lg hover:bg-blue-700 transition-all text-lg transform hover:scale-105 btn-animate">
+                        <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
+                            Get Started Now
+                        </span>
+                    </button>
                     <button onClick={onEnterDemoMode} className="px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg transform hover:scale-105 btn-animate">
                         <span className="flex items-center gap-2">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
-                        </span>
-                    </button>
-                    <button onClick={onEnterDemoMode} className="px-8 py-4 bg-orange-500 text-white font-semibold rounded-lg shadow-lg hover:bg-orange-600 transition-all text-lg transform hover:scale-105 btn-animate">
-                        <span className="flex items-center gap-2">
-                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
-                            Try It Free for 3 Days
                         </span>
                     </button>
                 </div>
@@ -800,7 +800,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                             <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
                             <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
                             <p className="mt-6">
-                                <span className="text-5xl font-extrabold text-white">$79</span>
+                                <span className="text-5xl font-extrabold text-white">$139</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
                             <p className="mt-1 text-sm text-slate-300">Three Active Listings</p>
@@ -1495,16 +1495,16 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                         It never sleeps, always follows up, and sounds just like you... <a href="#what-you-get" className="font-semibold text-primary-600 hover:underline">and so much more</a>.
                     </p>
                     <div className="mt-8 flex justify-center lg:justify-start gap-4 animate-fade-in-up animation-delay-400">
-                        <button onClick={onNavigateToSignUp} className="flex items-center gap-2 px-6 py-3.5 bg-orange-500 text-white font-semibold rounded-lg shadow-md hover:bg-orange-600 transition-all transform hover:scale-105 btn-animate">
+                        <button onClick={onNavigateToSignUp} className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
-                            Try It Free for 3 Days
+                            Get Started Now
                         </button>
                         <button onClick={onEnterDemoMode} className="flex items-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
                         </button>
                     </div>
-                    <p className="mt-3 text-sm text-slate-500 text-center lg:text-left animate-fade-in-up animation-delay-600">No card. No pressure. Just power.</p>
+                    <p className="mt-3 text-sm text-slate-500 text-center lg:text-left animate-fade-in-up animation-delay-600">Professional AI solution. No setup fees.</p>
                 </div>
                 <div className="relative animate-fade-in-up animation-delay-600">
                     <div className="relative lg:animate-float">
