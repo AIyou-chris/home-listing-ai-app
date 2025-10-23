@@ -3,23 +3,81 @@ import { useAdminModal } from '../context/AdminModalContext';
 import { AdminModals } from './AdminModals';
 import AddContactModal from './AddContactModal';
 import { supabase } from '../services/supabase';
+import { SystemMonitoringService, HealthStatus } from '../services/systemMonitoringService';
 
-// Simple status widget
-const StatusWidget: React.FC<{ serviceName: string; status: 'Online' | 'Offline' | 'Error' }> = ({ serviceName, status }) => {
-    const statusInfo = {
-        Online: { text: 'Online', color: 'text-green-400', dotClass: 'bg-green-500 animate-pulse' },
-        Offline: { text: 'Offline', color: 'text-red-400', dotClass: 'bg-red-500' },
-        Error: { text: 'Error', color: 'text-yellow-400', dotClass: 'bg-yellow-500' },
+// Enhanced status widget with real-time monitoring
+const StatusWidget: React.FC<{ 
+    serviceName: string; 
+    healthStatus: HealthStatus | null;
+    isLoading?: boolean;
+}> = ({ serviceName, healthStatus, isLoading = false }) => {
+    const getStatusInfo = () => {
+        if (isLoading) {
+            return {
+                text: 'Checking...',
+                color: 'text-gray-400',
+                dotClass: 'bg-gray-500 animate-pulse'
+            };
+        }
+
+        if (!healthStatus) {
+            return {
+                text: 'Unknown',
+                color: 'text-gray-400',
+                dotClass: 'bg-gray-500'
+            };
+        }
+
+        switch (healthStatus.status) {
+            case 'healthy':
+                return {
+                    text: 'Online',
+                    color: 'text-green-400',
+                    dotClass: 'bg-green-500 animate-pulse'
+                };
+            case 'warning':
+                return {
+                    text: 'Warning',
+                    color: 'text-yellow-400',
+                    dotClass: 'bg-yellow-500 animate-pulse'
+                };
+            case 'error':
+                return {
+                    text: 'Error',
+                    color: 'text-red-400',
+                    dotClass: 'bg-red-500'
+                };
+            default:
+                return {
+                    text: 'Unknown',
+                    color: 'text-gray-400',
+                    dotClass: 'bg-gray-500'
+                };
+        }
     };
-    const currentStatus = statusInfo[status];
+
+    const statusInfo = getStatusInfo();
+    const responseTime = healthStatus?.responseTime;
 
     return (
-        <div className="bg-slate-800 rounded-lg p-5 border border-slate-700/50 flex justify-between items-center">
-            <div>
-                <p className="text-sm font-medium text-slate-400">{serviceName}</p>
-                <p className={`text-xl font-bold ${currentStatus.color}`}>{currentStatus.text}</p>
+        <div className="bg-slate-800 rounded-lg p-5 border border-slate-700/50">
+            <div className="flex justify-between items-start mb-2">
+                <div>
+                    <p className="text-sm font-medium text-slate-400">{serviceName}</p>
+                    <p className={`text-xl font-bold ${statusInfo.color}`}>{statusInfo.text}</p>
+                </div>
+                <div className={`w-3 h-3 rounded-full ${statusInfo.dotClass}`}></div>
             </div>
-            <div className={`w-3 h-3 rounded-full ${currentStatus.dotClass}`}></div>
+            {responseTime !== undefined && (
+                <div className="text-xs text-slate-500 mt-1">
+                    Response: {responseTime.toFixed(0)}ms
+                </div>
+            )}
+            {healthStatus?.message && healthStatus.status !== 'healthy' && (
+                <div className="text-xs text-slate-400 mt-2 line-clamp-2" title={healthStatus.message}>
+                    {healthStatus.message}
+                </div>
+            )}
         </div>
     );
 };
@@ -64,6 +122,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [showAddContactModal, setShowAddContactModal] = useState(false);
     const [contacts, setContacts] = useState<any[]>([]);
     
+    // System monitoring states
+    const [apiHealth, setApiHealth] = useState<HealthStatus | null>(null);
+    const [dbHealth, setDbHealth] = useState<HealthStatus | null>(null);
+    const [aiHealth, setAiHealth] = useState<HealthStatus | null>(null);
+    const [healthLoading, setHealthLoading] = useState(true);
+    
     // Use centralized modal context instead of local state
     const {
         setShowAddUserModal,
@@ -77,6 +141,37 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // Use the users and leads directly from props - no local state needed
     const users = propUsers;
     const leads = propLeads;
+
+    // Load system health status
+    useEffect(() => {
+        const loadHealthStatus = async () => {
+            try {
+                const monitoring = SystemMonitoringService.getInstance();
+                
+                // Check API health
+                const apiStatus = await monitoring.checkSystemHealth();
+                setApiHealth(apiStatus);
+                
+                // Check database health
+                const dbStatus = await monitoring.checkDatabaseHealth();
+                setDbHealth(dbStatus);
+                
+                // Check AI services health
+                const aiStatus = await monitoring.checkAIServicesHealth();
+                setAiHealth(aiStatus);
+            } catch (error) {
+                console.error('Error loading health status:', error);
+            } finally {
+                setHealthLoading(false);
+            }
+        };
+
+        loadHealthStatus();
+        
+        // Refresh health status every 30 seconds
+        const interval = setInterval(loadHealthStatus, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         const loadContacts = async () => {
@@ -207,9 +302,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {/* System Status */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <StatusWidget serviceName="API Server" status="Online" />
-                    <StatusWidget serviceName="Database" status="Online" />
-                    <StatusWidget serviceName="AI Services" status="Online" />
+                    <StatusWidget serviceName="API Server" healthStatus={apiHealth} isLoading={healthLoading} />
+                    <StatusWidget serviceName="Database" healthStatus={dbHealth} isLoading={healthLoading} />
+                    <StatusWidget serviceName="AI Services" healthStatus={aiHealth} isLoading={healthLoading} />
                 </div>
 
                 {/* Recent Contacts Table */}

@@ -549,7 +549,7 @@ const RevolutionaryAIFeaturesSection: React.FC = () => {
     );
 };
 
-const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ onEnterDemoMode }) => {
+const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void; onNavigateToSignUp: () => void }> = ({ onEnterDemoMode, onNavigateToSignUp }) => {
     const features = [
         { icon: 'track_changes', title: 'Never Lose a Lead', description: 'Watch in real-time as every inquiry—from your website, ads, or QR codes—populates your dashboard instantly.' },
         { icon: 'psychology', title: 'Know Who to Call Next', description: 'Our AI doesn\'t just capture leads; it qualifies them. See who is pre-approved and ready to talk, so you can focus on the hottest prospects.' },
@@ -1581,7 +1581,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
                 <RevolutionaryAIFeaturesSection />
-                <DashboardShowcaseSection onEnterDemoMode={onEnterDemoMode} />
+                <DashboardShowcaseSection onEnterDemoMode={onEnterDemoMode} onNavigateToSignUp={onNavigateToSignUp} />
                 <AIAppShowcaseSection onOpenModal={setActiveModal} />
                 <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenConsultationModal={onOpenConsultationModal} />
                 <WhiteLabelSection onOpenConsultationModal={onOpenConsultationModal} />
