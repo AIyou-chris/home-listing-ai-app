@@ -31,11 +31,11 @@ const NavItem: React.FC<{
       }}
       className={`flex w-full items-center space-x-3 rounded-lg px-3 py-2.5 text-sm transition-colors duration-200 ${
         isActive
-          ? 'bg-primary-100 font-semibold text-primary-700'
+          ? 'bg-primary-600 font-semibold text-white shadow-sm'
           : 'font-medium text-slate-600 hover:bg-slate-200/60'
       }`}
     >
-      <Icon name={icon} className={`transition-colors ${isActive ? 'text-primary-600' : 'text-slate-500'}`} />
+      <Icon name={icon} className={`transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`} />
       <span>{children}</span>
     </button>
   );
@@ -47,6 +47,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, setView, isOpen
     { view: 'admin-contacts', icon: 'groups', label: 'Contacts' },
     // { view: 'admin-ai-content', icon: 'forum', label: 'AI Content' },
     { view: 'admin-knowledge-base', icon: 'robot_2', label: 'Enhanced AI Sidekicks' },
+    { view: 'admin-ai-training', icon: 'school', label: 'Train Your AI' },
     { view: 'admin-ai-card', icon: 'badge', label: 'AI Business Cards' },
     // Removed: AI Personalities now managed per-knowledge-base
     { view: 'admin-marketing', icon: 'filter_alt', label: 'AI Funnel' },

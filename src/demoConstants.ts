@@ -154,190 +154,229 @@ export const DEMO_FAT_INTERACTIONS: Interaction[] = [];
 
 export const DEMO_SEQUENCES: FollowUpSequence[] = [
     {
-        id: 'demo-buyer-sequence',
-        name: 'New Buyer Lead Nurture',
-        description: 'Convert buyer inquiries into property showings and sales',
+        id: 'welcome-sequence',
+        name: 'Welcome & AI Card Intro',
+        description: 'Send new contacts a polished welcome and showcase your AI business card.',
         triggerType: 'Lead Capture',
         isActive: true,
         steps: [
             {
-                id: 'step-1',
+                id: 'welcome-email-1',
                 type: 'email',
-                delay: { value: 5, unit: 'minutes' },
-                subject: 'Welcome! Let\'s Find Your Dream Home 🏠',
+                delay: { value: 2, unit: 'minutes' },
+                subject: 'Welcome! Meet Your AI Concierge ✨',
                 content: `Hi {{lead.name}},
 
-Thank you for your interest in {{property.address}}! I'm excited to help you find the perfect home.
+Great to meet you! I built a personalized AI concierge that answers questions 24/7 and highlights my services.
 
-I noticed you were looking at properties in the {{property.neighborhood}} area. This is a fantastic location with:
-• Top-rated schools nearby
-• Easy access to shopping and dining
-• Strong property value growth
+👉 Explore it here: {{agent.aiCardUrl || agent.website}}
 
-I'd love to show you this property and a few others that match your criteria. When would be a good time for a quick 15-minute call to discuss your needs?
+Inside you'll find:
+• Property insights tailored to your interests
+• My contact details and instant scheduling
+• AI answers to common buying and selling questions
 
-Best regards,
+Let me know the best time to connect live—I’m ready when you are!
+
 {{agent.name}}
 {{agent.phone}}`
             },
             {
-                id: 'step-2',
+                id: 'welcome-email-2',
                 type: 'email',
-                delay: { value: 2, unit: 'days' },
-                subject: 'Market Update: New Listings in {{property.neighborhood}}',
+                delay: { value: 1, unit: 'days' },
+                subject: 'Tour Your AI Card & Quick Next Steps',
                 content: `Hi {{lead.name}},
 
-I wanted to share some exciting news! We have 3 new listings that just came on the market in {{property.neighborhood}} that might interest you:
+Just checking in after you received the AI card yesterday. The concierge has quick links to:
+• Schedule a property tour or consult
+• Browse saved listings
+• Ask questions about financing or timelines
 
-🏡 Similar Properties Available:
-• 3BR/2BA - $\${property.price} range
-• Move-in ready condition
-• Great school district
+If you'd prefer I walk you through it over a quick call, reply with a good time. I love giving clients the VIP tour!
 
-The market is moving quickly, and these types of properties typically receive multiple offers within the first week.
-
-Would you like to schedule a private showing this weekend? I can show you all the properties in one tour.
-
-Let me know what works for your schedule!
-
+Talk soon,
 {{agent.name}}`
             },
             {
-                id: 'step-3',
+                id: 'welcome-task-call',
                 type: 'task',
-                delay: { value: 5, unit: 'days' },
-                content: 'Follow up with {{lead.name}} via phone call to schedule showing'
+                delay: { value: 2, unit: 'days' },
+                content: 'Call {{lead.name}} to confirm their goals and highlight key AI card features they should explore.'
             }
         ]
     },
     {
-        id: 'demo-seller-sequence',
-        name: 'Seller Consultation Follow-up',
-        description: 'Convert seller inquiries into listing appointments',
-        triggerType: 'Property Inquiry',
+        id: 'buyer-journey-sequence',
+        name: 'Home Buyer Journey',
+        description: 'Guide active buyers from first inquiry to scheduled tours.',
+        triggerType: 'Buyer Lead',
         isActive: true,
         steps: [
             {
-                id: 'step-1',
+                id: 'buyer-email-1',
                 type: 'email',
-                delay: { value: 10, unit: 'minutes' },
-                subject: 'Your Home Value Estimate + Next Steps',
+                delay: { value: 1, unit: 'days' },
+                subject: 'Let’s Lock In Your Wishlist 🔑',
                 content: `Hi {{lead.name}},
 
-Thank you for requesting information about selling your home at {{property.address}}. 
+Thanks for reaching out about {{property.address}}. I built a short checklist so I can curate the best options for you:
 
-Based on recent market activity in your area, I estimate your home value at approximately $\${estimated.value}. Here's what's driving this estimate:
+• Ideal budget range?
+• Must-have features?
+• Preferred timing to move?
 
-📈 Market Factors:
-• Recent comparable sales: $\${comps.average}
-• Current inventory levels: {{market.inventory}} months
-• Average days on market: {{market.dom}} days
+Reply with those details and I’ll match homes you’ll love. I can also set you up with instant alerts the moment something new hits the market.
 
-🎯 To Maximize Your Sale Price:
-• Professional staging consultation
-• Strategic pricing based on current market
-• Comprehensive marketing plan
-• High-quality photography and virtual tours
-
-I'd love to provide a detailed Comparative Market Analysis (CMA) and discuss our proven selling strategy. Are you available for a brief consultation this week?
-
-Best regards,
-{{agent.name}}
-{{agent.phone}}`
+{{agent.name}}`
             },
             {
-                id: 'step-2',
+                id: 'buyer-email-2',
                 type: 'email',
                 delay: { value: 3, unit: 'days' },
-                subject: 'Market Alert: Homes Like Yours Selling Fast!',
+                subject: 'Fresh Matches You Should See',
                 content: `Hi {{lead.name}},
 
-Great news! The market conditions are excellent for sellers right now. In your neighborhood:
+I hand-picked a few properties that match your wishlist:
 
-🔥 Recent Market Activity:
-• 3 homes sold above asking price this month
-• Average time on market: only {{market.dom}} days
-• Buyer demand is high with limited inventory
+{{personalized.matches}}
 
-This creates a perfect opportunity to maximize your home's value. Many sellers are seeing:
-• Multiple offers within the first week
-• Sale prices 2-5% above asking
-• Quick closings with motivated buyers
-
-I have a proven marketing system that's helped my clients achieve these results. Would you like to see how we can position your home to attract top dollar?
-
-I'm available for a no-obligation consultation this week.
+Ready for a preview tour? I can arrange back-to-back showings this week. Let me know which ones excite you the most!
 
 {{agent.name}}`
             },
             {
-                id: 'step-3',
-                type: 'meeting',
-                delay: { value: 7, unit: 'days' },
-                content: 'Schedule listing consultation with {{lead.name}}',
-                location: '{{property.address}}'
+                id: 'buyer-task-checkin',
+                type: 'task',
+                delay: { value: 5, unit: 'days' },
+                content: 'Call or text {{lead.name}} to confirm interest level and schedule tours based on shared matches.'
+            },
+            {
+                id: 'buyer-email-3',
+                type: 'email',
+                delay: { value: 10, unit: 'days' },
+                subject: 'Market Watch: Opportunities Not to Miss',
+                content: `Hi {{lead.name}},
+
+The market shifted this week—here’s what matters:
+• Average list-to-sale price in {{market.area}} is now {{market.listToSale}}%
+• New financing incentives may lower payments
+• Two listings similar to {{property.address}} just went under contract
+
+I’d love to keep you ahead of the curve. Want me to set real-time alerts or line up a weekend tour?
+
+{{agent.name}}`
             }
         ]
     },
     {
-        id: 'demo-nurture-sequence',
-        name: 'Long-term Lead Nurture',
-        description: 'Stay top-of-mind with leads not ready to buy/sell immediately',
-        triggerType: 'Lead Capture',
+        id: 'seller-journey-sequence',
+        name: 'Home Seller Warm-Up',
+        description: 'Educate potential sellers and lead them toward a listing consultation.',
+        triggerType: 'Seller Lead',
         isActive: true,
         steps: [
             {
-                id: 'step-1',
+                id: 'seller-email-1',
                 type: 'email',
-                delay: { value: 1, unit: 'weeks' },
-                subject: 'Market Insights: What\'s Happening in {{market.area}}',
+                delay: { value: 30, unit: 'minutes' },
+                subject: 'Your Selling Game Plan Starts Here',
                 content: `Hi {{lead.name}},
 
-I hope you're doing well! I wanted to share some interesting market trends I'm seeing in {{market.area}}:
+Thanks for reaching out about {{property.address}}. I’m preparing a quick value snapshot for you. In the meantime, here are the three levers that help my clients sell above asking:
+1. Strategic pricing based on micro-neighborhood data
+2. Story-driven marketing (photos, video, AI card concierge)
+3. Launch plan that builds urgency pre-market
 
-📊 This Month's Market Snapshot:
-• Median home price: $\${market.median_price}
-• Inventory levels: {{market.inventory}} months
-• Interest rates: {{market.rates}}%
+Let’s book a 15-minute consultation so I can tailor the plan to your goals. What works for you this week?
 
-🏠 What This Means for You:
-Whether you're thinking about buying or selling, these trends create opportunities. I'm here to help you understand how they might affect your real estate goals.
+{{agent.name}}
+{{agent.phone}}`
+            },
+            {
+                id: 'seller-email-2',
+                type: 'email',
+                delay: { value: 3, unit: 'days' },
+                subject: 'See What Homes Like Yours Are Selling For',
+                content: `Hi {{lead.name}},
 
-I'll continue to send you valuable market updates and insights. If you ever have questions or want to discuss your options, just reply to this email!
+Here are three recent sales near {{property.address}} that show the momentum in your neighborhood:
+{{market.comparables}}
 
-Best regards,
+I’ll bring a full pricing model to our consultation, including recommended upgrades (if any) and projected net proceeds. Ready to review it together?
+
 {{agent.name}}`
             },
             {
-                id: 'step-2',
+                id: 'seller-task-appointment',
+                type: 'task',
+                delay: { value: 5, unit: 'days' },
+                content: 'Call {{lead.name}} to confirm CMA delivery and schedule an in-person or virtual listing consultation.'
+            },
+            {
+                id: 'seller-email-3',
                 type: 'email',
-                delay: { value: 1, unit: 'months' },
-                subject: 'Neighborhood Spotlight: {{property.neighborhood}}',
+                delay: { value: 8, unit: 'days' },
+                subject: 'Marketing Preview: How We Spotlight Your Home',
                 content: `Hi {{lead.name}},
 
-I thought you'd be interested in this spotlight on {{property.neighborhood}}:
+I wanted to share how your home will shine when we go to market:
+• Custom landing page with AI concierge and QR codes
+• Social + email launch plan to generate buzz before day one
+• Professional staging and photography schedule
 
-🌟 Why People Love This Area:
-• Excellent schools (rated {{schools.rating}}/10)
-• {{amenities.count}} parks and recreational facilities
-• Growing dining and shopping scene
-• {{transit.access}} to downtown
+Let me know if you’d like to review the full launch checklist—I’m excited to help you capture top dollar.
 
-💰 Investment Perspective:
-• Property values up {{appreciation.rate}}% this year
-• Strong rental demand
-• Planned community improvements
+{{agent.name}}`
+            }
+        ]
+    },
+    {
+        id: 'long-touch-sequence',
+        name: 'Long-Term Touchpoints',
+        description: 'Stay in front of past leads or sphere with thoughtful check-ins over time.',
+        triggerType: 'Past Client / Sphere',
+        isActive: true,
+        steps: [
+            {
+                id: 'longtouch-email-1',
+                type: 'email',
+                delay: { value: 30, unit: 'days' },
+                subject: 'Monthly Market Snapshot for {{market.area}}',
+                content: `Hi {{lead.name}},
 
-If you're still considering this area, I'd be happy to show you around and share more insights about what makes it special.
+Sending a quick snapshot of what’s happening in {{market.area}} this month. Even if you’re not ready to move, it’s helpful to know how your equity is performing.
 
-Stay in touch!
+Highlights:
+• Median sale price: $\${market.median_price}
+• Average days on market: {{market.dom}}
+• Buyer demand indicator: {{market.demand}}
+
+If you ever want a personalized update, I’m just a reply away.
+
 {{agent.name}}`
             },
             {
-                id: 'step-3',
-                type: 'ai-email',
-                delay: { value: 3, unit: 'months' },
-                content: 'Generate personalized market update based on {{lead.preferences}} and current market conditions'
+                id: 'longtouch-task-call',
+                type: 'task',
+                delay: { value: 60, unit: 'days' },
+                content: 'Reach out to {{lead.name}} with a quick voicemail or text—offer value (market update, contractor referral, neighborhood news).'
+            },
+            {
+                id: 'longtouch-email-2',
+                type: 'email',
+                delay: { value: 90, unit: 'days' },
+                subject: 'Checking In—Anything I Can Help With?',
+                content: `Hi {{lead.name}},
+
+Just dropping in to say hello. Many of my clients lean on me for:
+• Vendor recommendations (contractors, painters, lenders)
+• Questions about property values or investment ideas
+• Connecting family or friends who are starting their search
+
+If something is on your mind—or you just want to talk real estate trends—reply anytime. I’m here for the long haul.
+
+{{agent.name}}`
             }
         ]
     }

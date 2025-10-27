@@ -1,29 +1,15 @@
 // Environment validation utilities
 export class EnvValidation {
   private static requiredEnvVars = {
-    development: [
-      'VITE_FIREBASE_API_KEY',
-      'VITE_FIREBASE_AUTH_DOMAIN',
-      'VITE_FIREBASE_PROJECT_ID',
-      'VITE_FIREBASE_STORAGE_BUCKET',
-      'VITE_FIREBASE_MESSAGING_SENDER_ID',
-      'VITE_FIREBASE_APP_ID'
-    ],
+    development: [] as string[],
     production: [
-      'VITE_FIREBASE_API_KEY',
-      'VITE_FIREBASE_AUTH_DOMAIN',
-      'VITE_FIREBASE_PROJECT_ID',
-      'VITE_FIREBASE_STORAGE_BUCKET',
-      'VITE_FIREBASE_MESSAGING_SENDER_ID',
-      'VITE_FIREBASE_APP_ID',
       'VITE_OPENAI_API_KEY',
       'VITE_GEMINI_API_KEY'
     ]
   };
 
   private static optionalEnvVars = [
-    'VITE_DATAFINITI_API_KEY',
-    'VITE_GOOGLE_CLIENT_ID'
+    'VITE_DATAFINITI_API_KEY'
   ];
 
   static validateEnvironment(): { isValid: boolean; errors: string[]; warnings: string[] } {
@@ -56,27 +42,13 @@ export class EnvValidation {
       }
     }
 
-    // Validate Firebase configuration
-    const firebaseConfig = {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID
-    };
-
-    if (firebaseConfig.authDomain && !firebaseConfig.authDomain.includes(firebaseConfig.projectId || '')) {
-      warnings.push('Firebase auth domain may not match project ID');
-    }
-
-    // Validate API keys format
+    // Validate API keys format when provided
     if (import.meta.env.VITE_OPENAI_API_KEY && !import.meta.env.VITE_OPENAI_API_KEY.startsWith('sk-')) {
-      errors.push('OpenAI API key format appears invalid');
+      warnings.push('OpenAI API key format appears invalid');
     }
 
     if (import.meta.env.VITE_GEMINI_API_KEY && !import.meta.env.VITE_GEMINI_API_KEY.startsWith('AIza')) {
-      errors.push('Gemini API key format appears invalid');
+      warnings.push('Gemini API key format appears invalid');
     }
 
     return {
@@ -111,11 +83,6 @@ export class EnvValidation {
       prod: import.meta.env.PROD,
       ssr: import.meta.env.SSR,
       baseUrl: import.meta.env.BASE_URL,
-      hasFirebaseConfig: !!(
-        import.meta.env.VITE_FIREBASE_API_KEY &&
-        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN &&
-        import.meta.env.VITE_FIREBASE_PROJECT_ID
-      ),
       hasOpenAI: !!import.meta.env.VITE_OPENAI_API_KEY,
       hasGemini: !!import.meta.env.VITE_GEMINI_API_KEY,
       hasDatafiniti: !!import.meta.env.VITE_DATAFINITI_API_KEY

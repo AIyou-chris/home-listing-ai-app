@@ -91,6 +91,7 @@ const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences,
     const [activeFollowUps, setActiveFollowUps] = useState(initialActiveFollowUps);
     const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [showTips, setShowTips] = useState(true);
 
     // Update local state when props change
     React.useEffect(() => {
@@ -174,6 +175,46 @@ const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences,
 
     return (
         <div className="space-y-6">
+            {/* Tips Panel */}
+            <div className="bg-white rounded-xl shadow-sm border border-primary-100 p-6">
+                <button
+                    type="button"
+                    onClick={() => setShowTips(prev => !prev)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+                    aria-expanded={showTips}
+                >
+                    <span className="material-symbols-outlined text-xl">{showTips ? 'psychiatry' : 'help'}</span>
+                    {showTips ? 'Hide Follow-up Tips' : 'Show Follow-up Tips'}
+                    <span className="material-symbols-outlined text-base ml-auto">{showTips ? 'expand_less' : 'expand_more'}</span>
+                </button>
+                {showTips && (
+                    <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
+                        <div>
+                            <h4 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                                <span className="material-symbols-outlined text-lg">timeline</span>
+                                Staying On Track
+                            </h4>
+                            <ul className="space-y-1.5 list-disc list-inside">
+                                <li><strong>Work the nearest deadlines:</strong> Sort by the next step date and clear today’s tasks before moving on.</li>
+                                <li><strong>Log the personal touches:</strong> Use the “Contact Manually” button then add a quick note so the timeline stays accurate.</li>
+                                <li><strong>Pause with a plan:</strong> Paused follow-ups should include a note about what you’re waiting on—schedule a reminder.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                                <span className="material-symbols-outlined text-lg">outgoing_mail</span>
+                                When To Use Quick Email
+                            </h4>
+                            <ul className="space-y-1.5 list-disc list-inside">
+                                <li><strong>Hot intel drops:</strong> Send new property details or pricing updates instantly without editing the automation.</li>
+                                <li><strong>Personal check-ins:</strong> Fire off a Mailgun-powered note between automated touchpoints to keep momentum.</li>
+                                <li><strong>Keep sequences clean:</strong> Let the automation handle the cadence—use Quick Email for the human moments.</li>
+                            </ul>
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* Stats Header */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
                 <h2 className="text-xl font-bold text-slate-800 mb-4">Follow-up Overview</h2>

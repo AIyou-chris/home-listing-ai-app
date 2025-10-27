@@ -101,6 +101,8 @@ const AIAgentHub: React.FC = () => {
   const [testResponse, setTestResponse] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const recognitionRef = useRef<any>(null)
+  const audioPreviewRef = useRef<HTMLAudioElement | null>(null)
+  const [voicePreviewState, setVoicePreviewState] = useState<{ voice: VoiceOption | null; loading: boolean }>({ voice: null, loading: false })
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   // Legacy per-card knowledge (no longer surfaced on cards)
   const [knowledge, setKnowledge] = useState<Array<{ id: string; title: string; createdAt: string; for: SidekickConfig['id']; fileId?: string }>>([])
@@ -139,12 +141,16 @@ const AIAgentHub: React.FC = () => {
 
   // Map friendly labels to OpenAI voice IDs per request
   const OPENAI_VOICE_BY_LABEL: Record<VoiceOption, string> = {
-    'Female Voice 1': 'nova',
-    'Female Voice 2': 'shimmer',
-    'Male Voice 1': 'onyx',
-    'Male Voice 2': 'ash',
-    'Neutral Voice 1': 'alloy'
+    'Female Voice 1': 'nova',    // bright, conversational feminine voice
+    'Female Voice 2': 'shimmer', // energetic feminine voice
+    'Male Voice 1': 'onyx',      // deep masculine voice
+    'Male Voice 2': 'ash',       // friendly masculine voice
+    'Neutral Voice 1': 'alloy'   // balanced, neutral delivery
   }
+
+  const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL ?
+    ((import.meta as any).env.VITE_API_BASE_URL as string).replace(/\/$/, '') :
+    '';
 
   // Five preset personalities for dropdown
   const PRESET_PERSONALITIES: Array<{ key: string; name: string; description: string; traits: string[] }> = [
@@ -328,6 +334,63 @@ const AIAgentHub: React.FC = () => {
     synth.speak(utter)
   }
 
+  const playVoicePreview = async (voiceLabel: VoiceOption) => {
+    const text = `Hi, I'm the ${voiceLabel} preset. Imagine me greeting your leads with polish and confidence.`
+    try {
+      setVoicePreviewState({ voice: voiceLabel, loading: true })
+      const target = API_BASE_URL ? `${API_BASE_URL}/api/generate-speech` : '/api/generate-speech'
+      const response = await fetch(target, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice: OPENAI_VOICE_BY_LABEL[voiceLabel] })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Speech API returned ${response.status}`)
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+
+      if (audioPreviewRef.current) {
+        try {
+          audioPreviewRef.current.pause()
+        } catch {}
+        URL.revokeObjectURL(audioPreviewRef.current.src)
+      }
+
+      const audio = new Audio(url)
+      audioPreviewRef.current = audio
+      audio.onended = () => {
+        URL.revokeObjectURL(url)
+        setVoicePreviewState({ voice: null, loading: false })
+      }
+      await audio.play()
+      setVoicePreviewState({ voice: voiceLabel, loading: false })
+    } catch (error) {
+      console.error('Voice preview failed, falling back to system speech:', error)
+      const fallbackMessage = `${voiceLabel} preview (OpenAI TTS unavailable right now). Here's a basic system sample instead.`
+      speak(fallbackMessage, voiceLabel)
+      setVoicePreviewState({ voice: null, loading: false })
+    }
+  }
+
+  const stopVoicePreview = () => {
+    if (audioPreviewRef.current) {
+      try { audioPreviewRef.current.pause() } catch {}
+      try { URL.revokeObjectURL(audioPreviewRef.current.src) } catch {}
+      audioPreviewRef.current = null
+    }
+    try { window.speechSynthesis.cancel() } catch {}
+    setVoicePreviewState({ voice: null, loading: false })
+  }
+
+  useEffect(() => {
+    return () => {
+      stopVoicePreview()
+    }
+  }, [])
+
   // Load voices ASAP
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
@@ -374,7 +437,7 @@ const AIAgentHub: React.FC = () => {
   return (
     <div className='min-h-screen bg-slate-50'>
       <header className='sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white/90 border-b border-slate-200'>
-        <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between'>
+        <div className='px-4 sm:px-6 lg:px-10 h-16 flex items-center justify-between'>
           <div>
             <h1 className='text-[22px] font-semibold tracking-[-0.01em] text-slate-900'>
               AI Agent Library
@@ -387,7 +450,7 @@ const AIAgentHub: React.FC = () => {
         </div>
       </header>
 
-      <main className='mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10'>
+      <main className='px-4 sm:px-6 lg:px-10 py-10'>
         <article
           className={`relative rounded-3xl bg-white/90 ring-1 ${accentRing[agent.accent]} `
             + 'shadow-[0_1px_0_0_rgba(15,23,42,0.04),0_1px_2px_0_rgba(15,23,42,0.08)] '
@@ -485,31 +548,26 @@ const AIAgentHub: React.FC = () => {
                   'Male Voice 2',
                   'Neutral Voice 1'
                 ] as VoiceOption[]).map(v => (
-                  <div key={v} className='rounded-xl border border-slate-200 p-3'>
-                    <div className='font-medium text-slate-900 text-sm mb-2'>
-                      {v} • {OPENAI_VOICE_BY_LABEL[v]}
+                    <div key={v} className='rounded-xl border border-slate-200 p-3'>
+                      <div className='font-medium text-slate-900 text-sm mb-2'>
+                        {v} • {OPENAI_VOICE_BY_LABEL[v]}
+                      </div>
+                      <div className='flex items-center gap-2'>
+                      <button
+                        onClick={() => playVoicePreview(v)}
+                        disabled={voicePreviewState.loading && voicePreviewState.voice === v}
+                        className='px-4 py-2 rounded-full bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed'
+                      >
+                        {voicePreviewState.loading && voicePreviewState.voice === v ? 'Loading…' : 'Play'}
+                      </button>
+                      <button
+                        onClick={stopVoicePreview}
+                        className='px-3 py-2 rounded-full bg-slate-100 text-slate-700 text-sm hover:bg-slate-200'
+                      >
+                        Stop
+                      </button>
+                      </div>
                     </div>
-                    <div className='flex items-center gap-2'>
-                      <button onClick={async () => {
-                        try {
-                          const base = (import.meta as any)?.env?.VITE_API_URL || 'https://ailisitnghome-43boqi59o-ai-you.vercel.app'
-                          const resp = await fetch(`${base}/api/generate-speech`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ text: `This is a sample for ${v}.`, voice: OPENAI_VOICE_BY_LABEL[v] })
-                          })
-                          const blob = await resp.blob()
-                          const url = URL.createObjectURL(blob)
-                          const audio = new Audio(url)
-                          audio.onended = () => URL.revokeObjectURL(url)
-                          audio.play()
-                        } catch (e) {
-                          speak(`This is ${v}.`, v)
-                        }
-                      }} className='px-4 py-2 rounded-full bg-blue-600 text-white text-sm hover:bg-blue-700'>Play</button>
-                      <button onClick={() => { try { window.speechSynthesis.cancel() } catch {} }} className='px-3 py-2 rounded-full bg-slate-100 text-slate-700 text-sm hover:bg-slate-200'>Stop</button>
-                    </div>
-                  </div>
                 ))}
               </div>
             </div>
@@ -890,5 +948,3 @@ const AIAgentHub: React.FC = () => {
 }
 
 export default AIAgentHub
-
-

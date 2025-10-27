@@ -6,6 +6,15 @@
 /dist
 /functions/lib
 
+# Backend dependencies (prevent accidental commits)
+backend/node_modules/
+
+# Local logs directory
+/logs/
+
+# Media samples
+*.mp3
+
 # Firebase
 .firebase/
 hosting..cache

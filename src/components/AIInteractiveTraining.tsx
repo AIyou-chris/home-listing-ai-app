@@ -105,6 +105,7 @@ const AIInteractiveTraining: React.FC = () => {
 	const [isLoading, setIsLoading] = useState(false)
 	const [improvementText, setImprovementText] = useState('')
 	const [showImprovementInput, setShowImprovementInput] = useState<string | null>(null)
+	const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false)
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 
 	const sidekicks: SidekickOption[] = [
@@ -279,8 +280,47 @@ const AIInteractiveTraining: React.FC = () => {
 		<div className="p-6 max-w-6xl mx-auto">
 			{/* Header */}
 			<div className="mb-6">
-				<h1 className="text-2xl font-bold text-slate-900 mb-2">Interactive AI Training</h1>
+				<h1 className="text-2xl font-bold text-slate-900 mb-2">Train Your AI</h1>
 				<p className="text-slate-600">Chat with your AI sidekicks and train them with feedback</p>
+			</div>
+
+			<div className="mb-6">
+				<button
+					type="button"
+					onClick={() => setIsHelpPanelOpen(prev => !prev)}
+					className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+					aria-expanded={isHelpPanelOpen}
+				>
+					<span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
+					{isHelpPanelOpen ? 'Hide Training Tips' : 'Show Training Tips'}
+					<span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
+				</button>
+				{isHelpPanelOpen && (
+					<div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
+						<div>
+							<h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+								<span className="material-symbols-outlined text-lg">psychology</span>
+								Coaching Your Sidekicks
+							</h2>
+							<ul className="space-y-1.5 list-disc list-inside">
+								<li><strong>Pick a persona first:</strong> Select the sidekick closest to the workflow you want to improve (marketing, listing, sales, etc.).</li>
+								<li><strong>Drive the conversation:</strong> Ask real questions you hear from clients and let the sidekick respond so you can give targeted feedback.</li>
+								<li><strong>Use thumbs + improvements:</strong> Mark great answers with 👍 and give quick notes for fixes with 👎 so the training dataset stays clean.</li>
+							</ul>
+						</div>
+						<div>
+							<h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+								<span className="material-symbols-outlined text-lg">tips_and_updates</span>
+								Power Training Tips
+							</h2>
+							<ul className="space-y-1.5 list-disc list-inside">
+								<li><strong>Save common prompts:</strong> The quick prompts area is perfect for FAQs—keep adding the phrases you want every agent to handle identically.</li>
+								<li><strong>Review the stats:</strong> The progress widget shows total feedback and improvement streaks so you know when a sidekick is production-ready.</li>
+								<li><strong>Pro tip:</strong> After training, jump back to AI Sidekicks or the live chat to feel the difference right away—your feedback is live as soon as you submit it.</li>
+							</ul>
+						</div>
+					</div>
+				)}
 			</div>
 
 			<div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

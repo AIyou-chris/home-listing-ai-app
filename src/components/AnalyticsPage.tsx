@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { DEMO_ANALYTICS_DATA } from '../demoConstants';
 import { AnalyticsData, LeadSourceIconType } from '../types';
 
@@ -184,9 +184,48 @@ const LeadSourceBreakdown: React.FC<{ data: AnalyticsData['leadSourceAnalysis'] 
 
 const AnalyticsPage: React.FC = () => {
   const data = DEMO_ANALYTICS_DATA;
+  const [showTips, setShowTips] = useState(true);
 
   return (
     <div className="space-y-8">
+      <div className="bg-white rounded-xl shadow-sm border border-primary-100 p-6">
+        <button
+          type="button"
+          onClick={() => setShowTips(prev => !prev)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+          aria-expanded={showTips}
+        >
+          <span className="material-symbols-outlined text-xl">{showTips ? 'psychiatry' : 'lightbulb'}</span>
+          {showTips ? 'Hide Scoring Tips' : 'Show Scoring Tips'}
+          <span className="material-symbols-outlined text-base ml-auto">{showTips ? 'expand_less' : 'expand_more'}</span>
+        </button>
+        {showTips && (
+          <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
+            <div>
+              <h4 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                <span className="material-symbols-outlined text-lg">insights</span>
+                Reading The Dashboard
+              </h4>
+              <ul className="space-y-1.5 list-disc list-inside">
+                <li><strong>Performance Overview:</strong> Pair conversion rate and appointments to see if AI is handing off leads with the right urgency.</li>
+                <li><strong>Lead Funnel:</strong> Watch for bottlenecks—if “AI Qualified” outpaces “Contacted by Agent,” tighten your task notifications.</li>
+                <li><strong>Source Performance:</strong> Double-down on channels with high appointment ratios; move slow sources into nurture-only sequences.</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                <span className="material-symbols-outlined text-lg">grade</span>
+                Boosting Lead Scores
+              </h4>
+              <ul className="space-y-1.5 list-disc list-inside">
+                <li><strong>Automate enrichments:</strong> Capture source, timeline, and budget upfront so engagement points stack immediately.</li>
+                <li><strong>Log agent touchpoints:</strong> Quick notes after calls feed the behavior rules and keep hot leads at the top of the queue.</li>
+                <li><strong>Sync with sequences:</strong> High scoring leads should auto-join fast-response drips; low scores stay in slower nurture tracks.</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
       <PerformanceOverview data={data.performanceOverview} />
       <LeadSourceBreakdown data={data.leadSourceAnalysis} />
     </div>

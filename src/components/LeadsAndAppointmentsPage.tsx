@@ -129,6 +129,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [schedulingLead, setSchedulingLead] = useState<Lead | null>(null);
     const [contactingLead, setContactingLead] = useState<Lead | null>(null);
+    const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
 
 
     const handleOpenScheduleModal = (lead: Lead | null = null) => {
@@ -197,6 +198,59 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                         </button>
                     </div>
                 </header>
+
+                <div className="mb-8">
+                    <button
+                        type="button"
+                        onClick={() => setIsHelpPanelOpen(prev => !prev)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+                        aria-expanded={isHelpPanelOpen}
+                    >
+                        <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
+                        {isHelpPanelOpen ? 'Hide Leads & Appointments Tips' : 'Show Leads & Appointments Tips'}
+                        <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
+                    </button>
+                    {isHelpPanelOpen && (
+                        <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
+                            <div>
+                                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                                    <span className="material-symbols-outlined text-lg">diversity_3</span>
+                                    Leads Hub
+                                </h2>
+                                <ul className="space-y-1.5 list-disc list-inside">
+                                    <li><strong>Segment by status:</strong> Use the filters to surface hot or stalled prospects for focused follow-up.</li>
+                                    <li><strong>Conversation history:</strong> Open a lead to keep notes tight and add next steps while the context is fresh.</li>
+                                    <li><strong>Quick actions:</strong> Use “Contact” for emails/calls or “Schedule” to instantly drop a meeting on the calendar.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                                    <span className="material-symbols-outlined text-lg">calendar_month</span>
+                                    Appointments
+                                </h2>
+                                <ul className="space-y-1.5 list-disc list-inside">
+                                    <li><strong>Calendar view:</strong> Click any slot to add a showing, inspection, or follow-up touch.</li>
+                                    <li><strong>Auto confirmations:</strong> Appointments triggered here send reminders if your notification settings allow it.</li>
+                                    <li><strong>Need to reschedule?</strong> Edit from the timeline and the system re-syncs reminders for you.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                                    <span className="material-symbols-outlined text-lg">analytics</span>
+                                    Lead Scoring
+                                </h2>
+                                <ul className="space-y-1.5 list-disc list-inside">
+                                    <li><strong>Score tiers:</strong> Qualified/Hot leads should get personal outreach—Warm & Cold can stay on nurture.</li>
+                                    <li><strong>Rule breakdown:</strong> Expand a lead to see which behaviors earned points and where to improve.</li>
+                                    <li><strong>Bulk scoring:</strong> Re-score after importing data to keep your pipeline priorities fresh.</li>
+                                </ul>
+                                <p className="mt-3 text-sm text-slate-500">
+                                    <strong>Pro tip:</strong> Train your Sidekicks to log call notes automatically so scoring stays accurate without manual effort.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <StatCard title="Total Leads" value={leads.length} icon="group" iconBgColor="bg-blue-100" />

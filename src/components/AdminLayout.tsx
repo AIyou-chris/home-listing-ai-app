@@ -13,9 +13,9 @@ import SecurityDashboard from './SecurityDashboard';
 import AdminContactsPage from './AdminContactsPage';
 import AdminCRMContactsSupabase from './AdminCRMContactsSupabase';
 import AdminAgentsPage from './AdminAgentsPage';
-import AIAgentHub from './AIAgentHub';
 import EnhancedAdminAISidekicksHub from './EnhancedAdminAISidekicksHub';
 import AICardPage from './AICardPage';
+import AIInteractiveTraining from './AIInteractiveTraining';
 // Persona service removed
 
 // Firebase utilities removed
@@ -2227,6 +2227,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         );
       case 'admin-knowledge-base':
         return <EnhancedAdminAISidekicksHub agentProfile={agentProfile} />;
+      case 'admin-ai-training':
+        return <AIInteractiveTraining />;
       case 'admin-ai-card':
         return <AICardPage />;
       case 'admin-knowledge-base-legacy':

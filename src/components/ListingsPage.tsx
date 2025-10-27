@@ -1,6 +1,8 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link as LinkIcon, Copy, Check } from 'lucide-react';
 import { Property, isAIDescription } from '../types';
+import { createShortLink, ShortLink } from '../services/linkShortenerService';
 
 interface PropertyCardProps {
     property: Property;
@@ -9,9 +11,49 @@ interface PropertyCardProps {
 }
 
 const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect, onDelete }) => {
+    const [shortLink, setShortLink] = useState<ShortLink | null>(null);
+    const [isShortLinkLoading, setIsShortLinkLoading] = useState(false);
+    const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+
+    useEffect(() => {
+        const destination =
+            typeof window !== 'undefined'
+                ? `${window.location.origin}/demo/listings/${encodeURIComponent(property.id)}`
+                : `https://demo.homelisting.ai/listings/${property.id}`;
+
+        const slug =
+            property.title
+                ?.toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/(^-|-$)/g, '')
+                .slice(0, 24) || `listing-${property.id}`;
+
+        let cancelled = false;
+        setIsShortLinkLoading(true);
+        createShortLink({
+            destination,
+            slashtag: `listing-${slug}`,
+            title: `Listing | ${property.title}`,
+            description: `Listing generated for ${property.address}`
+        })
+            .then(result => {
+                if (!cancelled) setShortLink(result);
+            })
+            .catch(error => {
+                console.warn('[ListingsPage] Unable to create short link', error);
+            })
+            .finally(() => {
+                if (!cancelled) setIsShortLinkLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [property.id, property.title, property.address]);
+
     const descriptionText = isAIDescription(property.description)
         ? property.description.title
-        : (property.description || "View details to learn more.");
+        : (property.description || 'View details to learn more.');
 
     return (
         <div className="bg-slate-800 rounded-2xl shadow-lg overflow-hidden flex flex-col text-white">
@@ -75,6 +117,53 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect, onDelet
                             <span>Listing Sidekick</span>
                         </button>
                     </div>
+                    <div className="mb-3">
+                        <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-800">
+                                <LinkIcon className="w-3.5 h-3.5 text-sky-300" />
+                            </span>
+                            {isShortLinkLoading ? (
+                                <span className="text-slate-400">Generating short link…</span>
+                            ) : shortLink ? (
+                                <>
+                                    <span className="truncate">{shortLink.shortUrl}</span>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await navigator.clipboard.writeText(shortLink.shortUrl);
+                                                setCopyState('copied');
+                                                setTimeout(() => setCopyState('idle'), 2000);
+                                            } catch (error) {
+                                                console.error('Copy failed', error);
+                                                setCopyState('error');
+                                                setTimeout(() => setCopyState('idle'), 2000);
+                                            }
+                                        }}
+                                        className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-sky-300 hover:text-sky-200 transition"
+                                    >
+                                        {copyState === 'copied' ? (
+                                            <>
+                                                <Check className="w-3 h-3" />
+                                                Copied
+                                            </>
+                                        ) : copyState === 'error' ? (
+                                            <>
+                                                <Copy className="w-3 h-3" />
+                                                Retry
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Copy className="w-3 h-3" />
+                                                Copy
+                                            </>
+                                        )}
+                                    </button>
+                                </>
+                            ) : (
+                                <span className="text-slate-400">Short link unavailable.</span>
+                            )}
+                        </div>
+                    </div>
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -101,6 +190,8 @@ interface ListingsPageProps {
 }
 
 const ListingsPage: React.FC<ListingsPageProps> = ({ properties, onSelectProperty, onAddNew, onDeleteProperty, onBackToDashboard }) => {
+    const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+
     return (
         <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
              <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
@@ -120,6 +211,45 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties, onSelectPropert
                     <span>Add New Listing</span>
                 </button>
             </header>
+
+            <div className="mb-8">
+                <button
+                    type="button"
+                    onClick={() => setIsHelpPanelOpen(prev => !prev)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+                    aria-expanded={isHelpPanelOpen}
+                >
+                    <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
+                    {isHelpPanelOpen ? 'Hide AI Listings Tips' : 'Show AI Listings Tips'}
+                    <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
+                </button>
+                {isHelpPanelOpen && (
+                    <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
+                        <div>
+                            <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                                <span className="material-symbols-outlined text-lg">home_work</span>
+                                Listing Playbook
+                            </h2>
+                            <ul className="space-y-1.5 list-disc list-inside">
+                                <li><strong>Keep data synced:</strong> Update price, status, and hero photos here—your AI site and AI Card stay in lockstep.</li>
+                                <li><strong>Listing Sidekick:</strong> Launch the Sidekick from each tile to train property-specific talking points and FAQs.</li>
+                                <li><strong>Media assets:</strong> Use the edit view to upload flyers, 3D tours, and feature sheets for instant sharing.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                                <span className="material-symbols-outlined text-lg">qr_code</span>
+                                QR & Marketing Assets
+                            </h2>
+                            <ul className="space-y-1.5 list-disc list-inside">
+                                <li><strong>Generate QR codes:</strong> Each listing gets a unique QR link for yard signs, open houses, and print materials.</li>
+                                <li><strong>Campaign tracking:</strong> Clone the listing and adjust tracking tags to compare performance by channel.</li>
+                                <li><strong>Pro tip:</strong> Drop the listing QR into the AI Conversations hub so follow-ups automatically reference the right property.</li>
+                            </ul>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200/60 mb-8">
                 <div className="relative flex-grow">

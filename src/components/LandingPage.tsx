@@ -803,15 +803,14 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                                 <span className="text-5xl font-extrabold text-white">$139</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
-                            <p className="mt-1 text-sm text-slate-300">Three Active Listings</p>
                             <ul className="mt-8 space-y-4">
-                                <PlanFeature dark>500 AI interactions per month</PlanFeature>
+                                <PlanFeature dark>Unlimited AI interactions per month</PlanFeature>
                                 <PlanFeature dark>1GB of storage space</PlanFeature>
-                                <PlanFeature dark>200 emails per month</PlanFeature>
+                                <PlanFeature dark>500 emails per month</PlanFeature>
                                 <PlanFeature dark>Advanced analytics dashboard</PlanFeature>
-                                <PlanFeature dark>AI Content Studio</PlanFeature>
+                                <PlanFeature dark>Your own trained GPT</PlanFeature>
                                 <PlanFeature dark>Automated follow-up sequences</PlanFeature>
-                                <PlanFeature dark>Priority email support</PlanFeature>
+                                <PlanFeature dark>Auto leads to closing</PlanFeature>
                                 <PlanFeature dark>Need more? We do custom programs</PlanFeature>
                             </ul>
                         </div>
@@ -819,7 +818,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                             onClick={onNavigateToSignUp}
                             className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-all duration-300 bg-white text-primary-700 shadow-lg hover:bg-slate-200 transform hover:scale-[1.02]"
                         >
-                            Get Started Today for Free
+                            Get Started in 5 Minutes
                         </button>
                     </div>
                 </div>

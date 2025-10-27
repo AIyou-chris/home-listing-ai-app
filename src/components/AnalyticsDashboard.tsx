@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { analyticsService } from '../services/analyticsService';
+import { listTopLinks, LinkStatsSummary } from '../services/linkShortenerService';
 
 interface AnalyticsData {
 	overview: {
@@ -34,10 +35,13 @@ const AnalyticsDashboard: React.FC = () => {
 	const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | '90d'>('30d');
 	const [selectedReportType, setSelectedReportType] = useState<string>('comprehensive');
 	const [generatingReport, setGeneratingReport] = useState(false);
+	const [linkSummary, setLinkSummary] = useState<LinkStatsSummary | null>(null);
+	const [linkLoading, setLinkLoading] = useState(false);
 
 	useEffect(() => {
 		loadAnalyticsData();
 		loadReports();
+		loadLinkSummary();
 	}, [timeRange]);
 
 	const loadAnalyticsData = async () => {
@@ -86,6 +90,18 @@ const AnalyticsDashboard: React.FC = () => {
 			}
 		} catch (error) {
 			console.error('Error loading reports:', error);
+		}
+	};
+
+	const loadLinkSummary = async () => {
+		try {
+			setLinkLoading(true);
+			const summary = await listTopLinks(6);
+			setLinkSummary(summary);
+		} catch (error) {
+			console.error('Error loading link analytics:', error);
+		} finally {
+			setLinkLoading(false);
 		}
 	};
 
@@ -202,6 +218,96 @@ const AnalyticsDashboard: React.FC = () => {
 						>
 							Track Contact
 						</button>
+					</div>
+				</div>
+
+				{/* Rebrandly Link Analytics */}
+				<div className="mb-10">
+					<h2 className="text-xl font-semibold text-gray-900 mb-2">Link Performance (Rebrandly)</h2>
+					<p className="text-sm text-gray-600 mb-4 max-w-3xl">
+						View engagement on every branded short link powering your AI Cards, listings, and drip campaigns.
+						This mirrors the Rebrandly dashboard so agents never need to leave HomeListingAI.
+					</p>
+
+					<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+						<div className="bg-white border border-gray-200 rounded-lg p-4">
+							<p className="text-xs font-semibold text-gray-500 uppercase">Total Short Links</p>
+							<p className="text-2xl font-bold text-gray-900 mt-2">{linkLoading ? '…' : linkSummary?.totalLinks ?? '—'}</p>
+						</div>
+						<div className="bg-white border border-gray-200 rounded-lg p-4">
+							<p className="text-xs font-semibold text-gray-500 uppercase">Lifetime Clicks</p>
+							<p className="text-2xl font-bold text-gray-900 mt-2">
+								{linkLoading ? '…' : linkSummary?.totalClicks.toLocaleString() ?? '—'}
+							</p>
+						</div>
+						<div className="bg-white border border-gray-200 rounded-lg p-4">
+							<p className="text-xs font-semibold text-gray-500 uppercase">Unique Visitors</p>
+							<p className="text-2xl font-bold text-gray-900 mt-2">
+								{linkLoading ? '…' : linkSummary?.uniqueClicks.toLocaleString() ?? '—'}
+							</p>
+						</div>
+					</div>
+
+					<div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+						<div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+							<h3 className="text-sm font-semibold text-gray-700">Top Performing Links</h3>
+							<span className="text-xs text-gray-400">
+								Last refreshed{' '}
+								{linkSummary ? new Date(linkSummary.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'just now'}
+							</span>
+						</div>
+						<div className="overflow-x-auto">
+							<table className="min-w-full text-sm">
+								<thead className="bg-gray-50 text-gray-500 uppercase text-xs font-semibold">
+									<tr>
+										<th className="px-4 py-2 text-left">Campaign</th>
+										<th className="px-4 py-2 text-left">Short URL</th>
+										<th className="px-4 py-2 text-right">Clicks</th>
+										<th className="px-4 py-2 text-right">Unique</th>
+										<th className="px-4 py-2 text-right">Last Click</th>
+									</tr>
+								</thead>
+								<tbody>
+									{linkLoading && (
+										<tr>
+											<td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+												Loading link analytics…
+											</td>
+										</tr>
+									)}
+									{!linkLoading && linkSummary?.topLinks?.length
+										? linkSummary.topLinks.map(link => (
+												<tr key={link.id} className="border-t border-gray-100">
+													<td className="px-4 py-3 text-gray-700">
+														<div className="flex flex-col">
+															<span className="font-medium">{link.title || 'Campaign'}</span>
+															<span className="text-xs text-gray-400 truncate">{link.destination}</span>
+														</div>
+													</td>
+													<td className="px-4 py-3 text-blue-600">
+														<a href={link.shortUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+															{link.shortUrl}
+														</a>
+													</td>
+													<td className="px-4 py-3 text-right font-semibold text-gray-800">{link.clicks.toLocaleString()}</td>
+													<td className="px-4 py-3 text-right text-gray-600">{link.uniqueClicks.toLocaleString()}</td>
+													<td className="px-4 py-3 text-right text-gray-400">
+														{link.lastClickAt
+															? new Date(link.lastClickAt).toLocaleDateString()
+															: '—'}
+													</td>
+												</tr>
+										  ))
+										: !linkLoading && (
+												<tr>
+													<td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+														No link data yet. Generate a short link from an AI Card or AI Listing to populate this table.
+													</td>
+												</tr>
+										  )}
+								</tbody>
+							</table>
+						</div>
 					</div>
 				</div>
 

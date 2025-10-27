@@ -73,11 +73,8 @@
     ]
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix --max-warnings=0"
-    ],
     "src/**/*.{ts,tsx}": [
-      "tsc -p tsconfig.json --noEmit"
+      "eslint --fix --max-warnings=0"
     ]
   }
 }

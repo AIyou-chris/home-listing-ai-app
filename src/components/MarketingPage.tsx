@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Property, FollowUpSequence, Lead, AgentProfile } from '../types';
-import SequenceEditorModal from './CreateSequenceModal';
 import SequenceAnalyticsModal from './SequenceAnalyticsModal';
 import LeadFollowUpsPage from './LeadFollowUpsPage';
 import AnalyticsPage from './AnalyticsPage';
 import { DEMO_FAT_LEADS, DEMO_ACTIVE_FOLLOWUPS } from '../demoConstants';
 import NotificationService from '../services/notificationService';
+import QuickEmailModal from './QuickEmailModal';
 
 interface MarketingPageProps {
   properties: Property[];
@@ -15,19 +15,66 @@ interface MarketingPageProps {
   onBackToDashboard: () => void;
 }
 
-const SequencesContent: React.FC<{ sequences: FollowUpSequence[], setSequences: React.Dispatch<React.SetStateAction<FollowUpSequence[]>>, openModal: (seq: FollowUpSequence | null) => void }> = ({ sequences, setSequences, openModal }) => {
+const SequencesContent: React.FC<{
+    sequences: FollowUpSequence[];
+    setSequences: React.Dispatch<React.SetStateAction<FollowUpSequence[]>>;
+    onQuickEmail: () => void;
+}> = ({ sequences, setSequences, onQuickEmail }) => {
+    const [showTips, setShowTips] = useState(true);
     const toggleActive = (sequenceId: string) => {
         setSequences(prev => prev.map(s => s.id === sequenceId ? { ...s, isActive: !s.isActive } : s));
     };
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-xl font-bold text-slate-800">Follow-up Sequences</h3>
-                <button onClick={() => openModal(null)} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition whitespace-nowrap">
-                    <span className="material-symbols-outlined w-5 h-5">add</span>
-                    <span>Create New Sequence</span>
+                <button
+                    type="button"
+                    onClick={onQuickEmail}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                >
+                    <span className="material-symbols-outlined w-5 h-5">outgoing_mail</span>
+                    Quick Email
                 </button>
+            </div>
+            <div className="mt-4">
+                <button
+                    type="button"
+                    onClick={() => setShowTips(prev => !prev)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+                    aria-expanded={showTips}
+                >
+                    <span className="material-symbols-outlined text-xl">{showTips ? 'psychiatry' : 'tips_and_updates'}</span>
+                    {showTips ? 'Hide Sequence Tips' : 'Show Sequence Tips'}
+                    <span className="material-symbols-outlined text-base ml-auto">{showTips ? 'expand_less' : 'expand_more'}</span>
+                </button>
+                {showTips && (
+                    <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
+                        <div>
+                            <h4 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                                <span className="material-symbols-outlined text-lg">calendar_month</span>
+                                Designing Drip Sequences
+                            </h4>
+                            <ul className="space-y-1.5 list-disc list-inside">
+                                <li><strong>Map the milestones:</strong> Line up emails, AI touches, tasks, and meetings around the buyer journey (new lead, hot lead, nurture).</li>
+                                <li><strong>Mix the mediums:</strong> Alternate AI email follow-ups, personal emails, and tasks so agents know exactly when to jump in.</li>
+                                <li><strong>Refresh templates quarterly:</strong> Duplicate high-performers, tweak messaging, and keep a warm-up step at the start of every sequence.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                                <span className="material-symbols-outlined text-lg">mail</span>
+                                Quick Email vs. Sequence
+                            </h4>
+                            <ul className="space-y-1.5 list-disc list-inside">
+                                <li><strong>Use sequences</strong> for consistent, long-term nurture flows you want every similar lead to experience.</li>
+                                <li><strong>Use Quick Email</strong> for one-off moments—new property info, quick check-ins, or personal notes—without editing the automation.</li>
+                                <li><strong>Mailgun handles delivery:</strong> Premade templates stay handy so you can send polished responses in seconds.</li>
+                            </ul>
+                        </div>
+                    </div>
+                )}
             </div>
             <div className="mt-6 space-y-4">
                 {sequences.map(seq => (
@@ -53,9 +100,6 @@ const SequencesContent: React.FC<{ sequences: FollowUpSequence[], setSequences: 
                                 title="View analytics"
                             >
                                 <span className="material-symbols-outlined w-4 h-4 text-slate-600 group-hover:text-blue-600">monitoring</span>
-                            </button>
-                            <button onClick={() => openModal(seq)} className="p-2 rounded-md hover:bg-slate-200" title="Edit sequence">
-                                <span className="material-symbols-outlined w-4 h-4 text-slate-600">edit</span>
                             </button>
                         </div>
                     </div>
@@ -487,11 +531,8 @@ const MessagingCenter: React.FC = () => {
 
 const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, setSequences, onBackToDashboard }) => {
     const [activeTab, setActiveTab] = useState('sequences');
+    const [isQuickEmailOpen, setIsQuickEmailOpen] = useState(false);
 
-    // Sequence state
-    const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
-    const [editingSequence, setEditingSequence] = useState<FollowUpSequence | null>(null);
-    
     // Analytics modal state
     const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
     const [analyticsSequence, setAnalyticsSequence] = useState<FollowUpSequence | null>(null);
@@ -500,20 +541,6 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
     const [leads, setLeads] = useState<Lead[]>([]);
     const [activeFollowUps, setActiveFollowUps] = useState<any[]>([]);
     const [isLoadingFollowUps, setIsLoadingFollowUps] = useState(false);
-
-    const handleSaveSequence = (sequenceData: FollowUpSequence) => {
-        setSequences(prev => {
-            const index = prev.findIndex(s => s.id === sequenceData.id);
-            if (index > -1) {
-                const newSequences = [...prev];
-                newSequences[index] = sequenceData;
-                return newSequences;
-            } else {
-                return [sequenceData, ...prev];
-            }
-        });
-        setIsSequenceModalOpen(false);
-    };
 
     // Load leads and active follow-ups
     useEffect(() => {
@@ -569,7 +596,7 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
             case 'analytics':
                 return <AnalyticsPage />;
             case 'sequences':
-                return <SequencesContent sequences={sequences} setSequences={setSequences} openModal={(seq) => { setEditingSequence(seq); setIsSequenceModalOpen(true); }} />;
+                return <SequencesContent sequences={sequences} setSequences={setSequences} onQuickEmail={() => setIsQuickEmailOpen(true)} />;
             case 'follow-ups':
                  return (
                     <div className="space-y-6">
@@ -628,7 +655,6 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
                     {renderContent()}
                 </main>
             </div>
-             {isSequenceModalOpen && <SequenceEditorModal sequence={editingSequence} onClose={() => setIsSequenceModalOpen(false)} onSave={handleSaveSequence} />}
              {isAnalyticsModalOpen && analyticsSequence && (
                 <SequenceAnalyticsModal
                     sequence={analyticsSequence}
@@ -636,6 +662,11 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
                         setIsAnalyticsModalOpen(false);
                         setAnalyticsSequence(null);
                     }}
+                />
+            )}
+            {isQuickEmailOpen && (
+                <QuickEmailModal
+                    onClose={() => setIsQuickEmailOpen(false)}
                 />
             )}
         </div>

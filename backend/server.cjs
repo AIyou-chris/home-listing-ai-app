@@ -23,6 +23,11 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yocchddxdsaldgsibmmc.s
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvY2NoZGR4ZHNhbGRnc2libW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1ODEwNDgsImV4cCI6MjA3MjE1NzA0OH0.02jE3WPLnb-DDexNqSnfIPfmPZldsby1dPOu5-BlSDw';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Mailgun configuration
+const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY || '';
+const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || '';
+const MAILGUN_FROM_EMAIL = process.env.MAILGUN_FROM_EMAIL || '';
+
 // In-memory storage for real data (in production, this would be a database)
 let users = [];
 
@@ -85,6 +90,53 @@ let leads = [
   }
 ];
 
+function parseLeadDate(value) {
+  if (!value) return null;
+  const dateCandidate = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(dateCandidate?.getTime?.()) ? null : dateCandidate;
+}
+
+function getLeadContactDate(lead) {
+  if (!lead) return null;
+  return parseLeadDate(lead.date) || parseLeadDate(lead.createdAt);
+}
+
+function validateLeadForScoringPayload(lead) {
+  const errors = [];
+  const warnings = [];
+
+  if (!lead || typeof lead !== 'object') {
+    errors.push('Lead record is missing or not an object');
+    return { isValid: false, errors, warnings };
+  }
+
+  if (!lead.id || typeof lead.id !== 'string') {
+    errors.push('Lead is missing a valid id');
+  }
+
+  if (!lead.status || typeof lead.status !== 'string') {
+    warnings.push('Lead is missing a status; status-based scoring rules will be skipped');
+  }
+
+  if (!lead.source || typeof lead.source !== 'string') {
+    warnings.push('Lead is missing a source; source-based scoring rules will be skipped');
+  }
+
+  if (!lead.lastMessage || typeof lead.lastMessage !== 'string') {
+    warnings.push('Lead is missing a last message; communication scoring rules will be skipped');
+  }
+
+  if (!getLeadContactDate(lead)) {
+    warnings.push('Lead is missing a valid contact date; time-based scoring rules will be skipped');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+
 // Lead Scoring System - Backend Implementation
 const LEAD_SCORING_RULES = [
   // ENGAGEMENT RULES
@@ -93,7 +145,8 @@ const LEAD_SCORING_RULES = [
     name: 'Recent Contact',
     description: 'Lead contacted within last 7 days',
     condition: (lead) => {
-      const leadDate = new Date(lead.date || lead.createdAt);
+      const leadDate = getLeadContactDate(lead);
+      if (!leadDate) return false;
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       return leadDate > weekAgo;
     },
@@ -172,7 +225,8 @@ const LEAD_SCORING_RULES = [
     name: 'Business Hours Contact',
     description: 'Lead contacted during business hours',
     condition: (lead) => {
-      const contactDate = new Date(lead.date || lead.createdAt);
+      const contactDate = getLeadContactDate(lead);
+      if (!contactDate) return false;
       const hour = contactDate.getHours();
       return hour >= 9 && hour <= 17;
     },
@@ -184,7 +238,8 @@ const LEAD_SCORING_RULES = [
     name: 'Weekend Contact',
     description: 'Lead contacted on weekend (shows urgency)',
     condition: (lead) => {
-      const contactDate = new Date(lead.date || lead.createdAt);
+      const contactDate = getLeadContactDate(lead);
+      if (!contactDate) return false;
       const day = contactDate.getDay();
       return day === 0 || day === 6; // Sunday or Saturday
     },
@@ -364,38 +419,124 @@ let followUpSequences = [
 
 let activeFollowUps = [];
 
-// Clear old follow-ups on server start
-activeFollowUps = [];
-
 // Auto-generate active follow-ups for demo leads
 function generateActiveFollowUps() {
-  activeFollowUps = leads.map((lead, index) => {
-    const sequenceId = followUpSequences[index % followUpSequences.length]?.id || followUpSequences[0]?.id;
-    const sequence = followUpSequences.find(s => s.id === sequenceId);
-    
-    return {
-      id: `followup-${lead.id}`,
-      leadId: lead.id,
-      sequenceId: sequenceId,
-      status: ['active', 'paused', 'active'][index % 3],
-      currentStepIndex: Math.floor(Math.random() * (sequence?.steps?.length || 3)),
-      nextStepDate: new Date(Date.now() + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
+  const sampleFollowUps = [
+    {
+      leadId: 'lead-demo-1',
+      sequenceId: followUpSequences[0]?.id,
+      status: 'active',
+      currentStepIndex: 1,
+      nextStepOffsetDays: 1,
       history: [
         {
-          id: `h-${Date.now()}-${index}`,
+          id: 'h-sarah-enroll',
           type: 'enroll',
-          description: `Enrolled in ${sequence?.name || 'sequence'}`,
-          date: new Date(Date.now() - (index + 1) * 24 * 60 * 60 * 1000).toISOString()
+          description: 'Enrolled in New Lead Welcome',
+          date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
         },
         {
-          id: `h-${Date.now()}-${index}-2`,
+          id: 'h-sarah-email',
           type: 'email-sent',
-          description: 'Welcome email sent',
-          date: new Date(Date.now() - index * 12 * 60 * 60 * 1000).toISOString()
+          description: 'Welcome email sent and opened (78% open rate)',
+          date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: 'h-sarah-task',
+          type: 'task-created',
+          description: 'Agent task: Send lender intro',
+          date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
         }
       ]
-    };
-  }).filter(f => f.sequenceId);
+    },
+    {
+      leadId: 'lead-demo-2',
+      sequenceId: followUpSequences[1]?.id || followUpSequences[0]?.id,
+      status: 'active',
+      currentStepIndex: 2,
+      nextStepOffsetDays: 2,
+      history: [
+        {
+          id: 'h-michael-enroll',
+          type: 'enroll',
+          description: 'Enrolled in Appointment Follow-up',
+          date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: 'h-michael-email',
+          type: 'email-sent',
+          description: 'Thank you email delivered',
+          date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: 'h-michael-meeting',
+          type: 'meeting-set',
+          description: 'Follow-up showing scheduled for Saturday',
+          date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+        }
+      ]
+    },
+    {
+      leadId: 'lead-demo-3',
+      sequenceId: followUpSequences[0]?.id,
+      status: 'paused',
+      currentStepIndex: 0,
+      nextStepOffsetDays: 3,
+      history: [
+        {
+          id: 'h-emily-enroll',
+          type: 'enroll',
+          description: 'Enrolled in New Lead Welcome',
+          date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: 'h-emily-pause',
+          type: 'pause',
+          description: 'Paused while awaiting school district info',
+          date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+        }
+      ]
+    },
+    {
+      leadId: 'lead-demo-4',
+      sequenceId: followUpSequences[1]?.id || followUpSequences[0]?.id,
+      status: 'active',
+      currentStepIndex: 1,
+      nextStepOffsetDays: 1,
+      history: [
+        {
+          id: 'h-david-enroll',
+          type: 'enroll',
+          description: 'Enrolled in Appointment Follow-up',
+          date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: 'h-david-email',
+          type: 'email-opened',
+          description: 'Buyer reviewed property recap email',
+          date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: 'h-david-task',
+          type: 'task-created',
+          description: 'Agent task: Send pricing comps',
+          date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+        }
+      ]
+    }
+  ];
+
+  activeFollowUps = sampleFollowUps
+    .filter(sample => sample.sequenceId)
+    .map(sample => ({
+      id: `followup-${sample.leadId}`,
+      leadId: sample.leadId,
+      sequenceId: sample.sequenceId,
+      status: sample.status,
+      currentStepIndex: sample.currentStepIndex,
+      nextStepDate: new Date(Date.now() + sample.nextStepOffsetDays * 24 * 60 * 60 * 1000).toISOString(),
+      history: sample.history
+    }));
 }
 
 let qrCodes = [
@@ -636,9 +777,13 @@ app.post('/api/continue-conversation', async (req, res) => {
 app.post('/api/generate-speech', async (req, res) => {
   try {
     const { text, voice = 'alloy' } = req.body;
+    const allowedVoices = ['nova','shimmer','echo','onyx','fable','alloy','ash','sage','coral'];
     
     if (!text) {
       return res.status(400).json({ error: 'Text is required' });
+    }
+    if (!allowedVoices.includes(voice)) {
+      return res.status(400).json({ error: `Unsupported voice '${voice}'. Supported voices: ${allowedVoices.join(', ')}` });
     }
     
     const mp3 = await openai.audio.speech.create({
@@ -656,8 +801,9 @@ app.post('/api/generate-speech', async (req, res) => {
     
     res.send(buffer);
   } catch (error) {
-    console.error('Speech generation error:', error);
-    res.status(500).json({ error: error.message });
+    const errorMessage = error?.response?.data || error?.message || error;
+    console.error('Speech generation error:', errorMessage);
+    res.status(500).json({ error: errorMessage });
   }
 });
 
@@ -1362,44 +1508,86 @@ app.get('/api/admin/leads/stats', (req, res) => {
 // Calculate and get lead score
 app.post('/api/leads/:leadId/score', (req, res) => {
   try {
-    const { leadId } = req.params;
-    
+    const leadId = (req.params.leadId || '').trim();
+
+    if (!leadId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lead ID is required',
+        code: 'missing_lead_id'
+      });
+    }
+
     const lead = leads.find(l => l.id === leadId);
     if (!lead) {
-      return res.status(404).json({ error: 'Lead not found' });
+      return res.status(404).json({
+        success: false,
+        error: `Lead ${leadId} was not found`,
+        code: 'lead_not_found'
+      });
     }
-    
+
+    const validation = validateLeadForScoringPayload(lead);
+    if (!validation.isValid) {
+      return res.status(422).json({
+        success: false,
+        error: 'Lead record is missing required fields for scoring',
+        code: 'lead_validation_failed',
+        details: validation.errors
+      });
+    }
+
     const score = calculateLeadScore(lead);
-    
+
     // Update lead with new score
     lead.score = score.totalScore;
     lead.scoreTier = score.tier;
     lead.scoreBreakdown = score.breakdown;
     lead.scoreLastUpdated = score.lastUpdated;
-    
+
     console.log(`📊 Lead scored: ${lead.name} (Score: ${score.totalScore}, Tier: ${score.tier})`);
-    
+
     res.json({
       success: true,
       score,
-      message: 'Lead scored successfully'
+      message: 'Lead scored successfully',
+      warnings: validation.warnings
     });
   } catch (error) {
     console.error('Score lead error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      success: false,
+      error: 'Unexpected error while scoring lead',
+      code: 'score_calculation_failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
 // Get lead score
 app.get('/api/leads/:leadId/score', (req, res) => {
   try {
-    const { leadId } = req.params;
-    
+    const leadId = (req.params.leadId || '').trim();
+
+    if (!leadId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lead ID is required',
+        code: 'missing_lead_id'
+      });
+    }
+
     const lead = leads.find(l => l.id === leadId);
     if (!lead) {
-      return res.status(404).json({ error: 'Lead not found' });
+      return res.status(404).json({
+        success: false,
+        error: `Lead ${leadId} was not found`,
+        code: 'lead_not_found'
+      });
     }
-    
+
+    const validation = validateLeadForScoringPayload(lead);
+
     const score = {
       leadId: lead.id,
       totalScore: lead.score || 0,
@@ -1407,41 +1595,108 @@ app.get('/api/leads/:leadId/score', (req, res) => {
       breakdown: lead.scoreBreakdown || [],
       lastUpdated: lead.scoreLastUpdated || lead.updatedAt
     };
-    
+
     res.json({
       success: true,
-      score
+      score,
+      warnings: validation.warnings
     });
   } catch (error) {
     console.error('Get lead score error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      success: false,
+      error: 'Unexpected error while retrieving lead score',
+      code: 'score_lookup_failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
 // Bulk score all leads
 app.post('/api/leads/score-all', (req, res) => {
   try {
+    const { leadIds } = req.body || {};
+
+    let targetLeads = leads;
+    let requestedLeadIds = Array.isArray(leadIds) ? leadIds.filter(id => typeof id === 'string' && id.trim()) : null;
+
+    if (leadIds !== undefined && !Array.isArray(leadIds)) {
+      return res.status(400).json({
+        success: false,
+        error: 'leadIds must be an array of strings when provided',
+        code: 'invalid_payload'
+      });
+    }
+
+    if (requestedLeadIds && requestedLeadIds.length > 0) {
+      requestedLeadIds = [...new Set(requestedLeadIds.map(id => id.trim()))];
+      targetLeads = leads.filter(lead => requestedLeadIds.includes(lead.id));
+    }
+
+    const missingLeadIds = requestedLeadIds
+      ? requestedLeadIds.filter(id => !targetLeads.some(lead => lead.id === id))
+      : [];
+
     let scoredCount = 0;
-    
-    leads.forEach(lead => {
-      const oldScore = lead.score || 0;
-      autoScoreLead(lead);
-      if (lead.score !== oldScore) {
-        scoredCount++;
+    const failedLeads = [];
+    const warningLeads = [];
+
+    targetLeads.forEach(lead => {
+      const validation = validateLeadForScoringPayload(lead);
+
+      if (!validation.isValid) {
+        failedLeads.push({
+          leadId: lead?.id || 'unknown',
+          leadName: lead?.name,
+          reasons: validation.errors
+        });
+        return;
+      }
+
+      try {
+        const previousScore = lead.score || 0;
+        autoScoreLead(lead);
+        if (lead.score !== previousScore) {
+          scoredCount++;
+        }
+        if (validation.warnings.length > 0) {
+          warningLeads.push({
+            leadId: lead.id,
+            leadName: lead.name,
+            warnings: validation.warnings
+          });
+        }
+      } catch (scoringError) {
+        failedLeads.push({
+          leadId: lead?.id || 'unknown',
+          leadName: lead?.name,
+          reasons: [`Scoring failed: ${scoringError.message}`]
+        });
       }
     });
+
+    console.log(`📊 Bulk scoring completed: ${scoredCount} leads scored, ${failedLeads.length} failed${missingLeadIds.length ? `, ${missingLeadIds.length} missing` : ''}`);
     
-    console.log(`📊 Bulk scoring completed: ${scoredCount} leads re-scored`);
-    
-    res.json({
-      success: true,
-      message: `${scoredCount} leads scored successfully`,
-      totalLeads: leads.length,
-      scoredLeads: scoredCount
-    });
+    res
+      .status(failedLeads.length > 0 ? 207 : 200)
+      .json({
+        success: failedLeads.length === 0,
+        message: `${scoredCount} lead${scoredCount === 1 ? '' : 's'} scored successfully`,
+        totalLeads: leads.length,
+        scoredLeads: scoredCount,
+        warnings: warningLeads,
+        failedLeads,
+        missingLeadIds: missingLeadIds.length > 0 ? missingLeadIds : undefined,
+        requestedLeadCount: requestedLeadIds ? requestedLeadIds.length : undefined
+      });
   } catch (error) {
     console.error('Bulk score error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      success: false,
+      error: 'Unexpected error while bulk scoring leads',
+      code: 'bulk_score_failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -1500,6 +1755,54 @@ app.post('/api/admin/marketing/sequences', (req, res) => {
   } catch (error) {
     console.error('Create sequence error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Quick email sending via Mailgun
+app.post('/api/admin/email/quick-send', async (req, res) => {
+  try {
+    const { to, subject, html, from } = req.body || {};
+
+    if (!to || !subject || !html) {
+      return res.status(400).json({ error: 'Recipient email, subject, and content are required.' });
+    }
+
+    if (!MAILGUN_API_KEY || !MAILGUN_DOMAIN) {
+      console.warn('Mailgun configuration missing. Check MAILGUN_API_KEY and MAILGUN_DOMAIN.');
+      return res.status(503).json({ error: 'Email service is not configured.' });
+    }
+
+    const effectiveFrom =
+      from ||
+      MAILGUN_FROM_EMAIL ||
+      `HomeListingAI <postmaster@${MAILGUN_DOMAIN}>`;
+
+    const body = new URLSearchParams();
+    body.append('from', effectiveFrom);
+    body.append('to', to);
+    body.append('subject', subject);
+    body.append('html', html);
+
+    const response = await fetch(`https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`api:${MAILGUN_API_KEY}`).toString('base64')}`,
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Mailgun send failed:', errorText);
+      return res.status(502).json({ error: 'Failed to send email.', details: errorText });
+    }
+
+    const result = await response.json();
+    console.log('Mailgun send success:', result.id || result);
+    res.json({ success: true, id: result.id || null });
+  } catch (error) {
+    console.error('Error sending quick email:', error);
+    res.status(500).json({ error: 'Unexpected error sending email.' });
   }
 });
 

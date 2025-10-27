@@ -95,6 +95,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [editingText, setEditingText] = useState('');
   const [leadScores, setLeadScores] = useState<any[]>([]);
   const [isLoadingScores, setIsLoadingScores] = useState(false);
+  const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
   // Hidden for launch - notification states will be re-enabled post-launch
   // const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   // const notificationDropdownRef = useRef<HTMLDivElement>(null);
@@ -138,16 +139,48 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex-1">
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
             <p className="text-slate-500 mt-1 text-sm sm:text-base">Welcome back, {agentProfile.name}! Here's an overview of your real estate activity.</p>
-        </div>
-        <div className="flex items-center justify-end">
-            {agentProfile.headshotUrl ? (
-                <img src={agentProfile.headshotUrl} alt={agentProfile.name} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-white shadow-sm" />
-            ) : (
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 border-2 border-white shadow-sm">
-                    <span className="material-symbols-outlined text-lg sm:text-xl">person</span>
-                </div>
-            )}
-        </div>
+      </div>
+      <div className="flex items-center justify-end">
+          {agentProfile.headshotUrl ? (
+              <img src={agentProfile.headshotUrl} alt={agentProfile.name} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-white shadow-sm" />
+          ) : (
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 border-2 border-white shadow-sm">
+                  <span className="material-symbols-outlined text-lg sm:text-xl">person</span>
+              </div>
+          )}
+      </div>
+      </div>
+
+      {/* Help / Pro Tips */}
+      <div className="mb-8">
+        <button
+          type="button"
+          onClick={() => setIsHelpPanelOpen(prev => !prev)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+          aria-expanded={isHelpPanelOpen}
+        >
+          <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
+          {isHelpPanelOpen ? 'Hide Dashboard Pro Tips' : 'Show Dashboard Pro Tips'}
+          <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
+        </button>
+        {isHelpPanelOpen && (
+          <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-700">
+            <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-3">
+              <span className="material-symbols-outlined text-lg">tips_and_updates</span>
+              Make the Most of Your Overview
+            </h2>
+            <ul className="space-y-2 list-disc list-inside">
+              <li><strong>Stats Cards:</strong> Watch these daily—hover to see which metrics spike and click cards to dive into the related sections.</li>
+              <li><strong>Calendar:</strong> Need to add or edit showings quickly? Click any date to open the appointment manager.</li>
+              <li><strong>Recent Leads:</strong> Use the colored badges to spot warm opportunities. Clicking a lead jumps straight to their details.</li>
+              <li><strong>Agent Tasks:</strong> Drag items to reorder or mark completed to keep your follow ups tight.</li>
+              <li><strong>Lead Score Distribution:</strong> Use this to decide who gets personal outreach, automated nurture, or re-engagement.</li>
+            </ul>
+            <p className="mt-4 text-sm text-slate-600">
+              <strong>Pro tip:</strong> Ready for a deeper walkthrough? Visit the “Train Your AI” tab for guided setup of Sidekicks, automations, and messaging.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Stats Cards */}

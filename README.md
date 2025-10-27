@@ -115,7 +115,7 @@ A comprehensive AI-powered platform for real estate agents to generate stunning 
    - Smooth animations and transitions
 
 4. **🔒 Production Deployment**
-   - Optimized Firebase hosting configuration
+   - Optimized production hosting configuration
    - Proper caching headers
    - Environment configuration
    - Automated deployment script
@@ -125,7 +125,6 @@ A comprehensive AI-powered platform for real estate agents to generate stunning 
 ### Prerequisites
 - Node.js (v16 or higher)
 - npm or yarn
-- Firebase CLI (for deployment)
 
 ### Installation
 
@@ -143,7 +142,7 @@ A comprehensive AI-powered platform for real estate agents to generate stunning 
 3. **Set up environment variables**
    ```bash
    cp env.example .env.local
-   # Edit .env.local with your Firebase configuration
+   # Edit .env.local with your project configuration
    ```
 
 4. **Start development server**
@@ -167,7 +166,6 @@ src/
 │   └── ...                       # Existing components
 ├── services/            # API and service functions
 ├── types.ts            # TypeScript type definitions
-├── config.ts           # Firebase configuration
 └── main.tsx           # Application entry point
 ```
 
@@ -211,18 +209,13 @@ This script will:
 1. Install dependencies
 2. Run linting
 3. Build for production
-4. Deploy to Firebase Hosting
+4. Run the project-specific deployment steps
 
 ### Manual Deployment
 
 1. **Build the application**
    ```bash
    npm run build
-   ```
-
-2. **Deploy to Firebase**
-   ```bash
-   firebase deploy --only hosting
    ```
 
 ## 🔧 Configuration
@@ -232,15 +225,12 @@ This script will:
 Create a `.env.local` file with:
 
 ```env
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
 VITE_GEMINI_API_KEY=your_gemini_api_key
+VITE_OPENAI_API_KEY=your_openai_api_key
+VITE_REBRANDLY_API_KEY=your_rebrandly_api_key
+VITE_REBRANDLY_WORKSPACE_ID=your_rebrandly_workspace_id # optional but recommended
+VITE_REBRANDLY_DOMAIN=links.yourbrand.com
 ```
-
-### Firebase Configuration
-
-Update `src/config.ts` with your Firebase project settings.
 
 ## 📱 Features
 
@@ -266,7 +256,7 @@ Update `src/config.ts` with your Firebase project settings.
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
-- `npm run deploy` - Build and deploy to Firebase
+- `npm run deploy` - Build and run the project-specific deployment script
 
 ### Code Style
 
@@ -278,7 +268,7 @@ Update `src/config.ts` with your Firebase project settings.
 
 ## 🔒 Security
 
-- Firebase Authentication
+- Authentication guard
 - Secure API endpoints
 - Environment variable protection
 - Input validation
@@ -323,4 +313,4 @@ For support and questions:
 
 ---
 
-**Built with ❤️ using React, TypeScript, Firebase, and Tailwind CSS**
+**Built with ❤️ using React, TypeScript, and Tailwind CSS**

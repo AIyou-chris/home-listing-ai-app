@@ -34,13 +34,13 @@ const NavItem: React.FC<{
         setView(viewName);
         onClose();
       }}
-      className={`flex w-full items-center space-x-3 rounded-lg px-3 py-2.5 text-sm transition-colors duration-200 ${
+      className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${
         isActive
-          ? 'bg-primary-100 font-semibold text-primary-700'
-          : 'font-medium text-slate-600 hover:bg-slate-200/60'
+          ? 'bg-primary-600 font-semibold text-white shadow-sm'
+          : 'font-medium text-slate-600 hover:bg-slate-100'
       }`}
     >
-      <Icon name={icon} className={`transition-colors ${isActive ? 'text-primary-600' : 'text-slate-500'}`} />
+      <Icon name={icon} className={`transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`} />
       <span>{children}</span>
     </button>
   );
@@ -54,6 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
     { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
     { view: 'listings', icon: 'storefront', label: 'AI Listings' },
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
+    { view: 'ai-training', icon: 'school', label: 'Train Your AI' },
     { view: 'marketing', icon: 'filter_alt', label: 'AI Funnel' },
     { view: 'settings', icon: 'settings', label: 'Settings' },
   ];
@@ -89,19 +90,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
             </div>
 
 
-            <nav className="flex-1 space-y-1">
-                {navItems.map((item) => (
-                <NavItem
-                    key={item.view}
-                    viewName={item.view as View}
-                    activeView={activeView}
-                    setView={setView}
-                    icon={item.icon}
-                    onClose={onClose}
-                >
-                    {item.label}
-                </NavItem>
-                ))}
+            <nav className="flex-1">
+                <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm divide-y divide-slate-200">
+                    {navItems.map((item) => (
+                        <NavItem
+                            key={item.view}
+                            viewName={item.view as View}
+                            activeView={activeView}
+                            setView={setView}
+                            icon={item.icon}
+                            onClose={onClose}
+                        >
+                            {item.label}
+                        </NavItem>
+                    ))}
+                </div>
             </nav>
 
             <div className="mt-auto flex flex-col space-y-2 border-t border-slate-200 pt-4">
@@ -116,5 +119,3 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
 };
 
 export default Sidebar;
-
-

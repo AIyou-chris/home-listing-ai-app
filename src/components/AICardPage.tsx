@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageCircle, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageCircle, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Check } from 'lucide-react';
 import QRCodeManagementPage from './QRCodeManagementPage';
 import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, type AICardProfile } from '../services/aiCardService';
 import { continueConversation } from '../services/openaiService';
 import { notifyProfileChange } from '../services/agentProfileService';
+import { createShortLink, ShortLink } from '../services/linkShortenerService';
 
 // Use the AICardProfile type from the service
 type AgentProfile = AICardProfile;
@@ -53,6 +54,10 @@ const AICardPage: React.FC = () => {
   });
   const headshotInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+  const [shortLink, setShortLink] = useState<ShortLink | null>(null);
+  const [isShortLinkLoading, setIsShortLinkLoading] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
 
   // Load profile on component mount
   useEffect(() => {
@@ -73,6 +78,35 @@ const AICardPage: React.FC = () => {
     
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (!profile?.id || shortLink) return;
+
+    const destination =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/demo/ai-card/${encodeURIComponent(profile.id)}`
+        : `https://demo.homelisting.ai/ai-card/${profile.id}`;
+
+    const slug =
+      profile.fullName
+        ?.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+        .slice(0, 20) || `card-${profile.id}`;
+
+    setIsShortLinkLoading(true);
+    createShortLink({
+      destination,
+      slashtag: `card-${slug}`,
+      title: `AI Card | ${profile.fullName}`,
+      description: 'AI Card generated from the HomeListingAI demo'
+    })
+      .then(result => setShortLink(result))
+      .catch(error => {
+        console.warn('[AICardPage] Short link generation failed', error);
+      })
+      .finally(() => setIsShortLinkLoading(false));
+  }, [profile?.id, profile?.fullName, shortLink]);
 
   const handleInputChange = async (field: keyof AgentProfile, value: any) => {
     const updatedProfile = {
@@ -583,6 +617,114 @@ const AICardPage: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {(isShortLinkLoading || shortLink) && (
+        <div className="p-4 sm:p-6">
+          <div className="max-w-screen-2xl mx-auto">
+            <div className="bg-white border border-primary-100 rounded-xl shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary-100 text-primary-700 p-2">
+                  <LinkIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Branded short link</p>
+                  <p className="text-xs text-slate-500">
+                    Share a trackable link to this AI Card. Great for email signatures, QR codes, and social bios.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 w-full sm:w-auto">
+                {isShortLinkLoading ? (
+                  <span className="text-slate-400">Generating link…</span>
+                ) : shortLink ? (
+                  <>
+                    <span className="truncate max-w-[180px] sm:max-w-xs">{shortLink.shortUrl}</span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(shortLink.shortUrl);
+                          setCopyState('copied');
+                          setTimeout(() => setCopyState('idle'), 2000);
+                        } catch (error) {
+                          console.error('Clipboard copy failed', error);
+                          setCopyState('error');
+                          setTimeout(() => setCopyState('idle'), 2000);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-primary-600 hover:text-primary-700 transition-colors"
+                    >
+                      {copyState === 'copied' ? (
+                        <>
+                          <Check className="w-3 h-3" />
+                          Copied
+                        </>
+                      ) : copyState === 'error' ? (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          Retry
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-slate-400">Unable to create link automatically.</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Help / Pro Tips */}
+      <div className="p-4 sm:p-6">
+        <div className="max-w-screen-2xl mx-auto">
+          <button
+            type="button"
+            onClick={() => setIsHelpPanelOpen(prev => !prev)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+            aria-expanded={isHelpPanelOpen}
+          >
+            <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
+            {isHelpPanelOpen ? 'Hide AI Card Tips' : 'Show AI Card Tips'}
+            <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
+          </button>
+          {isHelpPanelOpen && (
+            <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
+              <div>
+                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-lg">badge</span>
+                  Build a High-Converting AI Card
+                </h2>
+                <ul className="space-y-1.5 list-disc list-inside">
+                  <li><strong>Brand consistency:</strong> Upload your headshot, logo, and pick a brand color so the card mirrors your print and web collateral.</li>
+                  <li><strong>Bio & social links:</strong> Keep the story tight (2–3 sentences) and make sure social URLs point to active accounts clients can browse.</li>
+                  <li><strong>AI assistant chat:</strong> Use the preview chat to confirm the AI introduces you correctly and handles common questions smoothly.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-lg">qr_code_2</span>
+                  QR Code Marketing
+                </h2>
+                <ul className="space-y-1.5 list-disc list-inside">
+                  <li><strong>Print placements:</strong> Add QR codes to flyers, signage, business cards, and listing packets so leads can reach your AI card instantly.</li>
+                  <li><strong>Track engagement:</strong> Generate unique codes per campaign (open house, mailer, social) and monitor scans inside the QR dashboard.</li>
+                  <li><strong>Landing experience:</strong> Make sure the AI card contact buttons (call, text, chat) are enabled before distributing the code.</li>
+                </ul>
+                <p className="mt-3 text-sm text-slate-500">
+                  <strong>Pro tip:</strong> Pair the AI card QR with a “Talk to my AI concierge” CTA—buyers love the novelty and you capture more late-night inquiries.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

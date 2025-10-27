@@ -9,12 +9,7 @@ This document provides instructions for testing the OpenAI integration in the Ho
    OPENAI_API_KEY=YOUR_OPENAI_API_KEY_HERE
    ```
 
-2. Ensure you have deployed the Firebase functions:
-   ```bash
-   cd functions
-   npm run build
-   firebase deploy --only functions:continueConversation,functions:generateSpeech
-   ```
+2. Ensure your server-side functions (if any) are deployed using your preferred platform.
 
 ## Testing Options
 
@@ -76,9 +71,9 @@ If you encounter issues:
 
 1. **API Key Issues**: Verify your OpenAI API key is correct and has access to GPT-5.
 
-2. **Function Deployment**: Make sure the Firebase functions are properly deployed.
+2. **Function Deployment**: Make sure your server functions are properly deployed.
 
-3. **Console Errors**: Check the browser console and Firebase function logs for error messages.
+3. **Console Errors**: Check the browser console and your server logs for error messages.
 
 4. **Fallback Testing**: If GPT-5 is unavailable, the system should fall back to GPT-4 and then GPT-3.5-turbo.
 

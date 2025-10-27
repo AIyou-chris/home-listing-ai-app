@@ -1,202 +1,81 @@
+
+> homelistingai-app@1.0.0 dev
+> vite
+
 Port 5173 is in use, trying another one...
+Port 5174 is in use, trying another one...
+Port 5175 is in use, trying another one...
+Port 5176 is in use, trying another one...
 
-  VITE v5.4.19  ready in 235 ms
+  VITE v5.4.19  ready in 2070 ms
 
-  ➜  Local:   http://localhost:5174/
-  ➜  Network: http://192.168.1.28:5174/
+  ➜  Local:   http://localhost:5177/
+  ➜  Network: http://192.168.1.28:5177/
   ➜  press h + enter to show help
-11:38:16 AM [vite] hmr update /src/App.tsx, /src/index.css
-11:38:24 AM [vite] hmr update /src/App.tsx, /src/index.css
-11:43:12 AM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-11:43:26 AM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-11:55:52 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-11:55:59 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-11:55:59 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-11:59:27 AM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-11:59:46 AM [vite] hmr update /src/components/ListingsPage.tsx, /src/index.css
-12:04:13 PM [vite] hmr update /src/components/ListingsPage.tsx, /src/index.css
-12:07:45 PM [vite] hmr update /src/components/ListingsPage.tsx, /src/index.css
-12:07:45 PM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-12:07:46 PM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-12:08:19 PM [vite] hmr update /src/components/ListingsPage.tsx, /src/index.css
-12:09:01 PM [vite] hmr update /src/components/ListingsPage.tsx, /src/index.css
-12:20:29 PM [vite] hmr update /src/components/PropertyPage.tsx, /src/index.css
-12:20:29 PM [vite] hmr update /src/components/PropertyPage.tsx, /src/index.css
-12:20:45 PM [vite] hmr update /src/index.css, /src/components/ListingSidekickWidget.tsx
-12:20:45 PM [vite] hmr update /src/index.css, /src/components/ListingSidekickWidget.tsx
-12:20:45 PM [vite] hmr update /src/components/ListingSidekickWidget.tsx, /src/index.css
-12:20:45 PM [vite] hmr update /src/components/PropertyPage.tsx, /src/index.css
-12:27:41 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-12:27:53 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-12:27:53 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-12:50:45 PM [vite] hmr update /src/index.css, /src/components/ListingSidekickWidget.tsx
-12:51:11 PM [vite] page reload src/components/AgentOnboardingPage.tsx
-12:51:27 PM [vite] hmr update /src/index.css, /src/components/ListingSidekickWidget.tsx
-12:51:27 PM [vite] page reload src/components/AgentOnboardingPage.tsx
-1:35:35 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-1:35:51 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-1:41:31 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-1:41:48 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-1:58:01 PM [vite] hmr update /src/components/ListingsPage.tsx, /src/index.css
-1:58:37 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-1:58:58 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-2:03:46 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-2:04:04 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-2:59:12 PM [vite] hmr update /src/index.css, /src/components/ListingsPage.tsx, /src/components/PropertyPage.tsx, /src/components/LandingPage.tsx, /src/components/AddListingPage.tsx, /src/components/ListingAppModals.tsx, /src/components/PublicPropertyApp.tsx
-2:59:27 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-2:59:51 PM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/ViewingModal.tsx
-2:59:51 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
-2:59:51 PM [vite] page reload src/context/SchedulerContext.tsx
-3:00:20 PM [vite] hmr update /src/index.css, /src/components/ListingsPage.tsx, /src/components/PropertyPage.tsx, /src/components/LandingPage.tsx, /src/components/AddListingPage.tsx, /src/components/ListingAppModals.tsx, /src/components/PublicPropertyApp.tsx
-3:00:20 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-3:00:20 PM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/ViewingModal.tsx
-3:00:20 PM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/ViewingModal.tsx
-3:00:20 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
-3:00:20 PM [vite] page reload src/context/SchedulerContext.tsx
-3:02:09 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-3:02:31 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-3:04:29 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-3:04:42 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-3:24:45 PM [vite] page reload src/components/AgentOnboardingPage.tsx
-3:42:53 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-3:43:14 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-4:00:23 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-4:00:43 PM [vite] hmr update /src/components/AddListingPage.tsx, /src/index.css
-4:04:48 PM [vite] hmr update /src/index.css, /src/components/ListingSidekickWidget.tsx
-4:05:08 PM [vite] hmr update /src/index.css, /src/components/ListingSidekickWidget.tsx
-4:10:48 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-4:11:04 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-4:14:56 PM [vite] hmr update /src/index.css, /src/components/ListingsPage.tsx, /src/components/PropertyPage.tsx, /src/components/LandingPage.tsx, /src/components/AddListingPage.tsx, /src/components/ListingAppModals.tsx, /src/components/PublicPropertyApp.tsx
-4:16:47 PM [vite] hmr update /src/App.tsx, /src/index.css
-4:16:58 PM [vite] hmr update /src/App.tsx, /src/index.css
-4:17:40 PM [vite] hmr update /src/App.tsx, /src/index.css
-4:18:09 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-4:18:09 PM [vite] hmr update /src/index.css, /src/components/ListingsPage.tsx, /src/components/PropertyPage.tsx, /src/components/LandingPage.tsx, /src/components/AddListingPage.tsx, /src/components/ListingAppModals.tsx, /src/components/PublicPropertyApp.tsx
-4:18:09 PM [vite] hmr update /src/App.tsx, /src/index.css
-4:31:49 PM [vite] hmr update /src/App.tsx, /src/index.css
-4:32:08 PM [vite] hmr update /src/App.tsx, /src/index.css
-4:34:28 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-4:34:52 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-4:37:52 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-4:38:04 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-5:07:16 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-5:07:27 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-5:07:27 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-5:13:15 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
-5:13:39 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
-5:16:14 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-5:16:28 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-5:16:28 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-5:16:44 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
-5:17:10 PM [vite] hmr update /src/components/DemoListingPage.tsx, /src/index.css
-5:17:10 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-5:17:10 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
-5:20:05 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-5:20:18 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
-5:21:56 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
-5:22:12 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
-5:26:11 PM [vite] hmr update /src/App.tsx, /src/index.css
-5:26:40 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:26:40 PM [vite] hmr update /src/App.tsx, /src/index.css
-5:33:36 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:33:54 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:37:52 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:38:17 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:44:35 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:44:57 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:48:02 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:48:26 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:56:21 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:56:36 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:58:41 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:59:23 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-5:59:47 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:09:12 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:09:31 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:15:32 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:15:37 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:18:30 PM [vite] hmr update /src/index.css, /src/components/ListingsPage.tsx, /src/components/PropertyPage.tsx, /src/components/AddListingPage.tsx, /src/components/ListingAppModals.tsx, /src/components/PublicPropertyApp.tsx
-6:18:30 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:21:30 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:21:39 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:24:09 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:24:15 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:24:15 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:28:44 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:29:02 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:29:07 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-6:46:37 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
-6:47:48 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
-6:48:23 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:48:30 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
-6:48:30 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:48:30 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
-6:48:30 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:50:02 PM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/ViewingModal.tsx, /src/components/LeadsAndAppointmentsPage.tsx
-6:50:02 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
-6:50:02 PM [vite] page reload src/context/SchedulerContext.tsx
-6:50:17 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:50:25 PM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/ViewingModal.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/App.tsx
-6:50:25 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:50:25 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
-6:50:25 PM [vite] page reload src/context/SchedulerContext.tsx
-7:08:26 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:08:58 PM [vite] hmr update /src/components/ListingSidekickWidget.tsx, /src/index.css
-7:09:15 PM [vite] hmr update /src/components/ListingSidekickWidget.tsx, /src/index.css
-7:09:15 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:13:26 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:13:33 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:13:33 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:14:38 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:14:46 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:19:05 PM [vite] hmr update /src/index.css, /src/components/ListingsPage.tsx, /src/components/PropertyPage.tsx, /src/components/AddListingPage.tsx, /src/components/ListingAppModals.tsx, /src/components/PublicPropertyApp.tsx
-7:19:20 PM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-7:19:52 PM [vite] hmr update /src/App.tsx, /src/index.css
-7:19:59 PM [vite] hmr update /src/index.css, /src/components/ListingsPage.tsx, /src/components/PropertyPage.tsx, /src/components/AddListingPage.tsx, /src/components/ListingAppModals.tsx, /src/components/PublicPropertyApp.tsx
-7:19:59 PM [vite] hmr update /src/App.tsx, /src/index.css
-7:19:59 PM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-7:22:51 PM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-7:24:19 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:24:32 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:24:32 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:24:32 PM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-7:29:13 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:30:14 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:30:22 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:30:22 PM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-7:47:27 AM [vite] hmr update /src/App.tsx, /src/index.css
-8:13:08 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-8:13:26 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-8:16:32 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-8:16:48 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-8:36:13 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-8:36:35 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-8:36:48 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-10:43:28 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-10:43:28 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-10:43:42 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-10:43:42 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-10:49:27 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-10:49:43 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-11:36:37 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-11:43:57 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-11:43:57 AM [vite] hmr update /src/index.css, /src/components/ListingsPage.tsx, /src/components/PropertyPage.tsx, /src/components/AddListingPage.tsx, /src/components/ListingAppModals.tsx, /src/components/PublicPropertyApp.tsx
-11:43:57 AM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
-11:43:57 AM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-11:43:57 AM [vite] hmr update /src/components/ListingSidekickWidget.tsx, /src/index.css
-11:43:57 AM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css, /src/components/ListingSidekickWidget.tsx
-11:43:57 AM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/ViewingModal.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/App.tsx
-11:43:57 AM [vite] hmr update /src/components/AIContentPage.tsx, /src/index.css
-11:43:57 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
-11:43:57 AM [vite] page reload src/context/SchedulerContext.tsx
-11:45:53 AM [vite] page reload src/services/knowledgeBaseService.ts
-11:46:13 AM [vite] page reload src/services/knowledgeBaseService.ts
-12:23:31 PM [vite] page reload src/services/knowledgeBaseService.ts
-12:26:06 PM [vite] page reload src/services/knowledgeBaseService.ts
-12:26:16 PM [vite] page reload src/services/knowledgeBaseService.ts
-12:26:16 PM [vite] page reload src/services/knowledgeBaseService.ts
-12:28:10 PM [vite] hmr update /src/index.css, /src/components/ListingsPage.tsx, /src/components/PropertyPage.tsx, /src/components/AddListingPage.tsx, /src/components/ListingAppModals.tsx, /src/components/PublicPropertyApp.tsx
-12:28:10 PM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-12:32:55 PM [vite] hmr update /src/components/AdminLayout.tsx, /src/index.css
-12:33:08 PM [vite] hmr update /src/components/AdminLayout.tsx, /src/index.css
-12:33:08 PM [vite] page reload src/services/knowledgeBaseService.ts
+7:22:15 PM [vite] .env.local changed, restarting server...
+7:22:15 PM [vite] server restarted.
+7:22:18 PM [vite] .env.local changed, restarting server...
+7:22:18 PM [vite] server restarted.
+7:24:57 PM [vite] .env.local changed, restarting se7:24:57 7:24:57 PM [vite] server restarted.
+7:24:59 PM [vite] .env.local changed, restarting server...
+7:24:59 PM [vite] server restarted.
+7:25:09 PM [vite] .env.local changed, restarting server...
+7:25:09 PM [vite] server restarted.
+7:25:10 PM [vite] .env.local changed, restarting server...
+7:25:10 PM [vite] server restarted.
+7:26:44 PM [vite] .env.local changed, restarting server...
+7:26:44 PM [vite] server restarted.
+8:05:19 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
+0 PM [vite] server restarted.
+7:26:44 PM [vite] .env.local changed, restarting s7:26:44 P7:26:44 PM [vite] server restarted.
+8:05:19 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
+9:27:24 AM [vite] hmr update /src/components/AIInteractiveTraining.tsx, /src/index.css
+10:02:34 AM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/LandingPage.tsx, /src/components/AnalyticsPage.tsx
+10:12:55 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
+10:12:59 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
+10:13:04 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
+10:13:11 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
+10:13:16 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
+10:13:51 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
+10:15:48 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
+10:23:24 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
+10:23:47 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
+10:24:09 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
+10:24:14 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
+10:28:05 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
+10:28:20 AM [vite] hmr update /src/components/SequenceTemplateModal.tsx, /src/index.css
+10:39:19 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
+10:57:58 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
+11:05:30 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
+11:23:17 AM [vite] hmr update /src/components/LeadFollowUpsPage.tsx, /src/index.css
+11:31:29 AM [vite] hmr update /src/components/AnalyticsPage.tsx, /src/index.css
+11:35:22 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:35:45 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:36:05 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:38:38 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:39:00 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:40:02 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:42:27 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:49:14 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:49:55 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:06:30 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:06:54 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:08:07 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:16:02 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:16:21 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:20:20 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:22:28 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:23:09 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:28:02 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:30:43 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:31:14 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:33:55 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:42:28 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
+12:49:57 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
+12:52:34 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
+12:55:33 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:55:56 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+12:59:34 PM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
+1:03:36 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+1:04:21 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+1:06:57 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css

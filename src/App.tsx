@@ -44,8 +44,8 @@ import PropertyComparison from './components/PropertyComparison';
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
-import AIAgentHub from './components/AIAgentHub';
 import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
+import AIInteractiveTraining from './components/AIInteractiveTraining';
 
 // import { getProperties, addProperty } from './services/firestoreService';
 // Temporary stubs while migrating off Firebase
@@ -694,29 +694,33 @@ const App: React.FC = () => {
 	}
 
 	const renderViewContent = () => {
+		const isMarketingLanding = view === 'landing' && !user && !isDemoMode && !isLocalAdmin;
+		const resolvedView = (user || isDemoMode || isLocalAdmin) && view === 'landing' ? 'dashboard' : view;
+
+		if (isMarketingLanding) {
+			return (
+				<LandingPage
+					onNavigateToSignUp={handleNavigateToSignUp}
+					onNavigateToSignIn={handleNavigateToSignIn}
+					onEnterDemoMode={handleEnterDemoMode}
+					scrollToSection={scrollToSection}
+					onScrollComplete={() => setScrollToSection(null)}
+					onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+					onNavigateToAdmin={handleNavigateToAdmin}
+				/>
+			);
+		}
+
 		// Logged-in, Demo, or Local Admin views
 		if (user || isDemoMode || isLocalAdmin) {
-			// If explicitly viewing landing, render standalone marketing page
-			if (view === 'landing') {
-				return (
-					<LandingPage 
-						onNavigateToSignUp={handleNavigateToSignUp} 
-						onNavigateToSignIn={handleNavigateToSignIn} 
-						onEnterDemoMode={handleEnterDemoMode}
-						scrollToSection={scrollToSection}
-						onScrollComplete={() => setScrollToSection(null)}
-						onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-						onNavigateToAdmin={handleNavigateToAdmin}
-					/>
-				);
-			}
+
 			const mainContent = () => {
-				switch(view) {
-					case 'landing':
+				switch(resolvedView) {
+					case 'openai-test':
 						return (
-							<LandingPage 
-								onNavigateToSignUp={handleNavigateToSignUp} 
-								onNavigateToSignIn={handleNavigateToSignIn} 
+							<LandingPage
+								onNavigateToSignUp={handleNavigateToSignUp}
+								onNavigateToSignIn={handleNavigateToSignIn}
 								onEnterDemoMode={handleEnterDemoMode}
 								scrollToSection={scrollToSection}
 								onScrollComplete={() => setScrollToSection(null)}
@@ -724,20 +728,11 @@ const App: React.FC = () => {
 								onNavigateToAdmin={handleNavigateToAdmin}
 							/>
 						);
-					case 'openai-test':
-						return <LandingPage 
-							onNavigateToSignUp={handleNavigateToSignUp} 
-							onNavigateToSignIn={handleNavigateToSignIn} 
-							onEnterDemoMode={handleEnterDemoMode}
-							scrollToSection={scrollToSection}
-							onScrollComplete={() => setScrollToSection(null)}
-							onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-							onNavigateToAdmin={handleNavigateToAdmin}
-						/>;
 					case 'admin-dashboard':
-						return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
+						return <AdminModalProvider><AdminLayout currentView={resolvedView} /></AdminModalProvider>;
 					case 'admin-users':
 					case 'admin-knowledge-base': 
+					case 'admin-ai-training':
 					case 'admin-ai-personalities':
 					case 'admin-marketing': 
 					case 'admin-analytics': 
@@ -798,6 +793,8 @@ const App: React.FC = () => {
 						return <AICardPage />;
 					case 'knowledge-base': 
 						return <EnhancedAISidekicksHub />;
+					case 'ai-training':
+						return <AIInteractiveTraining />;
 					case 'marketing': 
 						return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
 					case 'analytics': 

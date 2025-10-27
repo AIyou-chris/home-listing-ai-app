@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
 import { emailAuthService, EmailConnection } from '../services/emailAuthService';
+import { googleOAuthService } from '../services/googleOAuthService';
 import NotificationService from '../services/notificationService';
 import { getProfileForSettings, updateAgentProfileWithNotification } from '../services/agentProfileService';
 
@@ -190,6 +191,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
     const [emailFormData, setEmailFormData] = useState<EmailSettings>(emailSettings);
     const [calendarFormData, setCalendarFormData] = useState<CalendarSettings>(calendarSettings);
     const [currentNotifications, setCurrentNotifications] = useState<NotificationSettings>(notificationSettings);
+    const [showNotificationTips, setShowNotificationTips] = useState(true);
+    const [showEmailTips, setShowEmailTips] = useState(true);
+    const [showCalendarTips, setShowCalendarTips] = useState(true);
+    const [showBillingTips, setShowBillingTips] = useState(true);
+    const [isGoogleIntegrationAvailable, setIsGoogleIntegrationAvailable] = useState(false);
     const [passwords, setPasswords] = useState({
         currentPassword: '',
         newPassword: '',
@@ -224,9 +230,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
             setNotificationPermission(Notification.permission);
         }
         // Check Google Calendar connection status
-        import('../services/googleOAuthService').then(({ googleOAuthService }) => {
-            setIsGoogleCalendarConnected(googleOAuthService.isAuthenticated());
-        });
+        setIsGoogleIntegrationAvailable(googleOAuthService.isAvailable);
+        setIsGoogleCalendarConnected(googleOAuthService.isAuthenticated());
     }, [notificationSettings]);
 
     // Email connection handlers
@@ -243,20 +248,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         }
     };
 
-    const handleOutlookConnect = async () => {
-        setIsConnecting('outlook');
-        try {
-            const connection = await emailAuthService.connectOutlook();
-            setEmailConnections(prev => [...prev.filter(c => c.provider !== 'outlook'), connection]);
-        } catch (error) {
-            console.error('Outlook connection failed:', error);
-            alert('Failed to connect Outlook. Please try again.');
-        } finally {
-            setIsConnecting(null);
-        }
-    };
-
-    const handleEmailDisconnect = async (provider: 'gmail' | 'outlook') => {
+    const handleEmailDisconnect = async (provider: 'gmail') => {
         try {
             await emailAuthService.disconnect(provider);
             setEmailConnections(prev => prev.filter(c => c.provider !== provider));
@@ -269,7 +261,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
     const handleGoogleCalendarConnect = async () => {
         setIsConnecting('google');
         try {
-            const { googleOAuthService } = await import('../services/googleOAuthService');
+            if (!googleOAuthService.isAvailable) {
+                alert('Google Calendar integration is not available in this environment.');
+                return;
+            }
+
             const success = await googleOAuthService.requestAccess();
             if (success) {
                 setIsGoogleCalendarConnected(true);
@@ -485,12 +481,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
 
 
     return (
-        <div className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+        <div className="py-10 px-4 sm:px-6 lg:px-0">
              <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
                 <span className="material-symbols-outlined w-5 h-5">chevron_left</span>
                 <span>Back to Dashboard</span>
             </button>
-            <div className="bg-white rounded-xl shadow-lg border border-slate-200/60">
+            <div className="w-full bg-white rounded-xl lg:rounded-none shadow-lg border border-slate-200/60">
                 <div className="flex flex-col md:flex-row">
                     {/* Sidebar Navigation */}
                     <aside className="md:w-64 p-6 border-b md:border-b-0 md:border-r border-slate-200/80">
@@ -516,6 +512,40 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 <div>
                                     <h2 className="text-2xl font-bold text-slate-900">🔔 Notification Settings</h2>
                                     <p className="text-slate-500 mt-1">Customize how and when you receive notifications.</p>
+                                </div>
+                                <div className="bg-white border border-primary-100 rounded-xl shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNotificationTips(prev => !prev)}
+                                        className="flex items-center gap-2 w-full px-5 py-3 text-sm font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors rounded-t-xl"
+                                        aria-expanded={showNotificationTips}
+                                    >
+                                        <span className="material-symbols-outlined text-xl">{showNotificationTips ? 'psychiatry' : 'tips_and_updates'}</span>
+                                        {showNotificationTips ? 'Hide Notification Tips' : 'Show Notification Tips'}
+                                        <span className="material-symbols-outlined text-base ml-auto">{showNotificationTips ? 'expand_less' : 'expand_more'}</span>
+                                    </button>
+                                    {showNotificationTips && (
+                                        <div className="px-5 pb-5 pt-4 border-t border-primary-100">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600">
+                                                <div className="bg-primary-50 border border-primary-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-primary-700 mb-1">Lead Coverage</p>
+                                                    <p>Keep new lead emails and push alerts on so fresh inquiries never wait—fast handoffs boost conversions.</p>
+                                                </div>
+                                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-blue-700 mb-1">Task Accountability</p>
+                                                    <p>Pair task notifications with the AI follow-up timeline so agents clear their queue before automations fire again.</p>
+                                                </div>
+                                                <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-amber-700 mb-1">Channel Balance</p>
+                                                    <p>Use email for summaries and push/in-app for urgent actions—overlapping alerts on every channel creates fatigue.</p>
+                                                </div>
+                                                <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-green-700 mb-1">Marketing Momentum</p>
+                                                    <p>Leave marketing updates enabled so you’ll know when sequences pause or new automations are ready to launch.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Email Notifications */}
@@ -883,11 +913,45 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 </FeatureSection>
                             </div>
                         )}
-                         {activeTab === 'email' && (
-                            <form onSubmit={handleEmailSettingsSave} className="p-8 space-y-8">
+                        {activeTab === 'email' && (
+                           <form onSubmit={handleEmailSettingsSave} className="p-8 space-y-8">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-slate-900">📧 Email Settings</h2>
-                                    <p className="text-slate-500 mt-1">Connect your email accounts and configure your email preferences for automated sequences.</p>
+                                   <h2 className="text-2xl font-bold text-slate-900">📧 Email Settings</h2>
+                                   <p className="text-slate-500 mt-1">Connect your email accounts and configure your email preferences for automated sequences.</p>
+                                </div>
+                                <div className="bg-white border border-primary-100 rounded-xl shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEmailTips(prev => !prev)}
+                                        className="flex items-center gap-2 w-full px-5 py-3 text-sm font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors rounded-t-xl"
+                                        aria-expanded={showEmailTips}
+                                    >
+                                        <span className="material-symbols-outlined text-xl">{showEmailTips ? 'psychiatry' : 'tips_and_updates'}</span>
+                                        {showEmailTips ? 'Hide Email Tips' : 'Show Email Tips'}
+                                        <span className="material-symbols-outlined text-base ml-auto">{showEmailTips ? 'expand_less' : 'expand_more'}</span>
+                                    </button>
+                                    {showEmailTips && (
+                                        <div className="px-5 pb-5 pt-4 border-t border-primary-100">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600">
+                                                <div className="bg-primary-50 border border-primary-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-primary-700 mb-1">Keep it personal</p>
+                                                    <p>Use the same display name and signature you use with clients so automated emails feel human.</p>
+                                                </div>
+                                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-blue-700 mb-1">Forwarding fallback</p>
+                                                    <p>Until Gmail OAuth ships, the forwarding address keeps sending/receiving 100% from your main inbox.</p>
+                                                </div>
+                                                <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-green-700 mb-1">Reply tracking</p>
+                                                    <p>Forwarded replies land in your normal inbox. Keep notifications on so you never miss a response.</p>
+                                                </div>
+                                                <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-amber-700 mb-1">Preview before live</p>
+                                                    <p>Send yourself the preview email after edits—double-check links, signature, and merge fields first.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Email Account Connections */}
@@ -904,7 +968,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                                 <h4 className="text-sm font-semibold text-blue-800 mb-2">🔐 Direct Connection (Recommended)</h4>
                                                 <div className="text-xs text-blue-700 space-y-1">
-                                                    <p>• Works with Gmail & Outlook</p>
+                                                    <p>• Works with Gmail (Outlook coming soon)</p>
                                                     <p>• 100% authentic emails (no "via" tags)</p>
                                                     <p>• Best deliverability & reputation</p>
                                                     <p>• One-click setup with OAuth</p>
@@ -1004,23 +1068,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                  </button>
                                                 )}
 
-                                                {!emailConnections.find(c => c.provider === 'outlook') && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleOutlookConnect}
-                                                        disabled={isConnecting === 'outlook'}
-                                                        className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-orange-600 text-white rounded-lg shadow-sm hover:bg-orange-700 disabled:opacity-50 transition"
-                                                    >
-                                                        {isConnecting === 'outlook' ? (
-                                                            <>
-                                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                                <span className="font-semibold">Connecting...</span>
-                                                            </>
-                                                        ) : (
-                                                            <span className="font-semibold">📬 Connect Outlook</span>
-                                                        )}
-                                                    </button>
-                                                )}
+                                            </div>
+                                            <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-3">
+                                                <p className="font-medium text-slate-700 mb-1">📬 Other providers</p>
+                                                <p>Direct Outlook OAuth is coming soon. Until then, use the forwarding address above so Outlook or any other email service still routes replies back to your inbox.</p>
                                             </div>
 
                                             {/* Help Text */}
@@ -1032,8 +1083,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                     </div>
                                                     
                                                     <div className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded p-3">
-                                                        <p className="font-medium text-amber-800 mb-1">💡 Don't have Gmail or Outlook?</p>
-                                                        <p>No problem! Use the forwarding address above with any email provider (Yahoo, AOL, custom domain, etc.). Just set up email forwarding in your current email client.</p>
+                                                        <p className="font-medium text-amber-800 mb-1">💡 Don't have Gmail?</p>
+                                                        <p>No problem! Use the forwarding address above with any email provider (Outlook, Yahoo, AOL, custom domains, etc.). Just set up email forwarding in your current email client.</p>
                                         </div>
                                     </div>
                                 )}
@@ -1139,14 +1190,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                             isSelected={calendarFormData.integrationType === 'google'}
                                             onClick={() => handleCalendarSettingsChange('integrationType', 'google')}
                                         />
-                                        <IntegrationCard
-                                            icon="calendar_month"
-                                            title="Outlook Calendar"
-                                            description="Connect your Microsoft 365 or Outlook calendar."
-                                            tags={[{ label: 'Microsoft', color: 'purple' }]}
-                                            isSelected={calendarFormData.integrationType === 'outlook'}
-                                            onClick={() => handleCalendarSettingsChange('integrationType', 'outlook')}
-                                        />
                                          <IntegrationCard
                                             icon="calendar_month"
                                             title="Apple Calendar"
@@ -1238,63 +1281,115 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                         
                         {activeTab === 'calendar' && (
                             <form onSubmit={handleCalendarSettingsSave} className="p-8 space-y-8">
+                                <div className="bg-white border border-primary-100 rounded-xl shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCalendarTips(prev => !prev)}
+                                        className="flex items-center gap-2 w-full px-5 py-3 text-sm font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors rounded-t-xl"
+                                        aria-expanded={showCalendarTips}
+                                    >
+                                        <span className="material-symbols-outlined text-xl">{showCalendarTips ? 'psychiatry' : 'tips_and_updates'}</span>
+                                        {showCalendarTips ? 'Hide Calendar Tips' : 'Show Calendar Tips'}
+                                        <span className="material-symbols-outlined text-base ml-auto">{showCalendarTips ? 'expand_less' : 'expand_more'}</span>
+                                    </button>
+                                    {showCalendarTips && (
+                                        <div className="px-5 pb-5 pt-4 border-t border-primary-100">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600">
+                                                <div className="bg-primary-50 border border-primary-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-primary-700 mb-1">Sync first</p>
+                                                    <p>Connect Google Calendar before sharing booking links so every consult lands on your real schedule.</p>
+                                                </div>
+                                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-blue-700 mb-1">Block buffers</p>
+                                                    <p>Add a 15–30 minute buffer in your booking rules so back-to-back showings don’t crush your day.</p>
+                                                </div>
+                                                <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-green-700 mb-1">Family time locked</p>
+                                                    <p>Tick off evenings and weekends you want to keep private — the assistant only books where you say it’s OK.</p>
+                                                </div>
+                                                <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-amber-700 mb-1">Future-proof</p>
+                                                    <p>When Apple or other calendars arrive, you’ll just connect once and the AI keeps everything matching.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 <div>
                                     <h2 className="text-2xl font-bold text-slate-900">📅 Calendar Integration</h2>
                                     <p className="text-slate-500 mt-1">Connect your Google Calendar to automatically schedule consultations and manage appointments.</p>
-                                </div>
+                                 </div>
 
                                 {/* Google Calendar Connection */}
                                 <FeatureSection title="Google Calendar Connection" icon="calendar_today">
                                     <div className="space-y-6">
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                                                    <span className="material-symbols-outlined text-white w-6 h-6">calendar_today</span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h3 className="text-lg font-semibold text-blue-900 mb-2">Google Calendar Integration</h3>
-                                                    <div className="text-sm text-blue-800 space-y-1 mb-4">
-                                                        <p>• ✅ Automatic consultation scheduling</p>
-                                                        <p>• ✅ Google Meet video links generated</p>
-                                                        <p>• ✅ Calendar invites sent to clients</p>
-                                                        <p>• ✅ Appointment reminders & notifications</p>
-                                                        <p>• ✅ Sync with your existing calendar</p>
+                                        {!isGoogleIntegrationAvailable ? (
+                                            <div className="bg-slate-100 border border-slate-200 rounded-lg p-6">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-12 h-12 bg-slate-300 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                        <span className="material-symbols-outlined text-slate-600 w-6 h-6">info</span>
                                                     </div>
-                                                    
-                                                    <div className="flex items-center gap-4">
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleGoogleCalendarConnect}
-                                                            disabled={isConnecting === 'google'}
-                                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                        >
-                                                            <span className="material-symbols-outlined w-4 h-4">link</span>
-                                                            {isConnecting === 'google' ? 'Connecting...' : 'Connect Google Calendar'}
-                                                        </button>
-                                                        
-                                                        {isGoogleCalendarConnected && (
-                                                            <div className="flex items-center gap-2 text-green-700">
-                                                                <span className="material-symbols-outlined w-4 h-4">check_circle</span>
-                                                                <span className="text-sm font-medium">Connected</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        {isGoogleCalendarConnected && (
-                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="material-symbols-outlined w-5 h-5 text-green-600">check_circle</span>
-                                                    <div>
-                                                        <h4 className="font-medium text-green-900">Calendar Connected Successfully!</h4>
-                                                        <p className="text-sm text-green-700 mt-1">
-                                                            Consultations booked through your website will automatically appear in your Google Calendar with Meet links.
+                                                    <div className="flex-1 text-slate-600">
+                                                        <h3 className="text-lg font-semibold text-slate-800 mb-2">Integration Unavailable in Demo Mode</h3>
+                                                        <p className="text-sm leading-relaxed">
+                                                            Google Calendar syncing is disabled for this environment. Add a Google OAuth client ID and secret to enable automatic scheduling, Meet links, and reminders.
                                                         </p>
                                                     </div>
                                                 </div>
                                             </div>
+                                        ) : (
+                                            <>
+                                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                            <span className="material-symbols-outlined text-white w-6 h-6">calendar_today</span>
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <h3 className="text-lg font-semibold text-blue-900 mb-2">Google Calendar Integration</h3>
+                                                            <div className="text-sm text-blue-800 space-y-1 mb-4">
+                                                                <p>• ✅ Automatic consultation scheduling</p>
+                                                                <p>• ✅ Google Meet video links generated</p>
+                                                                <p>• ✅ Calendar invites sent to clients</p>
+                                                                <p>• ✅ Appointment reminders & notifications</p>
+                                                                <p>• ✅ Sync with your existing calendar</p>
+                                                            </div>
+                                                            
+                                                            <div className="flex items-center gap-4">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleGoogleCalendarConnect}
+                                                                    disabled={isConnecting === 'google'}
+                                                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                                >
+                                                                    <span className="material-symbols-outlined w-4 h-4">link</span>
+                                                                    {isConnecting === 'google' ? 'Connecting...' : 'Connect Google Calendar'}
+                                                                </button>
+                                                                
+                                                                {isGoogleCalendarConnected && (
+                                                                    <div className="flex items-center gap-2 text-green-700">
+                                                                        <span className="material-symbols-outlined w-4 h-4">check_circle</span>
+                                                                        <span className="text-sm font-medium">Connected</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                {isGoogleCalendarConnected && (
+                                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="material-symbols-outlined w-5 h-5 text-green-600">check_circle</span>
+                                                            <div>
+                                                                <h4 className="font-medium text-green-900">Calendar Connected Successfully!</h4>
+                                                                <p className="text-sm text-green-700 mt-1">
+                                                                    Consultations booked through your website will automatically appear in your Google Calendar with Meet links.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </FeatureSection>
@@ -1401,10 +1496,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                             </label>
                                         </div>
 
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">
                                             <div>
-                                                <h4 className="font-medium text-slate-900">SMS Reminders</h4>
-                                                <p className="text-sm text-slate-500">Send SMS reminders (requires phone number)</p>
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="font-medium text-slate-900">SMS Reminders</h4>
+                                                    <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-700 rounded-full">Coming Soon</span>
+                                                </div>
+                                                <p className="text-sm text-slate-500">Send SMS reminders (requires phone number & SMS provider setup)</p>
                                             </div>
                                             <label className="relative inline-flex items-center cursor-pointer">
                                                 <input
@@ -1412,8 +1510,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                     checked={calendarFormData.smsReminders || false}
                                                     onChange={(e) => handleCalendarToggle('smsReminders', e.target.checked)}
                                                     className="sr-only peer"
+                                                    disabled
                                                 />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                                <div className="w-11 h-6 bg-gray-200 opacity-60 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                             </label>
                                         </div>
 
@@ -1664,9 +1763,43 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     <h2 className="text-2xl font-bold text-slate-900">💳 Billing & Subscription</h2>
                                     <p className="text-slate-500 mt-1">Manage your subscription, billing information, and payment methods.</p>
                                 </div>
+                                <div className="bg-white border border-primary-100 rounded-xl shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowBillingTips(prev => !prev)}
+                                        className="flex items-center gap-2 w-full px-5 py-3 text-sm font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors rounded-t-xl"
+                                        aria-expanded={showBillingTips}
+                                    >
+                                        <span className="material-symbols-outlined text-xl">{showBillingTips ? 'psychiatry' : 'tips_and_updates'}</span>
+                                        {showBillingTips ? 'Hide Billing Tips' : 'Show Billing Tips'}
+                                        <span className="material-symbols-outlined text-base ml-auto">{showBillingTips ? 'expand_less' : 'expand_more'}</span>
+                                    </button>
+                                    {showBillingTips && (
+                                        <div className="px-5 pb-5 pt-4 border-t border-primary-100">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600">
+                                                <div className="bg-primary-50 border border-primary-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-primary-700 mb-1">Download invoices</p>
+                                                    <p>Use Billing History to grab receipts for bookkeeping—each line has a quick download link.</p>
+                                                </div>
+                                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-blue-700 mb-1">Need to pause?</p>
+                                                    <p>Use the cancel plan link below to schedule a downgrade at the end of the billing period.</p>
+                                                </div>
+                                                <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-green-700 mb-1">Upgrade anytime</p>
+                                                    <p>Reach out to our team for custom plans if you need more AI power than the standard package.</p>
+                                                </div>
+                                                <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                                                    <p className="font-semibold text-amber-700 mb-1">Keep forwarding active</p>
+                                                    <p>Even after canceling, remember to disable email forwarding rules so leads stop routing to the AI.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Current Plan - Matching Landing Page */}
-                                <FeatureSection title="Current Plan" icon="star">
+                                 <FeatureSection title="Current Plan" icon="star">
                                     <div className="bg-gradient-to-tr from-primary-700 to-primary-500 text-white rounded-2xl p-8 shadow-2xl">
                                         <div className="flex items-center justify-between mb-6">
                                             <div>
@@ -1674,15 +1807,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                 <p className="text-slate-300">Everything you need to dominate your market and close more deals</p>
                                             </div>
                                             <div className="text-right">
-                                                <div className="text-3xl font-bold">$79<span className="text-lg font-medium">/mo</span></div>
-                                                <div className="text-sm text-slate-300">Three Active Listings</div>
+                                                <div className="text-3xl font-bold">$139<span className="text-lg font-medium">/mo</span></div>
                                             </div>
                                         </div>
                                         
                                         <div className="grid grid-cols-2 gap-4 text-sm">
                                             <div className="flex items-center gap-2">
                                                 <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>500 AI interactions per month</span>
+                                                <span>Unlimited AI interactions per month</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
@@ -1690,7 +1822,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>200 emails per month</span>
+                                                <span>500 emails per month</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
@@ -1698,7 +1830,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>AI Content Studio</span>
+                                                <span>Your own trained GPT</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
@@ -1706,12 +1838,30 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>Priority email support</span>
+                                                <span>Auto leads to closing</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
                                                 <span>Need more? We do custom programs</span>
                                             </div>
+                                        </div>
+                                        <div className="mt-6 flex flex-wrap gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={handleCancelMembership}
+                                                className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg border border-white/20 hover:bg-white/20 transition-colors"
+                                            >
+                                                <span className="material-symbols-outlined text-base">cancel</span>
+                                                Cancel Plan
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleContactSupport}
+                                                className="flex items-center gap-2 px-4 py-2 bg-white text-primary-600 rounded-lg hover:bg-slate-100 transition-colors"
+                                            >
+                                                <span className="material-symbols-outlined text-base">support_agent</span>
+                                                Talk to Support
+                                            </button>
                                         </div>
                                     </div>
                                 </FeatureSection>
@@ -1735,7 +1885,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                     <tr>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Dec 15, 2024</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$79.00</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$139.00</td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
                                                         </td>
@@ -1746,7 +1896,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                     <tr>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Nov 15, 2024</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$79.00</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$139.00</td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
                                                         </td>
@@ -1757,7 +1907,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                     <tr>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Oct 15, 2024</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$79.00</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$139.00</td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
                                                         </td>
@@ -1771,49 +1921,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     </div>
                                 </FeatureSection>
 
-                                {/* PayPal Security & Actions */}
-                                <FeatureSection title="Payment Security" icon="security">
-                                    <div className="space-y-6">
-                                        {/* PayPal Security Info */}
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-16 h-10 bg-blue-600 rounded flex items-center justify-center flex-shrink-0">
-                                                    <span className="text-white font-bold text-lg">PayPal</span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h3 className="text-lg font-semibold text-blue-900 mb-2">Secured by PayPal</h3>
-                                                    <div className="text-sm text-blue-800 space-y-2">
-                                                        <p>🔒 <strong>Bank-level security:</strong> Your payment information is encrypted and protected by PayPal's advanced security systems.</p>
-                                                        <p>🚫 <strong>No contracts:</strong> Cancel anytime with no hidden fees or long-term commitments.</p>
-                                                        <p>🛡️ <strong>Buyer protection:</strong> PayPal's purchase protection covers your subscription payments.</p>
-                                                        <p>💳 <strong>Flexible payments:</strong> Use your PayPal balance, bank account, or credit/debit cards.</p>
-                                                        <p>🔄 <strong>Easy management:</strong> Update or cancel your subscription directly through PayPal.</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Action Buttons */}
-                                        <div className="flex flex-wrap gap-4">
-                                            <button
-                                                onClick={handleContactSupport}
-                                                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                            >
-                                                <span className="material-symbols-outlined w-5 h-5">support_agent</span>
-                                                Contact Support
-                                            </button>
-                                            
-                                            <button
-                                                onClick={handleCancelMembership}
-                                                className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                                            >
-                                                <span className="material-symbols-outlined w-5 h-5">cancel</span>
-                                                Cancel Membership
-                                            </button>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
                                 <div className="flex items-center justify-between pt-8 border-t border-slate-200">
                                     <button
                                         type="button"
@@ -1822,19 +1929,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                     >
                                         ← Back to Dashboard
                                     </button>
-                                    <div className="text-sm text-slate-500">
-                                        Questions? <a href="mailto:support@homelistingai.com" className="text-primary-600 hover:text-primary-700">Contact Support</a>
-                                    </div>
                                 </div>
                             </div>
                         )}
-                        
-                        {activeTab !== 'notifications' && activeTab !== 'email' && activeTab !== 'calendar' && activeTab !== 'security' && activeTab !== 'billing' && (
-                            <div className="text-center py-20 p-8">
-                                <h2 className="text-xl font-semibold text-slate-700">Coming Soon</h2>
-                                <p className="text-slate-500 mt-2">This settings page is under construction.</p>
-                            </div>
-                        )}
+
+                        {activeTab !== 'profile' &&
+                            activeTab !== 'notifications' &&
+                            activeTab !== 'email' &&
+                            activeTab !== 'calendar' &&
+                            activeTab !== 'security' &&
+                            activeTab !== 'billing' && (
+                                <div className="text-center py-20 p-8">
+                                    <h2 className="text-xl font-semibold text-slate-700">Coming Soon</h2>
+                                    <p className="text-slate-500 mt-2">This settings page is under construction.</p>
+                                </div>
+                            )}
                     </main>
                 </div>
             </div>
