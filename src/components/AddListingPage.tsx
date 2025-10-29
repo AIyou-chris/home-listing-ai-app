@@ -162,6 +162,8 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
         heroPhotos: [] as (File | string)[],
         galleryPhotos: [] as (File | string)[],
         rawAmenities: 'Hardwood floors, Granite countertops, Stainless steel appliances, Fenced backyard, Fireplace',
+        ctaListingUrl: '',
+        ctaMediaUrl: '',
         appFeatures: {
             gallery: true, schools: true, financing: true, virtualTour: true, amenities: true,
             schedule: true, map: true, history: true, neighborhood: true, reports: true,
@@ -519,7 +521,14 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                                   <span>To Listing</span>
                                 </button>
                                 <label className="block text-xs text-slate-600 mt-3 mb-1">Listing URL</label>
-                                <input type="url" placeholder="https://your-listing-url.com" className={inputClasses} />
+                                <input
+                                  type="url"
+                                  name="ctaListingUrl"
+                                  value={formData.ctaListingUrl}
+                                  onChange={handleSimpleChange}
+                                  placeholder="https://your-listing-url.com"
+                                  className={inputClasses}
+                                />
                               </div>
                               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                                 <button type="button" className="w-full h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2">
@@ -527,7 +536,14 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                                   <span>Media</span>
                                 </button>
                                 <label className="block text-xs text-slate-600 mt-3 mb-1">Media URL</label>
-                                <input type="url" placeholder="https://your-media-url.com" className={inputClasses} />
+                                <input
+                                  type="url"
+                                  name="ctaMediaUrl"
+                                  value={formData.ctaMediaUrl}
+                                  onChange={handleSimpleChange}
+                                  placeholder="https://your-media-url.com"
+                                  className={inputClasses}
+                                />
                               </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
