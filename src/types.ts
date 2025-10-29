@@ -28,6 +28,8 @@ export type View =
     | 'listings'
     | 'leads'
     | 'ai-conversations'
+    | 'ai-card'
+    | 'ai-sidekicks'
     | 'property'
     | 'add-listing'
     | 'inbox'

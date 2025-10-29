@@ -74,7 +74,7 @@ const App: React.FC = () => {
     const [isDemoMode, setIsDemoMode] = useState(false);
     // Use a plain string for view to avoid mismatches between multiple View type declarations
     // (several `types.ts` files exist in the repo). We'll keep runtime checks as strings.
-    const [view, setView] = useState<string>('landing');
+    const [view, setView] = useState<View>('landing');
     
 
     const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
@@ -772,23 +772,10 @@ const App: React.FC = () => {
                     type: r.kind,
                     date: r.date,
                     time: r.time_label,
-                    leadId: r.lead_id || undefined,
-                    propertyId: r.property_id || undefined,
+                    leadId: r.lead_id || '',
+                    propertyId: r.property_id || '',
                     notes: r.notes || '',
-                    status: r.status,
-                    leadName: r.name || undefined,
-                    propertyAddress: r.property_address || undefined,
-                    email: r.email || undefined,
-                    phone: r.phone || undefined,
-                    meetLink: r.meet_link || undefined,
-                    remindAgent: r.remind_agent,
-                    remindClient: r.remind_client,
-                    agentReminderMinutes: r.agent_reminder_minutes_before,
-                    clientReminderMinutes: r.client_reminder_minutes_before,
-                    startIso: r.start_iso,
-                    endIso: r.end_iso,
-                    createdAt: r.created_at,
-                    updatedAt: r.updated_at
+                    status: r.status
                 }));
                 setAppointments(mapped);
             } catch (e) {
