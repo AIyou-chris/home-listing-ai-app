@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Appointment, Lead, User } from '../types';
 import CalendarView from './CalendarView';
 import { googleOAuthService } from '../services/googleOAuthService';
+import { emailService } from '../services/emailService';
 // Firebase services removed - using Supabase alternatives
 import { useScheduler } from '../context/SchedulerContext';
 
@@ -345,12 +346,10 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 										onClick={async () => {
 											if (!editEmail) return;
 											setIsDraftingEmail(true);
-											try {
-												            const uid = 'admin-user'; // Auth removed
-												            const res = []; // FileUploadService removed
-												const suggestion = res.aiSuggestions?.[0]?.content || res.templates?.[0]?.content || '';
-												if (suggestion && !emailBody) setEmailBody(suggestion);
-											} catch {}
+							try {
+								const suggestion = '';
+								if (suggestion && !emailBody) setEmailBody(suggestion);
+							} catch {}
 											setIsDraftingEmail(false);
 										}}
 										className="px-3 py-2 rounded-md bg-slate-100 text-slate-700 text-sm"
@@ -361,10 +360,8 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 										onClick={async () => {
 											if (!editEmail || !emailSubject || !emailBody) return;
 											setIsSendingEmail(true);
-											try {
-												const EmailService = (await import('../services/emailService')).default;
-												const emailService = EmailService.getInstance();
-												const success = await emailService.sendEmail(editEmail, emailSubject, emailBody);
+							try {
+								const success = await emailService.sendEmail(editEmail, emailSubject, emailBody);
 												if (success) {
 													alert('✅ Email sent successfully!');
 													setEditEmail('');
@@ -513,5 +510,3 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 };
 
 export default AdminContactsPage;
-
-

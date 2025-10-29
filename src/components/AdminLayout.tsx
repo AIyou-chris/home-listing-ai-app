@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAdminModal } from '../context/AdminModalContext';
 import { AdminModals } from './AdminModals';
-import { View, User, Lead, LeadStatus, SequenceStep } from '../types';
+import { View, User, Lead, LeadStatus, SequenceStep, AgentProfile } from '../types';
 // Firebase removed - using Supabase
 import AdminDashboard from './AdminDashboard';
 import ExportModal from './ExportModal';
@@ -112,6 +112,25 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     }
     return defaultUsers;
   });
+
+  const agentProfile: AgentProfile = useMemo(() => {
+    const primaryUser = users[0];
+    return {
+      name: primaryUser?.name ?? 'Your Name',
+      title: 'Real Estate Professional',
+      company: 'Home Listing AI',
+      phone: primaryUser?.phone ?? '(555) 555-5555',
+      email: primaryUser?.email ?? 'agent@example.com',
+      headshotUrl: primaryUser?.profileImage ?? 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=320&h=320&auto=format&fit=facearea&facepad=3.2',
+      socials: [
+        { platform: 'LinkedIn', url: 'https://www.linkedin.com' },
+        { platform: 'Facebook', url: 'https://www.facebook.com' },
+        { platform: 'Instagram', url: 'https://www.instagram.com' }
+      ],
+      website: 'https://homelistingai.com',
+      bio: 'Trusted real estate advisor leveraging AI to deliver exceptional client experiences.'
+    };
+  }, [users]);
 
   const [leads, setLeads] = useState<Lead[]>(() => {
     const savedLeads = localStorage.getItem('adminLeads');

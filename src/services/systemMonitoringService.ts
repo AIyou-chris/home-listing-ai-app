@@ -361,6 +361,28 @@ export class SystemMonitoringService {
     }
   }
 
+  async checkSystemHealth(): Promise<HealthStatus> {
+    if (!this.config.enabledChecks.api) {
+      return {
+        status: 'warning',
+        message: 'API health check disabled in monitoring configuration',
+        timestamp: new Date().toISOString()
+      };
+    }
+    return this.checkAPIHealth();
+  }
+
+  async checkAIServicesHealth(): Promise<HealthStatus> {
+    if (!this.config.enabledChecks.ai) {
+      return {
+        status: 'warning',
+        message: 'AI health check disabled in monitoring configuration',
+        timestamp: new Date().toISOString()
+      };
+    }
+    return this.checkAIHealth();
+  }
+
   // Performance metrics
   async getPerformanceMetrics(): Promise<PerformanceMetrics> {
     // Simulate performance metrics (replace with actual system monitoring)
