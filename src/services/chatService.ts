@@ -46,6 +46,18 @@ export const createConversation = async (params: {
   scope: ChatScope
   listingId?: string | null
   title?: string | null
+  leadId?: string | null
+  contactName?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
+  type?: ConversationChannel
+  intent?: string | null
+  language?: string | null
+  property?: string | null
+  tags?: string[] | null
+  voiceTranscript?: string | null
+  followUpTask?: string | null
+  metadata?: any
 }): Promise<ConversationRow> => {
   try {
     const response = await fetch('/api/conversations', {
@@ -57,7 +69,19 @@ export const createConversation = async (params: {
         userId: params.userId,
         scope: params.scope,
         listingId: params.listingId,
-        title: params.title
+        leadId: params.leadId,
+        title: params.title,
+        contactName: params.contactName,
+        contactEmail: params.contactEmail,
+        contactPhone: params.contactPhone,
+        type: params.type,
+        intent: params.intent,
+        language: params.language,
+        property: params.property,
+        tags: params.tags,
+        voiceTranscript: params.voiceTranscript,
+        followUpTask: params.followUpTask,
+        metadata: params.metadata
       }),
     });
 
@@ -150,6 +174,23 @@ export const appendMessage = async (params: {
     return data as MessageRow;
   } catch (error) {
     console.error('Error appending message:', error);
+    throw error;
+  }
+}
+
+export const deleteConversation = async (conversationId: string) => {
+  try {
+    const response = await fetch(`/api/conversations/${conversationId}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting conversation:', error);
     throw error;
   }
 }

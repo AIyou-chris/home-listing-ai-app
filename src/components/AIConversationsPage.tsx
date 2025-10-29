@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search,
   Download,
@@ -18,9 +18,13 @@ import {
 import {
   listConversations,
   getMessages,
+  createConversation,
+  appendMessage,
+  deleteConversation,
   exportConversationsCSV,
   type ConversationRow,
-  type MessageRow
+  type MessageRow,
+  type ConversationChannel
 } from '../services/chatService';
 
 type ConversationType = 'chat' | 'voice' | 'email';
@@ -127,6 +131,7 @@ const AIConversationsPage: React.FC = () => {
   const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
   const [isDetailExpanded, setIsDetailExpanded] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const welcomeSeededRef = useRef(false);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -149,6 +154,51 @@ const AIConversationsPage: React.FC = () => {
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  useEffect(() => {
+    const ensureWelcomeConversation = async () => {
+      if (welcomeSeededRef.current) return;
+      welcomeSeededRef.current = true;
+      try {
+        const demoConversation = await createConversation({
+          scope: 'agent',
+          type: 'chat',
+          contactName: 'Welcome Walkthrough',
+          contactEmail: 'ai-demo@homelistingai.com',
+          contactPhone: '',
+          title: 'Welcome to AI Conversations',
+          intent: 'Buyer',
+          language: 'English',
+          tags: ['Demo', 'AI Sidekick'],
+          followUpTask: 'Try sending a reply or archiving this conversation.',
+          metadata: { demo: true, duration: '00:45' }
+        });
+
+        await appendMessage({
+          conversationId: demoConversation.id,
+          role: 'ai',
+          channel: 'chat',
+          content:
+            '👋 Welcome! This demo conversation shows how AI captures chats, voice notes, and translations. Click around to explore filters, insights, and exports.'
+        });
+
+        await appendMessage({
+          conversationId: demoConversation.id,
+          role: 'user',
+          channel: 'chat',
+          content: 'Note: You can delete this sample conversation any time once you get the hang of things.'
+        });
+
+        await loadConversations();
+      } catch (err) {
+        console.error('Failed to create welcome conversation:', err);
+      }
+    };
+
+    if (!loadingConversations && conversations.length === 0) {
+      ensureWelcomeConversation();
+    }
+  }, [loadingConversations, conversations.length, loadConversations]);
 
   useEffect(() => {
     setIsDetailExpanded(false);
@@ -334,6 +384,51 @@ const AIConversationsPage: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+        <div className="bg-white rounded-xl shadow-sm border border-primary-100 p-4">
+          <button
+            onClick={() => setIsHelpPanelOpen((prev) => !prev)}
+            className="flex items-center gap-2 text-primary-700 font-semibold"
+          >
+            {isHelpPanelOpen ? 'Hide AI Conversation Tips' : 'Show AI Conversation Tips'}
+          </button>
+          {isHelpPanelOpen && (
+            <div className="mt-3 text-sm text-slate-600 space-y-3">
+              <div>
+                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" /> Demo Conversation
+                </h3>
+                <p>
+                  We added a welcome conversation so you can see how AI threads look. Reply, archive, or delete it to test your workflow.
+                </p>
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <Languages className="w-4 h-4" /> Translations & Voice
+                </h3>
+                <p>
+                  Voice notes and non-English chats automatically generate transcripts. Use the deep dive panel to review translations and follow-up tasks.
+                </p>
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <ClipboardCheck className="w-4 h-4" /> Follow-up Queue
+                </h3>
+                <p>
+                  Filter by “Follow-up” to see conversations that need human attention. Archiving keeps history but removes it from the active list.
+                </p>
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <Download className="w-4 h-4" /> Exports & Reporting
+                </h3>
+                <p>
+                  Use the export button to download CSV reports for compliance or team briefings. Filters apply to exports too.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {error}
@@ -515,13 +610,34 @@ const AIConversationsPage: React.FC = () => {
                       >
                         {isDetailExpanded ? 'Hide Deep Dive' : 'Show Deep Dive'}
                       </button>
-                      <button className="flex items-center gap-2 border border-slate-300 text-slate-600 px-4 py-2 rounded-lg font-medium hover:bg-slate-100 transition-colors">
+                      <button
+                        className="flex items-center gap-2 border border-slate-300 text-slate-600 px-4 py-2 rounded-lg font-medium hover:bg-slate-100 transition-colors"
+                      >
                         <Eye className="w-4 h-4" />
                         <span>Preview Transcript</span>
                       </button>
-                      <button className="flex items-center gap-2 border border-red-200 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-50 transition-colors">
+                      <button
+                        onClick={async () => {
+                          if (!selectedConversationSummary) return;
+                          if (!window.confirm('Delete this conversation? This cannot be undone.')) return;
+                          try {
+                            await deleteConversation(selectedConversationSummary.id);
+                            setMessagesByConversation((prev) => {
+                              const next = { ...prev };
+                              delete next[selectedConversationSummary.id];
+                              return next;
+                            });
+                            setSelectedConversationId(null);
+                            await loadConversations();
+                          } catch (err) {
+                            console.error('Failed to delete conversation:', err);
+                            setError('Failed to delete conversation.');
+                          }
+                        }}
+                        className="flex items-center gap-2 border border-red-200 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-50 transition-colors"
+                      >
                         <Trash2 className="w-4 h-4" />
-                        <span>Archive</span>
+                        <span>Delete</span>
                       </button>
                     </div>
                   </div>

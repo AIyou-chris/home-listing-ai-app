@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import AIAgentHub from './AIAgentHub'
+import AISidekicks from './AISidekicks'
 
 const EnhancedAISidekicksHub: React.FC = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false)
@@ -70,7 +70,7 @@ const EnhancedAISidekicksHub: React.FC = () => {
 
       {/* Content Area */}
       <div className="flex-1">
-        <AIAgentHub />
+        <AISidekicks />
       </div>
 
     </div>

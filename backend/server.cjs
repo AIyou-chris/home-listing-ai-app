@@ -46,6 +46,355 @@ if (!process.env.DEFAULT_LEAD_USER_ID) {
   );
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isUuid = (value) => typeof value === 'string' && UUID_REGEX.test(value);
+const resolveSidekickOwner = (explicitUserId) => {
+  if (isUuid(explicitUserId)) return explicitUserId;
+  if (isUuid(DEFAULT_LEAD_USER_ID)) return DEFAULT_LEAD_USER_ID;
+  return null;
+};
+
+const SIDEKICK_SCOPES = ['agent', 'marketing', 'listing', 'sales', 'support', 'helper', 'main', 'god'];
+
+const DEFAULT_SIDEKICK_METADATA = {
+  agent: {
+    icon: '👤',
+    color: '#8B5CF6',
+    summary: 'Client communication, scheduling, and deal coordination.',
+    displayName: 'Agent Sidekick'
+  },
+  marketing: {
+    icon: '📈',
+    color: '#F59E0B',
+    summary: 'Content creation, campaigns, and social presence.',
+    displayName: 'Marketing Sidekick'
+  },
+  listing: {
+    icon: '🏠',
+    color: '#EF4444',
+    summary: 'Property descriptions, market analysis, and pricing guidance.',
+    displayName: 'Listing Sidekick'
+  },
+  sales: {
+    icon: '💼',
+    color: '#10B981',
+    summary: 'Lead qualification, objection handling, and deal closing.',
+    displayName: 'Sales Sidekick'
+  },
+  support: {
+    icon: '🛟',
+    color: '#0EA5E9',
+    summary: 'Customer support, troubleshooting, and empathetic communication.',
+    displayName: 'Support Sidekick'
+  },
+  helper: {
+    icon: '🤝',
+    color: '#64748B',
+    summary: 'General assistant for miscellaneous workflows and coordination.',
+    displayName: 'Helper Sidekick'
+  },
+  main: {
+    icon: '🤖',
+    color: '#6366F1',
+    summary: 'General-purpose concierge trained on your entire business.',
+    displayName: 'Main Sidekick'
+  },
+  god: {
+    icon: '⚡',
+    color: '#9333EA',
+    summary: 'Advanced orchestrator for routing and high-level automation.',
+    displayName: 'Command Center Sidekick'
+  }
+};
+
+const SIDEKICK_VOICE_OPTIONS = [
+  {
+    id: 'nova',
+    name: 'Nova — Warm & Energetic',
+    openaiVoice: 'nova',
+    gender: 'female',
+    description: 'Friendly, upbeat tone ideal for client engagement.'
+  },
+  {
+    id: 'alloy',
+    name: 'Alloy — Balanced & Neutral',
+    openaiVoice: 'alloy',
+    gender: 'neutral',
+    description: 'Professional, well-rounded voice for general communications.'
+  },
+  {
+    id: 'onyx',
+    name: 'Onyx — Confident & Steady',
+    openaiVoice: 'onyx',
+    gender: 'male',
+    description: 'Calm, confident tone suited for advisory conversations.'
+  },
+  {
+    id: 'shimmer',
+    name: 'Shimmer — Enthusiastic & Creative',
+    openaiVoice: 'shimmer',
+    gender: 'female',
+    description: 'High-energy voice perfect for marketing and promotional copy.'
+  },
+  {
+    id: 'echo',
+    name: 'Echo — Persuasive Closer',
+    openaiVoice: 'echo',
+    gender: 'male',
+    description: 'Persuasive, polished delivery tuned for sales follow-ups.'
+  },
+  {
+    id: 'fable',
+    name: 'Fable — Storytelling Specialist',
+    openaiVoice: 'fable',
+    gender: 'neutral',
+    description: 'Narrative, warm tone ideal for lifestyle storytelling and long-form content.'
+  }
+];
+
+const DEFAULT_SIDEKICK_TEMPLATES = [
+  {
+    scope: 'agent',
+    displayName: 'Agent Sidekick',
+    personaPreset: 'professional',
+    personaDescription:
+      'You are the Agent Sidekick. Proactive, organized, and client-focused. Help manage communication, appointments, and deal workflows with clarity and empathy.',
+    traits: ['proactive', 'organized', 'helpful'],
+    voiceId: 'nova'
+  },
+  {
+    scope: 'marketing',
+    displayName: 'Marketing Sidekick',
+    personaPreset: 'creative',
+    personaDescription:
+      'You are the Marketing Sidekick. Energetic, creative, and conversion-focused. Craft compelling campaigns, catchy copy, and growth-focused marketing strategies.',
+    traits: ['creative', 'energetic', 'conversion-focused'],
+    voiceId: 'shimmer'
+  },
+  {
+    scope: 'listing',
+    displayName: 'Listing Sidekick',
+    personaPreset: 'analytical',
+    personaDescription:
+      'You are the Listing Sidekick. Detail-oriented, analytical, and persuasive. Produce accurate pricing insights and compelling property descriptions that resonate with buyers.',
+    traits: ['detail-oriented', 'analytical', 'persuasive'],
+    voiceId: 'onyx'
+  },
+  {
+    scope: 'sales',
+    displayName: 'Sales Sidekick',
+    personaPreset: 'sales',
+    personaDescription:
+      'You are the Sales Sidekick. Persuasive, confident, and results-driven. Support deal progression, handle objections, and deliver persuasive follow-ups.',
+    traits: ['persuasive', 'confident', 'results-driven'],
+    voiceId: 'echo'
+  }
+];
+
+const sanitizeScope = (scope) =>
+  typeof scope === 'string' && SIDEKICK_SCOPES.includes(scope) ? scope : 'agent';
+
+const deriveNameFromScope = (scope, explicitName) => {
+  if (explicitName && explicitName.trim()) return explicitName.trim();
+  const normalized = sanitizeScope(scope);
+  const meta = DEFAULT_SIDEKICK_METADATA[normalized];
+  if (meta?.displayName) return meta.displayName;
+  return `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)} Sidekick`;
+};
+
+const buildSidekickMetadata = (scope, overrides = {}) => {
+  const normalized = sanitizeScope(scope);
+  const base = DEFAULT_SIDEKICK_METADATA[normalized] || DEFAULT_SIDEKICK_METADATA.agent;
+  return {
+    ...base,
+    ...(overrides && typeof overrides === 'object' ? overrides : {})
+  };
+};
+
+const sanitizeTraits = (traits) =>
+  Array.isArray(traits)
+    ? traits
+        .map((t) => (typeof t === 'string' ? t.trim() : ''))
+        .filter((t) => t.length > 0)
+    : [];
+
+const traitsForStorage = (traits) => {
+  const sanitized = sanitizeTraits(traits);
+  return sanitized.length > 0 ? sanitized : null;
+};
+
+const ensureDefaultSidekicksForUser = async (ownerId) => {
+  if (!isUuid(ownerId)) return;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('ai_sidekick_profiles')
+      .select('id')
+      .eq('user_id', ownerId)
+      .limit(1);
+    if (error) {
+      console.error('[Sidekicks] Failed to check existing profiles:', error.message);
+      return;
+    }
+    if (data && data.length > 0) return;
+
+    const payload = DEFAULT_SIDEKICK_TEMPLATES.map((template) => {
+      const metadata = buildSidekickMetadata(template.scope);
+      return {
+        user_id: ownerId,
+        scope: template.scope,
+        display_name: metadata.displayName,
+        summary: metadata.summary,
+        voice_label: template.voiceId,
+        persona_preset: template.personaPreset,
+        description: template.personaDescription,
+        traits: template.traits,
+        metadata
+      };
+    });
+
+    const { error: insertError } = await supabaseAdmin
+      .from('ai_sidekick_profiles')
+      .insert(payload);
+
+    if (insertError) {
+      console.error('[Sidekicks] Failed to seed default profiles:', insertError.message);
+    } else {
+      console.log(`[Sidekicks] Seeded default profiles for user ${ownerId}`);
+    }
+  } catch (err) {
+    console.error('[Sidekicks] ensureDefaultSidekicksForUser error:', err.message);
+  }
+};
+
+const fetchKnowledgeRows = async (ownerId) => {
+  const userKey = String(ownerId);
+  const { data, error } = await supabaseAdmin
+    .from('ai_kb')
+    .select('id, sidekick, title, type, content, created_at')
+    .eq('user_id', userKey)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+};
+
+const fetchTrainingStats = async (ownerId) => {
+  const statsBySidekick = new Map();
+  const { data, error } = await supabaseAdmin
+    .from('ai_sidekick_training_feedback')
+    .select('sidekick_id, feedback, improvement')
+    .eq('user_id', ownerId);
+  if (error) throw error;
+  (data || []).forEach((row) => {
+    if (!row?.sidekick_id) return;
+    const current =
+      statsBySidekick.get(row.sidekick_id) || {
+        totalTraining: 0,
+        positiveFeedback: 0,
+        improvements: 0
+      };
+    current.totalTraining += 1;
+    if (row.feedback === 'positive') current.positiveFeedback += 1;
+    if (row.improvement && row.improvement.trim().length > 0) current.improvements += 1;
+    statsBySidekick.set(row.sidekick_id, current);
+  });
+  return statsBySidekick;
+};
+
+const formatKnowledgeRow = (row) => {
+  const title = typeof row?.title === 'string' ? row.title.trim() : '';
+  const content = typeof row?.content === 'string' ? row.content.trim() : '';
+  if (title && content) return `${title}: ${content}`;
+  if (content) return content;
+  if (title) return title;
+  return 'Custom knowledge entry';
+};
+
+const mapSidekickRow = (row, knowledgeByScope, statsById) => {
+  if (!row) return null;
+  const scope = sanitizeScope(row.scope);
+  let rowMetadata = row.metadata;
+  if (typeof rowMetadata === 'string' && rowMetadata.trim()) {
+    try {
+      rowMetadata = JSON.parse(rowMetadata);
+    } catch {
+      rowMetadata = {};
+    }
+  }
+  const metadata = buildSidekickMetadata(scope, rowMetadata || {});
+  const knowledgeRows = knowledgeByScope.get(scope) || [];
+  const stats = statsById.get(row.id) || {
+    totalTraining: 0,
+    positiveFeedback: 0,
+    improvements: 0
+  };
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: scope,
+    name: deriveNameFromScope(scope, row.display_name),
+    description: row.summary || metadata.summary,
+    color: metadata.color,
+    icon: metadata.icon,
+    voiceId: row.voice_label || 'nova',
+    knowledgeBase: knowledgeRows.map(formatKnowledgeRow),
+    personality: {
+      description: row.description || metadata.summary,
+      traits: sanitizeTraits(row.traits),
+      preset: row.persona_preset || 'custom'
+    },
+    stats: {
+      totalTraining: stats.totalTraining || 0,
+      positiveFeedback: stats.positiveFeedback || 0,
+      improvements: stats.improvements || 0
+    },
+    metadata
+  };
+};
+
+const fetchSidekicksForUser = async (ownerId) => {
+  if (!isUuid(ownerId)) return [];
+  await ensureDefaultSidekicksForUser(ownerId);
+
+  const { data: rows, error } = await supabaseAdmin
+    .from('ai_sidekick_profiles')
+    .select('*')
+    .eq('user_id', ownerId)
+    .order('created_at', { ascending: true });
+  if (error) {
+    throw error;
+  }
+
+  const knowledgeRows = await fetchKnowledgeRows(ownerId);
+  const knowledgeByScope = knowledgeRows.reduce((map, row) => {
+    const scope = sanitizeScope(row?.sidekick);
+    if (!map.has(scope)) map.set(scope, []);
+    map.get(scope).push(row);
+    return map;
+  }, new Map());
+
+  const statsById = await fetchTrainingStats(ownerId);
+
+  return (rows || []).map((row) => mapSidekickRow(row, knowledgeByScope, statsById)).filter(Boolean);
+};
+
+const getSidekickRowById = async (sidekickId) => {
+  if (!isUuid(sidekickId)) return null;
+  const { data, error } = await supabaseAdmin
+    .from('ai_sidekick_profiles')
+    .select('*')
+    .eq('id', sidekickId)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+};
+
+const getSidekickResponse = async (ownerId, sidekickId) => {
+  const sidekicks = await fetchSidekicksForUser(ownerId);
+  return sidekicks.find((s) => s.id === sidekickId) || null;
+};
+
 let leads = [];
 
 function parseLeadDate(value) {
@@ -2662,6 +3011,399 @@ app.post('/api/blog', (req, res) => {
   }
 });
 
+// AI Sidekick Command Center Endpoints
+
+app.get('/api/sidekicks', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const ownerId = resolveSidekickOwner(userId);
+    if (!ownerId) {
+      return res.json({ sidekicks: [], voices: SIDEKICK_VOICE_OPTIONS });
+    }
+    const sidekicks = await fetchSidekicksForUser(ownerId);
+    res.json({ sidekicks, voices: SIDEKICK_VOICE_OPTIONS });
+  } catch (error) {
+    console.error('Error listing sidekicks:', error);
+    res.status(500).json({ error: 'Failed to load AI sidekicks' });
+  }
+});
+
+app.post('/api/sidekicks', async (req, res) => {
+  try {
+    const { userId, name, description, voiceId, personality, metadata } = req.body || {};
+    const ownerId = resolveSidekickOwner(userId);
+    if (!ownerId) {
+      return res.status(400).json({ error: 'Valid userId is required to create an AI sidekick' });
+    }
+
+    const scopeCandidate = sanitizeScope(
+      (metadata && metadata.type) ||
+        (personality && personality.scope) ||
+        (metadata && metadata.scope) ||
+        'agent'
+    );
+    const mergedMetadata = buildSidekickMetadata(scopeCandidate, metadata);
+    const personaDescription =
+      typeof personality?.description === 'string' && personality.description.trim().length > 0
+        ? personality.description.trim()
+        : mergedMetadata.summary;
+    const personaPreset =
+      typeof personality?.preset === 'string' && personality.preset.trim().length > 0
+        ? personality.preset.trim()
+        : 'custom';
+    const personaTraits = traitsForStorage(personality?.traits);
+    const displayName = deriveNameFromScope(scopeCandidate, name);
+    const summaryText =
+      typeof description === 'string' && description.trim().length > 0
+        ? description.trim()
+        : mergedMetadata.summary;
+
+    const insertPayload = {
+      user_id: ownerId,
+      scope: scopeCandidate,
+      display_name: displayName,
+      summary: summaryText,
+      voice_label: (typeof voiceId === 'string' && voiceId.trim()) || 'nova',
+      persona_preset: personaPreset,
+      description: personaDescription,
+      traits: personaTraits,
+      metadata: mergedMetadata,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_sidekick_profiles')
+      .insert(insertPayload)
+      .select('*')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    const sidekick = await getSidekickResponse(ownerId, data.id);
+    res.status(201).json(sidekick);
+  } catch (error) {
+    console.error('Error creating sidekick:', error);
+    res.status(500).json({ error: 'Failed to create AI sidekick' });
+  }
+});
+
+app.put('/api/sidekicks/:sidekickId/personality', async (req, res) => {
+  try {
+    const { sidekickId } = req.params;
+    const { description, traits, preset, summary } = req.body || {};
+
+    const existingRow = await getSidekickRowById(sidekickId);
+    if (!existingRow) {
+      return res.status(404).json({ error: 'Sidekick not found' });
+    }
+
+    const ownerId = existingRow.user_id;
+    let mergedMetadata = existingRow.metadata;
+    if (typeof mergedMetadata === 'string') {
+      try {
+        mergedMetadata = JSON.parse(mergedMetadata);
+      } catch {
+        mergedMetadata = {};
+      }
+    }
+    mergedMetadata = buildSidekickMetadata(existingRow.scope, mergedMetadata);
+
+    const personaDescription =
+      typeof description === 'string' && description.trim().length > 0
+        ? description.trim()
+        : existingRow.description || mergedMetadata.summary;
+    const personaTraits =
+      traits !== undefined ? traitsForStorage(traits) : traitsForStorage(existingRow.traits);
+    const personaPreset =
+      typeof preset === 'string' && preset.trim().length > 0
+        ? preset.trim()
+        : existingRow.persona_preset || 'custom';
+    const summaryText =
+      typeof summary === 'string' && summary.trim().length > 0
+        ? summary.trim()
+        : existingRow.summary || mergedMetadata.summary;
+
+    mergedMetadata.summary = summaryText;
+
+    const { error } = await supabaseAdmin
+      .from('ai_sidekick_profiles')
+      .update({
+        description: personaDescription,
+        traits: personaTraits,
+        persona_preset: personaPreset,
+        summary: summaryText,
+        metadata: mergedMetadata,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sidekickId);
+
+    if (error) {
+      throw error;
+    }
+
+    const sidekick = await getSidekickResponse(ownerId, sidekickId);
+    res.json(sidekick);
+  } catch (error) {
+    console.error('Error updating sidekick personality:', error);
+    res.status(500).json({ error: 'Failed to update AI sidekick personality' });
+  }
+});
+
+app.put('/api/sidekicks/:sidekickId/voice', async (req, res) => {
+  try {
+    const { sidekickId } = req.params;
+    const { voiceId } = req.body || {};
+    if (!voiceId || typeof voiceId !== 'string') {
+      return res.status(400).json({ error: 'voiceId is required' });
+    }
+
+    const existingRow = await getSidekickRowById(sidekickId);
+    if (!existingRow) {
+      return res.status(404).json({ error: 'Sidekick not found' });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('ai_sidekick_profiles')
+      .update({
+        voice_label: voiceId.trim(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sidekickId);
+
+    if (error) {
+      throw error;
+    }
+
+    const sidekick = await getSidekickResponse(existingRow.user_id, sidekickId);
+    res.json(sidekick);
+  } catch (error) {
+    console.error('Error updating sidekick voice:', error);
+    res.status(500).json({ error: 'Failed to update AI sidekick voice' });
+  }
+});
+
+app.post('/api/sidekicks/:sidekickId/knowledge', async (req, res) => {
+  try {
+    const { sidekickId } = req.params;
+    const { content, title, type } = req.body || {};
+
+    const existingRow = await getSidekickRowById(sidekickId);
+    if (!existingRow) {
+      return res.status(404).json({ error: 'Sidekick not found' });
+    }
+
+    const ownerId = existingRow.user_id;
+    const scope = sanitizeScope(existingRow.scope);
+    const entryContent = typeof content === 'string' ? content.trim() : '';
+    const entryTitle = typeof title === 'string' ? title.trim() : '';
+
+    if (!entryTitle && !entryContent) {
+      return res.status(400).json({ error: 'Knowledge content is required' });
+    }
+
+    const derivedTitle =
+      entryTitle ||
+      (entryContent.length > 60 ? `${entryContent.slice(0, 57)}...` : entryContent) ||
+      `${deriveNameFromScope(scope)} Knowledge`;
+
+    const { error } = await supabaseAdmin.from('ai_kb').insert({
+      user_id: String(ownerId),
+      sidekick: scope,
+      title: derivedTitle,
+      type: typeof type === 'string' && type.trim().length > 0 ? type.trim() : 'text',
+      content: entryContent || entryTitle
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const sidekick = await getSidekickResponse(ownerId, sidekickId);
+    res.status(201).json(sidekick);
+  } catch (error) {
+    console.error('Error adding sidekick knowledge:', error);
+    res.status(500).json({ error: 'Failed to add knowledge entry' });
+  }
+});
+
+app.delete('/api/sidekicks/:sidekickId/knowledge/:index', async (req, res) => {
+  try {
+    const { sidekickId, index } = req.params;
+    const targetIndex = Number.parseInt(index, 10);
+    if (!Number.isFinite(targetIndex) || targetIndex < 0) {
+      return res.status(400).json({ error: 'Invalid knowledge index' });
+    }
+
+    const existingRow = await getSidekickRowById(sidekickId);
+    if (!existingRow) {
+      return res.status(404).json({ error: 'Sidekick not found' });
+    }
+
+    const ownerId = existingRow.user_id;
+    const scope = sanitizeScope(existingRow.scope);
+
+    const { data: knowledgeRows, error } = await supabaseAdmin
+      .from('ai_kb')
+      .select('id')
+      .eq('user_id', String(ownerId))
+      .eq('sidekick', scope)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    if (!knowledgeRows || knowledgeRows.length <= targetIndex) {
+      return res.status(404).json({ error: 'Knowledge entry not found' });
+    }
+
+    const targetRow = knowledgeRows[targetIndex];
+    const { error: deleteError } = await supabaseAdmin
+      .from('ai_kb')
+      .delete()
+      .eq('id', targetRow.id);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    const sidekick = await getSidekickResponse(ownerId, sidekickId);
+    res.json(sidekick);
+  } catch (error) {
+    console.error('Error removing sidekick knowledge:', error);
+    res.status(500).json({ error: 'Failed to remove knowledge entry' });
+  }
+});
+
+app.post('/api/sidekicks/:sidekickId/chat', async (req, res) => {
+  try {
+    const { sidekickId } = req.params;
+    const { message, history } = req.body || {};
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    const existingRow = await getSidekickRowById(sidekickId);
+    if (!existingRow) {
+      return res.status(404).json({ error: 'Sidekick not found' });
+    }
+
+    const ownerId = existingRow.user_id;
+    const scope = sanitizeScope(existingRow.scope);
+    const metadata = buildSidekickMetadata(scope, existingRow.metadata || {});
+    const traits = sanitizeTraits(existingRow.traits);
+    const knowledgeRows = await fetchKnowledgeRows(ownerId);
+    const knowledgeSnippets = knowledgeRows
+      .filter((row) => sanitizeScope(row.sidekick) === scope)
+      .slice(0, 12)
+      .map((row) => `- ${formatKnowledgeRow(row)}`)
+      .join('\n');
+
+    const systemPromptLines = [
+      `You are ${deriveNameFromScope(scope, existingRow.display_name)}, an AI sidekick for a high-performing real estate agent.`,
+      `Primary focus: ${metadata.summary || deriveNameFromScope(scope)}.`,
+      `Voice and tone: ${traits.length ? traits.join(', ') : 'professional, helpful, on-brand'}.`,
+      `Stay aligned with the agent's brand voice and provide concise, actionable responses.`
+    ];
+
+    if (knowledgeSnippets) {
+      systemPromptLines.push('Reference the following proprietary knowledge when helpful:');
+      systemPromptLines.push(knowledgeSnippets);
+    }
+
+    const chatMessages = [
+      {
+        role: 'system',
+        content: systemPromptLines.join('\n')
+      }
+    ];
+
+    if (Array.isArray(history)) {
+      history.forEach((item) => {
+        if (!item || typeof item !== 'object') return;
+        const role = item.role === 'assistant' ? 'assistant' : item.role === 'user' ? 'user' : null;
+        const content = typeof item.content === 'string' ? item.content.trim() : '';
+        if (!role || !content) return;
+        chatMessages.push({ role, content });
+      });
+    }
+
+    chatMessages.push({ role: 'user', content: message.trim() });
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: chatMessages,
+      temperature: 0.7,
+      max_tokens: 600
+    });
+
+    const responseText =
+      completion?.choices?.[0]?.message?.content?.trim() ||
+      'I need a moment to think about that. Could you rephrase or provide more detail?';
+
+    res.json({ response: responseText });
+  } catch (error) {
+    console.error('Error chatting with sidekick:', error);
+    res.status(500).json({ error: 'Failed to chat with AI sidekick' });
+  }
+});
+
+app.post('/api/sidekicks/:sidekickId/training', async (req, res) => {
+  try {
+    const { sidekickId } = req.params;
+    const {
+      userMessage,
+      assistantMessage,
+      feedback,
+      improvement,
+      messageId
+    } = req.body || {};
+
+    const existingRow = await getSidekickRowById(sidekickId);
+    if (!existingRow) {
+      return res.status(404).json({ error: 'Sidekick not found' });
+    }
+
+    const ownerId = existingRow.user_id;
+    const normalizedFeedback = feedback === 'positive' ? 'positive' : 'negative';
+
+    const { error } = await supabaseAdmin
+      .from('ai_sidekick_training_feedback')
+      .insert({
+        user_id: ownerId,
+        sidekick_id: sidekickId,
+        sidekick_scope: sanitizeScope(existingRow.scope),
+        message_id: typeof messageId === 'string' ? messageId : null,
+        feedback: normalizedFeedback,
+        improvement:
+          typeof improvement === 'string' && improvement.trim().length > 0
+            ? improvement.trim()
+            : null,
+        user_message:
+          typeof userMessage === 'string' && userMessage.trim().length > 0
+            ? userMessage.trim()
+            : null,
+        assistant_message:
+          typeof assistantMessage === 'string' && assistantMessage.trim().length > 0
+            ? assistantMessage.trim()
+            : null
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    const sidekick = await getSidekickResponse(ownerId, sidekickId);
+    res.json({ success: true, sidekick });
+  } catch (error) {
+    console.error('Error recording sidekick training feedback:', error);
+    res.status(500).json({ error: 'Failed to record sidekick training feedback' });
+  }
+});
+
 // AI Training Storage
 let trainingFeedback = [
     // Demo training data to show the system working
@@ -3054,6 +3796,33 @@ app.put('/api/conversations/:conversationId', async (req, res) => {
   } catch (error) {
     console.error('Error updating conversation:', error);
     res.status(500).json({ error: 'Failed to update conversation' });
+  }
+});
+
+// Delete conversation
+app.delete('/api/conversations/:conversationId', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('ai_conversations')
+      .delete()
+      .eq('id', conversationId)
+      .select('id')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    console.log(`💬 Deleted conversation ${conversationId}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting conversation:', error);
+    res.status(500).json({ error: 'Failed to delete conversation' });
   }
 });
 
@@ -4016,6 +4785,7 @@ console.log('   GET  /api/ai-card/qr-codes');
 console.log('   POST /api/ai-card/qr-codes');
 console.log('   PUT  /api/ai-card/qr-codes/:qrId');
 console.log('   DELETE /api/ai-card/qr-codes/:qrId');
+console.log('   DELETE /api/conversations/:conversationId');
 console.log('   📅 APPOINTMENT ENDPOINTS:');
 console.log('   GET  /api/appointments');
 console.log('   POST /api/appointments');

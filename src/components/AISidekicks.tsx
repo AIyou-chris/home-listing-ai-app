@@ -11,7 +11,8 @@ import {
   personalityPresets,
   type AISidekick, 
   type Voice,
-  type CreateSidekickPayload 
+  type CreateSidekickPayload,
+  type ChatHistoryEntry
 } from '../services/aiSidekicksService';
 import { generateSpeech } from '../services/openaiService';
 import { normalizeOpenAIVoice } from '../constants/openaiVoices';
@@ -411,7 +412,13 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     if (!selectedSidekick || !newKnowledge.trim()) return;
     
     try {
-      const updatedSidekick = await addKnowledge(selectedSidekick.id, newKnowledge.trim());
+      const content = newKnowledge.trim();
+      const title = content.length > 60 ? `${content.slice(0, 57)}...` : content;
+      const updatedSidekick = await addKnowledge(selectedSidekick.id, {
+        content,
+        title,
+        type: 'text'
+      });
       setSidekicks(prev => prev.map(s => s.id === updatedSidekick.id ? updatedSidekick : s));
       setSelectedSidekick(updatedSidekick);
       setNewKnowledge('');
@@ -440,8 +447,13 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     
     try {
       setIsAddingKnowledge(true);
-      const knowledgeEntry = `${knowledgeTitle.trim()}: ${knowledgeContent.trim()}`;
-      const updatedSidekick = await addKnowledge(selectedSidekick.id, knowledgeEntry);
+      const title = knowledgeTitle.trim();
+      const content = knowledgeContent.trim();
+      const updatedSidekick = await addKnowledge(selectedSidekick.id, {
+        content,
+        title,
+        type: 'text'
+      });
       setSidekicks(prev => prev.map(s => s.id === updatedSidekick.id ? updatedSidekick : s));
       setSelectedSidekick(updatedSidekick);
       setKnowledgeTitle('');
@@ -464,8 +476,12 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
       
       // Process each file (mock implementation)
       for (const file of fileArray) {
-        const knowledgeEntry = `Uploaded file: ${file.name} (${file.type}, ${(file.size / 1024).toFixed(1)}KB)`;
-        const updatedSidekick = await addKnowledge(selectedSidekick.id, knowledgeEntry);
+        const knowledgeEntry = `Uploaded file: ${file.name} (${file.type || 'unknown type'}, ${(file.size / 1024).toFixed(1)}KB)`;
+        const updatedSidekick = await addKnowledge(selectedSidekick.id, {
+          content: knowledgeEntry,
+          title: file.name,
+          type: 'file'
+        });
         setSidekicks(prev => prev.map(s => s.id === updatedSidekick.id ? updatedSidekick : s));
         setSelectedSidekick(updatedSidekick);
       }
@@ -484,8 +500,13 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     try {
       setIsScraping(true);
       // Mock scraping implementation
-      const knowledgeEntry = `Website content from ${websiteUrl.trim()} (scraped ${scrapingFrequency})`;
-      const updatedSidekick = await addKnowledge(selectedSidekick.id, knowledgeEntry);
+      const trimmedUrl = websiteUrl.trim();
+      const knowledgeEntry = `Website content from ${trimmedUrl} (scraped ${scrapingFrequency})`;
+      const updatedSidekick = await addKnowledge(selectedSidekick.id, {
+        content: knowledgeEntry,
+        title: trimmedUrl,
+        type: 'url'
+      });
       setSidekicks(prev => prev.map(s => s.id === updatedSidekick.id ? updatedSidekick : s));
       setSelectedSidekick(updatedSidekick);
       setWebsiteUrl('');
@@ -554,7 +575,14 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     setIsTyping(true);
     
     try {
-      const response = await chatWithSidekick(selectedSidekick.id, userMessage.content);
+      const history: ChatHistoryEntry[] = [...chatMessages, userMessage].map(
+        (msg): ChatHistoryEntry => ({
+          role: msg.type === 'assistant' ? 'assistant' : 'user',
+          content: msg.content
+        })
+      );
+
+      const response = await chatWithSidekick(selectedSidekick.id, userMessage.content, history);
       
       const assistantMessage = {
         id: (Date.now() + 1).toString(),
@@ -671,6 +699,7 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
       setPersonalityForm(prev => ({
         ...prev,
         preset,
+        description: preset === 'custom' ? prev.description : presetData.description,
         traits: preset === 'custom' ? prev.traits : [...presetData.traits]
       }));
     }
@@ -726,9 +755,6 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
         </div>
       </div>
 
-      {/* DEBUG: Banner should appear here */}
-      {console.log('🔍 About to render PageTipBanner for AI Sidekicks')}
-      
       <PageTipBanner
         pageKey="ai-sidekicks"
         title="🤖 Your AI Agent Library"
@@ -911,7 +937,7 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
                 </label>
                 <div className="flex gap-2">
                   <select
-                    value={sidekick.voice}
+                    value={sidekick.voiceId}
                     onChange={(e) => handleVoiceChange(sidekick.id, e.target.value)}
                     className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   >
@@ -923,19 +949,19 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
                   </select>
                   <button
                     onClick={() => {
-                      const selectedVoice = voices.find(v => v.id === sidekick.voice);
+                      const selectedVoice = voices.find(v => v.id === sidekick.voiceId);
                       if (selectedVoice && selectedVoice.openaiVoice) {
                         handlePlayVoiceSample(selectedVoice.id, selectedVoice.openaiVoice);
                       }
                     }}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                      playingVoiceSample === sidekick.voice
+                      playingVoiceSample === sidekick.voiceId
                         ? 'bg-red-600 text-white hover:bg-red-700 shadow-md'
                         : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
                     }`}
                     title="Preview selected voice"
                   >
-                    {playingVoiceSample === sidekick.voice ? '⏹ Stop' : '▶ Preview'}
+                    {playingVoiceSample === sidekick.voiceId ? '⏹ Stop' : '▶ Preview'}
                   </button>
                 </div>
               </div>

@@ -11,18 +11,22 @@
 CREATE TABLE IF NOT EXISTS public.ai_sidekick_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  scope TEXT NOT NULL CHECK (scope IN ('agent', 'listing', 'marketing')),
+  scope TEXT NOT NULL CHECK (scope IN ('agent', 'listing', 'marketing', 'sales', 'support', 'helper', 'main', 'god')),
   listing_id TEXT NULL,
+  display_name TEXT NULL,
+  summary TEXT NULL,
   voice_label TEXT NULL,
   persona_preset TEXT NULL,
   description TEXT NULL,
   traits TEXT[] NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_sidekick_profiles_user_id ON public.ai_sidekick_profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_sidekick_profiles_listing ON public.ai_sidekick_profiles(user_id, listing_id) WHERE scope = 'listing';
+CREATE INDEX IF NOT EXISTS idx_sidekick_profiles_scope ON public.ai_sidekick_profiles(user_id, scope);
 
 -- AI Knowledge Base entries (user_id is TEXT to match existing table)
 CREATE TABLE IF NOT EXISTS public.ai_kb (
@@ -160,6 +164,24 @@ CREATE TABLE IF NOT EXISTS public.ai_card_qr_codes (
 
 CREATE INDEX IF NOT EXISTS idx_ai_card_qr_codes_user_id ON public.ai_card_qr_codes(user_id);
 
+-- AI Sidekick Training Feedback
+CREATE TABLE IF NOT EXISTS public.ai_sidekick_training_feedback (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sidekick_id UUID NOT NULL REFERENCES public.ai_sidekick_profiles(id) ON DELETE CASCADE,
+  sidekick_scope TEXT NOT NULL,
+  message_id TEXT NULL,
+  feedback TEXT NOT NULL CHECK (feedback IN ('positive', 'negative')),
+  improvement TEXT NULL,
+  user_message TEXT NULL,
+  assistant_message TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sidekick_feedback_user ON public.ai_sidekick_training_feedback(user_id);
+CREATE INDEX IF NOT EXISTS idx_sidekick_feedback_sidekick ON public.ai_sidekick_training_feedback(sidekick_id);
+CREATE INDEX IF NOT EXISTS idx_sidekick_feedback_scope ON public.ai_sidekick_training_feedback(sidekick_scope);
+
 -- AI Conversations (omni-channel AI interactions)
 CREATE TABLE IF NOT EXISTS public.ai_conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -228,6 +250,7 @@ ALTER TABLE public.ai_card_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_card_qr_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_conversation_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_sidekick_training_feedback ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 4. CREATE RLS POLICIES - AI SIDEKICK PROFILES (user_id is UUID)
@@ -493,7 +516,31 @@ USING (
 );
 
 -- ============================================================================
--- 11. CREATE RLS POLICIES - STORAGE (AI KB FILES)
+-- 11. CREATE RLS POLICIES - AI SIDEKICK TRAINING FEEDBACK
+-- ============================================================================
+
+-- Drop existing policies first (idempotent)
+DROP POLICY IF EXISTS "Users can read own sidekick feedback" ON public.ai_sidekick_training_feedback;
+DROP POLICY IF EXISTS "Users can insert own sidekick feedback" ON public.ai_sidekick_training_feedback;
+DROP POLICY IF EXISTS "Users can delete own sidekick feedback" ON public.ai_sidekick_training_feedback;
+
+CREATE POLICY "Users can read own sidekick feedback"
+ON public.ai_sidekick_training_feedback
+FOR SELECT
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+CREATE POLICY "Users can insert own sidekick feedback"
+ON public.ai_sidekick_training_feedback
+FOR INSERT
+WITH CHECK (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+CREATE POLICY "Users can delete own sidekick feedback"
+ON public.ai_sidekick_training_feedback
+FOR DELETE
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+-- ============================================================================
+-- 12. CREATE RLS POLICIES - STORAGE (AI KB FILES)
 -- ============================================================================
 
 -- Drop existing policies first (idempotent)
