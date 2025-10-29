@@ -206,7 +206,7 @@ export default class NotificationService {
         const messageId = await this.createBroadcastMessage(
             title,
             content,
-            'system',
+            'System',
             priority,
             userIds,
             'system'

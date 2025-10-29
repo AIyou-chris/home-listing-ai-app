@@ -585,13 +585,18 @@ export class LeadScoringService {
     }
 
     // Sort leads by score (highest first)
-    static sortLeadsByScore(leads: Lead[]): { lead: Lead; score: LeadScore }[] {
-        const leadScores = this.calculateBulkScores(leads);
-        
-        return leads.map(lead => ({
-            lead,
-            score: leadScores.find(s => s.leadId === lead.id)!
-        })).sort((a, b) => b.score.totalScore - a.score.totalScore);
+    static sortLeadsByScore(leads: Lead[], precomputedScores: LeadScore[] = []): { lead: Lead; score: LeadScore }[] {
+        const scoreMap = new Map(precomputedScores.map(score => [score.leadId, score]));
+
+        return leads
+            .map(lead => {
+                const existing = scoreMap.get(lead.id);
+                return {
+                    lead,
+                    score: existing ?? this.calculateLeadScoreClientSide(lead)
+                };
+            })
+            .sort((a, b) => b.score.totalScore - a.score.totalScore);
     }
 }
 

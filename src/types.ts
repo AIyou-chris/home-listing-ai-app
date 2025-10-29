@@ -174,6 +174,9 @@ export interface Lead {
     notes?: string;
     score?: LeadScore;
     behaviors?: LeadBehavior[];
+    interestedProperties?: string[];
+    lastContact?: string;
+    createdAt?: string;
 }
 
 export interface LeadBehavior {
@@ -269,7 +272,16 @@ export interface PersonalityTest {
     }[];
 }
 
-export type TriggerType = 'Lead Capture' | 'Appointment Scheduled' | 'Property Viewed' | 'Market Update' | 'Custom' | 'Account Created';
+export type TriggerType =
+    | 'Lead Capture'
+    | 'Appointment Scheduled'
+    | 'Property Viewed'
+    | 'Market Update'
+    | 'Custom'
+    | 'Account Created'
+    | 'Buyer Lead'
+    | 'Seller Lead'
+    | 'Past Client / Sphere';
 
 export interface SequenceStep {
     id: string;

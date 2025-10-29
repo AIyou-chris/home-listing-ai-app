@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Lead } from '../types';
-import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor, LEAD_SCORING_RULES } from '../services/leadScoringService';
+import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor, LEAD_SCORING_RULES, type LeadScore } from '../services/leadScoringService';
 
 interface LeadScoringDashboardProps {
     leads: Lead[];
@@ -10,10 +10,35 @@ interface LeadScoringDashboardProps {
 const LeadScoringDashboard: React.FC<LeadScoringDashboardProps> = ({ leads, onLeadSelect }) => {
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [sortBy, setSortBy] = useState<'score' | 'name' | 'date'>('score');
+    const [leadScores, setLeadScores] = useState<LeadScore[]>([]);
+    const [loadingScores, setLoadingScores] = useState(false);
 
-    // Calculate all lead scores
-    const leadScores = useMemo(() => {
-        return LeadScoringService.calculateBulkScores(leads);
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadScores = async () => {
+            setLoadingScores(true);
+            try {
+                const scores = await LeadScoringService.calculateBulkScores(leads);
+                if (!cancelled) {
+                    setLeadScores(scores);
+                }
+            } catch {
+                if (!cancelled) {
+                    setLeadScores(leads.map(lead => LeadScoringService.calculateLeadScoreClientSide(lead)));
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingScores(false);
+                }
+            }
+        };
+
+        loadScores();
+
+        return () => {
+            cancelled = true;
+        };
     }, [leads]);
 
     // Get score distribution for analytics
@@ -23,7 +48,7 @@ const LeadScoringDashboard: React.FC<LeadScoringDashboardProps> = ({ leads, onLe
 
     // Sort and filter leads
     const sortedLeads = useMemo(() => {
-        const leadsWithScores = LeadScoringService.sortLeadsByScore(leads);
+        const leadsWithScores = LeadScoringService.sortLeadsByScore(leads, leadScores);
         
         let filtered = leadsWithScores;
         if (selectedCategory !== 'all') {
@@ -85,7 +110,7 @@ const LeadScoringDashboard: React.FC<LeadScoringDashboardProps> = ({ leads, onLe
         </div>
     );
 
-    const LeadScoreCard = ({ lead, score }: { lead: Lead; score: any }) => {
+    const LeadScoreCard = ({ lead, score }: { lead: Lead; score: LeadScore }) => {
         const tierInfo = getScoreTierInfo(score.tier);
         const recommendations = LeadScoringService.getScoreRecommendations(lead, score);
 
@@ -210,6 +235,13 @@ const LeadScoringDashboard: React.FC<LeadScoringDashboardProps> = ({ leads, onLe
                         <div>⏰ <strong>Timing:</strong> When they contacted you</div>
                     </div>
                 </div>
+
+                {loadingScores && (
+                    <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
+                        <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
+                        Updating scores…
+                    </div>
+                )}
 
                 {/* Lead Cards */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
