@@ -22,6 +22,13 @@ const openai = new OpenAI({
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yocchddxdsaldgsibmmc.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvY2NoZGR4ZHNhbGRnc2libW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1ODEwNDgsImV4cCI6MjA3MjE1NzA0OH0.02jE3WPLnb-DDexNqSnfIPfmPZldsby1dPOu5-BlSDw';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
 
 // Mailgun configuration
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY || '';
@@ -31,64 +38,15 @@ const MAILGUN_FROM_EMAIL = process.env.MAILGUN_FROM_EMAIL || '';
 // In-memory storage for real data (in production, this would be a database)
 let users = [];
 
-let leads = [
-  {
-    id: 'lead-demo-1',
-    name: 'Sarah Johnson',
-    email: 'sarah.johnson@email.com',
-    phone: '(555) 123-4567',
-    status: 'New',
-    source: 'Website',
-    date: '2024-01-15',
-    lastMessage: 'Interested in 3BR homes under $500k',
-    propertyInterest: '3 bedroom house',
-    budget: '$450,000',
-    timeline: 'Next 3 months',
-    notes: 'First-time buyer, pre-approved for mortgage'
-  },
-  {
-    id: 'lead-demo-2',
-    name: 'Michael Chen',
-    email: 'michael.chen@email.com',
-    phone: '(555) 987-6543',
-    status: 'Qualified',
-    source: 'Referral',
-    date: '2024-01-12',
-    lastMessage: 'Ready to schedule showing for luxury condos',
-    propertyInterest: 'Luxury condo',
-    budget: '$750,000',
-    timeline: 'Immediate',
-    notes: 'Cash buyer, looking for downtown location'
-  },
-  {
-    id: 'lead-demo-3',
-    name: 'Emily Rodriguez',
-    email: 'emily.rodriguez@email.com',
-    phone: '(555) 456-7890',
-    status: 'Contacted',
-    source: 'Social Media',
-    date: '2024-01-10',
-    lastMessage: 'Asking about school districts and family neighborhoods',
-    propertyInterest: 'Family home',
-    budget: '$600,000',
-    timeline: 'Next 6 months',
-    notes: 'Has two young children, needs good schools'
-  },
-  {
-    id: 'lead-demo-4',
-    name: 'David Thompson',
-    email: 'david.thompson@email.com',
-    phone: '(555) 321-0987',
-    status: 'Showing',
-    source: 'Open House',
-    date: '2024-01-08',
-    lastMessage: 'Loved the property, considering offer',
-    propertyInterest: 'Single family home',
-    budget: '$525,000',
-    timeline: 'Next 2 weeks',
-    notes: 'Very motivated, selling current home'
-  }
-];
+const DEFAULT_LEAD_USER_ID =
+  process.env.DEFAULT_LEAD_USER_ID || '75114b93-e1c8-4d54-9e43-dd557d9e3ad9';
+if (!process.env.DEFAULT_LEAD_USER_ID) {
+  console.warn(
+    '[Leads] DEFAULT_LEAD_USER_ID not set. Using fallback user for new leads. Configure DEFAULT_LEAD_USER_ID in environment.'
+  );
+}
+
+let leads = [];
 
 function parseLeadDate(value) {
   if (!value) return null;
@@ -136,6 +94,411 @@ function validateLeadForScoringPayload(lead) {
     warnings
   };
 }
+
+const clampScore = (value) => Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+
+const mapLeadFromRow = (row) => {
+  if (!row) return null;
+  const lead = {
+    id: row.id,
+    user_id: row.user_id,
+    name: row.name || '',
+    email: row.email || '',
+    phone: row.phone || '',
+    status: row.status || 'New',
+    source: row.source || '',
+    propertyInterest: row.property_interest || '',
+    budget: row.budget || '',
+    timeline: row.timeline || '',
+    notes: row.notes || '',
+    lastMessage: row.notes || '',
+    totalConversations: row.total_conversations || 0,
+    lastConversationAt: row.last_conversation_at,
+    firstConversationAt: row.first_conversation_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastContactAt: row.last_contact_at,
+    manualFollowUp: row.manual_follow_up || false,
+    followUpSequenceId: row.follow_up_sequence_id || null,
+    date: row.created_at
+  };
+
+  autoScoreLead(lead);
+  lead.score = clampScore(lead.score);
+  return lead;
+};
+
+const refreshLeadsCache = async (force = true) => {
+  if (!force && leads && leads.length > 0) {
+    return leads;
+  }
+  const { data, error } = await supabaseAdmin
+    .from('leads')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) {
+    throw error;
+  }
+  leads = (data || []).map(mapLeadFromRow).filter(Boolean);
+  return leads;
+};
+
+const buildLeadStats = () => ({
+  total: leads.length,
+  new: leads.filter((l) => l.status === 'New').length,
+  qualified: leads.filter((l) => l.status === 'Qualified').length,
+  contacted: leads.filter((l) => l.status === 'Contacted').length,
+  showing: leads.filter((l) => l.status === 'Showing').length,
+  lost: leads.filter((l) => l.status === 'Lost').length
+});
+
+refreshLeadsCache()
+  .then(() => {
+    console.log(`[Leads] Cache primed with ${leads.length} record(s).`);
+  })
+  .catch((error) => {
+    console.warn('[Leads] Failed to prime cache:', error.message);
+  });
+
+const mapPhoneLogFromRow = (row) =>
+  !row
+    ? null
+    : {
+        id: row.id,
+        leadId: row.lead_id,
+        callStartedAt: row.call_started_at,
+        callOutcome: row.call_outcome || 'connected',
+        callNotes: row.call_notes || '',
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      };
+
+const normalizeDateOnly = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    if (value.length === 10 && value.includes('-')) {
+      return value;
+    }
+    const splitIndex = value.indexOf('T');
+    if (splitIndex !== -1) {
+      return value.slice(0, splitIndex);
+    }
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toISOString().slice(0, 10);
+};
+
+const parseTimeLabel = (label) => {
+  if (!label || typeof label !== 'string') {
+    return { hour: 14, minute: 0 };
+  }
+
+  const trimmed = label.trim();
+  const explicitTime = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (explicitTime) {
+    let hour = parseInt(explicitTime[1], 10);
+    const minute = explicitTime[2] ? parseInt(explicitTime[2], 10) : 0;
+    const meridiem = explicitTime[3] ? explicitTime[3].toLowerCase() : null;
+
+    if (meridiem === 'pm' && hour < 12) {
+      hour += 12;
+    } else if (meridiem === 'am' && hour === 12) {
+      hour = 0;
+    }
+
+    return {
+      hour: Number.isFinite(hour) ? hour : 14,
+      minute: Number.isFinite(minute) ? minute : 0
+    };
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('morning')) return { hour: 10, minute: 0 };
+  if (lower.includes('afternoon')) return { hour: 14, minute: 0 };
+  if (lower.includes('evening')) return { hour: 18, minute: 0 };
+
+  return { hour: 14, minute: 0 };
+};
+
+const computeAppointmentIsoRange = (dateValue, timeLabel, durationMinutes = 30) => {
+  const normalizedDate = normalizeDateOnly(dateValue) || normalizeDateOnly(new Date());
+  const { hour, minute } = parseTimeLabel(timeLabel);
+
+  const start = new Date(`${normalizedDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
+  const end = new Date(start.getTime() + (Number.isFinite(durationMinutes) ? durationMinutes : 30) * 60 * 1000);
+
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString()
+  };
+};
+
+const APPOINTMENT_SELECT_FIELDS =
+  'id, user_id, lead_id, property_id, property_address, kind, name, email, phone, date, time_label, start_iso, end_iso, meet_link, notes, status, remind_agent, remind_client, agent_reminder_minutes_before, client_reminder_minutes_before, created_at, updated_at';
+
+const mapAppointmentFromRow = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.kind || 'Consultation',
+    date: normalizeDateOnly(row.date) || normalizeDateOnly(row.start_iso) || '',
+    time: row.time_label || '',
+    leadId: row.lead_id || '',
+    leadName: row.name || '',
+    propertyId: row.property_id || '',
+    propertyAddress: row.property_address || '',
+    email: row.email || '',
+    phone: row.phone || '',
+    notes: row.notes || '',
+    status: row.status || 'Scheduled',
+    meetLink: row.meet_link || '',
+    remindAgent: row.remind_agent !== undefined ? row.remind_agent : true,
+    remindClient: row.remind_client !== undefined ? row.remind_client : true,
+    agentReminderMinutes: row.agent_reminder_minutes_before ?? 60,
+    clientReminderMinutes: row.client_reminder_minutes_before ?? 60,
+    startIso: row.start_iso,
+    endIso: row.end_iso,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+};
+
+const DEFAULT_AI_CARD_PROFILE = {
+  id: 'default',
+  fullName: '',
+  professionalTitle: '',
+  company: '',
+  phone: '',
+  email: '',
+  website: '',
+  bio: '',
+  brandColor: '#0ea5e9',
+  socialMedia: {
+    facebook: '',
+    instagram: '',
+    twitter: '',
+    linkedin: '',
+    youtube: ''
+  },
+  headshot: null,
+  logo: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString()
+};
+
+const mapAiCardProfileFromRow = (row) =>
+  !row
+    ? null
+    : {
+        id: row.id,
+        fullName: row.full_name || '',
+        professionalTitle: row.professional_title || DEFAULT_AI_CARD_PROFILE.professionalTitle,
+        company: row.company || '',
+        phone: row.phone || '',
+        email: row.email || '',
+        website: row.website || '',
+        bio: row.bio || '',
+        brandColor: row.brand_color || DEFAULT_AI_CARD_PROFILE.brandColor,
+        socialMedia: row.social_media || { facebook: '', instagram: '', twitter: '', linkedin: '', youtube: '' },
+        headshot: row.headshot_url || null,
+        logo: row.logo_url || null,
+        created_at: row.created_at,
+        updated_at: row.updated_at
+      };
+
+const mapAiCardProfileToRow = (profileData = {}) => {
+  const payload = {};
+  if (profileData.fullName !== undefined) payload.full_name = profileData.fullName;
+  if (profileData.professionalTitle !== undefined)
+    payload.professional_title = profileData.professionalTitle;
+  if (profileData.company !== undefined) payload.company = profileData.company;
+  if (profileData.phone !== undefined) payload.phone = profileData.phone;
+  if (profileData.email !== undefined) payload.email = profileData.email;
+  if (profileData.website !== undefined) payload.website = profileData.website;
+  if (profileData.bio !== undefined) payload.bio = profileData.bio;
+  if (profileData.brandColor !== undefined) payload.brand_color = profileData.brandColor;
+  if (profileData.socialMedia !== undefined) payload.social_media = profileData.socialMedia;
+  if (profileData.headshot !== undefined) payload.headshot_url = profileData.headshot;
+  if (profileData.logo !== undefined) payload.logo_url = profileData.logo;
+  return payload;
+};
+
+async function fetchAiCardProfileForUser(userId) {
+  if (!userId) return null;
+  const { data, error } = await supabaseAdmin
+    .from('ai_card_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error && error.code !== 'PGRST116') {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+  return mapAiCardProfileFromRow(data);
+}
+
+const AI_CONVERSATION_SELECT_FIELDS =
+  'id, user_id, scope, listing_id, lead_id, title, contact_name, contact_email, contact_phone, type, last_message, last_message_at, status, message_count, property, tags, intent, language, voice_transcript, follow_up_task, metadata, created_at, updated_at';
+
+const AI_CONVERSATION_MESSAGE_SELECT_FIELDS =
+  'id, conversation_id, user_id, sender, channel, content, translation, metadata, created_at';
+
+const mapAiConversationFromRow = (row) =>
+  !row
+    ? null
+    : {
+        id: row.id,
+        userId: row.user_id,
+        scope: row.scope || 'agent',
+        listingId: row.listing_id,
+        leadId: row.lead_id,
+        title: row.title,
+        contactName: row.contact_name,
+        contactEmail: row.contact_email,
+        contactPhone: row.contact_phone,
+        type: row.type || 'chat',
+        lastMessage: row.last_message,
+        lastMessageAt: row.last_message_at,
+        status: row.status || 'active',
+        messageCount: row.message_count || 0,
+        property: row.property,
+        tags: row.tags || [],
+        intent: row.intent,
+        language: row.language,
+        voiceTranscript: row.voice_transcript,
+        followUpTask: row.follow_up_task,
+        metadata: row.metadata || {},
+        created_at: row.created_at,
+        updated_at: row.updated_at
+      };
+
+const mapAiConversationMessageFromRow = (row) =>
+  !row
+    ? null
+    : {
+        id: row.id,
+        conversationId: row.conversation_id,
+        userId: row.user_id,
+        sender: row.sender,
+        channel: row.channel,
+        content: row.content,
+        translation: row.translation,
+        metadata: row.metadata || null,
+        created_at: row.created_at
+      };
+
+async function upsertAiCardProfileForUser(userId, profileData, { mergeDefaults = false } = {}) {
+  if (!userId) {
+    throw new Error('userId is required for AI Card profile operations');
+  }
+
+  const sourceData = mergeDefaults
+    ? { ...DEFAULT_AI_CARD_PROFILE, ...profileData }
+    : profileData || {};
+
+  const payload = {
+    user_id: userId,
+    ...mapAiCardProfileToRow(sourceData),
+    updated_at: new Date().toISOString()
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from('ai_card_profiles')
+    .upsert(payload, { onConflict: 'user_id' })
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapAiCardProfileFromRow(data);
+}
+
+const mapAiCardQrCodeFromRow = (row) =>
+  !row
+    ? null
+    : {
+        id: row.id,
+        userId: row.user_id,
+        label: row.label,
+        destinationUrl: row.destination_url,
+        qrSvg: row.qr_svg,
+        totalScans: row.total_scans || 0,
+        lastScannedAt: row.last_scanned_at,
+        created_at: row.created_at,
+        updated_at: row.updated_at
+      };
+
+const buildAiCardDestinationUrl = (profile, userId, explicitUrl) =>
+  explicitUrl ||
+  `https://homelistingai.com/card/${profile?.id || userId || 'default'}`;
+
+const buildQrSvgDataUrl = (displayName, destinationUrl) => {
+  const name = displayName && displayName.trim().length > 0 ? displayName.trim() : 'Your Agent';
+  const url = destinationUrl || 'https://homelistingai.com';
+  const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+          <rect width="200" height="200" fill="white"/>
+          <text x="100" y="100" text-anchor="middle" font-family="Arial" font-size="12" fill="black">
+              QR Code for ${name}
+          </text>
+          <text x="100" y="120" text-anchor="middle" font-family="Arial" font-size="8" fill="gray">
+              ${url}
+          </text>
+      </svg>
+    `;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+};
+
+const decorateAppointmentWithAgent = (appointment, agentProfile) => {
+  if (!appointment) return null;
+  const profile = agentProfile || DEFAULT_AI_CARD_PROFILE;
+  const displayName = profile.fullName && profile.fullName.trim().length > 0 ? profile.fullName.trim() : 'Your Agent';
+  const companyName =
+    profile.company && profile.company.trim().length > 0 ? profile.company.trim() : 'Your Team';
+  const confirmationSubject = `Appointment Confirmation - ${displayName}`;
+  const signatureParts = [
+    displayName,
+    profile.professionalTitle,
+    profile.company,
+    profile.phone,
+    profile.email,
+    profile.website
+  ].filter((part) => part && part.toString().trim() !== '');
+
+  return {
+    ...appointment,
+    agentInfo: {
+      id: profile.id || 'default',
+      name: displayName,
+      email: profile.email,
+      phone: profile.phone,
+      company: profile.company,
+      title: profile.professionalTitle,
+      brandColor: profile.brandColor
+    },
+    confirmationDetails: {
+      subject: confirmationSubject,
+      message: `Your ${appointment.type || 'consultation'} appointment has been scheduled.\n\nDetails:\nDate: ${appointment.date}\nTime: ${appointment.time}\nAgent: ${displayName}\nCompany: ${companyName}${
+        profile.phone ? `\nPhone: ${profile.phone}` : ''
+      }${profile.email ? `\nEmail: ${profile.email}` : ''}${appointment.meetLink ? `\nMeeting Link: ${appointment.meetLink}` : ''}`,
+      signature: signatureParts.join('\n')
+    }
+  };
+};
+
+const isUuid = (value) =>
+  typeof value === 'string' &&
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
 
 // Lead Scoring System - Backend Implementation
 const LEAD_SCORING_RULES = [
@@ -297,7 +660,7 @@ function calculateLeadScore(lead) {
 // Auto-score lead and add to lead object
 function autoScoreLead(lead) {
   const score = calculateLeadScore(lead);
-  lead.score = score.totalScore;
+  lead.score = clampScore(score.totalScore);
   lead.scoreTier = score.tier;
   lead.scoreBreakdown = score.breakdown;
   lead.scoreLastUpdated = score.lastUpdated;
@@ -1321,37 +1684,32 @@ app.post('/api/admin/ai-model', async (req, res) => {
 // ===== LEADS API ENDPOINTS =====
 
 // Get all leads
-app.get('/api/admin/leads', (req, res) => {
+app.get('/api/admin/leads', async (req, res) => {
   try {
     const { status, search } = req.query;
+    await refreshLeadsCache(true);
+
     let filteredLeads = [...leads];
-    
-    // Filter by status
+
     if (status && status !== 'all') {
-      filteredLeads = filteredLeads.filter(lead => lead.status === status);
+      filteredLeads = filteredLeads.filter((lead) => lead.status === status);
     }
-    
-    // Filter by search
+
     if (search) {
-      const searchLower = search.toLowerCase();
-      filteredLeads = filteredLeads.filter(lead => 
-        lead.name.toLowerCase().includes(searchLower) ||
-        lead.email.toLowerCase().includes(searchLower) ||
-        lead.phone.toLowerCase().includes(searchLower)
-      );
+      const query = String(search).toLowerCase();
+      filteredLeads = filteredLeads.filter((lead) => {
+        return (
+          (lead.name && lead.name.toLowerCase().includes(query)) ||
+          (lead.email && lead.email.toLowerCase().includes(query)) ||
+          (lead.phone && lead.phone.toLowerCase().includes(query))
+        );
+      });
     }
-    
+
     res.json({
       leads: filteredLeads,
       total: filteredLeads.length,
-      stats: {
-        total: leads.length,
-        new: leads.filter(l => l.status === 'New').length,
-        qualified: leads.filter(l => l.status === 'Qualified').length,
-        contacted: leads.filter(l => l.status === 'Contacted').length,
-        showing: leads.filter(l => l.status === 'Showing').length,
-        lost: leads.filter(l => l.status === 'Lost').length
-      }
+      stats: buildLeadStats()
     });
   } catch (error) {
     console.error('Get leads error:', error);
@@ -1360,52 +1718,60 @@ app.get('/api/admin/leads', (req, res) => {
 });
 
 // Create new lead
-app.post('/api/admin/leads', (req, res) => {
+app.post('/api/admin/leads', async (req, res) => {
   try {
-    const { name, email, phone, status, source, notes, lastMessage } = req.body;
-    
+    const { name, email, phone, status, source, notes, lastMessage, propertyInterest, budget, timeline } =
+      req.body || {};
+
     if (!name || !email) {
       return res.status(400).json({ error: 'Name and email are required' });
     }
-    
-    // Get agent profile for lead assignment
-    const agentId = req.body.agentId || 'default';
-    const agentProfile = aiCardProfiles[agentId] || aiCardProfiles.default;
-    
-    let newLead = {
-      id: Date.now().toString(),
+
+    const assignedUserId = req.body.user_id || req.body.userId || DEFAULT_LEAD_USER_ID;
+    if (!assignedUserId) {
+      return res.status(400).json({ error: 'DEFAULT_LEAD_USER_ID is not configured' });
+    }
+
+    const now = new Date().toISOString();
+    const insertPayload = {
+      user_id: assignedUserId,
       name,
       email,
-      phone: phone || '',
+      phone: phone || null,
       status: status || 'New',
       source: source || 'Website',
-      notes: notes || '',
-      lastMessage: lastMessage || '',
-      date: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      // Add agent information from centralized profile
-      assignedAgent: {
-        id: agentProfile.id,
-        name: agentProfile.fullName,
-        email: agentProfile.email,
-        phone: agentProfile.phone,
-        company: agentProfile.company,
-        title: agentProfile.professionalTitle
-      },
-      // Add agent signature for communications
-      agentSignature: `${agentProfile.fullName}\n${agentProfile.professionalTitle}\n${agentProfile.company}\n${agentProfile.phone}\n${agentProfile.email}${agentProfile.website ? '\n' + agentProfile.website : ''}`
+      property_interest: propertyInterest || null,
+      budget: budget || null,
+      timeline: timeline || null,
+      notes: notes || lastMessage || null,
+      created_at: now,
+      updated_at: now
     };
-    
-    // Auto-score the new lead
-    const scoredLead = autoScoreLead(newLead);
-    leads.push(scoredLead);
-    
-    console.log(`✅ New lead created and scored: ${scoredLead.name} (Score: ${scoredLead.score}, Tier: ${scoredLead.scoreTier})`);
-    
+
+    const { data, error } = await supabaseAdmin.from('leads').insert(insertPayload).select('*').single();
+    if (error) {
+      throw error;
+    }
+
+    const mappedLead = mapLeadFromRow(data);
+    const needsScoreUpdate = data.score !== mappedLead.score;
+    if (needsScoreUpdate) {
+      await supabaseAdmin
+        .from('leads')
+        .update({ score: mappedLead.score, updated_at: new Date().toISOString() })
+        .eq('id', mappedLead.id);
+      mappedLead.updatedAt = new Date().toISOString();
+    }
+
+    await refreshLeadsCache(true);
+
+    console.log(
+      `✅ New lead created and scored: ${mappedLead.name} (Score: ${mappedLead.score}, Tier: ${mappedLead.scoreTier})`
+    );
+
     res.status(201).json({
       success: true,
-      lead: scoredLead,
+      lead: mappedLead,
       message: 'Lead created and scored successfully'
     });
   } catch (error) {
@@ -1415,32 +1781,70 @@ app.post('/api/admin/leads', (req, res) => {
 });
 
 // Update lead
-app.put('/api/admin/leads/:leadId', (req, res) => {
+app.put('/api/admin/leads/:leadId', async (req, res) => {
   try {
     const { leadId } = req.params;
-    const updates = req.body;
-    
-    const leadIndex = leads.findIndex(lead => lead.id === leadId);
-    if (leadIndex === -1) {
+    const updates = req.body || {};
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required' });
+    }
+
+    const updatePayload = {};
+    if (updates.name !== undefined) updatePayload.name = updates.name;
+    if (updates.email !== undefined) updatePayload.email = updates.email;
+    if (updates.phone !== undefined) updatePayload.phone = updates.phone;
+    if (updates.status !== undefined) updatePayload.status = updates.status;
+    if (updates.source !== undefined) updatePayload.source = updates.source;
+    if (updates.propertyInterest !== undefined) updatePayload.property_interest = updates.propertyInterest;
+    if (updates.budget !== undefined) updatePayload.budget = updates.budget;
+    if (updates.timeline !== undefined) updatePayload.timeline = updates.timeline;
+    if (updates.notes !== undefined) updatePayload.notes = updates.notes;
+    if (updates.lastMessage !== undefined) updatePayload.notes = updates.lastMessage;
+    if (updates.manualFollowUp !== undefined) updatePayload.manual_follow_up = updates.manualFollowUp;
+    if (updates.followUpSequenceId !== undefined) updatePayload.follow_up_sequence_id = updates.followUpSequenceId;
+    if (updates.lastContactAt !== undefined) updatePayload.last_contact_at = updates.lastContactAt;
+    if (updates.firstConversationAt !== undefined)
+      updatePayload.first_conversation_at = updates.firstConversationAt;
+    if (updates.lastConversationAt !== undefined)
+      updatePayload.last_conversation_at = updates.lastConversationAt;
+    if (updates.totalConversations !== undefined)
+      updatePayload.total_conversations = updates.totalConversations;
+
+    updatePayload.updated_at = new Date().toISOString();
+
+    const { data, error, status } = await supabaseAdmin
+      .from('leads')
+      .update(updatePayload)
+      .eq('id', leadId)
+      .select('*')
+      .single();
+
+    if (error && status === 406) {
       return res.status(404).json({ error: 'Lead not found' });
     }
-    
-    // Update lead data
-    leads[leadIndex] = {
-      ...leads[leadIndex],
-      ...updates,
-      updatedAt: new Date().toISOString()
-    };
-    
-    // Re-score the updated lead
-    const rescoredLead = autoScoreLead(leads[leadIndex]);
-    leads[leadIndex] = rescoredLead;
-    
-    console.log(`🔄 Lead updated and re-scored: ${rescoredLead.name} (Score: ${rescoredLead.score}, Tier: ${rescoredLead.scoreTier})`);
-    
+    if (error) {
+      throw error;
+    }
+
+    const mappedLead = mapLeadFromRow(data);
+    const needsScoreUpdate = data.score !== mappedLead.score;
+    if (needsScoreUpdate) {
+      await supabaseAdmin
+        .from('leads')
+        .update({ score: mappedLead.score, updated_at: new Date().toISOString() })
+        .eq('id', mappedLead.id);
+      mappedLead.updatedAt = new Date().toISOString();
+    }
+
+    await refreshLeadsCache(true);
+
+    console.log(
+      `🔄 Lead updated and re-scored: ${mappedLead.name} (Score: ${mappedLead.score}, Tier: ${mappedLead.scoreTier})`
+    );
+
     res.json({
       success: true,
-      lead: rescoredLead,
+      lead: mappedLead,
       message: 'Lead updated and re-scored successfully'
     });
   } catch (error) {
@@ -1450,21 +1854,26 @@ app.put('/api/admin/leads/:leadId', (req, res) => {
 });
 
 // Delete lead
-app.delete('/api/admin/leads/:leadId', (req, res) => {
+app.delete('/api/admin/leads/:leadId', async (req, res) => {
   try {
     const { leadId } = req.params;
-    
-    const leadIndex = leads.findIndex(lead => lead.id === leadId);
-    if (leadIndex === -1) {
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required' });
+    }
+
+    const { error, status } = await supabaseAdmin.from('leads').delete().eq('id', leadId);
+    if (error && status === 406) {
       return res.status(404).json({ error: 'Lead not found' });
     }
-    
-    const deletedLead = leads.splice(leadIndex, 1)[0];
-    
+    if (error) {
+      throw error;
+    }
+
+    await refreshLeadsCache(true);
+
     res.json({
       success: true,
-      message: 'Lead deleted successfully',
-      deletedLead
+      message: 'Lead deleted successfully'
     });
   } catch (error) {
     console.error('Delete lead error:', error);
@@ -1473,32 +1882,90 @@ app.delete('/api/admin/leads/:leadId', (req, res) => {
 });
 
 // Get lead statistics
-app.get('/api/admin/leads/stats', (req, res) => {
+app.get('/api/admin/leads/stats', async (req, res) => {
   try {
-    const stats = {
-      total: leads.length,
-      new: leads.filter(l => l.status === 'New').length,
-      qualified: leads.filter(l => l.status === 'Qualified').length,
-      contacted: leads.filter(l => l.status === 'Contacted').length,
-      showing: leads.filter(l => l.status === 'Showing').length,
-      lost: leads.filter(l => l.status === 'Lost').length,
-      conversionRate: leads.length > 0 ? 
-        ((leads.filter(l => l.status === 'Showing').length / leads.length) * 100).toFixed(1) : 0,
-      // Add scoring stats
+    await refreshLeadsCache(true);
+
+    const stats = buildLeadStats();
+    const totalScore = leads.reduce((sum, l) => sum + (l.score || 0), 0);
+    const highestScore = leads.length > 0 ? Math.max(...leads.map((l) => l.score || 0)) : 0;
+
+    res.json({
+      ...stats,
+      conversionRate:
+        leads.length > 0
+          ? ((leads.filter((l) => l.status === 'Showing').length / leads.length) * 100).toFixed(1)
+          : 0,
       scoreStats: {
-        averageScore: leads.length > 0 ? 
-          (leads.reduce((sum, l) => sum + (l.score || 0), 0) / leads.length).toFixed(1) : 0,
-        qualified: leads.filter(l => l.scoreTier === 'Qualified').length,
-        hot: leads.filter(l => l.scoreTier === 'Hot').length,
-        warm: leads.filter(l => l.scoreTier === 'Warm').length,
-        cold: leads.filter(l => l.scoreTier === 'Cold').length,
-        highestScore: leads.length > 0 ? Math.max(...leads.map(l => l.score || 0)) : 0
+        averageScore: leads.length > 0 ? (totalScore / leads.length).toFixed(1) : 0,
+        qualified: leads.filter((l) => l.scoreTier === 'Qualified').length,
+        hot: leads.filter((l) => l.scoreTier === 'Hot').length,
+        warm: leads.filter((l) => l.scoreTier === 'Warm').length,
+        cold: leads.filter((l) => l.scoreTier === 'Cold').length,
+        highestScore
       }
-    };
-    
-    res.json(stats);
+    });
   } catch (error) {
     console.error('Get lead stats error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Lead phone logs
+app.get('/api/admin/leads/:leadId/phone-logs', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('lead_phone_logs')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('call_started_at', { ascending: false });
+    if (error) {
+      throw error;
+    }
+
+    const logs = (data || []).map(mapPhoneLogFromRow).filter(Boolean);
+    res.json({ logs });
+  } catch (error) {
+    console.error('Get phone logs error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/leads/:leadId/phone-logs', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required' });
+    }
+
+    const { callStartedAt, callOutcome, callNotes } = req.body || {};
+    const payload = {
+      lead_id: leadId,
+      call_started_at: callStartedAt ? new Date(callStartedAt).toISOString() : new Date().toISOString(),
+      call_outcome: callOutcome || 'connected',
+      call_notes: callNotes || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('lead_phone_logs')
+      .insert(payload)
+      .select('*')
+      .single();
+    if (error) {
+      throw error;
+    }
+
+    const log = mapPhoneLogFromRow(data);
+    res.status(201).json({ success: true, log });
+  } catch (error) {
+    console.error('Create phone log error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1506,7 +1973,7 @@ app.get('/api/admin/leads/stats', (req, res) => {
 // ===== LEAD SCORING API ENDPOINTS =====
 
 // Calculate and get lead score
-app.post('/api/leads/:leadId/score', (req, res) => {
+app.post('/api/leads/:leadId/score', async (req, res) => {
   try {
     const leadId = (req.params.leadId || '').trim();
 
@@ -1518,7 +1985,8 @@ app.post('/api/leads/:leadId/score', (req, res) => {
       });
     }
 
-    const lead = leads.find(l => l.id === leadId);
+    await refreshLeadsCache(true);
+    const lead = leads.find((l) => l.id === leadId);
     if (!lead) {
       return res.status(404).json({
         success: false,
@@ -1538,18 +2006,32 @@ app.post('/api/leads/:leadId/score', (req, res) => {
     }
 
     const score = calculateLeadScore(lead);
+    const clampedScore = clampScore(score.totalScore);
 
-    // Update lead with new score
-    lead.score = score.totalScore;
+    await supabaseAdmin
+      .from('leads')
+      .update({
+        score: clampedScore,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', leadId);
+
+    lead.score = clampedScore;
     lead.scoreTier = score.tier;
     lead.scoreBreakdown = score.breakdown;
-    lead.scoreLastUpdated = score.lastUpdated;
+    lead.scoreLastUpdated = new Date().toISOString();
 
-    console.log(`📊 Lead scored: ${lead.name} (Score: ${score.totalScore}, Tier: ${score.tier})`);
+    console.log(`📊 Lead scored: ${lead.name} (Score: ${clampedScore}, Tier: ${score.tier})`);
 
     res.json({
       success: true,
-      score,
+      score: {
+        leadId: lead.id,
+        totalScore: clampedScore,
+        tier: score.tier,
+        breakdown: score.breakdown,
+        lastUpdated: lead.scoreLastUpdated
+      },
       message: 'Lead scored successfully',
       warnings: validation.warnings
     });
@@ -1565,7 +2047,7 @@ app.post('/api/leads/:leadId/score', (req, res) => {
 });
 
 // Get lead score
-app.get('/api/leads/:leadId/score', (req, res) => {
+app.get('/api/leads/:leadId/score', async (req, res) => {
   try {
     const leadId = (req.params.leadId || '').trim();
 
@@ -1577,7 +2059,8 @@ app.get('/api/leads/:leadId/score', (req, res) => {
       });
     }
 
-    const lead = leads.find(l => l.id === leadId);
+    await refreshLeadsCache(true);
+    const lead = leads.find((l) => l.id === leadId);
     if (!lead) {
       return res.status(404).json({
         success: false,
@@ -1613,12 +2096,15 @@ app.get('/api/leads/:leadId/score', (req, res) => {
 });
 
 // Bulk score all leads
-app.post('/api/leads/score-all', (req, res) => {
+app.post('/api/leads/score-all', async (req, res) => {
   try {
     const { leadIds } = req.body || {};
 
+    await refreshLeadsCache(true);
     let targetLeads = leads;
-    let requestedLeadIds = Array.isArray(leadIds) ? leadIds.filter(id => typeof id === 'string' && id.trim()) : null;
+    let requestedLeadIds = Array.isArray(leadIds)
+      ? leadIds.filter((id) => typeof id === 'string' && id.trim())
+      : null;
 
     if (leadIds !== undefined && !Array.isArray(leadIds)) {
       return res.status(400).json({
@@ -1629,36 +2115,48 @@ app.post('/api/leads/score-all', (req, res) => {
     }
 
     if (requestedLeadIds && requestedLeadIds.length > 0) {
-      requestedLeadIds = [...new Set(requestedLeadIds.map(id => id.trim()))];
-      targetLeads = leads.filter(lead => requestedLeadIds.includes(lead.id));
+      requestedLeadIds = [...new Set(requestedLeadIds.map((id) => id.trim()))];
+      targetLeads = leads.filter((lead) => requestedLeadIds.includes(lead.id));
     }
 
     const missingLeadIds = requestedLeadIds
-      ? requestedLeadIds.filter(id => !targetLeads.some(lead => lead.id === id))
+      ? requestedLeadIds.filter((id) => !targetLeads.some((lead) => lead.id === id))
       : [];
 
     let scoredCount = 0;
     const failedLeads = [];
     const warningLeads = [];
 
-    targetLeads.forEach(lead => {
+    for (const lead of targetLeads) {
       const validation = validateLeadForScoringPayload(lead);
-
       if (!validation.isValid) {
         failedLeads.push({
           leadId: lead?.id || 'unknown',
           leadName: lead?.name,
           reasons: validation.errors
         });
-        return;
+        continue;
       }
 
       try {
-        const previousScore = lead.score || 0;
-        autoScoreLead(lead);
-        if (lead.score !== previousScore) {
-          scoredCount++;
-        }
+        const score = calculateLeadScore(lead);
+        const clampedScore = clampScore(score.totalScore);
+
+        await supabaseAdmin
+          .from('leads')
+          .update({
+            score: clampedScore,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', lead.id);
+
+        lead.score = clampedScore;
+        lead.scoreTier = score.tier;
+        lead.scoreBreakdown = score.breakdown;
+        lead.scoreLastUpdated = new Date().toISOString();
+
+        scoredCount++;
+
         if (validation.warnings.length > 0) {
           warningLeads.push({
             leadId: lead.id,
@@ -1673,22 +2171,24 @@ app.post('/api/leads/score-all', (req, res) => {
           reasons: [`Scoring failed: ${scoringError.message}`]
         });
       }
-    });
+    }
 
-    console.log(`📊 Bulk scoring completed: ${scoredCount} leads scored, ${failedLeads.length} failed${missingLeadIds.length ? `, ${missingLeadIds.length} missing` : ''}`);
-    
-    res
-      .status(failedLeads.length > 0 ? 207 : 200)
-      .json({
-        success: failedLeads.length === 0,
-        message: `${scoredCount} lead${scoredCount === 1 ? '' : 's'} scored successfully`,
-        totalLeads: leads.length,
-        scoredLeads: scoredCount,
-        warnings: warningLeads,
-        failedLeads,
-        missingLeadIds: missingLeadIds.length > 0 ? missingLeadIds : undefined,
-        requestedLeadCount: requestedLeadIds ? requestedLeadIds.length : undefined
-      });
+    console.log(
+      `📊 Bulk scoring completed: ${scoredCount} leads scored, ${failedLeads.length} failed${
+        missingLeadIds.length ? `, ${missingLeadIds.length} missing` : ''
+      }`
+    );
+
+    res.status(failedLeads.length > 0 ? 207 : 200).json({
+      success: failedLeads.length === 0,
+      message: `${scoredCount} lead${scoredCount === 1 ? '' : 's'} scored successfully`,
+      totalLeads: leads.length,
+      scoredLeads: scoredCount,
+      warnings: warningLeads,
+      failedLeads,
+      missingLeadIds: missingLeadIds.length > 0 ? missingLeadIds : undefined,
+      requestedLeadCount: requestedLeadIds ? requestedLeadIds.length : undefined
+    });
   } catch (error) {
     console.error('Bulk score error:', error);
     res.status(500).json({
@@ -2326,590 +2826,927 @@ app.get('/api/training/insights/:sidekick', (req, res) => {
     }
 });
 
-// Conversation Management Endpoints
-let conversations = [];
-let messages = [];
+// Conversation Management Endpoints (Supabase-backed)
 
-// In-memory storage for listings/properties
-let listings = [
-  {
-    id: 'listing-demo-1',
-    title: 'Stunning Modern Family Home',
-    address: '123 Oak Street, Beverly Hills, CA 90210',
-    price: 1250000,
-    bedrooms: 4,
-    bathrooms: 3,
-    squareFeet: 2800,
-    propertyType: 'Single-Family Home',
-    description: 'Beautiful modern home with open floor plan, gourmet kitchen, and stunning mountain views. Perfect for entertaining with spacious living areas and private backyard oasis.',
-    features: ['Hardwood floors', 'Granite countertops', 'Stainless steel appliances', 'Fireplace', 'Swimming pool', 'Two-car garage'],
-    heroPhotos: ['/demo/home-1.png'],
-    galleryPhotos: ['/demo/home-1.png', '/demo/home-2.png', '/demo/home-3.png'],
-    status: 'active',
-    listingDate: '2024-01-15',
-    // Agent info from centralized profile
-    agent: {
-      id: 'default',
-      name: 'Sarah Johnson',
-      title: 'Luxury Real Estate Specialist',
-      company: 'Prestige Properties',
-      phone: '(305) 555-1234',
-      email: 'sarah.j@prestigeprop.com',
-      website: 'https://prestigeproperties.com',
-      headshotUrl: null,
-      brandColor: '#0ea5e9'
-    },
-    // Marketing data
-    marketing: {
-      views: 1247,
-      inquiries: 23,
-      showings: 8,
-      favorites: 45,
-      socialShares: 12,
-      leadGenerated: 15
-    },
-    // AI-generated content
-    aiContent: {
-      marketingDescription: 'Discover luxury living at its finest in this stunning modern family home...',
-      socialMediaPosts: [
-        '🏠✨ JUST LISTED! Stunning modern family home with mountain views! 4BR/3BA, gourmet kitchen, pool & more! #RealEstate #JustListed #DreamHome',
-        'Open House this weekend! Come see this incredible property with all the luxury amenities you\'ve been dreaming of! 🏡💫'
-      ],
-      emailTemplate: 'Subject: New Listing Alert - Stunning Modern Family Home\n\nDear [Name],\n\nI\'m excited to share this incredible new listing...'
-    },
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
-];
-
-// In-memory storage for appointments
-let appointments = [
-  {
-    id: 'appt-demo-1',
-    type: 'Consultation',
-    date: '2024-01-20',
-    time: '10:00 AM',
-    leadId: 'lead-demo-1',
-    leadName: 'Sarah Johnson',
-    propertyId: '',
-    notes: 'Initial consultation for first-time buyer',
-    status: 'Scheduled',
-    agentInfo: {
-      name: 'Sarah Johnson',
-      email: 'sarah.j@prestigeprop.com',
-      phone: '(305) 555-1234',
-      company: 'Prestige Properties'
-    },
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
-];
-
-// In-memory storage for AI Card profiles
-let aiCardProfiles = {
-  default: {
-    id: 'default',
-    fullName: 'Sarah Johnson',
-    professionalTitle: 'Luxury Real Estate Specialist',
-    company: 'Prestige Properties',
-    phone: '(305) 555-1234',
-    email: 'sarah.j@prestigeprop.com',
-    website: 'https://prestigeproperties.com',
-    bio: 'With over 15 years of experience in the luxury market, Sarah Johnson combines deep market knowledge with personalized service for client success. Her dedication and expertise make her a trusted advisor for buyers and sellers of distinguished properties.',
-    brandColor: '#0ea5e9',
-    socialMedia: {
-      facebook: 'https://facebook.com/sarahjohnsonrealty',
-      instagram: 'https://instagram.com/sarahjohnsonrealty',
-      twitter: 'https://twitter.com/sjrealty',
-      linkedin: 'https://linkedin.com/in/sarahjohnsonrealtor',
-      youtube: 'https://youtube.com/@sarahjohnsonrealty'
-    },
-    headshot: null,
-    logo: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
-};
+const ensureConversationOwner = (explicitUserId) => explicitUserId || DEFAULT_LEAD_USER_ID || null;
 
 // Create a new conversation
-app.post('/api/conversations', (req, res) => {
-    try {
-        const { userId, scope, listingId, title } = req.body;
-        
-        const conversation = {
-            id: `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            user_id: userId || null,
-            scope: scope || 'agent',
-            listing_id: listingId || null,
-            lead_id: null,
-            title: title || null,
-            status: 'active',
-            last_message_at: new Date().toISOString(),
-            created_at: new Date().toISOString()
-        };
-        
-        conversations.push(conversation);
-        console.log(`💬 Created conversation: ${conversation.id} (scope: ${scope})`);
-        
-        res.json(conversation);
-    } catch (error) {
-        console.error('Error creating conversation:', error);
-        res.status(500).json({ error: 'Failed to create conversation' });
+app.post('/api/conversations', async (req, res) => {
+  try {
+    const {
+      userId,
+      scope = 'agent',
+      listingId,
+      leadId,
+      title,
+      contactName,
+      contactEmail,
+      contactPhone,
+      type = 'chat',
+      intent,
+      language,
+      property,
+      tags,
+      voiceTranscript,
+      followUpTask,
+      metadata
+    } = req.body || {};
+
+    const ownerId = ensureConversationOwner(userId);
+    if (!ownerId) {
+      return res.status(400).json({ error: 'userId is required to create a conversation' });
     }
+
+    const now = new Date().toISOString();
+    const insertPayload = {
+      user_id: ownerId,
+      scope,
+      listing_id: listingId || null,
+      lead_id: leadId || null,
+      title: title || null,
+      contact_name: contactName || null,
+      contact_email: contactEmail || null,
+      contact_phone: contactPhone || null,
+      type,
+      intent: intent || null,
+      language: language || null,
+      property: property || null,
+      tags: tags || null,
+      voice_transcript: voiceTranscript || null,
+      follow_up_task: followUpTask || null,
+      metadata: metadata || null,
+      status: 'active',
+      last_message: null,
+      last_message_at: now,
+      message_count: 0,
+      created_at: now,
+      updated_at: now
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_conversations')
+      .insert(insertPayload)
+      .select(AI_CONVERSATION_SELECT_FIELDS)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(`💬 Created conversation: ${data.id} (scope: ${scope})`);
+    res.json(mapAiConversationFromRow(data));
+  } catch (error) {
+    console.error('Error creating conversation:', error);
+    res.status(500).json({ error: 'Failed to create conversation' });
+  }
 });
 
 // List conversations
-app.get('/api/conversations', (req, res) => {
-    try {
-        const { userId, scope, listingId } = req.query;
-        
-        let filtered = conversations.filter(conv => conv.status === 'active');
-        
-        if (userId) filtered = filtered.filter(conv => conv.user_id === userId);
-        if (scope) filtered = filtered.filter(conv => conv.scope === scope);
-        if (listingId) filtered = filtered.filter(conv => conv.listing_id === listingId);
-        
-        // Sort by last message time
-        filtered.sort((a, b) => new Date(b.last_message_at || b.created_at).getTime() - new Date(a.last_message_at || a.created_at).getTime());
-        
-        res.json(filtered);
-    } catch (error) {
-        console.error('Error listing conversations:', error);
-        res.status(500).json({ error: 'Failed to list conversations' });
+app.get('/api/conversations', async (req, res) => {
+  try {
+    const { userId, scope, listingId, status } = req.query;
+    const ownerId = ensureConversationOwner(userId);
+    if (!ownerId) {
+      return res.json([]);
     }
+
+    let query = supabaseAdmin
+      .from('ai_conversations')
+      .select(AI_CONVERSATION_SELECT_FIELDS)
+      .eq('user_id', ownerId)
+      .order('COALESCE(last_message_at, created_at)', { ascending: false });
+
+    if (scope) query = query.eq('scope', scope);
+    if (listingId) query = query.eq('listing_id', listingId);
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) {
+      throw error;
+    }
+
+    res.json((data || []).map(mapAiConversationFromRow));
+  } catch (error) {
+    console.error('Error listing conversations:', error);
+    res.status(500).json({ error: 'Failed to list conversations' });
+  }
 });
 
 // Get messages for a conversation
-app.get('/api/conversations/:conversationId/messages', (req, res) => {
-    try {
-        const { conversationId } = req.params;
-        const { limit = 100 } = req.query;
-        
-        const conversationMessages = messages
-            .filter(msg => msg.conversation_id === conversationId)
-            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-            .slice(-parseInt(limit));
-        
-        res.json(conversationMessages);
-    } catch (error) {
-        console.error('Error getting messages:', error);
-        res.status(500).json({ error: 'Failed to get messages' });
+app.get('/api/conversations/:conversationId/messages', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { limit = 100 } = req.query;
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .select(AI_CONVERSATION_MESSAGE_SELECT_FIELDS)
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+      .limit(parseInt(limit, 10));
+
+    if (error) {
+      throw error;
     }
+
+    res.json((data || []).map(mapAiConversationMessageFromRow));
+  } catch (error) {
+    console.error('Error getting messages:', error);
+    res.status(500).json({ error: 'Failed to get messages' });
+  }
 });
 
 // Add a message to a conversation
-app.post('/api/conversations/:conversationId/messages', (req, res) => {
-    try {
-        const { conversationId } = req.params;
-        const { role, content, userId, metadata } = req.body;
-        
-        const message = {
-            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            conversation_id: conversationId,
-            user_id: userId || null,
-            role: role,
-            content: content,
-            metadata: metadata || null,
-            created_at: new Date().toISOString()
-        };
-        
-        messages.push(message);
-        
-        // Update conversation last_message_at
-        const conversation = conversations.find(conv => conv.id === conversationId);
-        if (conversation) {
-            conversation.last_message_at = message.created_at;
-        }
-        
-        console.log(`💬 Added ${role} message to conversation ${conversationId}`);
-        
-        res.json(message);
-    } catch (error) {
-        console.error('Error adding message:', error);
-        res.status(500).json({ error: 'Failed to add message' });
+app.post('/api/conversations/:conversationId/messages', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { role, content, userId, metadata, translation, channel } = req.body || {};
+
+    const { data: conversation, error: conversationError } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id, user_id, message_count')
+      .eq('id', conversationId)
+      .maybeSingle();
+
+    if (conversationError) {
+      throw conversationError;
     }
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const sender =
+      role === 'user' ? 'agent' : role === 'system' ? 'ai' : role === 'ai' ? 'ai' : 'lead';
+    const normalizedChannel = channel || 'chat';
+
+    const insertPayload = {
+      conversation_id: conversationId,
+      user_id: userId || null,
+      sender,
+      channel: normalizedChannel,
+      content,
+      translation: translation || null,
+      metadata: metadata || null
+    };
+
+    const { data: messageRow, error: insertError } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .insert(insertPayload)
+      .select(AI_CONVERSATION_MESSAGE_SELECT_FIELDS)
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    await supabaseAdmin
+      .from('ai_conversations')
+      .update({
+        last_message: content,
+        last_message_at: messageRow.created_at,
+        message_count: (conversation.message_count || 0) + 1,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', conversationId);
+
+    console.log(`💬 Added ${sender} message to conversation ${conversationId}`);
+
+    res.json(mapAiConversationMessageFromRow(messageRow));
+  } catch (error) {
+    console.error('Error adding message:', error);
+    res.status(500).json({ error: 'Failed to add message' });
+  }
 });
 
 // Update conversation (e.g., title, status)
-app.put('/api/conversations/:conversationId', (req, res) => {
-    try {
-        const { conversationId } = req.params;
-        const { title, status, last_message_at } = req.body;
-        
-        const conversation = conversations.find(conv => conv.id === conversationId);
-        if (!conversation) {
-            return res.status(404).json({ error: 'Conversation not found' });
-        }
-        
-        if (title !== undefined) conversation.title = title;
-        if (status !== undefined) conversation.status = status;
-        if (last_message_at !== undefined) conversation.last_message_at = last_message_at;
-        
-        console.log(`💬 Updated conversation ${conversationId}`);
-        
-        res.json(conversation);
-    } catch (error) {
-        console.error('Error updating conversation:', error);
-        res.status(500).json({ error: 'Failed to update conversation' });
+app.put('/api/conversations/:conversationId', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { title, status, last_message_at, followUpTask, intent, language } = req.body || {};
+
+    const updates = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (title !== undefined) updates.title = title || null;
+    if (status !== undefined) updates.status = status;
+    if (last_message_at !== undefined) updates.last_message_at = last_message_at;
+    if (followUpTask !== undefined) updates.follow_up_task = followUpTask || null;
+    if (intent !== undefined) updates.intent = intent || null;
+    if (language !== undefined) updates.language = language || null;
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_conversations')
+      .update(updates)
+      .eq('id', conversationId)
+      .select(AI_CONVERSATION_SELECT_FIELDS)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      throw error;
     }
+
+    console.log(`💬 Updated conversation ${conversationId}`);
+    res.json(mapAiConversationFromRow(data));
+  } catch (error) {
+    console.error('Error updating conversation:', error);
+    res.status(500).json({ error: 'Failed to update conversation' });
+  }
 });
 
 // Export conversations to CSV
-app.get('/api/conversations/export/csv', (req, res) => {
-    try {
-        const { scope, userId, startDate, endDate } = req.query;
-        
-        // Filter conversations based on query parameters
-        let filteredConversations = conversations;
-        
-        if (scope) filteredConversations = filteredConversations.filter(conv => conv.scope === scope);
-        if (userId) filteredConversations = filteredConversations.filter(conv => conv.user_id === userId);
-        if (startDate) filteredConversations = filteredConversations.filter(conv => new Date(conv.created_at) >= new Date(startDate));
-        if (endDate) filteredConversations = filteredConversations.filter(conv => new Date(conv.created_at) <= new Date(endDate));
-        
-        // Prepare CSV data with conversation and message details
-        const csvData = [];
-        
-        // Add header row
-        csvData.push([
-            'Conversation ID',
-            'Title',
-            'Scope',
-            'User ID',
-            'Listing ID',
-            'Status',
-            'Created At',
-            'Last Message At',
-            'Message ID',
-            'Message Role',
-            'Message Content',
-            'Message Created At'
-        ]);
-        
-        // Add data rows
-        filteredConversations.forEach(conversation => {
-            const conversationMessages = messages.filter(msg => msg.conversation_id === conversation.id);
-            
-            if (conversationMessages.length === 0) {
-                // Add conversation row without messages
-                csvData.push([
-                    conversation.id,
-                    conversation.title || '',
-                    conversation.scope,
-                    conversation.user_id || '',
-                    conversation.listing_id || '',
-                    conversation.status,
-                    conversation.created_at,
-                    conversation.last_message_at || '',
-                    '',
-                    '',
-                    '',
-                    ''
-                ]);
-            } else {
-                // Add one row per message
-                conversationMessages
-                    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                    .forEach(message => {
-                        csvData.push([
-                            conversation.id,
-                            conversation.title || '',
-                            conversation.scope,
-                            conversation.user_id || '',
-                            conversation.listing_id || '',
-                            conversation.status,
-                            conversation.created_at,
-                            conversation.last_message_at || '',
-                            message.id,
-                            message.role,
-                            message.content.replace(/"/g, '""'), // Escape quotes in CSV
-                            message.created_at
-                        ]);
-                    });
-            }
-        });
-        
-        // Convert to CSV format
-        const csvContent = csvData.map(row => 
-            row.map(field => `"${field}"`).join(',')
-        ).join('\n');
-        
-        // Set headers for file download
-        const filename = `conversations_export_${new Date().toISOString().split('T')[0]}.csv`;
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        
-        console.log(`📊 Exporting ${filteredConversations.length} conversations to CSV`);
-        
-        res.send(csvContent);
-    } catch (error) {
-        console.error('Error exporting conversations to CSV:', error);
-        res.status(500).json({ error: 'Failed to export conversations' });
+app.get('/api/conversations/export/csv', async (req, res) => {
+  try {
+    const { scope, userId, startDate, endDate } = req.query;
+    const ownerId = ensureConversationOwner(userId);
+    if (!ownerId) {
+      return res.status(400).json({ error: 'userId is required for export' });
     }
+
+    let query = supabaseAdmin
+      .from('ai_conversations')
+      .select('*, ai_conversation_messages(*)')
+      .eq('user_id', ownerId);
+
+    if (scope) query = query.eq('scope', scope);
+    if (startDate) query = query.gte('created_at', startDate);
+    if (endDate) query = query.lte('created_at', endDate);
+
+    const { data, error } = await query;
+    if (error) {
+      throw error;
+    }
+
+    const csvRows = [
+      [
+        'Conversation ID',
+        'Title',
+        'Scope',
+        'Type',
+        'Status',
+        'Contact Name',
+        'Contact Email',
+        'Contact Phone',
+        'Property',
+        'Tags',
+        'Intent',
+        'Language',
+        'Created At',
+        'Last Message',
+        'Last Message At',
+        'Message Count',
+        'Message ID',
+        'Sender',
+        'Channel',
+        'Message Content',
+        'Translation',
+        'Message Created At'
+      ]
+    ];
+
+    (data || []).forEach((conversation) => {
+      const mappedConversation = mapAiConversationFromRow(conversation);
+      const conversationMessages = (conversation.ai_conversation_messages || []).map(
+        mapAiConversationMessageFromRow
+      );
+
+      if (conversationMessages.length === 0) {
+        csvRows.push([
+          mappedConversation.id,
+          mappedConversation.title || '',
+          mappedConversation.scope,
+          mappedConversation.type,
+          mappedConversation.status,
+          mappedConversation.contactName || '',
+          mappedConversation.contactEmail || '',
+          mappedConversation.contactPhone || '',
+          mappedConversation.property || '',
+          (mappedConversation.tags || []).join('; '),
+          mappedConversation.intent || '',
+          mappedConversation.language || '',
+          mappedConversation.created_at,
+          mappedConversation.lastMessage || '',
+          mappedConversation.lastMessageAt || '',
+          mappedConversation.messageCount.toString(),
+          '',
+          '',
+          '',
+          '',
+          '',
+          ''
+        ]);
+      } else {
+        conversationMessages.forEach((message) => {
+          csvRows.push([
+            mappedConversation.id,
+            mappedConversation.title || '',
+            mappedConversation.scope,
+            mappedConversation.type,
+            mappedConversation.status,
+            mappedConversation.contactName || '',
+            mappedConversation.contactEmail || '',
+            mappedConversation.contactPhone || '',
+            mappedConversation.property || '',
+            (mappedConversation.tags || []).join('; '),
+            mappedConversation.intent || '',
+            mappedConversation.language || '',
+            mappedConversation.created_at,
+            mappedConversation.lastMessage || '',
+            mappedConversation.lastMessageAt || '',
+            mappedConversation.messageCount.toString(),
+            message.id,
+            message.sender,
+            message.channel,
+            message.content.replace(/"/g, '""'),
+            message.translation ? JSON.stringify(message.translation).replace(/"/g, '""') : '',
+            message.created_at
+          ]);
+        });
+      }
+    });
+
+    const csvContent = csvRows.map((row) => row.map((field) => `"${field}"`).join(',')).join('\n');
+    const filename = `conversations_export_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    console.log(`📊 Exporting ${csvRows.length - 1} conversation rows to CSV`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('Error exporting conversations to CSV:', error);
+    res.status(500).json({ error: 'Failed to export conversations' });
+  }
 });
 
 // AI Card Profile Management Endpoints
 
 // Get AI Card profile
-app.get('/api/ai-card/profile', (req, res) => {
-    try {
-        const { userId } = req.query;
-        const profileId = userId || 'default';
-        const profile = aiCardProfiles[profileId] || aiCardProfiles.default;
-        
-        console.log(`🎴 Retrieved AI Card profile: ${profileId}`);
-        res.json(profile);
-    } catch (error) {
-        console.error('Error getting AI Card profile:', error);
-        res.status(500).json({ error: 'Failed to get AI Card profile' });
+app.get('/api/ai-card/profile', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+
+    if (!targetUserId) {
+      console.warn('[AI Card] No userId provided and DEFAULT_LEAD_USER_ID not configured. Returning default profile.');
+      return res.json(DEFAULT_AI_CARD_PROFILE);
     }
+
+    const profile = await fetchAiCardProfileForUser(targetUserId);
+    if (!profile) {
+      console.log(`🎴 AI Card profile not found for ${targetUserId}, returning default.`);
+      return res.json({ ...DEFAULT_AI_CARD_PROFILE, id: targetUserId });
+    }
+
+    console.log(`🎴 Retrieved AI Card profile: ${targetUserId}`);
+    res.json(profile);
+  } catch (error) {
+    console.error('Error getting AI Card profile:', error);
+    res.status(500).json({ error: 'Failed to get AI Card profile' });
+  }
 });
 
 // Create new AI Card profile
-app.post('/api/ai-card/profile', (req, res) => {
-    try {
-        const { userId, ...profileData } = req.body;
-        const profileId = userId || `profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
-        const newProfile = {
-            id: profileId,
-            ...profileData,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        };
-        
-        aiCardProfiles[profileId] = newProfile;
-        
-        console.log(`🎴 Created AI Card profile: ${profileId}`);
-        res.json(newProfile);
-    } catch (error) {
-        console.error('Error creating AI Card profile:', error);
-        res.status(500).json({ error: 'Failed to create AI Card profile' });
+app.post('/api/ai-card/profile', async (req, res) => {
+  try {
+    const { userId, ...profileData } = req.body || {};
+    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'userId is required to create AI Card profile' });
     }
+
+    const savedProfile = await upsertAiCardProfileForUser(targetUserId, profileData, {
+      mergeDefaults: true
+    });
+
+    console.log(`🎴 Created/updated AI Card profile: ${targetUserId}`);
+    res.json(savedProfile);
+  } catch (error) {
+    console.error('Error creating AI Card profile:', error);
+    res.status(500).json({ error: 'Failed to create AI Card profile' });
+  }
 });
 
 // Update AI Card profile
-app.put('/api/ai-card/profile', (req, res) => {
-    try {
-        const { userId, ...profileData } = req.body;
-        const profileId = userId || 'default';
-        
-        if (!aiCardProfiles[profileId]) {
-            return res.status(404).json({ error: 'AI Card profile not found' });
-        }
-        
-        const updatedProfile = {
-            ...aiCardProfiles[profileId],
-            ...profileData,
-            updated_at: new Date().toISOString()
-        };
-        
-        aiCardProfiles[profileId] = updatedProfile;
-        
-        console.log(`🎴 Updated AI Card profile: ${profileId}`);
-        res.json(updatedProfile);
-    } catch (error) {
-        console.error('Error updating AI Card profile:', error);
-        res.status(500).json({ error: 'Failed to update AI Card profile' });
+app.put('/api/ai-card/profile', async (req, res) => {
+  try {
+    const { userId, ...profileData } = req.body || {};
+    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'userId is required to update AI Card profile' });
     }
+
+    const savedProfile = await upsertAiCardProfileForUser(targetUserId, profileData);
+
+    console.log(`🎴 Updated AI Card profile: ${targetUserId}`);
+    res.json(savedProfile);
+  } catch (error) {
+    console.error('Error updating AI Card profile:', error);
+    res.status(500).json({ error: 'Failed to update AI Card profile' });
+  }
 });
 
 // Generate QR Code for AI Card
-app.post('/api/ai-card/generate-qr', (req, res) => {
-    try {
-        const { userId, cardUrl } = req.body;
-        const profileId = userId || 'default';
-        
-        // In a real implementation, you'd use a QR code library like 'qrcode'
-        // For now, we'll return a mock QR code data URL
-        const qrCodeData = `data:image/svg+xml;base64,${Buffer.from(`
-            <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
-                <rect width="200" height="200" fill="white"/>
-                <text x="100" y="100" text-anchor="middle" font-family="Arial" font-size="12" fill="black">
-                    QR Code for ${profileId}
-                </text>
-                <text x="100" y="120" text-anchor="middle" font-family="Arial" font-size="8" fill="gray">
-                    ${cardUrl || 'https://homelistingai.com/card/' + profileId}
-                </text>
-            </svg>
-        `).toString('base64')}`;
-        
-        console.log(`🎴 Generated QR code for AI Card: ${profileId}`);
-        res.json({ 
-            qrCode: qrCodeData,
-            url: cardUrl || `https://homelistingai.com/card/${profileId}`,
-            profileId 
-        });
-    } catch (error) {
-        console.error('Error generating QR code:', error);
-        res.status(500).json({ error: 'Failed to generate QR code' });
+app.post('/api/ai-card/generate-qr', async (req, res) => {
+  try {
+    const { userId, cardUrl } = req.body || {};
+    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+
+    if (!targetUserId) {
+      console.warn('[AI Card] QR generation fallback to default profile (no user id provided).');
     }
+
+    const profile =
+      (targetUserId && (await fetchAiCardProfileForUser(targetUserId))) ||
+      DEFAULT_AI_CARD_PROFILE;
+
+    const resolvedUrl = buildAiCardDestinationUrl(profile, targetUserId, cardUrl);
+    const qrCodeData = buildQrSvgDataUrl(profile.fullName, resolvedUrl);
+
+    console.log(`🎴 Generated QR code for AI Card: ${targetUserId || 'default'}`);
+    res.json({
+      qrCode: qrCodeData,
+      url: resolvedUrl,
+      profileId: profile.id || targetUserId || 'default'
+    });
+  } catch (error) {
+    console.error('Error generating QR code:', error);
+    res.status(500).json({ error: 'Failed to generate QR code' });
+  }
 });
 
 // Share AI Card
-app.post('/api/ai-card/share', (req, res) => {
-    try {
-        const { userId, method, recipient } = req.body;
-        const profileId = userId || 'default';
-        const profile = aiCardProfiles[profileId] || aiCardProfiles.default;
-        
-        const shareUrl = `https://homelistingai.com/card/${profileId}`;
-        const shareText = `Check out ${profile.fullName}'s AI Business Card - ${profile.professionalTitle} at ${profile.company}`;
-        
-        // In a real implementation, you'd integrate with email/SMS services
-        const shareData = {
-            url: shareUrl,
-            text: shareText,
-            method: method, // 'email', 'sms', 'social', 'copy'
-            recipient: recipient,
-            timestamp: new Date().toISOString()
-        };
-        
-        console.log(`🎴 Shared AI Card: ${profileId} via ${method}`);
-        res.json(shareData);
-    } catch (error) {
-        console.error('Error sharing AI Card:', error);
-        res.status(500).json({ error: 'Failed to share AI Card' });
+app.post('/api/ai-card/share', async (req, res) => {
+  try {
+    const { userId, method, recipient } = req.body || {};
+    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+
+    if (!targetUserId) {
+      console.warn('[AI Card] Sharing with default profile (no user id provided).');
     }
+
+    const profile =
+      (targetUserId && (await fetchAiCardProfileForUser(targetUserId))) ||
+      DEFAULT_AI_CARD_PROFILE;
+
+    const shareUrl = buildAiCardDestinationUrl(profile, targetUserId);
+    const displayName =
+      profile.fullName && profile.fullName.trim().length > 0 ? profile.fullName.trim() : 'Your Agent';
+    const titleText =
+      profile.professionalTitle && profile.professionalTitle.trim().length > 0
+        ? profile.professionalTitle.trim()
+        : 'Real Estate Professional';
+    const companyText =
+      profile.company && profile.company.trim().length > 0 ? profile.company.trim() : 'Your Team';
+    const shareText = `Check out ${displayName}'s AI Business Card - ${titleText} at ${companyText}`;
+
+    const shareData = {
+      url: shareUrl,
+      text: shareText,
+      method: method,
+      recipient: recipient,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`🎴 Shared AI Card: ${profile.id || targetUserId || 'default'} via ${method}`);
+    res.json(shareData);
+  } catch (error) {
+    console.error('Error sharing AI Card:', error);
+    res.status(500).json({ error: 'Failed to share AI Card' });
+  }
+});
+
+// List AI Card QR codes
+app.get('/api/ai-card/qr-codes', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+
+    if (!targetUserId) {
+      return res.json([]);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_card_qr_codes')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json((data || []).map(mapAiCardQrCodeFromRow));
+  } catch (error) {
+    console.error('Error listing AI Card QR codes:', error);
+    res.status(500).json({ error: 'Failed to list QR codes' });
+  }
+});
+
+// Create QR code
+app.post('/api/ai-card/qr-codes', async (req, res) => {
+  try {
+    const { userId, label, destinationUrl } = req.body || {};
+    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'userId is required to create a QR code' });
+    }
+    if (!label || !label.trim()) {
+      return res.status(400).json({ error: 'QR code label is required' });
+    }
+
+    const profile =
+      (await fetchAiCardProfileForUser(targetUserId)) || DEFAULT_AI_CARD_PROFILE;
+    const resolvedUrl = buildAiCardDestinationUrl(profile, targetUserId, destinationUrl);
+    const qrSvg = buildQrSvgDataUrl(profile.fullName, resolvedUrl);
+
+    const insertPayload = {
+      user_id: targetUserId,
+      label: label.trim(),
+      destination_url: resolvedUrl,
+      qr_svg: qrSvg,
+      total_scans: 0,
+      last_scanned_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_card_qr_codes')
+      .insert(insertPayload)
+      .select('*')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(`🎴 Created AI Card QR code "${label.trim()}" for ${targetUserId}`);
+    res.status(201).json(mapAiCardQrCodeFromRow(data));
+  } catch (error) {
+    console.error('Error creating AI Card QR code:', error);
+    res.status(500).json({ error: 'Failed to create QR code' });
+  }
+});
+
+// Update QR code
+app.put('/api/ai-card/qr-codes/:qrId', async (req, res) => {
+  try {
+    const { qrId } = req.params;
+    const { label, destinationUrl } = req.body || {};
+
+    const { data: existingRow, error: fetchError } = await supabaseAdmin
+      .from('ai_card_qr_codes')
+      .select('*')
+      .eq('id', qrId)
+      .maybeSingle();
+
+    if (fetchError) {
+      throw fetchError;
+    }
+    if (!existingRow) {
+      return res.status(404).json({ error: 'QR code not found' });
+    }
+
+    const updatePayload = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (label !== undefined) {
+      updatePayload.label = label.trim();
+    }
+
+    let resolvedUrl = existingRow.destination_url;
+    if (destinationUrl !== undefined) {
+      resolvedUrl = destinationUrl;
+      updatePayload.destination_url = destinationUrl;
+    }
+
+    if (destinationUrl !== undefined || label !== undefined) {
+      const profile =
+        (await fetchAiCardProfileForUser(existingRow.user_id)) || DEFAULT_AI_CARD_PROFILE;
+      const finalUrl = buildAiCardDestinationUrl(profile, existingRow.user_id, resolvedUrl);
+      updatePayload.destination_url = finalUrl;
+      updatePayload.qr_svg = buildQrSvgDataUrl(profile.fullName, finalUrl);
+    }
+
+    const { data: updatedRow, error: updateError } = await supabaseAdmin
+      .from('ai_card_qr_codes')
+      .update(updatePayload)
+      .eq('id', qrId)
+      .select('*')
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    console.log(`🎴 Updated AI Card QR code ${qrId}`);
+    res.json(mapAiCardQrCodeFromRow(updatedRow));
+  } catch (error) {
+    console.error('Error updating AI Card QR code:', error);
+    res.status(500).json({ error: 'Failed to update QR code' });
+  }
+});
+
+// Delete QR code
+app.delete('/api/ai-card/qr-codes/:qrId', async (req, res) => {
+  try {
+    const { qrId } = req.params;
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_card_qr_codes')
+      .delete()
+      .eq('id', qrId)
+      .select('*')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(`🎴 Deleted AI Card QR code ${qrId}`);
+    res.json({ success: true, qrCode: mapAiCardQrCodeFromRow(data) });
+  } catch (error) {
+    console.error('Error deleting AI Card QR code:', error);
+    res.status(500).json({ error: 'Failed to delete QR code' });
+  }
 });
 
 // Appointment Management Endpoints
 
 // Get all appointments
-app.get('/api/appointments', (req, res) => {
-    try {
-        const { status, leadId, date } = req.query;
-        let filteredAppointments = [...appointments];
-        
-        // Filter by status
-        if (status && status !== 'all') {
-            filteredAppointments = filteredAppointments.filter(appt => appt.status === status);
-        }
-        
-        // Filter by lead ID
-        if (leadId) {
-            filteredAppointments = filteredAppointments.filter(appt => appt.leadId === leadId);
-        }
-        
-        // Filter by date
-        if (date) {
-            filteredAppointments = filteredAppointments.filter(appt => appt.date === date);
-        }
-        
-        // Sort by date and time
-        filteredAppointments.sort((a, b) => {
-            const dateA = new Date(`${a.date} ${a.time}`);
-            const dateB = new Date(`${b.date} ${b.time}`);
-            return dateA.getTime() - dateB.getTime();
-        });
-        
-        console.log(`📅 Retrieved ${filteredAppointments.length} appointments`);
-        res.json({
-            appointments: filteredAppointments,
-            total: filteredAppointments.length
-        });
-    } catch (error) {
-        console.error('Error getting appointments:', error);
-        res.status(500).json({ error: 'Failed to get appointments' });
+app.get('/api/appointments', async (req, res) => {
+  try {
+    const { status, leadId, date, userId, agentId } = req.query;
+    const ownerId = userId || DEFAULT_LEAD_USER_ID;
+
+    if (!ownerId) {
+      return res.status(400).json({ error: 'DEFAULT_LEAD_USER_ID is not configured' });
     }
+
+    let query = supabaseAdmin
+      .from('appointments')
+      .select(APPOINTMENT_SELECT_FIELDS)
+      .eq('user_id', ownerId);
+
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    if (leadId) {
+      query = query.eq('lead_id', leadId);
+    }
+
+    if (date) {
+      query = query.eq('date', normalizeDateOnly(date));
+    }
+
+    query = query.order('start_iso', { ascending: true });
+
+    const { data, error } = await query;
+    if (error) {
+      throw error;
+    }
+
+    const agentProfile =
+      (await fetchAiCardProfileForUser(agentId || ownerId)) || DEFAULT_AI_CARD_PROFILE;
+
+    const appointments =
+      (data || [])
+        .map(mapAppointmentFromRow)
+        .filter(Boolean)
+        .map((appt) => decorateAppointmentWithAgent(appt, agentProfile)) || [];
+
+    console.log(`📅 Retrieved ${appointments.length} appointments from Supabase`);
+    res.json({
+      appointments,
+      total: appointments.length
+    });
+  } catch (error) {
+    console.error('Error getting appointments:', error);
+    res.status(500).json({ error: 'Failed to get appointments' });
+  }
 });
 
 // Create new appointment
-app.post('/api/appointments', (req, res) => {
-    try {
-        const { type, date, time, leadId, leadName, propertyId, notes, agentId } = req.body;
-        
-        if (!date || !time || !leadName) {
-            return res.status(400).json({ error: 'Date, time, and lead name are required' });
-        }
-        
-        // Get agent profile for appointment
-        const agentProfile = aiCardProfiles[agentId || 'default'] || aiCardProfiles.default;
-        
-        const newAppointment = {
-            id: `appt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: type || 'Consultation',
-            date,
-            time,
-            leadId: leadId || '',
-            leadName,
-            propertyId: propertyId || '',
-            notes: notes || '',
-            status: 'Scheduled',
-            // Add agent information from centralized profile
-            agentInfo: {
-                id: agentProfile.id,
-                name: agentProfile.fullName,
-                email: agentProfile.email,
-                phone: agentProfile.phone,
-                company: agentProfile.company,
-                title: agentProfile.professionalTitle,
-                brandColor: agentProfile.brandColor
-            },
-            // Add branded confirmation details
-            confirmationDetails: {
-                subject: `Appointment Confirmation - ${agentProfile.fullName}`,
-                message: `Your ${type || 'consultation'} appointment has been scheduled.\n\nDetails:\nDate: ${date}\nTime: ${time}\nAgent: ${agentProfile.fullName}\nCompany: ${agentProfile.company}\nPhone: ${agentProfile.phone}\nEmail: ${agentProfile.email}`,
-                signature: `${agentProfile.fullName}\n${agentProfile.professionalTitle}\n${agentProfile.company}\n${agentProfile.phone}\n${agentProfile.email}${agentProfile.website ? '\n' + agentProfile.website : ''}`
-            },
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        };
-        
-        appointments.push(newAppointment);
-        
-        console.log(`📅 Created appointment: ${type} with ${leadName} on ${date} at ${time} (Agent: ${agentProfile.fullName})`);
-        res.json(newAppointment);
-    } catch (error) {
-        console.error('Error creating appointment:', error);
-        res.status(500).json({ error: 'Failed to create appointment' });
+app.post('/api/appointments', async (req, res) => {
+  try {
+    const {
+      kind = 'Consultation',
+      date,
+      time,
+      timeLabel,
+      startIso,
+      endIso,
+      leadId,
+      leadName,
+      name,
+      email,
+      phone,
+      propertyId,
+      propertyAddress,
+      notes,
+      status = 'Scheduled',
+      remindAgent = true,
+      remindClient = true,
+      agentReminderMinutes = 60,
+      clientReminderMinutes = 60,
+      meetLink,
+      agentId,
+      userId
+    } = req.body || {};
+
+    const ownerId = userId || DEFAULT_LEAD_USER_ID;
+    if (!ownerId) {
+      return res.status(400).json({ error: 'DEFAULT_LEAD_USER_ID is not configured' });
     }
+
+    const contactName = (name || leadName || '').trim();
+    const contactEmail = (email || '').trim();
+    const day = normalizeDateOnly(date);
+    const label = (timeLabel || time || '').trim();
+
+    if (!day || !label || !contactName) {
+      return res.status(400).json({ error: 'Name, date, and time are required' });
+    }
+
+    const isoRange =
+      startIso && endIso ? { startIso, endIso } : computeAppointmentIsoRange(day, label);
+
+    const insertPayload = {
+      user_id: ownerId,
+      lead_id: isUuid(leadId) ? leadId : null,
+      property_id: propertyId || null,
+      property_address: propertyAddress || null,
+      kind,
+      name: contactName,
+      email: contactEmail || null,
+      phone: phone || null,
+      date: day,
+      time_label: label,
+      start_iso: isoRange.startIso,
+      end_iso: isoRange.endIso,
+      meet_link: meetLink || null,
+      notes: notes || null,
+      status,
+      remind_agent: Boolean(remindAgent),
+      remind_client: Boolean(remindClient),
+      agent_reminder_minutes_before: Number.isFinite(agentReminderMinutes)
+        ? agentReminderMinutes
+        : 60,
+      client_reminder_minutes_before: Number.isFinite(clientReminderMinutes)
+        ? clientReminderMinutes
+        : 60,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('appointments')
+      .insert(insertPayload)
+      .select(APPOINTMENT_SELECT_FIELDS)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    const agentProfile =
+      (await fetchAiCardProfileForUser(agentId || ownerId)) || DEFAULT_AI_CARD_PROFILE;
+    const appointment = decorateAppointmentWithAgent(mapAppointmentFromRow(data), agentProfile);
+
+    console.log(
+      `📅 Created appointment (${appointment.type}) with ${appointment.leadName} on ${appointment.date} at ${appointment.time}`
+    );
+    res.json(appointment);
+  } catch (error) {
+    console.error('Error creating appointment:', error);
+    res.status(500).json({ error: 'Failed to create appointment' });
+  }
 });
 
 // Update appointment
-app.put('/api/appointments/:appointmentId', (req, res) => {
-    try {
-        const { appointmentId } = req.params;
-        const updates = req.body;
-        
-        const appointmentIndex = appointments.findIndex(appt => appt.id === appointmentId);
-        if (appointmentIndex === -1) {
-            return res.status(404).json({ error: 'Appointment not found' });
-        }
-        
-        // Update appointment data
-        appointments[appointmentIndex] = {
-            ...appointments[appointmentIndex],
-            ...updates,
-            updated_at: new Date().toISOString()
-        };
-        
-        console.log(`📅 Updated appointment: ${appointmentId}`);
-        res.json(appointments[appointmentIndex]);
-    } catch (error) {
-        console.error('Error updating appointment:', error);
-        res.status(500).json({ error: 'Failed to update appointment' });
+app.put('/api/appointments/:appointmentId', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const updates = req.body || {};
+
+    const updatePayload = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (updates.kind) updatePayload.kind = updates.kind;
+    if (updates.name) updatePayload.name = updates.name;
+    if (updates.email !== undefined) updatePayload.email = updates.email || null;
+    if (updates.phone !== undefined) updatePayload.phone = updates.phone || null;
+    if (updates.notes !== undefined) updatePayload.notes = updates.notes || null;
+    if (updates.status) updatePayload.status = updates.status;
+    if (updates.meetLink !== undefined) updatePayload.meet_link = updates.meetLink || null;
+    if (updates.propertyId !== undefined) updatePayload.property_id = updates.propertyId || null;
+    if (updates.propertyAddress !== undefined) {
+      updatePayload.property_address = updates.propertyAddress || null;
     }
+    if (updates.remindAgent !== undefined) {
+      updatePayload.remind_agent = Boolean(updates.remindAgent);
+    }
+    if (updates.remindClient !== undefined) {
+      updatePayload.remind_client = Boolean(updates.remindClient);
+    }
+    if (updates.agentReminderMinutes !== undefined) {
+      updatePayload.agent_reminder_minutes_before = Number.isFinite(updates.agentReminderMinutes)
+        ? updates.agentReminderMinutes
+        : 60;
+    }
+    if (updates.clientReminderMinutes !== undefined) {
+      updatePayload.client_reminder_minutes_before = Number.isFinite(updates.clientReminderMinutes)
+        ? updates.clientReminderMinutes
+        : 60;
+    }
+    if (updates.leadId !== undefined) {
+      updatePayload.lead_id = isUuid(updates.leadId) ? updates.leadId : null;
+    }
+    if (updates.date) {
+      updatePayload.date = normalizeDateOnly(updates.date);
+    }
+
+    const timeLabel = updates.timeLabel || updates.time;
+    if (timeLabel) {
+      updatePayload.time_label = timeLabel;
+      const dayForRange = updatePayload.date || normalizeDateOnly(updates.date);
+      const startIso = updates.startIso;
+      const endIso = updates.endIso;
+      const isoRange =
+        startIso && endIso
+          ? { startIso, endIso }
+          : computeAppointmentIsoRange(dayForRange || new Date(), timeLabel);
+      updatePayload.start_iso = isoRange.startIso;
+      updatePayload.end_iso = isoRange.endIso;
+    } else if (updates.startIso && updates.endIso) {
+      updatePayload.start_iso = updates.startIso;
+      updatePayload.end_iso = updates.endIso;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('appointments')
+      .update(updatePayload)
+      .eq('id', appointmentId)
+      .select(APPOINTMENT_SELECT_FIELDS)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Appointment not found' });
+      }
+      throw error;
+    }
+
+    const agentProfile =
+      (await fetchAiCardProfileForUser(data.user_id)) || DEFAULT_AI_CARD_PROFILE;
+    const appointment = decorateAppointmentWithAgent(mapAppointmentFromRow(data), agentProfile);
+
+    console.log(`📅 Updated appointment: ${appointmentId}`);
+    res.json(appointment);
+  } catch (error) {
+    console.error('Error updating appointment:', error);
+    res.status(500).json({ error: 'Failed to update appointment' });
+  }
 });
 
 // Delete appointment
-app.delete('/api/appointments/:appointmentId', (req, res) => {
-    try {
-        const { appointmentId } = req.params;
-        
-        const appointmentIndex = appointments.findIndex(appt => appt.id === appointmentId);
-        if (appointmentIndex === -1) {
-            return res.status(404).json({ error: 'Appointment not found' });
-        }
-        
-        const deletedAppointment = appointments.splice(appointmentIndex, 1)[0];
-        
-        console.log(`📅 Deleted appointment: ${appointmentId}`);
-        res.json({ message: 'Appointment deleted successfully', appointment: deletedAppointment });
-    } catch (error) {
-        console.error('Error deleting appointment:', error);
-        res.status(500).json({ error: 'Failed to delete appointment' });
+app.delete('/api/appointments/:appointmentId', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+
+    const { data, error } = await supabaseAdmin
+      .from('appointments')
+      .delete()
+      .eq('id', appointmentId)
+      .select(APPOINTMENT_SELECT_FIELDS);
+
+    if (error) {
+      throw error;
     }
+
+    const deletedRow = Array.isArray(data) ? data[0] : data;
+    if (!deletedRow) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    console.log(`📅 Deleted appointment: ${appointmentId}`);
+    res.json({
+      message: 'Appointment deleted successfully',
+      appointment: mapAppointmentFromRow(deletedRow)
+    });
+  } catch (error) {
+    console.error('Error deleting appointment:', error);
+    res.status(500).json({ error: 'Failed to delete appointment' });
+  }
 });
 
 // Listing/Property Management Endpoints
@@ -3175,6 +4012,10 @@ console.log('   POST /api/ai-card/profile');
 console.log('   PUT  /api/ai-card/profile');
 console.log('   POST /api/ai-card/generate-qr');
 console.log('   POST /api/ai-card/share');
+console.log('   GET  /api/ai-card/qr-codes');
+console.log('   POST /api/ai-card/qr-codes');
+console.log('   PUT  /api/ai-card/qr-codes/:qrId');
+console.log('   DELETE /api/ai-card/qr-codes/:qrId');
 console.log('   📅 APPOINTMENT ENDPOINTS:');
 console.log('   GET  /api/appointments');
 console.log('   POST /api/appointments');

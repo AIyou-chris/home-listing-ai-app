@@ -36,7 +36,7 @@ export const getPublicUrl = (path?: string | null): string | null => {
 
 export const addTextKb = async (userId: string, sidekick: SidekickId, title: string, content: string): Promise<KbEntry> => {
 	const { data, error } = await supabase.from('ai_kb').insert({
-		user_id: userId,
+		user_id: userId, // TEXT type in DB
 		sidekick,
 		title,
 		type: 'text',

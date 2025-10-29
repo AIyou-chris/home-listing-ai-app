@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageCircle, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Check } from 'lucide-react';
 import QRCodeManagementPage from './QRCodeManagementPage';
-import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, type AICardProfile } from '../services/aiCardService';
+import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
 import { continueConversation } from '../services/openaiService';
 import { notifyProfileChange } from '../services/agentProfileService';
 import { createShortLink, ShortLink } from '../services/linkShortenerService';
@@ -9,23 +9,28 @@ import { createShortLink, ShortLink } from '../services/linkShortenerService';
 // Use the AICardProfile type from the service
 type AgentProfile = AICardProfile;
 
+const buildAssistantGreeting = (fullName?: string | null) =>
+  fullName && fullName.trim().length > 0
+    ? `Hi! I'm ${fullName.trim()}'s AI assistant. How can I help you today?`
+    : "Hi! I'm your AI assistant. How can I help you today?";
+
 const AICardPage: React.FC = () => {
   const [profile, setProfile] = useState<AgentProfile>({
     id: 'default',
-    fullName: 'Sarah Johnson',
-    professionalTitle: 'Luxury Real Estate Specialist',
-    company: 'Prestige Properties',
-    phone: '(305) 555-1234',
-    email: 'sarah.j@prestigeprop.com',
-    website: 'https://prestigeproperties.com',
-    bio: 'With over 15 years of experience in the luxury market, Sarah Johnson combines deep market knowledge with personalized service for client success. Her dedication and expertise make her a trusted advisor for buyers and sellers of distinguished properties.',
+    fullName: '',
+    professionalTitle: '',
+    company: '',
+    phone: '',
+    email: '',
+    website: '',
+    bio: '',
     brandColor: '#0ea5e9',
     socialMedia: {
-      facebook: 'https://facebook.com/sarahjohnsonrealty',
-      instagram: 'https://instagram.com/sarahjohnsonrealty',
-      twitter: 'https://twitter.com/sjrealty',
-      linkedin: 'https://linkedin.com/in/sarahjohnsonrealtor',
-      youtube: 'https://youtube.com/@sarahjohnsonrealty'
+      facebook: '',
+      instagram: '',
+      twitter: '',
+      linkedin: '',
+      youtube: ''
     },
     headshot: null,
     logo: null
@@ -34,7 +39,7 @@ const AICardPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{sender: 'user' | 'ai'; text: string}>>([
-    { sender: 'ai', text: `Hi! I'm ${profile.fullName}'s AI assistant. How can I help you today?` }
+    { sender: 'ai', text: buildAssistantGreeting(profile.fullName) }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -67,7 +72,7 @@ const AICardPage: React.FC = () => {
         const loadedProfile = await getAICardProfile();
         setProfile(loadedProfile);
         setChatMessages([
-          { sender: 'ai', text: `Hi! I'm ${loadedProfile.fullName}'s AI assistant. How can I help you today?` }
+          { sender: 'ai', text: buildAssistantGreeting(loadedProfile.fullName) }
         ]);
       } catch (error) {
         console.error('Failed to load AI Card profile:', error);
@@ -185,46 +190,47 @@ const AICardPage: React.FC = () => {
     }
   };
 
-  const handleImageUpload = (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const result = e.target?.result as string;
-        setProfile(prev => ({
-          ...prev,
-          [type]: result
-        }));
-        
-        // Auto-save image to backend
-        try {
-          setIsSaving(true);
-          const savedProfile = await updateAICardProfile({ [type]: result });
-          
-          // Notify other components of profile change
-          notifyProfileChange({
-            id: savedProfile.id,
-            name: savedProfile.fullName,
-            title: savedProfile.professionalTitle,
-            company: savedProfile.company,
-            phone: savedProfile.phone,
-            email: savedProfile.email,
-            website: savedProfile.website,
-            bio: savedProfile.bio,
-            headshotUrl: savedProfile.headshot,
-            logoUrl: savedProfile.logo,
-            brandColor: savedProfile.brandColor,
-            socialMedia: savedProfile.socialMedia,
-            created_at: savedProfile.created_at,
-            updated_at: savedProfile.updated_at
-          });
-        } catch (error) {
-          console.error('Failed to save image:', error);
-        } finally {
-          setIsSaving(false);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    setProfile(prev => ({
+      ...prev,
+      [type]: previewUrl
+    }));
+
+    try {
+      setIsSaving(true);
+      const uploadResult = await uploadAiCardAsset(type, file);
+      const savedProfile = await updateAICardProfile({ [type]: uploadResult.path });
+
+      setProfile(savedProfile);
+
+      notifyProfileChange({
+        id: savedProfile.id,
+        name: savedProfile.fullName,
+        title: savedProfile.professionalTitle,
+        company: savedProfile.company,
+        phone: savedProfile.phone,
+        email: savedProfile.email,
+        website: savedProfile.website,
+        bio: savedProfile.bio,
+        headshotUrl: savedProfile.headshot,
+        logoUrl: savedProfile.logo,
+        brandColor: savedProfile.brandColor,
+        socialMedia: savedProfile.socialMedia,
+        created_at: savedProfile.created_at,
+        updated_at: savedProfile.updated_at
+      });
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+    } finally {
+      setIsSaving(false);
+      URL.revokeObjectURL(previewUrl);
+      if (event.target) {
+        event.target.value = '';
+      }
     }
   };
 

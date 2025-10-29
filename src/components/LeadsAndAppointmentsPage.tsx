@@ -3,12 +3,10 @@ import React, { useState } from 'react';
 import { Lead, Appointment, LeadStatus } from '../types';
 import { scheduleAppointment } from '../services/schedulerService';
 import AddLeadModal from './AddLeadModal';
-import ScheduleAppointmentModal from './ScheduleAppointmentModal';
+import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from './ScheduleAppointmentModal';
 import ContactLeadModal from './ContactLeadModal';
 import CalendarView from './CalendarView';
 import ExportModal from './ExportModal';
-import LeadScoringDashboard from './LeadScoringDashboard';
-import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor } from '../services/leadScoringService';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: string, iconBgColor: string }> = ({ title, value, icon, iconBgColor }) => (
   <div className="bg-white rounded-lg shadow-sm p-5 flex items-center space-x-4">
@@ -86,32 +84,94 @@ const LeadsList: React.FC<{ leads: Lead[]; onSchedule: (lead: Lead) => void; onC
     </div>
 );
 
-const AppointmentsList: React.FC<{ appointments: Appointment[] }> = ({ appointments }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-slate-200/80 p-5">
-        <h3 className="text-lg font-bold text-slate-800 mb-4">Upcoming Appointments</h3>
-        {appointments.length > 0 ? (
-            <ul className="divide-y divide-slate-200">
-                {appointments.map(appt => (
-                    <li key={appt.id} className="py-3 flex justify-between items-center">
-                        <div>
-                            <p className="font-semibold text-slate-700">{appt.leadName}</p>
-                            <p className="text-sm text-slate-500">{appt.propertyAddress}</p>
-                        </div>
-                        <div className="text-right">
-                           <p className="font-semibold text-slate-700">{appt.time}</p>
-                           <p className="text-sm text-slate-500">{appt.date}</p>
-                        </div>
-                    </li>
-                ))}
-            </ul>
-        ) : (
-             <div className="text-center py-8 text-slate-500">
-                <span className="material-symbols-outlined w-10 h-10 mx-auto text-slate-300 mb-2">calendar_today</span>
-                <p>No upcoming appointments.</p>
-             </div>
-        )}
-    </div>
-);
+const formatReminderLabel = (minutes?: number) => {
+    if (!minutes || minutes <= 0) return '';
+    if (minutes === 15) return '15 min before';
+    if (minutes === 30) return '30 min before';
+    if (minutes === 60) return '1 hour before';
+    if (minutes === 120) return '2 hours before';
+    if (minutes === 180) return '3 hours before';
+    if (minutes === 720) return '12 hours before';
+    if (minutes === 1440) return '1 day before';
+    if (minutes % 60 === 0) return `${minutes / 60} hours before`;
+    return `${minutes} min before`;
+};
+
+const AppointmentsList: React.FC<{ appointments: Appointment[] }> = ({ appointments }) => {
+    const upcoming = [...appointments].sort((a, b) => {
+        const aStart = a.startIso ? new Date(a.startIso).getTime() : new Date(a.date).getTime();
+        const bStart = b.startIso ? new Date(b.startIso).getTime() : new Date(b.date).getTime();
+        return aStart - bStart;
+    });
+
+    return (
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200/80 p-5">
+            <h3 className="text-lg font-bold text-slate-800 mb-4">Upcoming Appointments</h3>
+            {upcoming.length > 0 ? (
+                <ul className="divide-y divide-slate-200">
+                    {upcoming.map(appt => (
+                        <li key={appt.id} className="py-3">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-semibold text-slate-700 truncate">{appt.leadName || 'Unnamed contact'}</p>
+                                        {appt.type && (
+                                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-primary-50 text-primary-700 border border-primary-100">
+                                                {appt.type}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {appt.propertyAddress && (
+                                        <p className="text-sm text-slate-500 mt-0.5 truncate">{appt.propertyAddress}</p>
+                                    )}
+                                    {appt.notes && (
+                                        <p className="mt-2 text-sm text-slate-600 max-h-[3.5rem] overflow-hidden">
+                                            <span className="font-medium text-slate-500">Notes:</span> {appt.notes}
+                                        </p>
+                                    )}
+                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                        {appt.remindAgent && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                                <span className="material-symbols-outlined text-base leading-none">notifications_active</span>
+                                                Agent {formatReminderLabel(appt.agentReminderMinutes)}
+                                            </span>
+                                        )}
+                                        {appt.remindClient && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                                <span className="material-symbols-outlined text-base leading-none">person</span>
+                                                Client {formatReminderLabel(appt.clientReminderMinutes)}
+                                            </span>
+                                        )}
+                                        {appt.meetLink && (
+                                            <a
+                                                href={appt.meetLink}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition"
+                                            >
+                                                <span className="material-symbols-outlined text-base leading-none">videocam</span>
+                                                Join link
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-right whitespace-nowrap">
+                                    <p className="font-semibold text-slate-700">{appt.time}</p>
+                                    <p className="text-sm text-slate-500">{appt.date}</p>
+                                </div>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <div className="text-center py-8 text-slate-500">
+                    <span className="material-symbols-outlined w-10 h-10 mx-auto text-slate-300 mb-2">calendar_today</span>
+                    <p>No upcoming appointments.</p>
+                </div>
+            )}
+        </div>
+    );
+};
 
 interface LeadsAndAppointmentsPageProps {
     leads: Lead[];
@@ -122,7 +182,7 @@ interface LeadsAndAppointmentsPageProps {
 }
 
 const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ leads, appointments, onAddNewLead, onBackToDashboard, onNewAppointment }) => {
-    const [activeTab, setActiveTab] = useState<'leads' | 'appointments' | 'scoring'>('leads');
+    const [activeTab, setActiveTab] = useState<'leads' | 'appointments'>('leads');
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -234,20 +294,6 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                                     <li><strong>Need to reschedule?</strong> Edit from the timeline and the system re-syncs reminders for you.</li>
                                 </ul>
                             </div>
-                            <div>
-                                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                                    <span className="material-symbols-outlined text-lg">analytics</span>
-                                    Lead Scoring
-                                </h2>
-                                <ul className="space-y-1.5 list-disc list-inside">
-                                    <li><strong>Score tiers:</strong> Qualified/Hot leads should get personal outreach—Warm & Cold can stay on nurture.</li>
-                                    <li><strong>Rule breakdown:</strong> Expand a lead to see which behaviors earned points and where to improve.</li>
-                                    <li><strong>Bulk scoring:</strong> Re-score after importing data to keep your pipeline priorities fresh.</li>
-                                </ul>
-                                <p className="mt-3 text-sm text-slate-500">
-                                    <strong>Pro tip:</strong> Train your Sidekicks to log call notes automatically so scoring stays accurate without manual effort.
-                                </p>
-                            </div>
                         </div>
                     )}
                 </div>
@@ -277,14 +323,6 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                                 count={appointments.length}
                             >
                                 Appointments
-                            </TabButton>
-                            <TabButton 
-                                isActive={activeTab === 'scoring'}
-                                onClick={() => setActiveTab('scoring')}
-                                icon="analytics"
-                                count={0}
-                            >
-                                Lead Scoring
                             </TabButton>
                         </nav>
                     </div>
@@ -319,7 +357,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                                 </div>
                             </div>
                         </div>
-                    ) : activeTab === 'appointments' ? (
+                    ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="lg:col-span-2">
                                 <div className="scale-95 origin-top rounded-lg overflow-hidden border border-slate-200">
@@ -330,14 +368,6 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                                 <AppointmentsList appointments={appointments} />
                             </div>
                         </div>
-                    ) : (
-                        <LeadScoringDashboard 
-                            leads={leads}
-                            onLeadSelect={(lead) => {
-                                setContactingLead(lead);
-                                setIsContactModalOpen(true);
-                            }}
-                        />
                     )}
                 </main>
             </div>
@@ -354,7 +384,8 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                 <ScheduleAppointmentModal 
                     lead={schedulingLead}
                     onClose={handleCloseScheduleModal}
-                    onSchedule={async (apptData) => {
+                    onSchedule={async (apptData: ScheduleAppointmentFormData) => {
+                        const linkedPropertyId = schedulingLead?.interestedProperties?.[0] || '';
                         try {
                             await scheduleAppointment({
                                 name: apptData.name,
@@ -363,19 +394,31 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                                 date: apptData.date,
                                 time: apptData.time,
                                 message: apptData.message,
-                                kind: 'Consultation'
+                                kind: apptData.kind,
+                                leadId: schedulingLead?.id,
+                                propertyId: linkedPropertyId,
+                                remindAgent: apptData.remindAgent,
+                                remindClient: apptData.remindClient,
+                                agentReminderMinutes: apptData.agentReminderMinutes,
+                                clientReminderMinutes: apptData.clientReminderMinutes
                             });
                         } catch {}
                         const appt: Appointment = {
                             id: `appt-${Date.now()}`,
-                            type: 'Consultation',
+                            type: apptData.kind,
                             date: apptData.date,
                             time: apptData.time,
                             leadId: schedulingLead?.id || 'manual',
-                            propertyId: '',
+                            propertyId: linkedPropertyId,
                             notes: apptData.message || '',
                             status: 'Scheduled',
-                            leadName: apptData.name
+                            leadName: apptData.name,
+                            email: apptData.email,
+                            phone: apptData.phone,
+                            remindAgent: apptData.remindAgent,
+                            remindClient: apptData.remindClient,
+                            agentReminderMinutes: apptData.agentReminderMinutes,
+                            clientReminderMinutes: apptData.clientReminderMinutes
                         };
                         onNewAppointment && onNewAppointment(appt);
                         handleCloseScheduleModal();

@@ -1,25 +1,42 @@
 import { supabase } from './supabase'
 
 export type ChatScope = 'agent' | 'listing' | 'marketing'
+export type ConversationChannel = 'chat' | 'voice' | 'email'
 
 export interface ConversationRow {
   id: string
   user_id: string | null
   scope: ChatScope
-  listing_id: string | null
-  lead_id: string | null
-  title: string | null
-  status: 'active' | 'archived'
-  last_message_at: string | null
+  listing_id?: string | null
+  lead_id?: string | null
+  title?: string | null
+  contact_name?: string | null
+  contact_email?: string | null
+  contact_phone?: string | null
+  type: ConversationChannel
+  last_message?: string | null
+  last_message_at?: string | null
+  status: 'active' | 'archived' | 'important' | 'follow-up'
+  message_count?: number
+  property?: string | null
+  tags?: string[] | null
+  intent?: string | null
+  language?: string | null
+  voice_transcript?: string | null
+  follow_up_task?: string | null
+  metadata?: any | null
   created_at: string
+  updated_at?: string | null
 }
 
 export interface MessageRow {
   id: string
   conversation_id: string
   user_id: string | null
-  role: 'user' | 'ai' | 'system'
+  sender: 'lead' | 'agent' | 'ai'
+  channel: ConversationChannel
   content: string
+  translation: any | null
   metadata: any | null
   created_at: string
 }
@@ -104,6 +121,8 @@ export const appendMessage = async (params: {
   conversationId: string
   role: 'user' | 'ai' | 'system'
   content: string
+  channel?: ConversationChannel
+  translation?: any
   userId?: string | null
   metadata?: any
 }) => {
@@ -116,6 +135,8 @@ export const appendMessage = async (params: {
       body: JSON.stringify({
         role: params.role,
         content: params.content,
+        channel: params.channel,
+        translation: params.translation,
         userId: params.userId,
         metadata: params.metadata
       }),
@@ -220,4 +241,3 @@ export const exportConversationsCSV = async (params: {
     throw error;
   }
 }
-

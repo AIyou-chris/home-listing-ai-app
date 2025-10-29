@@ -15,6 +15,13 @@ export interface CalendarResult {
     eventId: string;
 }
 
+export interface ContactMessageData {
+    name: string;
+    email: string;
+    phone?: string;
+    message: string;
+}
+
 class EmailService {
     private static instance: EmailService;
 
@@ -249,6 +256,54 @@ We've logged your booking details for follow-up.`);
             return true; // Return true since the booking was successful
         } catch (error) {
             console.error('❌ Error in admin notification:', error);
+            return false;
+        }
+    }
+
+    async sendContactMessage(data: ContactMessageData): Promise<boolean> {
+        try {
+            console.log('📧 Forwarding contact message to admin inbox');
+
+            const adminEmail = 'us@homelistingai.com';
+            const subject = `New contact message from ${data.name}`;
+            const html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #1e293b;">New Contact Message</h2>
+                    <p>You received a new message from the website contact form.</p>
+
+                    <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0;">Contact Details</h3>
+                        <p><strong>Name:</strong> ${data.name}</p>
+                        <p><strong>Email:</strong> <a href="mailto:${data.email}" style="color: #1e40af;">${data.email}</a></p>
+                        <p><strong>Phone:</strong> ${data.phone || 'Not provided'}</p>
+                    </div>
+
+                    <div style="background-color: #eef2ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0;">Message</h3>
+                        <p style="white-space: pre-wrap;">${data.message}</p>
+                    </div>
+
+                    <p>Reply directly to the sender to continue the conversation.</p>
+                </div>
+            `;
+
+            const sent = await this.sendEmail(adminEmail, subject, html, data.email);
+            if (sent) {
+                console.log('✅ Contact message forwarded successfully');
+                return true;
+            }
+
+            console.log('⚠️ Contact email could not be sent via Gmail, logging instead:');
+            console.table({
+                name: data.name,
+                email: data.email,
+                phone: data.phone ?? 'N/A',
+                message: data.message
+            });
+
+            return true;
+        } catch (error) {
+            console.error('❌ Error sending contact message:', error);
             return false;
         }
     }

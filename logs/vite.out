@@ -4,78 +4,94 @@
 
 Port 5173 is in use, trying another one...
 Port 5174 is in use, trying another one...
+
+  VITE v5.4.19  ready in 935 ms
+
+  ➜  Local:   http://localhost:5175/
+  ➜  Network: http://192.168.1.28:5175/
+  ➜  press h + enter to show help
+Port 5173 is in use, trying another one...
+Port 5174 is in use, trying another one...
 Port 5175 is in use, trying another one...
 Port 5176 is in use, trying another one...
 
-  VITE v5.4.19  ready in 2070 ms
+  VITE v5.4.21  ready in 713 ms
 
   ➜  Local:   http://localhost:5177/
   ➜  Network: http://192.168.1.28:5177/
   ➜  press h + enter to show help
-7:22:15 PM [vite] .env.local changed, restarting server...
-7:22:15 PM [vite] server restarted.
-7:22:18 PM [vite] .env.local changed, restarting server...
-7:22:18 PM [vite] server restarted.
-7:24:57 PM [vite] .env.local changed, restarting se7:24:57 7:24:57 PM [vite] server restarted.
-7:24:59 PM [vite] .env.local changed, restarting server...
-7:24:59 PM [vite] server restarted.
-7:25:09 PM [vite] .env.local changed, restarting server...
-7:25:09 PM [vite] server restarted.
-7:25:10 PM [vite] .env.local changed, restarting server...
-7:25:10 PM [vite] server restarted.
-7:26:44 PM [vite] .env.local changed, restarting server...
-7:26:44 PM [vite] server restarted.
-8:05:19 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-0 PM [vite] server restarted.
-7:26:44 PM [vite] .env.local changed, restarting s7:26:44 P7:26:44 PM [vite] server restarted.
-8:05:19 AM [vite] hmr update /src/components/AIAgentHub.tsx, /src/index.css
-9:27:24 AM [vite] hmr update /src/components/AIInteractiveTraining.tsx, /src/index.css
-10:02:34 AM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/LandingPage.tsx, /src/components/AnalyticsPage.tsx
-10:12:55 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
-10:12:59 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
-10:13:04 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
-10:13:11 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
-10:13:16 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
-10:13:51 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
-10:15:48 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
-10:23:24 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
-10:23:47 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
-10:24:09 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
-10:24:14 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
-10:28:05 AM [vite] hmr update /src/components/CreateSequenceModal.tsx, /src/index.css
-10:28:20 AM [vite] hmr update /src/components/SequenceTemplateModal.tsx, /src/index.css
-10:39:19 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
-10:57:58 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
-11:05:30 AM [vite] hmr update /src/components/MarketingPage.tsx, /src/index.css
-11:23:17 AM [vite] hmr update /src/components/LeadFollowUpsPage.tsx, /src/index.css
-11:31:29 AM [vite] hmr update /src/components/AnalyticsPage.tsx, /src/index.css
-11:35:22 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-11:35:45 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-11:36:05 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-11:38:38 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-11:39:00 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-11:40:02 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-11:42:27 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-11:49:14 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-11:49:55 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:06:30 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:06:54 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:08:07 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:16:02 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:16:21 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:20:20 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:22:28 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:23:09 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:28:02 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:30:43 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:31:14 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:33:55 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:42:28 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
-12:49:57 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
-12:52:34 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
-12:55:33 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:55:56 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-12:59:34 PM [vite] hmr update /src/components/Sidebar.tsx, /src/index.css
-1:03:36 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-1:04:21 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
-1:06:57 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:31:49 PM [vite] hmr update /src/index.css, /src/components/AICardPage.tsx, /src/App.tsx
+5:32:21 PM [vite] hmr update /src/components/QRCodeManagementPage.tsx, /src/index.css
+5:32:21 PM [vite] Pre-transform error: Failed to load url /src/components/QRCodeManagementPage.tsx (resolved id: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/QRCodeManagementPage.tsx) in /Volumes/GFY/EatADick/home-listing-ai-app/src/components/AICardPage.tsx. Does the file exist?
+5:33:57 PM [vite] hmr update /src/components/QRCodeManagementPage.tsx
+Port 5173 is in use, trying another one...
+Port 5174 is in use, trying another one...
+Port 5175 is in use, trying another one...
+Port 5176 is in use, trying another one...
+Port 5177 is in use, trying another one...
+
+  VITE v5.4.21  ready in 855 ms
+
+  ➜  Local:   http://localhost:5178/
+  ➜  Network: http://192.168.1.28:5178/
+error when starting dev server:
+Error: listen EPERM: operation not permitted 0.0.0.0:5173
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at httpServer.listen (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:63419:14)
+6:07:52 PM [vite] .env.local changed, restarting server...
+6:07:52 PM [vite] server restarted.
+6:08:07 PM [vite] .env.local changed, restarting server...
+6:08:07 PM [vite] server restarted.
+6:09:11 PM [vite] .env.local changed, restarting server...
+6:09:11 PM [vite] server restarted.
+Port 5173 is in use, trying another one...
+Port 5174 is in use, trying another one...
+Port 5175 is in use, trying another one...
+Port 5176 is in use, trying another one...
+Port 5177 is in use, trying another one...
+Port 5178 is in use, trying another one...
+
+  VITE v5.4.21  ready in 853 ms
+
+  ➜  Local:   http://localhost:5179/
+  ➜  Network: http://192.168.1.28:5179/
+error when starting dev server:
+Error: listen EPERM: operation not permitted 0.0.0.0:5173
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at httpServer.listen (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:63419:14)
+7:17:06 PM [vite] .env.local changed, restarting server...
+7:17:06 PM [vite] .env.local changed, restarting server...
+7:17:06 PM [vite] server restarted.
+7:17:06 PM [vite] server restarted.
+7:17:25 PM [vite] .env.local changed, restarting server...
+7:17:25 PM [vite] .env.local changed, restarting server...
+7:17:25 PM [vite] .env.local changed, restarting server...
+7:17:25 PM [vite] .env.local changed, restarting server...
+7:17:25 PM [vite] server restarted.
+7:17:25 PM [vite] server restarted.
+Port 5173 is in use, trying another one...
+Port 5174 is in use, trying another one...
+Port 5175 is in use, trying another one...
+Port 5176 is in use, trying another one...
+Port 5177 is in use, trying another one...
+Port 5178 is in use, trying another one...
+Port 5179 is in use, trying another one...
+
+  VITE v5.4.21  ready in 897 ms
+
+  ➜  Local:   http://localhost:5180/
+  ➜  Network: http://192.168.1.28:5180/
+error when starting dev server:
+Error: listen EPERM: operation not permitted 0.0.0.0:5173
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at httpServer.listen (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:63419:14)
+8:22:48 PM [vite] hmr update /src/index.css, /src/components/ListingSidekickWidget.tsx
+8:23:13 PM [vite] hmr update /src/index.css, /src/components/ListingSidekickWidget.tsx
+8:23:33 PM [vite] hmr update /src/components/AIConversationsPage.tsx, /src/index.css
+8:25:44 PM [vite] hmr update /src/components/AIConversationsPage.tsx

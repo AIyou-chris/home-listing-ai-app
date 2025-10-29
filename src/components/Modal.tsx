@@ -16,7 +16,7 @@ const Modal: React.FC<ModalProps> = ({ title, onClose, children, isOpen = true }
             onClick={onClose}
         >
             <div
-                className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg m-4"
+                className="relative bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] m-4 flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()} // Prevent click from closing modal
             >
                 <div className="flex items-start justify-between p-5 border-b border-slate-200">
@@ -33,7 +33,7 @@ const Modal: React.FC<ModalProps> = ({ title, onClose, children, isOpen = true }
                         <span className="material-symbols-outlined w-6 h-6">close</span>
                     </button>
                 </div>
-                <div>{children}</div>
+                <div className="flex-1 overflow-y-auto">{children}</div>
             </div>
         </div>
     );

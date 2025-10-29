@@ -36,9 +36,11 @@ export type View =
     | 'marketing'
     | 'settings'
     | 'demo-dashboard'
+    | 'dashboard-blueprint'
     | 'landing'
     | 'new-landing'
     | 'signup'
+    | 'checkout'
     | 'signin'
     | 'admin-dashboard'
     | 'admin-users'
@@ -185,12 +187,23 @@ export interface Appointment {
     type: 'Showing' | 'Consultation' | 'Open House' | 'Virtual Tour' | 'Follow-up';
     date: string;
     time: string;
-    leadId: string;
-    propertyId: string;
-    notes: string;
+    leadId?: string | null;
+    propertyId?: string | null;
+    notes?: string;
     status?: 'Scheduled' | 'Completed' | 'Cancelled';
     leadName?: string;
-    propertyAddress?: string;
+    propertyAddress?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    meetLink?: string | null;
+    remindAgent?: boolean;
+    remindClient?: boolean;
+    agentReminderMinutes?: number;
+    clientReminderMinutes?: number;
+    startIso?: string;
+    endIso?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface Conversation {

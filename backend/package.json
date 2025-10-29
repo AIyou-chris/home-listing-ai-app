@@ -9,12 +9,14 @@
     "dev": "node server.cjs"
   },
   "dependencies": {
+    "@paypal/checkout-server-sdk": "^1.0.5",
     "@google/genai": "^0.14.0",
     "@supabase/supabase-js": "^2.56.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
-    "openai": "^5.12.2"
+    "openai": "^5.12.2",
+    "stripe": "^14.25.0"
   }
 }

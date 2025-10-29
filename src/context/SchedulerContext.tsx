@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import ScheduleAppointmentModal from '../components/ScheduleAppointmentModal'
+import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from '../components/ScheduleAppointmentModal'
 import { scheduleAppointment, AppointmentKind } from '../services/schedulerService'
 
 interface OpenOptions {
@@ -62,7 +62,7 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
               : null
           }
           onClose={handleClose}
-          onSchedule={async (data: any) => {
+          onSchedule={async (data: ScheduleAppointmentFormData) => {
             if (submitting) return
             setSubmitting(true)
             try {
@@ -73,7 +73,11 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
                 date: data.date,
                 time: data.time,
                 message: data.message,
-                kind: prefill?.kind || 'Consultation'
+                kind: data.kind || prefill?.kind || 'Consultation',
+                remindAgent: data.remindAgent,
+                remindClient: data.remindClient,
+                agentReminderMinutes: data.agentReminderMinutes,
+                clientReminderMinutes: data.clientReminderMinutes
               })
               handleClose()
               alert('Appointment scheduled successfully')
@@ -89,5 +93,4 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
     </SchedulerContext.Provider>
   )
 }
-
 

@@ -30,7 +30,11 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
         time: form.time,
         message: `${form.notes}${propertyAddress ? `\nProperty: ${propertyAddress}` : ''}`.trim(),
         kind: 'Showing',
-        agentEmail
+        agentEmail,
+        remindAgent: true,
+        remindClient: true,
+        agentReminderMinutes: 60,
+        clientReminderMinutes: 1440
       })
       setStatus('success')
       setTimeout(() => { onSuccess?.(); onClose() }, 1500)
@@ -99,5 +103,4 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
 }
 
 export default ViewingModal
-
 

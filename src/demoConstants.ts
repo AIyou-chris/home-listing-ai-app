@@ -134,7 +134,13 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     time: '10:00',
     type: 'Showing',
     status: 'Scheduled',
-    notes: 'Client specifically interested in outdoor space and school district.'
+    notes: 'Client specifically interested in outdoor space and school district.',
+    email: 'marcus.chen@techcorp.com',
+    phone: '(555) 987-6543',
+    remindAgent: true,
+    remindClient: true,
+    agentReminderMinutes: 60,
+    clientReminderMinutes: 1440
   },
   {
     id: 'appt-demo-2', 
@@ -146,7 +152,13 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     time: '14:30',
     type: 'Showing',
     status: 'Scheduled',
-    notes: 'First-time buyer, wants to see pool area and architectural details.'
+    notes: 'First-time buyer, wants to see pool area and architectural details.',
+    email: 'emily.r@email.com',
+    phone: '(555) 123-4567',
+    remindAgent: true,
+    remindClient: true,
+    agentReminderMinutes: 60,
+    clientReminderMinutes: 720
   }
 ];
 
