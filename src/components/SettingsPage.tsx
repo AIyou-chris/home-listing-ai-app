@@ -248,7 +248,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
         }
     };
 
-    const handleEmailDisconnect = async (provider: 'gmail') => {
+    const handleEmailDisconnect = async (provider: 'gmail' | 'outlook') => {
         try {
             await emailAuthService.disconnect(provider);
             setEmailConnections(prev => prev.filter(c => c.provider !== provider));
@@ -1933,8 +1933,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                             </div>
                         )}
 
-                        {activeTab !== 'profile' &&
-                            activeTab !== 'notifications' &&
+                        {activeTab !== 'notifications' &&
                             activeTab !== 'email' &&
                             activeTab !== 'calendar' &&
                             activeTab !== 'security' &&

@@ -96,7 +96,10 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
       setConversationId(convId)
       try {
         const msgs = await getMessages(convId)
-        const mapped = msgs.map(m => ({ sender: (m.role === 'user' ? 'user' : 'ai') as any, text: m.content }))
+        const mapped = msgs.map((m): { sender: 'user' | 'ai'; text: string } => ({
+          sender: m.sender === 'ai' ? 'ai' : 'user',
+          text: m.content
+        }))
         if (mapped.length) setHistory(mapped)
       } catch {}
     })()
@@ -137,5 +140,3 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
 }
 
 export default ListingSidekickWidget
-
-

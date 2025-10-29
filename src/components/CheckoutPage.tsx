@@ -137,7 +137,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
           <div className="px-8 py-10 space-y-8">
             {isLoading ? (
               <div className="flex justify-center py-10">
-                <LoadingSpinner label="Loading your registration..." />
+                <LoadingSpinner text="Loading your registration..." />
               </div>
             ) : (
               <>

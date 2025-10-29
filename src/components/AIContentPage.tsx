@@ -86,8 +86,11 @@ const AIContentPage: React.FC = () => {
       if (!conversationId) return
       try {
         const msgs = await getMessages(conversationId)
-        const mapped = msgs.map(m => ({ role: (m.role as any), text: m.content }))
-        if (mapped.length) setHistory(mapped as any)
+        const mapped = msgs.map((m): { role: 'user' | 'ai'; text: string } => ({
+          role: m.sender === 'ai' ? 'ai' : 'user',
+          text: m.content
+        }))
+        if (mapped.length) setHistory(mapped)
       } catch {}
     })()
   }, [conversationId])
@@ -106,8 +109,11 @@ const AIContentPage: React.FC = () => {
     setConversationId(id)
     try {
       const msgs = await getMessages(id)
-      const mapped = msgs.map(m => ({ role: (m.role as any), text: m.content }))
-      setHistory(mapped as any)
+      const mapped = msgs.map((m): { role: 'user' | 'ai'; text: string } => ({
+        role: m.sender === 'ai' ? 'ai' : 'user',
+        text: m.content
+      }))
+      setHistory(mapped)
       setTab('chat')
     } catch {}
   }
@@ -378,5 +384,3 @@ Requirements:
 }
 
 export default AIContentPage
-
-

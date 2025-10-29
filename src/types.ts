@@ -177,6 +177,11 @@ export interface Lead {
     interestedProperties?: string[];
     lastContact?: string;
     createdAt?: string;
+    aiInteractions?: Array<{
+        timestamp: string;
+        type: string;
+        summary: string;
+    }>;
 }
 
 export interface LeadBehavior {
