@@ -31,6 +31,10 @@ import {
   Interaction
 } from '../types';
 
+type MarketingSequencesResponse = {
+  sequences?: FollowUpSequence[];
+};
+
 const AgentDashboardBlueprint: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -47,7 +51,7 @@ const AgentDashboardBlueprint: React.FC = () => {
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
-  const [isLeadsLoading, setIsLeadsLoading] = useState<boolean>(false);
+  const [, setIsLeadsLoading] = useState<boolean>(false);
 
   const [agentProfile, setAgentProfile] = useState<AgentProfile>({
     ...SAMPLE_AGENT,
@@ -120,6 +124,41 @@ const AgentDashboardBlueprint: React.FC = () => {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSequences = async () => {
+      if (sequences.length) return;
+
+      try {
+        const response = await fetch('/api/admin/marketing/sequences');
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        const data: MarketingSequencesResponse = await response.json();
+        if (!isMounted) return;
+
+        if (Array.isArray(data?.sequences)) {
+          setSequences(
+            data.sequences.map((sequence) => ({
+              ...sequence,
+              steps: Array.isArray(sequence?.steps) ? sequence.steps : []
+            }))
+          );
+        }
+      } catch (error) {
+        console.error('[Blueprint] Unable to load follow-up sequences:', error);
+      }
+    };
+
+    loadSequences();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [sequences.length]);
 
   const handleSelectProperty = (id: string) => {
     setSelectedPropertyId(id);

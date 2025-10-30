@@ -17,8 +17,13 @@ export interface AIDescription {
   paragraphs: string[];
 }
 
-export function isAIDescription(description: any): description is AIDescription {
-  return description && typeof description === 'object' && typeof description.title === 'string' && Array.isArray(description.paragraphs);
+export function isAIDescription(description: unknown): description is AIDescription {
+  if (!description || typeof description !== 'object') {
+    return false;
+  }
+
+  const candidate = description as { title?: unknown; paragraphs?: unknown };
+  return typeof candidate.title === 'string' && Array.isArray(candidate.paragraphs);
 }
 
 // Expanded View union to include additional development/test routes used in the app
@@ -182,6 +187,7 @@ export interface Lead {
         type: string;
         summary: string;
     }>;
+    activeSequences?: string[];
 }
 
 export interface LeadBehavior {
@@ -189,7 +195,7 @@ export interface LeadBehavior {
     eventType: TriggerEventType;
     description: string;
     timestamp: string;
-    metadata?: { [key: string]: any };
+    metadata?: Record<string, unknown>;
 }
 
 export interface Appointment {
@@ -286,11 +292,15 @@ export type TriggerType =
     | 'Account Created'
     | 'Buyer Lead'
     | 'Seller Lead'
-    | 'Past Client / Sphere';
+    | 'Past Client / Sphere'
+    | 'Lead Created'
+    | 'Lead Qualified'
+    | 'Seller Inquiry'
+    | 'Lead Dormant';
 
 export interface SequenceStep {
     id: string;
-    type: 'email' | 'ai-email' | 'task' | 'meeting';
+    type: 'email' | 'ai-email' | 'task' | 'meeting' | 'reminder';
     delay: { value: number; unit: 'minutes' | 'hours' | 'days' };
     content: string;
     subject?: string;
@@ -299,6 +309,8 @@ export interface SequenceStep {
         time: string;
         location: string;
     };
+    reminder?: string;
+    nextAction?: string;
 }
 
 export interface FollowUpSequence {
@@ -314,20 +326,20 @@ export interface FollowUpSequence {
 
 // Sequence Performance Analytics
 export interface SequenceAnalytics {
-    totalLeads: number;
-    emailsSent: number;
-    emailsOpened: number;
-    emailsClicked: number;
-    tasksCompleted: number;
-    meetingsScheduled: number;
-    appointmentsBooked: number;
-    responsesReceived: number;
-    openRate: number;
-    clickRate: number;
-    responseRate: number;
-    appointmentRate: number;
-    avgResponseTime: number; // in hours
-    lastUpdated: string;
+    totalLeads?: number;
+    emailsSent?: number;
+    emailsOpened?: number;
+    emailsClicked?: number;
+    tasksCompleted?: number;
+    meetingsScheduled?: number;
+    appointmentsBooked?: number;
+    responsesReceived?: number;
+    openRate?: number;
+    clickRate?: number;
+    responseRate?: number;
+    appointmentRate?: number;
+    avgResponseTime?: number; // in hours
+    lastUpdated?: string;
 }
 
 // Smart Triggers

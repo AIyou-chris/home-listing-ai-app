@@ -26,21 +26,21 @@ const StatCard: React.FC<{
 
 const SequenceAnalyticsModal: React.FC<SequenceAnalyticsModalProps> = ({ sequence, onClose }) => {
     // Mock analytics data - in real app, this would come from your analytics service
-    const analytics: SequenceAnalytics = sequence.analytics || {
-        totalLeads: 342,
-        emailsSent: 1256,
-        emailsOpened: 876,
-        emailsClicked: 234,
-        tasksCompleted: 89,
-        meetingsScheduled: 67,
-        appointmentsBooked: 45,
-        responsesReceived: 127,
-        openRate: 69.7,
-        clickRate: 18.6,
-        responseRate: 37.1,
-        appointmentRate: 13.2,
-        avgResponseTime: 8.5,
-        lastUpdated: new Date().toISOString()
+    const analytics: Required<SequenceAnalytics> = {
+        totalLeads: sequence.analytics?.totalLeads ?? 342,
+        emailsSent: sequence.analytics?.emailsSent ?? 1256,
+        emailsOpened: sequence.analytics?.emailsOpened ?? 876,
+        emailsClicked: sequence.analytics?.emailsClicked ?? 234,
+        tasksCompleted: sequence.analytics?.tasksCompleted ?? 89,
+        meetingsScheduled: sequence.analytics?.meetingsScheduled ?? 67,
+        appointmentsBooked: sequence.analytics?.appointmentsBooked ?? 45,
+        responsesReceived: sequence.analytics?.responsesReceived ?? 127,
+        openRate: sequence.analytics?.openRate ?? 69.7,
+        clickRate: sequence.analytics?.clickRate ?? 18.6,
+        responseRate: sequence.analytics?.responseRate ?? 37.1,
+        appointmentRate: sequence.analytics?.appointmentRate ?? 13.2,
+        avgResponseTime: sequence.analytics?.avgResponseTime ?? 8.5,
+        lastUpdated: sequence.analytics?.lastUpdated ?? new Date().toISOString()
     };
 
     const formatPercentage = (value: number) => `${value.toFixed(1)}%`;
@@ -119,7 +119,7 @@ const SequenceAnalyticsModal: React.FC<SequenceAnalyticsModalProps> = ({ sequenc
                                         'bg-orange-500'
                                     }`}
                                     style={{ 
-                                        width: `${Math.min((24 - analytics.avgResponseTime) / 24 * 100, 100)}%` 
+                                        width: `${Math.max(0, Math.min((24 - analytics.avgResponseTime) / 24 * 100, 100))}%`
                                     }}
                                 ></div>
                             </div>

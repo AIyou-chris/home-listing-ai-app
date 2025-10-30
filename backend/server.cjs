@@ -845,10 +845,6 @@ const decorateAppointmentWithAgent = (appointment, agentProfile) => {
   };
 };
 
-const isUuid = (value) =>
-  typeof value === 'string' &&
-  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
-
 // Lead Scoring System - Backend Implementation
 const LEAD_SCORING_RULES = [
   // ENGAGEMENT RULES
@@ -1102,30 +1098,197 @@ let blogPosts = [
 // Marketing Data
 let followUpSequences = [
   {
-    id: '1',
-    name: 'New Lead Welcome',
-    description: 'Automated welcome sequence for new leads',
-    triggerType: 'Lead Capture',
+    id: 'welcome-seq',
+    name: 'Welcome / First Contact',
+    description: 'Warm, value-packed onboarding for brand-new leads',
+    triggerType: 'Lead Created',
     isActive: true,
+    editable: true,
     steps: [
-      { id: '1', type: 'email', delay: { value: 0, unit: 'hours' }, content: 'Welcome email' },
-      { id: '2', type: 'email', delay: { value: 1, unit: 'days' }, content: 'Follow-up email' },
-      { id: '3', type: 'email', delay: { value: 3, unit: 'days' }, content: 'Value proposition' }
+      {
+        id: 'welcome-touch-1',
+        type: 'email',
+        delay: { value: 0, unit: 'hours' },
+        subject: 'Excited to connect with you, {{client_first_name}}!'
+, content: `Hi {{client_first_name}},\n\nThanks for raising your hand — I'm excited to help with {{property_address}} and the surrounding area. I pulled a quick snapshot of similar homes plus a short guide to what typically happens next, you can skim it here: {{listing_url}}.\n\nIf you'd like to chat live, grab a time that works for you: {{appointment_link}}.\n\nTalk soon!\n{{agent_first_name}}`,
+        reminder: `Double-check CRM tags and confirm preferred contact method.`,
+        nextAction: `Send Touch 2 in 2 days.`
+      },
+      {
+        id: 'welcome-touch-2',
+        type: 'reminder',
+        delay: { value: 2, unit: 'days' },
+        content: `Agent task: Record a quick personalized video or note referencing {{client_first_name}}'s goals and upload to the CRM.`
+      },
+      {
+        id: 'welcome-touch-3',
+        type: 'email',
+        delay: { value: 3, unit: 'days' },
+        subject: 'Your buyer roadmap + local insights',
+        content: `Hi {{client_first_name}},\n\nI wanted to share a "buyer roadmap" that walks through financing, touring, and submitting offers in {{city}}. This checklist works whether you're buying now or later: {{listing_url}}.\n\nIf you're still exploring homes in {{city}}, let me know the vibe you're going for — I can curate a list in under an hour.\n\nWarmly,\n{{agent_first_name}}`,
+        reminder: `3 hours later, confirm the client opened the email; if unopened, send a quick text.`
+      },
+      {
+        id: 'welcome-touch-4',
+        type: 'email',
+        delay: { value: 5, unit: 'days' },
+        subject: 'Want to tour a few homes this week, {{client_first_name}}?'
+, content: `Hi {{client_first_name}},\n\nBased on your interest in {{property_address}}, I've bookmarked a few similar homes we can tour together this week. You can book a time here: {{appointment_link}}.\n\nIf you're not ready yet, totally fine — I'll keep sending curated options so you never miss a fit.\n\nTalk soon,\n{{agent_first_name}}`,
+        reminder: `If there's no response after 48 hours, set a task to send a personalized market update.`
+      },
+      {
+        id: 'welcome-touch-5',
+        type: 'reminder',
+        delay: { value: 10, unit: 'days' },
+        content: `Agent task: Drop a handwritten note or call {{client_first_name}} to check in and ask about timing updates.`
+      }
     ],
-    analytics: { totalLeads: 156, openRate: 78, responseRate: 23 }
+    analytics: { totalLeads: 204, openRate: 76, responseRate: 28 }
   },
   {
-    id: '2',
-    name: 'Appointment Follow-up',
-    description: 'Post-appointment nurturing sequence',
-    triggerType: 'Appointment Scheduled',
+    id: 'buyer-journey',
+    name: 'Home Buyer Journey',
+    description: 'Guides engaged buyers from discovery to accepted offer',
+    triggerType: 'Lead Qualified',
     isActive: true,
+    editable: true,
     steps: [
-      { id: '1', type: 'email', delay: { value: 1, unit: 'hours' }, content: 'Thank you email' },
-      { id: '2', type: 'email', delay: { value: 2, unit: 'days' }, content: 'Feedback request' },
-      { id: '3', type: 'email', delay: { value: 7, unit: 'days' }, content: 'Additional properties' }
+      {
+        id: 'buyer-touch-1',
+        type: 'email',
+        delay: { value: 0, unit: 'hours' },
+        subject: 'Ready to line up your next viewing, {{client_first_name}}?'
+, content: `Hi {{client_first_name}},\n\nHere's a short list of homes that match what you loved about {{property_address}}. I've pre-held a couple of tour slots for you — grab the one that works best: {{appointment_link}}.\n\nTomorrow I'll send a quick "tour prep" checklist so you can walk in feeling confident.\n\nBest,\n{{agent_first_name}}`,
+        reminder: `Confirm the tour is on the calendar and add notes to the lead record.`
+      },
+      {
+        id: 'buyer-touch-2',
+        type: 'email',
+        delay: { value: 1, unit: 'days' },
+        subject: 'Tour day playbook for {{client_first_name}}',
+        content: `Hi {{client_first_name}},\n\nAhead of your tours, here's a quick playbook — questions to ask, things to listen for, and a worksheet for taking notes. Download it here: {{listing_url}}.\n\nIf you need a ride between homes or want to tweak the schedule, reply here or text me anytime.\n\nSee you soon!\n{{agent_first_name}}`,
+        reminder: `Send a morning-of text confirming meeting location.`
+      },
+      {
+        id: 'buyer-touch-3',
+        type: 'reminder',
+        delay: { value: 3, unit: 'days' },
+        content: `Agent task: Call or text {{client_first_name}} to recap their favorite homes and discuss offer strategy.`
+      },
+      {
+        id: 'buyer-touch-4',
+        type: 'email',
+        delay: { value: 4, unit: 'days' },
+        subject: '3 fresh homes + an offer strategy for you',
+        content: `Hi {{client_first_name}},\n\nIf your heart is set on {{property_address}}, I can pull comps and line up inspection slots today. If you're still exploring homes in {{city}}, here are three new listings that just came online: {{listing_url}}.\n\nWant to review numbers live? Click here: {{appointment_link}}.\n\nYou've got this,\n{{agent_first_name}}`,
+        reminder: `If the client clicks any listing links, schedule a follow-up consultation.`
+      },
+      {
+        id: 'buyer-touch-5',
+        type: 'email',
+        delay: { value: 7, unit: 'days' },
+        subject: 'Next steps before and after the offer',
+        content: `Hi {{client_first_name}},\n\nSharing a quick overview of what happens once we go under contract—financing milestones, inspections, and closing prep. If you'd like, I can introduce a lender who offers fast approvals.\n\nLet's walk through it together: {{appointment_link}}\n\n— {{agent_first_name}}`,
+        reminder: `Add a "financing check-in" task 3 days after this email.`
+      }
     ],
-    analytics: { totalLeads: 89, openRate: 82, responseRate: 31 }
+    analytics: { totalLeads: 142, openRate: 81, responseRate: 35 }
+  },
+  {
+    id: 'seller-journey',
+    name: 'Home Seller Journey',
+    description: 'Nurtures homeowners from valuation to closing with proactive updates',
+    triggerType: 'Seller Inquiry',
+    isActive: true,
+    editable: true,
+    steps: [
+      {
+        id: 'seller-touch-1',
+        type: 'email',
+        delay: { value: 0, unit: 'hours' },
+        subject: 'Launching your sale plan for {{property_address}}',
+        content: `Hi {{client_first_name}},\n\nAttached is the valuation snapshot and the three biggest wins we can dial in before going live. Review the launch plan here: {{listing_url}}.\n\nReady to schedule photos? Grab a time: {{appointment_link}}\n\n— {{agent_first_name}}`,
+        reminder: `Add valuation summary to seller folder and set staging deadlines.`
+      },
+      {
+        id: 'seller-touch-2',
+        type: 'reminder',
+        delay: { value: 2, unit: 'days' },
+        content: `Agent task: Call {{client_first_name}} to confirm photographer and prep timeline.`
+      },
+      {
+        id: 'seller-touch-3',
+        type: 'email',
+        delay: { value: 3, unit: 'days' },
+        subject: 'Marketing preview & launch checklist',
+        content: `Hi {{client_first_name}},\n\nHere's the full marketing package (photos, copy, social teasers) for {{property_address}} along with a launch-week checklist. Everything has direct booking links so buyers can tour instantly. Preview it all here: {{listing_url}}.\n\nBig day ahead!\n{{agent_first_name}}`,
+        reminder: `Verify email automations and QR codes are ready 24 hours before launch.`
+      },
+      {
+        id: 'seller-touch-4',
+        type: 'email',
+        delay: { value: 5, unit: 'days' },
+        subject: 'Showing feedback + pricing pulse update',
+        content: `Hi {{client_first_name}},\n\nQuick recap of the showings we've had ({{showings_count || 'a handful'}} so far) and what buyers are saying. If we need to adjust the marketing angle or pricing, I can do that same-day.\n\nLet's regroup soon.\n— {{agent_first_name}}`,
+        reminder: `Log feedback summaries and schedule weekly seller strategy call until under contract.`
+      },
+      {
+        id: 'seller-touch-5',
+        type: 'email',
+        delay: { value: 9, unit: 'days' },
+        subject: 'Negotiation strategy & closing checklist',
+        content: `Hi {{client_first_name}},\n\nWe're approaching a strong negotiation window. I outlined the offer strategy, inspection prep, and rough closing timeline for {{property_address}}. Take a look and let's connect: {{appointment_link}}\n\nTalk soon,\n{{agent_first_name}}`,
+        reminder: `Add a "closing prep" task to the pipeline and keep the seller looped in every 3-4 days.`
+      }
+    ],
+    analytics: { totalLeads: 118, openRate: 79, responseRate: 33 }
+  },
+  {
+    id: 'long-term-nurture',
+    name: 'Long-Term Lead Re-Engagement',
+    description: 'Keeps colder leads warm with value drops every few months',
+    triggerType: 'Lead Dormant',
+    isActive: true,
+    editable: true,
+    steps: [
+      {
+        id: 'nurture-touch-1',
+        type: 'email',
+        delay: { value: 0, unit: 'days' },
+        subject: 'Still keeping an eye on {{city}} for you',
+        content: `Hi {{client_first_name}},\n\nHere's a quick market update for {{city}} plus a handful of homes similar to what you liked around {{property_address}}. If you'd like me to restart alerts, let me know or grab time here: {{appointment_link}}.\n\nAll the best,\n{{agent_first_name}}`,
+        reminder: `Refresh saved searches and clean up old tags in the CRM.`
+      },
+      {
+        id: 'nurture-touch-2',
+        type: 'reminder',
+        delay: { value: 30, unit: 'days' },
+        content: `Agent task: Send a personal text or voicemail referencing {{client_first_name}}'s goals and favorite neighborhoods.`
+      },
+      {
+        id: 'nurture-touch-3',
+        type: 'email',
+        delay: { value: 60, unit: 'days' },
+        subject: 'Quarterly homeowner check-in & new resources',
+        content: `Hi {{client_first_name}},\n\nSharing a quarterly homeowner bundle with mortgage updates, renovation ideas, and a few sold comps inside your area. Let me know what stands out.\n\nHere if you need anything,\n{{agent_first_name}}`,
+        reminder: `Schedule a follow-up review call or send a personalized CMA if interest sparks.`
+      },
+      {
+        id: 'nurture-touch-4',
+        type: 'email',
+        delay: { value: 120, unit: 'days' },
+        subject: 'Anything I can line up for you this season?',
+        content: `Hi {{client_first_name}},\n\nChecking in to see if your plans have shifted. If you'd still like curated listings or a home value update, I've got you. Here's a quick way to reconnect: {{appointment_link}}\n\nTalk soon,\n{{agent_first_name}}`,
+        reminder: `Update lead status based on the response and log next touch in 60 days.`
+      },
+      {
+        id: 'nurture-touch-5',
+        type: 'reminder',
+        delay: { value: 150, unit: 'days' },
+        content: `Agent task: Review {{client_first_name}}'s file and log any life events or property changes to personalize the next email.`
+      }
+    ],
+    analytics: { totalLeads: 312, openRate: 62, responseRate: 18 }
   }
 ];
 
@@ -3012,7 +3175,7 @@ app.post('/api/blog', (req, res) => {
 });
 
 // AI Sidekick Command Center Endpoints
-
+console.log('[Server] Registering AI Sidekick routes');
 app.get('/api/sidekicks', async (req, res) => {
   try {
     const { userId } = req.query;

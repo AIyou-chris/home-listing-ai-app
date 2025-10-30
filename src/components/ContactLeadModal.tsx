@@ -1,9 +1,30 @@
 
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Modal from './Modal';
 import { Lead } from '../types';
 import { leadsService, PhoneLogPayload } from '../services/leadsService';
+
+type FollowUpSequenceSummary = {
+    id: string;
+    name: string;
+    description?: string;
+};
+
+type CallOutcome = 'connected' | 'voicemail' | 'no_answer' | 'busy' | 'other';
+
+type MarketingSequencesResponse = {
+    sequences?: FollowUpSequenceSummary[];
+};
+
+type ActiveFollowUpSummary = {
+    leadId: string;
+    sequenceId: string;
+};
+
+type ActiveFollowUpsResponse = {
+    activeFollowUps?: ActiveFollowUpSummary[];
+};
 
 const TabButton: React.FC<{
     isActive: boolean;
@@ -75,7 +96,7 @@ Best regards,`
     );
     const [noteContent, setNoteContent] = useState('');
     const [callNotes, setCallNotes] = useState('');
-    const [callOutcome, setCallOutcome] = useState<'connected' | 'voicemail' | 'no_answer' | 'busy' | 'other'>('connected');
+    const [callOutcome, setCallOutcome] = useState<CallOutcome>('connected');
     const [callStartedAt, setCallStartedAt] = useState(defaultDateTimeValue());
     const [isSavingCall, setIsSavingCall] = useState(false);
     const [callLogs, setCallLogs] = useState<
@@ -83,6 +104,17 @@ Best regards,`
     >([]);
     const [isLoadingLogs, setIsLoadingLogs] = useState(true);
     const [logsError, setLogsError] = useState<string | null>(null);
+    const [availableSequences, setAvailableSequences] = useState<FollowUpSequenceSummary[]>([]);
+    const [isLoadingSequences, setIsLoadingSequences] = useState(false);
+    const [selectedSequenceId, setSelectedSequenceId] = useState('');
+    const [enrollMessage, setEnrollMessage] = useState<string | null>(null);
+    const [isEnrolling, setIsEnrolling] = useState(false);
+    const [enrolledSequenceIds, setEnrolledSequenceIds] = useState<string[]>([]);
+
+    const availableSequenceOptions = useMemo(() => {
+        if (!availableSequences.length) return [];
+        return availableSequences.map(seq => ({ ...seq, disabled: enrolledSequenceIds.includes(seq.id) }));
+    }, [availableSequences, enrolledSequenceIds]);
 
     useEffect(() => {
         let isMounted = true;
@@ -93,9 +125,10 @@ Best regards,`
                 if (isMounted && payload?.logs) {
                     setCallLogs(payload.logs);
                 }
-            } catch (error: any) {
+            } catch (error) {
                 if (isMounted) {
-                    setLogsError(error?.message || 'Could not load phone logs');
+                    const message = error instanceof Error ? error.message : 'Could not load phone logs';
+                    setLogsError(message);
                 }
             } finally {
                 if (isMounted) {
@@ -109,6 +142,82 @@ Best regards,`
             isMounted = false;
         };
     }, [lead.id]);
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadSequences = async () => {
+            try {
+                setIsLoadingSequences(true);
+                const res = await fetch('/api/admin/marketing/sequences');
+                if (res.ok) {
+                    const data: MarketingSequencesResponse = await res.json();
+                    if (isMounted && Array.isArray(data?.sequences)) {
+                        setAvailableSequences(data.sequences.map(seq => ({ id: seq.id, name: seq.name, description: seq.description })));
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load sequences', error);
+            } finally {
+                if (isMounted) setIsLoadingSequences(false);
+            }
+        };
+
+        const loadExistingEnrollments = async () => {
+            try {
+                const res = await fetch('/api/admin/marketing/active-followups');
+                if (res.ok) {
+                    const data: ActiveFollowUpsResponse = await res.json();
+                    if (isMounted && Array.isArray(data?.activeFollowUps)) {
+                        const ids = data.activeFollowUps
+                            .filter((followUp) => followUp.leadId === lead.id)
+                            .map((followUp) => followUp.sequenceId);
+                        setEnrolledSequenceIds(ids);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load active follow-ups', error);
+            }
+        };
+
+        loadSequences();
+        loadExistingEnrollments();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [lead.id]);
+
+    useEffect(() => {
+        if (!selectedSequenceId && availableSequenceOptions.length) {
+            const firstAvailable = availableSequenceOptions.find(option => !option.disabled);
+            if (firstAvailable) setSelectedSequenceId(firstAvailable.id);
+        }
+    }, [availableSequenceOptions, selectedSequenceId]);
+
+    const handleEnrollSequence = async () => {
+        if (!selectedSequenceId || enrolledSequenceIds.includes(selectedSequenceId)) return;
+        setIsEnrolling(true);
+        setEnrollMessage(null);
+        try {
+            const res = await fetch('/api/admin/marketing/active-followups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leadId: lead.id, sequenceId: selectedSequenceId })
+            });
+            if (!res.ok) {
+                const data = (await res.json().catch(() => null)) as { error?: string } | null;
+                throw new Error(data?.error || 'Could not enroll lead in sequence');
+            }
+            setEnrolledSequenceIds(prev => [...prev, selectedSequenceId]);
+            setEnrollMessage('Lead enrolled in the selected sequence successfully.');
+        } catch (error) {
+            console.error('Failed to enroll in sequence', error);
+            const message = error instanceof Error ? error.message : 'Could not enroll lead in sequence.';
+            setEnrollMessage(message);
+        } finally {
+            setIsEnrolling(false);
+        }
+    };
 
     const handleSaveCallLog = async () => {
         const payload: PhoneLogPayload = {
@@ -128,9 +237,10 @@ Best regards,`
             setCallStartedAt(defaultDateTimeValue());
             alert('Call log saved!');
             onClose();
-        } catch (error: any) {
+        } catch (error) {
             console.error('Failed to save call log', error);
-            alert(error?.message || 'Could not save call log right now.');
+            const message = error instanceof Error ? error.message : 'Could not save call log right now.';
+            alert(message);
         } finally {
             setIsSavingCall(false);
         }
@@ -171,6 +281,48 @@ Best regards,`
             </div>
             
             <div className="p-6">
+                <FormRow>
+                    <Label htmlFor="sequence-select">Enroll in follow-up sequence</Label>
+                    {isLoadingSequences ? (
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                            <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                            Loading sequences...
+                        </div>
+                    ) : availableSequenceOptions.length === 0 ? (
+                        <p className="text-sm text-slate-500">No sequences available yet. Build your first follow-up flow in the AI Funnel tab.</p>
+                    ) : (
+                        <div className="flex flex-col gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <select
+                                    id="sequence-select"
+                                    value={selectedSequenceId}
+                                    onChange={(e) => setSelectedSequenceId(e.target.value)}
+                                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                >
+                                    {availableSequenceOptions.map(option => (
+                                        <option key={option.id} value={option.id} disabled={option.disabled}>
+                                            {option.name} {option.disabled ? '(already enrolled)' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={handleEnrollSequence}
+                                    disabled={!selectedSequenceId || enrolledSequenceIds.includes(selectedSequenceId) || isEnrolling}
+                                    className={`px-4 py-2 rounded-lg text-sm font-semibold ${enrolledSequenceIds.includes(selectedSequenceId) ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-primary-600 text-white hover:bg-primary-700'} transition`}
+                                >
+                                    {isEnrolling ? 'Enrolling...' : 'Enroll'}
+                                </button>
+                            </div>
+                            {availableSequenceOptions.find(opt => opt.id === selectedSequenceId)?.description && (
+                                <p className="text-xs text-slate-500">{availableSequenceOptions.find(opt => opt.id === selectedSequenceId)?.description}</p>
+                            )}
+                            {enrollMessage && (
+                                <p className="text-xs text-slate-600">{enrollMessage}</p>
+                            )}
+                        </div>
+                    )}
+                </FormRow>
                 {activeTab === 'email' && (
                     <>
                         <FormRow>
@@ -199,7 +351,7 @@ Best regards,`
                             <select
                                 id="call-outcome"
                                 value={callOutcome}
-                                onChange={(e) => setCallOutcome(e.target.value as any)}
+                                onChange={(e) => setCallOutcome(e.target.value as CallOutcome)}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
                             >
                                 <option value="connected">Connected</option>
