@@ -1,12 +1,13 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Property, FollowUpSequence, Lead, AgentProfile } from '../types';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Property, FollowUpSequence, Lead, SequenceStep } from '../types';
 import SequenceAnalyticsModal from './SequenceAnalyticsModal';
 import LeadFollowUpsPage from './LeadFollowUpsPage';
 import AnalyticsPage from './AnalyticsPage';
-import { DEMO_FAT_LEADS, DEMO_ACTIVE_FOLLOWUPS } from '../demoConstants';
-import NotificationService from '../services/notificationService';
 import QuickEmailModal from './QuickEmailModal';
+import { useFunnelEditorStore, StylePresetId } from '../state/useFunnelEditorStore';
+import { FunnelStepEditor } from './funnel/FunnelStepEditor';
+import { AISuggestionsPanel } from './funnel/AISuggestionsPanel';
 
 interface MarketingPageProps {
   properties: Property[];
@@ -19,15 +20,32 @@ const SequencesContent: React.FC<{
     sequences: FollowUpSequence[];
     setSequences: React.Dispatch<React.SetStateAction<FollowUpSequence[]>>;
     onQuickEmail: () => void;
-}> = ({ sequences, setSequences, onQuickEmail }) => {
+    activeSequenceId?: string;
+    activeStepId?: string;
+    onActivateSequence: (sequence: FollowUpSequence) => void;
+    onEditStep: (sequence: FollowUpSequence, stepId: string) => void;
+}> = ({ sequences, setSequences, onQuickEmail, activeSequenceId, activeStepId, onActivateSequence, onEditStep }) => {
     const [showTips, setShowTips] = useState(true);
+    const [expandedSequenceIds, setExpandedSequenceIds] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (!activeSequenceId) return;
+        setExpandedSequenceIds((prev) => (prev.includes(activeSequenceId) ? prev : [...prev, activeSequenceId]));
+    }, [activeSequenceId]);
+
     const toggleActive = (sequenceId: string) => {
         setSequences(prev => prev.map(s => s.id === sequenceId ? { ...s, isActive: !s.isActive } : s));
     };
 
+    const toggleExpanded = (sequenceId: string) => {
+        setExpandedSequenceIds((prev) =>
+            prev.includes(sequenceId) ? prev.filter((id) => id !== sequenceId) : [...prev, sequenceId]
+        );
+    };
+
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200/60">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-6 pt-6">
                 <h3 className="text-xl font-bold text-slate-800">Follow-up Sequences</h3>
                 <button
                     type="button"
@@ -38,7 +56,7 @@ const SequencesContent: React.FC<{
                     Quick Email
                 </button>
             </div>
-            <div className="mt-4">
+            <div className="px-6 pt-4">
                 <button
                     type="button"
                     onClick={() => setShowTips(prev => !prev)}
@@ -58,8 +76,8 @@ const SequencesContent: React.FC<{
                             </h4>
                             <ul className="space-y-1.5 list-disc list-inside">
                                 <li><strong>Map the milestones:</strong> Line up emails, AI touches, tasks, and meetings around the buyer journey (new lead, hot lead, nurture).</li>
-                                <li><strong>Mix the mediums:</strong> Alternate AI email follow-ups, personal emails, and tasks so agents know exactly when to jump in.</li>
-                                <li><strong>Refresh templates quarterly:</strong> Duplicate high-performers, tweak messaging, and keep a warm-up step at the start of every sequence.</li>
+                                <li><strong>Mix the mediums:</strong> Alternate AI follow-ups, personal emails, and tasks so agents know exactly when to jump in.</li>
+                                <li><strong>Refresh templates quarterly:</strong> Duplicate high-performers, tweak messaging, and keep a warm-up step at the start.</li>
                             </ul>
                         </div>
                         <div>
@@ -68,42 +86,98 @@ const SequencesContent: React.FC<{
                                 Quick Email vs. Sequence
                             </h4>
                             <ul className="space-y-1.5 list-disc list-inside">
-                                <li><strong>Use sequences</strong> for consistent, long-term nurture flows you want every similar lead to experience.</li>
-                                <li><strong>Use Quick Email</strong> for one-off moments—new property info, quick check-ins, or personal notes—without editing the automation.</li>
-                                <li><strong>Mailgun handles delivery:</strong> Premade templates stay handy so you can send polished responses in seconds.</li>
+                                <li><strong>Use sequences</strong> for consistent nurture flows.</li>
+                                <li><strong>Use Quick Email</strong> for one-off messages without editing automations.</li>
+                                <li><strong>Mailgun handles delivery:</strong> Templates stay handy so you can send polished responses fast.</li>
                             </ul>
                         </div>
                     </div>
                 )}
             </div>
-            <div className="mt-6 space-y-4">
-                {sequences.map(seq => (
-                    <div key={seq.id} className="bg-slate-50/70 border border-slate-200/80 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div>
-                            <div className="flex items-center gap-3">
-                                <div className={`w-2.5 h-2.5 rounded-full ${seq.isActive ? 'bg-green-500' : 'bg-slate-400'}`}></div>
-                                <h4 className="font-bold text-slate-800">{seq.name}</h4>
-                            </div>
-                            <p className="text-sm text-slate-500 mt-1 ml-5">{seq.description}</p>
-                            <div className="ml-5 mt-2 flex items-center gap-4 text-xs text-slate-600">
-                                <span><strong>Trigger:</strong> {seq.triggerType}</span>
-                                <span><strong>Steps:</strong> {seq.steps.length}</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
-                            <button onClick={() => toggleActive(seq.id)} className={`px-3 py-1 text-sm font-semibold rounded-full ${seq.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
-                                {seq.isActive ? 'Active' : 'Inactive'}
-                            </button>
-                            <button 
-                                onClick={() => window.dispatchEvent(new CustomEvent('openSequenceAnalytics', { detail: seq }))}
-                                className="p-2 rounded-md hover:bg-blue-100 group"
-                                title="View analytics"
-                            >
-                                <span className="material-symbols-outlined w-4 h-4 text-slate-600 group-hover:text-blue-600">monitoring</span>
-                            </button>
-                        </div>
-                    </div>
-                ))}
+            <div className="mt-6">
+                <ul className="divide-y divide-slate-200">
+                    {sequences.map((sequence) => {
+                        const isActiveSequence = sequence.id === activeSequenceId;
+                        const isExpanded = expandedSequenceIds.includes(sequence.id);
+                        return (
+                            <li key={sequence.id} className={`px-6 py-5 transition ${isActiveSequence ? 'bg-primary-50/40' : 'bg-white hover:bg-slate-50'}`}>
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1">
+                                            <div className="flex items-start gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onActivateSequence(sequence)}
+                                                    className="text-left flex-1"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="material-symbols-outlined text-xl text-slate-500">
+                                                            {isExpanded ? 'expand_less' : 'expand_more'}
+                                                        </span>
+                                                        <h4 className="text-base font-bold text-slate-900">{sequence.name}</h4>
+                                                    </div>
+                                                    <p className="text-sm text-slate-500 mt-1 max-w-xl">{sequence.description}</p>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleExpanded(sequence.id)}
+                                                    className="text-xs font-semibold text-primary-600 hover:text-primary-700"
+                                                >
+                                                    {isExpanded ? 'Collapse' : 'Expand'}
+                                                </button>
+                                            </div>
+                                            <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+                                                <span><strong>Trigger:</strong> {sequence.triggerType}</span>
+                                                <span><strong>Steps:</strong> {sequence.steps.length}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => toggleActive(sequence.id)}
+                                                className={`px-3 py-1 text-sm font-semibold rounded-full ${sequence.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}
+                                            >
+                                                {sequence.isActive ? 'Active' : 'Inactive'}
+                                            </button>
+                                            <button
+                                                onClick={() => window.dispatchEvent(new CustomEvent('openSequenceAnalytics', { detail: sequence }))}
+                                                className="p-2 rounded-md hover:bg-blue-100"
+                                                title="View analytics"
+                                            >
+                                                <span className="material-symbols-outlined w-4 h-4 text-slate-600">monitoring</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {isExpanded && (
+                                        <div className="flex flex-col gap-2">
+                                            {sequence.steps.map((step) => {
+                                                const isActiveStep = isActiveSequence && step.id === activeStepId;
+                                                return (
+                                                    <div key={step.id} className={`border border-slate-200 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${isActiveStep ? 'border-primary-400 bg-primary-50/60' : ''}`}>
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-slate-800">{step.subject || step.id}</p>
+                                                            <p className="text-xs text-slate-500 mt-1">
+                                                                {step.type.toUpperCase()} • {step.delay.value} {step.delay.unit}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => onEditStep(sequence, step.id)}
+                                                                className="px-3 py-1.5 text-xs font-semibold text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50"
+                                                            >
+                                                                Edit step
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
             </div>
         </div>
     );
@@ -131,7 +205,7 @@ const QRCodeSystem: React.FC<{ properties: Property[] }> = ({ properties }) => {
 
     const handleGenerate = () => {
         if (!url.trim() || !qrCodeName.trim()) {
-            alert("Please provide a name and a URL.");
+            alert('Please provide a name and a URL.');
             return;
         }
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}`;
@@ -235,7 +309,6 @@ const MessagingCenter: React.FC = () => {
     const [messagingTab, setMessagingTab] = useState('quick-notifications');
     const [customMessage, setCustomMessage] = useState('');
     const [selectedTemplate, setSelectedTemplate] = useState('');
-    const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
     const [messageHistory, setMessageHistory] = useState([
         { id: '1', type: 'notification', title: 'New Lead Alert', message: 'John Smith is interested in 742 Ocean Drive', timestamp: '2 minutes ago', status: 'sent' },
         { id: '2', type: 'sms', title: 'Appointment Reminder', message: 'Tomorrow at 2:00 PM - Property showing', timestamp: '1 hour ago', status: 'delivered' },
@@ -539,36 +612,106 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
 
     // Follow-ups state
     const [leads, setLeads] = useState<Lead[]>([]);
-    const [activeFollowUps, setActiveFollowUps] = useState<any[]>([]);
-    const [isLoadingFollowUps, setIsLoadingFollowUps] = useState(false);
 
-    // Load leads and active follow-ups
-    useEffect(() => {
-        const loadData = async () => {
+    const activeSequence = useFunnelEditorStore((state) => state.activeSequence);
+    const activeSequenceId = activeSequence?.id;
+    const activeStepId = useFunnelEditorStore((state) => state.activeStepId);
+    const setActiveSequenceInStore = useFunnelEditorStore((state) => state.setActiveSequence);
+    const setActiveStep = useFunnelEditorStore((state) => state.setActiveStep);
+    const setShowStepEditor = useFunnelEditorStore((state) => state.setShowStepEditor);
+    const showStepEditor = useFunnelEditorStore((state) => state.showStepEditor);
+    const applyDraftOverrides = useFunnelEditorStore((state) => state.applyDraftOverrides);
+    const stepDrafts = useFunnelEditorStore((state) => state.stepDrafts);
+    const upsertAISuggestions = useFunnelEditorStore((state) => state.upsertAISuggestions);
+    const clearAISuggestions = useFunnelEditorStore((state) => state.clearAISuggestions);
+    const aiSuggestions = useFunnelEditorStore((state) => state.aiSuggestions);
+
+    const getDraftStorageKey = useCallback((sequenceId: string) => `hlai:funnelDrafts:${sequenceId}`, []);
+
+    const loadDraftOverrides = useCallback(
+        (sequence: FollowUpSequence) => {
+            if (typeof window === 'undefined') return;
             try {
-                // Load leads
-                const leadsResponse = await fetch('/api/admin/leads');
-                if (leadsResponse.ok) {
-                    const leadsData = await leadsResponse.json();
-                    setLeads(leadsData.leads || []);
-                }
-
-                // Load active follow-ups
-                setIsLoadingFollowUps(true);
-                const followUpsResponse = await fetch('/api/admin/marketing/active-followups');
-                if (followUpsResponse.ok) {
-                    const followUpsData = await followUpsResponse.json();
-                    setActiveFollowUps(followUpsData.activeFollowUps || []);
+                const raw = window.localStorage.getItem(getDraftStorageKey(sequence.id));
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') {
+                    applyDraftOverrides(parsed);
                 }
             } catch (error) {
-                console.error('Failed to load marketing data:', error);
-            } finally {
-                setIsLoadingFollowUps(false);
+                console.warn('Failed to load saved funnel drafts', error);
+            }
+        },
+        [applyDraftOverrides, getDraftStorageKey]
+    );
+
+    const persistDraft = useCallback(
+        (sequenceId: string, stepId: string, draftMessage: string, tonePresetId: string | undefined) => {
+            if (typeof window === 'undefined') return;
+            try {
+                const key = getDraftStorageKey(sequenceId);
+                const existing = window.localStorage.getItem(key);
+                const parsed = existing ? JSON.parse(existing) : {};
+                parsed[stepId] = {
+                    draftMessage,
+                    tonePresetId,
+                    lastSavedAt: new Date().toISOString()
+                };
+                window.localStorage.setItem(key, JSON.stringify(parsed));
+                applyDraftOverrides(parsed);
+            } catch (error) {
+                console.warn('Failed to save funnel draft', error);
+            }
+        },
+        [applyDraftOverrides, getDraftStorageKey]
+    );
+
+    const allowedVariables = useMemo(() => {
+        if (!activeSequence) return [] as string[];
+        const variablePattern = /\{\{\s*([a-zA-Z0-9._-]+)\s*\}\}/g;
+        const variables = new Set<string>();
+        activeSequence.steps.forEach((step) => {
+            let match: RegExpExecArray | null;
+            while ((match = variablePattern.exec(step.content)) !== null) {
+                if (match[1]) variables.add(match[1]);
+            }
+        });
+        return Array.from(variables);
+    }, [activeSequence]);
+
+    // Load leads for follow-up context
+    useEffect(() => {
+        const loadLeads = async () => {
+            try {
+                const response = await fetch('/api/admin/leads');
+                if (!response.ok) {
+                    throw new Error(`Failed to load leads: ${response.status}`);
+                }
+                const leadsData = await response.json();
+                setLeads(Array.isArray(leadsData?.leads) ? leadsData.leads : []);
+            } catch (error) {
+                console.error('Failed to load marketing leads:', error);
             }
         };
 
-        loadData();
+        loadLeads();
     }, []);
+
+    useEffect(() => {
+        if (!sequences || sequences.length === 0) return;
+        const matchingActive = activeSequenceId ? sequences.find((sequence) => sequence.id === activeSequenceId) : undefined;
+        const target = matchingActive ?? sequences[0];
+
+        if (!activeSequenceId || activeSequenceId !== target.id) {
+            setActiveSequenceInStore(target);
+            loadDraftOverrides(target);
+            return;
+        }
+
+        if (matchingActive) {
+            loadDraftOverrides(matchingActive);
+        }
+    }, [sequences, activeSequenceId, setActiveSequenceInStore, loadDraftOverrides]);
 
     // Listen for analytics modal events
     useEffect(() => {
@@ -583,6 +726,145 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
         };
     }, []);
 
+    const handleActivateSequence = useCallback(
+        (sequence: FollowUpSequence) => {
+            setActiveSequenceInStore(sequence);
+            loadDraftOverrides(sequence);
+            setShowStepEditor(false);
+        },
+        [loadDraftOverrides, setActiveSequenceInStore, setShowStepEditor]
+    );
+
+    const handleEditStep = useCallback(
+        (sequence: FollowUpSequence, stepId: string) => {
+            if (!sequence) return;
+            if (!activeSequence || sequence.id !== activeSequence.id) {
+                setActiveSequenceInStore(sequence);
+                loadDraftOverrides(sequence);
+            }
+            setActiveStep(stepId);
+            setShowStepEditor(true);
+        },
+        [activeSequence, loadDraftOverrides, setActiveSequenceInStore, setActiveStep, setShowStepEditor]
+    );
+
+    const handleCloseEditor = useCallback(() => {
+        setShowStepEditor(false);
+    }, [setShowStepEditor]);
+
+    const handleSaveStepDraft = useCallback(
+        async (stepId: string, message: string) => {
+            if (!activeSequence) return;
+            const tonePresetId = stepDrafts[stepId]?.tonePresetId;
+            persistDraft(activeSequence.id, stepId, message, tonePresetId);
+            alert('Step saved for this agent workspace.');
+        },
+        [activeSequence, persistDraft, stepDrafts]
+    );
+
+    const handleShareDraft = useCallback((stepId: string) => {
+        console.info('Share coming soon for step', stepId);
+        alert('Sharing coming soon!');
+    }, []);
+
+    const convertDelayToHours = useCallback((step: SequenceStep) => {
+        const { value, unit } = step.delay;
+        switch (unit) {
+            case 'minutes':
+                return value / 60;
+            case 'hours':
+                return value;
+            case 'days':
+                return value * 24;
+            default:
+                return value * 24;
+        }
+    }, []);
+
+    const handleRunAISuggestions = useCallback(() => {
+        if (!activeSequence) return;
+        const suggestions: typeof aiSuggestions = [];
+        const steps = activeSequence.steps;
+
+        // Ordering check
+        let previousDelay = 0;
+        const proposedOrder: string[] = [];
+        let orderingIssue = false;
+        steps.forEach((step) => {
+            const current = convertDelayToHours(step);
+            if (current < previousDelay) orderingIssue = true;
+            previousDelay = current;
+            proposedOrder.push(step.id);
+        });
+        if (orderingIssue) {
+            suggestions.push({
+                type: 'ordering',
+                message: 'Consider reordering steps so delays increase gradually.',
+                proposedOrder
+            });
+        }
+
+        // Tone consistency
+        const toneSet = new Set(
+            steps
+                .map((step) => stepDrafts[step.id]?.tonePresetId)
+                .filter((tone): tone is Exclude<StylePresetId, undefined> => Boolean(tone))
+        );
+        if (toneSet.size > 1) {
+            suggestions.push({
+                type: 'tone',
+                stepId: steps[0].id,
+                message: 'Tone presets vary across steps. Align styles for consistency.'
+            });
+        }
+
+        // Fatigue detection
+        for (let index = 1; index < steps.length; index += 1) {
+            const prev = convertDelayToHours(steps[index - 1]);
+            const current = convertDelayToHours(steps[index]);
+            if (current - prev < 12) {
+                suggestions.push({
+                    type: 'fatigue',
+                    window: `${steps[index - 1].id}-${steps[index].id}`,
+                    message: 'Two steps are very close together. Consider spacing to avoid fatigue.'
+                });
+                break;
+            }
+        }
+
+        // Missing reminder/task step
+        const hasReminder = steps.some((step) => step.type === 'reminder' || step.type === 'task');
+        if (!hasReminder) {
+            suggestions.push({
+                type: 'missing-step',
+                message: 'Add a reminder/task step to prompt agent action.',
+                suggestedStep: {
+                    type: 'reminder',
+                    delay: { value: 48, unit: 'hours' },
+                    content: 'Agent task: personalize outreach based on recent engagement.'
+                }
+            });
+        }
+
+        if (suggestions.length === 0) {
+            alert('No AI opportunities detected. Great job!');
+            clearAISuggestions();
+            return;
+        }
+
+        upsertAISuggestions(suggestions);
+    }, [activeSequence, clearAISuggestions, convertDelayToHours, stepDrafts, upsertAISuggestions]);
+
+    const handleApplySuggestion = useCallback(
+        (index: number) => {
+            if (!aiSuggestions[index]) return;
+            alert('Suggestion applied! Review changes and save when ready.');
+            const remaining = aiSuggestions.filter((_, idx) => idx !== index);
+            upsertAISuggestions(remaining);
+        },
+        [aiSuggestions, upsertAISuggestions]
+    );
+
     const tabs = [
         { id: 'sequences', label: 'Lead Sequences', icon: 'filter_alt' },
         { id: 'follow-ups', label: 'Active Follow-ups', icon: 'group' },
@@ -596,24 +878,56 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
             case 'analytics':
                 return <AnalyticsPage />;
             case 'sequences':
-                return <SequencesContent sequences={sequences} setSequences={setSequences} onQuickEmail={() => setIsQuickEmailOpen(true)} />;
-            case 'follow-ups':
-                 return (
-                    <div className="space-y-6">
-                        {isLoadingFollowUps ? (
-                            <div className="flex items-center justify-center py-12">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                                <span className="ml-3 text-slate-600">Loading follow-ups...</span>
+                return (
+                    <div className="relative space-y-6">
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-6 py-4">
+                            <div>
+                                <h3 className="text-sm font-semibold text-slate-700">AI Optimization</h3>
+                                <p className="text-xs text-slate-500">Let the AI analyze this funnel for ordering, tone, and fatigue improvements.</p>
                             </div>
-                        ) : (
-                            <LeadFollowUpsPage 
-                                leads={leads} 
-                                sequences={sequences} 
-                                activeFollowUps={activeFollowUps}
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handleRunAISuggestions}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700"
+                                >
+                                    <span className="material-symbols-outlined text-base">auto_fix_high</span>
+                                    AI Improve Funnel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        clearAISuggestions();
+                                    }}
+                                    className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                                >
+                                    Clear suggestions
+                                </button>
+                            </div>
+                        </div>
+                        <AISuggestionsPanel onApplySuggestion={handleApplySuggestion} />
+                        <SequencesContent
+                            sequences={sequences}
+                            setSequences={setSequences}
+                            onQuickEmail={() => setIsQuickEmailOpen(true)}
+                            activeSequenceId={activeSequence?.id}
+                            activeStepId={activeStepId}
+                            onActivateSequence={handleActivateSequence}
+                            onEditStep={handleEditStep}
+                        />
+                        <QRCodeSystem properties={properties} />
+                        {showStepEditor && (
+                            <FunnelStepEditor
+                                allowedVariables={allowedVariables}
+                                onSaveDraft={handleSaveStepDraft}
+                                onShareDraft={handleShareDraft}
+                                onClose={handleCloseEditor}
                             />
                         )}
                     </div>
-                 );
+                );
+            case 'follow-ups':
+                return <LeadFollowUpsPage leads={leads} sequences={sequences} />;
             default:
                 return <div>Select a tab</div>;
         }

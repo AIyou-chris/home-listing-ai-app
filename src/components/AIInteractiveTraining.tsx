@@ -10,8 +10,14 @@ interface TrainingStatsProps {
 	}
 }
 
+interface TrainingStatsResponse {
+	totalFeedback?: number
+	positiveCount?: number
+	improvementCount?: number
+}
+
 const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionStats }) => {
-	const [backendStats, setBackendStats] = useState<any>(null)
+	const [backendStats, setBackendStats] = useState<TrainingStatsResponse | null>(null)
 	const [isLoading, setIsLoading] = useState(false)
 
 	useEffect(() => {
@@ -98,6 +104,17 @@ interface SidekickOption {
 	color: string
 }
 
+const TRAINING_ARCHITECT_PROMPT = `You are the AI Trainer and System Architect for our project.
+Your job is to:
+1. Audit the current training setup. Check for missing data, context, tone, or instructions that might limit the AI’s understanding of our brand, services, or client interactions.
+2. Identify improvement opportunities. Recommend what data, examples, or structured prompts should be added to improve personalization, accuracy, and context retention.
+3. Wire up training flow. Ensure the process connects correctly between input data (documents, chat scripts, email templates, FAQs, follow-up sequences, etc.) and the model’s fine-tuning or retrieval layers.
+4. Simulate learning. Show how the AI would respond before and after training to verify real improvement.
+5. Report and fix. If you find missing context, unclear labeling, or inconsistent tone, propose fixes automatically — show your reasoning and results.
+
+Core objective:
+Deliver a complete, ready-to-train AI system that learns like a real assistant — not just from text, but from behavior, tone, and intent. Detect what we’re missing, make recommendations, and confirm when the AI is truly “trained to perform.”`
+
 const AIInteractiveTraining: React.FC = () => {
 	const [selectedSidekick, setSelectedSidekick] = useState<string>('marketing')
 	const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -164,9 +181,15 @@ const AIInteractiveTraining: React.FC = () => {
 		setIsLoading(true)
 
 		try {
-			// Send to AI with sidekick's system prompt and training context
+			const conversationHistory = messages.map(msg => ({
+				sender: msg.role === 'assistant' ? 'assistant' : 'user',
+				text: msg.content
+			}))
+
 			const response = await continueConversation([
+				{ sender: 'system', text: TRAINING_ARCHITECT_PROMPT },
 				{ sender: 'system', text: currentSidekick.systemPrompt },
+				...conversationHistory,
 				{ sender: 'user', text: inputMessage.trim() }
 			], selectedSidekick)
 

@@ -1,59 +1,80 @@
 
-import React, { useState, useMemo } from 'react';
-import { Lead, FollowUpSequence, ActiveLeadFollowUp, FollowUpHistoryEvent, FollowUpHistoryEventType } from '../types';
+import React, { useEffect, useMemo, useState, FormEvent } from 'react'
+import {
+  Lead,
+  FollowUpSequence,
+  ActiveLeadFollowUp,
+  FollowUpHistoryEvent,
+  FollowUpHistoryEventType
+} from '../types'
+import {
+  useFollowUpsStore,
+  FollowUpFilters as FollowUpFiltersState,
+  FollowUpAISuggestion
+} from '../state/useFollowUpsStore'
 
 interface LeadFollowUpsPageProps {
-    leads: Lead[];
-    sequences: FollowUpSequence[];
-    activeFollowUps: ActiveLeadFollowUp[];
+  leads: Lead[]
+  sequences: FollowUpSequence[]
 }
 
-const FollowUpStatusBadge: React.FC<{ status: 'active' | 'paused' | 'completed' | 'cancelled' }> = ({ status }) => {
+const FollowUpStatusBadge: React.FC<{ status: ActiveLeadFollowUp['status'] }> = ({ status }) => {
     const statusStyles = {
         active: 'bg-green-100 text-green-700 ring-green-600/20',
         paused: 'bg-yellow-100 text-yellow-700 ring-yellow-600/20',
         completed: 'bg-blue-100 text-blue-700 ring-blue-600/20',
         cancelled: 'bg-red-100 text-red-700 ring-red-600/20'
-    };
-    return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ring-1 ring-inset ${statusStyles[status]}`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>;
-};
+  }
+  return (
+    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ring-1 ring-inset ${statusStyles[status]}`}>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
+  )
+}
 
 const LeadListItem: React.FC<{
-    followUp: ActiveLeadFollowUp;
-    lead?: Lead;
-    sequence?: FollowUpSequence;
-    isSelected: boolean;
-    onSelect: () => void;
-}> = ({ followUp, lead, sequence, isSelected, onSelect }) => {
-    if (!lead || !sequence) return null;
-
-    const progress = sequence.steps.length > 0 ? ((followUp.currentStepIndex + 1) / sequence.steps.length) * 100 : 0;
+  followUp: ActiveLeadFollowUp
+  lead?: Lead
+  sequence?: FollowUpSequence
+  isSelected: boolean
+  onSelect: () => void
+  isUpdating: boolean
+}> = ({ followUp, lead, sequence, isSelected, onSelect, isUpdating }) => {
+  if (!lead || !sequence) return null
+  const progress = sequence.steps.length > 0 ? ((followUp.currentStepIndex + 1) / sequence.steps.length) * 100 : 0
 
     return (
         <button
             onClick={onSelect}
-            className={`w-full text-left p-4 border-l-4 transition-colors ${isSelected ? 'border-primary-500 bg-slate-50' : 'border-transparent hover:bg-slate-50'}`}
+      className={`w-full text-left p-4 border-l-4 transition-colors ${
+        isSelected ? 'border-primary-500 bg-slate-50' : 'border-transparent hover:bg-slate-50'
+      }`}
         >
             <div className="flex justify-between items-start">
                 <h3 className="font-bold text-slate-800">{lead.name}</h3>
+        <div className="flex items-center gap-2">
                 <FollowUpStatusBadge status={followUp.status} />
+          {isUpdating && <span className="material-symbols-outlined w-4 h-4 animate-spin text-primary-500">progress_activity</span>}
+        </div>
             </div>
             <p className="text-sm text-slate-500 mt-1">{sequence.name}</p>
             <div className="mt-3">
                 <div className="flex justify-between text-xs text-slate-500 mb-1">
                     <span>Progress</span>
-                    <span>Step {followUp.currentStepIndex + 1} of {sequence.steps.length}</span>
+          <span>
+            Step {followUp.currentStepIndex + 1} of {sequence.steps.length}
+          </span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-1.5">
                     <div className="bg-primary-500 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
                 </div>
             </div>
         </button>
-    );
-};
+  )
+}
 
 const TimelineItem: React.FC<{ event: FollowUpHistoryEvent }> = ({ event }) => {
-    const icons: Record<FollowUpHistoryEventType, { icon: string; color: string; }> = {
+  const icons: Record<FollowUpHistoryEventType, { icon: string; color: string }> = {
         enroll: { icon: 'auto_awesome', color: 'text-purple-600' },
         'email-sent': { icon: 'mail', color: 'text-blue-600' },
         'email-opened': { icon: 'drafts', color: 'text-green-600' },
@@ -63,8 +84,9 @@ const TimelineItem: React.FC<{ event: FollowUpHistoryEvent }> = ({ event }) => {
         resume: { icon: 'play_circle', color: 'text-green-600' },
         cancel: { icon: 'cancel', color: 'text-red-600' },
         complete: { icon: 'check_circle', color: 'text-blue-600' },
-    };
-    const { icon, color } = icons[event.type];
+    'manual-touch': { icon: 'edit_note', color: 'text-primary-600' }
+  }
+  const { icon, color } = icons[event.type]
 
     return (
         <li className="relative flex gap-x-4">
@@ -83,103 +105,221 @@ const TimelineItem: React.FC<{ event: FollowUpHistoryEvent }> = ({ event }) => {
                 </time>
             </div>
         </li>
-    );
-};
+  )
+}
 
+const AISuggestionList: React.FC<{ suggestions: FollowUpAISuggestion[] }> = ({ suggestions }) => {
+  if (suggestions.length === 0) return null
+  return (
+    <div className="mt-3 rounded-lg border border-primary-100 bg-primary-50 px-4 py-3 space-y-3">
+      {suggestions.map((suggestion) => (
+        <div key={suggestion.id} className="text-sm text-primary-900">
+          <p className="font-semibold">
+            {suggestion.title}
+            {suggestion.severity === 'critical' && <span className="ml-2 text-xs text-red-600">Critical</span>}
+            {suggestion.severity === 'warning' && <span className="ml-2 text-xs text-orange-600">Warning</span>}
+          </p>
+          <p className="mt-1 text-primary-800">{suggestion.message}</p>
+          {suggestion.actionLabel && (
+            <button
+              type="button"
+              className="mt-2 text-xs font-semibold text-primary-700 hover:text-primary-800"
+              onClick={() => alert('Automated action coming soon!')}
+            >
+              {suggestion.actionLabel}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
-const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences, activeFollowUps: initialActiveFollowUps }) => {
-    const [activeFollowUps, setActiveFollowUps] = useState(initialActiveFollowUps);
-    const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(null);
-    const [isUpdating, setIsUpdating] = useState(false);
-    const [showTips, setShowTips] = useState(true);
+const FiltersBar: React.FC<{
+  filters: FollowUpFiltersState
+  onChange: (updates: Partial<FollowUpFiltersState>) => void
+  sequences: FollowUpSequence[]
+}> = ({ filters, onChange, sequences }) => {
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <input
+        type="search"
+        value={filters.search}
+        onChange={(event) => onChange({ search: event.target.value })}
+        placeholder="Search by lead or sequence"
+        className="w-full md:w-64 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+      />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <select
+          value={filters.status}
+          onChange={(event) => onChange({ status: event.target.value as FollowUpFiltersState['status'] })}
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select
+          value={filters.sequenceId ?? ''}
+          onChange={(event) => onChange({ sequenceId: event.target.value || undefined })}
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+        >
+          <option value="">All sequences</option>
+          {sequences.map((sequence) => (
+            <option key={sequence.id} value={sequence.id}>
+              {sequence.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
+}
 
-    // Update local state when props change
-    React.useEffect(() => {
-        setActiveFollowUps(initialActiveFollowUps);
-        if (initialActiveFollowUps.length > 0 && !selectedFollowUpId) {
-            setSelectedFollowUpId(initialActiveFollowUps[0].id);
-        }
-    }, [initialActiveFollowUps, selectedFollowUpId]);
+const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences }) => {
+  const [showTips, setShowTips] = useState(true)
+  const [manualNote, setManualNote] = useState('')
+  const [showManualForm, setShowManualForm] = useState(false)
+  const [showAiPrompt, setShowAiPrompt] = useState(false)
 
-    const handleStatusChange = async (id: string, newStatus: 'active' | 'paused' | 'cancelled') => {
-        setIsUpdating(true);
-        try {
-            const response = await fetch(`/api/admin/marketing/active-followups/${id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ status: newStatus }),
-            });
+  const {
+    activeFollowUps,
+    fetchFollowUps,
+    isLoading,
+    isUpdatingId,
+    error,
+    selectedId,
+    selectFollowUp,
+    updateStatus,
+    logManualTouch,
+    filters,
+    setFilters,
+    suggestionMap,
+    analyzeFollowUp,
+    isAnalyzingId,
+    analyzeError
+  } = useFollowUpsStore()
 
-            if (response.ok) {
-                const data = await response.json();
-                setActiveFollowUps(prev => prev.map(f => 
-                    f.id === id ? data.followUp : f
-                ));
-                console.log(`✅ Follow-up ${newStatus}: ${id}`);
-            } else {
-                console.error('Failed to update follow-up status');
-                // Fallback to local update
-                setActiveFollowUps(prev => prev.map(f => {
-                    if (f.id === id) {
-                        const historyEvent: FollowUpHistoryEvent = {
-                            id: `h-${Date.now()}`,
-                            type: newStatus === 'active' ? 'resume' : newStatus === 'paused' ? 'pause' : 'cancel',
-                            description: `Sequence ${newStatus}.`,
-                            date: new Date().toISOString(),
-                        };
-                        return { ...f, status: newStatus, history: [historyEvent, ...f.history] };
-                    }
-                    return f;
-                }));
-            }
-        } catch (error) {
-            console.error('Error updating follow-up:', error);
-        } finally {
-            setIsUpdating(false);
-        }
-    };
+  useEffect(() => {
+    fetchFollowUps()
+  }, [fetchFollowUps])
 
-    const selectedFollowUp = useMemo(() => activeFollowUps.find(f => f.id === selectedFollowUpId), [activeFollowUps, selectedFollowUpId]);
-    const selectedLead = useMemo(() => leads.find(l => l.id === selectedFollowUp?.leadId), [leads, selectedFollowUp]);
-    const selectedSequence = useMemo(() => sequences.find(s => s.id === selectedFollowUp?.sequenceId), [sequences, selectedFollowUp]);
+  const filteredFollowUps = useMemo(() => {
+    return activeFollowUps.filter((followUp) => {
+      const lead = leads.find((candidate) => candidate.id === followUp.leadId)
+      const sequence = sequences.find((candidate) => candidate.id === followUp.sequenceId)
 
-    const isDetailView = selectedFollowUpId !== null;
+      if (filters.status !== 'all' && followUp.status !== filters.status) return false
+      if (filters.sequenceId && followUp.sequenceId !== filters.sequenceId) return false
+      if (filters.search) {
+        const haystack = `${lead?.name ?? ''} ${sequence?.name ?? ''}`.toLowerCase()
+        if (!haystack.includes(filters.search.toLowerCase())) return false
+      }
+      return true
+    })
+  }, [activeFollowUps, filters.search, filters.sequenceId, filters.status, leads, sequences])
 
-    // Calculate stats
+  useEffect(() => {
+    if (filteredFollowUps.length === 0) return
+    if (selectedId && filteredFollowUps.some((followUp) => followUp.id === selectedId)) return
+    selectFollowUp(filteredFollowUps[0].id)
+  }, [filteredFollowUps, selectFollowUp, selectedId])
+
+  const selectedFollowUp = useMemo(
+    () => activeFollowUps.find((followUp) => followUp.id === selectedId),
+    [activeFollowUps, selectedId]
+  )
+  const selectedLead = useMemo(() => leads.find((lead) => lead.id === selectedFollowUp?.leadId), [leads, selectedFollowUp])
+  const selectedSequence = useMemo(
+    () => sequences.find((sequence) => sequence.id === selectedFollowUp?.sequenceId),
+    [sequences, selectedFollowUp]
+  )
+
+  const isDetailView = selectedId !== null
+
     const stats = {
-        total: activeFollowUps.length,
-        active: activeFollowUps.filter(f => f.status === 'active').length,
-        paused: activeFollowUps.filter(f => f.status === 'paused').length,
-        completed: activeFollowUps.filter(f => f.status === 'completed').length,
-        cancelled: activeFollowUps.filter(f => f.status === 'cancelled').length,
-    };
+    total: filteredFollowUps.length,
+    active: filteredFollowUps.filter((followUp) => followUp.status === 'active').length,
+    paused: filteredFollowUps.filter((followUp) => followUp.status === 'paused').length,
+    completed: filteredFollowUps.filter((followUp) => followUp.status === 'completed').length,
+    cancelled: filteredFollowUps.filter((followUp) => followUp.status === 'cancelled').length
+  }
 
-    if (activeFollowUps.length === 0) {
+  const handleManualTouchSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!selectedFollowUp || !manualNote.trim()) return
+    await logManualTouch(selectedFollowUp.id, manualNote.trim())
+    setManualNote('')
+    setShowManualForm(false)
+  }
+
+  const handleStatusChange = (status: ActiveLeadFollowUp['status']) => {
+    if (!selectedFollowUp) return
+    updateStatus(selectedFollowUp.id, status)
+  }
+
+  const handleFilterChange = (updates: Partial<FollowUpFiltersState>) => {
+    setFilters(updates)
+  }
+
+  const handleToggleAi = async () => {
+    if (!selectedFollowUp) return
+    const next = !showAiPrompt
+    setShowAiPrompt(next)
+    if (next && !suggestionMap[selectedFollowUp.id]) {
+      await analyzeFollowUp(selectedFollowUp.id)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-20 text-center text-slate-500">
+        <div className="flex items-center justify-center gap-3 text-sm">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600" />
+          Loading active follow-ups...
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
+        <h3 className="text-lg font-semibold text-red-700 mb-2">Unable to load follow-ups</h3>
+        <p className="text-sm text-red-600 mb-4">{error}</p>
+        <button
+          type="button"
+          onClick={fetchFollowUps}
+          className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  if (filteredFollowUps.length === 0) {
         return (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-8">
                 <div className="text-center">
                     <span className="material-symbols-outlined w-16 h-16 text-slate-300 mx-auto mb-4 block">group</span>
-                    <h3 className="text-lg font-semibold text-slate-800 mb-2">No Active Follow-ups</h3>
-                    <p className="text-slate-500 mb-4">
-                        Leads will appear here when they're enrolled in follow-up sequences.
-                    </p>
-                    <div className="text-sm text-slate-400">
-                        💡 Tip: Create sequences in the "Lead Sequences" tab and enroll leads to start automated follow-ups.
+          <h3 className="text-lg font-semibold text-slate-800 mb-2">No Follow-ups Found</h3>
+          <p className="text-slate-500 mb-4">Adjust your filters or enroll a lead in a sequence to see activity here.</p>
                     </div>
                 </div>
-            </div>
-        );
+    )
     }
+
+  const currentSuggestions = selectedFollowUp ? suggestionMap[selectedFollowUp.id] ?? [] : []
 
     return (
         <div className="space-y-6">
-            {/* Tips Panel */}
             <div className="bg-white rounded-xl shadow-sm border border-primary-100 p-6">
                 <button
                     type="button"
-                    onClick={() => setShowTips(prev => !prev)}
+          onClick={() => setShowTips((prev) => !prev)}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
                     aria-expanded={showTips}
                 >
@@ -195,9 +335,9 @@ const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences,
                                 Staying On Track
                             </h4>
                             <ul className="space-y-1.5 list-disc list-inside">
-                                <li><strong>Work the nearest deadlines:</strong> Sort by the next step date and clear today’s tasks before moving on.</li>
-                                <li><strong>Log the personal touches:</strong> Use the “Contact Manually” button then add a quick note so the timeline stays accurate.</li>
-                                <li><strong>Pause with a plan:</strong> Paused follow-ups should include a note about what you’re waiting on—schedule a reminder.</li>
+                <li>Work the nearest deadlines first and clear today’s tasks before moving on.</li>
+                <li>Log the personal touches so the timeline stays accurate for your team.</li>
+                <li>Pause with a plan—note why it’s paused and when to resume.</li>
                             </ul>
                         </div>
                         <div>
@@ -206,16 +346,17 @@ const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences,
                                 When To Use Quick Email
                             </h4>
                             <ul className="space-y-1.5 list-disc list-inside">
-                                <li><strong>Hot intel drops:</strong> Send new property details or pricing updates instantly without editing the automation.</li>
-                                <li><strong>Personal check-ins:</strong> Fire off a Mailgun-powered note between automated touchpoints to keep momentum.</li>
-                                <li><strong>Keep sequences clean:</strong> Let the automation handle the cadence—use Quick Email for the human moments.</li>
+                <li>Send hot intel (price drops, new comps) instantly.</li>
+                <li>Drop personal check-ins between automated steps.</li>
+                <li>Keep the automation clean; let Quick Email cover human moments.</li>
                             </ul>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Stats Header */}
+      <FiltersBar filters={filters} onChange={handleFilterChange} sequences={sequences} />
+
             <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
                 <h2 className="text-xl font-bold text-slate-800 mb-4">Follow-up Overview</h2>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -242,91 +383,166 @@ const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences,
                 </div>
             </div>
 
-            {/* Main Follow-ups Interface */}
             <div className="flex h-96 bg-white rounded-xl shadow-lg border border-slate-200/60 overflow-hidden">
-                {/* Lead List Pane */}
-                <aside className={`
-                    ${isDetailView ? 'hidden' : 'flex'} w-full
-                    md:flex flex-col md:w-2/5 lg:w-1/3 max-w-sm h-full border-r border-slate-200
-                `}>
+        <aside
+          className={`${isDetailView ? 'hidden' : 'flex'} w-full md:flex flex-col md:w-2/5 lg:w-1/3 max-w-sm h-full border-r border-slate-200`}
+        >
                     <div className="p-4 border-b border-slate-200 flex-shrink-0">
                         <h3 className="text-lg font-bold text-slate-800">Active Follow-ups</h3>
-                        <p className="text-sm text-slate-500">({activeFollowUps.length} leads in sequences)</p>
+            <p className="text-sm text-slate-500">({filteredFollowUps.length} leads in sequences)</p>
                     </div>
                 <div className="flex-grow overflow-y-auto">
                     <div className="divide-y divide-slate-200">
-                        {activeFollowUps.map(followUp => (
+              {filteredFollowUps.map((followUp) => (
                             <LeadListItem
                                 key={followUp.id}
                                 followUp={followUp}
-                                lead={leads.find(l => l.id === followUp.leadId)}
-                                sequence={sequences.find(s => s.id === followUp.sequenceId)}
-                                isSelected={selectedFollowUpId === followUp.id}
-                                onSelect={() => setSelectedFollowUpId(followUp.id)}
+                  lead={leads.find((lead) => lead.id === followUp.leadId)}
+                  sequence={sequences.find((sequence) => sequence.id === followUp.sequenceId)}
+                  isSelected={selectedId === followUp.id}
+                  onSelect={() => selectFollowUp(followUp.id)}
+                  isUpdating={isUpdatingId === followUp.id}
                             />
                         ))}
                     </div>
                 </div>
             </aside>
 
-            {/* Detail Pane */}
-            <main className={`
-                ${isDetailView ? 'flex' : 'hidden'} w-full
-                md:flex flex-col flex-grow h-full
-            `}>
+        <main className={`${isDetailView ? 'flex' : 'hidden'} w-full md:flex flex-col flex-grow h-full`}>
                 {selectedFollowUp && selectedLead && selectedSequence ? (
                     <div className="flex flex-col h-full">
                         <header className="p-4 border-b border-slate-200 flex-shrink-0">
                              <div className="flex items-center justify-between">
                                 <div>
-                                    <button onClick={() => setSelectedFollowUpId(null)} className="md:hidden flex items-center gap-1 text-sm font-semibold text-primary-600 mb-2">
+                    <button
+                      onClick={() => selectFollowUp(null)}
+                      className="md:hidden flex items-center gap-1 text-sm font-semibold text-primary-600 mb-2"
+                    >
                                         <span className="material-symbols-outlined w-4 h-4">chevron_left</span>
                                         Back to List
                                     </button>
                                     <h2 className="text-2xl font-bold text-slate-900">{selectedLead.name}</h2>
-                                    <p className="text-sm text-slate-500">In sequence: <span className="font-semibold">{selectedSequence.name}</span></p>
+                    <p className="text-sm text-slate-500">
+                      In sequence: <span className="font-semibold">{selectedSequence.name}</span>
+                    </p>
                                 </div>
-                                <div className="flex items-center gap-2">
                                     <FollowUpStatusBadge status={selectedFollowUp.status} />
                                 </div>
+              </header>
+              <div className="flex-shrink-0 border-b border-slate-200 px-4 py-3 bg-slate-50">
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-primary-600 hover:text-primary-700"
+                  onClick={handleToggleAi}
+                >
+                  {showAiPrompt ? 'Hide AI insights' : 'AI Improve this follow-up'}
+                </button>
+                {showAiPrompt && (
+                  <div className="mt-3">
+                    {isAnalyzingId === selectedFollowUp.id ? (
+                      <div className="flex items-center gap-2 text-xs text-primary-700">
+                        <span className="material-symbols-outlined w-4 h-4 animate-spin">progress_activity</span>
+                        Analyzing sequence activity…
+                      </div>
+                    ) : currentSuggestions.length > 0 ? (
+                      <AISuggestionList suggestions={currentSuggestions} />
+                    ) : analyzeError ? (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 flex items-center justify-between">
+                        <span>{analyzeError}</span>
+                        <button
+                          type="button"
+                          className="text-amber-700 font-semibold hover:text-amber-800"
+                          onClick={() => analyzeFollowUp(selectedFollowUp.id)}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
+                        No suggestions yet. Try sending a manual touch or re-running the analyzer.
+                      </div>
+                    )}
+                  </div>
+                )}
                             </div>
-                        </header>
                         <div className="flex-grow overflow-y-auto p-6 bg-slate-50/50">
                             <h3 className="text-lg font-bold text-slate-800 mb-4">Timeline</h3>
-                            <ul role="list" className="">
-                                {selectedFollowUp.history.map((event) => <TimelineItem key={event.id} event={event} />)}
+                <ul role="list" className="space-y-3">
+                  {selectedFollowUp.history.map((event) => (
+                    <TimelineItem key={event.id} event={event} />
+                  ))}
                             </ul>
                         </div>
                         <footer className="p-4 bg-white border-t border-slate-200 flex-shrink-0">
+                <div className="flex flex-col gap-4">
+                  {showManualForm ? (
+                    <form onSubmit={handleManualTouchSubmit} className="flex flex-col gap-2">
+                      <label className="text-xs font-semibold text-slate-600" htmlFor="manual-note">
+                        Log a manual touch
+                      </label>
+                      <textarea
+                        id="manual-note"
+                        value={manualNote}
+                        onChange={(event) => setManualNote(event.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        rows={3}
+                        placeholder="e.g., Sent a personal text about next steps"
+                      />
                             <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowManualForm(false)}
+                          className="px-3 py-1.5 text-xs font-semibold text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-1.5 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+                        >
+                          Log touch
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowManualForm(true)}
+                      className="self-start px-3 py-1.5 text-xs font-semibold text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50"
+                    >
+                      + Log manual touch
+                    </button>
+                  )}
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                                {selectedFollowUp.status === 'active' && (
                                     <button 
-                                        onClick={() => handleStatusChange(selectedFollowUp.id, 'paused')} 
-                                        disabled={isUpdating}
+                        onClick={() => handleStatusChange('paused')}
+                        disabled={isUpdatingId === selectedFollowUp.id}
                                         className="px-4 py-2 text-sm font-semibold text-slate-700 bg-yellow-100 border border-yellow-300 rounded-lg hover:bg-yellow-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {isUpdating ? 'Updating...' : 'Pause Sequence'}
+                        {isUpdatingId === selectedFollowUp.id ? 'Updating...' : 'Pause Sequence'}
                                     </button>
                                 )}
                                 {selectedFollowUp.status === 'paused' && (
                                      <button 
-                                        onClick={() => handleStatusChange(selectedFollowUp.id, 'active')} 
-                                        disabled={isUpdating}
+                        onClick={() => handleStatusChange('active')}
+                        disabled={isUpdatingId === selectedFollowUp.id}
                                         className="px-4 py-2 text-sm font-semibold text-slate-700 bg-green-100 border border-green-300 rounded-lg hover:bg-green-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {isUpdating ? 'Updating...' : 'Resume Sequence'}
+                        {isUpdatingId === selectedFollowUp.id ? 'Updating...' : 'Resume Sequence'}
                                     </button>
                                 )}
                                 <button 
-                                    onClick={() => handleStatusChange(selectedFollowUp.id, 'cancelled')} 
-                                    disabled={isUpdating}
+                      onClick={() => handleStatusChange('cancelled')}
+                      disabled={isUpdatingId === selectedFollowUp.id}
                                     className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {isUpdating ? 'Updating...' : 'Cancel Sequence'}
+                      {isUpdatingId === selectedFollowUp.id ? 'Updating...' : 'Cancel Sequence'}
                                 </button>
                                 <button className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition">
                                     Contact Manually
                                 </button>
+                  </div>
                             </div>
                         </footer>
                     </div>
@@ -340,7 +556,7 @@ const LeadFollowUpsPage: React.FC<LeadFollowUpsPageProps> = ({ leads, sequences,
             </main>
             </div>
         </div>
-    );
-};
+  )
+}
 
-export default LeadFollowUpsPage;
+export default LeadFollowUpsPage

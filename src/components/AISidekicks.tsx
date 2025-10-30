@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   getSidekicks, 
   updateSidekickPersonality, 
@@ -14,7 +14,7 @@ import {
   type CreateSidekickPayload,
   type ChatHistoryEntry
 } from '../services/aiSidekicksService';
-import { generateSpeech } from '../services/openaiService';
+import { continueConversation, generateSpeech } from '../services/openaiService';
 import { normalizeOpenAIVoice } from '../constants/openaiVoices';
 import PageTipBanner from './PageTipBanner';
 
@@ -34,6 +34,13 @@ type SidekickTemplate = {
     traits: string[];
     preset: string;
   };
+};
+
+
+const omitKey = <T,>(map: Record<string, T>, key: string): Record<string, T> => {
+  const clone = { ...map };
+  delete clone[key];
+  return clone;
 };
 
 
@@ -125,6 +132,26 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
   const [messageAudio, setMessageAudio] = useState<HTMLAudioElement | null>(null);
   
+  // Quick preview state
+  const [quickTestInput, setQuickTestInput] = useState<Record<string, string>>({});
+  const [quickTestResponse, setQuickTestResponse] = useState<Record<string, string>>({});
+  const [quickTestLoading, setQuickTestLoading] = useState<Record<string, boolean>>({});
+  const [quickTestError, setQuickTestError] = useState<Record<string, string>>({});
+  const [quickTestNotice, setQuickTestNotice] = useState<Record<string, string>>({});
+  const [quickTestVoiceLoading, setQuickTestVoiceLoading] = useState<Record<string, boolean>>({});
+  const [quickTestPlayingId, setQuickTestPlayingId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const quickTestAudioUrlRef = useRef<string | null>(null);
+  const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({});
+
+  // Create sidekick preview state
+  const [createPreviewInput, setCreatePreviewInput] = useState('');
+  const [createPreviewResponse, setCreatePreviewResponse] = useState<string | null>(null);
+  const [createPreviewLoading, setCreatePreviewLoading] = useState(false);
+  const [createPreviewError, setCreatePreviewError] = useState<string | null>(null);
+  const [createPreviewVoiceLoading, setCreatePreviewVoiceLoading] = useState(false);
+  const [createPreviewPlaying, setCreatePreviewPlaying] = useState(false);
+
   // Personality editor state
   const [personalityForm, setPersonalityForm] = useState({
     description: '',
@@ -134,8 +161,6 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   const [newTrait, setNewTrait] = useState('');
   
   // Knowledge editor state
-  const [newKnowledge, setNewKnowledge] = useState('');
-  
   // Enhanced knowledge editor state
   const [knowledgeTitle, setKnowledgeTitle] = useState('');
   const [knowledgeContent, setKnowledgeContent] = useState('');
@@ -144,7 +169,6 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isScraping, setIsScraping] = useState(false);
   const [isAddingKnowledge, setIsAddingKnowledge] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -200,6 +224,22 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     };
   }, [voiceSampleAudio]);
 
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (quickTestAudioUrlRef.current) {
+        URL.revokeObjectURL(quickTestAudioUrlRef.current);
+        quickTestAudioUrlRef.current = null;
+      }
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
   const loadSidekicks = async () => {
     try {
       setLoading(true);
@@ -216,6 +256,42 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
       setLoading(false);
     }
   };
+
+  const stopPreviewAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    if (quickTestAudioUrlRef.current) {
+      URL.revokeObjectURL(quickTestAudioUrlRef.current);
+      quickTestAudioUrlRef.current = null;
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setQuickTestPlayingId(null);
+    setCreatePreviewPlaying(false);
+  }, []);
+
+  const toggleToolsSection = (sidekickId: string) => {
+    setExpandedTools((prev) => ({
+      ...prev,
+      [sidekickId]: !(prev[sidekickId] ?? false)
+    }));
+  };
+
+  useEffect(() => {
+    if (!showCreateModal) {
+      stopPreviewAudio();
+      setCreatePreviewInput('');
+      setCreatePreviewResponse(null);
+      setCreatePreviewError(null);
+      setCreatePreviewLoading(false);
+      setCreatePreviewVoiceLoading(false);
+      setCreatePreviewPlaying(false);
+    }
+  }, [showCreateModal, stopPreviewAudio]);
 
   const handlePersonalityEdit = (sidekick: AISidekick) => {
     setSelectedSidekick(sidekick);
@@ -238,6 +314,216 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     } catch (err) {
       setError('Failed to update personality');
       console.error(err);
+    }
+  };
+
+  const handleQuickTestInputChange = (sidekickId: string, value: string) => {
+    setQuickTestInput(prev => ({ ...prev, [sidekickId]: value }));
+    setQuickTestError(prev => (prev[sidekickId] ? omitKey(prev, sidekickId) : prev));
+    setQuickTestNotice(prev => (prev[sidekickId] ? omitKey(prev, sidekickId) : prev));
+  };
+
+  const handleQuickTest = async (sidekick: AISidekick) => {
+    const prompt = (quickTestInput[sidekick.id] ?? '').trim();
+    if (!prompt) {
+      setQuickTestError(prev => ({ ...prev, [sidekick.id]: 'Enter a question to test.' }));
+      return;
+    }
+
+    stopPreviewAudio();
+    setQuickTestLoading(prev => ({ ...prev, [sidekick.id]: true }));
+    setQuickTestError(prev => omitKey(prev, sidekick.id));
+    setQuickTestNotice(prev => omitKey(prev, sidekick.id));
+
+    try {
+      const { response } = await chatWithSidekick(sidekick.id, prompt, [
+        { role: 'user', content: prompt }
+      ]);
+      setQuickTestResponse(prev => ({ ...prev, [sidekick.id]: response }));
+      setQuickTestNotice(prev => ({
+        ...prev,
+        [sidekick.id]: 'Response ready. Press play to hear it with this voice.'
+      }));
+    } catch (err) {
+      console.error('Quick test error:', err);
+      setQuickTestResponse(prev => omitKey(prev, sidekick.id));
+      setQuickTestError(prev => ({
+        ...prev,
+        [sidekick.id]: 'Could not get a response. Please try again.'
+      }));
+    } finally {
+      setQuickTestLoading(prev => ({ ...prev, [sidekick.id]: false }));
+    }
+  };
+
+  const handleQuickTestPlay = async (sidekick: AISidekick) => {
+    const responseText = quickTestResponse[sidekick.id];
+    if (!responseText) {
+      setQuickTestError(prev => ({
+        ...prev,
+        [sidekick.id]: 'Run a quick test first to get a response.'
+      }));
+      return;
+    }
+
+    if (quickTestPlayingId === sidekick.id) {
+      stopPreviewAudio();
+      return;
+    }
+
+    stopPreviewAudio();
+    setQuickTestVoiceLoading(prev => ({ ...prev, [sidekick.id]: true }));
+    setQuickTestError(prev => omitKey(prev, sidekick.id));
+
+    try {
+      const speech = await generateSpeech(responseText, normalizeOpenAIVoice(sidekick.voiceId));
+
+      if (speech.fallback || !speech.audioUrl) {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(responseText);
+          window.speechSynthesis.cancel();
+          setQuickTestNotice(prev => ({
+            ...prev,
+            [sidekick.id]: 'Playing preview with browser voice (OpenAI audio unavailable).'
+          }));
+          utterance.onend = () => {
+            setQuickTestPlayingId(prev => (prev === sidekick.id ? null : prev));
+          };
+          window.speechSynthesis.speak(utterance);
+          setQuickTestPlayingId(sidekick.id);
+          return;
+        }
+
+        throw new Error('Speech synthesis unavailable');
+      }
+
+      if (quickTestAudioUrlRef.current) {
+        URL.revokeObjectURL(quickTestAudioUrlRef.current);
+        quickTestAudioUrlRef.current = null;
+      }
+
+      quickTestAudioUrlRef.current = speech.audioUrl;
+      const audio = new Audio(speech.audioUrl);
+      audioRef.current = audio;
+      setQuickTestPlayingId(sidekick.id);
+      setQuickTestNotice(prev => omitKey(prev, sidekick.id));
+
+      audio.onended = () => {
+        stopPreviewAudio();
+      };
+      audio.onerror = () => {
+        stopPreviewAudio();
+        setQuickTestError(prev => ({
+          ...prev,
+          [sidekick.id]: 'Could not play voice preview. Please try again.'
+        }));
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.error('Quick test voice error:', err);
+      setQuickTestError(prev => ({
+        ...prev,
+        [sidekick.id]: 'Could not play voice preview. Please try again.'
+      }));
+      stopPreviewAudio();
+    } finally {
+      setQuickTestVoiceLoading(prev => ({ ...prev, [sidekick.id]: false }));
+    }
+  };
+
+  const handleCreatePreview = async () => {
+    const prompt = createPreviewInput.trim();
+    if (!prompt) {
+      setCreatePreviewError('Enter a question to preview.');
+      return;
+    }
+
+    stopPreviewAudio();
+    setCreatePreviewLoading(true);
+    setCreatePreviewError(null);
+    setCreatePreviewVoiceLoading(false);
+    setCreatePreviewPlaying(false);
+
+    try {
+      const messages: Array<{ sender: string; text: string }> = [];
+      if (createForm.personality.description) {
+        messages.push({ sender: 'system', text: createForm.personality.description });
+      } else if (createForm.description) {
+        messages.push({ sender: 'system', text: createForm.description });
+      }
+      messages.push({ sender: 'user', text: prompt });
+
+      const responseText = await continueConversation(messages, createForm.templateId);
+      setCreatePreviewResponse(responseText);
+    } catch (err) {
+      console.error('Create preview error:', err);
+      setCreatePreviewResponse(null);
+      setCreatePreviewError('Could not generate a preview. Please try again.');
+    } finally {
+      setCreatePreviewLoading(false);
+    }
+  };
+
+  const handleCreatePreviewPlay = async () => {
+    if (!createPreviewResponse) {
+      setCreatePreviewError('Run a preview first to get a response.');
+      return;
+    }
+
+    if (createPreviewPlaying) {
+      stopPreviewAudio();
+      return;
+    }
+
+    stopPreviewAudio();
+    setCreatePreviewVoiceLoading(true);
+    setCreatePreviewError(null);
+
+    try {
+      const normalizedVoice = normalizeOpenAIVoice(createForm.voiceId);
+      const speech = await generateSpeech(createPreviewResponse, normalizedVoice);
+
+      if (speech.fallback || !speech.audioUrl) {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(createPreviewResponse);
+          window.speechSynthesis.cancel();
+          utterance.onend = () => {
+            setCreatePreviewPlaying(false);
+          };
+          window.speechSynthesis.speak(utterance);
+          setCreatePreviewPlaying(true);
+          return;
+        }
+
+        throw new Error('Speech synthesis unavailable');
+      }
+
+      if (quickTestAudioUrlRef.current) {
+        URL.revokeObjectURL(quickTestAudioUrlRef.current);
+        quickTestAudioUrlRef.current = null;
+      }
+
+      quickTestAudioUrlRef.current = speech.audioUrl;
+      const audio = new Audio(speech.audioUrl);
+      audioRef.current = audio;
+      setCreatePreviewPlaying(true);
+
+      audio.onended = () => {
+        stopPreviewAudio();
+      };
+      audio.onerror = () => {
+        stopPreviewAudio();
+        setCreatePreviewError('Could not play the voice preview. Please try again.');
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.error('Create preview voice error:', err);
+      setCreatePreviewError('Could not play the voice preview. Please try again.');
+      stopPreviewAudio();
+    } finally {
+      setCreatePreviewVoiceLoading(false);
     }
   };
 
@@ -325,6 +611,13 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
       personality: template?.personality ?? createForm.personality
     });
     setCreateError(null);
+    stopPreviewAudio();
+    setCreatePreviewInput('');
+    setCreatePreviewResponse(null);
+    setCreatePreviewError(null);
+    setCreatePreviewLoading(false);
+    setCreatePreviewVoiceLoading(false);
+    setCreatePreviewPlaying(false);
     setShowCreateModal(true);
   };
 
@@ -344,6 +637,13 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
       voiceId: fallbackVoiceId,
       personality: template.personality
     });
+    stopPreviewAudio();
+    setCreatePreviewInput('');
+    setCreatePreviewResponse(null);
+    setCreatePreviewError(null);
+    setCreatePreviewLoading(false);
+    setCreatePreviewVoiceLoading(false);
+    setCreatePreviewPlaying(false);
   };
 
   const handleCreateFieldChange = (field: 'name' | 'description') => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -354,6 +654,9 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   const handleCreateVoiceChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const { value } = event.target;
     setCreateForm(prev => ({ ...prev, voiceId: value }));
+    stopPreviewAudio();
+    setCreatePreviewVoiceLoading(false);
+    setCreatePreviewPlaying(false);
   };
 
   const handleCreatePersonalityChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -408,26 +711,6 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     }
   };
 
-  const handleAddKnowledge = async () => {
-    if (!selectedSidekick || !newKnowledge.trim()) return;
-    
-    try {
-      const content = newKnowledge.trim();
-      const title = content.length > 60 ? `${content.slice(0, 57)}...` : content;
-      const updatedSidekick = await addKnowledge(selectedSidekick.id, {
-        content,
-        title,
-        type: 'text'
-      });
-      setSidekicks(prev => prev.map(s => s.id === updatedSidekick.id ? updatedSidekick : s));
-      setSelectedSidekick(updatedSidekick);
-      setNewKnowledge('');
-    } catch (err) {
-      setError('Failed to add knowledge');
-      console.error(err);
-    }
-  };
-
   const handleRemoveKnowledge = async (index: number) => {
     if (!selectedSidekick) return;
     
@@ -472,7 +755,6 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     try {
       setIsUploading(true);
       const fileArray = Array.from(files);
-      setUploadedFiles(prev => [...prev, ...fileArray]);
       
       // Process each file (mock implementation)
       for (const file of fileArray) {
@@ -550,8 +832,6 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     setKnowledgeContent('');
     setWebsiteUrl('');
     setScrapingFrequency('once');
-    setUploadedFiles([]);
-    setNewKnowledge('');
   };
 
   const handleStartTraining = (sidekick: AISidekick) => {
@@ -867,7 +1147,9 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
 
             {/* CTA Button */}
             <button
-              onClick={() => setShowTrainingChat(true)}
+              onClick={() => {
+                window.location.hash = '/ai-training';
+              }}
               className="mt-4 w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transform transition hover:scale-105 flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">chat</span>
@@ -883,10 +1165,12 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
         <h2 className="text-xl font-bold text-slate-900 mb-4">AI Agent Library</h2>
         <p className="text-slate-600 mb-6">Curated, consistent, Apple-like elegance</p>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sidekicks.map((sidekick) => (
-            <div key={sidekick.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <div className="flex items-center gap-3 mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {sidekicks.map((sidekick) => {
+            const isToolsExpanded = expandedTools[sidekick.id] ?? false;
+            return (
+              <div key={sidekick.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full flex flex-col">
+                <div className="flex items-center gap-3 mb-4">
                 <div 
                   className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
                   style={{ backgroundColor: sidekick.color + '20', color: sidekick.color }}
@@ -897,165 +1181,232 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
                   <h3 className="font-semibold text-slate-900">{sidekick.name}</h3>
                   <p className="text-sm text-slate-600">{sidekick.description}</p>
                 </div>
-              </div>
-
-              {/* Who I am */}
-              <div className="mb-4">
-                <h4 className="font-medium text-slate-900 mb-2">Who I am</h4>
-                <p className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3">
-                  {sidekick.personality.description}
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => handlePersonalityEdit(sidekick)}
-                  className="flex-1 px-3 py-2 text-sm font-medium text-white rounded-lg"
-                  style={{ backgroundColor: sidekick.color }}
-                >
-                  AI Personality
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedSidekick(sidekick);
-                    setShowKnowledgeEditor(true);
-                  }}
-                  className="flex-1 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50"
-                >
-                  Add Knowledge
-                </button>
-              </div>
-
-              {/* Voice Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Voice
-                  <span className="ml-2 text-xs text-slate-500 font-normal">
-                    (Select and preview)
-                  </span>
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={sidekick.voiceId}
-                    onChange={(e) => handleVoiceChange(sidekick.id, e.target.value)}
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                  >
-                    {voices.map((voice) => (
-                      <option key={voice.id} value={voice.id}>
-                        {voice.name} {voice.description ? `- ${voice.description}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => {
-                      const selectedVoice = voices.find(v => v.id === sidekick.voiceId);
-                      if (selectedVoice && selectedVoice.openaiVoice) {
-                        handlePlayVoiceSample(selectedVoice.id, selectedVoice.openaiVoice);
-                      }
-                    }}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                      playingVoiceSample === sidekick.voiceId
-                        ? 'bg-red-600 text-white hover:bg-red-700 shadow-md'
-                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                    }`}
-                    title="Preview selected voice"
-                  >
-                    {playingVoiceSample === sidekick.voiceId ? '⏹ Stop' : '▶ Preview'}
-                  </button>
                 </div>
-              </div>
 
-              {/* Sample Voices */}
-              <div className="mb-4">
-                <h4 className="font-medium text-slate-900 mb-2">
-                  Sample All 6 OpenAI Voices
-                  <a 
-                    href="https://www.openai.fm/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="ml-2 text-xs text-blue-600 hover:text-blue-700"
-                  >
-                    (Try on openai.fm)
-                  </a>
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {voices.filter(v => v.openaiVoice).map((voice) => (
-                    <div 
-                      key={voice.id}
-                      className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-blue-300 transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900 mb-1">
-                            {voice.name}
-                            <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
-                              voice.gender === 'male' ? 'bg-blue-100 text-blue-700' :
-                              voice.gender === 'female' ? 'bg-pink-100 text-pink-700' :
-                              'bg-purple-100 text-purple-700'
-                            }`}>
-                              {voice.gender}
-                            </span>
-                          </p>
-                          {voice.description && (
-                            <p className="text-xs text-slate-600 mb-1">{voice.description}</p>
-                          )}
-                          <p className="text-xs text-slate-500">
-                            OpenAI: <span className="font-mono font-medium">{voice.openaiVoice}</span>
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handlePlayVoiceSample(voice.id, voice.openaiVoice)}
-                          className={`px-4 py-2 text-xs font-medium rounded-lg transition-all ${
-                            playingVoiceSample === voice.id
-                              ? 'bg-red-600 text-white hover:bg-red-700 shadow-md'
-                              : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                          }`}
-                        >
-                          {playingVoiceSample === voice.id ? '⏹ Stop' : '▶ Play'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="mb-4">
+                  <h4 className="font-medium text-slate-900 mb-2">Who I am</h4>
+                  <p className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3">
+                    {sidekick.personality.description}
+                  </p>
                 </div>
-              </div>
 
-              {/* Test Personality */}
-              <div className="mb-4">
-                <h4 className="font-medium text-slate-900 mb-2">Test Personality</h4>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter a question or statement to test..."
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />
+                <div className="flex gap-2 mb-4">
                   <button
-                    onClick={() => handleStartTraining(sidekick)}
-                    className="px-4 py-2 text-sm font-medium text-white rounded-lg"
+                    onClick={() => handlePersonalityEdit(sidekick)}
+                    className="flex-1 px-3 py-2 text-sm font-medium text-white rounded-lg"
                     style={{ backgroundColor: sidekick.color }}
                   >
-                    Test Responses
+                    AI Personality
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedSidekick(sidekick);
+                      setShowKnowledgeEditor(true);
+                    }}
+                    className="flex-1 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50"
+                  >
+                    Add Knowledge
                   </button>
                 </div>
-              </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-slate-50 rounded-lg p-2">
-                  <div className="text-lg font-bold text-slate-900">{sidekick.stats.totalTraining}</div>
-                  <div className="text-xs text-slate-600">Total Training</div>
-                </div>
-                <div className="bg-green-50 rounded-lg p-2">
-                  <div className="text-lg font-bold text-green-600">{sidekick.stats.positiveFeedback}</div>
-                  <div className="text-xs text-green-600">Positive Feedback</div>
-                </div>
-                <div className="bg-orange-50 rounded-lg p-2">
-                  <div className="text-lg font-bold text-orange-600">{sidekick.stats.improvements}</div>
-                  <div className="text-xs text-orange-600">Improvements</div>
+                <div className="mt-auto space-y-4">
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => toggleToolsSection(sidekick.id)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium border border-slate-200 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                    >
+                      <span>Voice &amp; Preview Tools</span>
+                      <span className="material-symbols-outlined text-base">
+                        {isToolsExpanded ? 'expand_less' : 'expand_more'}
+                      </span>
+                    </button>
+
+                    {isToolsExpanded && (
+                      <div className="mt-4 space-y-5">
+                        <div className="space-y-2">
+                          <label className="block text-sm font-medium text-slate-700">
+                            Voice
+                            <span className="ml-2 text-xs text-slate-500 font-normal">(select &amp; preview)</span>
+                          </label>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <select
+                              value={sidekick.voiceId}
+                              onChange={(e) => handleVoiceChange(sidekick.id, e.target.value)}
+                              className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                            >
+                              {voices.map((voice) => (
+                                <option key={voice.id} value={voice.id}>
+                                  {voice.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => {
+                                const selectedVoice = voices.find(v => v.id === sidekick.voiceId);
+                                if (selectedVoice && selectedVoice.openaiVoice) {
+                                  handlePlayVoiceSample(selectedVoice.id, selectedVoice.openaiVoice);
+                                }
+                              }}
+                              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+                                playingVoiceSample === sidekick.voiceId
+                                  ? 'bg-red-600 text-white hover:bg-red-700 shadow-md'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                              }`}
+                              title="Preview selected voice"
+                            >
+                              {playingVoiceSample === sidekick.voiceId ? '⏹ Stop' : '▶ Preview'}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium text-slate-900">Sample All 6 OpenAI Voices</h4>
+                            <a
+                              href="https://www.openai.fm/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-700"
+                            >
+                              Try on openai.fm
+                            </a>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {voices.filter(v => v.openaiVoice).map((voice) => (
+                              <div
+                                key={voice.id}
+                                className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-blue-300 transition-colors"
+                              >
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1">
+                                    <p className="text-sm font-bold text-slate-900 mb-1">
+                                      {voice.name}
+                                      <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                                        voice.gender === 'male' ? 'bg-blue-100 text-blue-700' :
+                                        voice.gender === 'female' ? 'bg-pink-100 text-pink-700' :
+                                        'bg-purple-100 text-purple-700'
+                                      }`}>
+                                        {voice.gender}
+                                      </span>
+                                    </p>
+                                    {voice.description && (
+                                      <p className="text-xs text-slate-600 mb-1">{voice.description}</p>
+                                    )}
+                                    <p className="text-xs text-slate-500">
+                                      OpenAI: <span className="font-mono font-medium">{voice.openaiVoice}</span>
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => handlePlayVoiceSample(voice.id, voice.openaiVoice)}
+                                    className={`px-4 py-2 text-xs font-medium rounded-lg transition-all ${
+                                      playingVoiceSample === voice.id
+                                        ? 'bg-red-600 text-white hover:bg-red-700 shadow-md'
+                                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                                    }`}
+                                  >
+                                    {playingVoiceSample === voice.id ? '⏹ Stop' : '▶ Play'}
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium text-slate-900">Quick Preview</h4>
+                            <button
+                              type="button"
+                              onClick={() => handleStartTraining(sidekick)}
+                              className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                            >
+                              Open advanced chat
+                            </button>
+                          </div>
+                          <p className="text-xs text-slate-500 mb-3">
+                            Ask a sample question and hear this sidekick reply using the selected voice.
+                          </p>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <input
+                              type="text"
+                              value={quickTestInput[sidekick.id] ?? ''}
+                              onChange={(event) => handleQuickTestInputChange(sidekick.id, event.target.value)}
+                              placeholder="Enter a question or statement to test..."
+                              className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                            />
+                            <button
+                              onClick={() => handleQuickTest(sidekick)}
+                              disabled={!!quickTestLoading[sidekick.id]}
+                              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                quickTestLoading[sidekick.id]
+                                  ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                              }`}
+                            >
+                              {quickTestLoading[sidekick.id] ? 'Testing…' : 'Test Response'}
+                            </button>
+                          </div>
+
+                          {quickTestError[sidekick.id] && (
+                            <p className="text-xs text-red-600 mt-2">{quickTestError[sidekick.id]}</p>
+                          )}
+                          {quickTestNotice[sidekick.id] && !quickTestError[sidekick.id] && (
+                            <p className="text-xs text-blue-600 mt-2">{quickTestNotice[sidekick.id]}</p>
+                          )}
+
+                          {quickTestResponse[sidekick.id] && (
+                            <div className="mt-3 space-y-2">
+                              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-700">
+                                {quickTestResponse[sidekick.id]}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    quickTestPlayingId === sidekick.id
+                                      ? stopPreviewAudio()
+                                      : handleQuickTestPlay(sidekick)
+                                  }
+                                  disabled={!!quickTestVoiceLoading[sidekick.id]}
+                                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                    quickTestVoiceLoading[sidekick.id]
+                                      ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                                      : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
+                                  }`}
+                                >
+                                  {quickTestVoiceLoading[sidekick.id]
+                                    ? 'Preparing voice…'
+                                    : quickTestPlayingId === sidekick.id
+                                        ? 'Stop Voice Preview'
+                                        : 'Play Voice Preview'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-slate-50 rounded-lg p-2">
+                      <div className="text-lg font-bold text-slate-900">{sidekick.stats.totalTraining}</div>
+                      <div className="text-xs text-slate-600">Total Training</div>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-2">
+                      <div className="text-lg font-bold text-green-600">{sidekick.stats.positiveFeedback}</div>
+                      <div className="text-xs text-green-600">Positive Feedback</div>
+                    </div>
+                    <div className="bg-orange-50 rounded-lg p-2">
+                      <div className="text-lg font-bold text-orange-600">{sidekick.stats.improvements}</div>
+                      <div className="text-xs text-orange-600">Improvements</div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -1162,6 +1513,66 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
                   placeholder="Describe tone, responsibilities, preferred style, and guardrails"
                 />
                 <p className="text-xs text-slate-500 mt-1">Traits: {createForm.personality.traits.join(', ') || 'custom'}</p>
+              </div>
+
+              <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <h4 className="font-medium text-slate-900 mb-2">Preview This Sidekick</h4>
+                <p className="text-xs text-slate-600 mb-3">
+                  Try a sample question to hear how this sidekick responds with the current settings.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    value={createPreviewInput}
+                    onChange={(event) => setCreatePreviewInput(event.target.value)}
+                    placeholder="Enter a question or statement to test..."
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCreatePreview}
+                    disabled={createPreviewLoading}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      createPreviewLoading
+                        ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                    }`}
+                  >
+                    {createPreviewLoading ? 'Testing…' : 'Test Response'}
+                  </button>
+                </div>
+
+                {createPreviewError && (
+                  <p className="text-xs text-red-600 mt-2">{createPreviewError}</p>
+                )}
+
+                {createPreviewResponse && (
+                  <div className="mt-3 space-y-2">
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-sm text-slate-700 shadow-sm">
+                      {createPreviewResponse}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCreatePreviewPlay}
+                        disabled={createPreviewVoiceLoading}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          createPreviewVoiceLoading
+                            ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                            : createPreviewPlaying
+                                ? 'bg-red-600 text-white hover:bg-red-700'
+                                : 'bg-green-600 text-white hover:bg-green-700'
+                        }`}
+                      >
+                        {createPreviewVoiceLoading
+                          ? 'Preparing voice…'
+                          : createPreviewPlaying
+                              ? 'Stop Voice Preview'
+                              : 'Play Voice Preview'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {createError && (

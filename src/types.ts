@@ -484,7 +484,17 @@ export interface BillingSettings {
     }[];
 }
 
-export type FollowUpHistoryEventType = 'enroll' | 'email-sent' | 'email-opened' | 'task-created' | 'meeting-set' | 'pause' | 'resume' | 'cancel' | 'complete';
+export type FollowUpHistoryEventType =
+    | 'enroll'
+    | 'email-sent'
+    | 'email-opened'
+    | 'task-created'
+    | 'meeting-set'
+    | 'pause'
+    | 'resume'
+    | 'cancel'
+    | 'complete'
+    | 'manual-touch';
 
 export interface FollowUpHistoryEvent {
     id: string;
