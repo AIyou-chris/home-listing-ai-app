@@ -203,6 +203,7 @@ const App: React.FC = () => {
                 case '':
                 case 'landing':
                     setActiveAgentSlug(null);
+                    setIsDemoMode(false);
                     setView('landing');
                     break;
                 case 'signup':
@@ -433,6 +434,7 @@ const App: React.FC = () => {
                     setView('signin');
                 } else {
                     console.log('📍 Defaulting to landing');
+                    setIsDemoMode(false);
                     setView('landing');
                 }
             }
@@ -500,6 +502,7 @@ const App: React.FC = () => {
         window.location.hash = 'signin';
     };
     const handleNavigateToLanding = () => {
+        setIsDemoMode(false);
         setView('landing');
         window.location.hash = 'landing';
     };
