@@ -113,8 +113,8 @@ const AICardPage: React.FC = () => {
       .finally(() => setIsShortLinkLoading(false));
   }, [profile?.id, profile?.fullName, shortLink]);
 
-  const handleInputChange = async (field: keyof AgentProfile, value: any) => {
-    const updatedProfile = {
+  const handleInputChange = async <Key extends keyof AgentProfile>(field: Key, value: AgentProfile[Key]) => {
+    const updatedProfile: AgentProfile = {
       ...profile,
       [field]: value
     };
@@ -124,7 +124,8 @@ const AICardPage: React.FC = () => {
     // Auto-save changes to backend
     try {
       setIsSaving(true);
-      const savedProfile = await updateAICardProfile({ [field]: value });
+      const payload: Partial<AgentProfile> = { [field]: value } as Pick<AgentProfile, Key>;
+      const savedProfile = await updateAICardProfile(payload);
       
       // Notify other components of profile change
       notifyProfileChange({

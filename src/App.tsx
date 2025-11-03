@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { AdminModalProvider } from './context/AdminModalContext';
 import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence } from './types';
@@ -39,11 +39,6 @@ import BlogPostPage from './components/BlogPostPage';
 import DemoListingPage from './components/DemoListingPage';
 
 
-import AILeadQualificationTestPage from './components/AILeadQualificationTestPage';
-import HelpSalesChatBotTestPage from './components/HelpSalesChatBotTestPage';
-import AITestNavigation from './components/AITestNavigation';
-import ChatBotFAB from './components/ChatBotFAB';
-import PropertyComparison from './components/PropertyComparison';
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
@@ -52,8 +47,8 @@ import AIInteractiveTraining from './components/AIInteractiveTraining';
 
 // import { getProperties, addProperty } from './services/firestoreService';
 // Temporary stubs while migrating off Firebase
-const getProperties = async (_uid: string) => [] as any[];
-const addProperty = async (_data: any, _uid: string) => `prop_${Date.now()}`;
+const getProperties = async (_uid: string): Promise<Property[]> => [];
+const addProperty = async (_data: PersistedProperty, _uid: string): Promise<string> => `prop_${Date.now()}`;
 import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
@@ -67,14 +62,68 @@ import { leadsService, LeadPayload } from './services/leadsService';
 // A helper function to delay execution
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+type AppUser = {
+    uid: string;
+    email: string | null;
+    displayName?: string | null;
+};
+
+type PersistedProperty = Omit<Property, 'id'>;
+
+const ADMIN_VIEWS = [
+    'admin-dashboard',
+    'admin-users',
+    'admin-leads',
+    'admin-contacts',
+    'admin-knowledge-base',
+    'admin-ai-training',
+    'admin-ai-personalities',
+    'admin-ai-content',
+    'admin-marketing',
+    'admin-analytics',
+    'admin-security',
+    'admin-billing',
+    'admin-settings',
+    'admin-setup',
+    'admin-blog-writer',
+    'admin-ai-card'
+] as const;
+
+type AdminView = (typeof ADMIN_VIEWS)[number];
+
+const isAdminView = (value: string): value is AdminView => {
+    return ADMIN_VIEWS.includes(value as AdminView);
+};
+
+interface BackendListing {
+    id: string;
+    title: string;
+    address: string;
+    price: number;
+    bedrooms: number;
+    bathrooms: number;
+    squareFeet: number;
+    propertyType: string;
+    description?: string;
+    heroPhotos?: string[];
+    galleryPhotos?: string[];
+    features?: string[];
+    agent: AgentProfile;
+    ctaListingUrl?: string;
+    ctaMediaUrl?: string;
+}
+
 const App: React.FC = () => {
-    const [user, setUser] = useState<any | null>(null);
+    const [user, setUser] = useState<AppUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSettingUp, setIsSettingUp] = useState(false);
     const [isDemoMode, setIsDemoMode] = useState(false);
     // Use a plain string for view to avoid mismatches between multiple View type declarations
     // (several `types.ts` files exist in the repo). We'll keep runtime checks as strings.
     const [view, setView] = useState<View>('landing');
+    const handleViewChange = useCallback((nextView: View) => {
+        setView(nextView);
+    }, []);
     
 
     const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
@@ -83,7 +132,7 @@ const App: React.FC = () => {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [interactions, setInteractions] = useState<Interaction[]>([]);
     const [tasks, setTasks] = useState<AgentTask[]>([]);
-    const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [, setConversations] = useState<Conversation[]>([]);
     const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
 
     // Removed unused selectedLead state
@@ -91,7 +140,6 @@ const App: React.FC = () => {
     const [scrollToSection, setScrollToSection] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     // Notification system is now handled by NotificationSystem component
-    const [isPropertyComparisonOpen, setIsPropertyComparisonOpen] = useState(false);
     // Removed unused analyticsTimeRange state
     const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
     const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
@@ -100,8 +148,8 @@ const App: React.FC = () => {
 
     // Mock data for settings
     const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
-    const [isProfileLoading, setIsProfileLoading] = useState(false);
-        const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+    const [, setIsProfileLoading] = useState(false);
+    const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
         newLead: true,
         appointmentScheduled: true,
         aiInteraction: false,
@@ -120,18 +168,18 @@ const App: React.FC = () => {
         monthlyInsights: true
     });
     const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
-    	const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({ 
-		integrationType: 'google', 
-		aiScheduling: true, 
-		conflictDetection: true, 
-		emailReminders: true, 
-		autoConfirm: false,
-		workingHours: { start: '09:00', end: '17:00' },
-		workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-		defaultDuration: 60,
-		bufferTime: 15,
-		smsReminders: true,
-		newAppointmentAlerts: true
+    const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
+        integrationType: 'google',
+        aiScheduling: true,
+        conflictDetection: true,
+        emailReminders: true,
+        autoConfirm: false,
+        workingHours: { start: '09:00', end: '17:00' },
+        workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        defaultDuration: 60,
+        bufferTime: 15,
+        smsReminders: true,
+        newAppointmentAlerts: true
     });
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid'}] });
     // Removed unused state variables
@@ -207,9 +255,9 @@ const App: React.FC = () => {
                     setView('blog-post');
                     break;
                 default:
-                    if (route.startsWith('admin-')) {
+                    if (isAdminView(route)) {
                         resetAdminLogin();
-                        setView(route as any);
+                        setView(route);
                     } else {
                         setView('landing');
                     }
@@ -237,7 +285,7 @@ const App: React.FC = () => {
         
         const initAuth = async () => {
             const { data } = await supabase.auth.getUser();
-            const currentUser = data.user
+            const currentUser: AppUser | null = data.user
                 ? { uid: data.user.id, email: data.user.email, displayName: data.user.user_metadata?.name }
                 : null;
             setIsLoading(true);
@@ -394,7 +442,7 @@ const App: React.FC = () => {
         initAuth();
 
         const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            const currentUser = session?.user
+            const currentUser: AppUser | null = session?.user
                 ? { uid: session.user.id, email: session.user.email, displayName: session.user.user_metadata?.name }
                 : null;
             // Re-run the same flow with new user
@@ -495,10 +543,10 @@ const App: React.FC = () => {
         try {
             const response = await fetch('/api/listings');
             if (response.ok) {
-                const data = await response.json();
+                const data: { listings?: BackendListing[] } = await response.json();
                 // Convert backend format to frontend format
-                const backendListings = data.listings || [];
-                const frontendProperties = backendListings.map((listing: any) => ({
+                const backendListings: BackendListing[] = Array.isArray(data.listings) ? data.listings : [];
+                const frontendProperties = backendListings.map((listing) => ({
                     id: listing.id,
                     title: listing.title,
                     address: listing.address,
@@ -526,8 +574,8 @@ const App: React.FC = () => {
                         reports: true,
                         messaging: true
                     },
-                    ctaListingUrl: '',
-                    ctaMediaUrl: ''
+                    ctaListingUrl: listing.ctaListingUrl ?? '',
+                    ctaMediaUrl: listing.ctaMediaUrl ?? ''
                 }));
                 setProperties(frontendProperties);
                 console.log('✅ Loaded listings from backend:', frontendProperties.length);
@@ -600,7 +648,8 @@ const App: React.FC = () => {
             setIsAdminLoginOpen(false);
             setView('admin-dashboard');
             window.location.hash = 'admin-dashboard';
-        } catch (error: any) {
+        } catch (error) {
+            console.error('Admin login failed', error);
             setAdminLoginError('Invalid login credentials');
         } finally {
             setIsAdminLoginLoading(false);
@@ -619,10 +668,6 @@ const App: React.FC = () => {
         setView('landing');
         setScrollToSection(sectionId);
     };
-
-    // Notification handler for future use - will be used when implementing real notifications
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    // Notification handling is now managed by NotificationSystem component
 
     // Notification handling is now managed by NotificationSystem component
 
@@ -681,8 +726,9 @@ const App: React.FC = () => {
             }, 4000);
         } else if (user) { // Only save to Firestore if a real user is logged in
             try {
-                const { id, ...dataForFirestore } = propertyForState;
-                const newDocId = await addProperty(dataForFirestore, user.uid);
+                const { id: _discardedId, ...dataForPersistence } = propertyForState;
+                void _discardedId;
+                const newDocId = await addProperty(dataForPersistence, user.uid);
                 
                 setProperties(prev => prev.map(p => p.id === tempId ? { ...p, id: newDocId } : p));
             } catch (error) {
@@ -985,7 +1031,7 @@ const App: React.FC = () => {
 				return (
 					<div className="flex h-screen bg-slate-50">
 						<Suspense fallback={<LoadingSpinner />}>
-							<AdminSidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+							<AdminSidebar activeView={view} setView={handleViewChange} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 						</Suspense>
 						<div className="flex-1 flex flex-col overflow-hidden">
 							<header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
@@ -1009,7 +1055,7 @@ const App: React.FC = () => {
 
 			return (
 				<div className="flex h-screen bg-slate-50">
-					<Sidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+					<Sidebar activeView={view} setView={handleViewChange} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 					<div className="flex-1 flex flex-col overflow-hidden">
 						<header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
 							<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
@@ -1018,12 +1064,9 @@ const App: React.FC = () => {
 							<div className="flex-1 flex justify-center">
 								<LogoWithName />
 							</div>
-							<div className="flex items-center space-x-1">
-								<NotificationSystem userId={user?.uid || ''} />
-								<button onClick={() => setIsPropertyComparisonOpen(true)} className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Compare properties">
-									<span className="material-symbols-outlined text-lg">compare</span>
-								</button>
-							</div>
+                            <div className="flex items-center space-x-1">
+                                <NotificationSystem userId={user?.uid || ''} />
+                            </div>
 						</header>
 						<main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
 							{mainContent()}

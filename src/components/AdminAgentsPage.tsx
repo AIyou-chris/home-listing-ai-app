@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
 // FileUploadService removed - using Supabase alternatives
 
@@ -32,27 +32,25 @@ const defaultAgents = (): AIAgent[] => [
 
 const keyFor = (userId: string) => `hlai_agents_${userId || 'local'}`
 
+type UrlFrequency = 'once' | 'daily' | 'weekly' | 'monthly'
+
 const AdminAgentsPage: React.FC = () => {
 	const [userId, setUserId] = useState<string>('local')
 	const [agents, setAgents] = useState<AIAgent[]>([])
 	const [query, setQuery] = useState('')
-	const [addingTextFor, setAddingTextFor] = useState<string | null>(null)
 	const [addingForAgentId, setAddingForAgentId] = useState<string | null>(null)
-	const [personaForAgentId, setPersonaForAgentId] = useState<string | null>(null)
-	const [actionMenuFor, setActionMenuFor] = useState<string | null>(null)
 	const [activeAddTab, setActiveAddTab] = useState<'quick' | 'file' | 'url'>('quick')
 	const [textTitle, setTextTitle] = useState('')
 	const [textContent, setTextContent] = useState('')
 	const [uploadingFor, setUploadingFor] = useState<string | null>(null)
 	const [urlInput, setUrlInput] = useState('')
-	const [urlFreq, setUrlFreq] = useState<'once' | 'daily' | 'weekly' | 'monthly'>('once')
+	const [urlFreq, setUrlFreq] = useState<UrlFrequency>('once')
 	const [showPersonaModal, setShowPersonaModal] = useState(false)
 	const [showIconModal, setShowIconModal] = useState(false)
 	// Curated icon set: bot, megaphone, support, home/listing, handshake, ideas, chat
 	const iconChoices = ['smart_toy','campaign','support_agent','home','apartment','handshake','lightbulb','chat']
 	// Voice preview state
 	const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
-	const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null)
 
 	const currentAgent: AIAgent | null = agents[0] || null
 
@@ -95,7 +93,7 @@ const AdminAgentsPage: React.FC = () => {
 		loadVoices()
 		synth.onvoiceschanged = () => loadVoices()
 		return () => {
-			(synth as any).onvoiceschanged = null
+			synth.onvoiceschanged = null
 		}
 	}, [])
 
@@ -103,12 +101,6 @@ const AdminAgentsPage: React.FC = () => {
 		localStorage.setItem(keyFor(userId), JSON.stringify(next))
 		setAgents(next)
 	}
-
-	const filtered = useMemo(() => {
-		const q = query.trim().toLowerCase()
-		if (!q) return agents
-		return agents.filter(a => a.name.toLowerCase().includes(q))
-	}, [agents, query])
 
 	const handleToggle = (id: string) => {
 		const next = agents.map(a => a.id === id ? { ...a, isActive: !a.isActive } : a)
@@ -120,26 +112,13 @@ const AdminAgentsPage: React.FC = () => {
 		saveAgents(next)
 	}
 
-	const handlePersona = (id: string, persona: string) => {
-		const next = agents.map(a => a.id === id ? { ...a, persona } : a)
-		saveAgents(next)
-	}
-
-	const handleAddText = async (agent: AIAgent) => {
+	const handleAddText = (agent: AIAgent) => {
 		if (!textTitle.trim() || !textContent.trim()) return
-		setAddingTextFor(agent.id)
-		try {
-			const blob = new Blob([textContent], { type: 'text/plain' })
-			const file = new File([blob], `${textTitle}.txt`, { type: 'text/plain' })
-			// FileUploadService removed - using Supabase alternatives
-			const item = { id: crypto.randomUUID(), title: textTitle.trim(), createdAt: new Date().toISOString() }
-			const next = agents.map(a => a.id === agent.id ? { ...a, knowledge: [item, ...a.knowledge] } : a)
-			saveAgents(next)
-			setTextTitle('')
-			setTextContent('')
-		} finally {
-			setAddingTextFor(null)
-		}
+		const item = { id: crypto.randomUUID(), title: textTitle.trim(), createdAt: new Date().toISOString() }
+		const next = agents.map(a => a.id === agent.id ? { ...a, knowledge: [item, ...a.knowledge] } : a)
+		saveAgents(next)
+		setTextTitle('')
+		setTextContent('')
 	}
 
 	const handleUploadFile = async (agent: AIAgent, file: File) => {
@@ -198,9 +177,6 @@ const AdminAgentsPage: React.FC = () => {
 		const utter = new SpeechSynthesisUtterance(preset.sample)
 		const v = pickVoiceForGender(preset.gender)
 		if (v) utter.voice = v
-		setPlayingVoiceId(presetId)
-		utter.onend = () => setPlayingVoiceId(null)
-		utter.onerror = () => setPlayingVoiceId(null)
 		synth.speak(utter)
 	}
 
@@ -364,7 +340,7 @@ const AdminAgentsPage: React.FC = () => {
 									</div>
 									<div>
 										<label className="block text-xs text-slate-500 mb-1">Frequency</label>
-										<select value={urlFreq} onChange={e => setUrlFreq(e.target.value as any)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+										<select value={urlFreq} onChange={e => setUrlFreq(e.target.value as UrlFrequency)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
 											<option value="once">Once (Manual)</option>
 											<option value="daily">Daily</option>
 											<option value="weekly">Weekly</option>

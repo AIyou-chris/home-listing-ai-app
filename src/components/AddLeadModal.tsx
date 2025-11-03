@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
 import Modal from './Modal';
 
+export interface NewLeadPayload {
+    name: string;
+    email: string;
+    phone: string;
+    message: string;
+    source: string;
+}
+
 interface AddLeadModalProps {
     onClose: () => void;
-    onAddLead: (leadData: object) => void;
+    onAddLead: (leadData: NewLeadPayload) => void;
     initialData?: {
         name?: string;
         message?: string;
@@ -49,7 +57,7 @@ const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) 
 
 
 const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onAddLead, initialData }) => {
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<NewLeadPayload>({
         name: initialData?.name || '',
         email: '',
         phone: '',

@@ -23,8 +23,7 @@ import {
   deleteConversation,
   exportConversationsCSV,
   type ConversationRow,
-  type MessageRow,
-  type ConversationChannel
+  type MessageRow
 } from '../services/chatService';
 
 type ConversationType = 'chat' | 'voice' | 'email';
@@ -61,8 +60,70 @@ interface ConversationMessage {
   };
 }
 
+interface ConversationMetadata extends Record<string, unknown> {
+  duration?: string | null;
+}
+
+interface MessageTranslation {
+  language: string;
+  text: string;
+}
+
+const parseConversationMetadata = (metadata: unknown): ConversationMetadata => {
+  if (!metadata || typeof metadata !== 'object') {
+    return {};
+  }
+
+  const record = { ...(metadata as Record<string, unknown>) };
+  const durationValue = record.duration;
+  if (typeof durationValue === 'string' || durationValue === null) {
+    return { ...record, duration: durationValue };
+  }
+
+  delete (record as { duration?: unknown }).duration;
+  return record as ConversationMetadata;
+};
+
+const parseMessageTranslation = (translation: unknown): MessageTranslation | undefined => {
+  if (!translation || typeof translation !== 'object') {
+    return undefined;
+  }
+
+  const record = translation as Record<string, unknown>;
+  const language = typeof record.language === 'string'
+    ? record.language
+    : typeof record.lang === 'string'
+      ? record.lang
+      : 'Translated';
+
+  const textCandidate = record.text ?? record.content;
+  if (typeof textCandidate === 'string') {
+    return { language, text: textCandidate };
+  }
+
+  if (textCandidate !== undefined) {
+    try {
+      return { language, text: JSON.stringify(textCandidate) };
+    } catch (error) {
+      console.warn('Failed to stringify translation payload', error);
+    }
+  }
+
+  return undefined;
+};
+
+const mapFilterTypeValue = (value: string): ConversationType | 'all' => {
+  const allowed: Array<ConversationType | 'all'> = ['chat', 'voice', 'email', 'all'];
+  return allowed.includes(value as ConversationType | 'all') ? (value as ConversationType | 'all') : 'all';
+};
+
+const mapFilterStatusValue = (value: string): ConversationStatus | 'all' => {
+  const allowed: Array<ConversationStatus | 'all'> = ['active', 'archived', 'important', 'follow-up', 'all'];
+  return allowed.includes(value as ConversationStatus | 'all') ? (value as ConversationStatus | 'all') : 'all';
+};
+
 const mapConversationRowToSummary = (row: ConversationRow): ConversationSummary => {
-  const metadata = (row.metadata || {}) as Record<string, any>;
+  const metadata = parseConversationMetadata(row.metadata);
   return {
     id: row.id,
     contactName: row.contact_name || 'Unknown Contact',
@@ -71,7 +132,7 @@ const mapConversationRowToSummary = (row: ConversationRow): ConversationSummary 
     type: (row.type as ConversationType) || 'chat',
     lastMessage: row.last_message || '',
     timestamp: row.last_message_at || row.created_at,
-    duration: metadata.duration || null,
+    duration: (typeof metadata.duration === 'string' || metadata.duration === null) ? metadata.duration : null,
     status: (row.status as ConversationStatus) || 'active',
     messageCount: row.message_count || 0,
     property: row.property || undefined,
@@ -85,11 +146,9 @@ const mapConversationRowToSummary = (row: ConversationRow): ConversationSummary 
 
 const mapMessageRowToConversationMessage = (row: MessageRow): ConversationMessage => {
   let translation; // derive translation if available
-  if (row.translation && typeof row.translation === 'object') {
-    const translationObj = row.translation as Record<string, any>;
-    const language = translationObj.language || translationObj.lang || 'Translated';
-    const text = translationObj.text || translationObj.content || JSON.stringify(translationObj);
-    translation = { language, text };
+  const parsedTranslation = parseMessageTranslation(row.translation);
+  if (parsedTranslation) {
+    translation = parsedTranslation;
   }
 
   return {
@@ -143,7 +202,7 @@ const AIConversationsPage: React.FC = () => {
       if (mapped.length && !selectedConversationId) {
         setSelectedConversationId(mapped[0].id);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load conversations:', err);
       setError('Failed to load conversations.');
     } finally {
@@ -479,7 +538,7 @@ const AIConversationsPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <select
                 value={filterType}
-                onChange={(e) => setFilterType(e.target.value as any)}
+                onChange={(event) => setFilterType(mapFilterTypeValue(event.target.value))}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="all">All Channels</option>
@@ -489,7 +548,7 @@ const AIConversationsPage: React.FC = () => {
               </select>
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value as any)}
+                onChange={(event) => setFilterStatus(mapFilterStatusValue(event.target.value))}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="all">All Status</option>

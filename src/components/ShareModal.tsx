@@ -36,10 +36,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, content }) => 
 				case 'sms':
 					result = ShareService.shareViaText(content);
 					break;
-				case 'copy':
+				case 'copy': {
 					const success = await ShareService.copyToClipboard(content.url || window.location.href);
 					result = { success, method: 'copy' };
 					break;
+				}
 				default:
 					result = await ShareService.shareContent(content);
 			}

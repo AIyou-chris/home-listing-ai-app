@@ -1,5 +1,15 @@
 // Email service for sending consultation confirmations and notifications
-import { googleOAuthService } from './googleOAuthService'
+interface GmailConnection {
+    email: string;
+    accessToken: string;
+}
+
+type EmailPayload = {
+    to: string;
+    subject: string;
+    html: string;
+    fromEmail?: string;
+};
 
 export interface ConsultationData {
     name: string;
@@ -83,11 +93,11 @@ class EmailService {
         }
     }
 
-    private getGmailConnection() {
+    private getGmailConnection(): GmailConnection | null {
         try {
             const stored = localStorage.getItem('gmail_connection');
             if (stored) {
-                return JSON.parse(stored);
+                return JSON.parse(stored) as GmailConnection;
             }
         } catch (error) {
             console.error('Error getting Gmail connection:', error);
@@ -170,7 +180,7 @@ We've logged your booking details for follow-up.`);
         }
     }
 
-    private async sendViaBackend(emailContent: any): Promise<boolean> {
+    private async sendViaBackend(emailContent: EmailPayload): Promise<boolean> {
         try {
             // This would send email via your backend API
             const response = await fetch('/api/send-email', {

@@ -18,6 +18,17 @@ const parseStatusParam = (): string | null => {
   return params.get('status');
 };
 
+const extractErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === 'object' && error !== null) {
+    const candidate = error as { message?: unknown };
+    if (typeof candidate.message === 'string' && candidate.message.trim().length > 0) {
+      return candidate.message;
+    }
+  }
+  return fallback;
+};
+
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => {
   const [agent, setAgent] = useState<AgentRecord | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -43,9 +54,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
         if (record.status === 'active' || record.status === 'admin_test') {
           setActivationState('active');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[CheckoutPage] Failed to load agent', err);
-        setError(err?.message || 'Unable to load your registration. Please try again.');
+        setError(extractErrorMessage(err, 'Unable to load your registration. Please try again.'));
       } finally {
         setIsLoading(false);
       }
@@ -75,9 +86,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
         setAgent(record);
         setActivationState('active');
       })
-      .catch((err: any) => {
+      .catch((err: unknown) => {
         console.error('[CheckoutPage] Activation polling failed', err);
-        setError(err?.message || 'We could not confirm your payment yet. Please reach out to support.');
+        setError(extractErrorMessage(err, 'We could not confirm your payment yet. Please reach out to support.'));
         setActivationState('pending');
       })
       .finally(() => setIsPolling(false));
@@ -96,9 +107,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
       } else {
         setError('Checkout session did not return a redirect URL. Please contact support.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[CheckoutPage] Failed to create checkout session', err);
-      setError(err?.message || 'We were unable to start checkout. Please try again.');
+      setError(extractErrorMessage(err, 'We were unable to start checkout. Please try again.'));
     } finally {
       setIsCreatingSession(false);
     }

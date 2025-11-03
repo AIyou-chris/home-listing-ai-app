@@ -33,11 +33,12 @@ const AdminSetup: React.FC = () => {
             } else {
                 throw new Error(result.error || 'Failed to setup admin user');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Setup error:', error);
+            const fallback = error instanceof Error ? error.message : 'Failed to setup admin user'
             setMessage({
                 type: 'error',
-                text: error.message || 'Failed to setup admin user'
+                text: fallback
             });
         } finally {
             setIsLoading(false);

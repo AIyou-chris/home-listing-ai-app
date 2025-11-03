@@ -82,7 +82,9 @@ export const clearRegistrationContext = () => {
   try {
     if (typeof window === 'undefined' || !window.sessionStorage) return;
     window.sessionStorage.removeItem(REGISTRATION_STORAGE_KEY);
-  } catch {}
+  } catch (error) {
+    console.warn('[AgentOnboarding] Failed to clear registration context', error);
+  }
 };
 
 export const agentOnboardingService = {

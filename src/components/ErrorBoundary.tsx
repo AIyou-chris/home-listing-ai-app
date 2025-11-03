@@ -116,21 +116,5 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-// Hook version for functional components
-export const useErrorHandler = () => {
-  return (error: Error, errorInfo?: ErrorInfo) => {
-    console.error('Error caught by hook:', error, errorInfo);
-    
-    if (import.meta.env.PROD) {
-      // TODO: Send to error tracking service
-      console.error('Production error:', {
-        error: error.message,
-        stack: error.stack,
-        ...errorInfo
-      });
-    }
-  };
-};
-
 // Default export
 export default ErrorBoundary;

@@ -1,20 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useAdminModal } from '../context/AdminModalContext';
-import { User, Lead } from '../types';
 import { ValidationUtils } from '../utils/validation';
 
 interface AdminModalsProps {
-  users: User[];
-  leads: Lead[];
-  onAddUser: (userData: any) => Promise<void>;
-  onEditUser: (userData: any) => Promise<void>;
-  onAddLead: (leadData: any) => Promise<void>;
-  onEditLead: (leadData: any) => Promise<void>;
+  onAddUser: () => Promise<void>;
+  onEditUser: () => Promise<void>;
+  onAddLead: () => Promise<void>;
+  onEditLead: () => Promise<void>;
 }
 
 export const AdminModals: React.FC<AdminModalsProps> = ({
-  users,
-  leads,
   onAddUser,
   onEditUser,
   onAddLead,
@@ -56,7 +51,7 @@ export const AdminModals: React.FC<AdminModalsProps> = ({
     }
 
     try {
-      await onAddUser(newUserForm);
+      await onAddUser();
       resetUserForms();
       setShowAddUserModal(false);
     } catch (error) {
@@ -78,7 +73,7 @@ export const AdminModals: React.FC<AdminModalsProps> = ({
     }
 
     try {
-      await onEditUser({ ...editingUser, ...editUserForm });
+      await onEditUser();
       resetUserForms();
       setShowEditUserModal(false);
     } catch (error) {
@@ -100,7 +95,7 @@ export const AdminModals: React.FC<AdminModalsProps> = ({
     }
 
     try {
-      await onAddLead(newLeadForm);
+      await onAddLead();
       resetLeadForms();
       setShowAddLeadModal(false);
     } catch (error) {
@@ -122,7 +117,7 @@ export const AdminModals: React.FC<AdminModalsProps> = ({
     }
 
     try {
-      await onEditLead({ ...editingLead, ...editLeadForm });
+      await onEditLead();
       resetLeadForms();
       setShowEditLeadModal(false);
     } catch (error) {

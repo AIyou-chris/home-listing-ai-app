@@ -1,7 +1,7 @@
 import { useAISidekicks, AISidekickRole } from '../context/AISidekickContext';
 import { buildSystemPrompt } from './promptBuilder';
 import { continueConversation as callLocal } from '../services/localAIService';
-import { addUsage, isOverBudget } from '../services/usageService';
+import { addUsage } from '../services/usageService';
 import { resolveUserId } from '../services/userId';
 
 type Msg = { sender: 'user' | 'assistant'; text: string };
@@ -24,7 +24,9 @@ export const useAiRouter = () => {
 				// In local mode we don't have token metrics; estimate minimal usage
 				await addUsage(uid, role, { prompt: system.length / 4, completion: text.length / 4, total: (system.length + text.length) / 4, costUsd: 0.0005 });
 			}
-		} catch {}
+		} catch (error) {
+			console.error('[aiRouter] Failed to record usage:', error);
+		}
 		return text;
 	};
 

@@ -72,6 +72,12 @@ export interface PropertyComparable {
   priceDifference: number;
 }
 
+type DatafinitiRecord = Partial<DatafinitiProperty> & Record<string, unknown>;
+
+interface DatafinitiSearchResponse {
+  records?: DatafinitiRecord[];
+}
+
 class DatafinitiService {
   private readonly apiKey: string;
   private readonly baseUrl = 'https://api.datafiniti.co/v4';
@@ -91,7 +97,7 @@ class DatafinitiService {
   async searchProperties(params: PropertySearchParams): Promise<DatafinitiProperty[]> {
     try {
       const query = this.buildSearchQuery(params);
-      const response = await this.makeRequest('/properties/search', {
+      const response = await this.makeRequest<DatafinitiSearchResponse>('/properties/search', {
         method: 'POST',
         body: JSON.stringify({
           query,
@@ -100,7 +106,7 @@ class DatafinitiService {
         })
       });
 
-      return this.transformProperties(response.records || []);
+      return this.transformProperties(response.records ?? []);
     } catch (error) {
       console.error('Error searching properties:', error);
       throw new Error('Failed to search properties');
@@ -350,7 +356,10 @@ class DatafinitiService {
   /**
    * Make HTTP request to Datafiniti API
    */
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  private async makeRequest<TResponse extends Record<string, unknown>>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<TResponse> {
     if (!this.apiKey) {
       throw new Error('Datafiniti API key not configured');
     }
@@ -375,7 +384,7 @@ class DatafinitiService {
       throw new Error(`Datafiniti API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as TResponse;
     console.log('✅ API Response data:', data);
     return data;
   }
@@ -405,7 +414,7 @@ class DatafinitiService {
   /**
    * Transform API response to our property interface
    */
-  private transformProperties(records: any[]): DatafinitiProperty[] {
+  private transformProperties(records: DatafinitiRecord[]): DatafinitiProperty[] {
     return records.map(record => ({
       id: record.id || `${record.address}_${record.zipCode}`,
       address: record.address || '',

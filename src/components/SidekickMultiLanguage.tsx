@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { AISidekickRole } from '../context/AISidekickContext'
 
+type TabId = 'overview' | 'configure' | 'translations' | 'training'
+
+const TAB_OPTIONS: Array<{ id: TabId; label: string; icon: string }> = [
+	{ id: 'overview', label: 'Overview', icon: 'dashboard' },
+	{ id: 'configure', label: 'Configure', icon: 'settings' },
+	{ id: 'translations', label: 'Translation Memory', icon: 'translate' },
+	{ id: 'training', label: 'Language Training', icon: 'school' }
+]
+
 interface LanguageConfig {
 	code: string
 	name: string
@@ -34,7 +43,7 @@ interface TranslationMemory {
 }
 
 const SidekickMultiLanguage: React.FC = () => {
-	const [activeTab, setActiveTab] = useState<'overview' | 'configure' | 'translations' | 'training'>('overview')
+	const [activeTab, setActiveTab] = useState<TabId>('overview')
 	const [selectedSidekick, setSelectedSidekick] = useState<AISidekickRole>('agent')
 	const [languages, setLanguages] = useState<LanguageConfig[]>([])
 	const [sidekickSettings, setSidekickSettings] = useState<SidekickLanguageSettings[]>([])
@@ -147,14 +156,6 @@ const SidekickMultiLanguage: React.FC = () => {
 
 	const currentSettings = sidekickSettings.find(s => s.sidekickId === selectedSidekick)
 
-	const toggleLanguage = (languageCode: string) => {
-		setLanguages(prev => prev.map(lang => 
-			lang.code === languageCode 
-				? { ...lang, enabled: !lang.enabled }
-				: lang
-		))
-	}
-
 	const updateSidekickLanguages = (languageCode: string, action: 'add' | 'remove') => {
 		setSidekickSettings(prev => prev.map(setting => {
 			if (setting.sidekickId === selectedSidekick) {
@@ -262,9 +263,9 @@ const SidekickMultiLanguage: React.FC = () => {
 							<div>
 								<h4 className="font-medium text-slate-900 capitalize">{setting.sidekickId} Sidekick</h4>
 								<p className="text-sm text-slate-600">
-									{setting.supportedLanguages.length} languages • 
-									{setting.autoDetect ? ' Auto-detect enabled' : ' Manual selection'} • 
-					 				{setting.translationQuality} quality
+									{setting.supportedLanguages.length} languages •{' '}
+									{setting.autoDetect ? 'Auto-detect enabled' : 'Manual selection'} •{' '}
+									{setting.translationQuality} quality
 								</p>
 							</div>
 							<div className="flex items-center gap-2">
@@ -432,15 +433,10 @@ const SidekickMultiLanguage: React.FC = () => {
 			{/* Tabs */}
 			<div className="border-b border-slate-200 mb-6">
 				<nav className="flex space-x-8">
-					{[
-						{ id: 'overview', label: 'Overview', icon: 'dashboard' },
-						{ id: 'configure', label: 'Configure', icon: 'settings' },
-						{ id: 'translations', label: 'Translation Memory', icon: 'translate' },
-						{ id: 'training', label: 'Language Training', icon: 'school' }
-					].map(tab => (
+					{TAB_OPTIONS.map(tab => (
 						<button
 							key={tab.id}
-							onClick={() => setActiveTab(tab.id as any)}
+							onClick={() => setActiveTab(tab.id)}
 							className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm ${
 								activeTab === tab.id
 									? 'border-primary-500 text-primary-600'

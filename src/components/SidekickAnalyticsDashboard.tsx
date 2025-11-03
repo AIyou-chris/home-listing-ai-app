@@ -30,7 +30,6 @@ const SidekickAnalyticsDashboard: React.FC = () => {
 	const [selectedTimeframe, setSelectedTimeframe] = useState<'24h' | '7d' | '30d' | '90d'>('7d')
 	const [selectedSidekick, setSelectedSidekick] = useState<AISidekickRole | 'all'>('all')
 	const [metrics, setMetrics] = useState<SidekickMetrics[]>([])
-	const [conversationAnalytics, setConversationAnalytics] = useState<ConversationAnalytics | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
 
 	// Generate demo data
@@ -78,21 +77,12 @@ const SidekickAnalyticsDashboard: React.FC = () => {
 		}))
 	}
 
-	const generateConversationAnalytics = (): ConversationAnalytics => ({
-		totalConversations: metrics.reduce((sum, m) => sum + m.totalConversations, 0),
-		avgConversationLength: 4.2,
-		completionRate: 87,
-		escalationRate: 8,
-		userRetentionRate: 73
-	})
-
 	useEffect(() => {
 		setIsLoading(true)
 		// Simulate API call
 		setTimeout(() => {
 			const demoMetrics = generateDemoMetrics()
 			setMetrics(demoMetrics)
-			setConversationAnalytics(generateConversationAnalytics())
 			setIsLoading(false)
 		}, 1000)
 	}, [selectedTimeframe])
@@ -109,6 +99,17 @@ const SidekickAnalyticsDashboard: React.FC = () => {
 			avgSatisfaction: Math.round(metrics.reduce((sum, m) => sum + m.satisfactionScore, 0) / metrics.length),
 			totalLeadConversions: metrics.reduce((sum, m) => sum + m.leadConversions, 0),
 			avgResponseTime: Math.round(metrics.reduce((sum, m) => sum + m.avgResponseTime, 0) / metrics.length)
+		}
+	}, [metrics])
+
+	const conversationAnalytics = useMemo<ConversationAnalytics | null>(() => {
+		if (!metrics.length) return null
+		return {
+			totalConversations: metrics.reduce((sum, m) => sum + m.totalConversations, 0),
+			avgConversationLength: 4.2,
+			completionRate: 87,
+			escalationRate: 8,
+			userRetentionRate: 73
 		}
 	}, [metrics])
 

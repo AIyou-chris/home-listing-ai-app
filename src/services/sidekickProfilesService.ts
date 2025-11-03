@@ -21,29 +21,34 @@ export const getListingProfile = async (
     return null
   }
   // 1) try per-listing profile
-  try {
-    const { data: listing, error: e1 } = await supabase
-      .from('ai_sidekick_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('scope', 'listing')
-      .eq('listing_id', listingId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-    if (!e1 && listing && listing.length > 0) return listing[0] as any
-  } catch {}
+  const { data: listingProfiles, error: listingError } = await supabase
+    .from<SidekickProfile>('ai_sidekick_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('scope', 'listing')
+    .eq('listing_id', listingId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (listingError) {
+    console.error('Failed to fetch listing sidekick profile', listingError)
+  } else if (listingProfiles && listingProfiles.length > 0) {
+    return listingProfiles[0]
+  }
+
   // 2) fallback to agent default listing persona
-  try {
-    const { data: agent, error: e2 } = await supabase
-      .from('ai_sidekick_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('scope', 'agent')
-      .is('listing_id', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-    if (!e2 && agent && agent.length > 0) return agent[0] as any
-  } catch {}
+  const { data: agentProfiles, error: agentError } = await supabase
+    .from<SidekickProfile>('ai_sidekick_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('scope', 'agent')
+    .is('listing_id', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (agentError) {
+    console.error('Failed to fetch agent sidekick profile', agentError)
+  } else if (agentProfiles && agentProfiles.length > 0) {
+    return agentProfiles[0]
+  }
   return null
 }
 
@@ -61,12 +66,12 @@ export const upsertAgentProfile = async (
     traits: profile.traits ?? null
   }
   const { data, error } = await supabase
-    .from('ai_sidekick_profiles')
+    .from<SidekickProfile>('ai_sidekick_profiles')
     .insert(payload)
     .select('*')
     .single()
   if (error) throw error
-  return data as unknown as SidekickProfile
+  return data
 }
 
 

@@ -53,11 +53,19 @@ interface AssignmentLog {
 	outcome: 'successful' | 'escalated' | 'failed' | 'pending'
 }
 
+type TabId = 'rules' | 'create' | 'logs' | 'analytics'
+
+const TAB_OPTIONS: Array<{ id: TabId; label: string; icon: string }> = [
+	{ id: 'rules', label: 'Assignment Rules', icon: 'rule' },
+	{ id: 'create', label: 'Create Rule', icon: 'add_circle' },
+	{ id: 'logs', label: 'Assignment Logs', icon: 'history' },
+	{ id: 'analytics', label: 'Analytics', icon: 'analytics' }
+]
+
 const SidekickAutoAssignment: React.FC = () => {
-	const [activeTab, setActiveTab] = useState<'rules' | 'create' | 'logs' | 'analytics'>('rules')
+	const [activeTab, setActiveTab] = useState<TabId>('rules')
 	const [assignmentRules, setAssignmentRules] = useState<AssignmentRule[]>([])
 	const [assignmentLogs, setAssignmentLogs] = useState<AssignmentLog[]>([])
-	const [isCreatingRule, setIsCreatingRule] = useState(false)
 	const [selectedRule, setSelectedRule] = useState<string | null>(null)
 
 	// Initialize demo data
@@ -645,15 +653,10 @@ const SidekickAutoAssignment: React.FC = () => {
 			{/* Tabs */}
 			<div className="border-b border-slate-200 mb-6">
 				<nav className="flex space-x-8">
-					{[
-						{ id: 'rules', label: 'Assignment Rules', icon: 'rule' },
-						{ id: 'create', label: 'Create Rule', icon: 'add_circle' },
-						{ id: 'logs', label: 'Assignment Logs', icon: 'history' },
-						{ id: 'analytics', label: 'Analytics', icon: 'analytics' }
-					].map(tab => (
+					{TAB_OPTIONS.map(tab => (
 						<button
 							key={tab.id}
-							onClick={() => setActiveTab(tab.id as any)}
+							onClick={() => setActiveTab(tab.id)}
 							className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm ${
 								activeTab === tab.id
 									? 'border-primary-500 text-primary-600'

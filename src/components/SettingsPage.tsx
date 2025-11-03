@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
-import { emailAuthService, EmailConnection } from '../services/emailAuthService';
-import { googleOAuthService } from '../services/googleOAuthService';
-import NotificationService from '../services/notificationService';
-import { getProfileForSettings, updateAgentProfileWithNotification } from '../services/agentProfileService';
 
 interface SettingsPageProps {
     userProfile: AgentProfile;
@@ -53,27 +49,14 @@ const FormInput: React.FC<{ label: string; id: string; } & React.InputHTMLAttrib
     </div>
 );
 
-const FormTextarea: React.FC<{ label: string; id: string; } & React.TextareaHTMLAttributes<HTMLTextAreaElement>> = ({ label, id, ...props }) => (
-    <div>
-        <label htmlFor={id} className="block text-sm font-medium text-slate-700 mb-1">
-            {label}
-        </label>
-        <textarea
-            id={id}
-            {...props}
-            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition"
-        />
-    </div>
-);
-
 const ToggleSwitch: React.FC<{
     enabled: boolean;
     onChange: (enabled: boolean) => void;
 }> = ({ enabled, onChange }) => {
     return (
         <button
-            type="button"
-            role="switch"
+            type='button'
+            role='switch'
             aria-checked={enabled}
             onClick={() => onChange(!enabled)}
             className={`relative inline-flex flex-shrink-0 items-center h-6 rounded-full w-11 cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
@@ -81,29 +64,14 @@ const ToggleSwitch: React.FC<{
             }`}
         >
             <span
-                aria-hidden="true"
+                aria-hidden='true'
                 className={`inline-block w-4 h-4 transform bg-white rounded-full shadow-lg ring-0 transition-transform duration-200 ease-in-out ${
                     enabled ? 'translate-x-6' : 'translate-x-1'
                 }`}
             />
         </button>
-    );
-};
-
-const NotificationPreferenceRow: React.FC<{
-    label: string;
-    description: string;
-    enabled: boolean;
-    onToggle: (enabled: boolean) => void;
-}> = ({ label, description, enabled, onToggle }) => (
-    <div className="flex justify-between items-center py-5">
-        <div>
-            <h4 className="font-semibold text-slate-800">{label}</h4>
-            <p className="text-sm text-slate-500">{description}</p>
-        </div>
-        <ToggleSwitch enabled={enabled} onChange={onToggle} />
-    </div>
-);
+    )
+}
 
 const IntegrationCard: React.FC<{
     icon: string;
@@ -178,15 +146,7 @@ const FeatureSection: React.FC<{ title: string; icon: string; children: React.Re
     </div>
 );
 
-const PlanFeature: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <li className="flex items-start gap-3">
-        <span className="material-symbols-outlined w-6 h-6 text-green-500 flex-shrink-0 mt-0.5">check_circle</span>
-        <span className="text-slate-600">{children}</span>
-    </li>
-);
-
-
-const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile, notificationSettings, onSaveNotifications, emailSettings, onSaveEmailSettings, calendarSettings, onSaveCalendarSettings, billingSettings, onSaveBillingSettings, onBackToDashboard }) => {
+const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard }) => {
     const [activeTab, setActiveTab] = useState<'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('notifications');
     const [emailFormData, setEmailFormData] = useState<EmailSettings>(emailSettings);
     const [calendarFormData, setCalendarFormData] = useState<CalendarSettings>(calendarSettings);
@@ -325,7 +285,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
 
     const handleCalendarSettingsSave = (e: React.FormEvent) => {
         e.preventDefault();
-        onSaveCalendarSettings(calendarFormData);
+        _onSaveCalendarSettings(calendarFormData);
         alert('Calendar settings saved successfully!');
     };
 
@@ -433,21 +393,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
     const handleNotificationToggle = (key: keyof NotificationSettings, value: boolean) => {
         const updatedSettings = { ...currentNotifications, [key]: value };
         setCurrentNotifications(updatedSettings);
-        onSaveNotifications(updatedSettings); // Auto-save on toggle
+        _onSaveNotifications(updatedSettings); // Auto-save on toggle
     };
 
-    const handleEmailSettingsChange = (field: keyof EmailSettings, value: any) => {
-        setEmailFormData(prev => ({...prev, [field]: value}));
+    const handleEmailSettingsChange = <K extends keyof EmailSettings>(field: K, value: EmailSettings[K]) => {
+        setEmailFormData(prev => ({ ...prev, [field]: value }));
     }
-    
-    const handleEmailSettingsSave = (e: React.FormEvent) => {
+
+    const handleEmailSettingsSave = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        onSaveEmailSettings(emailFormData);
+        _onSaveEmailSettings(emailFormData);
         alert('Email settings saved!');
     }
-    
-    const handleCalendarSettingsChange = (field: keyof CalendarSettings | 'integrationType', value: any) => {
-        setCalendarFormData(prev => ({...prev, [field]: value}));
+
+    const handleCalendarSettingsChange = <K extends keyof CalendarSettings>(field: K, value: CalendarSettings[K]) => {
+        setCalendarFormData(prev => ({ ...prev, [field]: value }));
     }
 
     const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -482,7 +442,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
 
     return (
         <div className="py-10 px-4 sm:px-6 lg:px-0">
-             <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
+             <button onClick={_onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
                 <span className="material-symbols-outlined w-5 h-5">chevron_left</span>
                 <span>Back to Dashboard</span>
             </button>
@@ -541,7 +501,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                 </div>
                                                 <div className="bg-green-50 border border-green-100 rounded-lg p-3">
                                                     <p className="font-semibold text-green-700 mb-1">Marketing Momentum</p>
-                                                    <p>Leave marketing updates enabled so you’ll know when sequences pause or new automations are ready to launch.</p>
+                                                    <p>Leave marketing updates enabled so you'll know when sequences pause or new automations are ready to launch.</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -1301,15 +1261,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                                 </div>
                                                 <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
                                                     <p className="font-semibold text-blue-700 mb-1">Block buffers</p>
-                                                    <p>Add a 15–30 minute buffer in your booking rules so back-to-back showings don’t crush your day.</p>
+                                                    <p>Add a 15–30 minute buffer in your booking rules so back-to-back showings don't crush your day.</p>
                                                 </div>
                                                 <div className="bg-green-50 border border-green-100 rounded-lg p-3">
                                                     <p className="font-semibold text-green-700 mb-1">Family time locked</p>
-                                                    <p>Tick off evenings and weekends you want to keep private — the assistant only books where you say it’s OK.</p>
+                                                    <p>Tick off evenings and weekends you want to keep private — the assistant only books where you say it's OK.</p>
                                                 </div>
                                                 <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
                                                     <p className="font-semibold text-amber-700 mb-1">Future-proof</p>
-                                                    <p>When Apple or other calendars arrive, you’ll just connect once and the AI keeps everything matching.</p>
+                                                    <p>When Apple or other calendars arrive, you'll just connect once and the AI keeps everything matching.</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -1537,7 +1497,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 <div className="flex items-center justify-between pt-8 border-t border-slate-200">
                                     <button
                                         type="button"
-                                        onClick={onBackToDashboard}
+                                        onClick={_onBackToDashboard}
                                         className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
                                     >
                                         ← Back to Dashboard
@@ -1738,7 +1698,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 <div className="flex items-center justify-between pt-8 border-t border-slate-200">
                                     <button
                                         type="button"
-                                        onClick={onBackToDashboard}
+                                        onClick={_onBackToDashboard}
                                         className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
                                     >
                                         ← Back to Dashboard
@@ -1924,7 +1884,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile,
                                 <div className="flex items-center justify-between pt-8 border-t border-slate-200">
                                     <button
                                         type="button"
-                                        onClick={onBackToDashboard}
+                                        onClick={_onBackToDashboard}
                                         className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
                                     >
                                         ← Back to Dashboard

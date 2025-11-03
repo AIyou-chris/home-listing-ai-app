@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-import { authService } from '../services/authService';
 import { supabase } from '../services/supabase';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
@@ -15,7 +14,6 @@ interface SignInPageProps {
 const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateToLanding, onNavigateToSection, onEnterDemoMode }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [error, setError] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
@@ -29,9 +27,10 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                 password
             });
             if (error) throw error;
-        } catch (err: any) {
-            setError(err.message);
-            alert(`Sign-in failed: ${err.message}`);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+            setError(message);
+            alert(`Sign-in failed: ${message}`);
         }
     };
 
@@ -45,6 +44,11 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Sign In to HomeListingAI</h1>
                             <p className="text-slate-500 mt-2">Welcome back! Please enter your details.</p>
                         </div>
+                        {error && (
+                            <div className="p-3 bg-red-50 text-red-800 border border-red-200 rounded-lg text-sm" role="alert">
+                                {error}
+                            </div>
+                        )}
                         <form className="mt-8 space-y-6" onSubmit={handleSignIn}>
                             <div>
                                 <label htmlFor="email-address" className="block text-sm font-semibold text-slate-700 mb-1.5">Email Address</label>

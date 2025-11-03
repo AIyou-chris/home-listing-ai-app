@@ -192,9 +192,11 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 									<button
 										onClick={async () => {
 											try {
-												const ok = await googleOAuthService.requestAccess();
-												setGoogleConnected(!!ok);
-											} catch {}
+											const ok = await googleOAuthService.requestAccess();
+											setGoogleConnected(!!ok);
+										} catch (error) {
+											console.error('Failed to connect Google account:', error);
+										}
 										}}
 										className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
 									>
@@ -346,10 +348,12 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 										onClick={async () => {
 											if (!editEmail) return;
 											setIsDraftingEmail(true);
-							try {
-								const suggestion = '';
-								if (suggestion && !emailBody) setEmailBody(suggestion);
-							} catch {}
+									try {
+										const suggestion = '';
+										if (suggestion && !emailBody) setEmailBody(suggestion);
+									} catch (error) {
+										console.error('Failed to draft email with AI', error);
+									}
 											setIsDraftingEmail(false);
 										}}
 										className="px-3 py-2 rounded-md bg-slate-100 text-slate-700 text-sm"

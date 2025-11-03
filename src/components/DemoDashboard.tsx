@@ -1,5 +1,5 @@
 import React from 'react';
-import { Property, Lead, Appointment } from '../types';
+import { Property } from '../types';
 import { DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
 
 interface DemoDashboardProps {

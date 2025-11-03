@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Property, Lead, Appointment, LeadStatus, AgentTask, TaskPriority, AgentProfile } from '../types';
 import SmartTaskManager from './SmartTaskManager';
-import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor } from '../services/leadScoringService';
+import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor, type LeadScore } from '../services/leadScoringService';
 // Hidden for launch - notification service will be re-enabled post-launch
 // import { notificationService } from '../services/notificationService';
 
@@ -93,7 +93,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isTaskManagerOpen, setIsTaskManagerOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
-  const [leadScores, setLeadScores] = useState<any[]>([]);
+  const [leadScores, setLeadScores] = useState<LeadScore[]>([]);
   const [isLoadingScores, setIsLoadingScores] = useState(false);
   const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
   // Hidden for launch - notification states will be re-enabled post-launch
@@ -406,12 +406,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 {['Qualified', 'Hot', 'Warm', 'Cold'].map(tier => {
                                     const count = leadScores.filter(s => s.tier === tier).length;
                                     const percentage = leadScores.length > 0 ? Math.round((count / leadScores.length) * 100) : 0;
-                                    const tierInfo = getScoreTierInfo(tier as any);
+                                    const tierInfo = getScoreTierInfo(tier);
+                                    const tierEmoji = typeof tierInfo === 'object' && tierInfo !== null && 'emoji' in tierInfo && typeof tierInfo.emoji === 'string'
+                                        ? tierInfo.emoji
+                                        : '📊';
                                     
                                     return (
                                         <div key={tier} className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-lg">{(tierInfo as any).emoji || '📊'}</span>
+                                                <span className="text-lg">{tierEmoji}</span>
                                                 <span className="font-medium text-slate-700">{tier} Leads</span>
                                             </div>
                                             <div className="flex items-center gap-2">

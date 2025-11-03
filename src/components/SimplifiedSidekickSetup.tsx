@@ -16,6 +16,13 @@ interface CustomAdjustments {
 	urgency: number // 1-5 scale
 }
 
+const adjustmentLabels: Record<keyof CustomAdjustments, string> = {
+    warmth: '🤝 Warmth',
+    directness: '🎯 Directness',
+    expertise: '🧠 Expertise Level',
+    urgency: '⚡ Urgency'
+}
+
 const SimplifiedSidekickSetup: React.FC = () => {
 	const [currentStep, setCurrentStep] = useState(1)
 	const [selectedPreset, setSelectedPreset] = useState<string>('')
@@ -222,9 +229,7 @@ const SimplifiedSidekickSetup: React.FC = () => {
 					<div key={key}>
 						<div className="flex justify-between items-center mb-2">
 							<label className="text-sm font-medium text-slate-700 capitalize">
-								{key === 'warmth' ? '🤝 Warmth' : 
-								 key === 'directness' ? '🎯 Directness' :
-								 key === 'expertise' ? '🧠 Expertise Level' : '⚡ Urgency'}
+								{adjustmentLabels[key as keyof CustomAdjustments]}
 							</label>
 							<span className="text-sm font-semibold text-slate-900">
 								{getSliderLabel(key as keyof CustomAdjustments, value)}

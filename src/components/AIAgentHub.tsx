@@ -2,7 +2,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react'
 import { saveTranscript } from '../services/aiTranscriptsService'
 import { resolveUserId } from '../services/userId'
 import { continueConversation as aiContinue } from '../services/openaiService'
-import { listKb, uploadFileKb, addTextKb, addUrlKb, deleteKb, getEntry, getPublicUrl, type KbEntry } from '../services/supabaseKb'
+import { listKb, uploadFileKb, addTextKb, addUrlKb, deleteKb, getEntry, getPublicUrl, type KbEntry, type SidekickId } from '../services/supabaseKb'
 
 interface AgentCard {
   id: string
@@ -36,14 +36,6 @@ const accentRing: Record<AgentCard['accent'], string> = {
   amber: 'ring-amber-200/60',
   rose: 'ring-rose-200/60',
   violet: 'ring-violet-200/60'
-}
-
-const accentBadge: Record<AgentCard['accent'], string> = {
-  blue: 'bg-blue-50 text-blue-700',
-  emerald: 'bg-emerald-50 text-emerald-700',
-  amber: 'bg-amber-50 text-amber-700',
-  rose: 'bg-rose-50 text-rose-700',
-  violet: 'bg-violet-50 text-violet-700'
 }
 
 const accentPrimary: Record<AgentCard['accent'], string> = {
@@ -81,8 +73,32 @@ const accentIconBg: Record<AgentCard['accent'], string> = {
 type VoiceOption = 'Female Voice 1' | 'Female Voice 2' | 'Male Voice 1' | 'Male Voice 2' | 'Neutral Voice 1'
 type PersonaOption = 'Professional' | 'Friendly' | 'Enthusiastic'
 
+type ScrapeFrequency = 'once' | 'daily' | 'weekly'
+
+interface SpeechRecognitionEventLike extends Event {
+  resultIndex: number
+  results: SpeechRecognitionResultList
+}
+
+interface SpeechRecognitionInstance {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
+
+interface SpeechRecognitionWindow extends Window {
+  SpeechRecognition?: SpeechRecognitionConstructor
+  webkitSpeechRecognition?: SpeechRecognitionConstructor
+}
+
 interface SidekickConfig {
-  id: 'main' | 'sales' | 'listing' | 'agent' | 'helper' | 'marketing' | 'support'
+  id: SidekickId
   title: string
   icon: string
   tone: PersonaOption
@@ -93,19 +109,18 @@ interface SidekickConfig {
 const AIAgentHub: React.FC = () => {
   const agents = useMemo(() => sampleAgents, [])
   const agent = agents[0]
-  const [showPersona, setShowPersona] = useState<SidekickConfig['id'] | null>(null)
-  const [showKnowledge, setShowKnowledge] = useState<SidekickConfig['id'] | null>(null)
-  const [showTest, setShowTest] = useState<SidekickConfig['id'] | null>(null)
-  const [kbTarget, setKbTarget] = useState<SidekickConfig['id'] | null>(null)
+  const [showPersona, setShowPersona] = useState<SidekickId | null>(null)
+  const [showKnowledge, setShowKnowledge] = useState<SidekickId | null>(null)
+  const [showTest, setShowTest] = useState<SidekickId | null>(null)
   const [testLoading, setTestLoading] = useState(false)
   const [testResponse, setTestResponse] = useState('')
   const [isRecording, setIsRecording] = useState(false)
-  const recognitionRef = useRef<any>(null)
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const audioPreviewRef = useRef<HTMLAudioElement | null>(null)
   const [voicePreviewState, setVoicePreviewState] = useState<{ voice: VoiceOption | null; loading: boolean }>({ voice: null, loading: false })
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   // Legacy per-card knowledge (no longer surfaced on cards)
-  const [knowledge, setKnowledge] = useState<Array<{ id: string; title: string; createdAt: string; for: SidekickConfig['id']; fileId?: string }>>([])
+  const [knowledge, setKnowledge] = useState<Array<{ id: string; title: string; createdAt: string; for: SidekickId; fileId?: string }>>([])
   // Modal-scoped knowledge list for the active sidekick
   const [kbEntries, setKbEntries] = useState<KbEntry[]>([])
   const [kbLoading, setKbLoading] = useState(false)
@@ -117,18 +132,19 @@ const AIAgentHub: React.FC = () => {
     try {
       const obj = JSON.parse(raw)
       return (obj?.uid || obj?.email || 'dev-admin') as string
-    } catch {
+    } catch (error) {
+      console.warn('Failed to parse adminUser from localStorage', error)
       return raw
     }
   }
   const [kTitle, setKTitle] = useState('')
   const [kText, setKText] = useState('')
   const [kUrl, setKUrl] = useState('')
-  const [kFrequency, setKFrequency] = useState<'once' | 'daily' | 'weekly'>('once')
+  const [kFrequency, setKFrequency] = useState<ScrapeFrequency>('once')
   const [kFiles, setKFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [isUploadingFiles, setIsUploadingFiles] = useState(false)
-  const [personas, setPersonas] = useState<Record<SidekickConfig['id'], { preset: string; description: string; traits: string[] }>>({
+  const [personas, setPersonas] = useState<Record<SidekickId, { preset: string; description: string; traits: string[] }>>({
     main: { preset: 'custom', description: 'You are the Main Sidekick. Professional, reliable, and helpful across scenarios.', traits: [] },
     sales: { preset: 'custom', description: 'You are the Sales Sidekick. Calm, persuasive, and concise. Handle objections, offer next steps.', traits: [] },
     listing: { preset: 'custom', description: 'You are the Listing Sidekick. Detail-oriented and helpful. Present property highlights and answer questions clearly.', traits: [] },
@@ -148,9 +164,8 @@ const AIAgentHub: React.FC = () => {
     'Neutral Voice 1': 'alloy'   // balanced, neutral delivery
   }
 
-  const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL ?
-    ((import.meta as any).env.VITE_API_BASE_URL as string).replace(/\/$/, '') :
-    '';
+  const apiBaseEnv = import.meta.env?.VITE_API_BASE_URL
+  const API_BASE_URL = typeof apiBaseEnv === 'string' ? apiBaseEnv.replace(/\/$/, '') : ''
 
   // Five preset personalities for dropdown
   const PRESET_PERSONALITIES: Array<{ key: string; name: string; description: string; traits: string[] }> = [
@@ -198,27 +213,35 @@ const AIAgentHub: React.FC = () => {
       if (savedPersonas) {
         setPersonas(prev => ({ ...prev, ...JSON.parse(savedPersonas) }))
       }
-    } catch {}
+    } catch (error) {
+      console.error('Failed to load saved personas from localStorage', error)
+    }
     try {
       const savedKnowledge = localStorage.getItem('aiSidekicks_knowledge')
       if (savedKnowledge) {
         const parsed = JSON.parse(savedKnowledge)
         if (Array.isArray(parsed)) setKnowledge(parsed)
       }
-    } catch {}
+    } catch (error) {
+      console.error('Failed to load saved knowledge from localStorage', error)
+    }
   }, [])
 
   // Auto-save to localStorage
   useEffect(() => {
     try {
       localStorage.setItem('aiSidekicks_personas', JSON.stringify(personas))
-    } catch {}
+    } catch (error) {
+      console.error('Failed to persist personas to localStorage', error)
+    }
   }, [personas])
 
   useEffect(() => {
     try {
       localStorage.setItem('aiSidekicks_knowledge', JSON.stringify(knowledge))
-    } catch {}
+    } catch (error) {
+      console.error('Failed to persist knowledge to localStorage', error)
+    }
   }, [knowledge])
 
   // When opening the Knowledge modal, fetch existing entries for that sidekick
@@ -227,14 +250,14 @@ const AIAgentHub: React.FC = () => {
       if (!showKnowledge) return
       const userId = getUserId()
       try {
-        const entries = await listKb(userId, showKnowledge as any)
+        const entries = await listKb(userId, showKnowledge)
         setKbEntries(entries)
       } catch (e) {
         console.warn('listKnowledge failed', e)
       }
     })()
   }, [showKnowledge])
-  const [testInputs, setTestInputs] = useState<Record<SidekickConfig['id'], string>>({
+  const [testInputs, setTestInputs] = useState<Record<SidekickId, string>>({
     main: '', sales: '', listing: '', agent: '', helper: '', marketing: '', support: ''
   })
 
@@ -244,11 +267,9 @@ const AIAgentHub: React.FC = () => {
     { id: 'listing', title: 'Listing Sidekick', icon: 'home', tone: 'Professional', voice: 'Neutral Voice 1', accent: 'rose' }
   ])
 
-  const setTone = (id: SidekickConfig['id'], tone: PersonaOption) => setSidekicks(prev => prev.map(s => s.id === id ? { ...s, tone } : s))
-  const setVoice = (id: SidekickConfig['id'], voice: VoiceOption) => setSidekicks(prev => prev.map(s => s.id === id ? { ...s, voice } : s))
-  const [expanded, setExpanded] = useState<Record<SidekickConfig['id'], boolean>>({ main: false, sales: false, listing: false, agent: false, helper: false, marketing: false, support: false })
+  const [expanded, setExpanded] = useState<Record<SidekickId, boolean>>({ main: false, sales: false, listing: false, agent: false, helper: false, marketing: false, support: false })
 
-  const getPersonaPrompt = (id: SidekickConfig['id']) => {
+  const getPersonaPrompt = (id: SidekickId) => {
     switch (id) {
       case 'sales':
         return 'You are the Sales Sidekick. Calm, persuasive, and concise. Handle objections, offer next steps.'
@@ -289,7 +310,7 @@ const AIAgentHub: React.FC = () => {
   }
 
   // =============== Voice helpers ===============
-  const getSelectedVoiceLabel = (id: SidekickConfig['id']): VoiceOption => {
+  const getSelectedVoiceLabel = (id: SidekickId): VoiceOption => {
     const v = sidekicks.find(s => s.id === id)?.voice
     return (v || 'Neutral Voice 1') as VoiceOption
   }
@@ -315,11 +336,19 @@ const AIAgentHub: React.FC = () => {
     // Ensure voices are loaded (Chrome lazy-loads voices)
     const synth = window.speechSynthesis
     if (!voices || voices.length === 0) {
-      try { synth.getVoices() } catch {}
+      try {
+        synth.getVoices()
+      } catch (error) {
+        console.error('speechSynthesis.getVoices failed', error)
+      }
       setTimeout(() => speak(text, label), 250)
       return
     }
-    try { synth.cancel() } catch {}
+    try {
+      synth.cancel()
+    } catch (error) {
+      console.error('speechSynthesis.cancel failed', error)
+    }
     const utter = new SpeechSynthesisUtterance(text)
     const v = pickVoice(label)
     if (v) {
@@ -355,8 +384,14 @@ const AIAgentHub: React.FC = () => {
       if (audioPreviewRef.current) {
         try {
           audioPreviewRef.current.pause()
-        } catch {}
-        URL.revokeObjectURL(audioPreviewRef.current.src)
+        } catch (error) {
+          console.error('Failed to pause existing audio preview', error)
+        }
+        try {
+          URL.revokeObjectURL(audioPreviewRef.current.src)
+        } catch (error) {
+          console.error('Failed to revoke previous audio preview URL', error)
+        }
       }
 
       const audio = new Audio(url)
@@ -377,11 +412,23 @@ const AIAgentHub: React.FC = () => {
 
   const stopVoicePreview = () => {
     if (audioPreviewRef.current) {
-      try { audioPreviewRef.current.pause() } catch {}
-      try { URL.revokeObjectURL(audioPreviewRef.current.src) } catch {}
+      try {
+        audioPreviewRef.current.pause()
+      } catch (error) {
+        console.error('Failed to pause audio preview', error)
+      }
+      try {
+        URL.revokeObjectURL(audioPreviewRef.current.src)
+      } catch (error) {
+        console.error('Failed to revoke audio preview URL', error)
+      }
       audioPreviewRef.current = null
     }
-    try { window.speechSynthesis.cancel() } catch {}
+    try {
+      window.speechSynthesis.cancel()
+    } catch (error) {
+      console.error('speechSynthesis.cancel failed during preview stop', error)
+    }
     setVoicePreviewState({ voice: null, loading: false })
   }
 
@@ -399,38 +446,69 @@ const AIAgentHub: React.FC = () => {
       const list = synth.getVoices()
       if (list && list.length) setVoices(list)
     }
-    try { load() } catch {}
-    try { synth.onvoiceschanged = load } catch {}
+    try {
+      load()
+    } catch (error) {
+      console.error('Failed to load speech synthesis voices on mount', error)
+    }
+    try {
+      synth.onvoiceschanged = load
+    } catch (error) {
+      console.error('Failed to attach onvoiceschanged listener', error)
+    }
     const t = setTimeout(load, 500)
-    return () => { clearTimeout(t); try { synth.onvoiceschanged = null as any } catch {} }
+    return () => {
+      clearTimeout(t)
+      try {
+        synth.onvoiceschanged = null
+      } catch (error) {
+        console.error('Failed to clear onvoiceschanged listener', error)
+      }
+    }
   }, [])
 
   const startRecording = () => {
-    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SR || !showTest) return
-    const rec = new SR()
+    if (typeof window === 'undefined' || !showTest) return
+    const speechWindow = window as SpeechRecognitionWindow
+    const RecognitionCtor = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition
+    if (!RecognitionCtor) return
+    const rec = new RecognitionCtor()
     recognitionRef.current = rec
     rec.lang = 'en-US'
     rec.continuous = true
     rec.interimResults = true
     let finalText = ''
-    rec.onresult = (e: any) => {
+    rec.onresult = (event: SpeechRecognitionEventLike) => {
       let interim = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i]
-        if (r.isFinal) finalText += r[0].transcript
-        else interim += r[0].transcript
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        if (result.isFinal) finalText += result[0].transcript
+        else interim += result[0].transcript
       }
       const merged = (finalText + ' ' + interim).trim()
       setTestInputs(prev => ({ ...prev, [showTest]: merged }))
     }
     rec.onend = () => setIsRecording(false)
-    rec.start()
-    setIsRecording(true)
+    try {
+      rec.start()
+      setIsRecording(true)
+    } catch (error) {
+      console.error('Failed to start speech recognition', error)
+      setIsRecording(false)
+    }
   }
 
   const stopRecording = () => {
-    try { recognitionRef.current?.stop() } catch {}
+    if (!recognitionRef.current) {
+      setIsRecording(false)
+      return
+    }
+    try {
+      recognitionRef.current.stop()
+    } catch (error) {
+      console.error('Failed to stop speech recognition', error)
+    }
+    recognitionRef.current = null
     setIsRecording(false)
   }
 
@@ -492,7 +570,7 @@ const AIAgentHub: React.FC = () => {
                         AI Personality
                       </button>
                       <button
-                        onClick={() => { setShowKnowledge(sk.id); setKbTarget(sk.id); }}
+                        onClick={() => { setShowKnowledge(sk.id); }}
                         className={`px-3 py-2 rounded-xl bg-white border text-sm transition-colors ${accentOutline[sk.accent]}`}
                       >
                         Add Knowledge
@@ -501,7 +579,7 @@ const AIAgentHub: React.FC = () => {
                     <div className='grid grid-cols-2 gap-3'>
                       <div>
                         <label className='block text-xs text-slate-600 mb-1'>Voice</label>
-                        <select value={sk.voice} onChange={e => setVoice(sk.id, e.target.value as VoiceOption)} className='w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white'>
+                        <select value={sk.voice} onChange={e => setSidekicks(prev => prev.map(s => s.id === sk.id ? { ...s, voice: e.target.value as VoiceOption } : s))} className='w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white'>
                           <option>Female Voice 1</option>
                           <option>Female Voice 2</option>
                           <option>Male Voice 1</option>
@@ -701,7 +779,7 @@ const AIAgentHub: React.FC = () => {
                         // Upload to Supabase
                         if (files.length > 0) {
                           setIsUploadingFiles(true)
-                          const activeFor = (showKnowledge || 'listing') as SidekickConfig['id']
+                          const activeFor: SidekickId = showKnowledge ?? 'listing'
                           const userId = getUserId()
                           try {
                             for (const f of files) {
@@ -747,7 +825,7 @@ const AIAgentHub: React.FC = () => {
                     const textBody = kText.trim()
                     const safeTitle = (kTitle.trim() || textBody.slice(0, 60) || 'Text Note').replace(/\s+/g, ' ').trim()
                     if (!textBody) return
-                    const target = (showKnowledge || 'listing') as SidekickConfig['id']
+                    const target: SidekickId = showKnowledge ?? 'listing'
                     const userId = getUserId()
                     try {
                       const row = await addTextKb(userId, target, safeTitle, textBody)
@@ -769,7 +847,16 @@ const AIAgentHub: React.FC = () => {
                   <label className='block text-xs text-slate-600 mb-1'>Website URL</label>
                   <input value={kUrl} onChange={e => setKUrl(e.target.value)} className='w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-3' placeholder='https://example.com/agent-resources' />
                   <label className='block text-xs text-slate-600 mb-1'>Scraping Frequency</label>
-                  <select value={kFrequency} onChange={e => setKFrequency(e.target.value as any)} className='w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-3'>
+                  <select
+                    value={kFrequency}
+                    onChange={e => {
+                      const value = e.target.value
+                      if (value === 'once' || value === 'daily' || value === 'weekly') {
+                        setKFrequency(value)
+                      }
+                    }}
+                    className='w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-3'
+                  >
                     <option value='once'>Once (Manual)</option>
                     <option value='daily'>Daily</option>
                     <option value='weekly'>Weekly</option>
@@ -777,7 +864,7 @@ const AIAgentHub: React.FC = () => {
                   <button onClick={async () => {
                     const raw = kUrl.trim()
                     if (!raw) return
-                    const target = (showKnowledge || 'listing') as SidekickConfig['id']
+                    const target: SidekickId = showKnowledge ?? 'listing'
                     const userId = getUserId()
                     setIsScraping(true)
                     try {
@@ -815,7 +902,7 @@ const AIAgentHub: React.FC = () => {
                       const userId = getUserId()
                       setKbLoading(true)
                       try {
-                        const entries = await listKb(userId, showKnowledge as any)
+                        const entries = await listKb(userId, showKnowledge)
                         setKbEntries(entries)
                       } catch (e) {
                         console.warn('refresh knowledge failed', e)
@@ -852,8 +939,12 @@ const AIAgentHub: React.FC = () => {
                               setPreview({ id: e.id, title: e.title, content: full?.content, url: e.type === 'url' ? e.content : undefined })
                             }} className='text-xs text-slate-700 hover:text-slate-900'>View</button>
                             <button onClick={async () => {
-                              try { await deleteKb(e) } catch {}
-                              setKbEntries(prev => prev.filter(x => x.id !== e.id))
+                              try {
+                                await deleteKb(e)
+                                setKbEntries(prev => prev.filter(x => x.id !== e.id))
+                              } catch (error) {
+                                console.error('Failed to delete knowledge entry', error)
+                              }
                             }} className='text-xs text-red-600 hover:text-red-700'>Delete</button>
                           </div>
                         </li>
@@ -935,7 +1026,9 @@ const AIAgentHub: React.FC = () => {
                     // Bridge to chat input in other tabs
                     try {
                       localStorage.setItem('hlai_transcript_draft', `${testInputs[showTest] || ''}\n\nAI: ${testResponse || ''}`)
-                    } catch {}
+                    } catch (error) {
+                      console.error('Failed to persist transcript draft to localStorage', error)
+                    }
                   }} className='px-3 py-2 rounded-lg bg-slate-900 text-white text-sm'>Save & Send to Chat</button>
                 </div>
               </div>

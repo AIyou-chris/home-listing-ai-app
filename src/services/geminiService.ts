@@ -1,20 +1,41 @@
-// @ts-nocheck
-
-
 // Firebase removed – use local fallbacks/mocks
 import { Property, AIDescription, ChatMessage, MarketData, SocialPlatform, AIBlogPost, isAIDescription, LocalInfoData } from '../types';
 
-// Stubs that throw to trigger catch/fallback paths
-const stub = async (_: any) => { throw new Error('Service unavailable'); };
-const generatePropertyDescriptionFunction = stub;
-const answerPropertyQuestionFunction = stub;
-const continueConversationFunction = stub;
-const getMarketAnalysisFunction = stub;
-const generatePropertyReportFunction = stub;
-const generateBlogPostFunction = stub;
-const generateVideoScriptFunction = stub;
-const generateSocialPostTextFunction = stub;
-const getLocalInfoFunction = stub;
+interface GeminiResponse<T> {
+    data: T;
+}
+
+const createErrorStub = <Params, Result>(): ((params: Params) => Promise<GeminiResponse<Result>>) => {
+    return async () => {
+        throw new Error('Service unavailable');
+    };
+};
+
+const generatePropertyDescriptionFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty> }, AIDescription>();
+const answerPropertyQuestionFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty>; question: string }, { text: string }>();
+const continueConversationFunction = createErrorStub<{ messages: Array<{ sender: string; text: string }> }, { text: string }>();
+const getMarketAnalysisFunction = createErrorStub<{ address: string }, MarketData>();
+const generatePropertyReportFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty>; options: GenerateReportOptions }, { text: string }>();
+const generateBlogPostFunction = createErrorStub<{ topic: string; tone: string; targetAudience: string }, { post: AIBlogPost }>();
+const generateVideoScriptFunction = createErrorStub<{ prompt: string; duration: number }, { script: string }>();
+const generateSocialPostTextFunction = createErrorStub<{ prompt: string; platform: SocialPlatform }, { text: string }>();
+const getLocalInfoFunction = createErrorStub<{ location: string }, LocalInfoData>();
+
+interface GenerateReportOptions {
+    marketAnalysis: boolean;
+    comparableProperties: boolean;
+    neighborhoodInfo: boolean;
+    realPropertyData?: {
+        estimatedValue?: number;
+        rentEstimate?: number;
+        walkScore?: number;
+        crimeScore?: number;
+        schoolDistrict?: string;
+        neighborhood?: string;
+        yearBuilt?: number;
+        lotSize?: number;
+    };
+}
 
 /**
  * Creates a serializable version of a Property object, excluding fields that might contain non-serializable data like File objects.
@@ -62,10 +83,10 @@ const createSerializableProperty = (property: Property) => {
 export const generatePropertyDescription = async (property: Property): Promise<AIDescription | string> => {
   try {
     const serializableProperty = createSerializableProperty(property);
-    const result = await generatePropertyDescriptionFunction({ property: serializableProperty });
-    const description = result.data as AIDescription;
-    if (isAIDescription(description)) {
-        return description;
+        const result = await generatePropertyDescriptionFunction({ property: serializableProperty });
+        const description = result.data;
+        if (isAIDescription(description)) {
+            return description;
     }
     return "Failed to generate a valid description structure.";
   } catch (error) {
@@ -81,7 +102,7 @@ export const answerPropertyQuestion = async (property: Property, question: strin
   try {
     const serializableProperty = createSerializableProperty(property);
     const result = await answerPropertyQuestionFunction({ property: serializableProperty, question });
-    return (result.data as { text: string }).text;
+    return result.data.text;
   } catch (error) {
     console.error("Error answering property question:", error);
     return "I'm having trouble connecting right now. Please try again in a moment.";
@@ -118,8 +139,8 @@ export const continueConversation = async (messages: ChatMessage[]): Promise<str
     console.log("Received response from continueConversation function");
     
     // Check if we have a valid response
-    if (result && result.data && typeof (result.data as { text: string }).text === 'string') {
-      const responseText = (result.data as { text: string }).text;
+    if (result && result.data && typeof result.data.text === 'string') {
+      const responseText = result.data.text;
       console.log("Valid response received, length:", responseText.length);
       return responseText;
     } else {
@@ -171,21 +192,7 @@ export const getMarketAnalysis = async (address: string): Promise<MarketData> =>
 
 export const generatePropertyReport = async (
     property: Property,
-    options: {
-        marketAnalysis: boolean;
-        comparableProperties: boolean;
-        neighborhoodInfo: boolean;
-        realPropertyData?: {
-            estimatedValue?: number;
-            rentEstimate?: number;
-            walkScore?: number;
-            crimeScore?: number;
-            schoolDistrict?: string;
-            neighborhood?: string;
-            yearBuilt?: number;
-            lotSize?: number;
-        };
-    }
+    options: GenerateReportOptions
 ): Promise<string> => {
     try {
         console.log('🔧 geminiService: Starting property report generation...');
@@ -195,7 +202,7 @@ export const generatePropertyReport = async (
         
         console.log('☁️ geminiService: Attempting cloud function call...');
         const result = await generatePropertyReportFunction({ property: serializableProperty, options });
-        const reportText = (result.data as { text: string }).text;
+        const reportText = result.data.text;
         
         console.log('✅ geminiService: Cloud function succeeded, length:', reportText.length);
         return reportText;
@@ -213,12 +220,7 @@ export const generatePropertyReport = async (
 // Fallback mock report generator for when cloud functions aren't available
 const generateMockPropertyReport = (
     property: Property,
-    options: {
-        marketAnalysis: boolean;
-        comparableProperties: boolean;
-        neighborhoodInfo: boolean;
-        realPropertyData?: any;
-    }
+    options: GenerateReportOptions
 ): string => {
     const realData = options.realPropertyData;
     
@@ -361,7 +363,7 @@ export const getLocalInfo = async (address: string, category: string): Promise<L
     }
     try {
         const result = await getLocalInfoFunction({ address, category });
-        return result.data as LocalInfoData;
+        return result.data;
     } catch (error) {
         console.error(`Error getting local info for ${category}:`, error);
         throw new Error(`Failed to retrieve local data for ${category}. Please try again.`);
@@ -371,8 +373,11 @@ export const getLocalInfo = async (address: string, category: string): Promise<L
 // Simple text generation function for knowledge base
 export const generateText = async (prompt: string): Promise<string> => {
     try {
-        const res = await stub({ prompt });
-        return (res as any).data as string;
+        const res = await generateSocialPostTextFunction({
+            prompt,
+            platform: 'linkedin'
+        });
+        return res.data.text;
     } catch (error) {
         return `AI: ${prompt.slice(0, 120)}...`;
     }

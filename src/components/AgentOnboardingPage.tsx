@@ -58,7 +58,7 @@ const AgentOnboardingPage: React.FC<AgentOnboardingPageProps> = ({ onComplete })
 
     const totalSteps = 4;
 
-    const handleInputChange = (field: keyof OnboardingData, value: any) => {
+    const handleInputChange = <Key extends keyof OnboardingData>(field: Key, value: OnboardingData[Key]) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 

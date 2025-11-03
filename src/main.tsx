@@ -5,8 +5,24 @@ import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { SchedulerProvider } from './context/SchedulerContext'
+import AgentDashboardBlueprint from './components/AgentDashboardBlueprint'
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root')!
+const root = createRoot(rootElement)
+
+const rawHash = window.location.hash.replace(/^#/, '')
+const hashPath = rawHash.split('?')[0]
+const isBlueprintOnlyRoute = hashPath === '/dashboard-blueprint' || hashPath === 'dashboard-blueprint'
+
+const blueprintTree = (
+  <StrictMode>
+    <SchedulerProvider>
+      <AgentDashboardBlueprint />
+    </SchedulerProvider>
+  </StrictMode>
+)
+
+const appTree = (
   <StrictMode>
     <HashRouter>
       <ErrorBoundary>
@@ -17,3 +33,5 @@ createRoot(document.getElementById('root')!).render(
     </HashRouter>
   </StrictMode>
 )
+
+root.render(isBlueprintOnlyRoute ? blueprintTree : appTree)

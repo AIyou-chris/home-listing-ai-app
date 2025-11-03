@@ -1,4 +1,28 @@
 // Input validation utilities
+interface PropertyInput {
+  title?: string
+  address?: string
+  price?: number
+  bedrooms?: number
+  bathrooms?: number
+  squareFeet?: number
+}
+
+interface LeadInput {
+  name?: string
+  email?: string
+  phone?: string
+}
+
+interface AgentProfileInput extends LeadInput {
+  website?: string
+}
+
+interface ValidationResult {
+  isValid: boolean
+  errors: string[]
+}
+
 export class ValidationUtils {
   // Email validation with enhanced checks
   static isValidEmail(email: string): boolean {
@@ -32,7 +56,7 @@ export class ValidationUtils {
 
   // Phone validation
   static isValidPhone(phone: string): boolean {
-    const phoneRegex = /^\+?[\d\s\-\(\)]{10,}$/;
+    const phoneRegex = /^\+?[\d\s()-]{10,}$/;
     return phoneRegex.test(phone);
   }
 
@@ -58,7 +82,7 @@ export class ValidationUtils {
   }
 
   // Validate property data
-  static validateProperty(property: any): { isValid: boolean; errors: string[] } {
+  static validateProperty(property: PropertyInput): ValidationResult {
     const errors: string[] = [];
 
     if (!property.title || property.title.trim().length < 5) {
@@ -92,7 +116,7 @@ export class ValidationUtils {
   }
 
   // Validate lead data
-  static validateLead(lead: any): { isValid: boolean; errors: string[] } {
+  static validateLead(lead: LeadInput): ValidationResult {
     const errors: string[] = [];
 
     if (!lead.name || lead.name.trim().length < 2) {
@@ -114,7 +138,7 @@ export class ValidationUtils {
   }
 
   // Validate agent profile
-  static validateAgentProfile(agent: any): { isValid: boolean; errors: string[] } {
+  static validateAgentProfile(agent: AgentProfileInput): ValidationResult {
     const errors: string[] = [];
 
     if (!agent.name || agent.name.trim().length < 2) {

@@ -42,6 +42,16 @@ export interface LinkStatsSummary {
   lastUpdated: string;
 }
 
+interface RebrandlyLink extends ShortLink {
+  uniqueClicks?: number;
+  lastClickAt?: string;
+}
+
+type RebrandlyListResponse = RebrandlyLink[] | {
+  data?: RebrandlyLink[];
+  total?: number;
+};
+
 function getHeaders(): HeadersInit {
   return {
     'Content-Type': 'application/json',
@@ -180,20 +190,28 @@ export async function listTopLinks(limit = 5): Promise<LinkStatsSummary> {
       throw new Error(`Rebrandly list responded with ${response.status}`);
     }
 
-    const json = await response.json();
+    const payload = await response.json() as RebrandlyListResponse;
+    const links = Array.isArray(payload) ? payload : payload.data ?? [];
+    const normalizedLinks = links.map(link => ({
+      ...link,
+      clicks: link.clicks ?? 0,
+      uniqueClicks: link.uniqueClicks ?? link.clicks ?? 0
+    }));
+
+    const totalLinks = Array.isArray(payload) ? payload.length : payload.total ?? normalizedLinks.length;
 
     return {
-      totalLinks: json.total ?? json.length ?? 0,
-      totalClicks: json.reduce((sum: number, link: any) => sum + (link.clicks ?? 0), 0),
-      uniqueClicks: json.reduce((sum: number, link: any) => sum + (link.uniqueClicks ?? link.clicks ?? 0), 0),
-      topLinks: json.slice(0, limit).map((link: any) => ({
+      totalLinks,
+      totalClicks: normalizedLinks.reduce((sum, link) => sum + (link.clicks ?? 0), 0),
+      uniqueClicks: normalizedLinks.reduce((sum, link) => sum + (link.uniqueClicks ?? 0), 0),
+      topLinks: normalizedLinks.slice(0, limit).map(link => ({
         id: link.id,
         shortUrl: link.shortUrl,
         destination: link.destination,
         title: link.title,
         slashtag: link.slashtag,
         clicks: link.clicks ?? 0,
-        uniqueClicks: link.uniqueClicks ?? link.clicks ?? 0,
+        uniqueClicks: link.uniqueClicks ?? 0,
         lastClickAt: link.lastClickAt
       })),
       lastUpdated: new Date().toISOString()

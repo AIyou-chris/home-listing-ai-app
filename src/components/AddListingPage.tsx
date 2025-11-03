@@ -1,11 +1,8 @@
 
 import React, { useState } from 'react';
-import { Property, LocalInfoData, AgentProfile } from '../types';
+import { Property, AgentProfile } from '../types';
 import { SAMPLE_AGENT } from '../constants';
-import { getLocalInfo } from '../services/geminiService';
-import Modal from './Modal';
 import AddTextKnowledgeModal from './AddTextKnowledgeModal';
-import AddUrlScraperModal from './AddUrlScraperModal';
 import ListingSidekickWidget from './ListingSidekickWidget'
 import { continueConversation } from '../services/openaiService'
 import PublicPropertyApp from './PublicPropertyApp';
@@ -17,65 +14,6 @@ interface AddListingPageProps {
 }
 
 const inputClasses = "w-full px-3 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition";
-
-
-const LocalInfoModal: React.FC<{
-    onClose: () => void;
-    title: string;
-    isLoading: boolean;
-    data: LocalInfoData | null;
-}> = ({ onClose, title, isLoading, data }) => {
-    
-    const modalTitle = (
-        <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined w-6 h-6 text-primary-600">travel_explore</span>
-            <h3 className="text-xl font-bold text-slate-800">{title}</h3>
-        </div>
-    );
-
-    return (
-        <Modal title={modalTitle} onClose={onClose}>
-            <div className="p-6 max-h-[70vh] overflow-y-auto">
-                {isLoading ? (
-                    <div className="flex flex-col items-center justify-center h-48">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-                        <p className="mt-4 text-slate-600">Fetching local data with AI...</p>
-                    </div>
-                ) : data ? (
-                    <div>
-                        <div
-                            className="prose prose-slate max-w-none prose-headings:font-bold prose-p:text-slate-600"
-                            dangerouslySetInnerHTML={{ __html: data.summary.replace(/\n/g, '<br />').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
-                        />
-                        {data.sources && data.sources.length > 0 && (
-                            <div className="mt-6 pt-4 border-t border-slate-200">
-                                <h4 className="font-semibold text-slate-700 mb-2">Sources</h4>
-                                <ul className="list-disc list-inside space-y-1 text-sm">
-                                    {data.sources.map((source, index) => (
-                                        <li key={index}>
-                                            <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline break-words">
-                                                {source.title || source.uri}
-                                            </a>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="text-center h-48 flex flex-col justify-center">
-                        <p className="text-slate-500">Could not retrieve information. Please try again.</p>
-                    </div>
-                )}
-            </div>
-             <div className="flex justify-end items-center px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-xl">
-                <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
-                    Close
-                </button>
-            </div>
-        </Modal>
-    );
-};
 
 
 const CollapsibleSection: React.FC<{ title: string; icon: string; children: React.ReactNode; }> = ({ title, icon, children }) => {
@@ -99,55 +37,6 @@ const CollapsibleSection: React.FC<{ title: string; icon: string; children: Reac
     );
 };
 
-const FeatureToggle: React.FC<{
-  icon: string;
-  title: string;
-  description: string;
-  enabled: boolean;
-  setEnabled: (enabled: boolean) => void;
-  onInfoClick?: () => void;
-}> = ({ icon, title, description, enabled, setEnabled, onInfoClick }) => {
-  return (
-    <div className={`p-4 rounded-xl bg-green-50 border border-green-200/40 transition-all duration-300 flex items-center justify-between gap-3`}>
-        <div className="flex items-center min-w-0">
-          <span className="material-symbols-outlined w-6 h-6 mr-3 text-slate-500 flex-shrink-0">{icon}</span>
-          <div className="min-w-0">
-            <h4 className="font-bold text-slate-800 truncate text-sm">{title}</h4>
-            <p className="text-xs text-slate-500 truncate">{description}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-          {onInfoClick && (
-              <button
-                  type="button"
-                  onClick={onInfoClick}
-                  className="p-1 rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors"
-                  aria-label={`Get info about ${title}`}
-              >
-                  <span className="material-symbols-outlined w-5 h-5">info</span>
-              </button>
-          )}
-          <button
-            type="button"
-            role="switch"
-            aria-checked={enabled}
-            onClick={() => setEnabled(!enabled)}
-            className={`relative inline-flex items-center h-7 rounded-full w-12 cursor-pointer transition-colors duration-200 ease-in-out ${enabled ? 'bg-green-500' : 'bg-slate-300'}`}
-          >
-            <span className={`inline-block w-5 h-5 transform bg-white rounded-full transition-transform duration-200 ease-in-out shadow-sm ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
-        </div>
-    </div>
-  );
-};
-
-interface UploadedFile {
-    id: string;
-    name: string;
-    size: string;
-    status: 'uploading' | 'complete' | 'error';
-    progress: number;
-}
 
 const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => {
     // A simplified state for demonstration. In a real app, this would be more robust.
@@ -200,18 +89,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
     const [sidekickTestReply, setSidekickTestReply] = useState('');
     const [sidekickTesting, setSidekickTesting] = useState(false);
 
-    const [localInfoModal, setLocalInfoModal] = useState<{
-        isOpen: boolean;
-        category: string;
-        data: LocalInfoData | null;
-        isLoading: boolean;
-    }>({ isOpen: false, category: '', data: null, isLoading: false });
-
-    // State for Knowledge Base section
     const [isTextModalOpen, setIsTextModalOpen] = useState(false);
-    const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
-    const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-    const [isDragging, setIsDragging] = useState(false);
     
     const generatePreviewProperty = (): Property => {
         const heroPhotos = formData.heroPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p));
@@ -243,31 +121,9 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
         };
     };
 
-    const handleFetchLocalInfo = async (category: string, userFriendlyName: string) => {
-        if (!formData.address) {
-            alert("Please enter a property address first.");
-            return;
-        }
-        setLocalInfoModal({ isOpen: true, category: userFriendlyName, data: null, isLoading: true });
-        try {
-            const result = await getLocalInfo(formData.address, category);
-            setLocalInfoModal(prev => ({ ...prev, data: result, isLoading: false }));
-        } catch (error) {
-            console.error(error);
-            setLocalInfoModal(prev => ({ ...prev, data: null, isLoading: false }));
-        }
-    };
-
     const handleSimpleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-    };
-    
-    const handleFeatureToggle = (feature: string, enabled: boolean) => {
-        setFormData(prev => ({
-            ...prev,
-            appFeatures: { ...prev.appFeatures, [feature]: enabled }
-        }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -339,88 +195,17 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
         console.log("Saving text knowledge:", data);
         setIsTextModalOpen(false);
     };
-
-    const handleSaveUrl = (url: string) => {
-        console.log("Saving URL to scrape:", url);
-        setIsUrlModalOpen(false);
-    };
     
-    const handleFiles = (files: File[]) => {
-        const newFiles: UploadedFile[] = files.map(file => ({
-            id: `file-${Date.now()}-${Math.random()}`,
-            name: file.name,
-            size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-            status: 'uploading',
-            progress: 0,
+    const handleGalleryUpload = (fileList: FileList | null) => {
+        if (!fileList) return;
+        const files = Array.from(fileList);
+        setFormData(prev => ({
+            ...prev,
+            galleryPhotos: [...prev.galleryPhotos, ...files]
         }));
-
-        setUploadedFiles(prev => [...prev, ...newFiles]);
-
-        // Mock upload progress
-        newFiles.forEach(file => {
-            const interval = setInterval(() => {
-                setUploadedFiles(prev => prev.map(f => {
-                    if (f.id === file.id && f.progress < 100) {
-                        return { ...f, progress: f.progress + 10 };
-                    }
-                    return f;
-                }));
-            }, 200);
-
-            setTimeout(() => {
-                clearInterval(interval);
-                setUploadedFiles(prev => prev.map(f => {
-                    if (f.id === file.id) {
-                        return { ...f, status: 'complete', progress: 100 };
-                    }
-                    return f;
-                }));
-            }, 2200);
-        });
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, section?: 'gallery') => {
-        if (e.target.files) {
-            const files = Array.from(e.target.files);
-            if (section === 'gallery') {
-                setFormData(prev => ({
-                    ...prev,
-                    galleryPhotos: [...prev.galleryPhotos, ...files]
-                }));
-            } else {
-                handleFiles(files);
-            }
-        }
-    };
 
-    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
-    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            handleFiles(Array.from(e.dataTransfer.files));
-            e.dataTransfer.clearData();
-        }
-    };
-    const handleRemoveFile = (fileId: string) => { setUploadedFiles(prev => prev.filter(f => f.id !== fileId)); };
-
-
-    const featureList = [
-      { id: 'gallery', icon: 'photo_camera', title: 'Gallery', desc: 'Photo showcase' },
-      { id: 'schools', icon: 'school', title: 'Schools', desc: 'Local education data', category: 'schools' },
-      { id: 'financing', icon: 'payments', title: 'Financing', desc: 'Mortgage calculator' },
-      { id: 'virtualTour', icon: 'videocam', title: 'Virtual Tour', desc: '3D walkthrough' },
-      { id: 'amenities', icon: 'home_work', title: 'Amenities', desc: 'Restaurants & shops', category: 'amenities' },
-      { id: 'schedule', icon: 'calendar_month', title: 'Schedule', desc: 'Book showings' },
-      { id: 'history', icon: 'schedule', title: 'History', desc: 'Property timeline' },
-      { id: 'neighborhood', icon: 'storefront', title: 'Neighborhood', desc: 'Area info & vibe', category: 'neighborhood' },
-      { id: 'reports', icon: 'analytics', title: 'Reports', desc: 'Property reports' },
-      { id: 'messaging', icon: 'chat_bubble', title: 'Messaging', desc: 'Contact forms' },
-    ];
-    
     return (
         <>
             {isPreviewing && (
@@ -506,7 +291,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                                     <span className="material-symbols-outlined w-8 h-8 mx-auto text-slate-400 mb-2">upload</span>
                                     <span className="text-slate-600 font-semibold">Drag & drop files here</span>
                                     <p className="text-sm text-slate-500">or click to browse</p>
-                                    <input id="photo-upload" type="file" multiple className="hidden" onChange={(e) => handleFileChange(e, 'gallery')}/>
+                                    <input id="photo-upload" type="file" multiple className="hidden" onChange={(e) => handleGalleryUpload(e.target.files)}/>
                                  </label>
                                  {formData.galleryPhotos.length > 0 && <p className="text-sm mt-2 text-slate-600">{formData.galleryPhotos.length} photos staged for upload.</p>}
                             </div>
@@ -673,16 +458,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                         </CollapsibleSection>
                     </form>
                 </div>
-                {localInfoModal.isOpen && (
-                    <LocalInfoModal
-                        onClose={() => setLocalInfoModal({ isOpen: false, category: '', data: null, isLoading: false })}
-                        title={`Local Info: ${localInfoModal.category}`}
-                        isLoading={localInfoModal.isLoading}
-                        data={localInfoModal.data}
-                    />
-                )}
                 {isTextModalOpen && <AddTextKnowledgeModal onClose={() => setIsTextModalOpen(false)} onSave={handleSaveText} />}
-                {isUrlModalOpen && <AddUrlScraperModal onClose={() => setIsUrlModalOpen(false)} onSave={handleSaveUrl} />}
             </div>
         </>
     );

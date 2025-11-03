@@ -1,3 +1,5 @@
+import { Lead } from '../types';
+
 export interface LeadPayload {
   name: string;
   email: string;
@@ -24,12 +26,8 @@ export const leadsService = {
     if (!response.ok) {
       throw new Error(`Failed to load leads: ${response.status}`);
     }
-    const data = await response.json();
-    return data as {
-      leads: any[];
-      total: number;
-      stats: Record<string, number>;
-    };
+    const data: { leads: Lead[]; total: number; stats: Record<string, number> } = await response.json();
+    return data;
   },
 
   async create(payload: LeadPayload) {

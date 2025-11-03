@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import HelpSalesChatBotComponent from './HelpSalesChatBot';
+import HelpSalesChatBotComponent, { type LeadPayload, type SupportTicketPayload } from './HelpSalesChatBot';
 import ChatBotFAB from './ChatBotFAB';
 import { ChatBotContext, ChatBotMode } from '../services/helpSalesChatBot';
 
 const HelpSalesChatBotTestPage: React.FC = () => {
-  const [leads, setLeads] = useState<any[]>([]);
-  const [supportTickets, setSupportTickets] = useState<any[]>([]);
+  type UserType = ChatBotContext['userType'];
+  type StoredLead = LeadPayload & { id: number };
+  type StoredSupportTicket = SupportTicketPayload & { id: number };
+
+  const [leads, setLeads] = useState<StoredLead[]>([]);
+  const [supportTickets, setSupportTickets] = useState<StoredSupportTicket[]>([]);
   const [testMode, setTestMode] = useState<'embedded' | 'fab'>('embedded');
-  const [userType, setUserType] = useState<'visitor' | 'prospect' | 'client' | 'agent'>('visitor');
+  const [userType, setUserType] = useState<UserType>('visitor');
   const [initialMode, setInitialMode] = useState<ChatBotMode>('general');
 
   const context: ChatBotContext = {
@@ -21,12 +25,12 @@ const HelpSalesChatBotTestPage: React.FC = () => {
     }
   };
 
-  const handleLeadGenerated = (leadInfo: any) => {
+  const handleLeadGenerated = (leadInfo: LeadPayload) => {
     console.log('Lead generated:', leadInfo);
     setLeads(prev => [...prev, { ...leadInfo, id: Date.now() }]);
   };
 
-  const handleSupportTicket = (ticketInfo: any) => {
+  const handleSupportTicket = (ticketInfo: SupportTicketPayload) => {
     console.log('Support ticket created:', ticketInfo);
     setSupportTickets(prev => [...prev, { ...ticketInfo, id: Date.now() }]);
   };
@@ -62,7 +66,7 @@ const HelpSalesChatBotTestPage: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">User Type</label>
               <select
                 value={userType}
-                onChange={(e) => setUserType(e.target.value as any)}
+                onChange={(e) => setUserType(e.target.value as UserType)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="visitor">Visitor</option>

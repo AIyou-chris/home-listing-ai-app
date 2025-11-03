@@ -1,60 +1,195 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BlogPost } from '../types';
+
+const BLOG_META_ATTRIBUTE = 'data-blog-meta';
+
+const isString = (value: unknown): value is string => typeof value === 'string';
+
+type LocalBlogPost = Partial<BlogPost> & { slug: string };
+
+const isLocalBlogPost = (value: unknown): value is LocalBlogPost => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { slug?: unknown };
+  return isString(candidate.slug);
+};
+
+const toStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isString);
+};
+
+const mapLocalBlogPost = (localPost: LocalBlogPost): BlogPost => {
+  const tags = toStringArray(localPost.tags);
+  const semanticKeywords = toStringArray(localPost.semanticKeywords);
+
+  return {
+    id: localPost.id ?? `local-${localPost.slug}`,
+    title: localPost.title ?? localPost.slug.replace(/-/g, ' '),
+    slug: localPost.slug,
+    content: localPost.content ?? '',
+    excerpt: localPost.excerpt ?? '',
+    author: localPost.author ?? 'Unknown Author',
+    publishedAt: localPost.publishedAt ?? new Date().toISOString(),
+    status: 'published',
+    tags: tags.length > 0 ? tags : ['General'],
+    imageUrl: localPost.imageUrl ?? '',
+    readTime: localPost.readTime ?? '4 min',
+    metaDescription: localPost.metaDescription ?? localPost.excerpt,
+    focusKeyword: localPost.focusKeyword,
+    semanticKeywords,
+    aioScore: localPost.aioScore,
+    structuredData: localPost.structuredData,
+    socialMeta: localPost.socialMeta
+  };
+};
+
+const clearBlogMeta = () => {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll(`meta[${BLOG_META_ATTRIBUTE}]`).forEach(tag => tag.remove());
+  document.querySelectorAll(`script[${BLOG_META_ATTRIBUTE}]`).forEach(script => script.remove());
+  document.title = 'HomeListingAI';
+};
+
+const buildStructuredData = (post: BlogPost) => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://homelistingai.com';
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': post.structuredData?.type || 'Article',
+    headline: post.structuredData?.headline || post.title,
+    description: post.structuredData?.description || post.excerpt,
+    image: post.imageUrl,
+    author: {
+      '@type': 'Person',
+      name: post.structuredData?.author || post.author
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: post.structuredData?.publisher || 'HomeListingAI',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://homelistingai.com/logo.png'
+      }
+    },
+    datePublished: post.structuredData?.datePublished || post.publishedAt,
+    dateModified: post.structuredData?.dateModified || post.publishedAt,
+    wordCount: post.structuredData?.wordCount,
+    timeRequired: post.structuredData?.readingTime || post.readTime,
+    articleSection: post.structuredData?.categories || post.tags,
+    keywords: post.structuredData?.keywords || post.semanticKeywords || post.tags,
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `${origin}/#blog-post/${post.slug}`
+    }
+  });
+};
+
+const applyBlogMeta = (post: BlogPost) => {
+  if (typeof document === 'undefined') return;
+  const head = document.head;
+  if (!head) return;
+
+  clearBlogMeta();
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://homelistingai.com';
+  const primaryTag = post.tags[0] ?? 'General';
+
+  const metaTags: Array<{ name?: string; property?: string; content: string | undefined }> = [
+    { name: 'description', content: post.metaDescription || post.excerpt },
+    { name: 'keywords', content: post.semanticKeywords?.join(', ') || post.tags.join(', ') },
+    { name: 'author', content: post.author },
+    { property: 'og:title', content: post.socialMeta?.ogTitle || post.title },
+    { property: 'og:description', content: post.socialMeta?.ogDescription || post.excerpt },
+    { property: 'og:image', content: post.socialMeta?.ogImage || post.imageUrl },
+    { property: 'og:type', content: 'article' },
+    { property: 'og:url', content: `${origin}/#blog-post/${post.slug}` },
+    { name: 'twitter:card', content: 'summary_large_image' },
+    { name: 'twitter:title', content: post.socialMeta?.twitterTitle || post.title },
+    { name: 'twitter:description', content: post.socialMeta?.twitterDescription || post.excerpt },
+    { name: 'twitter:image', content: post.socialMeta?.twitterImage || post.imageUrl },
+    { property: 'linkedin:title', content: post.socialMeta?.linkedinTitle || post.title },
+    { property: 'linkedin:description', content: post.socialMeta?.linkedinDescription || post.excerpt },
+    { name: 'article:published_time', content: post.publishedAt },
+    { name: 'article:author', content: post.author },
+    { name: 'article:section', content: primaryTag },
+    { name: 'article:tag', content: post.tags.join(', ') }
+  ];
+
+  metaTags.forEach(tag => {
+    if (!tag.content) return;
+    const meta = document.createElement('meta');
+    if (tag.name) meta.setAttribute('name', tag.name);
+    if (tag.property) meta.setAttribute('property', tag.property);
+    meta.setAttribute('content', tag.content);
+    meta.setAttribute(BLOG_META_ATTRIBUTE, 'true');
+    head.appendChild(meta);
+  });
+
+  const structuredDataScript = document.createElement('script');
+  structuredDataScript.type = 'application/ld+json';
+  structuredDataScript.textContent = buildStructuredData(post);
+  structuredDataScript.setAttribute(BLOG_META_ATTRIBUTE, 'true');
+  head.appendChild(structuredDataScript);
+
+  document.title = `${post.title} - HomeListingAI Blog`;
+};
 
 const BlogPostPage: React.FC = () => {
   const [post, setPost] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const slug = window.location.hash.split('/').pop();
-    if (slug) {
-      fetchPost(slug);
-    }
-  }, []);
-
-  const fetchPost = async (slug: string) => {
+  const fetchPost = useCallback(async (slug: string) => {
     try {
       setLoading(true);
+      setError('');
+
       let data: BlogPost | null = null;
       try {
         const response = await fetch(`http://localhost:5001/home-listing-ai/us-central1/api/blog/${slug}`);
         if (response.ok) {
-          data = await response.json();
+          data = (await response.json()) as BlogPost;
         }
-      } catch {}
+      } catch (remoteError) {
+        console.warn('Failed to fetch blog post from API', remoteError);
+      }
 
-      if (!data) {
-        const localRaw = localStorage.getItem('localBlogPosts');
+      if (!data && typeof window !== 'undefined') {
+        const localRaw = window.localStorage.getItem('localBlogPosts');
         if (localRaw) {
-          const local = (JSON.parse(localRaw) as any[]).find(p => p.slug === slug);
-          if (local) {
-            data = {
-              id: local.id,
-              title: local.title,
-              slug: local.slug,
-              content: local.content,
-              excerpt: local.excerpt,
-              author: local.author,
-              publishedAt: local.publishedAt,
-              status: 'published',
-              tags: local.tags || [],
-              imageUrl: local.imageUrl,
-              readTime: local.readTime || '4 min'
-            } as BlogPost;
+          try {
+            const parsed = JSON.parse(localRaw) as unknown;
+            if (Array.isArray(parsed)) {
+              const match = parsed.find((entry) => isLocalBlogPost(entry) && entry.slug === slug);
+              if (match) {
+                data = mapLocalBlogPost(match);
+              }
+            }
+          } catch (parseError) {
+            console.warn('Failed to parse local blog posts', parseError);
           }
         }
       }
 
-      if (!data) throw new Error('Blog post not found');
+      if (!data) {
+        throw new Error('Blog post not found');
+      }
+
       setPost(data);
-    } catch (error) {
-      console.error('Error fetching blog post:', error);
+    } catch (caughtError) {
+      console.error('Error fetching blog post:', caughtError);
       setError('Blog post not found');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const slug = window.location.hash.split('/').pop();
+    if (slug) {
+      void fetchPost(slug);
+    }
+  }, [fetchPost]);
 
   const renderMarkdown = (content: string) => {
     // Simple markdown rendering
@@ -96,6 +231,21 @@ const BlogPostPage: React.FC = () => {
       });
   };
 
+  useEffect(() => {
+    if (!post) {
+      clearBlogMeta();
+      return () => {
+        clearBlogMeta();
+      };
+    }
+
+    applyBlogMeta(post);
+
+    return () => {
+      clearBlogMeta();
+    };
+  }, [post]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -127,142 +277,37 @@ const BlogPostPage: React.FC = () => {
     );
   }
 
-  // Generate structured data for AIO optimization
-  const generateStructuredData = () => {
-    if (!post) return null;
-    
-    const structuredData = {
-      "@context": "https://schema.org",
-      "@type": post.structuredData?.type || "Article",
-      "headline": post.structuredData?.headline || post.title,
-      "description": post.structuredData?.description || post.excerpt,
-      "image": post.imageUrl,
-      "author": {
-        "@type": "Person",
-        "name": post.structuredData?.author || post.author
-      },
-      "publisher": {
-        "@type": "Organization",
-        "name": post.structuredData?.publisher || "HomeListingAI",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://homelistingai.com/logo.png"
-        }
-      },
-      "datePublished": post.structuredData?.datePublished || post.publishedAt,
-      "dateModified": post.structuredData?.dateModified || post.publishedAt,
-      "wordCount": post.structuredData?.wordCount,
-      "timeRequired": post.structuredData?.readingTime || post.readTime,
-      "articleSection": post.structuredData?.categories || post.tags,
-      "keywords": post.structuredData?.keywords || post.semanticKeywords || post.tags,
-      "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": `${window.location.origin}/#blog-post/${post.slug}`
-      }
-    };
-    
-    return JSON.stringify(structuredData);
-  };
-
-  // Add meta tags for AIO optimization
-  const addMetaTags = () => {
-    if (!post) return;
-    
-    // Remove existing meta tags
-    const existingMeta = document.querySelectorAll('meta[data-blog-meta]');
-    existingMeta.forEach(tag => tag.remove());
-    
-    const head = document.head;
-    
-    // Basic meta tags
-    const metaTags = [
-      { name: 'description', content: post.metaDescription || post.excerpt },
-      { name: 'keywords', content: post.semanticKeywords?.join(', ') || post.tags.join(', ') },
-      { name: 'author', content: post.author },
-      
-      // Open Graph
-      { property: 'og:title', content: post.socialMeta?.ogTitle || post.title },
-      { property: 'og:description', content: post.socialMeta?.ogDescription || post.excerpt },
-      { property: 'og:image', content: post.socialMeta?.ogImage || post.imageUrl },
-      { property: 'og:type', content: 'article' },
-      { property: 'og:url', content: `${window.location.origin}/#blog-post/${post.slug}` },
-      
-      // Twitter
-      { name: 'twitter:card', content: 'summary_large_image' },
-      { name: 'twitter:title', content: post.socialMeta?.twitterTitle || post.title },
-      { name: 'twitter:description', content: post.socialMeta?.twitterDescription || post.excerpt },
-      { name: 'twitter:image', content: post.socialMeta?.twitterImage || post.imageUrl },
-      
-      // LinkedIn
-      { property: 'linkedin:title', content: post.socialMeta?.linkedinTitle || post.title },
-      { property: 'linkedin:description', content: post.socialMeta?.linkedinDescription || post.excerpt },
-      
-      // AIO specific
-      { name: 'article:published_time', content: post.publishedAt },
-      { name: 'article:author', content: post.author },
-      { name: 'article:section', content: post.tags[0] },
-      { name: 'article:tag', content: post.tags.join(', ') }
-    ];
-    
-    metaTags.forEach(tag => {
-      const meta = document.createElement('meta');
-      if (tag.name) meta.setAttribute('name', tag.name);
-      if (tag.property) meta.setAttribute('property', tag.property);
-      meta.setAttribute('content', tag.content);
-      meta.setAttribute('data-blog-meta', 'true');
-      head.appendChild(meta);
-    });
-    
-    // Add structured data
-    const structuredDataScript = document.createElement('script');
-    structuredDataScript.type = 'application/ld+json';
-    structuredDataScript.textContent = generateStructuredData();
-    structuredDataScript.setAttribute('data-blog-meta', 'true');
-    head.appendChild(structuredDataScript);
-    
-    // Update page title
-    document.title = `${post.title} - HomeListingAI Blog`;
-  };
-
-  useEffect(() => {
-    if (post) {
-      addMetaTags();
-    }
-    
-    // Cleanup on unmount
-    return () => {
-      const existingMeta = document.querySelectorAll('meta[data-blog-meta]');
-      existingMeta.forEach(tag => tag.remove());
-      const existingScript = document.querySelectorAll('script[data-blog-meta]');
-      existingScript.forEach(script => script.remove());
-      document.title = 'HomeListingAI';
-    };
-  }, [post]);
-
   const handleShare = async (platform: 'copy' | 'twitter' | 'linkedin' | 'facebook') => {
-    if (!post) return;
-    
+    if (!post || typeof window === 'undefined') return;
+
     const url = `${window.location.origin}/#blog-post/${post.slug}`;
-    
+
     switch (platform) {
-      case 'copy':
+      case 'copy': {
         try {
-          await navigator.clipboard.writeText(url);
-          // You could add a toast notification here
-          console.log('URL copied to clipboard');
-        } catch (err) {
-          console.error('Failed to copy URL:', err);
+          if (navigator?.clipboard?.writeText) {
+            await navigator.clipboard.writeText(url);
+            console.log('URL copied to clipboard');
+          }
+        } catch (shareError) {
+          console.error('Failed to copy URL:', shareError);
         }
         break;
-      case 'twitter':
+      }
+      case 'twitter': {
         const twitterText = post.socialMeta?.twitterTitle || post.title;
         window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(twitterText)}&url=${encodeURIComponent(url)}`, '_blank');
         break;
-      case 'linkedin':
+      }
+      case 'linkedin': {
         window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, '_blank');
         break;
-      case 'facebook':
+      }
+      case 'facebook': {
         window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+        break;
+      }
+      default:
         break;
     }
   };

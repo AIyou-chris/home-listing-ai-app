@@ -55,6 +55,7 @@ export type View =
     | 'admin-contacts'
     | 'admin-knowledge-base'
     | 'admin-ai-training'
+    | 'admin-ai-card'
     | 'admin-ai-personalities'
     | 'admin-ai-content'
     | 'admin-marketing'

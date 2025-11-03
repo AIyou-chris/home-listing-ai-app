@@ -1,4 +1,50 @@
-import { Lead, LeadStatus } from '../types';
+import { Lead } from '../types';
+
+interface LeadWarningDetail {
+    leadId?: string;
+    leadName?: string;
+    warnings?: string[];
+}
+
+type LeadScoreWarnings = Array<string | LeadWarningDetail>;
+
+interface LeadFailure {
+    leadId?: string;
+    leadName?: string;
+    reasons?: string[];
+    reason?: string;
+}
+
+interface LeadScoreResponsePayload {
+    score?: LeadScore;
+    warnings?: LeadScoreWarnings;
+    details?: string[];
+    reasons?: string[];
+    error?: string;
+    message?: string;
+    code?: string;
+    failedLeads?: LeadFailure[];
+    missingLeadIds?: Array<string | null | undefined>;
+}
+
+interface LeadScoreErrorInfo {
+    message: string;
+    status?: number;
+    code?: string;
+}
+
+interface LeadsPayload {
+    leads?: Array<{
+        id: string;
+        score?: number;
+        scoreTier?: string;
+        scoreBreakdown?: ScoreBreakdown[];
+        scoreLastUpdated?: string;
+        updatedAt?: string;
+    }>;
+}
+
+type LeadValidationError = Error & { isLeadValidationError: true };
 
 export interface ScoringRule {
     id: string;
@@ -233,7 +279,52 @@ export class LeadScoringService {
         }
     }
 
-    private static extractErrorInfo(response: Response | null, payload: any, fallbackMessage: string) {
+    private static createLeadValidationError(message: string): LeadValidationError {
+        const error = new Error(message) as LeadValidationError;
+        error.isLeadValidationError = true;
+        return error;
+    }
+
+    private static isLeadValidationError(error: unknown): error is LeadValidationError {
+        return Boolean((error as LeadValidationError)?.isLeadValidationError);
+    }
+
+    private static formatWarnings(warnings: LeadScoreWarnings | undefined): string[] {
+        if (!Array.isArray(warnings)) {
+            return [];
+        }
+        return warnings
+            .map(warning => {
+                if (typeof warning === 'string') {
+                    return warning;
+                }
+                if (Array.isArray(warning?.warnings)) {
+                    return warning.warnings.join('; ');
+                }
+                return '';
+            })
+            .filter((warning): warning is string => Boolean(warning));
+    }
+
+    private static extractWarningDetails(warnings: LeadScoreWarnings | undefined): LeadWarningDetail[] {
+        if (!Array.isArray(warnings)) {
+            return [];
+        }
+        return warnings.filter((warning): warning is LeadWarningDetail => typeof warning === 'object' && warning !== null);
+    }
+
+    private static mapScoreTier(value: unknown): LeadScore['tier'] {
+        if (value === 'Qualified' || value === 'Hot' || value === 'Warm' || value === 'Cold') {
+            return value;
+        }
+        return 'Cold';
+    }
+
+    private static extractErrorInfo(
+        response: Response | null,
+        payload: LeadScoreResponsePayload | null,
+        fallbackMessage: string
+    ): LeadScoreErrorInfo {
         const details = Array.isArray(payload?.details) ? payload.details.join('; ') : undefined;
         const reasons = Array.isArray(payload?.reasons) ? payload.reasons.join('; ') : undefined;
         return {
@@ -243,13 +334,13 @@ export class LeadScoringService {
         };
     }
 
-    private static recordBulkFailures(payload: any) {
+    private static recordBulkFailures(payload: LeadScoreResponsePayload | null) {
         if (!payload) {
             return;
         }
 
         if (Array.isArray(payload.failedLeads)) {
-            payload.failedLeads.forEach((failed: any) => {
+            payload.failedLeads.forEach(failed => {
                 const leadId = typeof failed?.leadId === 'string' ? failed.leadId : undefined;
                 if (!leadId) {
                     return;
@@ -265,7 +356,7 @@ export class LeadScoringService {
         }
 
         if (Array.isArray(payload.missingLeadIds)) {
-            payload.missingLeadIds.forEach((leadId: any) => {
+            payload.missingLeadIds.forEach(leadId => {
                 if (typeof leadId !== 'string') {
                     return;
                 }
@@ -302,7 +393,7 @@ export class LeadScoringService {
         }
 
         let response: Response | null = null;
-        let payload: any = null;
+        let payload: LeadScoreResponsePayload | null = null;
 
         try {
             response = await fetch(`/api/leads/${lead.id}/score`, {
@@ -313,7 +404,7 @@ export class LeadScoringService {
             });
 
             try {
-                payload = await response.json();
+                payload = await response.json() as LeadScoreResponsePayload;
             } catch {
                 payload = null;
             }
@@ -321,17 +412,16 @@ export class LeadScoringService {
             if (!response.ok || !payload?.score) {
                 const errorInfo = this.extractErrorInfo(response, payload, 'Failed to calculate lead score');
                 this.cacheLeadFailure(lead.id, errorInfo.message, errorInfo.status, errorInfo.code);
-                const knownError: any = new Error(errorInfo.message);
-                knownError.isLeadValidationError = true;
-                throw knownError;
+                throw this.createLeadValidationError(errorInfo.message);
             }
 
             this.flushLeadFailure(lead.id);
             this.resetBackendOutageFlags();
 
-            if (Array.isArray(payload.warnings) && payload.warnings.length > 0) {
+            const warningMessages = this.formatWarnings(payload.warnings);
+            if (warningMessages.length > 0) {
                 this.logOnce(
-                    `Lead scoring warnings for ${lead.name || lead.id}: ${payload.warnings.join('; ')}`,
+                    `Lead scoring warnings for ${lead.name || lead.id}: ${warningMessages.join('; ')}`,
                     `lead-warn-${lead.id}`,
                     'info'
                 );
@@ -339,7 +429,7 @@ export class LeadScoringService {
 
             return payload.score;
         } catch (error) {
-            if ((error as any)?.isLeadValidationError) {
+            if (this.isLeadValidationError(error)) {
                 return this.calculateLeadScoreClientSide(lead);
             }
 
@@ -407,9 +497,9 @@ export class LeadScoringService {
                 })
             });
 
-            let payload: any = null;
+            let payload: LeadScoreResponsePayload | null = null;
             try {
-                payload = await response.json();
+                payload = await response.json() as LeadScoreResponsePayload;
             } catch {
                 payload = null;
             }
@@ -424,37 +514,36 @@ export class LeadScoringService {
             this.recordBulkFailures(payload);
             this.resetBackendOutageFlags();
 
-            if (Array.isArray(payload?.warnings)) {
-                payload.warnings.forEach((warning: any) => {
-                    if (warning?.leadId && Array.isArray(warning.warnings) && warning.warnings.length > 0) {
-                        this.logOnce(
-                            `Lead scoring warnings for ${warning.leadName || warning.leadId}: ${warning.warnings.join('; ')}`,
-                            `lead-warn-${warning.leadId}`,
-                            'info'
-                        );
-                    }
-                });
-            }
+            const warningDetails = this.extractWarningDetails(payload?.warnings);
+            warningDetails.forEach(warning => {
+                if (warning.leadId && Array.isArray(warning.warnings) && warning.warnings.length > 0) {
+                    this.logOnce(
+                        `Lead scoring warnings for ${warning.leadName || warning.leadId}: ${warning.warnings.join('; ')}`,
+                        `lead-warn-${warning.leadId}`,
+                        'info'
+                    );
+                }
+            });
 
             const leadsResponse = await fetch('/api/admin/leads');
-            let leadsPayload: any = null;
+            let leadsPayload: LeadsPayload | null = null;
             try {
-                leadsPayload = await leadsResponse.json();
+                leadsPayload = await leadsResponse.json() as LeadsPayload;
             } catch {
                 leadsPayload = null;
             }
 
             if (leadsResponse.ok && Array.isArray(leadsPayload?.leads)) {
-                return leadsPayload.leads.map((lead: any) => ({
+                return leadsPayload.leads.map(lead => ({
                     leadId: lead.id,
-                    totalScore: lead.score || 0,
-                    tier: lead.scoreTier || 'Cold',
-                    breakdown: lead.scoreBreakdown || [],
-                    lastUpdated: lead.scoreLastUpdated || lead.updatedAt
+                    totalScore: lead.score ?? 0,
+                    tier: this.mapScoreTier(lead.scoreTier),
+                    breakdown: lead.scoreBreakdown ?? [],
+                    lastUpdated: lead.scoreLastUpdated || lead.updatedAt || new Date().toISOString()
                 }));
             }
 
-            const fallbackInfo = this.extractErrorInfo(leadsResponse, leadsPayload, 'Failed to load scored leads');
+            const fallbackInfo = this.extractErrorInfo(leadsResponse, null, 'Failed to load scored leads');
             throw new Error(fallbackInfo.message);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -488,9 +577,9 @@ export class LeadScoringService {
 
         try {
             const response = await fetch(`/api/leads/${normalizedLeadId}/score`);
-            let payload: any = null;
+            let payload: LeadScoreResponsePayload | null = null;
             try {
-                payload = await response.json();
+                payload = await response.json() as LeadScoreResponsePayload;
             } catch {
                 payload = null;
             }
@@ -498,17 +587,16 @@ export class LeadScoringService {
             if (!response.ok || !payload?.score) {
                 const errorInfo = this.extractErrorInfo(response, payload, 'Failed to load lead score');
                 this.cacheLeadFailure(normalizedLeadId, errorInfo.message, errorInfo.status, errorInfo.code);
-                const knownError: any = new Error(errorInfo.message);
-                knownError.isLeadValidationError = true;
-                throw knownError;
+                throw this.createLeadValidationError(errorInfo.message);
             }
 
             this.flushLeadFailure(normalizedLeadId);
             this.resetBackendOutageFlags();
 
-            if (Array.isArray(payload.warnings) && payload.warnings.length > 0) {
+            const warningMessages = this.formatWarnings(payload.warnings);
+            if (warningMessages.length > 0) {
                 this.logOnce(
-                    `Lead scoring warnings for ${payload.score?.leadId || normalizedLeadId}: ${payload.warnings.join('; ')}`,
+                    `Lead scoring warnings for ${payload.score?.leadId || normalizedLeadId}: ${warningMessages.join('; ')}`,
                     `lead-warn-${normalizedLeadId}`,
                     'info'
                 );
@@ -516,7 +604,7 @@ export class LeadScoringService {
 
             return payload.score;
         } catch (error) {
-            if (!(error as any)?.isLeadValidationError) {
+            if (!this.isLeadValidationError(error)) {
                 const message = error instanceof Error ? error.message : String(error);
                 this.logOnce(`Lead score lookup failed (${message})`, `score-lookup-error-${normalizedLeadId}`);
             }

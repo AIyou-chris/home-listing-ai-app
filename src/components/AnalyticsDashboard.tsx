@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { analyticsService } from '../services/analyticsService';
 import { listTopLinks, LinkStatsSummary } from '../services/linkShortenerService';
 
@@ -20,142 +20,251 @@ interface AnalyticsData {
 	userEngagement: number;
 }
 
+type ReportType =
+  | 'comprehensive'
+  | 'performance'
+  | 'conversion'
+  | 'user_behavior'
+  | 'property_analytics';
+
 interface ReportData {
-	reportId: string;
-	reportType: string;
-	content: string;
-	data: any;
-	generatedAt: Date;
+  reportId: string;
+  reportType: ReportType;
+  content: string;
+  data: Record<string, unknown> | null;
+  generatedAt: Date;
 }
 
+type ExportReportsResponse = {
+  success?: boolean;
+  data?: unknown;
+};
+
+type GenerateReportResponse = {
+  success?: boolean;
+  reportId?: unknown;
+  reportType?: unknown;
+  content?: unknown;
+  data?: unknown;
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const isAnalyticsMetricsResponse = (value: unknown): value is { success: true; metrics: AnalyticsData } =>
+  isPlainObject(value) && value.success === true && isPlainObject(value.metrics);
+
+const isExportReportsSuccess = (
+  value: unknown,
+): value is ExportReportsResponse & { success: true } => isPlainObject(value) && value.success === true;
+
+const isGenerateReportSuccess = (
+  value: unknown,
+): value is GenerateReportResponse & { success: true } => isPlainObject(value) && value.success === true;
+
+const toReportDataList = (value: unknown): ReportData[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!isPlainObject(item)) return [];
+
+    const reportId = typeof item.reportId === 'string' ? item.reportId : crypto.randomUUID();
+    const rawType = item.reportType;
+    const reportType: ReportType =
+      rawType === 'performance' ||
+      rawType === 'conversion' ||
+      rawType === 'user_behavior' ||
+      rawType === 'property_analytics'
+        ? rawType
+        : 'comprehensive';
+    const content = typeof item.content === 'string' ? item.content : '';
+    const data = isPlainObject(item.data) ? item.data : null;
+    const generatedAtRaw = item.generatedAt;
+    const generatedAt =
+      generatedAtRaw instanceof Date
+        ? generatedAtRaw
+        : typeof generatedAtRaw === 'string'
+          ? new Date(generatedAtRaw)
+          : new Date();
+
+    return [
+      {
+        reportId,
+        reportType,
+        content,
+        data,
+        generatedAt,
+      },
+    ];
+  });
+};
+
+const buildReportFromGenerateResponse = (
+  response: GenerateReportResponse,
+  fallbackType: ReportType,
+): ReportData => {
+  const reportId = typeof response.reportId === 'string' ? response.reportId : crypto.randomUUID();
+  const rawType = response.reportType;
+  const reportType: ReportType =
+    rawType === 'comprehensive' ||
+    rawType === 'performance' ||
+    rawType === 'conversion' ||
+    rawType === 'user_behavior' ||
+    rawType === 'property_analytics'
+      ? rawType
+      : fallbackType;
+  const content = typeof response.content === 'string' ? response.content : '';
+  const data = isPlainObject(response.data) ? response.data : null;
+
+  return {
+    reportId,
+    reportType,
+    content,
+    data,
+    generatedAt: new Date(),
+  };
+};
+
 const AnalyticsDashboard: React.FC = () => {
-	const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
-	const [reports, setReports] = useState<ReportData[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | '90d'>('30d');
-	const [selectedReportType, setSelectedReportType] = useState<string>('comprehensive');
-	const [generatingReport, setGeneratingReport] = useState(false);
-	const [linkSummary, setLinkSummary] = useState<LinkStatsSummary | null>(null);
-	const [linkLoading, setLinkLoading] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [reports, setReports] = useState<ReportData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | '90d'>('30d');
+  const [selectedReportType, setSelectedReportType] = useState<ReportType>('comprehensive');
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [linkSummary, setLinkSummary] = useState<LinkStatsSummary | null>(null);
+  const [linkLoading, setLinkLoading] = useState(false);
 
-	useEffect(() => {
-		loadAnalyticsData();
-		loadReports();
-		loadLinkSummary();
-	}, [timeRange]);
+  const loadAnalyticsData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const startDate = new Date();
+      switch (timeRange) {
+        case '24h':
+          startDate.setHours(startDate.getHours() - 24);
+          break;
+        case '7d':
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+        case '30d':
+          startDate.setDate(startDate.getDate() - 30);
+          break;
+        case '90d':
+          startDate.setDate(startDate.getDate() - 90);
+          break;
+        default:
+          break;
+      }
 
-	const loadAnalyticsData = async () => {
-		try {
-			setLoading(true);
-			const startDate = new Date();
-			switch (timeRange) {
-				case '24h':
-					startDate.setHours(startDate.getHours() - 24);
-					break;
-				case '7d':
-					startDate.setDate(startDate.getDate() - 7);
-					break;
-				case '30d':
-					startDate.setDate(startDate.getDate() - 30);
-					break;
-				case '90d':
-					startDate.setDate(startDate.getDate() - 90);
-					break;
-			}
+      const response = await analyticsService.calculateMetrics({
+        startDate: startDate.toISOString(),
+        endDate: new Date().toISOString(),
+      });
 
-			const result = await analyticsService.calculateMetrics({
-				startDate: startDate.toISOString(),
-				endDate: new Date().toISOString()
-			});
+      if (isAnalyticsMetricsResponse(response)) {
+        setAnalyticsData(response.metrics as AnalyticsData);
+      } else {
+        setAnalyticsData(null);
+      }
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [timeRange]);
 
-			if (result.success) {
-				setAnalyticsData(result.metrics);
-			}
-		} catch (error) {
-			console.error('Error loading analytics data:', error);
-		} finally {
-			setLoading(false);
-		}
-	};
+  const loadReports = useCallback(async () => {
+    try {
+      const response = await analyticsService.exportData({
+        dataType: 'reports',
+        format: 'json',
+      });
 
-	const loadReports = async () => {
-		try {
-			const result = await analyticsService.exportData({
-				dataType: 'reports',
-				format: 'json'
-			});
+      if (isExportReportsSuccess(response)) {
+        setReports(toReportDataList(response.data).slice(0, 10));
+      }
+    } catch (error) {
+      console.error('Error loading reports:', error);
+    }
+  }, []);
 
-			if (result.success && Array.isArray(result.data)) {
-				setReports(result.data.slice(0, 10)); // Show last 10 reports
-			}
-		} catch (error) {
-			console.error('Error loading reports:', error);
-		}
-	};
+  const loadLinkSummary = useCallback(async () => {
+    try {
+      setLinkLoading(true);
+      const summary = await listTopLinks(6);
+      setLinkSummary(summary);
+    } catch (error) {
+      console.error('Error loading link analytics:', error);
+    } finally {
+      setLinkLoading(false);
+    }
+  }, []);
 
-	const loadLinkSummary = async () => {
-		try {
-			setLinkLoading(true);
-			const summary = await listTopLinks(6);
-			setLinkSummary(summary);
-		} catch (error) {
-			console.error('Error loading link analytics:', error);
-		} finally {
-			setLinkLoading(false);
-		}
-	};
+  const generateReport = useCallback(async () => {
+    try {
+      setGeneratingReport(true);
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
 
-	const generateReport = async () => {
-		try {
-			setGeneratingReport(true);
-			const startDate = new Date();
-			startDate.setDate(startDate.getDate() - 30);
+      const response = await analyticsService.generateReport({
+        reportType: selectedReportType,
+        startDate: startDate.toISOString(),
+        endDate: new Date().toISOString(),
+        format: 'text',
+        includeCharts: true,
+      });
 
-			const result = await analyticsService.generateReport({
-				reportType: selectedReportType as any,
-				startDate: startDate.toISOString(),
-				endDate: new Date().toISOString(),
-				format: 'text',
-				includeCharts: true
-			});
+      if (isGenerateReportSuccess(response)) {
+        setReports((prev) => {
+          const next = [buildReportFromGenerateResponse(response, selectedReportType), ...prev];
+          return next.slice(0, 10);
+        });
+      }
+    } catch (error) {
+      console.error('Error generating report:', error);
+    } finally {
+      setGeneratingReport(false);
+    }
+  }, [selectedReportType]);
 
-			if (result.success) {
-				// Add new report to the list; coerce to ReportData shape
-				setReports((prev: ReportData[]) => [{
-					reportId: (result as any).reportId || crypto.randomUUID(),
-					reportType: (result as any).reportType || (selectedReportType as string),
-					content: (result as any).content || '',
-					data: (result as any).data || null,
-					generatedAt: new Date()
-				}, ...prev.slice(0, 9)] as ReportData[]);
-			}
-		} catch (error) {
-			console.error('Error generating report:', error);
-		} finally {
-			setGeneratingReport(false);
-		}
-	};
+  const downloadReport = useCallback(async (reportId: string, format: 'pdf' | 'csv' | 'excel') => {
+    try {
+      await analyticsService.downloadReport(reportId, format);
+    } catch (error) {
+      console.error('Error downloading report:', error);
+    }
+  }, []);
 
-	const downloadReport = async (reportId: string, format: 'pdf' | 'csv' | 'excel') => {
-		try {
-			await analyticsService.downloadReport(reportId, format);
-		} catch (error) {
-			console.error('Error downloading report:', error);
-		}
-	};
+  const trackDemoInteraction = useCallback(
+    async (eventType: string) => {
+      try {
+        await analyticsService.trackInteraction({
+          eventType,
+          eventData: { demo: true, timestamp: new Date().toISOString() },
+        });
+        await loadAnalyticsData();
+      } catch (error) {
+        console.error('Error tracking demo interaction:', error);
+      }
+    },
+    [loadAnalyticsData],
+  );
 
-	const trackDemoInteraction = async (eventType: string) => {
-		try {
-			await analyticsService.trackInteraction({
-				eventType,
-				eventData: { demo: true, timestamp: new Date().toISOString() }
-			});
-			// Reload analytics data to show the new interaction
-			loadAnalyticsData();
-		} catch (error) {
-			console.error('Error tracking demo interaction:', error);
-		}
-	};
+  useEffect(() => {
+    void loadAnalyticsData();
+  }, [loadAnalyticsData]);
+
+  useEffect(() => {
+    void loadReports();
+  }, [loadReports]);
+
+  useEffect(() => {
+    void loadLinkSummary();
+  }, [loadLinkSummary]);
+
+  const handleReportTypeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedReportType(event.target.value as ReportType);
+  };
 
 	if (loading) {
 		return (
@@ -276,35 +385,33 @@ const AnalyticsDashboard: React.FC = () => {
 										</tr>
 									)}
 									{!linkLoading && linkSummary?.topLinks?.length
-										? linkSummary.topLinks.map(link => (
-												<tr key={link.id} className="border-t border-gray-100">
-													<td className="px-4 py-3 text-gray-700">
-														<div className="flex flex-col">
-															<span className="font-medium">{link.title || 'Campaign'}</span>
-															<span className="text-xs text-gray-400 truncate">{link.destination}</span>
-														</div>
-													</td>
-													<td className="px-4 py-3 text-blue-600">
-														<a href={link.shortUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
-															{link.shortUrl}
-														</a>
-													</td>
-													<td className="px-4 py-3 text-right font-semibold text-gray-800">{link.clicks.toLocaleString()}</td>
-													<td className="px-4 py-3 text-right text-gray-600">{link.uniqueClicks.toLocaleString()}</td>
-													<td className="px-4 py-3 text-right text-gray-400">
-														{link.lastClickAt
-															? new Date(link.lastClickAt).toLocaleDateString()
-															: '—'}
-													</td>
-												</tr>
-										  ))
-										: !linkLoading && (
-												<tr>
-													<td colSpan={5} className="px-4 py-6 text-center text-gray-400">
-														No link data yet. Generate a short link from an AI Card or AI Listing to populate this table.
-													</td>
-												</tr>
-										  )}
+								? linkSummary.topLinks.map((link) => (
+									<tr key={link.id} className="border-t border-gray-100">
+										<td className="px-4 py-3 text-gray-700">
+											<div className="flex flex-col">
+												<span className="font-medium">{link.title || 'Campaign'}</span>
+												<span className="text-xs text-gray-400 truncate">{link.destination}</span>
+											</div>
+										</td>
+										<td className="px-4 py-3 text-blue-600">
+											<a href={link.shortUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+												{link.shortUrl}
+											</a>
+										</td>
+										<td className="px-4 py-3 text-right font-semibold text-gray-800">{link.clicks.toLocaleString()}</td>
+										<td className="px-4 py-3 text-right text-gray-600">{link.uniqueClicks.toLocaleString()}</td>
+										<td className="px-4 py-3 text-right text-gray-400">
+											{link.lastClickAt ? new Date(link.lastClickAt).toLocaleDateString() : '—'}
+										</td>
+									</tr>
+								))
+								: !linkLoading && (
+									<tr>
+										<td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+											No link data yet. Generate a short link from an AI Card or AI Listing to populate this table.
+										</td>
+									</tr>
+								)}
 								</tbody>
 							</table>
 						</div>
@@ -391,9 +498,9 @@ const AnalyticsDashboard: React.FC = () => {
 						<div className="flex justify-between items-center">
 							<h3 className="text-lg font-semibold text-gray-900">Reports</h3>
 							<div className="flex space-x-3">
-								<select
-									value={selectedReportType}
-									onChange={(e) => setSelectedReportType(e.target.value)}
+                <select
+                  value={selectedReportType}
+                  onChange={handleReportTypeChange}
 									className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
 								>
 									<option value="comprehensive">Comprehensive</option>

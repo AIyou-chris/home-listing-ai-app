@@ -35,8 +35,9 @@ const GoogleMeetTest: React.FC = () => {
       } else {
         setResult(`⚠️ Regular calendar event created (Google Meet API not enabled)\n\nEvent ID: ${testResult.eventId}\n\nTo enable video conferencing:\n1. Go to Google Cloud Console\n2. Find "Google Meet REST API"\n3. Click "Enable"\n4. Wait 1-2 minutes for activation`);
       }
-    } catch (error: any) {
-      setResult(`❌ Error: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      setResult(`❌ Error: ${message}`);
     } finally {
       setIsLoading(false);
     }

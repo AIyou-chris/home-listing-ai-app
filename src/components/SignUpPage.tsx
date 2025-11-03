@@ -55,9 +55,9 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                 email
             });
             window.location.hash = `checkout/${registration.slug}`;
-        } catch (error: any) {
+        } catch (error) {
             console.error('Signup error:', error);
-            const message = error?.message || 'An error occurred during sign up. Please try again.';
+            const message = error instanceof Error ? error.message : 'An error occurred during sign up. Please try again.';
             if (message.toLowerCase().includes('duplicate') || message.toLowerCase().includes('already')) {
                 setError(
                     <span>

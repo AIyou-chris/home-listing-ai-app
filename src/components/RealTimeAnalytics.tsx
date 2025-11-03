@@ -1,58 +1,74 @@
 import React, { useEffect, useState } from 'react';
-import { analyticsService, AdminMetrics, UserEngagementMetrics, SystemPerformanceMetrics, RetentionMetrics, RealTimeData } from '../services/analyticsService';
+import { analyticsService, AdminMetrics, SystemPerformanceMetrics } from '../services/analyticsService';
 
 interface RealTimeAnalyticsProps {
   isAdmin?: boolean;
 }
 
+interface UserActivityEvent {
+  id: string;
+  eventType: string;
+  userId?: string;
+  propertyId?: string;
+  timestamp?: Date;
+  [key: string]: unknown;
+}
+
+interface SystemAlertEvent {
+  id: string;
+  type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  message: string;
+  timestamp?: Date;
+  [key: string]: unknown;
+}
+
+interface PerformanceSnapshot {
+  responseTime: number;
+  errorRate?: number;
+  throughput?: number;
+  [key: string]: unknown;
+}
+
 const RealTimeAnalytics: React.FC<RealTimeAnalyticsProps> = ({ isAdmin = false }) => {
   const [activeUsers, setActiveUsers] = useState<number>(0);
-  const [recentEvents, setRecentEvents] = useState<any[]>([]);
-  const [systemAlerts, setSystemAlerts] = useState<any[]>([]);
-  const [performanceMetrics, setPerformanceMetrics] = useState<any>(null);
+  const [recentEvents, setRecentEvents] = useState<UserActivityEvent[]>([]);
+  const [systemAlerts, setSystemAlerts] = useState<SystemAlertEvent[]>([]);
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceSnapshot | null>(null);
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics | null>(null);
-  const [userEngagement, setUserEngagement] = useState<UserEngagementMetrics | null>(null);
   const [systemPerformance, setSystemPerformance] = useState<SystemPerformanceMetrics | null>(null);
-  const [retentionMetrics, setRetentionMetrics] = useState<RetentionMetrics | null>(null);
-  const [listenerStatus, setListenerStatus] = useState<{ [key: string]: boolean }>({});
+  const [listenerStatus, setListenerStatus] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    // Start real-time listeners
-    const listeners: (() => void)[] = [];
+    const listeners: Array<() => void> = [];
 
-    // Listen to active users
     const activeUsersListener = analyticsService.listenToActiveUsers((count) => {
       setActiveUsers(count);
     });
     listeners.push(activeUsersListener);
 
-    // Listen to user activity
     const userActivityListener = analyticsService.listenToUserActivity((activities) => {
-      setRecentEvents(activities.slice(0, 10)); // Show last 10 activities
+      const sliced = Array.isArray(activities) ? activities.slice(0, 10) : [];
+      setRecentEvents(sliced as UserActivityEvent[]);
     });
     listeners.push(userActivityListener);
 
-    // Listen to system alerts
     const alertsListener = analyticsService.listenToSystemAlerts((alerts) => {
-      setSystemAlerts(alerts);
+      setSystemAlerts(Array.isArray(alerts) ? alerts as SystemAlertEvent[] : []);
     });
     listeners.push(alertsListener);
 
-    // Listen to performance metrics
     const performanceListener = analyticsService.listenToPerformanceMetrics((metrics) => {
-      setPerformanceMetrics(metrics);
+      setPerformanceMetrics(metrics as PerformanceSnapshot);
     });
     listeners.push(performanceListener);
 
-    // Load admin-specific metrics if admin
     if (isAdmin) {
       loadAdminMetrics();
     }
 
-    // Update listener status
     setListenerStatus(analyticsService.getListenerStatus());
 
-    // Cleanup listeners on unmount
     return () => {
       listeners.forEach(unsubscribe => unsubscribe());
     };
@@ -60,17 +76,13 @@ const RealTimeAnalytics: React.FC<RealTimeAnalyticsProps> = ({ isAdmin = false }
 
   const loadAdminMetrics = async () => {
     try {
-      const [admin, engagement, performance, retention] = await Promise.all([
+      const [admin, performance] = await Promise.all([
         analyticsService.getAdminDashboardMetrics(),
-        analyticsService.getUserEngagementMetrics(),
-        analyticsService.getSystemPerformanceMetrics(),
-        analyticsService.getRetentionMetrics()
+        analyticsService.getSystemPerformanceMetrics()
       ]);
 
       setAdminMetrics(admin);
-      setUserEngagement(engagement);
       setSystemPerformance(performance);
-      setRetentionMetrics(retention);
     } catch (error) {
       console.error('Error loading admin metrics:', error);
     }

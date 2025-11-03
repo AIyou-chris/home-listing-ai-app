@@ -32,8 +32,17 @@ interface TrainingTemplate {
 	requirements: string[]
 }
 
+type TrainingTab = 'sessions' | 'templates' | 'create' | 'analytics'
+
+const TRAINING_TABS: Array<{ id: TrainingTab; label: string; icon: string }> = [
+	{ id: 'sessions', label: 'Training Sessions', icon: 'play_circle' },
+	{ id: 'templates', label: 'Templates', icon: 'template_add' },
+	{ id: 'create', label: 'Create Session', icon: 'add_circle' },
+	{ id: 'analytics', label: 'Training Analytics', icon: 'analytics' }
+]
+
 const SidekickTrainingWorkflows: React.FC = () => {
-	const [activeTab, setActiveTab] = useState<'sessions' | 'templates' | 'create' | 'analytics'>('sessions')
+	const [activeTab, setActiveTab] = useState<TrainingTab>('sessions')
 	const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>([])
 	const [trainingTemplates] = useState<TrainingTemplate[]>([
 		{
@@ -379,15 +388,10 @@ const SidekickTrainingWorkflows: React.FC = () => {
 			{/* Tabs */}
 			<div className="border-b border-slate-200 mb-6">
 				<nav className="flex space-x-8">
-					{[
-						{ id: 'sessions', label: 'Training Sessions', icon: 'play_circle' },
-						{ id: 'templates', label: 'Templates', icon: 'template_add' },
-						{ id: 'create', label: 'Create Session', icon: 'add_circle' },
-						{ id: 'analytics', label: 'Training Analytics', icon: 'analytics' }
-					].map(tab => (
+					{TRAINING_TABS.map(tab => (
 						<button
 							key={tab.id}
-							onClick={() => setActiveTab(tab.id as any)}
+							onClick={() => setActiveTab(tab.id)}
 							className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm ${
 								activeTab === tab.id
 									? 'border-primary-500 text-primary-600'

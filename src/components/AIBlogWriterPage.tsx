@@ -11,6 +11,43 @@ interface QA {
   required?: boolean
 }
 
+interface StoredBlogPost {
+  id: string
+  title: string
+  slug: string
+  content: string
+  excerpt: string
+  author: string
+  publishedAt: string
+  status: string
+  tags: string[]
+  imageUrl: string
+  readTime: string
+}
+
+const isStoredBlogPost = (value: unknown): value is StoredBlogPost => {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.id === 'string' &&
+    typeof record.title === 'string' &&
+    typeof record.content === 'string'
+  )
+}
+
+const getStoredBlogPosts = (): StoredBlogPost[] => {
+  const raw = localStorage.getItem('localBlogPosts')
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isStoredBlogPost)
+  } catch (error) {
+    console.warn('Failed to parse stored blog posts', error)
+    return []
+  }
+}
+
 const QUESTIONS: QA[] = [
   { id: 'topic', label: 'What is the blog topic?', required: true },
   { id: 'audience', label: 'Who is the audience?', required: true },
@@ -84,7 +121,6 @@ const AIBlogWriterPage: React.FC = () => {
   })
   const [post, setPost] = useState<AIBlogPost | null>(null)
   const [headerUrl, setHeaderUrl] = useState<string>('')
-  const [inlineUrl, setInlineUrl] = useState<string>('')
   const [busy, setBusy] = useState(false)
   const [imagesMode, setImagesMode] = useState<'auto' | 'prompt' | 'none'>('auto')
   const [imagesPrompt, setImagesPrompt] = useState<string>('')
@@ -102,7 +138,7 @@ const AIBlogWriterPage: React.FC = () => {
         .map(s => s.trim())
         .filter(Boolean)
 
-      const result = await generateBlogPost({
+      const requestPayload: Parameters<typeof generateBlogPost>[0] = {
         topic: answers.topic || '',
         keywords: answers.keywords || '',
         tone: answers.tone || 'Warm',
@@ -110,7 +146,9 @@ const AIBlogWriterPage: React.FC = () => {
         audience: answers.audience || 'Home buyers',
         cta: 'Contact us for a free consultation',
         urls,
-      } as any)
+      }
+
+      const result = await generateBlogPost(requestPayload)
 
       // Generate images based on selection
       let header = ''
@@ -122,10 +160,8 @@ const AIBlogWriterPage: React.FC = () => {
         header = await drawImage(result.title, headerSub)
         inline = await drawImage('Key Insight', 'Generated with HomeListingAI')
         setHeaderUrl(header)
-        setInlineUrl(inline)
       } else {
         setHeaderUrl('')
-        setInlineUrl('')
       }
 
       const withBrand = `
@@ -150,7 +186,7 @@ const AIBlogWriterPage: React.FC = () => {
 
   const saveLocal = async () => {
     try {
-      const existing = JSON.parse(localStorage.getItem('localBlogPosts') || '[]') as any[]
+      const existing = getStoredBlogPosts()
       const slug = (post!.title || 'blog')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -175,10 +211,14 @@ const AIBlogWriterPage: React.FC = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(entry)
         })
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to sync local blog posts to API', error)
+      }
       alert('Saved locally. View it in Blog page.')
       window.location.hash = '#/blog'
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to save local blog post', error)
+    }
   }
 
   if (step === 'intro') {

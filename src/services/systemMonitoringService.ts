@@ -7,9 +7,7 @@ export interface HealthStatus {
   message: string;
   timestamp: string;
   responseTime?: number; // milliseconds
-  details?: {
-    [key: string]: any;
-  };
+  details?: Record<string, unknown>;
 }
 
 // Performance metrics
@@ -499,7 +497,7 @@ export class SystemMonitoringService {
   private async handleHealthCheckError(healthStatus: HealthStatus): Promise<void> {
     console.error('Health check error:', healthStatus);
     
-    await this.createAlert({
+    const alert: Omit<SystemAlert, 'id'> = {
       type: 'error',
       title: `System Health Error: ${healthStatus.message}`,
       description: healthStatus.message,
@@ -507,21 +505,25 @@ export class SystemMonitoringService {
       component: 'system-monitoring',
       status: 'active',
       createdAt: new Date().toISOString()
-    } as any);
+    };
+
+    await this.createAlert(alert);
   }
 
   private async handleHealthCheckWarning(healthStatus: HealthStatus): Promise<void> {
     console.warn('Health check warning:', healthStatus);
     
-    await this.createAlert({
+    const alert: Omit<SystemAlert, 'id'> = {
       type: 'warning',
       title: `System Health Warning: ${healthStatus.message}`,
       description: healthStatus.message,
       severity: 'medium',
       component: 'system-monitoring',
-      status: 'open',
+      status: 'active',
       createdAt: new Date().toISOString()
-    } as any);
+    };
+
+    await this.createAlert(alert);
   }
 
   // Configuration methods

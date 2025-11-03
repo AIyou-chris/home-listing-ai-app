@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { useAdminModal } from '../context/AdminModalContext';
 import { AdminModals } from './AdminModals';
 import AddContactModal from './AddContactModal';
 import { supabase } from '../services/supabase';
 import { SystemMonitoringService, HealthStatus } from '../services/systemMonitoringService';
+import { User, Lead } from '../types';
+
+interface ContactRecord {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: 'lead' | 'client' | 'agent';
+  stage?: string | null;
+  pipeline_note?: string | null;
+  created_at?: string;
+}
 
 // Enhanced status widget with real-time monitoring
 const StatusWidget: React.FC<{ 
@@ -106,21 +117,21 @@ const MetricWidget: React.FC<{ title: string; value: string; change: string; ico
 
 // Main AdminDashboard component
 interface AdminDashboardProps {
-  users?: any[];
-  leads?: any[];
+  users?: User[];
+  leads?: Lead[];
   onDeleteUser?: (userId: string) => void;
   onDeleteLead?: (leadId: string) => void;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
     users: propUsers = [], 
-    leads: propLeads = [], 
-    onDeleteUser,
-    onDeleteLead 
+    leads: _propLeads = [], 
+    onDeleteUser: _onDeleteUser,
+    onDeleteLead: _onDeleteLead 
 }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [showAddContactModal, setShowAddContactModal] = useState(false);
-    const [contacts, setContacts] = useState<any[]>([]);
+    const [contacts, setContacts] = useState<ContactRecord[]>([]);
     
     // System monitoring states
     const [apiHealth, setApiHealth] = useState<HealthStatus | null>(null);
@@ -128,19 +139,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [aiHealth, setAiHealth] = useState<HealthStatus | null>(null);
     const [healthLoading, setHealthLoading] = useState(true);
     
-    // Use centralized modal context instead of local state
-    const {
-        setShowAddUserModal,
-        setShowAddLeadModal,
-        setEditingUser,
-        setEditUserForm,
-        setEditingLead,
-        setEditLeadForm
-    } = useAdminModal();
-
     // Use the users and leads directly from props - no local state needed
     const users = propUsers;
-    const leads = propLeads;
 
     // Load system health status
     useEffect(() => {
@@ -179,14 +179,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
                     const { data, error } = await supabase
-                        .from('contacts')
+                        .from<ContactRecord>('contacts')
                         .select('*')
                         .eq('user_id', user.id);
                     
                     if (error) {
                         console.error('Error loading contacts:', error);
                     } else {
-                        setContacts(data || []);
+                        setContacts(data ?? []);
                     }
                 }
             } catch (error) {
@@ -198,40 +198,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         loadContacts();
     }, []);
-
-    const handleEditUserClick = (user: any) => {
-        setEditingUser(user);
-        setEditUserForm({
-            name: user.name || '',
-            email: user.email || '',
-            role: user.role || 'agent',
-            plan: user.plan || 'Solo Agent'
-        });
-    };
-
-    const handleEditLeadClick = (lead: any) => {
-        setEditingLead(lead);
-        setEditLeadForm({
-            name: lead.name || '',
-            email: lead.email || '',
-            phone: lead.phone || '',
-            status: lead.status || 'new',
-            source: lead.source || '',
-            notes: lead.notes || ''
-        });
-    };
-
-    const handleDeleteUser = (userId: string) => {
-        if (window.confirm('Are you sure you want to delete this user?')) {
-            onDeleteUser?.(userId);
-        }
-    };
-
-    const handleDeleteLead = (leadId: string) => {
-        if (window.confirm('Are you sure you want to delete this lead?')) {
-            onDeleteLead?.(leadId);
-        }
-    };
 
     if (isLoading) {
         return (
@@ -397,8 +363,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             {/* Centralized Modals - handlers are managed by AdminLayout */}
             <AdminModals
-                users={users}
-                leads={leads}
                 onAddUser={async () => { console.log('Add user handled by AdminLayout') }}
                 onEditUser={async () => { console.log('Edit user handled by AdminLayout') }}
                 onAddLead={async () => { console.log('Add lead handled by AdminLayout') }}
@@ -413,14 +377,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     // Refresh contacts data
                     try {
                         const { data: { user } } = await supabase.auth.getUser();
-                        if (user) {
+                    if (user) {
                             const { data, error } = await supabase
-                                .from('contacts')
+                                .from<ContactRecord>('contacts')
                                 .select('*')
                                 .eq('user_id', user.id);
                             
                             if (!error) {
-                                setContacts(data || []);
+                                setContacts(data ?? []);
                             }
                         }
                     } catch (error) {

@@ -1,12 +1,10 @@
 import { FollowUpSequence, SequenceStep, Lead, Property, AgentProfile } from '../types';
 import { EmailService } from './emailService';
-import { supabase } from './supabase';
-
 interface SequenceContext {
   lead: Lead;
   property?: Property;
   agent: AgentProfile;
-  customData?: Record<string, any>;
+  customData?: Record<string, unknown>;
 }
 
 interface ActiveSequence {

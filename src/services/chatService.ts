@@ -1,7 +1,9 @@
-import { supabase } from './supabase'
-
 export type ChatScope = 'agent' | 'listing' | 'marketing'
 export type ConversationChannel = 'chat' | 'voice' | 'email'
+
+type ConversationMetadata = Record<string, unknown> | null
+type MessageTranslation = Record<string, unknown> | string | null
+type MessageMetadata = Record<string, unknown> | null
 
 export interface ConversationRow {
   id: string
@@ -24,7 +26,7 @@ export interface ConversationRow {
   language?: string | null
   voice_transcript?: string | null
   follow_up_task?: string | null
-  metadata?: any | null
+  metadata?: ConversationMetadata
   created_at: string
   updated_at?: string | null
 }
@@ -36,8 +38,8 @@ export interface MessageRow {
   sender: 'lead' | 'agent' | 'ai'
   channel: ConversationChannel
   content: string
-  translation: any | null
-  metadata: any | null
+  translation: MessageTranslation
+  metadata: MessageMetadata
   created_at: string
 }
 
@@ -57,7 +59,7 @@ export const createConversation = async (params: {
   tags?: string[] | null
   voiceTranscript?: string | null
   followUpTask?: string | null
-  metadata?: any
+  metadata?: ConversationMetadata
 }): Promise<ConversationRow> => {
   try {
     const response = await fetch('/api/conversations', {
@@ -146,9 +148,9 @@ export const appendMessage = async (params: {
   role: 'user' | 'ai' | 'system'
   content: string
   channel?: ConversationChannel
-  translation?: any
+  translation?: MessageTranslation
   userId?: string | null
-  metadata?: any
+  metadata?: MessageMetadata
 }) => {
   try {
     const response = await fetch(`/api/conversations/${params.conversationId}/messages`, {

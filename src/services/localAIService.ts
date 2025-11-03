@@ -1,5 +1,3 @@
-import { ChatMessage } from '../types';
-
 const API_BASE_URL = 'http://localhost:5001/home-listing-ai/us-central1/api';
 
 /**

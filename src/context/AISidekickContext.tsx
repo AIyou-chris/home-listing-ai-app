@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import type { AIPersonality } from '../types';
 import { AI_PERSONALITIES } from '../constants';
 import { loadRoleMap, saveRoleMap } from '../services/aiPersonaService';
@@ -47,7 +47,8 @@ export const AISidekickProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 		try {
 			const raw = localStorage.getItem(STORAGE_KEY);
 			return raw ? JSON.parse(raw) as RolePersonalityMap : DEFAULT_ROLE_MAP;
-		} catch {
+		} catch (error) {
+			console.error('[AISidekickContext] Failed to read role map from storage:', error);
 			return DEFAULT_ROLE_MAP;
 		}
 	});
@@ -55,11 +56,15 @@ export const AISidekickProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 	useEffect(() => {
 		try {
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(roleMap));
-		} catch {}
+		} catch (error) {
+			console.error('[AISidekickContext] Failed to persist role map to storage:', error);
+		}
 		// Persist to Supabase if logged in (local auth stub provides uid)
 		const uid = resolveUserId();
 		if (uid && uid !== 'local') {
-			saveRoleMap(uid as string, roleMap).catch(() => {});
+			saveRoleMap(uid as string, roleMap).catch(error => {
+				console.error('[AISidekickContext] Failed to persist role map remotely:', error);
+			});
 		}
 	}, [roleMap]);
 
@@ -69,30 +74,32 @@ export const AISidekickProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 		if (!uid) return;
 		loadRoleMap(uid).then(remote => {
 			if (remote) setRoleMap(remote as RolePersonalityMap);
-		}).catch(() => {});
+		}).catch(error => {
+			console.error('[AISidekickContext] Failed to load role map remotely:', error);
+		});
 	}, []);
 
-	const setRolePersonality = (role: AISidekickRole, personalityId: string) => {
+	const setRolePersonality = useCallback((role: AISidekickRole, personalityId: string) => {
 		setRoleMap(prev => ({
 			...prev,
 			byRole: { ...prev.byRole, [role]: { ...prev.byRole[role], personalityId } }
 		}));
-	};
+	}, []);
 
-	const setDefaultRole = (role: AISidekickRole) => {
+	const setDefaultRole = useCallback((role: AISidekickRole) => {
 		setRoleMap(prev => ({ ...prev, defaultRole: role }));
-	};
+	}, []);
 
-	const getPersonality = (role: AISidekickRole): AIPersonality => {
+	const getPersonality = useCallback((role: AISidekickRole): AIPersonality => {
 		const pid = roleMap.byRole[role]?.personalityId;
 		const found = AI_PERSONALITIES.find(p => p.id === pid) || AI_PERSONALITIES[0];
 		return found;
-	};
+	}, [roleMap]);
 
-	const addOverride = (line: string) => {
+	const addOverride = useCallback((line: string) => {
 		if (!line.trim()) return;
 		setRoleMap(prev => ({ ...prev, customOverrides: [...prev.customOverrides, line] }));
-	};
+	}, []);
 
 	const value = useMemo<ContextValue>(() => ({
 		roleMap,
@@ -100,11 +107,12 @@ export const AISidekickProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 		setDefaultRole,
 		getPersonality,
 		addOverride
-	}), [roleMap]);
+	}), [roleMap, setRolePersonality, setDefaultRole, getPersonality, addOverride]);
 
 	return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAISidekicks = (): ContextValue => {
 	const v = useContext(Ctx);
 	if (!v) throw new Error('useAISidekicks must be used within AISidekickProvider');

@@ -1,4 +1,4 @@
-import { Property, Lead, Appointment, Interaction, AgentProfile, FollowUpSequence, ActiveLeadFollowUp, AnalyticsData } from './types';
+import { Property, Lead, Appointment, Interaction, FollowUpSequence, ActiveLeadFollowUp, AnalyticsData } from './types';
 import { SAMPLE_AGENT } from './constants';
 
 export const DEMO_FAT_PROPERTIES: Property[] = [

@@ -47,9 +47,9 @@ const QRCodeManagementPage: React.FC = () => {
       setError(null);
       const data = await listAICardQRCodes();
       setQrCodes(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load QR codes:', err);
-      setError(err?.message || 'Failed to load QR codes');
+      setError(err instanceof Error ? err.message : 'Failed to load QR codes');
       setQrCodes([]);
     } finally {
       setIsLoading(false);
@@ -82,9 +82,9 @@ const QRCodeManagementPage: React.FC = () => {
       await createAICardQRCode(createState.label.trim(), createState.destinationUrl || undefined);
       await loadQRCodes();
       resetCreateModal();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to create QR code:', err);
-      setError(err?.message || 'Failed to create QR code');
+      setError(err instanceof Error ? err.message : 'Failed to create QR code');
     } finally {
       setIsSaving(false);
     }
@@ -95,9 +95,9 @@ const QRCodeManagementPage: React.FC = () => {
       setIsSaving(true);
       await deleteAICardQRCode(id);
       setQrCodes(prev => prev.filter(qr => qr.id !== id));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to delete QR code:', err);
-      setError(err?.message || 'Failed to delete QR code');
+      setError(err instanceof Error ? err.message : 'Failed to delete QR code');
     } finally {
       setIsSaving(false);
     }
@@ -127,9 +127,9 @@ const QRCodeManagementPage: React.FC = () => {
       });
       await loadQRCodes();
       resetEditModal();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to update QR code:', err);
-      setError(err?.message || 'Failed to update QR code');
+      setError(err instanceof Error ? err.message : 'Failed to update QR code');
     } finally {
       setIsSaving(false);
     }

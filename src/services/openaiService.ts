@@ -1,5 +1,4 @@
 // Firebase functions removed; keep service API signatures intact
-import { ChatMessage } from '../types';
 
 /**
  * Continues a conversation using OpenAI's GPT models
@@ -107,6 +106,7 @@ export const generateImage = async (
   if (!prompt.trim()) throw new Error('Prompt is required');
   try {
     // Return placeholder data in local mode
+    console.info('generateImage invoked (placeholder)', { prompt, size });
     return { url: undefined, b64: '' };
   } catch (error) {
     console.error('Error generating image:', error);

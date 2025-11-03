@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Lead, Appointment, LeadStatus } from '../types';
 import { scheduleAppointment } from '../services/schedulerService';
-import AddLeadModal from './AddLeadModal';
+import AddLeadModal, { type NewLeadPayload } from './AddLeadModal';
 import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from './ScheduleAppointmentModal';
 import ContactLeadModal from './ContactLeadModal';
 import CalendarView from './CalendarView';
@@ -176,7 +176,7 @@ const AppointmentsList: React.FC<{ appointments: Appointment[] }> = ({ appointme
 interface LeadsAndAppointmentsPageProps {
     leads: Lead[];
     appointments: Appointment[];
-    onAddNewLead: (leadData: any) => void;
+    onAddNewLead: (leadData: NewLeadPayload) => void;
     onBackToDashboard: () => void;
     onNewAppointment?: (appt: Appointment) => void;
 }
@@ -402,7 +402,9 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                                 agentReminderMinutes: apptData.agentReminderMinutes,
                                 clientReminderMinutes: apptData.clientReminderMinutes
                             });
-                        } catch {}
+                        } catch (error) {
+                            console.error('Failed to schedule appointment:', error);
+                        }
                         const appt: Appointment = {
                             id: `appt-${Date.now()}`,
                             type: apptData.kind,
@@ -420,47 +422,47 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                             agentReminderMinutes: apptData.agentReminderMinutes,
                             clientReminderMinutes: apptData.clientReminderMinutes
                         };
-                        onNewAppointment && onNewAppointment(appt);
+                        onNewAppointment?.(appt);
                         handleCloseScheduleModal();
                     }}
                 />
             )}
-             {isContactModalOpen && contactingLead && (
-                <ContactLeadModal
-                    lead={contactingLead}
-                    onClose={handleCloseContactModal}
-                    onSchedule={() => handleSwitchToSchedule(contactingLead)}
-                />
-            )}
-            {isExportModalOpen && (
-                <ExportModal
-                    isOpen={isExportModalOpen}
-                    onClose={() => setIsExportModalOpen(false)}
-                    leads={leads}
-                    appointments={appointments}
-                />
-            )}
-        </>
-    );
-}
-
-const TabButton: React.FC<{isActive: boolean, onClick: () => void, icon: string, count: number, children: React.ReactNode}> = ({isActive, onClick, icon, count, children}) => {
-    return (
-        <button
-            onClick={onClick}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
-                isActive
-                    ? 'border-b-2 border-primary-600 text-primary-600'
-                    : 'text-slate-500 hover:text-slate-800'
-            }`}
-        >
-            <span className="material-symbols-outlined w-5 h-5">{icon}</span>
-            <span>{children}</span>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'}`}>
-                {count}
-            </span>
-        </button>
-    )
-}
-
-export default LeadsAndAppointmentsPage;
+              {isContactModalOpen && contactingLead && (
+                 <ContactLeadModal
+                     lead={contactingLead}
+                     onClose={handleCloseContactModal}
+                     onSchedule={() => handleSwitchToSchedule(contactingLead)}
+                 />
+             )}
+             {isExportModalOpen && (
+                 <ExportModal
+                     isOpen={isExportModalOpen}
+                     onClose={() => setIsExportModalOpen(false)}
+                     leads={leads}
+                     appointments={appointments}
+                 />
+             )}
+         </>
+     );
+ }
+ 
+ const TabButton: React.FC<{ isActive: boolean; onClick: () => void; icon: string; count: number; children: React.ReactNode }> = ({ isActive, onClick, icon, count, children }) => {
+     return (
+         <button
+             onClick={onClick}
+             className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
+                 isActive
+                     ? 'border-b-2 border-primary-600 text-primary-600'
+                     : 'text-slate-500 hover:text-slate-800'
+             }`}
+         >
+             <span className="material-symbols-outlined w-5 h-5">{icon}</span>
+             <span>{children}</span>
+             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'}`}>
+                 {count}
+             </span>
+         </button>
+     );
+ };
+ 
+ export default LeadsAndAppointmentsPage;

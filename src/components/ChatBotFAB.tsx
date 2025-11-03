@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import HelpSalesChatBotComponent from './HelpSalesChatBot';
+import HelpSalesChatBotComponent, { type LeadPayload, type SupportTicketPayload } from './HelpSalesChatBot';
 import { ChatBotContext } from '../services/helpSalesChatBot';
 
 interface ChatBotFABProps {
   context: ChatBotContext;
-  onLeadGenerated?: (leadInfo: any) => void;
-  onSupportTicket?: (ticketInfo: any) => void;
+  onLeadGenerated?: (leadInfo: LeadPayload) => void;
+  onSupportTicket?: (ticketInfo: SupportTicketPayload) => void;
   position?: 'bottom-right' | 'bottom-left';
   className?: string;
 }
@@ -41,12 +41,12 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
     }
   };
 
-  const handleLeadGenerated = (leadInfo: any) => {
+  const handleLeadGenerated = (leadInfo: LeadPayload) => {
     onLeadGenerated?.(leadInfo);
     // Could show a success notification here
   };
 
-  const handleSupportTicket = (ticketInfo: any) => {
+  const handleSupportTicket = (ticketInfo: SupportTicketPayload) => {
     onSupportTicket?.(ticketInfo);
     // Could show a ticket created notification here
   };

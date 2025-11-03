@@ -11,7 +11,7 @@ export interface AdminUser {
 
 // Hardcoded admin credentials for demo purposes
 // In production, these should be stored securely in Firebase or a separate admin database
-const ADMIN_CREDENTIALS = [
+const ADMIN_CREDENTIALS: Array<{ email: string; password: string; user: AdminUser }> = [
   {
     email: 'us@homelistingai.com',
     password: 'Jake@2024', // In production, use hashed passwords
@@ -100,7 +100,7 @@ class AdminAuthService {
 
   // Method to add new admin credentials (for development)
   addAdminCredential(email: string, password: string, user: AdminUser): void {
-    ADMIN_CREDENTIALS.push({ email, password, user: user as any });
+    ADMIN_CREDENTIALS.push({ email, password, user });
   }
 }
 

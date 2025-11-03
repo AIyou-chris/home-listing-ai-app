@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { AISidekickRole } from '../context/AISidekickContext'
-import { LeadScoringService, type LeadScore } from '../services/leadScoringService'
 
 interface SidekickLeadIntegration {
 	sidekickId: AISidekickRole
@@ -46,8 +45,17 @@ interface LeadInteraction {
 	triggers: string[]
 }
 
+type LeadScoringTab = 'overview' | 'configure' | 'interactions' | 'automation'
+
+const TAB_OPTIONS: Array<{ id: LeadScoringTab; label: string; icon: string }> = [
+	{ id: 'overview', label: 'Overview', icon: 'dashboard' },
+	{ id: 'configure', label: 'Configure', icon: 'settings' },
+	{ id: 'interactions', label: 'Interactions', icon: 'chat' },
+	{ id: 'automation', label: 'Automation', icon: 'smart_toy' }
+]
+
 const SidekickLeadScoring: React.FC = () => {
-	const [activeTab, setActiveTab] = useState<'overview' | 'configure' | 'interactions' | 'automation'>('overview')
+	const [activeTab, setActiveTab] = useState<LeadScoringTab>('overview')
 	const [sidekickIntegrations, setSidekickIntegrations] = useState<SidekickLeadIntegration[]>([])
 	const [recentInteractions, setRecentInteractions] = useState<LeadInteraction[]>([])
 	const [selectedSidekick, setSelectedSidekick] = useState<AISidekickRole>('agent')
@@ -215,12 +223,14 @@ const SidekickLeadScoring: React.FC = () => {
 		return 'Cold'
 	}
 
-	const updateIntegrationSetting = (field: string, value: any) => {
-		setSidekickIntegrations(prev => prev.map(integration => 
-			integration.sidekickId === selectedSidekick
-				? { ...integration, [field]: value }
-				: integration
-		))
+	const updateIntegrationSetting = (
+		updater: (integration: SidekickLeadIntegration) => SidekickLeadIntegration
+	) => {
+		setSidekickIntegrations(prev =>
+			prev.map(integration =>
+				integration.sidekickId === selectedSidekick ? updater(integration) : integration
+			)
+		)
 	}
 
 	const renderOverview = () => (
@@ -374,7 +384,10 @@ const SidekickLeadScoring: React.FC = () => {
 									type="checkbox" 
 									id="leadScoringEnabled"
 									checked={currentIntegration.leadScoringEnabled}
-									onChange={(e) => updateIntegrationSetting('leadScoringEnabled', e.target.checked)}
+									onChange={(e) => updateIntegrationSetting(integration => ({
+										...integration,
+										leadScoringEnabled: e.target.checked
+									}))}
 									className="rounded"
 								/>
 								<label htmlFor="leadScoringEnabled" className="text-sm text-slate-700">
@@ -394,10 +407,13 @@ const SidekickLeadScoring: React.FC = () => {
 										type="checkbox" 
 										id={key}
 										checked={value}
-										onChange={(e) => updateIntegrationSetting('scoringTriggers', {
-											...currentIntegration.scoringTriggers,
-											[key]: e.target.checked
-										})}
+										onChange={(e) => updateIntegrationSetting(integration => ({
+											...integration,
+											scoringTriggers: {
+												...integration.scoringTriggers,
+												[key]: e.target.checked
+											}
+										}))}
 										className="rounded"
 									/>
 									<label htmlFor={key} className="text-sm text-slate-700 capitalize">
@@ -415,10 +431,13 @@ const SidekickLeadScoring: React.FC = () => {
 								type="checkbox" 
 								id="responseAdaptationEnabled"
 								checked={currentIntegration.responseAdaptation.enabled}
-								onChange={(e) => updateIntegrationSetting('responseAdaptation', {
-									...currentIntegration.responseAdaptation,
-									enabled: e.target.checked
-								})}
+								onChange={(e) => updateIntegrationSetting(integration => ({
+									...integration,
+									responseAdaptation: {
+										...integration.responseAdaptation,
+										enabled: e.target.checked
+									}
+								}))}
 								className="rounded"
 							/>
 							<label htmlFor="responseAdaptationEnabled" className="font-medium text-slate-900">
@@ -432,10 +451,13 @@ const SidekickLeadScoring: React.FC = () => {
 									<label className="block text-sm font-medium text-slate-700 mb-2">Hot Lead Response (80+ score)</label>
 									<textarea
 										value={currentIntegration.responseAdaptation.hotLeadResponse}
-										onChange={(e) => updateIntegrationSetting('responseAdaptation', {
-											...currentIntegration.responseAdaptation,
-											hotLeadResponse: e.target.value
-										})}
+										onChange={(e) => updateIntegrationSetting(integration => ({
+											...integration,
+											responseAdaptation: {
+												...integration.responseAdaptation,
+												hotLeadResponse: e.target.value
+											}
+										}))}
 										rows={2}
 										className="w-full px-3 py-2 border border-slate-300 rounded-lg"
 									/>
@@ -444,10 +466,13 @@ const SidekickLeadScoring: React.FC = () => {
 									<label className="block text-sm font-medium text-slate-700 mb-2">Warm Lead Response (60-79 score)</label>
 									<textarea
 										value={currentIntegration.responseAdaptation.warmLeadResponse}
-										onChange={(e) => updateIntegrationSetting('responseAdaptation', {
-											...currentIntegration.responseAdaptation,
-											warmLeadResponse: e.target.value
-										})}
+										onChange={(e) => updateIntegrationSetting(integration => ({
+											...integration,
+											responseAdaptation: {
+												...integration.responseAdaptation,
+												warmLeadResponse: e.target.value
+											}
+										}))}
 										rows={2}
 										className="w-full px-3 py-2 border border-slate-300 rounded-lg"
 									/>
@@ -456,10 +481,13 @@ const SidekickLeadScoring: React.FC = () => {
 									<label className="block text-sm font-medium text-slate-700 mb-2">Cold Lead Response (Below 60 score)</label>
 									<textarea
 										value={currentIntegration.responseAdaptation.coldLeadResponse}
-										onChange={(e) => updateIntegrationSetting('responseAdaptation', {
-											...currentIntegration.responseAdaptation,
-											coldLeadResponse: e.target.value
-										})}
+										onChange={(e) => updateIntegrationSetting(integration => ({
+											...integration,
+											responseAdaptation: {
+												...integration.responseAdaptation,
+												coldLeadResponse: e.target.value
+											}
+										}))}
 										rows={2}
 										className="w-full px-3 py-2 border border-slate-300 rounded-lg"
 									/>
@@ -478,10 +506,13 @@ const SidekickLeadScoring: React.FC = () => {
 										type="checkbox" 
 										id={`auto-${key}`}
 										checked={value}
-										onChange={(e) => updateIntegrationSetting('autoActions', {
-											...currentIntegration.autoActions,
-											[key]: e.target.checked
-										})}
+										onChange={(e) => updateIntegrationSetting(integration => ({
+											...integration,
+											autoActions: {
+												...integration.autoActions,
+												[key]: e.target.checked
+											}
+										}))}
 										className="rounded"
 									/>
 									<label htmlFor={`auto-${key}`} className="text-sm text-slate-700 capitalize">
@@ -506,10 +537,13 @@ const SidekickLeadScoring: React.FC = () => {
 										min="0"
 										max="50"
 										value={value}
-										onChange={(e) => updateIntegrationSetting('scoringWeights', {
-											...currentIntegration.scoringWeights,
-											[key]: parseInt(e.target.value)
-										})}
+										onChange={(e) => updateIntegrationSetting(integration => ({
+											...integration,
+											scoringWeights: {
+												...integration.scoringWeights,
+												[key]: parseInt(e.target.value, 10)
+											}
+										}))}
 										className="w-full"
 									/>
 									<div className="flex justify-between text-xs text-slate-500 mt-1">
@@ -548,15 +582,10 @@ const SidekickLeadScoring: React.FC = () => {
 			{/* Tabs */}
 			<div className="border-b border-slate-200 mb-6">
 				<nav className="flex space-x-8">
-					{[
-						{ id: 'overview', label: 'Overview', icon: 'dashboard' },
-						{ id: 'configure', label: 'Configure', icon: 'settings' },
-						{ id: 'interactions', label: 'Interactions', icon: 'chat' },
-						{ id: 'automation', label: 'Automation', icon: 'smart_toy' }
-					].map(tab => (
+					{TAB_OPTIONS.map(tab => (
 						<button
 							key={tab.id}
-							onClick={() => setActiveTab(tab.id as any)}
+							onClick={() => setActiveTab(tab.id)}
 							className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm ${
 								activeTab === tab.id
 									? 'border-primary-500 text-primary-600'

@@ -70,19 +70,6 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
     const agent = property.agent;
     const [showViewing, setShowViewing] = useState(false)
 
-    const allAppFeatures = {
-        gallery: { icon: 'photo_camera', label: "Gallery" },
-        videoTour: { icon: 'videocam', label: "Video Tour" },
-        droneFootage: { icon: 'flight', label: "Drone Footage" },
-        amenities: { icon: 'home_work', label: "Amenities" },
-        neighborhood: { icon: 'location_on', label: "Neighborhood" },
-        schedule: { icon: 'calendar_month', label: "Schedule" },
-        financing: { icon: 'payments', label: "Financing" },
-        history: { icon: 'schedule', label: "History" },
-        schools: { icon: 'school', label: "Schools" },
-        virtualTour: { icon: '3d_rotation', label: "Virtual Tour" },
-    };
-
     const scrollerRef = useRef<HTMLDivElement | null>(null)
 
     return (
@@ -133,11 +120,11 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                         </div>
                         {/* Center CTA buttons */}
                         <div className="mt-5 grid grid-cols-2 gap-3">
-                          <a href={((property as any).ctaListingUrl || '#')} target="_blank" rel="noreferrer" className="h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2">
+                          <a href={(property as { ctaListingUrl?: string }).ctaListingUrl ?? '#'} target="_blank" rel="noreferrer" className="h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2">
                             <span className="material-symbols-outlined">open_in_new</span>
                             <span>To Listing</span>
                           </a>
-                          <a href={((property as any).ctaMediaUrl || '#')} target="_blank" rel="noreferrer" className="h-12 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2">
+                          <a href={(property as { ctaMediaUrl?: string }).ctaMediaUrl ?? '#'} target="_blank" rel="noreferrer" className="h-12 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2">
                             <span className="material-symbols-outlined">play_circle</span>
                             <span>Media</span>
                           </a>

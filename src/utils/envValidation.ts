@@ -76,7 +76,7 @@ export class EnvValidation {
     }
   }
 
-  static getEnvironmentInfo(): Record<string, any> {
+  static getEnvironmentInfo(): Record<string, boolean | string> {
     return {
       mode: import.meta.env.MODE,
       dev: import.meta.env.DEV,

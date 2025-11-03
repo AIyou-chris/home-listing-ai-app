@@ -744,3 +744,10 @@ Port 5175 is in use, trying another one...
 11:04:56 AM [vite] hmr update /src/components/AnalyticsPage.tsx, /src/index.css
 11:04:56 AM [vite] hmr update /src/components/AnalyticsPage.tsx, /src/index.css
 11:04:56 AM [vite] hmr update /src/components/LeadFollowUpsPage.tsx, /src/index.css
+
+  VITE v5.4.21  ready in 602 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+4:32:19 PM [vite] page reload src/main.tsx
+4:32:49 PM [vite] page reload src/main.tsx

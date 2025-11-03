@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 
+export type TranscriptMetadata = Record<string, unknown> | null;
+
 export interface AITranscriptRow {
 	id: string;
 	user_id: string;
@@ -7,7 +9,7 @@ export interface AITranscriptRow {
 	title: string | null;
 	content: string;
 	created_at: string;
-	meta?: any;
+	meta?: TranscriptMetadata;
 }
 
 const TABLE = 'ai_transcripts';
@@ -17,11 +19,11 @@ export const saveTranscript = async (
 	sidekick: string,
 	content: string,
 	title?: string,
-	meta?: any
+	meta?: TranscriptMetadata
 ): Promise<AITranscriptRow | null> => {
 	if (!content.trim()) return null;
 	const { data, error } = await supabase
-		  .from(TABLE)
+		.from(TABLE)
 		.insert({
 			user_id: userId,
 			sidekick,
@@ -43,7 +45,7 @@ export const listTranscripts = async (
 	limit = 20
 ): Promise<AITranscriptRow[]> => {
 	const { data, error } = await supabase
-		  .from(TABLE)
+		.from(TABLE)
 		.select('*')
 		.eq('user_id', userId)
 		.order('created_at', { ascending: false })
@@ -57,7 +59,7 @@ export const listTranscripts = async (
 
 export const deleteTranscript = async (id: string): Promise<boolean> => {
 	const { error } = await supabase
-		  .from(TABLE)
+		.from(TABLE)
 		.delete()
 		.eq('id', id);
 	if (error) {

@@ -5,6 +5,17 @@ export interface KbSearchHit {
   sourceIds?: string[]
 }
 
+interface ListingKbRow {
+  id: string
+  user_id: string
+  scope: 'agent' | 'listing'
+  listing_id: string | null
+  type: string | null
+  title: string | null
+  content: string | null
+  created_at: string
+}
+
 // Placeholder search: try exact matches by listing or agent scope
 export const searchListingKb = async (
   userId: string,
@@ -14,7 +25,7 @@ export const searchListingKb = async (
   try {
     const scope = listingId === 'agent' ? 'agent' : 'listing'
     const { data, error } = await supabase
-      .from('ai_listing_kb')
+      .from<ListingKbRow>('ai_listing_kb')
       .select('*')
       .eq('user_id', userId)
       .eq('scope', scope)
@@ -23,7 +34,7 @@ export const searchListingKb = async (
       .limit(50)
     if (error) throw error
     const hay = (data || [])
-      .map((r: any) => `${r.title || ''}\n${r.content || ''}`.toLowerCase())
+      .map(record => `${record.title ?? ''}\n${record.content ?? ''}`.toLowerCase())
       .join('\n\n')
     const q = query.toLowerCase()
     if (hay.includes(q)) {
@@ -43,9 +54,9 @@ export const addListingText = async (
   listingId: string,
   title: string,
   content: string
-) => {
+): Promise<ListingKbRow> => {
   const { data, error } = await supabase
-    .from('ai_listing_kb')
+    .from<ListingKbRow>('ai_listing_kb')
     .insert({ user_id: userId, scope: 'listing', listing_id: listingId, type: 'text', title, content })
     .select('*')
     .single()

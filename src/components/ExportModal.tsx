@@ -2,6 +2,27 @@ import React, { useState } from 'react';
 import { Lead, Appointment } from '../types';
 import { ExportService, ExportOptions } from '../services/exportService';
 
+type ExportType = 'leads' | 'appointments' | 'combined';
+type DateFormat = 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
+type TimeFormat = '12h' | '24h';
+
+const EXPORT_TYPE_OPTIONS: Array<{ id: ExportType; label: string; icon: string }> = [
+  { id: 'leads', label: 'Leads Only', icon: 'group' },
+  { id: 'appointments', label: 'Appointments Only', icon: 'calendar_today' },
+  { id: 'combined', label: 'Combined Data', icon: 'merge_type' }
+];
+
+const DATE_FORMAT_OPTIONS: Array<{ value: DateFormat; label: string }> = [
+  { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY (US)' },
+  { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (International)' },
+  { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (ISO)' }
+];
+
+const TIME_FORMAT_OPTIONS: Array<{ value: TimeFormat; label: string }> = [
+  { value: '12h', label: '12-hour (AM/PM)' },
+  { value: '24h', label: '24-hour' }
+];
+
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -10,9 +31,9 @@ interface ExportModalProps {
 }
 
 const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, leads, appointments }) => {
-  const [exportType, setExportType] = useState<'leads' | 'appointments' | 'combined'>('leads');
-  const [dateFormat, setDateFormat] = useState<'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD'>('MM/DD/YYYY');
-  const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
+  const [exportType, setExportType] = useState<ExportType>('leads');
+  const [dateFormat, setDateFormat] = useState<DateFormat>('MM/DD/YYYY');
+  const [timeFormat, setTimeFormat] = useState<TimeFormat>('12h');
   const [includeHeaders, setIncludeHeaders] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -106,14 +127,18 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, leads, appoi
           <div className="mb-6">
             <label className="block text-sm font-medium text-slate-700 mb-3">Export Type</label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {[
-                { id: 'leads', label: 'Leads Only', icon: 'group', count: leads.length },
-                { id: 'appointments', label: 'Appointments Only', icon: 'calendar_today', count: appointments.length },
-                { id: 'combined', label: 'Combined Data', icon: 'merge_type', count: leads.length + appointments.length }
-              ].map(option => (
+              {EXPORT_TYPE_OPTIONS.map(option => {
+                const count =
+                  option.id === 'leads'
+                    ? leads.length
+                    : option.id === 'appointments'
+                      ? appointments.length
+                      : leads.length + appointments.length;
+
+                return (
                 <button
                   key={option.id}
-                  onClick={() => setExportType(option.id as any)}
+                  onClick={() => setExportType(option.id)}
                   className={`p-4 rounded-lg border-2 transition-all ${
                     exportType === option.id
                       ? 'border-primary-500 bg-primary-50 text-primary-700'
@@ -124,11 +149,12 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, leads, appoi
                     <span className="material-symbols-outlined text-xl">{option.icon}</span>
                     <div className="text-left">
                       <div className="font-semibold">{option.label}</div>
-                      <div className="text-sm opacity-75">{option.count} items</div>
+                      <div className="text-sm opacity-75">{count} items</div>
                     </div>
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -138,12 +164,12 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, leads, appoi
               <label className="block text-sm font-medium text-slate-700 mb-2">Date Format</label>
               <select
                 value={dateFormat}
-                onChange={(e) => setDateFormat(e.target.value as any)}
+                onChange={(e) => setDateFormat(e.target.value as DateFormat)}
                 className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
-                <option value="MM/DD/YYYY">MM/DD/YYYY (US)</option>
-                <option value="DD/MM/YYYY">DD/MM/YYYY (International)</option>
-                <option value="YYYY-MM-DD">YYYY-MM-DD (ISO)</option>
+                {DATE_FORMAT_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
 
@@ -151,11 +177,12 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, leads, appoi
               <label className="block text-sm font-medium text-slate-700 mb-2">Time Format</label>
               <select
                 value={timeFormat}
-                onChange={(e) => setTimeFormat(e.target.value as any)}
+                onChange={(e) => setTimeFormat(e.target.value as TimeFormat)}
                 className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
-                <option value="12h">12-hour (AM/PM)</option>
-                <option value="24h">24-hour</option>
+                {TIME_FORMAT_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
 

@@ -93,10 +93,15 @@ export const personalityPresets: Record<string, PersonalityPreset> = {
   }
 };
 
-const API_BASE =
-  (import.meta as any)?.env?.VITE_API_BASE_URL && (import.meta as any).env.VITE_API_BASE_URL !== ''
-    ? ((import.meta as any).env.VITE_API_BASE_URL as string).replace(/\/+$/, '')
-    : '';
+const getApiBaseUrl = (): string => {
+  const raw = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_API_BASE_URL;
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return '';
+  }
+  return raw.replace(/\/+$/, '');
+};
+
+const API_BASE = getApiBaseUrl();
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -123,21 +128,29 @@ const buildUrl = (path: string, params?: Record<string, unknown>) => {
   return `${base}${path}${query ? `?${query}` : ''}`;
 };
 
-const normalizeVoice = (voice: any): Voice => ({
-  id: typeof voice?.id === 'string' ? voice.id : 'nova',
-  name: typeof voice?.name === 'string' ? voice.name : 'Nova — Warm & Energetic',
-  openaiVoice: typeof voice?.openaiVoice === 'string' ? voice.openaiVoice : 'nova',
-  gender:
-    voice?.gender === 'male' || voice?.gender === 'female' || voice?.gender === 'neutral'
-      ? voice.gender
-      : 'neutral',
-  description: typeof voice?.description === 'string' ? voice.description : undefined
-});
+const normalizeVoice = (voice: unknown): Voice => {
+  const record = voice as Partial<Voice> | Record<string, unknown> | undefined;
+  const gender = record && typeof record === 'object' ? (record as Record<string, unknown>).gender : undefined;
 
-const normalizeSidekick = (raw: any): AISidekick => {
+  const resolvedGender =
+    gender === 'male' || gender === 'female' || gender === 'neutral' ? gender : 'neutral';
+
+  return {
+    id: typeof record?.id === 'string' ? record.id : 'nova',
+    name:
+      typeof record?.name === 'string' ? record.name : 'Nova — Warm & Energetic',
+    openaiVoice: typeof record?.openaiVoice === 'string' ? record.openaiVoice : 'nova',
+    gender: resolvedGender,
+    description: typeof record?.description === 'string' ? record.description : undefined
+  };
+};
+
+const normalizeSidekick = (raw: unknown): AISidekick => {
+  const record = raw as Partial<AISidekick> | Record<string, unknown> | undefined;
+
   const knowledgeBase =
-    Array.isArray(raw?.knowledgeBase) && raw.knowledgeBase.length > 0
-      ? raw.knowledgeBase
+    Array.isArray(record?.knowledgeBase) && record.knowledgeBase.length > 0
+      ? record.knowledgeBase
           .map((entry: unknown) =>
             typeof entry === 'string' ? entry : JSON.stringify(entry)
           )
@@ -145,42 +158,42 @@ const normalizeSidekick = (raw: any): AISidekick => {
       : [];
 
   const traits =
-    Array.isArray(raw?.personality?.traits) && raw.personality.traits.length > 0
-      ? raw.personality.traits
+    Array.isArray(record?.personality?.traits) && record.personality.traits.length > 0
+      ? record.personality.traits
           .map((trait: unknown) =>
             typeof trait === 'string' ? trait.trim() : ''
           )
           .filter((trait: string) => trait.length > 0)
       : [];
 
-  const stats = raw?.stats || {};
+  const stats = record?.stats ?? {};
 
   return {
-    id: typeof raw?.id === 'string' ? raw.id : '',
-    userId: typeof raw?.userId === 'string' ? raw.userId : '',
-    type: typeof raw?.type === 'string' ? raw.type : 'agent',
-    name: typeof raw?.name === 'string' ? raw.name : 'AI Sidekick',
+    id: typeof record?.id === 'string' ? record.id : '',
+    userId: typeof record?.userId === 'string' ? record.userId : '',
+    type: typeof record?.type === 'string' ? record.type : 'agent',
+    name: typeof record?.name === 'string' ? record.name : 'AI Sidekick',
     description:
-      typeof raw?.description === 'string' && raw.description.trim().length > 0
-        ? raw.description.trim()
+      typeof record?.description === 'string' && record.description.trim().length > 0
+        ? record.description.trim()
         : 'AI assistant to support your real estate workflows.',
-    color: typeof raw?.color === 'string' ? raw.color : '#6366F1',
-    icon: typeof raw?.icon === 'string' ? raw.icon : '🤖',
+    color: typeof record?.color === 'string' ? record.color : '#6366F1',
+    icon: typeof record?.icon === 'string' ? record.icon : '🤖',
     voiceId:
-      typeof raw?.voiceId === 'string' && raw.voiceId.trim().length > 0
-        ? raw.voiceId.trim()
+      typeof record?.voiceId === 'string' && record.voiceId.trim().length > 0
+        ? record.voiceId.trim()
         : 'nova',
     knowledgeBase,
     personality: {
       description:
-        typeof raw?.personality?.description === 'string' &&
-        raw.personality.description.trim().length > 0
-          ? raw.personality.description.trim()
+        typeof record?.personality?.description === 'string' &&
+        record.personality.description.trim().length > 0
+          ? record.personality.description.trim()
           : 'Be a proactive, trustworthy assistant who keeps communication crisp and on-brand.',
       traits,
       preset:
-        typeof raw?.personality?.preset === 'string' && raw.personality.preset.trim().length > 0
-          ? raw.personality.preset.trim()
+        typeof record?.personality?.preset === 'string' && record.personality.preset.trim().length > 0
+          ? record.personality.preset.trim()
           : 'custom'
     },
     stats: {
@@ -188,7 +201,7 @@ const normalizeSidekick = (raw: any): AISidekick => {
       positiveFeedback: Number.isFinite(stats.positiveFeedback) ? stats.positiveFeedback : 0,
       improvements: Number.isFinite(stats.improvements) ? stats.improvements : 0
     },
-    metadata: typeof raw?.metadata === 'object' && raw.metadata ? raw.metadata : undefined
+    metadata: typeof record?.metadata === 'object' && record.metadata ? record.metadata : undefined
   };
 };
 

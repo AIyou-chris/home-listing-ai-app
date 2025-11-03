@@ -14,16 +14,38 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
   const uid = useMemo(() => resolveUserId(), [])
   const [profile, setProfile] = useState<SidekickProfile | null>(null)
   const [input, setInput] = useState('')
-  const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(false)
-  const [history, setHistory] = useState<Array<{ sender: 'user'|'ai'; text: string }>>([])
+  const [history, setHistory] = useState<Array<{ sender: 'user' | 'ai'; text: string }>>([])
   const scroller = useRef<HTMLDivElement | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(null)
 
+  const getStoredConversationId = (listingId: string) => {
+    if (typeof window === 'undefined') return null
+    return window.localStorage.getItem(`conv:${listingId}`)
+  }
+
+  const setStoredConversationId = (listingId: string, id: string) => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(`conv:${listingId}`, id)
+  }
+
   useEffect(() => {
-    ;(async () => {
-      try { setProfile(await getListingProfile(uid, property.id)) } catch {}
-    })()
+    let isCancelled = false
+
+    const loadProfile = async () => {
+      try {
+        const fetchedProfile = await getListingProfile(uid, property.id)
+        if (!isCancelled) setProfile(fetchedProfile)
+      } catch (error) {
+        console.error('Failed to load listing sidekick profile', error)
+      }
+    }
+
+    void loadProfile()
+
+    return () => {
+      isCancelled = true
+    }
   }, [uid, property.id])
 
   useEffect(() => {
@@ -38,17 +60,18 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
   }, [profile])
 
   const run = async () => {
-    const q = input.trim(); if (!q || loading) return
+    const q = input.trim()
+    if (!q || loading) return
     setLoading(true)
     setHistory(prev => [...prev, { sender: 'user', text: q }])
     setInput('')
     try {
       // Ensure conversation exists (one per listing in localStorage)
-      let convId = conversationId || localStorage.getItem(`conv:${property.id}`)
+      let convId = conversationId || getStoredConversationId(property.id)
       if (!convId) {
         const conv = await createConversation({ scope: 'listing', listingId: property.id })
         convId = conv.id
-        localStorage.setItem(`conv:${property.id}`, convId)
+        setStoredConversationId(property.id, convId)
         setConversationId(convId)
       }
       await appendMessage({ conversationId: convId!, role: 'user', content: q })
@@ -56,7 +79,6 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
       const hit = await searchListingKb(uid, property.id, q)
       if (hit?.answer) {
         setHistory(prev => [...prev, { sender: 'ai', text: hit.answer }])
-        setReply(hit.answer)
         await appendMessage({ conversationId: convId!, role: 'ai', content: hit.answer })
         await touchConversation(convId!)
         setLoading(false)
@@ -66,7 +88,6 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
       const agentHit = await searchListingKb(uid, 'agent', q)
       if (agentHit?.answer) {
         setHistory(prev => [...prev, { sender: 'ai', text: agentHit.answer }])
-        setReply(agentHit.answer)
         setLoading(false)
         return
       }
@@ -76,13 +97,12 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
         { sender: 'user', text: q }
       ])
       setHistory(prev => [...prev, { sender: 'ai', text }])
-      setReply(text)
       await appendMessage({ conversationId: convId!, role: 'ai', content: text })
       await touchConversation(convId!)
-    } catch {
+    } catch (error) {
+      console.error('Listing sidekick interaction failed', error)
       const fallback = 'I could not find that. Tap to contact the agent for details.'
       setHistory(prev => [...prev, { sender: 'ai', text: fallback }])
-      setReply(fallback)
     } finally {
       setLoading(false)
     }
@@ -90,20 +110,24 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
 
   // Load existing conversation messages if present
   useEffect(() => {
-    (async () => {
-      const convId = conversationId || localStorage.getItem(`conv:${property.id}`)
-      if (!convId) return
-      setConversationId(convId)
+    const loadExistingMessages = async () => {
+      const storedId = conversationId || getStoredConversationId(property.id)
+      if (!storedId || storedId === conversationId) return
+      setConversationId(storedId)
       try {
-        const msgs = await getMessages(convId)
+        const msgs = await getMessages(storedId)
         const mapped = msgs.map((m): { sender: 'user' | 'ai'; text: string } => ({
           sender: m.sender === 'ai' ? 'ai' : 'user',
           text: m.content
         }))
         if (mapped.length) setHistory(mapped)
-      } catch {}
-    })()
-  }, [property.id])
+      } catch (error) {
+        console.error('Failed to load listing sidekick history', error)
+      }
+    }
+
+    void loadExistingMessages()
+  }, [property.id, conversationId])
 
   return (
     <div className='rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden'>

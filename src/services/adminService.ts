@@ -56,6 +56,69 @@ export interface RenewalData {
 
 const API_BASE_URL = 'http://localhost:5001/home-listing-ai/us-central1/api';
 
+const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
+    id: 'default',
+    platformName: 'Home Listing AI',
+    platformUrl: 'https://homelistingai.com',
+    supportEmail: 'support@homelistingai.com',
+    timezone: 'UTC',
+    featureToggles: {
+        aiContentGeneration: true,
+        voiceAssistant: true,
+        qrCodeSystem: true,
+        analyticsDashboard: true,
+        knowledgeBase: true
+    },
+    systemLimits: {
+        maxFileUploadSize: 10 * 1024 * 1024,
+        sessionTimeout: 24,
+        maxConcurrentUsers: 1000,
+        apiRateLimit: 100
+    },
+    maintenanceMode: false,
+    autoUpdates: false
+};
+
+type FeatureToggleKey = keyof AdminSettings['featureToggles'];
+
+interface UserActivityEntry {
+    id: string;
+    type: 'property' | 'lead' | 'ai_interaction' | 'login' | 'notification';
+    title: string;
+    description?: string;
+    timestamp: string;
+}
+
+interface SystemPerformanceMetrics {
+    responseTime: { average: number; p95: number; p99: number };
+    errorRate: number;
+    throughput: { requestsPerMinute: number; requestsPerHour: number };
+    resourceUsage: { cpu: number; memory: number; storage: number };
+    functionPerformance: Array<{ name: string; averageDuration: number; errorRate: number }>;
+    uptime: number;
+}
+
+const createFallbackUser = (userId: string): User => {
+    const now = new Date().toISOString();
+    return {
+        id: userId,
+        name: 'Demo User',
+        email: `${userId}@example.com`,
+        status: 'Active',
+        role: 'agent',
+        dateJoined: now,
+        lastActive: now,
+        plan: 'Solo Agent',
+        propertiesCount: 0,
+        leadsCount: 0,
+        aiInteractions: 0,
+        subscriptionStatus: 'trial',
+        renewalDate: now
+    };
+};
+
+let cachedSettings: AdminSettings = { ...DEFAULT_ADMIN_SETTINGS };
+
 export class AdminService {
     // User Management
     static async getAllUsers(): Promise<User[]> {
@@ -68,9 +131,7 @@ export class AdminService {
         throw new Error(`User with ID ${userId} not found`);
     }
 
-    static async updateUserStatus(userId: string, status: User['status']): Promise<void> {
-        // DatabaseService removed - no-op
-        
+    static async updateUserStatus(_userId: string, _status: User['status']): Promise<void> {
         // DatabaseService removed - no-op
     }
 
@@ -111,36 +172,38 @@ export class AdminService {
 
     // System Settings
     static async getSystemSettings(): Promise<AdminSettings> {
-        // DatabaseService removed - using default settings
         return {
-            id: 'default',
-            maintenanceMode: false,
-            featureToggles: {},
-            systemLimits: {},
-            platformName: 'Home Listing AI',
-            platformUrl: '',
-            supportEmail: '',
-            timezone: 'UTC',
-            autoUpdates: false
-        } as AdminSettings;
+            ...cachedSettings,
+            featureToggles: { ...cachedSettings.featureToggles },
+            systemLimits: { ...cachedSettings.systemLimits }
+        };
     }
 
     static async updateSystemSettings(settings: Partial<AdminSettings>): Promise<void> {
-        const currentSettings = await this.getSystemSettings();
-        // DatabaseService removed - no-op
+        cachedSettings = {
+            ...cachedSettings,
+            ...settings,
+            featureToggles: {
+                ...cachedSettings.featureToggles,
+                ...(settings.featureToggles ?? {})
+            },
+            systemLimits: {
+                ...cachedSettings.systemLimits,
+                ...(settings.systemLimits ?? {})
+            }
+        };
     }
 
-    static async toggleFeature(feature: string, enabled: boolean): Promise<void> {
+    static async toggleFeature(feature: FeatureToggleKey, enabled: boolean): Promise<void> {
         const settings = await this.getSystemSettings();
-        const featureToggles = settings.featureToggles as any;
-        
-        if (!(feature in featureToggles)) {
+
+        if (!(feature in settings.featureToggles)) {
             throw new Error(`Feature '${feature}' not found in system settings`);
         }
-        
+
         await this.updateSystemSettings({
             featureToggles: {
-                ...featureToggles,
+                ...settings.featureToggles,
                 [feature]: enabled
             }
         });
@@ -227,7 +290,7 @@ export class AdminService {
         return [];
     }
 
-    static async acknowledgeAlert(alertId: string): Promise<void> {
+    static async acknowledgeAlert(_alertId: string): Promise<void> {
         // Note: This would need the admin's user ID in a real implementation
         // DatabaseService removed - no-op
     }
@@ -238,7 +301,7 @@ export class AdminService {
         return [];
     }
 
-    static async updateRetentionCampaign(campaign: RetentionCampaign): Promise<void> {
+    static async updateRetentionCampaign(_campaign: RetentionCampaign): Promise<void> {
         // DatabaseService removed - no-op
     }
 
@@ -292,7 +355,7 @@ export class AdminService {
         return allUsers.filter(user => user.subscriptionStatus === status);
     }
 
-    static async updateUserPlan(userId: string, plan: User['plan']): Promise<void> {
+    static async updateUserPlan(_userId: string, _plan: User['plan']): Promise<void> {
         // DatabaseService removed - no-op
         
         // DatabaseService removed - no-op
@@ -328,7 +391,6 @@ export class AdminService {
     }
 
     static async setMaintenanceMode(enabled: boolean): Promise<void> {
-        const settings = await this.getSystemSettings();
         await this.updateSystemSettings({ maintenanceMode: enabled });
         
         if (enabled) {
@@ -350,7 +412,7 @@ export class AdminService {
         return await NotificationService.createSystemAlert(type, title, description, severity, component);
     }
 
-    static async resolveSystemAlert(alertId: string): Promise<void> {
+    static async resolveSystemAlert(_alertId: string): Promise<void> {
         // DatabaseService removed - no-op
     }
 
@@ -361,8 +423,21 @@ export class AdminService {
         channels: string[],
         messageTemplate: string
     ): Promise<string> {
-        // DatabaseService removed
-        return 'campaign_' + Date.now();
+        const campaign: RetentionCampaign = {
+            id: `campaign_${Date.now()}`,
+            name,
+            trigger,
+            triggerDays,
+            channels,
+            messageTemplate,
+            successRate: 0,
+            isActive: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        // DatabaseService removed - would persist campaign here
+        return campaign.id;
     }
 
     static async toggleRetentionCampaign(campaignId: string): Promise<void> {
@@ -375,7 +450,7 @@ export class AdminService {
 
     static async getUserAnalytics(userId: string): Promise<{
         user: User;
-        recentActivity: any[];
+        recentActivity: UserActivityEntry[];
         performanceMetrics: {
             propertiesAdded: number;
             leadsGenerated: number;
@@ -383,16 +458,16 @@ export class AdminService {
             lastActive: string;
         };
     }> {
-        // DatabaseService removed
-        const user = { id: userId, name: 'User', email: 'user@example.com' } as any;
+        const user = await this.getUserById(userId).catch(() => createFallbackUser(userId));
+        const recentActivity: UserActivityEntry[] = [];
 
-        const lastActiveDate = new Date(user.lastActive);
+        const lastActiveDate = new Date(user.lastActive ?? new Date().toISOString());
         const now = new Date();
         const daysSinceLastActive = Math.floor((now.getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
 
         return {
             user,
-            recentActivity: [], // TODO: Implement activity tracking
+            recentActivity,
             performanceMetrics: {
                 propertiesAdded: user.propertiesCount,
                 leadsGenerated: user.leadsCount,
@@ -424,13 +499,14 @@ export class AdminService {
         }
     }
 
-    static async getSystemPerformanceMetrics(): Promise<any> {
+    static async getSystemPerformanceMetrics(): Promise<SystemPerformanceMetrics> {
         try {
             const response = await fetch(`${API_BASE_URL}/admin/performance`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            return await response.json();
+            const metrics = await response.json() as SystemPerformanceMetrics;
+            return metrics;
         } catch (error) {
             console.error('Error fetching performance metrics:', error);
             return {
@@ -444,54 +520,19 @@ export class AdminService {
         }
     }
 
-    static async performSystemHealthCheck(): Promise<{
-        database: 'healthy' | 'warning' | 'error';
-        api: 'healthy' | 'warning' | 'error';
-        ai: 'healthy' | 'warning' | 'error';
-        email: 'healthy' | 'warning' | 'error';
-        storage: 'healthy' | 'warning' | 'error';
-        issues: string[];
-    }> {
-        const issues: string[] = [];
-        const health: any = {};
+    static async performSystemHealthCheck(): Promise<SystemHealth> {
+        const health: SystemHealth = {
+            database: 'healthy',
+            api: 'healthy',
+            ai: 'healthy',
+            email: 'healthy',
+            storage: 'healthy',
+            overall: 'healthy',
+            lastChecked: new Date().toISOString(),
+            issues: []
+        };
 
-        try {
-            // DatabaseService removed - mock health check
-            health.database = 'healthy';
-        } catch (error) {
-            health.database = 'error';
-            issues.push('Database connectivity issue');
-        }
-
-        try {
-            health.api = 'healthy';
-        } catch (error) {
-            health.api = 'error';
-            issues.push('API connectivity issue');
-        }
-
-        try {
-            health.ai = 'healthy';
-        } catch (error) {
-            health.ai = 'error';
-            issues.push('AI service issue');
-        }
-
-        try {
-            health.email = 'healthy';
-        } catch (error) {
-            health.email = 'error';
-            issues.push('Email service issue');
-        }
-
-        try {
-            health.storage = 'healthy';
-        } catch (error) {
-            health.storage = 'error';
-            issues.push('Storage service issue');
-        }
-
-        return { ...health, issues };
+        return health;
     }
 
     // Data Migration & Seeding
@@ -504,150 +545,17 @@ export class AdminService {
             systemMonitoringRules: boolean;
         };
     }> {
-        try {
-            const results = {
-                adminSettings: false,
+        cachedSettings = { ...DEFAULT_ADMIN_SETTINGS };
+
+        return {
+            success: true,
+            message: 'Admin data seeded locally (mock implementation)',
+            createdItems: {
+                adminSettings: true,
                 retentionCampaigns: false,
                 systemMonitoringRules: false
-            };
-
-            // Create initial admin settings
-            try {
-                // DatabaseService removed - skip admin settings creation
-                if (false) {
-                    const defaultSettings: AdminSettings = {
-                        id: 'default',
-                        maintenanceMode: false,
-                        featureToggles: {
-                            aiContentGeneration: true,
-                            voiceAssistant: true,
-                            qrCodeSystem: true,
-                            analyticsDashboard: true,
-                            knowledgeBase: true
-                        },
-                        systemLimits: {
-                            maxFileUploadSize: 10485760, // 10MB
-                            sessionTimeout: 24,
-                            maxConcurrentUsers: 1000,
-                            apiRateLimit: 100
-                        },
-                        platformName: 'Home Listing AI',
-                        platformUrl: 'https://homelistingai.com',
-                        supportEmail: 'support@homelistingai.com',
-                        timezone: 'UTC',
-                        autoUpdates: true
-                    };
-                    // DatabaseService removed - no-op
-                    results.adminSettings = true;
-                }
-            } catch (error) {
-                console.error('Error creating admin settings:', error);
             }
-
-            // Set up default retention campaigns
-            try {
-                // DatabaseService removed - skip campaigns creation
-                if (false) {
-                    const defaultCampaigns: Omit<RetentionCampaign, 'id'>[] = [
-                        {
-                            name: 'Pre-Renewal Reminder',
-                            trigger: 'pre-renewal',
-                            triggerDays: 3,
-                            channels: ['email', 'push'],
-                            messageTemplate: 'Your subscription renews in {days} days. Upgrade now to continue using all features!',
-                            successRate: 0,
-                            isActive: true,
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString()
-                        },
-                        {
-                            name: 'Renewal Day Recovery',
-                            trigger: 'renewal-day',
-                            triggerDays: 0,
-                            channels: ['email'],
-                            messageTemplate: 'We miss you! Come back and check out your latest leads and properties.',
-                            successRate: 0,
-                            isActive: true,
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString()
-                        },
-                        {
-                            name: 'Day 1 Recovery',
-                            trigger: 'day-1-recovery',
-                            triggerDays: 1,
-                            channels: ['email', 'push'],
-                            messageTemplate: 'Your subscription has expired. Renew now to ensure uninterrupted access to your account.',
-                            successRate: 0,
-                            isActive: true,
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString()
-                        }
-                    ];
-
-                    for (const campaign of defaultCampaigns) {
-                        // DatabaseService removed - no-op
-                    }
-                    results.retentionCampaigns = true;
-                }
-            } catch (error) {
-                console.error('Error creating retention campaigns:', error);
-            }
-
-            // Create system monitoring rules
-            try {
-                const defaultMonitoringRules = [
-                    {
-                        id: 'high_cpu_usage',
-                        name: 'High CPU Usage Alert',
-                        type: 'system_performance',
-                        condition: 'cpu_usage > 80',
-                        severity: 'warning',
-                        isActive: true,
-                        action: 'send_alert'
-                    },
-                    {
-                        id: 'database_connection_issues',
-                        name: 'Database Connection Issues',
-                        type: 'system_health',
-                        condition: 'db_connection_failed',
-                        severity: 'error',
-                        isActive: true,
-                        action: 'send_alert'
-                    },
-                    {
-                        id: 'api_response_time',
-                        name: 'API Response Time Alert',
-                        type: 'system_performance',
-                        condition: 'api_response_time > 2000ms',
-                        severity: 'warning',
-                        isActive: true,
-                        action: 'send_alert'
-                    }
-                ];
-
-                // Note: This would need a corresponding method in DatabaseService
-                // await DatabaseService.createSystemMonitoringRules(defaultMonitoringRules);
-                results.systemMonitoringRules = true;
-            } catch (error) {
-                console.error('Error creating system monitoring rules:', error);
-            }
-
-            return {
-                success: true,
-                message: 'Admin data seeded successfully',
-                createdItems: results
-            };
-        } catch (error) {
-            return {
-                success: false,
-                message: `Failed to seed admin data: ${error}`,
-                createdItems: {
-                    adminSettings: false,
-                    retentionCampaigns: false,
-                    systemMonitoringRules: false
-                }
-            };
-        }
+        };
     }
 
     static async migrateUserData(): Promise<{
@@ -728,7 +636,7 @@ export class AdminService {
             // Calculate user statistics
             const userStats = await this.getUserStats();
             // Note: Migration tracking would need to be implemented in DatabaseService
-            console.log(`Migration completed: ${migratedUsers} users migrated`);
+            console.log(`Migration completed: ${migratedUsers} users migrated (total users: ${userStats.totalUsers})`);
 
             // Set up subscription tracking
             const renewalData = await this.getRenewalData();
@@ -746,7 +654,7 @@ export class AdminService {
 
             return {
                 success: true,
-                message: `Successfully migrated ${migratedUsers} users`,
+                message: `Successfully migrated ${migratedUsers} users (total users: ${userStats.totalUsers})`,
                 migratedUsers,
                 updatedFields: [...new Set(updatedFields)],
                 errors

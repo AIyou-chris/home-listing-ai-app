@@ -18,12 +18,6 @@ const SchedulerContext = createContext<SchedulerContextValue | undefined>(
   undefined
 )
 
-export const useScheduler = (): SchedulerContextValue => {
-  const ctx = useContext(SchedulerContext)
-  if (!ctx) throw new Error('useScheduler must be used within SchedulerProvider')
-  return ctx
-}
-
 export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
   children
 }) => {
@@ -81,9 +75,10 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
               })
               handleClose()
               alert('Appointment scheduled successfully')
-            } catch (e: any) {
-              console.error('Schedule error', e)
-              alert(e?.message || 'Failed to schedule appointment')
+            } catch (error: unknown) {
+              const message = error instanceof Error ? error.message : 'Failed to schedule appointment'
+              console.error('Schedule error', error)
+              alert(message)
             } finally {
               setSubmitting(false)
             }
@@ -92,5 +87,12 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
       )}
     </SchedulerContext.Provider>
   )
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const useScheduler = (): SchedulerContextValue => {
+  const ctx = useContext(SchedulerContext)
+  if (!ctx) throw new Error('useScheduler must be used within SchedulerProvider')
+  return ctx
 }
 

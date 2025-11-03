@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { listTranscripts, deleteTranscript } from '../services/aiTranscriptsService';
 import { resolveUserId } from '../services/userId';
-import { Property, ChatMessage, AIDescription, isAIDescription } from '../types';
+import { Property, ChatMessage, isAIDescription } from '../types';
 import { generatePropertyDescription, answerPropertyQuestion } from '../services/geminiService';
 import ListingSidekickWidget from './ListingSidekickWidget'
 
@@ -277,7 +277,9 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                 setUserInput(draft);
                 localStorage.removeItem('hlai_transcript_draft');
             }
-        } catch {}
+        } catch (error) {
+            console.warn('Failed to restore transcript draft from storage', error);
+        }
     }, []);
 
     return (
@@ -324,7 +326,9 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                             const uid = resolveUserId();
                             const rows = await listTranscripts(uid, 50);
                             setPickerItems(rows.map(r => ({ id: r.id, title: r.title || r.content.slice(0, 60), content: r.content, sidekick: r.sidekick, created_at: r.created_at })));
-                        } catch {}
+                        } catch (error) {
+                            console.warn('Failed to load transcripts for picker', error);
+                        }
                         setPickerLoading(false);
                     }} className="p-2.5 rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-300" title="Browse transcripts">
                         <span className="material-symbols-outlined w-5 h-5">description</span>
@@ -333,7 +337,9 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                         try {
                             const draft = localStorage.getItem('hlai_transcript_draft');
                             if (draft && draft.trim()) setUserInput(draft);
-                        } catch {}
+                        } catch (error) {
+                            console.warn('Failed to insert transcript draft', error);
+                        }
                     }} className="p-2.5 rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-300" title="Insert from transcript">
                         <span className="material-symbols-outlined w-5 h-5">content_paste</span>
                     </button>
@@ -353,7 +359,7 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                         <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
                             <div className="flex items-center gap-2">
                                 <input value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search…" className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-                                <select value={pickerSidekick} onChange={e => setPickerSidekick(e.target.value as any)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                                <select value={pickerSidekick} onChange={e => setPickerSidekick(e.target.value as typeof pickerSidekick)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
                                     {['all','main','sales','marketing','listing','agent','helper','support'].map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>

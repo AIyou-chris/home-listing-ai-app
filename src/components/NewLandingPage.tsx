@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { AI_PERSONALITIES, AI_VOICES, KNOWLEDGE_BASE_PRIORITIES, DEFAULT_AI_ASSIGNMENTS } from '../constants';
+import { AI_PERSONALITIES, DEFAULT_AI_ASSIGNMENTS } from '../constants';
 
 const NewLandingPage: React.FC = () => {
-    const [activeDemo, setActiveDemo] = useState<'analytics' | 'personality' | 'comparison' | 'notifications'>('analytics');
-    const [selectedPersonality, setSelectedPersonality] = useState('pers-1');
+    type DemoId = 'analytics' | 'personality' | 'comparison' | 'notifications';
+
+    const [activeDemo, setActiveDemo] = useState<DemoId>('analytics');
     const [testQuestion, setTestQuestion] = useState('What makes this property a good investment?');
     const [personalityResponses, setPersonalityResponses] = useState<{[key: string]: string}>({});
 
@@ -79,7 +80,7 @@ const NewLandingPage: React.FC = () => {
                         ].map(feature => (
                             <button
                                 key={feature.id}
-                                onClick={() => setActiveDemo(feature.id as any)}
+                                onClick={() => setActiveDemo(feature.id as DemoId)}
                                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
                                     activeDemo === feature.id
                                         ? 'bg-primary-600 text-white shadow-lg'
@@ -160,7 +161,7 @@ const NewLandingPage: React.FC = () => {
                                 <div>
                                     <h4 className="font-semibold text-slate-900 mb-4">Your Three AI Sidekicks</h4>
                                     <div className="space-y-4">
-                                        {DEFAULT_AI_ASSIGNMENTS.map((sidekick, index) => (
+                                        {DEFAULT_AI_ASSIGNMENTS.map((sidekick) => (
                                             <div key={sidekick.id} className="bg-white p-4 rounded-lg border border-slate-200">
                                                 <div className="flex items-center gap-3 mb-2">
                                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${

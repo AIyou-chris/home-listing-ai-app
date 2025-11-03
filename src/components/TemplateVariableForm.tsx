@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Modal from './Modal';
-import { EmailTemplate, TEMPLATE_VARIABLES } from '../constants/emailTemplates';
+import { EmailTemplate } from '../constants/emailTemplates';
 
 interface TemplateVariableFormProps {
     template: EmailTemplate;

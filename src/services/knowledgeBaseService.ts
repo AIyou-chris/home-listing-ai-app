@@ -30,6 +30,43 @@ export interface UploadResult {
   status: string;
 }
 
+export interface ProcessDocumentResult {
+  fileId: string;
+  extractedText: string;
+  status: string;
+}
+
+export interface StoreKnowledgeResult {
+  knowledgeId: string;
+  status: string;
+}
+
+export interface KnowledgeEntry {
+  id: string;
+  title?: string;
+  fileName?: string;
+  createdAt?: string;
+}
+
+export interface KnowledgeEntriesResponse {
+  entries: KnowledgeEntry[];
+}
+
+export interface KnowledgeSearchHit {
+  id: string;
+  title?: string;
+  content: string;
+  score: number;
+}
+
+export interface KnowledgeSearchResponse {
+  results: KnowledgeSearchHit[];
+}
+
+export interface DeleteKnowledgeResult {
+  status: string;
+}
+
 export const uploadAgentFile = async (
   file: File,
   userId: string,
@@ -60,7 +97,8 @@ export const uploadAgentFile = async (
       console.error(`Upload failed: ${res.status}`, text);
       throw new Error(`uploadFile failed: ${res.status} ${text}`);
     }
-    return (await res.json()) as UploadResult;
+    const data = await res.json() as UploadResult;
+    return data;
   } catch (error) {
     console.error('File upload error:', error);
     throw error;
@@ -84,7 +122,8 @@ export const processUploadedDocument = async (
       console.error(`Process document error: ${res.status}`, errorText);
       throw new Error('processDocument failed');
     }
-    return (await res.json()) as any;
+    const data = await res.json() as ProcessDocumentResult;
+    return data;
   } catch (error) {
     console.error('Process document error:', error);
     throw error;
@@ -110,7 +149,8 @@ export const storeKnowledgeBaseEntry = async (
       console.error(`Store knowledge error: ${res.status}`, errorText);
       throw new Error('storeKnowledgeBase failed');
     }
-    return (await res.json()) as any;
+    const data = await res.json() as StoreKnowledgeResult;
+    return data;
   } catch (error) {
     console.error('Store knowledge error:', error);
     throw error;
@@ -120,7 +160,7 @@ export const storeKnowledgeBaseEntry = async (
 export const listKnowledgeEntries = async (
   userId: string,
   category?: string
-): Promise<{ entries: Array<{ id: string; title?: string; fileName?: string; createdAt?: any }> }> => {
+): Promise<KnowledgeEntriesResponse> => {
   const baseUrl = getFunctionsBase();
   const url = `${baseUrl}/kb/list`;
   try {
@@ -135,14 +175,15 @@ export const listKnowledgeEntries = async (
       console.error(`Knowledge list error: ${res.status}`, errorText);
       throw new Error('listKnowledge failed');
     }
-    return (await res.json()) as any;
+    const data = await res.json() as KnowledgeEntriesResponse;
+    return data;
   } catch (error) {
     console.error('Knowledge list error:', error);
     throw error;
   }
 };
 
-export const deleteKnowledgeFile = async (fileId: string): Promise<{ status: string }> => {
+export const deleteKnowledgeFile = async (fileId: string): Promise<DeleteKnowledgeResult> => {
   const baseUrl = getFunctionsBase();
   const url = `${baseUrl}/kb/delete`;
   try {
@@ -156,7 +197,8 @@ export const deleteKnowledgeFile = async (fileId: string): Promise<{ status: str
       console.error(`Delete file error: ${res.status}`, errorText);
       throw new Error('deleteFile failed');
     }
-    return (await res.json()) as any;
+    const data = await res.json() as DeleteKnowledgeResult;
+    return data;
   } catch (error) {
     console.error('Delete file error:', error);
     throw error;
@@ -167,7 +209,7 @@ export const searchKnowledgeBase = async (
   userId: string,
   query: string,
   category?: string
-): Promise<{ results: Array<{ id: string; title?: string; content: string; score: number }> }> => {
+): Promise<KnowledgeSearchResponse> => {
   const baseUrl = getFunctionsBase();
   const url = `${baseUrl}/searchKnowledgeBase`;
   try {
@@ -181,7 +223,8 @@ export const searchKnowledgeBase = async (
       console.error(`Knowledge search error: ${res.status}`, errorText);
       throw new Error('searchKnowledgeBase failed');
     }
-    return (await res.json()) as any;
+    const data = await res.json() as KnowledgeSearchResponse;
+    return data;
   } catch (error) {
     console.error('Knowledge search error:', error);
     throw error;
