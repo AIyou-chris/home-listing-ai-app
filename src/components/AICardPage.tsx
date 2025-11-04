@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageCircle, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Check } from 'lucide-react';
 import QRCodeManagementPage from './QRCodeManagementPage';
 import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
@@ -14,8 +14,15 @@ const buildAssistantGreeting = (fullName?: string | null) =>
     ? `Hi! I'm ${fullName.trim()}'s AI assistant. How can I help you today?`
     : "Hi! I'm your AI assistant. How can I help you today?";
 
-const AICardPage: React.FC = () => {
-  const [profile, setProfile] = useState<AgentProfile>({
+const createEmptySocialLinks = (): AgentProfile['socialMedia'] => ({
+  facebook: '',
+  instagram: '',
+  twitter: '',
+  linkedin: '',
+  youtube: ''
+});
+
+const createDefaultProfile = (): AgentProfile => ({
     id: 'default',
     fullName: '',
     professionalTitle: '',
@@ -25,16 +32,45 @@ const AICardPage: React.FC = () => {
     website: '',
     bio: '',
     brandColor: '#0ea5e9',
-    socialMedia: {
-      facebook: '',
-      instagram: '',
-      twitter: '',
-      linkedin: '',
-      youtube: ''
-    },
+    socialMedia: createEmptySocialLinks(),
     headshot: null,
     logo: null
   });
+
+const mapToCentralProfile = (profile: AgentProfile) => ({
+  id: profile.id,
+  name: profile.fullName,
+  title: profile.professionalTitle,
+  company: profile.company,
+  phone: profile.phone,
+  email: profile.email,
+  website: profile.website,
+  bio: profile.bio,
+  headshotUrl: profile.headshot,
+  logoUrl: profile.logo,
+  brandColor: profile.brandColor,
+  socialMedia: profile.socialMedia,
+  created_at: profile.created_at,
+  updated_at: profile.updated_at
+});
+
+const AICardPage: React.FC = () => {
+  const [profile, setProfileState] = useState<AgentProfile>(() => createDefaultProfile());
+  const profileRef = useRef<AgentProfile>(profile);
+
+  const setProfile = useCallback(
+    (value: AgentProfile | ((prev: AgentProfile) => AgentProfile)) => {
+      setProfileState(prev => {
+        const next =
+          typeof value === 'function'
+            ? (value as (prevProfile: AgentProfile) => AgentProfile)(prev)
+            : value;
+        profileRef.current = next;
+        return next;
+      });
+    },
+    []
+  );
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -64,6 +100,102 @@ const AICardPage: React.FC = () => {
   const [isShortLinkLoading, setIsShortLinkLoading] = useState(false);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
 
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingChangesRef = useRef<Partial<AgentProfile>>({});
+  const isSyncingRef = useRef(false);
+
+  const flushPendingChanges = useCallback(async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    if (!pendingChangesRef.current || Object.keys(pendingChangesRef.current).length === 0) {
+      return;
+    }
+
+    if (isSyncingRef.current) {
+      return;
+    }
+
+    const payload = { ...pendingChangesRef.current };
+    pendingChangesRef.current = {};
+    isSyncingRef.current = true;
+    setIsSaving(true);
+
+    try {
+      const savedProfile = await updateAICardProfile(payload);
+      const diffs: Partial<AgentProfile> = {};
+      let hasDiff = false;
+
+      Object.entries(payload).forEach(([key, value]) => {
+        if (key === 'socialMedia') {
+          const serverSocial = savedProfile.socialMedia;
+          const currentSocial = profileRef.current.socialMedia;
+          if (JSON.stringify(currentSocial) !== JSON.stringify(serverSocial)) {
+            diffs.socialMedia = serverSocial;
+            hasDiff = true;
+          }
+        } else if (Object.prototype.hasOwnProperty.call(savedProfile, key)) {
+          const typedKey = key as keyof AgentProfile;
+          if (typedKey === 'socialMedia') {
+            return;
+          }
+          if (typeof value === 'string') {
+            // Keep the locally edited text while the user is typing; we'll pick up
+            // the canonical server value on a fresh load.
+            return;
+          }
+          const serverValue = savedProfile[typedKey] as AgentProfile[typeof typedKey];
+          const currentValue = profileRef.current[typedKey];
+          if (serverValue !== undefined && serverValue !== currentValue) {
+            diffs[typedKey] = serverValue;
+            hasDiff = true;
+          }
+        }
+      });
+
+      if (hasDiff) {
+        setProfile(prev => ({
+          ...prev,
+          ...diffs
+        }));
+      }
+
+      if (!pendingChangesRef.current || Object.keys(pendingChangesRef.current).length === 0) {
+        notifyProfileChange(mapToCentralProfile(profileRef.current));
+      }
+    } catch (error) {
+      console.error('Failed to save profile changes:', error);
+      pendingChangesRef.current = { ...payload, ...pendingChangesRef.current };
+    } finally {
+      setIsSaving(false);
+      isSyncingRef.current = false;
+      if (pendingChangesRef.current && Object.keys(pendingChangesRef.current).length > 0) {
+        void flushPendingChanges();
+      }
+    }
+  }, [setProfile]);
+
+  const scheduleSave = useCallback(
+    (updates: Partial<AgentProfile>) => {
+      pendingChangesRef.current = {
+        ...pendingChangesRef.current,
+        ...updates
+      };
+
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      saveTimeoutRef.current = setTimeout(() => {
+        saveTimeoutRef.current = null;
+        void flushPendingChanges();
+      }, 500);
+    },
+    [flushPendingChanges]
+  );
+
   // Load profile on component mount
   useEffect(() => {
     const loadProfile = async () => {
@@ -82,7 +214,7 @@ const AICardPage: React.FC = () => {
     };
     
     loadProfile();
-  }, []);
+  }, [setProfile]);
 
   useEffect(() => {
     if (!profile?.id || shortLink) return;
@@ -113,82 +245,36 @@ const AICardPage: React.FC = () => {
       .finally(() => setIsShortLinkLoading(false));
   }, [profile?.id, profile?.fullName, shortLink]);
 
-  const handleInputChange = async <Key extends keyof AgentProfile>(field: Key, value: AgentProfile[Key]) => {
-    const updatedProfile: AgentProfile = {
-      ...profile,
-      [field]: value
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      void flushPendingChanges();
     };
-    
-    setProfile(updatedProfile);
-    
-    // Auto-save changes to backend
-    try {
-      setIsSaving(true);
-      const payload: Partial<AgentProfile> = { [field]: value } as Pick<AgentProfile, Key>;
-      const savedProfile = await updateAICardProfile(payload);
-      
-      // Notify other components of profile change
-      notifyProfileChange({
-        id: savedProfile.id,
-        name: savedProfile.fullName,
-        title: savedProfile.professionalTitle,
-        company: savedProfile.company,
-        phone: savedProfile.phone,
-        email: savedProfile.email,
-        website: savedProfile.website,
-        bio: savedProfile.bio,
-        headshotUrl: savedProfile.headshot,
-        logoUrl: savedProfile.logo,
-        brandColor: savedProfile.brandColor,
-        socialMedia: savedProfile.socialMedia,
-        created_at: savedProfile.created_at,
-        updated_at: savedProfile.updated_at
-      });
-    } catch (error) {
-      console.error('Failed to save profile changes:', error);
-    } finally {
-      setIsSaving(false);
-    }
+  }, [flushPendingChanges]);
+
+  const handleInputChange = <Key extends keyof AgentProfile>(field: Key, value: AgentProfile[Key]) => {
+    setProfile(prev => ({
+      ...prev,
+      [field]: value
+    }));
+
+    scheduleSave({ [field]: value } as Partial<AgentProfile>);
   };
 
-  const handleSocialMediaChange = async (platform: keyof AgentProfile['socialMedia'], value: string) => {
-    const updatedSocialMedia = {
+  const handleSocialMediaChange = (platform: keyof AgentProfile['socialMedia'], value: string) => {
+    const updatedSocialMedia: AgentProfile['socialMedia'] = {
       ...profile.socialMedia,
       [platform]: value
     };
-    
+
     setProfile(prev => ({
       ...prev,
       socialMedia: updatedSocialMedia
     }));
-    
-    // Auto-save changes to backend
-    try {
-      setIsSaving(true);
-      const savedProfile = await updateAICardProfile({ socialMedia: updatedSocialMedia });
-      
-      // Notify other components of profile change
-      notifyProfileChange({
-        id: savedProfile.id,
-        name: savedProfile.fullName,
-        title: savedProfile.professionalTitle,
-        company: savedProfile.company,
-        phone: savedProfile.phone,
-        email: savedProfile.email,
-        website: savedProfile.website,
-        bio: savedProfile.bio,
-        headshotUrl: savedProfile.headshot,
-        logoUrl: savedProfile.logo,
-        brandColor: savedProfile.brandColor,
-        socialMedia: savedProfile.socialMedia,
-        created_at: savedProfile.created_at,
-        updated_at: savedProfile.updated_at
-      });
-    } catch (error) {
-      console.error('Failed to save social media changes:', error);
-    } finally {
-      setIsSaving(false);
-    }
+
+    scheduleSave({ socialMedia: updatedSocialMedia });
   };
 
   const handleImageUpload = async (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
@@ -201,34 +287,31 @@ const AICardPage: React.FC = () => {
       [type]: previewUrl
     }));
 
+    let uploadSucceeded = false;
     try {
       setIsSaving(true);
       const uploadResult = await uploadAiCardAsset(type, file);
       const savedProfile = await updateAICardProfile({ [type]: uploadResult.path });
 
-      setProfile(savedProfile);
-
-      notifyProfileChange({
-        id: savedProfile.id,
-        name: savedProfile.fullName,
-        title: savedProfile.professionalTitle,
-        company: savedProfile.company,
-        phone: savedProfile.phone,
-        email: savedProfile.email,
-        website: savedProfile.website,
-        bio: savedProfile.bio,
-        headshotUrl: savedProfile.headshot,
-        logoUrl: savedProfile.logo,
-        brandColor: savedProfile.brandColor,
-        socialMedia: savedProfile.socialMedia,
-        created_at: savedProfile.created_at,
-        updated_at: savedProfile.updated_at
+      uploadSucceeded = true;
+      setProfile(prev => {
+        const assetValue = type === 'headshot' ? savedProfile.headshot : savedProfile.logo;
+        return {
+          ...prev,
+          headshot: type === 'headshot' ? assetValue : prev.headshot,
+          logo: type === 'logo' ? assetValue : prev.logo,
+          updated_at: savedProfile.updated_at ?? prev.updated_at
+        };
       });
+
+      notifyProfileChange(mapToCentralProfile(profileRef.current));
     } catch (error) {
       console.error('Failed to upload image:', error);
     } finally {
       setIsSaving(false);
-      URL.revokeObjectURL(previewUrl);
+      if (uploadSucceeded) {
+        URL.revokeObjectURL(previewUrl);
+      }
       if (event.target) {
         event.target.value = '';
       }
@@ -745,10 +828,11 @@ const AICardPage: React.FC = () => {
               <CollapsibleSection title="👤 Basic Information" sectionKey="basic">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="ai-card-full-name" className="block text-sm font-medium text-gray-700 mb-2">
                       Full Name*
                     </label>
                     <input
+                      id="ai-card-full-name"
                       type="text"
                       value={profile.fullName}
                       onChange={(e) => handleInputChange('fullName', e.target.value)}
@@ -757,10 +841,11 @@ const AICardPage: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="ai-card-professional-title" className="block text-sm font-medium text-gray-700 mb-2">
                       Professional Title*
                     </label>
                     <input
+                      id="ai-card-professional-title"
                       type="text"
                       value={profile.professionalTitle}
                       onChange={(e) => handleInputChange('professionalTitle', e.target.value)}
@@ -769,10 +854,11 @@ const AICardPage: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="ai-card-company" className="block text-sm font-medium text-gray-700 mb-2">
                       Company*
                     </label>
                     <input
+                      id="ai-card-company"
                       type="text"
                       value={profile.company}
                       onChange={(e) => handleInputChange('company', e.target.value)}
@@ -786,12 +872,14 @@ const AICardPage: React.FC = () => {
                     </label>
                     <div className="flex items-center space-x-2">
                       <input
+                        id="ai-card-brand-color-picker"
                         type="color"
                         value={profile.brandColor}
                         onChange={(e) => handleInputChange('brandColor', e.target.value)}
                         className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
                       />
                       <input
+                        id="ai-card-brand-color"
                         type="text"
                         value={profile.brandColor}
                         onChange={(e) => handleInputChange('brandColor', e.target.value)}
@@ -806,10 +894,11 @@ const AICardPage: React.FC = () => {
               <CollapsibleSection title="📞 Contact Information" sectionKey="contact">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="ai-card-phone" className="block text-sm font-medium text-gray-700 mb-2">
                       Phone Number*
                     </label>
                     <input
+                      id="ai-card-phone"
                       type="tel"
                       value={profile.phone}
                       onChange={(e) => handleInputChange('phone', e.target.value)}
@@ -818,10 +907,11 @@ const AICardPage: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="ai-card-email" className="block text-sm font-medium text-gray-700 mb-2">
                       Email Address*
                     </label>
                     <input
+                      id="ai-card-email"
                       type="email"
                       value={profile.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
@@ -830,10 +920,11 @@ const AICardPage: React.FC = () => {
                   </div>
                   
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="ai-card-website" className="block text-sm font-medium text-gray-700 mb-2">
                       Website URL
                     </label>
                     <input
+                      id="ai-card-website"
                       type="url"
                       value={profile.website}
                       onChange={(e) => handleInputChange('website', e.target.value)}
@@ -913,7 +1004,11 @@ const AICardPage: React.FC = () => {
 
               {/* Professional Bio */}
               <CollapsibleSection title="📝 Professional Bio" sectionKey="bio">
+                <label htmlFor="ai-card-bio" className="block text-sm font-medium text-gray-700 mb-2">
+                  Professional Bio
+                </label>
                 <textarea
+                  id="ai-card-bio"
                   value={profile.bio}
                   onChange={(e) => handleInputChange('bio', e.target.value)}
                   rows={6}
