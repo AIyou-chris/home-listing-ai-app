@@ -256,7 +256,9 @@ const AICardPage: React.FC = () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      void flushPendingChanges();
+      if (AUTOSAVE_ENABLED) {
+        void flushPendingChanges();
+      }
     };
   }, [flushPendingChanges]);
 
@@ -266,13 +268,13 @@ const AICardPage: React.FC = () => {
       [field]: value
     }));
 
-    if (!AUTOSAVE_ENABLED) {
-      return;
-    }
-
     const delay = typeof value === 'string' && value.length <= 4 ? 1200 : 500;
     scheduleSave({ [field]: value } as Partial<AgentProfile>, delay);
   };
+
+  const handleManualSave = useCallback(async () => {
+    await flushPendingChanges();
+  }, [flushPendingChanges]);
 
   const handleSocialMediaChange = (platform: keyof AgentProfile['socialMedia'], value: string) => {
     const updatedSocialMedia: AgentProfile['socialMedia'] = {
@@ -285,9 +287,7 @@ const AICardPage: React.FC = () => {
       socialMedia: updatedSocialMedia
     }));
 
-    if (AUTOSAVE_ENABLED) {
-      scheduleSave({ socialMedia: updatedSocialMedia }, 1200);
-    }
+    scheduleSave({ socialMedia: updatedSocialMedia }, 1200);
   };
 
   const handleImageUpload = async (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
@@ -699,6 +699,14 @@ const AICardPage: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="flex space-x-2 sm:space-x-3">
+              <button
+                onClick={handleManualSave}
+                disabled={isSaving}
+                className="flex items-center justify-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs sm:text-sm font-medium flex-1 sm:flex-none disabled:opacity-50"
+              >
+                <span>{isSaving ? 'Saving…' : 'Save Changes'}</span>
+              </button>
+
               <button
                 onClick={handleGenerateQRCode}
                 disabled={isLoading}
