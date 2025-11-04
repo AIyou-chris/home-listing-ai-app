@@ -178,7 +178,7 @@ const AICardPage: React.FC = () => {
   }, [setProfile]);
 
   const scheduleSave = useCallback(
-    (updates: Partial<AgentProfile>) => {
+    (updates: Partial<AgentProfile>, delay = 500) => {
       pendingChangesRef.current = {
         ...pendingChangesRef.current,
         ...updates
@@ -191,7 +191,7 @@ const AICardPage: React.FC = () => {
       saveTimeoutRef.current = setTimeout(() => {
         saveTimeoutRef.current = null;
         void flushPendingChanges();
-      }, 500);
+      }, delay);
     },
     [flushPendingChanges]
   );
@@ -260,7 +260,8 @@ const AICardPage: React.FC = () => {
       [field]: value
     }));
 
-    scheduleSave({ [field]: value } as Partial<AgentProfile>);
+    const delay = typeof value === 'string' && value.length <= 4 ? 1200 : 500;
+    scheduleSave({ [field]: value } as Partial<AgentProfile>, delay);
   };
 
   const handleSocialMediaChange = (platform: keyof AgentProfile['socialMedia'], value: string) => {
@@ -274,7 +275,7 @@ const AICardPage: React.FC = () => {
       socialMedia: updatedSocialMedia
     }));
 
-    scheduleSave({ socialMedia: updatedSocialMedia });
+    scheduleSave({ socialMedia: updatedSocialMedia }, 1200);
   };
 
   const handleImageUpload = async (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
