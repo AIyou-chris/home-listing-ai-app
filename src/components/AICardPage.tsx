@@ -22,6 +22,8 @@ const createEmptySocialLinks = (): AgentProfile['socialMedia'] => ({
   youtube: ''
 });
 
+export const AUTOSAVE_ENABLED = false
+
 const createDefaultProfile = (): AgentProfile => ({
     id: 'default',
     fullName: '',
@@ -184,6 +186,10 @@ const AICardPage: React.FC = () => {
         ...updates
       };
 
+      if (!AUTOSAVE_ENABLED) {
+        return;
+      }
+
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
@@ -260,6 +266,10 @@ const AICardPage: React.FC = () => {
       [field]: value
     }));
 
+    if (!AUTOSAVE_ENABLED) {
+      return;
+    }
+
     const delay = typeof value === 'string' && value.length <= 4 ? 1200 : 500;
     scheduleSave({ [field]: value } as Partial<AgentProfile>, delay);
   };
@@ -275,7 +285,9 @@ const AICardPage: React.FC = () => {
       socialMedia: updatedSocialMedia
     }));
 
-    scheduleSave({ socialMedia: updatedSocialMedia }, 1200);
+    if (AUTOSAVE_ENABLED) {
+      scheduleSave({ socialMedia: updatedSocialMedia }, 1200);
+    }
   };
 
   const handleImageUpload = async (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {

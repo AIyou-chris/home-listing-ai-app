@@ -1,6 +1,6 @@
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import AICardPage from '../AICardPage'
+import AICardPage, { AUTOSAVE_ENABLED } from '../AICardPage'
 
 jest.mock('../../services/aiCardService', () => {
   const defaultProfile = {
@@ -83,7 +83,11 @@ describe('AICardPage input reliability', () => {
       jest.advanceTimersByTime(600)
     })
 
-    await waitFor(() => expect(updateAICardProfile).toHaveBeenCalled())
+    if (AUTOSAVE_ENABLED) {
+      await waitFor(() => expect(updateAICardProfile).toHaveBeenCalled())
+    } else {
+      expect(updateAICardProfile).not.toHaveBeenCalled()
+    }
     expect(nameInput).toHaveValue('Jane Agent')
   })
 
@@ -139,7 +143,11 @@ describe('AICardPage input reliability', () => {
       jest.advanceTimersByTime(600)
     })
 
-    await waitFor(() => expect(updateAICardProfile).toHaveBeenCalled())
+    if (AUTOSAVE_ENABLED) {
+      await waitFor(() => expect(updateAICardProfile).toHaveBeenCalled())
+    } else {
+      expect(updateAICardProfile).not.toHaveBeenCalled()
+    }
     expect((nameInput as HTMLInputElement).value).toBe('Trimmed Value   ')
   })
 
@@ -156,7 +164,11 @@ describe('AICardPage input reliability', () => {
       jest.advanceTimersByTime(600)
     })
 
-    await waitFor(() => expect(updateAICardProfile).toHaveBeenCalledTimes(1))
+    if (AUTOSAVE_ENABLED) {
+      await waitFor(() => expect(updateAICardProfile).toHaveBeenCalledTimes(1))
+    } else {
+      expect(updateAICardProfile).not.toHaveBeenCalled()
+    }
     expect(bioTextarea).toHaveValue('Seasoned agent with 15 years of experience.')
 
     fireEvent.change(bioTextarea, {
@@ -178,8 +190,13 @@ describe('AICardPage input reliability', () => {
       jest.advanceTimersByTime(600)
     })
 
-    await waitFor(() => expect(updateAICardProfile).toHaveBeenCalled())
-    await waitFor(() => expect(notifyProfileChange).toHaveBeenCalledTimes(1))
+    if (AUTOSAVE_ENABLED) {
+      await waitFor(() => expect(updateAICardProfile).toHaveBeenCalled())
+      await waitFor(() => expect(notifyProfileChange).toHaveBeenCalledTimes(1))
+    } else {
+      expect(updateAICardProfile).not.toHaveBeenCalled()
+      expect(notifyProfileChange).not.toHaveBeenCalled()
+    }
   })
 })
 
