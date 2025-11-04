@@ -1,6 +1,6 @@
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import AICardPage, { AUTOSAVE_ENABLED } from '../AICardPage'
+import AICardPage from '../AICardPage'
 
 jest.mock('../../services/aiCardService', () => {
   const defaultProfile = {
@@ -83,11 +83,7 @@ describe('AICardPage input reliability', () => {
       jest.advanceTimersByTime(600)
     })
 
-    if (AUTOSAVE_ENABLED) {
-      await waitFor(() => expect(updateAICardProfile).toHaveBeenCalled())
-    } else {
-      expect(updateAICardProfile).not.toHaveBeenCalled()
-    }
+    expect(updateAICardProfile).not.toHaveBeenCalled()
     expect(nameInput).toHaveValue('Jane Agent')
   })
 
@@ -143,11 +139,7 @@ describe('AICardPage input reliability', () => {
       jest.advanceTimersByTime(600)
     })
 
-    if (AUTOSAVE_ENABLED) {
-      await waitFor(() => expect(updateAICardProfile).toHaveBeenCalled())
-    } else {
-      expect(updateAICardProfile).not.toHaveBeenCalled()
-    }
+    expect(updateAICardProfile).not.toHaveBeenCalled()
     expect((nameInput as HTMLInputElement).value).toBe('Trimmed Value   ')
   })
 
@@ -164,11 +156,7 @@ describe('AICardPage input reliability', () => {
       jest.advanceTimersByTime(600)
     })
 
-    if (AUTOSAVE_ENABLED) {
-      await waitFor(() => expect(updateAICardProfile).toHaveBeenCalledTimes(1))
-    } else {
-      expect(updateAICardProfile).not.toHaveBeenCalled()
-    }
+    expect(updateAICardProfile).not.toHaveBeenCalled()
     expect(bioTextarea).toHaveValue('Seasoned agent with 15 years of experience.')
 
     fireEvent.change(bioTextarea, {
@@ -190,13 +178,24 @@ describe('AICardPage input reliability', () => {
       jest.advanceTimersByTime(600)
     })
 
-    if (AUTOSAVE_ENABLED) {
-      await waitFor(() => expect(updateAICardProfile).toHaveBeenCalled())
-      await waitFor(() => expect(notifyProfileChange).toHaveBeenCalledTimes(1))
-    } else {
-      expect(updateAICardProfile).not.toHaveBeenCalled()
-      expect(notifyProfileChange).not.toHaveBeenCalled()
-    }
+    expect(updateAICardProfile).not.toHaveBeenCalled()
+    expect(notifyProfileChange).not.toHaveBeenCalled()
+  })
+
+  it('persists changes when Save Changes is clicked', async () => {
+    await renderCardPage()
+
+    const nameInput = await screen.findByLabelText(/Full Name/i)
+    fireEvent.change(nameInput, { target: { value: 'Manual Save Agent' } })
+
+    const saveButton = screen.getByRole('button', { name: /save changes/i })
+
+    await act(async () => {
+      fireEvent.click(saveButton)
+    })
+
+    await waitFor(() => expect(updateAICardProfile).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(notifyProfileChange).toHaveBeenCalledTimes(1))
   })
 })
 

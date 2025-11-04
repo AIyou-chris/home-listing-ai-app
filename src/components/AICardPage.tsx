@@ -22,8 +22,6 @@ const createEmptySocialLinks = (): AgentProfile['socialMedia'] => ({
   youtube: ''
 });
 
-export const AUTOSAVE_ENABLED = false
-
 const createDefaultProfile = (): AgentProfile => ({
     id: 'default',
     fullName: '',
@@ -57,27 +55,12 @@ const mapToCentralProfile = (profile: AgentProfile) => ({
 });
 
 const AICardPage: React.FC = () => {
-  const [profile, setProfileState] = useState<AgentProfile>(() => createDefaultProfile());
-  const profileRef = useRef<AgentProfile>(profile);
-
-  const setProfile = useCallback(
-    (value: AgentProfile | ((prev: AgentProfile) => AgentProfile)) => {
-      setProfileState(prev => {
-        const next =
-          typeof value === 'function'
-            ? (value as (prevProfile: AgentProfile) => AgentProfile)(prev)
-            : value;
-        profileRef.current = next;
-        return next;
-      });
-    },
-    []
-  );
+  const [form, setForm] = useState<AgentProfile>(() => createDefaultProfile());
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{sender: 'user' | 'ai'; text: string}>>([
-    { sender: 'ai', text: buildAssistantGreeting(profile.fullName) }
+    { sender: 'ai', text: buildAssistantGreeting(form.fullName) }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -102,105 +85,24 @@ const AICardPage: React.FC = () => {
   const [isShortLinkLoading, setIsShortLinkLoading] = useState(false);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
 
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingChangesRef = useRef<Partial<AgentProfile>>({});
-  const isSyncingRef = useRef(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  const flushPendingChanges = useCallback(async () => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = null;
-    }
-
-    if (!pendingChangesRef.current || Object.keys(pendingChangesRef.current).length === 0) {
-      return;
-    }
-
-    if (isSyncingRef.current) {
-      return;
-    }
-
-    const payload = { ...pendingChangesRef.current };
-    pendingChangesRef.current = {};
-    isSyncingRef.current = true;
+  const persistForm = useCallback(async (overrides?: Partial<AgentProfile>) => {
     setIsSaving(true);
-
     try {
+      const payload = overrides ? { ...form, ...overrides } : form;
       const savedProfile = await updateAICardProfile(payload);
-      const diffs: Partial<AgentProfile> = {};
-      let hasDiff = false;
-
-      Object.entries(payload).forEach(([key, value]) => {
-        if (key === 'socialMedia') {
-          const serverSocial = savedProfile.socialMedia;
-          const currentSocial = profileRef.current.socialMedia;
-          if (JSON.stringify(currentSocial) !== JSON.stringify(serverSocial)) {
-            diffs.socialMedia = serverSocial;
-            hasDiff = true;
-          }
-        } else if (Object.prototype.hasOwnProperty.call(savedProfile, key)) {
-          const typedKey = key as keyof AgentProfile;
-          if (typedKey === 'socialMedia') {
-            return;
-          }
-          if (typeof value === 'string') {
-            // Keep the locally edited text while the user is typing; we'll pick up
-            // the canonical server value on a fresh load.
-            return;
-          }
-          const serverValue = savedProfile[typedKey] as AgentProfile[typeof typedKey];
-          const currentValue = profileRef.current[typedKey];
-          if (serverValue !== undefined && serverValue !== currentValue) {
-            diffs[typedKey] = serverValue;
-            hasDiff = true;
-          }
-        }
-      });
-
-      if (hasDiff) {
-        setProfile(prev => ({
-          ...prev,
-          ...diffs
-        }));
-      }
-
-      if (!pendingChangesRef.current || Object.keys(pendingChangesRef.current).length === 0) {
-        notifyProfileChange(mapToCentralProfile(profileRef.current));
-      }
+      setForm(savedProfile);
+      setHasUnsavedChanges(false);
+      notifyProfileChange(mapToCentralProfile(savedProfile));
+      return savedProfile;
     } catch (error) {
       console.error('Failed to save profile changes:', error);
-      pendingChangesRef.current = { ...payload, ...pendingChangesRef.current };
+      throw error;
     } finally {
       setIsSaving(false);
-      isSyncingRef.current = false;
-      if (pendingChangesRef.current && Object.keys(pendingChangesRef.current).length > 0) {
-        void flushPendingChanges();
-      }
     }
-  }, [setProfile]);
-
-  const scheduleSave = useCallback(
-    (updates: Partial<AgentProfile>, delay = 500) => {
-      pendingChangesRef.current = {
-        ...pendingChangesRef.current,
-        ...updates
-      };
-
-      if (!AUTOSAVE_ENABLED) {
-        return;
-      }
-
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-
-      saveTimeoutRef.current = setTimeout(() => {
-        saveTimeoutRef.current = null;
-        void flushPendingChanges();
-      }, delay);
-    },
-    [flushPendingChanges]
-  );
+  }, [form]);
 
   // Load profile on component mount
   useEffect(() => {
@@ -208,7 +110,8 @@ const AICardPage: React.FC = () => {
       try {
         setIsLoading(true);
         const loadedProfile = await getAICardProfile();
-        setProfile(loadedProfile);
+        setForm(loadedProfile);
+        setHasUnsavedChanges(false);
         setChatMessages([
           { sender: 'ai', text: buildAssistantGreeting(loadedProfile.fullName) }
         ]);
@@ -218,30 +121,30 @@ const AICardPage: React.FC = () => {
         setIsLoading(false);
       }
     };
-    
+
     loadProfile();
-  }, [setProfile]);
+  }, []);
 
   useEffect(() => {
-    if (!profile?.id || shortLink) return;
+    if (!form?.id || shortLink) return;
 
     const destination =
       typeof window !== 'undefined'
-        ? `${window.location.origin}/demo/ai-card/${encodeURIComponent(profile.id)}`
-        : `https://demo.homelisting.ai/ai-card/${profile.id}`;
+        ? `${window.location.origin}/demo/ai-card/${encodeURIComponent(form.id)}`
+        : `https://demo.homelisting.ai/ai-card/${form.id}`;
 
     const slug =
-      profile.fullName
+      form.fullName
         ?.toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
-        .slice(0, 20) || `card-${profile.id}`;
+        .slice(0, 20) || `card-${form.id}`;
 
     setIsShortLinkLoading(true);
     createShortLink({
       destination,
       slashtag: `card-${slug}`,
-      title: `AI Card | ${profile.fullName}`,
+      title: `AI Card | ${form.fullName}`,
       description: 'AI Card generated from the HomeListingAI demo'
     })
       .then(result => setShortLink(result))
@@ -249,45 +152,32 @@ const AICardPage: React.FC = () => {
         console.warn('[AICardPage] Short link generation failed', error);
       })
       .finally(() => setIsShortLinkLoading(false));
-  }, [profile?.id, profile?.fullName, shortLink]);
-
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      if (AUTOSAVE_ENABLED) {
-        void flushPendingChanges();
-      }
-    };
-  }, [flushPendingChanges]);
+  }, [form?.id, form?.fullName, shortLink]);
 
   const handleInputChange = <Key extends keyof AgentProfile>(field: Key, value: AgentProfile[Key]) => {
-    setProfile(prev => ({
+    setForm(prev => ({
       ...prev,
       [field]: value
     }));
-
-    const delay = typeof value === 'string' && value.length <= 4 ? 1200 : 500;
-    scheduleSave({ [field]: value } as Partial<AgentProfile>, delay);
+    setHasUnsavedChanges(true);
   };
 
   const handleManualSave = useCallback(async () => {
-    await flushPendingChanges();
-  }, [flushPendingChanges]);
+    if (!hasUnsavedChanges) return;
+    await persistForm();
+  }, [hasUnsavedChanges, persistForm]);
 
   const handleSocialMediaChange = (platform: keyof AgentProfile['socialMedia'], value: string) => {
     const updatedSocialMedia: AgentProfile['socialMedia'] = {
-      ...profile.socialMedia,
+      ...form.socialMedia,
       [platform]: value
     };
 
-    setProfile(prev => ({
+    setForm(prev => ({
       ...prev,
       socialMedia: updatedSocialMedia
     }));
-
-    scheduleSave({ socialMedia: updatedSocialMedia }, 1200);
+    setHasUnsavedChanges(true);
   };
 
   const handleImageUpload = async (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
@@ -295,33 +185,22 @@ const AICardPage: React.FC = () => {
     if (!file) return;
 
     const previewUrl = URL.createObjectURL(file);
-    setProfile(prev => ({
+    setForm(prev => ({
       ...prev,
       [type]: previewUrl
     }));
+    setHasUnsavedChanges(true);
 
     let uploadSucceeded = false;
     try {
-      setIsSaving(true);
       const uploadResult = await uploadAiCardAsset(type, file);
-      const savedProfile = await updateAICardProfile({ [type]: uploadResult.path });
-
-      uploadSucceeded = true;
-      setProfile(prev => {
-        const assetValue = type === 'headshot' ? savedProfile.headshot : savedProfile.logo;
-        return {
-          ...prev,
-          headshot: type === 'headshot' ? assetValue : prev.headshot,
-          logo: type === 'logo' ? assetValue : prev.logo,
-          updated_at: savedProfile.updated_at ?? prev.updated_at
-        };
+      await persistForm({
+        [type]: uploadResult.path
       });
-
-      notifyProfileChange(mapToCentralProfile(profileRef.current));
+      uploadSucceeded = true;
     } catch (error) {
       console.error('Failed to upload image:', error);
     } finally {
-      setIsSaving(false);
       if (uploadSucceeded) {
         URL.revokeObjectURL(previewUrl);
       }
@@ -341,12 +220,12 @@ const AICardPage: React.FC = () => {
   const handleGenerateQRCode = async () => {
     try {
       setIsLoading(true);
-      const qrData = await generateQRCode(profile.id);
+      const qrData = await generateQRCode(form.id);
       
       // Download the QR code
       const link = document.createElement('a');
       link.href = qrData.qrCode;
-      link.download = `ai-card-qr-${profile.fullName.replace(/\s+/g, '-').toLowerCase()}.svg`;
+      link.download = `ai-card-qr-${form.fullName.replace(/\s+/g, '-').toLowerCase()}.svg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -362,7 +241,7 @@ const AICardPage: React.FC = () => {
   const handleDownloadCard = async () => {
     try {
       setIsLoading(true);
-      await downloadAICard('ai-card-preview', `${profile.fullName.replace(/\s+/g, '-').toLowerCase()}-ai-card.png`);
+      await downloadAICard('ai-card-preview', `${form.fullName.replace(/\s+/g, '-').toLowerCase()}-ai-card.png`);
       console.log('✅ AI Card downloaded');
     } catch (error) {
       console.error('Failed to download AI Card:', error);
@@ -382,7 +261,7 @@ const AICardPage: React.FC = () => {
     
     try {
       const aiResponse = await continueConversation([
-        { sender: 'system', text: `You are ${profile.fullName}'s AI assistant. Help visitors with real estate questions. Be professional and helpful.` },
+        { sender: 'system', text: `You are ${form.fullName}'s AI assistant. Help visitors with real estate questions. Be professional and helpful.` },
         { sender: 'user', text: chatInput }
       ], 'agent');
       
@@ -401,7 +280,7 @@ const AICardPage: React.FC = () => {
   const handleShare = async (method: string) => {
     try {
       setIsLoading(true);
-      const shareData = await shareAICard(method, profile.id);
+      const shareData = await shareAICard(method, form.id);
       
       if (method === 'copy') {
         await navigator.clipboard.writeText(shareData.url);
@@ -454,22 +333,22 @@ const AICardPage: React.FC = () => {
         style={{ 
           width: '400px', 
           height: '700px',
-          background: `linear-gradient(135deg, ${profile.brandColor}10 0%, white 50%, ${profile.brandColor}05 100%)`
+          background: `linear-gradient(135deg, ${form.brandColor}10 0%, white 50%, ${form.brandColor}05 100%)`
         }}
       >
         {/* Header with brand color accent */}
         <div 
           className="h-3 w-full"
-          style={{ backgroundColor: profile.brandColor }}
+          style={{ backgroundColor: form.brandColor }}
         />
         
         {/* Main Content */}
         <div className="p-8 h-full flex flex-col">
           {/* Logo Section */}
-          {profile.logo && (
+          {form.logo && (
             <div className="flex justify-center mb-6">
               <img 
-                src={profile.logo} 
+                src={form.logo} 
                 alt="Company Logo" 
                 className="h-12 w-auto object-contain"
               />
@@ -480,51 +359,51 @@ const AICardPage: React.FC = () => {
           <div className="flex flex-col items-center text-center mb-8">
             {/* Headshot */}
             <div className="relative mb-4">
-              {profile.headshot ? (
+              {form.headshot ? (
                 <img 
-                  src={profile.headshot} 
-                  alt={profile.fullName}
+                  src={form.headshot} 
+                  alt={form.fullName}
                   className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
-                  style={{ borderColor: profile.brandColor }}
+                  style={{ borderColor: form.brandColor }}
                 />
               ) : (
                 <div 
                   className="w-24 h-24 rounded-full border-4 border-white shadow-lg flex items-center justify-center text-2xl font-bold text-white"
-                  style={{ backgroundColor: profile.brandColor }}
+                  style={{ backgroundColor: form.brandColor }}
                 >
-                  {profile.fullName.split(' ').map(n => n[0]).join('')}
+                  {form.fullName.split(' ').map(n => n[0]).join('')}
                 </div>
               )}
             </div>
 
             {/* Name & Title */}
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">{profile.fullName}</h2>
-            <p className="text-lg text-gray-600 mb-1">{profile.professionalTitle}</p>
-            <p className="text-base font-medium" style={{ color: profile.brandColor }}>
-              {profile.company}
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">{form.fullName}</h2>
+            <p className="text-lg text-gray-600 mb-1">{form.professionalTitle}</p>
+            <p className="text-base font-medium" style={{ color: form.brandColor }}>
+              {form.company}
             </p>
           </div>
 
           {/* Contact Info */}
           <div className="space-y-3 mb-8">
             <div className="flex items-center justify-center space-x-2 text-gray-700">
-              <Phone className="w-4 h-4" style={{ color: profile.brandColor }} />
-              <span className="text-sm">{profile.phone}</span>
+              <Phone className="w-4 h-4" style={{ color: form.brandColor }} />
+              <span className="text-sm">{form.phone}</span>
             </div>
             <div className="flex items-center justify-center space-x-2 text-gray-700">
-              <Mail className="w-4 h-4" style={{ color: profile.brandColor }} />
-              <span className="text-sm">{profile.email}</span>
+              <Mail className="w-4 h-4" style={{ color: form.brandColor }} />
+              <span className="text-sm">{form.email}</span>
             </div>
             <div className="flex items-center justify-center space-x-2 text-gray-700">
-              <Globe className="w-4 h-4" style={{ color: profile.brandColor }} />
-              <span className="text-sm">{profile.website}</span>
+              <Globe className="w-4 h-4" style={{ color: form.brandColor }} />
+              <span className="text-sm">{form.website}</span>
             </div>
           </div>
 
           {/* Bio */}
           <div className="mb-6 flex-1">
             <p className="text-sm text-gray-600 leading-relaxed line-clamp-4">
-              {profile.bio}
+              {form.bio}
             </p>
           </div>
 
@@ -533,7 +412,7 @@ const AICardPage: React.FC = () => {
             <button
               onClick={() => setShowAISidekick(true)}
               className="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 hover:scale-105 shadow-lg text-base"
-              style={{ backgroundColor: profile.brandColor }}
+              style={{ backgroundColor: form.brandColor }}
             >
               How can I help?
             </button>
@@ -541,19 +420,19 @@ const AICardPage: React.FC = () => {
 
           {/* Social Media Icons */}
           <div className="flex justify-center space-x-4 mb-6">
-            {profile.socialMedia.facebook && (
+            {form.socialMedia.facebook && (
               <Facebook className="w-5 h-5 text-blue-600 hover:scale-110 transition-transform cursor-pointer" />
             )}
-            {profile.socialMedia.instagram && (
+            {form.socialMedia.instagram && (
               <Instagram className="w-5 h-5 text-pink-500 hover:scale-110 transition-transform cursor-pointer" />
             )}
-            {profile.socialMedia.twitter && (
+            {form.socialMedia.twitter && (
               <Twitter className="w-5 h-5 text-blue-400 hover:scale-110 transition-transform cursor-pointer" />
             )}
-            {profile.socialMedia.linkedin && (
+            {form.socialMedia.linkedin && (
               <Linkedin className="w-5 h-5 text-blue-700 hover:scale-110 transition-transform cursor-pointer" />
             )}
-            {profile.socialMedia.youtube && (
+            {form.socialMedia.youtube && (
               <Youtube className="w-5 h-5 text-red-600 hover:scale-110 transition-transform cursor-pointer" />
             )}
           </div>
@@ -565,7 +444,7 @@ const AICardPage: React.FC = () => {
               disabled={isLoading}
               className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50"
               style={{ 
-                backgroundColor: profile.brandColor, 
+                backgroundColor: form.brandColor, 
                 color: 'white',
                 marginBottom: '50px'
               }}
@@ -580,7 +459,7 @@ const AICardPage: React.FC = () => {
         <button
           onClick={() => setShowAISidekick(!showAISidekick)}
           className="absolute bottom-4 right-4 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
-          style={{ backgroundColor: profile.brandColor }}
+          style={{ backgroundColor: form.brandColor }}
         >
           <MessageCircle className="w-6 h-6 text-white" />
         </button>
@@ -591,7 +470,7 @@ const AICardPage: React.FC = () => {
             {/* Chat Header */}
             <div 
               className="p-4 text-white"
-              style={{ backgroundColor: profile.brandColor }}
+              style={{ backgroundColor: form.brandColor }}
             >
               <h3 className="font-semibold">AI Assistant</h3>
               <p className="text-sm opacity-90">Ask me about properties!</p>
@@ -631,7 +510,7 @@ const AICardPage: React.FC = () => {
                   onClick={handleChatSend}
                   disabled={isChatLoading || !chatInput.trim()}
                   className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-                  style={{ backgroundColor: profile.brandColor }}
+                  style={{ backgroundColor: form.brandColor }}
                 >
                   Send
                 </button>
@@ -701,10 +580,10 @@ const AICardPage: React.FC = () => {
             <div className="flex space-x-2 sm:space-x-3">
               <button
                 onClick={handleManualSave}
-                disabled={isSaving}
+                disabled={isSaving || !hasUnsavedChanges}
                 className="flex items-center justify-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs sm:text-sm font-medium flex-1 sm:flex-none disabled:opacity-50"
               >
-                <span>{isSaving ? 'Saving…' : 'Save Changes'}</span>
+                <span>{isSaving ? 'Saving…' : hasUnsavedChanges ? 'Save Changes' : 'Saved'}</span>
               </button>
 
               <button
@@ -855,7 +734,7 @@ const AICardPage: React.FC = () => {
                     <input
                       id="ai-card-full-name"
                       type="text"
-                      value={profile.fullName}
+                      value={form.fullName}
                       onChange={(e) => handleInputChange('fullName', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -868,7 +747,7 @@ const AICardPage: React.FC = () => {
                     <input
                       id="ai-card-professional-title"
                       type="text"
-                      value={profile.professionalTitle}
+                      value={form.professionalTitle}
                       onChange={(e) => handleInputChange('professionalTitle', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -881,7 +760,7 @@ const AICardPage: React.FC = () => {
                     <input
                       id="ai-card-company"
                       type="text"
-                      value={profile.company}
+                      value={form.company}
                       onChange={(e) => handleInputChange('company', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -895,14 +774,14 @@ const AICardPage: React.FC = () => {
                       <input
                         id="ai-card-brand-color-picker"
                         type="color"
-                        value={profile.brandColor}
+                        value={form.brandColor}
                         onChange={(e) => handleInputChange('brandColor', e.target.value)}
                         className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
                       />
                       <input
                         id="ai-card-brand-color"
                         type="text"
-                        value={profile.brandColor}
+                        value={form.brandColor}
                         onChange={(e) => handleInputChange('brandColor', e.target.value)}
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
@@ -921,7 +800,7 @@ const AICardPage: React.FC = () => {
                     <input
                       id="ai-card-phone"
                       type="tel"
-                      value={profile.phone}
+                      value={form.phone}
                       onChange={(e) => handleInputChange('phone', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -934,7 +813,7 @@ const AICardPage: React.FC = () => {
                     <input
                       id="ai-card-email"
                       type="email"
-                      value={profile.email}
+                      value={form.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -947,7 +826,7 @@ const AICardPage: React.FC = () => {
                     <input
                       id="ai-card-website"
                       type="url"
-                      value={profile.website}
+                      value={form.website}
                       onChange={(e) => handleInputChange('website', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -968,9 +847,9 @@ const AICardPage: React.FC = () => {
                       onClick={() => headshotInputRef.current?.click()}
                       className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
                     >
-                      {profile.headshot ? (
+                      {form.headshot ? (
                         <img 
-                          src={profile.headshot} 
+                          src={form.headshot} 
                           alt="Headshot" 
                           className="w-24 h-24 rounded-full mx-auto object-cover mb-2"
                         />
@@ -999,9 +878,9 @@ const AICardPage: React.FC = () => {
                       onClick={() => logoInputRef.current?.click()}
                       className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
                     >
-                      {profile.logo ? (
+                      {form.logo ? (
                         <img 
-                          src={profile.logo} 
+                          src={form.logo} 
                           alt="Logo" 
                           className="w-24 h-16 mx-auto object-contain mb-2"
                         />
@@ -1030,14 +909,14 @@ const AICardPage: React.FC = () => {
                 </label>
                 <textarea
                   id="ai-card-bio"
-                  value={profile.bio}
+                  value={form.bio}
                   onChange={(e) => handleInputChange('bio', e.target.value)}
                   rows={6}
                   placeholder="Tell visitors about your experience and expertise..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  {profile.bio.length}/500 characters
+                  {form.bio.length}/500 characters
                 </p>
               </CollapsibleSection>
 
@@ -1050,7 +929,7 @@ const AICardPage: React.FC = () => {
                     <input
                       type="url"
                       placeholder="https://facebook.com/username"
-                      value={profile.socialMedia.facebook}
+                      value={form.socialMedia.facebook}
                       onChange={(e) => handleSocialMediaChange('facebook', e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -1061,7 +940,7 @@ const AICardPage: React.FC = () => {
                     <input
                       type="url"
                       placeholder="https://instagram.com/username"
-                      value={profile.socialMedia.instagram}
+                      value={form.socialMedia.instagram}
                       onChange={(e) => handleSocialMediaChange('instagram', e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -1072,7 +951,7 @@ const AICardPage: React.FC = () => {
                     <input
                       type="url"
                       placeholder="https://twitter.com/username"
-                      value={profile.socialMedia.twitter}
+                      value={form.socialMedia.twitter}
                       onChange={(e) => handleSocialMediaChange('twitter', e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -1083,7 +962,7 @@ const AICardPage: React.FC = () => {
                     <input
                       type="url"
                       placeholder="https://linkedin.com/in/username"
-                      value={profile.socialMedia.linkedin}
+                      value={form.socialMedia.linkedin}
                       onChange={(e) => handleSocialMediaChange('linkedin', e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -1094,7 +973,7 @@ const AICardPage: React.FC = () => {
                     <input
                       type="url"
                       placeholder="https://youtube.com/@username"
-                      value={profile.socialMedia.youtube}
+                      value={form.socialMedia.youtube}
                       onChange={(e) => handleSocialMediaChange('youtube', e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />

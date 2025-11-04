@@ -1,0 +1,108 @@
+# .cursorrules
+rules:
+  - id: input-field-qa-stability-protocol
+    description: Enforce QA & regression checks for any code touching inputs/forms.
+    tags: [QA, React, Inputs, Forms, RegressionGuard, SursoAI]
+    trigger:
+      # Fires when these files change in a diff, commit, or PR.
+      on: diff
+      files:
+        - "**/*Input*.tsx"
+        - "**/*Input*.jsx"
+        - "**/*Form*.tsx"
+        - "**/*Form*.jsx"
+        - "**/components/**/*"
+        - "**/pages/**/*"
+    action:
+      # Cursor pre/appends this text to the model’s system/context so it “remembers”.
+      type: prepend_to_prompt
+      content: |
+        ## ⚙️ SURSO AI MASTER PROMPT CARD
+        ### Title: Fix Input Field Behavior — Cursor Jumping & One-Letter Typing Issue
+
+        ### Context
+        In the app’s form input (AI Card or general form component), typing behavior is broken:
+        - You can only type **one letter at a time** before the cursor resets.
+        - When typing below the header or in a lower input field, the cursor **jumps back to the top** (header or first input).
+        - This issue has persisted through multiple “fixes,” indicating a fundamental flaw in state handling or component re-render logic.
+        This must be permanently fixed, tested, and documented.
+
+        ### Problem Summary
+        - Input fields do not maintain stable state between keystrokes.
+        - Focus and cursor position reset after each update.
+        - Parent or sibling components are likely re-rendering the input node.
+        - Possible causes include:
+          - Over-aggressive re-renders from React/Vite state updates.
+          - Mismanaged controlled components (`value`/`onChange`).
+          - `useEffect` triggers or `key` props recreating DOM nodes.
+          - Auto-focus or scroll behavior firing unexpectedly.
+
+        ### Objective
+        Deliver a **stable, verified fix** where:
+        - Typing behaves naturally.
+        - Cursor stays in place.
+        - Focus and scroll are preserved.
+        - Behavior is consistent across browsers and devices.
+
+        ### Steps & Diagnostic Focus
+        1) Inspect Component Logic
+           - Identify which component owns the input `value` and `onChange`.
+           - Ensure a single source of truth for input state.
+           - Watch for prop/context changes that re-render the form on each keystroke.
+        2) Controlled vs Uncontrolled
+           - Controlled: ensure `value` isn’t reset by parent updates or stale closures.
+           - Uncontrolled: remove conflicting `value` bindings.
+           - Log mounts/renders to confirm the input isn’t recreated per key.
+        3) Cursor & Focus
+           - Remove `.focus()` in `useEffect` or onChange handlers.
+           - Avoid `scrollIntoView()`/DOM tweaks on each update.
+           - Verify multiple inputs don’t steal focus.
+        4) Browser Testing
+           - Chrome/Edge/Safari/Firefox + iOS Safari/Android WebView.
+           - Test slow typing, long text, paste, emoji, IME.
+        5) Regression Guard
+           - Add React Testing Library: `userEvent.type`.
+           - Assert value persistence and no remount mid-type.
+
+        ### Verification Criteria
+        | Category | Requirement | Pass |
+        | Typing | Continuous typing without interruption | ✅ |
+        | Cursor | Position remains stable | ✅ |
+        | Focus | Focus does not jump/reset | ✅ |
+        | Render | Input not remounted per keystroke | ✅ |
+        | Regression | Automated test passes on CI | ✅ |
+
+        ### Expected Output
+        - Stable input behavior.
+        - QA log with render traces (no remounts).
+        - Root cause explained.
+        - New regression test added.
+        - Verified build + short screen capture.
+
+        ### Tone & Expectation
+        You are the lead engineer. Do not report success until verified on all target platforms. Own the result and document completely.
+
+        ## 🧩 React/Vite Diagnostic Checklist
+        A) Rendering
+        - [ ] No remounts (log in `useEffect` with empty deps)
+        - [ ] `key` not changing on input or parent
+        - [ ] Parent state changes not forcing full re-render per key
+        - [ ] `useEffect`/`useMemo` deps not tied to input value unnecessarily
+        B) State Management
+        - [ ] `value` reflects current keystroke (no stale closure)
+        - [ ] Avoid new object/array literals causing prop inequality
+        C) Focus/DOM
+        - [ ] No `.focus()`/`scrollIntoView()` on change
+        - [ ] No conditional unmount/remount of input
+        D) DevTools
+        - [ ] Use React DevTools to highlight renders on typing
+        - [ ] Use `React.memo`/`useCallback` to isolate children
+        - [ ] Input DOM node persists while typing
+        E) Testing
+        - [ ] `userEvent.type(input, 'hello')` passes
+        - [ ] Assert final value, assert limited renders
+        - [ ] Test added to CI
+
+        ### Final Sign-Off
+        Do not mark fixed until all checkboxes are ✅ and smooth real-time typing is demonstrated (recording or logs).
+
