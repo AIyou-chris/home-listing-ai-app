@@ -58,7 +58,6 @@ const resolveGoogleIntegrationFlag = (): boolean => {
 
   let fromImportMeta: unknown
   try {
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval
     fromImportMeta = new Function(
       'return typeof import.meta !== "undefined" && import.meta && import.meta.env ? import.meta.env.VITE_ENABLE_GOOGLE_INTEGRATIONS : undefined'
     )()

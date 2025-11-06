@@ -63,7 +63,6 @@ class GoogleOAuthService {
 
   private getEnvValue(key: string): string | undefined {
     try {
-      // eslint-disable-next-line no-new-func
       const metaEnv = Function('return (typeof import !== "undefined" && import.meta && import.meta.env) ? import.meta.env : undefined;')() as Record<string, unknown> | undefined
       const metaValue = metaEnv?.[key]
       if (typeof metaValue === 'string') {

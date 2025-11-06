@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageCircle, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import QRCodeManagementPage from './QRCodeManagementPage';
 import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
+import { setPreferredLanguage } from '../services/languagePreferenceService';
 import { continueConversation } from '../services/openaiService';
 import { notifyProfileChange } from '../services/agentProfileService';
 
@@ -33,10 +34,17 @@ const createDefaultProfile = (): AgentProfile => ({
     website: '',
     bio: '',
     brandColor: '#0ea5e9',
+    language: 'en',
     socialMedia: createEmptySocialLinks(),
     headshot: null,
     logo: null
   });
+
+const LANGUAGE_OPTIONS: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' }
+];
 
 const mapToCentralProfile = (profile: AgentProfile) => ({
   id: profile.id,
@@ -50,6 +58,7 @@ const mapToCentralProfile = (profile: AgentProfile) => ({
   headshotUrl: profile.headshot,
   logoUrl: profile.logo,
   brandColor: profile.brandColor,
+  language: profile.language,
   socialMedia: profile.socialMedia,
   created_at: profile.created_at,
   updated_at: profile.updated_at
@@ -166,6 +175,9 @@ const AICardPage: React.FC = () => {
       setHasUnsavedChanges(false);
       notifyProfileChange(mapToCentralProfile(savedProfile));
       serverProfileRef.current = savedProfile;
+      if (savedProfile.language) {
+        void setPreferredLanguage(savedProfile.language, { persist: false })
+      }
       return savedProfile;
     } catch (error) {
       console.error('Failed to save profile changes:', error);
@@ -196,6 +208,12 @@ const AICardPage: React.FC = () => {
 
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (form.language) {
+      void setPreferredLanguage(form.language, { persist: false });
+    }
+  }, [form.language]);
 
   const schedule = (fn: () => void) => {
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
@@ -878,6 +896,23 @@ const AICardPage: React.FC = () => {
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label htmlFor="ai-card-language" className="block text-sm font-medium text-gray-700 mb-2">
+                      Primary Language
+                    </label>
+                    <select
+                      id="ai-card-language"
+                      value={form.language}
+                      onChange={(e) => handleInputChange('language', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {LANGUAGE_OPTIONS.map(option => (
+                        <option key={option.code} value={option.code}>{option.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Sidekicks, AI emails, and listings will use this language by default.</p>
                   </div>
                 </div>
               </CollapsibleSection>

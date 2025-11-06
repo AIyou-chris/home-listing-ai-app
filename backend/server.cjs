@@ -827,6 +827,7 @@ const DEFAULT_AI_CARD_PROFILE = {
   website: '',
   bio: '',
   brandColor: '#0ea5e9',
+  language: 'en',
   socialMedia: {
     facebook: '',
     instagram: '',
@@ -853,6 +854,7 @@ const mapAiCardProfileFromRow = (row) =>
         website: row.website || '',
         bio: row.bio || '',
         brandColor: row.brand_color || DEFAULT_AI_CARD_PROFILE.brandColor,
+        language: row.language || DEFAULT_AI_CARD_PROFILE.language,
         socialMedia: row.social_media || { facebook: '', instagram: '', twitter: '', linkedin: '', youtube: '' },
         headshot: row.headshot_url || null,
         logo: row.logo_url || null,
@@ -874,6 +876,10 @@ const mapAiCardProfileToRow = (profileData = {}) => {
   if (profileData.website !== undefined) payload.website = profileData.website;
   if (profileData.bio !== undefined) payload.bio = profileData.bio;
   if (profileData.brandColor !== undefined) payload.brand_color = profileData.brandColor;
+  if (profileData.language !== undefined) {
+    const normalized = String(profileData.language || '').trim().toLowerCase()
+    payload.language = normalized.length > 0 ? normalized : DEFAULT_AI_CARD_PROFILE.language;
+  }
   if (profileData.socialMedia !== undefined) payload.social_media = profileData.socialMedia;
 
   if (profileData.headshot !== undefined) {
@@ -3004,6 +3010,55 @@ app.get('/api/notifications/preferences/:userId', (req, res) => {
   } catch (error) {
     console.error('Error fetching notification preferences:', error)
     res.status(500).json({ success: false, error: 'Failed to load preferences' })
+  }
+})
+
+app.post('/api/language/detect', async (req, res) => {
+  try {
+    const apiKey = process.env.TRANSLATE_API_KEY
+    if (!apiKey) {
+      return res.status(503).json({ error: 'Translation API is not configured.' })
+    }
+
+    const { text } = req.body || {}
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ error: 'Text is required for language detection.' })
+    }
+
+    const detectionResponse = await fetch(
+      `https://translation.googleapis.com/language/translate/v2/detect?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ q: text })
+      }
+    )
+
+    if (!detectionResponse.ok) {
+      const errorPayload = await detectionResponse.text().catch(() => '')
+      console.warn('[LanguageDetect] Google API error', detectionResponse.status, errorPayload)
+      return res.status(502).json({ error: 'Failed to detect language.' })
+    }
+
+    const detectionData = await detectionResponse.json()
+    const detection = detectionData?.data?.detections?.[0]?.[0]
+    if (!detection?.language) {
+      return res.status(200).json({ language: 'en', confidence: 0 })
+    }
+
+    const confidence = Number(detection.confidence)
+    const isReliable = detection.isReliable === undefined ? confidence >= 0.6 : Boolean(detection.isReliable)
+
+    res.json({
+      language: String(detection.language).toLowerCase(),
+      confidence: Number.isFinite(confidence) ? confidence : 0,
+      isReliable
+    })
+  } catch (error) {
+    console.error('Error detecting language:', error)
+    res.status(500).json({ error: 'Failed to detect language' })
   }
 })
 

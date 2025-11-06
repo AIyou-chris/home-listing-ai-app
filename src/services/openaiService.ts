@@ -6,21 +6,52 @@
  * @param sidekick Optional sidekick type for training context
  * @returns A promise that resolves to the AI's response text
  */
+import {
+  buildLanguageInstruction,
+  detectAndUpdateLanguage,
+  getPreferredLanguage
+} from './languagePreferenceService'
+
+interface ContinueConversationOptions {
+  language?: string
+}
+
 export const continueConversation = async (
   messages: Array<{ sender: string; text: string }>, 
-  sidekick?: string
+  sidekick?: string,
+  options?: ContinueConversationOptions
 ): Promise<string> => {
   try {
+    let overrideLanguage = options?.language
+    if (!overrideLanguage) {
+      const lastUserMessage = [...messages].reverse().find((m) => m.sender === 'user')?.text
+      if (lastUserMessage) {
+        const detected = await detectAndUpdateLanguage(lastUserMessage)
+        if (detected) {
+          overrideLanguage = detected
+        }
+      }
+    }
+
+    const preferredLanguage = getPreferredLanguage(overrideLanguage)
+    const languageInstruction = buildLanguageInstruction(preferredLanguage)
+    const existingSystemPrompt = messages.find(m => m.sender === 'system')?.text
+    const combinedSystemPrompt = [existingSystemPrompt, languageInstruction]
+      .filter((text): text is string => Boolean(text && text.trim().length > 0))
+      .join('\n\n') || undefined
+    const finalMessages = messages.filter(m => m.sender !== 'system')
+
     const response = await fetch('/api/continue-conversation', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        messages,
+        messages: finalMessages,
         sidekick,
         role: 'agent',
-        systemPrompt: messages.find(m => m.sender === 'system')?.text
+        preferredLanguage,
+        systemPrompt: combinedSystemPrompt
       }),
     });
 

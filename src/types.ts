@@ -11,6 +11,7 @@ export interface AgentProfile {
   logoUrl?: string;
   website?: string;
   bio?: string;
+  language?: string;
 }
 
 export interface AIDescription {

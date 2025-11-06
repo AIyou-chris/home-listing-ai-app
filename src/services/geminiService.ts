@@ -1,5 +1,10 @@
 // Firebase removed – use local fallbacks/mocks
 import { Property, AIDescription, ChatMessage, MarketData, SocialPlatform, AIBlogPost, isAIDescription, LocalInfoData } from '../types';
+import {
+  buildLanguageInstruction,
+  detectAndUpdateLanguage,
+  getPreferredLanguage
+} from './languagePreferenceService'
 
 interface GeminiResponse<T> {
     data: T;
@@ -14,6 +19,7 @@ const createErrorStub = <Params, Result>(): ((params: Params) => Promise<GeminiR
 const generatePropertyDescriptionFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty> }, AIDescription>();
 const answerPropertyQuestionFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty>; question: string }, { text: string }>();
 const continueConversationFunction = createErrorStub<{ messages: Array<{ sender: string; text: string }> }, { text: string }>();
+
 const getMarketAnalysisFunction = createErrorStub<{ address: string }, MarketData>();
 const generatePropertyReportFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty>; options: GenerateReportOptions }, { text: string }>();
 const generateBlogPostFunction = createErrorStub<{ topic: string; tone: string; targetAudience: string }, { post: AIBlogPost }>();
@@ -125,14 +131,27 @@ export const continueConversation = async (messages: ChatMessage[]): Promise<str
     
     // Prepare the messages for the API
     // Make sure each message has the required properties
+    let overrideLanguage: string | null = null
+    const lastUserMessage = [...messages].reverse().find((msg) => msg.sender === 'user')?.text
+    if (lastUserMessage) {
+      overrideLanguage = await detectAndUpdateLanguage(lastUserMessage)
+    }
+
+    const preferredLanguage = getPreferredLanguage(overrideLanguage ?? undefined)
+    const languageInstruction = buildLanguageInstruction(preferredLanguage)
+
     const validatedMessages = messages.map(msg => ({
       sender: msg.sender,
       text: msg.text || ""
     }));
+
+    const finalMessages = languageInstruction
+      ? [{ sender: 'system', text: languageInstruction }, ...validatedMessages]
+      : validatedMessages
     
     // Race between the actual function call and the timeout
     const result = await Promise.race([
-      continueConversationFunction({ messages: validatedMessages }),
+      continueConversationFunction({ messages: finalMessages }),
       timeoutPromise
     ]);
     

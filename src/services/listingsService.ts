@@ -112,6 +112,7 @@ const ensureAgentSnapshot = (snapshot: unknown): AgentProfile => {
   return {
     ...SAMPLE_AGENT,
     ...candidate,
+    language: candidate.language ?? SAMPLE_AGENT.language ?? 'en',
     socials: Array.isArray(candidate.socials) ? (candidate.socials as AgentProfile['socials']) : [...SAMPLE_AGENT.socials]
   }
 }
@@ -120,6 +121,7 @@ const serializeAgentSnapshot = (snapshot?: AgentProfile | null) => {
   if (!snapshot) return null
   return {
     ...snapshot,
+    language: snapshot.language ?? SAMPLE_AGENT.language ?? 'en',
     socials: Array.isArray(snapshot.socials) ? snapshot.socials : [...SAMPLE_AGENT.socials]
   }
 }

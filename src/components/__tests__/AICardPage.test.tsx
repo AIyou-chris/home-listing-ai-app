@@ -13,6 +13,7 @@ jest.mock('../../services/aiCardService', () => {
     website: '',
     bio: '',
     brandColor: '#0ea5e9',
+    language: 'en',
     socialMedia: {
       facebook: '',
       instagram: '',
@@ -94,6 +95,7 @@ describe('AICardPage input reliability', () => {
       website: '',
       bio: '',
       brandColor: '#0ea5e9',
+      language: 'en',
       socialMedia: {
         facebook: '',
         instagram: '',
@@ -115,6 +117,7 @@ describe('AICardPage input reliability', () => {
       website: '',
       bio: '',
       brandColor: '#0ea5e9',
+      language: 'en',
       socialMedia: {
         facebook: '',
         instagram: '',

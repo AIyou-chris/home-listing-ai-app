@@ -530,7 +530,8 @@ const App: React.FC = () => {
                 company: profileData.company,
                 headshotUrl: profileData.headshotUrl,
                 email: profileData.email,
-                phone: profileData.phone
+                phone: profileData.phone,
+                language: profileData.language ?? prev.language
             }));
             console.log('✅ Loaded centralized agent profile');
         } catch (error) {

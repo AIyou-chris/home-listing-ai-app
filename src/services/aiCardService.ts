@@ -10,6 +10,7 @@ interface AICardProfile {
   website: string;
   bio: string;
   brandColor: string;
+  language: string;
   socialMedia: {
     facebook: string;
     instagram: string;
@@ -86,6 +87,7 @@ const withAssetUrls = async (profile: AICardProfile): Promise<AICardProfile> => 
   if (enriched.logo && !enriched.logo.startsWith('data:') && !enriched.logo.startsWith('http')) {
     enriched.logo = (await createSignedAssetUrl(enriched.logo)) || enriched.logo;
   }
+  enriched.language = enriched.language && enriched.language.trim().length > 0 ? enriched.language : 'en';
   return enriched;
 };
 

@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS public.ai_card_profiles (
   website TEXT NULL,
   bio TEXT NULL,
   brand_color TEXT NOT NULL DEFAULT '#0ea5e9',
+  language TEXT NOT NULL DEFAULT 'en',
   social_media JSONB NOT NULL DEFAULT '{}'::jsonb,
   headshot_url TEXT NULL,
   logo_url TEXT NULL,

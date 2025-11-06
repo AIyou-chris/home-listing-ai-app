@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { AISidekickRole } from '../context/AISidekickContext'
+import { getAgentProfile, updateAgentProfileWithNotification } from '../services/agentProfileService'
+
+const LANGUAGE_OPTIONS: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' }
+]
 
 interface TrainingSession {
 	id: string
@@ -10,6 +17,7 @@ interface TrainingSession {
 	progress: number
 	startedAt: string
 	completedAt?: string
+	language: string
 	metrics: {
 		accuracy: number
 		responseTime: number
@@ -84,6 +92,15 @@ const SidekickTrainingWorkflows: React.FC = () => {
 	])
 	const [selectedSidekick, setSelectedSidekick] = useState<AISidekickRole>('agent')
 	const [isCreatingSession, setIsCreatingSession] = useState(false)
+	const [language, setLanguage] = useState<string>(() => {
+		if (typeof window !== 'undefined') {
+			return window.localStorage.getItem('hlai.language') || 'en'
+		}
+		return 'en'
+	})
+	const [isUpdatingLanguage, setIsUpdatingLanguage] = useState(false)
+	const [languageMessage, setLanguageMessage] = useState<string | null>(null)
+	const [languageError, setLanguageError] = useState<string | null>(null)
 
 	// Generate demo training sessions
 	useEffect(() => {
@@ -97,6 +114,7 @@ const SidekickTrainingWorkflows: React.FC = () => {
 				progress: 100,
 				startedAt: '2024-01-15T10:00:00Z',
 				completedAt: '2024-01-15T12:30:00Z',
+				language: 'en',
 				metrics: { accuracy: 94, responseTime: 1200, userSatisfaction: 89 },
 				trainingData: { conversations: 150, documents: 0, corrections: 23 }
 			},
@@ -108,6 +126,7 @@ const SidekickTrainingWorkflows: React.FC = () => {
 				status: 'in_progress',
 				progress: 67,
 				startedAt: '2024-01-16T09:00:00Z',
+				language: 'en',
 				metrics: { accuracy: 87, responseTime: 1500, userSatisfaction: 85 },
 				trainingData: { conversations: 0, documents: 45, corrections: 12 }
 			},
@@ -119,11 +138,30 @@ const SidekickTrainingWorkflows: React.FC = () => {
 				status: 'pending',
 				progress: 0,
 				startedAt: '2024-01-17T14:00:00Z',
+				language: 'en',
 				metrics: { accuracy: 0, responseTime: 0, userSatisfaction: 0 },
 				trainingData: { conversations: 0, documents: 0, corrections: 0 }
 			}
 		]
 		setTrainingSessions(demoSessions)
+	}, [])
+
+	useEffect(() => {
+		const loadLanguage = async () => {
+			try {
+				const profile = await getAgentProfile()
+				if (profile?.language) {
+					setLanguage(profile.language)
+					if (typeof window !== 'undefined') {
+						window.localStorage.setItem('hlai.language', profile.language)
+					}
+				}
+			} catch (error) {
+				console.error('Failed to load agent profile language:', error)
+			}
+		}
+
+		void loadLanguage()
 	}, [])
 
 	const getStatusColor = (status: TrainingSession['status']) => {
@@ -170,6 +208,7 @@ const SidekickTrainingWorkflows: React.FC = () => {
 				status: 'pending',
 				progress: 0,
 				startedAt: new Date().toISOString(),
+				language,
 				metrics: { accuracy: 0, responseTime: 0, userSatisfaction: 0 },
 				trainingData: { conversations: 0, documents: 0, corrections: 0 }
 			}
@@ -177,6 +216,27 @@ const SidekickTrainingWorkflows: React.FC = () => {
 			setIsCreatingSession(false)
 			setActiveTab('sessions')
 		}, 1500)
+	}
+
+	const handleLanguageChange = async (code: string) => {
+		const previous = language
+		setLanguage(code)
+		setIsUpdatingLanguage(true)
+		setLanguageMessage(null)
+		setLanguageError(null)
+		try {
+			await updateAgentProfileWithNotification({ language: code })
+			if (typeof window !== 'undefined') {
+				window.localStorage.setItem('hlai.language', code)
+			}
+			setLanguageMessage(`Training language updated to ${LANGUAGE_OPTIONS.find(l => l.code === code)?.label ?? 'English'}.`)
+		} catch (error) {
+			console.error('Failed to update agent language:', error)
+			setLanguageError('Unable to update language. Please try again.')
+			setLanguage(previous)
+		} finally {
+			setIsUpdatingLanguage(false)
+		}
 	}
 
 	const renderSessions = () => (
@@ -196,7 +256,9 @@ const SidekickTrainingWorkflows: React.FC = () => {
 					<div className="flex justify-between items-start mb-4">
 						<div>
 							<h4 className="text-lg font-medium text-slate-900">{session.name}</h4>
-							<p className="text-sm text-slate-600 capitalize">{session.sidekickId} Sidekick • {session.type} Training</p>
+							<p className="text-sm text-slate-600 capitalize">
+								{session.sidekickId} Sidekick • {session.type} Training • {LANGUAGE_OPTIONS.find(l => l.code === session.language)?.label ?? 'English'}
+							</p>
 						</div>
 						<span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}>
 							{session.status.replace('_', ' ')}
@@ -383,6 +445,28 @@ const SidekickTrainingWorkflows: React.FC = () => {
 			<div className="mb-6">
 				<h1 className="text-2xl font-bold text-slate-900">AI Sidekick Training</h1>
 				<p className="text-slate-600">Advanced training workflows to improve your AI assistants</p>
+			</div>
+
+			<div className="mb-6 bg-white border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+				<div>
+					<h2 className="text-sm font-semibold text-slate-800">Training Language</h2>
+					<p className="text-xs text-slate-500 mt-1">Sidekicks, training prompts, and AI outputs will default to this language.</p>
+				</div>
+				<div className="flex flex-col sm:flex-row sm:items-center gap-2">
+					<select
+						value={language}
+						onChange={(event) => handleLanguageChange(event.target.value)}
+						disabled={isUpdatingLanguage}
+						className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+					>
+						{LANGUAGE_OPTIONS.map(option => (
+							<option key={option.code} value={option.code}>{option.label}</option>
+						))}
+					</select>
+					{isUpdatingLanguage && <span className="text-xs text-slate-500">Saving…</span>}
+				</div>
+				{languageMessage && <p className="text-xs text-emerald-600">{languageMessage}</p>}
+				{languageError && <p className="text-xs text-red-600">{languageError}</p>}
 			</div>
 
 			{/* Tabs */}

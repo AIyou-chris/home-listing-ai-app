@@ -15,6 +15,7 @@ export interface AgentProfile {
   headshotUrl: string | null;
   logoUrl: string | null;
   brandColor: string;
+  language: string;
   socialMedia: {
     facebook: string;
     instagram: string;
@@ -45,6 +46,7 @@ const convertAICardToAgentProfile = (aiCardProfile: AICardProfile): AgentProfile
     headshotUrl: aiCardProfile.headshot,
     logoUrl: aiCardProfile.logo,
     brandColor: aiCardProfile.brandColor,
+    language: aiCardProfile.language,
     socialMedia: aiCardProfile.socialMedia,
     created_at: aiCardProfile.created_at,
     updated_at: aiCardProfile.updated_at
@@ -65,6 +67,7 @@ const convertAgentProfileToAICard = (agentProfile: Partial<AgentProfile>): Parti
   if (agentProfile.headshotUrl !== undefined) aiCardData.headshot = agentProfile.headshotUrl;
   if (agentProfile.logoUrl !== undefined) aiCardData.logo = agentProfile.logoUrl;
   if (agentProfile.brandColor !== undefined) aiCardData.brandColor = agentProfile.brandColor;
+  if (agentProfile.language !== undefined) aiCardData.language = agentProfile.language;
   if (agentProfile.socialMedia !== undefined) aiCardData.socialMedia = agentProfile.socialMedia;
   
   return aiCardData;
@@ -108,7 +111,8 @@ export const getProfileForDashboard = async (userId?: string) => {
     company: profile.company,
     headshotUrl: profile.headshotUrl,
     email: profile.email,
-    phone: profile.phone
+    phone: profile.phone,
+    language: profile.language
   };
 };
 
@@ -124,6 +128,7 @@ export const getProfileForSettings = async (userId?: string) => {
     bio: profile.bio,
     headshotUrl: profile.headshotUrl,
     brandColor: profile.brandColor,
+    language: profile.language,
     socialMedia: profile.socialMedia
   };
 };
@@ -137,6 +142,7 @@ export const getProfileForCommunications = async (userId?: string) => {
     agentPhone: profile.phone,
     agentEmail: profile.email,
     agentWebsite: profile.website,
+    language: profile.language,
     signature: `${profile.name}\n${profile.title}\n${profile.company}\n${profile.phone}\n${profile.email}`
   };
 };
@@ -149,7 +155,8 @@ export const getProfileForAppointments = async (userId?: string) => {
     hostCompany: profile.company,
     hostPhone: profile.phone,
     hostEmail: profile.email,
-    brandColor: profile.brandColor
+    brandColor: profile.brandColor,
+    language: profile.language
   };
 };
 
