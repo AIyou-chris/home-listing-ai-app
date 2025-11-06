@@ -1,5 +1,6 @@
 export interface AgentProfile {
   name: string;
+  slug?: string;
   title: string;
   company: string;
   phone: string;

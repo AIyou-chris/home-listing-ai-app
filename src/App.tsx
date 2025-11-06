@@ -752,6 +752,24 @@ const App: React.FC = () => {
             }
         }
     };
+
+    const triggerLeadSequences = async (lead: Lead) => {
+        try {
+            const sequenceService = SequenceExecutionService.getInstance();
+            await sequenceService.triggerSequences(
+                'Lead Capture',
+                {
+                    lead,
+                    agent: userProfile || SAMPLE_AGENT,
+                    property: selectedPropertyId ? properties.find(p => p.id === selectedPropertyId) : undefined
+                },
+                sequences
+            );
+            console.log('✅ Lead capture sequences triggered for:', lead.name);
+        } catch (error) {
+            console.error('❌ Error triggering sequences:', error);
+        }
+    };
     
     const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
         const payload: LeadPayload = {
@@ -762,23 +780,13 @@ const App: React.FC = () => {
             lastMessage: leadData.message
         };
 
-        let createdLead: Lead;
-
         try {
-            const result = await leadsService.create(payload);
-            createdLead = (result?.lead as Lead) ?? {
-                id: `lead-${Date.now()}`,
-                name: leadData.name,
-                email: leadData.email,
-                phone: leadData.phone,
-                lastMessage: leadData.message,
-                status: 'New',
-                date: new Date().toISOString()
-            };
+            const createdLead = await leadsService.create(payload);
             setLeads(prev => [createdLead, ...prev]);
+            await triggerLeadSequences(createdLead);
         } catch (error) {
             console.error('❌ Failed to create lead via API, using local fallback:', error);
-            createdLead = {
+            const createdLead: Lead = {
                 id: `lead-${Date.now()}`,
                 name: leadData.name,
                 email: leadData.email,
@@ -788,24 +796,8 @@ const App: React.FC = () => {
                 date: new Date().toISOString()
             };
             setLeads(prev => [createdLead, ...prev]);
+            await triggerLeadSequences(createdLead);
         }
-        
-        try {
-            const sequenceService = SequenceExecutionService.getInstance();
-            await sequenceService.triggerSequences(
-                'Lead Capture',
-                {
-                    lead: createdLead,
-                    agent: userProfile || SAMPLE_AGENT,
-                    property: selectedPropertyId ? properties.find(p => p.id === selectedPropertyId) : undefined
-                },
-                sequences
-            );
-            console.log('✅ Lead capture sequences triggered for:', createdLead.name);
-        } catch (error) {
-            console.error('❌ Error triggering sequences:', error);
-        }
-        
         setView('leads'); 
     };
 
@@ -1002,6 +994,7 @@ const App: React.FC = () => {
 						return <DemoListingPage />;
 					case 'settings': 
 						return <SettingsPage 
+							userId={user?.uid ?? 'guest-agent'}
 							userProfile={userProfile}
 							onSaveProfile={setUserProfile}
 							notificationSettings={notificationSettings}

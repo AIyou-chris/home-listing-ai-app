@@ -72,6 +72,41 @@ export interface AuthState {
     isAdmin: boolean;
 }
 
+const getApiBaseUrl = (): string | null => {
+    const raw = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_API_BASE_URL
+    if (typeof raw !== 'string') {
+        return null
+    }
+
+    const trimmed = raw.trim()
+    if (!trimmed) {
+        return null
+    }
+
+    return trimmed.replace(/\/+$/, '')
+}
+
+const API_BASE_URL = getApiBaseUrl()
+
+const isAbsoluteUrl = (url: string) => /^https?:\/\//i.test(url)
+
+const resolveApiUrl = (input: string): string => {
+    if (!input) {
+        return input
+    }
+
+    if (isAbsoluteUrl(input)) {
+        return input
+    }
+
+    const sanitizedPath = input.startsWith('/') ? input.slice(1) : input
+    if (API_BASE_URL) {
+        return `${API_BASE_URL}/${sanitizedPath}`
+    }
+
+    return input.startsWith('/') ? input : `/${sanitizedPath}`
+}
+
 export class AuthService {
     private static instance: AuthService;
     private authStateListeners: ((state: AuthState) => void)[] = [];
@@ -425,10 +460,11 @@ export class AuthService {
 
     // Make authenticated API request
     async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
-        const isLocalApi = url.startsWith('http://localhost:5001/') || url.startsWith('http://127.0.0.1:5001/');
+        const resolvedUrl = resolveApiUrl(url)
+        const isLocalApi = resolvedUrl.includes('http://localhost:5001/') || resolvedUrl.includes('http://127.0.0.1:5001/') || resolvedUrl.startsWith('/')
         const token = await this.getAuthToken();
         if (!token && !isLocalApi) {
-            throw new Error('No authentication token available');
+            console.warn('AuthService: proceeding without auth token for', resolvedUrl);
         }
 
         const headers = new Headers(options.headers);
@@ -437,7 +473,7 @@ export class AuthService {
             headers.set('Authorization', `Bearer ${token}`);
         }
 
-        return fetch(url, {
+        return fetch(resolvedUrl, {
             ...options,
             headers
         });

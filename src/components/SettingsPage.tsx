@@ -1,7 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
+import { googleOAuthService } from '../services/googleOAuthService';
+import { calendarSettingsService } from '../services/calendarSettingsService';
+import { supabase } from '../services/supabase';
+import { agentOnboardingService } from '../services/agentOnboardingService';
+
+type EmailConnection = {
+    provider: 'gmail' | 'outlook';
+    email: string;
+    connectedAt: string;
+    status: 'active' | 'expired' | 'error';
+};
 
 interface SettingsPageProps {
+    userId: string;
     userProfile: AgentProfile;
     onSaveProfile: (profile: AgentProfile) => void;
     notificationSettings: NotificationSettings;
@@ -52,15 +64,26 @@ const FormInput: React.FC<{ label: string; id: string; } & React.InputHTMLAttrib
 const ToggleSwitch: React.FC<{
     enabled: boolean;
     onChange: (enabled: boolean) => void;
-}> = ({ enabled, onChange }) => {
+    disabled?: boolean;
+}> = ({ enabled, onChange, disabled }) => {
     return (
         <button
             type='button'
             role='switch'
             aria-checked={enabled}
-            onClick={() => onChange(!enabled)}
+            aria-disabled={disabled}
+            disabled={disabled}
+            onClick={() => {
+                if (!disabled) {
+                    onChange(!enabled);
+                }
+            }}
             className={`relative inline-flex flex-shrink-0 items-center h-6 rounded-full w-11 cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
-                enabled ? 'bg-primary-600' : 'bg-slate-300'
+                disabled
+                    ? 'bg-slate-200 cursor-not-allowed opacity-60'
+                    : enabled
+                        ? 'bg-primary-600'
+                        : 'bg-slate-300'
             }`}
         >
             <span
@@ -126,13 +149,14 @@ const FeatureToggleRow: React.FC<{
     description: string;
     enabled: boolean;
     onToggle: (enabled: boolean) => void;
-}> = ({ label, description, enabled, onToggle }) => (
+    disabled?: boolean;
+}> = ({ label, description, enabled, onToggle, disabled }) => (
     <div className="flex justify-between items-center p-4 bg-slate-50/70 rounded-lg border border-slate-200">
         <div>
             <h4 className="font-semibold text-slate-800">{label}</h4>
             <p className="text-sm text-slate-500">{description}</p>
         </div>
-        <ToggleSwitch enabled={enabled} onChange={onToggle} />
+        <ToggleSwitch enabled={enabled} onChange={onToggle} disabled={disabled} />
     </div>
 );
 
@@ -146,15 +170,135 @@ const FeatureSection: React.FC<{ title: string; icon: string; children: React.Re
     </div>
 );
 
-const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard }) => {
+type NotificationSettingKey = keyof NotificationSettings;
+
+const NOTIFICATION_GROUPS: Array<{
+    title: string;
+    icon: string;
+    items: Array<{ key: NotificationSettingKey; label: string; description: string }>;
+}> = [
+    {
+        title: 'Real-time Alerts',
+        icon: 'notifications_active',
+        items: [
+            {
+                key: 'newLead',
+                label: 'New lead arrives',
+                description: 'Get pinged the moment a new lead hits your dashboard.'
+            },
+            {
+                key: 'appointmentScheduled',
+                label: 'Appointment scheduled',
+                description: 'Receive confirmations when clients book time on your calendar.'
+            },
+            {
+                key: 'aiInteraction',
+                label: 'AI interaction updates',
+                description: 'Alerts when your AI concierge jumps into a live conversation.'
+            },
+            {
+                key: 'propertyInquiries',
+                label: 'Property inquiries',
+                description: 'Know instantly when a buyer requests info on your listings.'
+            },
+            {
+                key: 'showingConfirmations',
+                label: 'Showing confirmations',
+                description: 'Confirmations and reminders when tours are booked or rescheduled.'
+            }
+        ]
+    },
+    {
+        title: 'Follow-up Support',
+        icon: 'event_available',
+        items: [
+            {
+                key: 'appointmentReminders',
+                label: 'Appointment reminders',
+                description: 'We\'ll nudge you ahead of every booked consultation.'
+            },
+            {
+                key: 'taskReminders',
+                label: 'Task reminders',
+                description: 'Stay on top of follow-ups with AI-generated tasks.'
+            },
+            {
+                key: 'hotLeads',
+                label: 'Hot lead alerts',
+                description: 'Instant alerts when a lead hits "ready to tour" status.'
+            },
+            {
+                key: 'priceChanges',
+                label: 'Price change updates',
+                description: 'Know right away when your active listings adjust pricing.'
+            },
+            {
+                key: 'contractMilestones',
+                label: 'Contract milestones',
+                description: 'Stay informed as deals move from offer to close.'
+            }
+        ]
+    },
+    {
+        title: 'Marketing & Insights',
+        icon: 'insights',
+        items: [
+            {
+                key: 'marketingUpdates',
+                label: 'Marketing updates',
+                description: 'Pipeline prompts when nurture sequences need attention.'
+            },
+            {
+                key: 'weeklySummary',
+                label: 'Weekly performance summary',
+                description: 'Digest of lead activity, funnel performance, and AI wins.'
+            },
+            {
+                key: 'weeklyReport',
+                label: 'Weekly report email',
+                description: 'Snapshot of traffic, conversions, and AI engagement.'
+            },
+            {
+                key: 'monthlyInsights',
+                label: 'Monthly insights',
+                description: 'Deep-dive analytics delivered at month end.'
+            }
+        ]
+    },
+    {
+        title: 'General Preferences',
+        icon: 'tune',
+        items: [
+            {
+                key: 'browserNotifications',
+                label: 'Browser notifications',
+                description: 'Enable in-browser alerts for urgent updates.'
+            },
+            {
+                key: 'weekendNotifications',
+                label: 'Weekend notifications',
+                description: 'Mute non-critical alerts on weekends to stay focused.'
+            }
+        ]
+    }
+];
+
+const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard }) => {
     const [activeTab, setActiveTab] = useState<'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('notifications');
     const [emailFormData, setEmailFormData] = useState<EmailSettings>(emailSettings);
     const [calendarFormData, setCalendarFormData] = useState<CalendarSettings>(calendarSettings);
     const [currentNotifications, setCurrentNotifications] = useState<NotificationSettings>(notificationSettings);
+    const [isNotificationsLoading, setIsNotificationsLoading] = useState<boolean>(true);
+    const [isNotificationsSaving, setIsNotificationsSaving] = useState<boolean>(false);
+    const [notificationSaveError, setNotificationSaveError] = useState<string | null>(null);
     const [showNotificationTips, setShowNotificationTips] = useState(true);
     const [showEmailTips, setShowEmailTips] = useState(true);
     const [showCalendarTips, setShowCalendarTips] = useState(true);
     const [showBillingTips, setShowBillingTips] = useState(true);
+    const [paymentProviders, setPaymentProviders] = useState<string[]>([]);
+    const [isBillingCheckoutLoading, setIsBillingCheckoutLoading] = useState(false);
+    const [billingMessage, setBillingMessage] = useState<string | null>(null);
+    const [billingError, setBillingError] = useState<string | null>(null);
     const [isGoogleIntegrationAvailable, setIsGoogleIntegrationAvailable] = useState(false);
     const [passwords, setPasswords] = useState({
         currentPassword: '',
@@ -165,6 +309,133 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
     // Email connection state
     const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([]);
     const [isConnecting, setIsConnecting] = useState<string | null>(null);
+    const [isEmailSettingsLoading, setIsEmailSettingsLoading] = useState<boolean>(true);
+    const [isEmailSettingsSaving, setIsEmailSettingsSaving] = useState<boolean>(false);
+    const [emailSettingsError, setEmailSettingsError] = useState<string | null>(null);
+    const [emailSaveMessage, setEmailSaveMessage] = useState<string | null>(null);
+    const [isCalendarSettingsLoading, setIsCalendarSettingsLoading] = useState<boolean>(false);
+    const [isCalendarSettingsSaving, setIsCalendarSettingsSaving] = useState<boolean>(false);
+    const [calendarSettingsError, setCalendarSettingsError] = useState<string | null>(null);
+    const [calendarSettingsMessage, setCalendarSettingsMessage] = useState<string | null>(null);
+    const [isSecuritySaving, setIsSecuritySaving] = useState<boolean>(false);
+    const [securityError, setSecurityError] = useState<string | null>(null);
+    const [securityMessage, setSecurityMessage] = useState<string | null>(null);
+    const forwardingAddress = useMemo(() => {
+        const baseEmail = emailFormData.fromEmail || userProfile.email || 'agent@homelistingai.com';
+        const localPart = (baseEmail.split('@')[0] || 'agent').toLowerCase();
+        const safeLocalPart = localPart.replace(/[^a-z0-9]/g, '') || 'agent';
+        return `agent-${safeLocalPart}@homelistingai.com`;
+    }, [emailFormData.fromEmail, userProfile.email]);
+    const oauthPopupRef = useRef<Window | null>(null);
+    const calendarDefaultsRef = useRef<CalendarSettings>(calendarSettings);
+    const isMountedRef = useRef(true);
+
+    useEffect(() => {
+        calendarDefaultsRef.current = calendarSettings;
+    }, [calendarSettings]);
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
+    const applyEmailSettings = useCallback(
+        (settings: EmailSettings, connections: EmailConnection[]) => {
+            setEmailFormData(settings);
+            setEmailConnections(connections);
+            _onSaveEmailSettings(settings);
+        },
+        [_onSaveEmailSettings]
+    );
+
+    const fetchEmailSettings = useCallback(async () => {
+        const response = await fetch(`/api/email/settings/${encodeURIComponent(userId)}`);
+        if (!response.ok) {
+            const message = await response.text().catch(() => '');
+            throw new Error(message || `Request failed with status ${response.status}`);
+        }
+
+        return response.json();
+    }, [userId]);
+
+    const reloadEmailSettings = useCallback(
+        async ({ showLoading = false, showMessage = false }: { showLoading?: boolean; showMessage?: boolean } = {}) => {
+            setEmailSettingsError(null);
+            if (showLoading) {
+                setIsEmailSettingsLoading(true);
+                setEmailSaveMessage(null);
+            }
+
+            try {
+                const data = await fetchEmailSettings();
+                const nextSettings = (data?.settings as EmailSettings) || emailFormData;
+                const nextConnections = (data?.connections as EmailConnection[]) || [];
+                applyEmailSettings(nextSettings, nextConnections);
+
+                if (showMessage) {
+                    setEmailSaveMessage('Email settings updated.');
+                }
+            } catch (error) {
+                console.error('Failed to load email settings:', error);
+                setEmailSettingsError(
+                    error instanceof Error
+                        ? error.message
+                        : 'Unable to load email settings. Please try again.'
+                );
+                if (showLoading) {
+                    setEmailFormData(emailFormData);
+                    setEmailConnections([]);
+                }
+            } finally {
+                if (showLoading) {
+                    setIsEmailSettingsLoading(false);
+                }
+            }
+        },
+        [applyEmailSettings, emailFormData, fetchEmailSettings]
+    );
+
+    const loadCalendarSettings = useCallback(
+        async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
+            if (!isMountedRef.current) {
+                return calendarDefaultsRef.current;
+            }
+
+            if (showLoading) {
+                setIsCalendarSettingsLoading(true);
+            }
+            setCalendarSettingsError(null);
+            setCalendarSettingsMessage(null);
+
+            try {
+                const payload = await calendarSettingsService.fetch(userId);
+                const nextSettings = (payload?.settings as CalendarSettings) || calendarDefaultsRef.current;
+
+                if (!isMountedRef.current) {
+                    return nextSettings;
+                }
+
+                calendarDefaultsRef.current = nextSettings;
+                setCalendarFormData(nextSettings);
+                _onSaveCalendarSettings(nextSettings);
+                setIsGoogleCalendarConnected(Boolean(payload?.connection && payload.connection.status === 'active'));
+                return nextSettings;
+            } catch (error) {
+                console.error('Failed to load calendar settings:', error);
+                if (isMountedRef.current) {
+                    setCalendarSettingsError('Unable to load calendar settings. Using defaults for now.');
+                    setCalendarFormData(calendarDefaultsRef.current);
+                }
+                return calendarDefaultsRef.current;
+            } finally {
+                if (showLoading && isMountedRef.current) {
+                    setIsCalendarSettingsLoading(false);
+                }
+            }
+        },
+        [_onSaveCalendarSettings, userId]
+    );
     
     // Calendar connection state
     const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
@@ -176,44 +447,188 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
         analyticsEnabled: true
     });
     
-    // Notification permission state
-    const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-    const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+    useEffect(() => {
+        let isActive = true;
+
+        const loadPreferences = async () => {
+            setIsNotificationsLoading(true);
+            setNotificationSaveError(null);
+
+            try {
+                const response = await fetch(`/api/notifications/preferences/${encodeURIComponent(userId)}`);
+                if (!response.ok) {
+                    throw new Error(`Request failed with status ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (!isActive) return;
+
+                if (data?.preferences) {
+                    setCurrentNotifications(data.preferences as NotificationSettings);
+                    _onSaveNotifications(data.preferences as NotificationSettings);
+                } else {
+        setCurrentNotifications(notificationSettings);
+                }
+            } catch (error) {
+                console.error('Failed to load notification preferences:', error);
+                if (isActive) {
+                    setNotificationSaveError('Unable to load notification preferences. Using defaults for now.');
+                    setCurrentNotifications(notificationSettings);
+                }
+            } finally {
+                if (isActive) {
+                    setIsNotificationsLoading(false);
+                }
+            }
+        };
+
+        void loadPreferences();
+
+        return () => {
+            isActive = false;
+        };
+    }, [userId, notificationSettings, _onSaveNotifications]);
 
 
     useEffect(() => {
         setCurrentNotifications(notificationSettings);
-        // Load existing email connections
-        setEmailConnections(emailAuthService.getConnections());
-        // Check notification permission
-        if ('Notification' in window) {
-            setNotificationPermission(Notification.permission);
-        }
-        // Check Google Calendar connection status
-        setIsGoogleIntegrationAvailable(googleOAuthService.isAvailable);
-        setIsGoogleCalendarConnected(googleOAuthService.isAuthenticated());
     }, [notificationSettings]);
+
+    useEffect(() => {
+        setIsGoogleIntegrationAvailable(googleOAuthService.isAvailable);
+        setIsGoogleCalendarConnected(googleOAuthService.isAuthenticated('calendar'));
+    }, []);
+
+    useEffect(() => {
+        void loadCalendarSettings({ showLoading: true });
+    }, [loadCalendarSettings]);
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadProviders = async () => {
+            try {
+                const providers = await agentOnboardingService.listPaymentProviders();
+                if (!isMounted) return;
+                setPaymentProviders(providers);
+            } catch (error) {
+                console.warn('Failed to load payment providers:', error);
+            }
+        };
+
+        void loadProviders();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const load = async () => {
+            setIsEmailSettingsLoading(true);
+            setEmailSettingsError(null);
+            setEmailSaveMessage(null);
+
+            try {
+                const data = await fetchEmailSettings();
+                if (cancelled) return;
+
+                const nextSettings = (data?.settings as EmailSettings) || emailFormData;
+                const nextConnections = (data?.connections as EmailConnection[]) || [];
+                applyEmailSettings(nextSettings, nextConnections);
+            } catch (error) {
+                console.error('Failed to load email settings:', error);
+                if (!cancelled) {
+                    setEmailSettingsError('Unable to load email settings. Using defaults for now.');
+                    setEmailFormData(emailFormData);
+                    setEmailConnections([]);
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsEmailSettingsLoading(false);
+                }
+            }
+        };
+
+        void load();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [applyEmailSettings, emailFormData, fetchEmailSettings]);
 
     // Email connection handlers
     const handleGmailConnect = async () => {
         setIsConnecting('gmail');
+        setEmailSettingsError(null);
+        setEmailSaveMessage(null);
+
         try {
-            const connection = await emailAuthService.connectGmail();
-            setEmailConnections(prev => [...prev.filter(c => c.provider !== 'gmail'), connection]);
+            const response = await fetch(`/api/email/google/oauth-url?userId=${encodeURIComponent(userId)}`);
+
+            if (response.status === 503) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload?.error || 'Google OAuth is not configured.');
+            }
+
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data?.url) {
+                throw new Error('Failed to receive OAuth URL.');
+            }
+
+            const popup = window.open(
+                data.url,
+                'gmail-oauth',
+                'width=480,height=720,menubar=no,toolbar=no,status=no'
+            );
+
+            if (!popup) {
+                throw new Error('Popup blocked. Please allow popups to connect Gmail.');
+            }
+
+            oauthPopupRef.current = popup;
         } catch (error) {
-            console.error('Gmail connection failed:', error);
-            alert('Failed to connect Gmail. Please try again.');
-        } finally {
+            console.error('Gmail OAuth launch failed:', error);
+            setEmailSettingsError(
+                error instanceof Error ? error.message : 'Failed to start Google OAuth.'
+            );
             setIsConnecting(null);
+            oauthPopupRef.current?.close();
+            oauthPopupRef.current = null;
         }
     };
 
     const handleEmailDisconnect = async (provider: 'gmail' | 'outlook') => {
+        setIsConnecting(provider);
+        setEmailSettingsError(null);
+        setEmailSaveMessage(null);
+
         try {
-            await emailAuthService.disconnect(provider);
-            setEmailConnections(prev => prev.filter(c => c.provider !== provider));
+            const response = await fetch(`/api/email/settings/${encodeURIComponent(userId)}/connections/${provider}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+
+            const data = await response.json();
+            const nextConnections = (data?.connections as EmailConnection[]) || [];
+            const nextSettings = (data?.settings as EmailSettings) || emailFormData;
+            setEmailConnections(nextConnections);
+            setEmailFormData(nextSettings);
+            _onSaveEmailSettings(nextSettings);
+            setEmailSaveMessage('Email connection removed.');
         } catch (error) {
             console.error('Disconnect failed:', error);
+            setEmailSettingsError('Failed to disconnect email provider. Please try again.');
+        } finally {
+            setIsConnecting(null);
         }
     };
 
@@ -222,20 +637,24 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
         setIsConnecting('google');
         try {
             if (!googleOAuthService.isAvailable) {
-                alert('Google Calendar integration is not available in this environment.');
+                setCalendarSettingsError('Google Calendar integration is not available in this environment.');
                 return;
             }
 
-            const success = await googleOAuthService.requestAccess();
+            const success = await googleOAuthService.requestAccess({ userId, context: 'calendar' });
             if (success) {
                 setIsGoogleCalendarConnected(true);
-                alert('Google Calendar connected successfully! Your consultations will now automatically sync to your calendar.');
+                setCalendarSettingsError(null);
+                setCalendarSettingsMessage('Google Calendar connected successfully.');
+                await loadCalendarSettings({ showLoading: false });
             } else {
-                alert('Failed to connect Google Calendar. Please try again.');
+                setIsGoogleCalendarConnected(false);
+                setCalendarSettingsError('Failed to connect Google Calendar. Please try again.');
             }
         } catch (error) {
             console.error('Google Calendar connection failed:', error);
-            alert('Failed to connect Google Calendar. Please try again.');
+            setIsGoogleCalendarConnected(false);
+            setCalendarSettingsError('Failed to connect Google Calendar. Please try again.');
         } finally {
             setIsConnecting(null);
         }
@@ -243,12 +662,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
 
     const handleCalendarInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
+        setCalendarSettingsMessage(null);
+        setCalendarSettingsError(null);
         if (name === 'startTime' || name === 'endTime') {
+            const key = name === 'startTime' ? 'start' : 'end';
             setCalendarFormData(prev => ({
                 ...prev,
                 workingHours: {
                     ...prev.workingHours,
-                    [name]: value
+                    [key]: value
                 }
             }));
         } else {
@@ -260,6 +682,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
     };
 
     const handleWorkingDayToggle = (day: string, checked: boolean) => {
+        setCalendarSettingsMessage(null);
+        setCalendarSettingsError(null);
         setCalendarFormData(prev => {
             const workingDays = prev.workingDays || [];
             if (checked) {
@@ -277,16 +701,38 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
     };
 
     const handleCalendarToggle = (setting: keyof CalendarSettings, value: boolean) => {
+        setCalendarSettingsMessage(null);
+        setCalendarSettingsError(null);
         setCalendarFormData(prev => ({
             ...prev,
             [setting]: value
         }));
     };
 
-    const handleCalendarSettingsSave = (e: React.FormEvent) => {
+    const handleCalendarSettingsSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        _onSaveCalendarSettings(calendarFormData);
-        alert('Calendar settings saved successfully!');
+        if (isCalendarSettingsSaving) {
+            return;
+        }
+
+        setIsCalendarSettingsSaving(true);
+        setCalendarSettingsError(null);
+        setCalendarSettingsMessage(null);
+
+        try {
+            const payload = await calendarSettingsService.update(userId, calendarFormData);
+            const nextSettings = (payload?.settings as CalendarSettings) || calendarFormData;
+            calendarDefaultsRef.current = nextSettings;
+            setCalendarFormData(nextSettings);
+            _onSaveCalendarSettings(nextSettings);
+            setIsGoogleCalendarConnected(Boolean(payload?.connection && payload.connection.status === 'active'));
+            setCalendarSettingsMessage('Calendar settings saved successfully.');
+        } catch (error) {
+            console.error('Failed to save calendar settings:', error);
+            setCalendarSettingsError('Failed to save calendar settings. Please try again.');
+        } finally {
+            setIsCalendarSettingsSaving(false);
+        }
     };
 
     // Security handlers
@@ -342,7 +788,55 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
         passwords.newPassword === passwords.confirmNewPassword &&
         passwords.currentPassword.length > 0;
 
+    const openCheckoutUrl = (url: string) => {
+        const target = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!target) {
+            window.location.href = url;
+        }
+    };
+
+    const launchBillingCheckout = async (provider: 'stripe' | 'paypal') => {
+        if (!userId) {
+            setBillingError('Missing account identifier. Please refresh and try again.');
+            return;
+        }
+
+        setBillingError(null);
+        setBillingMessage(null);
+        setIsBillingCheckoutLoading(true);
+
+        try {
+            const session = await agentOnboardingService.createCheckoutSession({
+                slug: userId,
+                provider
+            });
+
+            if (session?.url) {
+                openCheckoutUrl(session.url);
+                setBillingMessage(provider === 'paypal'
+                    ? 'Opening PayPal subscription checkout in a new tab.'
+                    : 'Opening checkout in a new tab.');
+            } else {
+                setBillingError('Checkout session did not return a redirect URL.');
+            }
+        } catch (error) {
+            console.error('Billing checkout failed:', error);
+            setBillingError(error instanceof Error ? error.message : 'Unable to start checkout. Please try again.');
+        } finally {
+            setIsBillingCheckoutLoading(false);
+        }
+    };
+
     // Billing handlers
+    const handlePayPalCheckout = () => {
+        if (!paypalAvailable) {
+            setBillingError('PayPal is not available. Please contact support.');
+            return;
+        }
+
+        void launchBillingCheckout('paypal');
+    };
+
     const handleContactSupport = () => {
         window.open('mailto:support@homelistingai.com?subject=Billing Support Request', '_blank');
     };
@@ -354,79 +848,159 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
         }
     };
 
-    // Notification permission handlers
-    const handleRequestNotificationPermission = async () => {
-        setIsRequestingPermission(true);
-        try {
-            const permission = await Notification.requestPermission();
-            setNotificationPermission(permission);
-            if (permission === 'granted') {
-                // Show test notification
-                new Notification('Test Notification', {
-                    body: 'This is a test notification from HomeListing AI',
-                    icon: '/newlogo.png'
+    const handleNotificationToggle = useCallback(
+        async (key: keyof NotificationSettings, value: boolean) => {
+            const previousValue = currentNotifications[key];
+            const optimistic = { ...currentNotifications, [key]: value };
+
+            setCurrentNotifications(optimistic);
+            setNotificationSaveError(null);
+            setIsNotificationsSaving(true);
+
+            try {
+                const response = await fetch(`/api/notifications/preferences/${encodeURIComponent(userId)}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ [key]: value })
                 });
-            }
+
+                if (!response.ok) {
+                    throw new Error(`Request failed with status ${response.status}`);
+                }
+
+                const data = await response.json();
+                const nextPreferences = (data?.preferences as NotificationSettings) || optimistic;
+                setCurrentNotifications(nextPreferences);
+                _onSaveNotifications(nextPreferences);
         } catch (error) {
-            console.error('Error requesting notification permission:', error);
+                console.error('Failed to update notification preference:', error);
+                setNotificationSaveError('Failed to save notification preference. Please try again.');
+                setCurrentNotifications((prev) => {
+                    const reverted = { ...prev, [key]: previousValue };
+                    _onSaveNotifications(reverted);
+                    return reverted;
+                });
         } finally {
-            setIsRequestingPermission(false);
-        }
-    };
-
-    const handleTestNotification = async () => {
-        try {
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('Test Notification', {
-                    body: 'This is a test notification from HomeListing AI',
-                    icon: '/newlogo.png'
-                });
-            } else {
-                alert('Please enable browser notifications first!');
+                setIsNotificationsSaving(false);
             }
-        } catch (error) {
-            console.error('Error showing test notification:', error);
-        }
-    };
-
-
-    const handleNotificationToggle = (key: keyof NotificationSettings, value: boolean) => {
-        const updatedSettings = { ...currentNotifications, [key]: value };
-        setCurrentNotifications(updatedSettings);
-        _onSaveNotifications(updatedSettings); // Auto-save on toggle
-    };
+        },
+        [currentNotifications, userId, _onSaveNotifications]
+    );
 
     const handleEmailSettingsChange = <K extends keyof EmailSettings>(field: K, value: EmailSettings[K]) => {
         setEmailFormData(prev => ({ ...prev, [field]: value }));
+        setEmailSaveMessage(null);
+        setEmailSettingsError(null);
     }
 
-    const handleEmailSettingsSave = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleEmailSettingsSave = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        _onSaveEmailSettings(emailFormData);
-        alert('Email settings saved!');
+        setIsEmailSettingsSaving(true);
+        setEmailSettingsError(null);
+        setEmailSaveMessage(null);
+
+        try {
+            const response = await fetch(`/api/email/settings/${encodeURIComponent(userId)}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(emailFormData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+
+            const data = await response.json();
+            const nextSettings = (data?.settings as EmailSettings) || emailFormData;
+            setEmailFormData(nextSettings);
+            _onSaveEmailSettings(nextSettings);
+            setEmailSaveMessage('Email settings saved.');
+        } catch (error) {
+            console.error('Failed to save email settings:', error);
+            setEmailSettingsError('Failed to save email settings. Please try again.');
+        } finally {
+            setIsEmailSettingsSaving(false);
+        }
     }
 
     const handleCalendarSettingsChange = <K extends keyof CalendarSettings>(field: K, value: CalendarSettings[K]) => {
+        setCalendarSettingsMessage(null);
+        setCalendarSettingsError(null);
         setCalendarFormData(prev => ({ ...prev, [field]: value }));
     }
 
     const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
+        setSecurityError(null);
+        setSecurityMessage(null);
         setPasswords(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleUpdatePassword = (e: React.FormEvent) => {
+    const handleUpdatePassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (passwords.newPassword !== passwords.confirmNewPassword) {
-            alert("New passwords do not match.");
+
+        setSecurityError(null);
+        setSecurityMessage(null);
+
+        const current = passwords.currentPassword.trim();
+        const next = passwords.newPassword.trim();
+        const confirm = passwords.confirmNewPassword.trim();
+
+        if (!current || !next) {
+            setSecurityError('Please enter your current password and choose a new password.');
             return;
         }
-        if (!passwords.newPassword) {
-            alert("New password cannot be empty.");
+
+        if (next !== confirm) {
+            setSecurityError('New passwords do not match.');
             return;
         }
-        alert("Password updated successfully! (mocked)");
-        setPasswords({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
+
+        if (next.length < 8) {
+            setSecurityError('Password must be at least 8 characters.');
+            return;
+        }
+
+        setIsSecuritySaving(true);
+
+        try {
+            const { data: { user }, error: sessionError } = await supabase.auth.getUser();
+            if (sessionError || !user?.email) {
+                throw new Error('Unable to verify your session. Please sign in again.');
+            }
+
+            const email = user.email || userProfile.email;
+            if (!email) {
+                throw new Error('No email associated with this account.');
+            }
+
+            const { error: verifyError } = await supabase.auth.signInWithPassword({
+                email,
+                password: current
+            });
+
+            if (verifyError) {
+                setSecurityError('Current password is incorrect.');
+                return;
+            }
+
+            const { error: updateError } = await supabase.auth.updateUser({ password: next });
+            if (updateError) {
+                throw updateError;
+            }
+
+            setSecurityMessage('Password updated successfully.');
+            setPasswords({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to update password. Please try again.';
+            setSecurityError(message);
+        } finally {
+            setIsSecuritySaving(false);
+        }
     };
 
     
@@ -438,7 +1012,59 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
         { id: 'billing', label: 'Billing', icon: 'credit_card' },
     ];
 
+    const paypalAvailable = paymentProviders.includes('paypal');
 
+    useEffect(() => {
+        const listener = (event: MessageEvent) => {
+            const data = event?.data;
+            if (!data || typeof data !== 'object') {
+                return;
+            }
+
+            if (data.type === 'gmail-oauth-success') {
+                if (data.userId && data.userId !== userId) {
+                    return;
+                }
+
+                oauthPopupRef.current?.close();
+                oauthPopupRef.current = null;
+                setIsConnecting(null);
+                setEmailSettingsError(null);
+                setEmailSaveMessage('Gmail connected successfully.');
+                void reloadEmailSettings({ showLoading: false });
+            } else if (data.type === 'gmail-oauth-error') {
+                oauthPopupRef.current?.close();
+                oauthPopupRef.current = null;
+                setIsConnecting(null);
+                setEmailSettingsError(data.reason || 'Failed to connect Gmail.');
+            } else if (data.type === 'calendar-oauth-success') {
+                if (data.userId && data.userId !== userId) {
+                    return;
+                }
+
+                oauthPopupRef.current?.close();
+                oauthPopupRef.current = null;
+                setIsConnecting(null);
+                setIsGoogleCalendarConnected(true);
+                setCalendarSettingsError(null);
+                setCalendarSettingsMessage('Google Calendar connected successfully.');
+                setCalendarFormData(prev => ({
+                    ...prev,
+                    integrationType: 'google'
+                }));
+                void loadCalendarSettings({ showLoading: false });
+            } else if (data.type === 'calendar-oauth-error') {
+                oauthPopupRef.current?.close();
+                oauthPopupRef.current = null;
+                setIsConnecting(null);
+                setIsGoogleCalendarConnected(false);
+                setCalendarSettingsError('Failed to connect Google Calendar. Please try again.');
+            }
+        };
+
+        window.addEventListener('message', listener);
+        return () => window.removeEventListener('message', listener);
+    }, [reloadEmailSettings, loadCalendarSettings, userId]);
 
     return (
         <div className="py-10 px-4 sm:px-6 lg:px-0">
@@ -476,7 +1102,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                 <div className="bg-white border border-primary-100 rounded-xl shadow-sm">
                                     <button
                                         type="button"
-                                        onClick={() => setShowNotificationTips(prev => !prev)}
+                                        onClick={() => setShowNotificationTips((prev) => !prev)}
                                         className="flex items-center gap-2 w-full px-5 py-3 text-sm font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors rounded-t-xl"
                                         aria-expanded={showNotificationTips}
                                     >
@@ -508,369 +1134,45 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                     )}
                                 </div>
 
-                                {/* Email Notifications */}
-                                <FeatureSection title="Email Notifications" icon="mail">
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                            <div>
-                                                <h4 className="font-medium text-slate-900">New Leads</h4>
-                                                <p className="text-sm text-slate-500">Get notified when new leads are generated</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.newLead}
-                                                    onChange={(e) => handleNotificationToggle('newLead', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                            <div>
-                                                <h4 className="font-medium text-slate-900">Appointment Reminders</h4>
-                                                <p className="text-sm text-slate-500">Receive reminders before scheduled appointments</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.appointmentReminders}
-                                                    onChange={(e) => handleNotificationToggle('appointmentReminders', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                            <div>
-                                                <h4 className="font-medium text-slate-900">Follow-up Tasks</h4>
-                                                <p className="text-sm text-slate-500">Get notified about upcoming follow-up tasks</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.taskReminders}
-                                                    onChange={(e) => handleNotificationToggle('taskReminders', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                            <div>
-                                                <h4 className="font-medium text-slate-900">Marketing Updates</h4>
-                                                <p className="text-sm text-slate-500">Updates about marketing campaigns and sequences</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.marketingUpdates}
-                                                    onChange={(e) => handleNotificationToggle('marketingUpdates', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                            <div>
-                                                <h4 className="font-medium text-slate-900">Property Inquiries</h4>
-                                                <p className="text-sm text-slate-500">When someone inquires about your listings</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.propertyInquiries || true}
-                                                    onChange={(e) => handleNotificationToggle('propertyInquiries', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                            <div>
-                                                <h4 className="font-medium text-slate-900">Showing Confirmations</h4>
-                                                <p className="text-sm text-slate-500">When clients confirm or cancel showings</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.showingConfirmations || true}
-                                                    onChange={(e) => handleNotificationToggle('showingConfirmations', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
-                                {/* Instant Alerts */}
-                                <FeatureSection title="Instant Alerts" icon="notifications_active">
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
-                                            <div>
-                                                <h4 className="font-medium text-red-900">Hot Leads 🔥</h4>
-                                                <p className="text-sm text-red-600">High-priority leads that need immediate attention</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.hotLeads || true}
-                                                    onChange={(e) => handleNotificationToggle('hotLeads', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg border border-orange-200">
-                                            <div>
-                                                <h4 className="font-medium text-orange-900">Price Changes</h4>
-                                                <p className="text-sm text-orange-600">When competitors change pricing in your area</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.priceChanges || false}
-                                                    onChange={(e) => handleNotificationToggle('priceChanges', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-                                            <div>
-                                                <h4 className="font-medium text-green-900">Contract Milestones</h4>
-                                                <p className="text-sm text-green-600">Important contract deadlines and milestones</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.contractMilestones || true}
-                                                    onChange={(e) => handleNotificationToggle('contractMilestones', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
-                                {/* Browser Push Notifications */}
-                                <FeatureSection title="Browser Push Notifications" icon="notifications_active">
-                                    <div className="space-y-4">
-                                        {/* Permission Status */}
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                            <div className="flex items-center justify-between">
+                                {isNotificationsLoading ? (
+                                    <div className="px-5 py-12 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-sm text-slate-500">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="material-symbols-outlined w-5 h-5 text-blue-600">
-                                                        {notificationPermission === 'granted' ? 'check_circle' : 
-                                                         notificationPermission === 'denied' ? 'block' : 'help'}
-                                                    </span>
-                                                    <div>
-                                                        <h4 className="font-medium text-blue-900">
-                                                            {notificationPermission === 'granted' ? 'Notifications Enabled ✅' :
-                                                             notificationPermission === 'denied' ? 'Notifications Blocked ❌' :
-                                                             'Notifications Not Enabled'}
-                                                        </h4>
-                                                        <p className="text-sm text-blue-700">
-                                                            {notificationPermission === 'granted' ? 'You\'ll receive browser notifications on desktop and mobile' :
-                                                             notificationPermission === 'denied' ? 'Please enable notifications in your browser settings' :
-                                                             'Click "Enable" to receive instant notifications'}
-                                                        </p>
+                                            <div className="w-4 h-4 border-2 border-slate-300 border-t-primary-500 rounded-full animate-spin" />
+                                            Loading your preferences…
                                                     </div>
                                                 </div>
-                                                {notificationPermission !== 'granted' && (
-                                                    <button
-                                                        onClick={handleRequestNotificationPermission}
-                                                        disabled={isRequestingPermission || notificationPermission === 'denied'}
-                                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                    >
-                                                        {isRequestingPermission ? 'Requesting...' : 'Enable'}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Browser Notifications Toggle */}
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                            <div>
-                                                <h4 className="font-medium text-slate-900">Browser Notifications 📱</h4>
-                                                <p className="text-sm text-slate-500">Works on desktop, mobile, and inside your listing app</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.browserNotifications && notificationPermission === 'granted'}
-                                                    onChange={(e) => handleNotificationToggle('browserNotifications', e.target.checked)}
-                                                    disabled={notificationPermission !== 'granted'}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 peer-disabled:opacity-50"></div>
-                                            </label>
-                                        </div>
-
-                                        {/* Test Button */}
-                                        {notificationPermission === 'granted' && (
-                                            <div className="flex justify-center">
-                                                <button
-                                                    onClick={handleTestNotification}
-                                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors"
-                                                >
-                                                    <span className="material-symbols-outlined w-4 h-4">notification_add</span>
-                                                    Test Notification
-                                                </button>
+                                ) : (
+                                    <>
+                                        {notificationSaveError && (
+                                            <div className="px-5 py-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                                                {notificationSaveError}
                                             </div>
                                         )}
+                                        {isNotificationsSaving && (
+                                            <div className="px-5 py-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-700 flex items-center gap-2">
+                                                <div className="w-3 h-3 border-2 border-primary-300 border-t-primary-700 rounded-full animate-spin" />
+                                                Saving your changes…
+                                    </div>
+                                        )}
+
+                                        {NOTIFICATION_GROUPS.map((group) => (
+                                            <FeatureSection key={group.title} title={group.title} icon={group.icon}>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {group.items.map((item) => (
+                                                        <FeatureToggleRow
+                                                            key={item.key}
+                                                            label={item.label}
+                                                            description={item.description}
+                                                            enabled={currentNotifications[item.key]}
+                                                            onToggle={(value) => handleNotificationToggle(item.key, value)}
+                                                            disabled={isNotificationsSaving}
+                                                        />
+                                                    ))}
                                     </div>
                                 </FeatureSection>
-
-                                {/* Coming Soon Features */}
-                                <FeatureSection title="Advanced Notifications" icon="smartphone">
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg opacity-60">
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <h4 className="font-medium text-slate-900">SMS Alerts 📱</h4>
-                                                    <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">Coming Soon</span>
-                                                </div>
-                                                <p className="text-sm text-slate-500">Receive text messages for urgent matters</p>
-                                            </div>
-                                            <div className="w-11 h-6 bg-gray-200 rounded-full opacity-50">
-                                                <div className="w-5 h-5 bg-white border border-gray-300 rounded-full mt-0.5 ml-0.5"></div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg opacity-60">
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <h4 className="font-medium text-slate-900">Native Mobile App 📲</h4>
-                                                    <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Coming Soon</span>
-                                                </div>
-                                                <p className="text-sm text-slate-500">Push notifications in dedicated mobile app</p>
-                                            </div>
-                                            <div className="w-11 h-6 bg-gray-200 rounded-full opacity-50">
-                                                <div className="w-5 h-5 bg-white border border-gray-300 rounded-full mt-0.5 ml-0.5"></div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                            <div className="flex items-start gap-3">
-                                                <span className="material-symbols-outlined w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5">lightbulb</span>
-                                                <div>
-                                                    <h4 className="font-medium text-amber-900">Browser Push Works Everywhere!</h4>
-                                                    <p className="text-sm text-amber-800 mt-1">
-                                                        Browser notifications work on iPhone, Android, desktop, and even when your listing app is "installed" 
-                                                        to your phone's home screen. No need to wait for SMS or native apps!
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
-                                {/* Timing Preferences */}
-                                <FeatureSection title="Notification Timing" icon="schedule">
-                                    <div className="space-y-6">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-3">Quiet Hours</label>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-xs text-slate-500 mb-1">From</label>
-                                                    <input
-                                                        type="time"
-                                                        defaultValue="22:00"
-                                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs text-slate-500 mb-1">To</label>
-                                                    <input
-                                                        type="time"
-                                                        defaultValue="08:00"
-                                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <p className="text-xs text-slate-500 mt-2">No notifications during these hours (except emergencies)</p>
-                                        </div>
-                                        
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-3">Weekend Notifications</label>
-                                            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                                <div>
-                                                    <h4 className="font-medium text-slate-900">Saturday & Sunday</h4>
-                                                    <p className="text-sm text-slate-500">Receive notifications on weekends</p>
-                                                </div>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={currentNotifications.weekendNotifications !== false}
-                                                        onChange={(e) => handleNotificationToggle('weekendNotifications', e.target.checked)}
-                                                        className="sr-only peer"
-                                                    />
-                                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
-                                {/* Weekly Summary */}
-                                <FeatureSection title="Reports & Analytics" icon="summarize">
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                            <div>
-                                                <h4 className="font-medium text-slate-900">Weekly Performance Report</h4>
-                                                <p className="text-sm text-slate-500">Comprehensive weekly business summary</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.weeklyReport}
-                                                    onChange={(e) => handleNotificationToggle('weeklyReport', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                                            <div>
-                                                <h4 className="font-medium text-slate-900">Monthly Market Insights</h4>
-                                                <p className="text-sm text-slate-500">Market trends and opportunities in your area</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={currentNotifications.monthlyInsights || true}
-                                                    onChange={(e) => handleNotificationToggle('monthlyInsights', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                            <div className="flex items-start gap-3">
-                                                <span className="material-symbols-outlined w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5">info</span>
-                                                <div>
-                                                    <h4 className="font-medium text-blue-900">Smart Notifications</h4>
-                                                    <p className="text-sm text-blue-700 mt-1">
-                                                        Our AI learns your preferences and will only send you the most relevant notifications. 
-                                                        You can always fine-tune these settings as your business grows.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
+                                        ))}
+                                    </>
+                                )}
                             </div>
                         )}
                         {activeTab === 'email' && (
@@ -914,6 +1216,26 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                     )}
                                 </div>
 
+                                {isEmailSettingsLoading ? (
+                                    <div className="px-6 py-12 bg-white border border-slate-200 rounded-lg text-sm text-slate-500 flex items-center justify-center">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-4 h-4 border-2 border-slate-300 border-t-primary-500 rounded-full animate-spin" />
+                                            Loading your email settings…
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {emailSettingsError && (
+                                            <div className="px-6 py-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                                                {emailSettingsError}
+                                            </div>
+                                        )}
+                                        {emailSaveMessage && (
+                                            <div className="px-6 py-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                                                {emailSaveMessage}
+                                            </div>
+                                        )}
+
                                 {/* Email Account Connections */}
                                 <div className="bg-white rounded-lg border border-slate-200 p-6">
                                     <h3 className="text-lg font-semibold text-slate-800 mb-4">Email Account Connections</h3>
@@ -922,9 +1244,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                     </p>
                                     
                                     <div className="space-y-4">
-                                        {/* Connection Options */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                            {/* OAuth Connection */}
                                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                                 <h4 className="text-sm font-semibold text-blue-800 mb-2">🔐 Direct Connection (Recommended)</h4>
                                                 <div className="text-xs text-blue-700 space-y-1">
@@ -934,8 +1254,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                                     <p>• One-click setup with OAuth</p>
                                                 </div>
                                             </div>
-
-                                            {/* Email Forwarding */}
                                             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                                                 <h4 className="text-sm font-semibold text-green-800 mb-2">📧 Email Forwarding (Any Provider)</h4>
                                                 <div className="text-xs text-green-700 space-y-1">
@@ -947,19 +1265,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                             </div>
                                         </div>
 
-                                        {/* Current Setup Status */}
                                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
                                             <h4 className="text-sm font-semibold text-slate-700 mb-2">📬 Your Unique Forwarding Address</h4>
                                             <div className="flex items-center gap-3">
                                                 <input
                                                     type="text"
                                                     readOnly
-                                                    value={`agent-${userProfile.email?.split('@')[0] || 'demo'}@homelistingai.com`}
+                                                            value={forwardingAddress}
                                                     className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded text-sm font-mono"
                                                 />
                                                 <button
                                                     type="button"
-                                                    onClick={() => navigator.clipboard.writeText(`agent-${userProfile.email?.split('@')[0] || 'demo'}@homelistingai.com`)}
+                                                            onClick={() => navigator.clipboard?.writeText(forwardingAddress)}
                                                     className="px-3 py-2 bg-slate-600 text-white text-xs rounded hover:bg-slate-700 transition"
                                                 >
                                                     Copy
@@ -971,22 +1288,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                             </p>
                                         </div>
 
-                                        {/* Email preview */}
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Email Preview</label>
-                                                <div className="mt-2 p-3 bg-white border border-slate-200 rounded-md text-sm">
-                                                    <p><strong>From:</strong> {userProfile.name} &lt;{userProfile.email}&gt;</p>
-                                                    <p className="text-xs text-green-600">✓ Looks 100% authentic</p>
-                                                </div>
-                                            </div>
-
-                                        {/* Connection Status */}
                                         <div className="space-y-4">
-                                            {/* Connected Accounts */}
                                             {emailConnections.length > 0 && (
                                                 <div className="space-y-2">
                                                     <h4 className="text-sm font-medium text-slate-700">Connected Accounts</h4>
-                                                    {emailConnections.map(connection => (
+                                                            {emailConnections.map((connection) => (
                                                         <div key={connection.provider} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
                                                             <div className="flex items-center gap-3">
                                                                 <span className="text-lg">
@@ -998,23 +1304,31 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                                                 </div>
                                                             </div>
                                                             <button
+                                                                        type="button"
                                                                 onClick={() => handleEmailDisconnect(connection.provider)}
-                                                                className="text-xs px-3 py-1 text-red-600 hover:bg-red-100 rounded"
-                                                            >
-                                                                Disconnect
+                                                                        disabled={isConnecting === connection.provider || isEmailSettingsSaving}
+                                                                        className="text-xs px-3 py-1 text-red-600 hover:bg-red-100 rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isConnecting === connection.provider ? (
+                                                                            <>
+                                                                                <div className="w-3 h-3 border-2 border-red-200 border-t-red-500 rounded-full animate-spin"></div>
+                                                                                Removing...
+                                                                            </>
+                                                                        ) : (
+                                                                            'Disconnect'
+                                                                        )}
                                                  </button>
                                                         </div>
                                                     ))}
                                                 </div>
                                             )}
 
-                                            {/* Connection Buttons */}
                                             <div className="flex flex-col sm:flex-row gap-3">
-                                                {!emailConnections.find(c => c.provider === 'gmail') && (
+                                                        {!emailConnections.find((c) => c.provider === 'gmail') && (
                                                     <button
                                                         type="button"
                                                         onClick={handleGmailConnect}
-                                                        disabled={isConnecting === 'gmail'}
+                                                                disabled={isConnecting === 'gmail' || isEmailSettingsSaving}
                                                         className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 transition"
                                                     >
                                                         {isConnecting === 'gmail' ? (
@@ -1027,21 +1341,19 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                                         )}
                                                  </button>
                                                 )}
-
                                             </div>
+
                                             <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-3">
                                                 <p className="font-medium text-slate-700 mb-1">📬 Other providers</p>
                                                 <p>Direct Outlook OAuth is coming soon. Until then, use the forwarding address above so Outlook or any other email service still routes replies back to your inbox.</p>
                                             </div>
 
-                                            {/* Help Text */}
                                             {emailConnections.length === 0 && (
                                                 <div className="space-y-3">
                                                     <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded p-3">
                                                         <p className="font-medium text-blue-800 mb-1">🔐 OAuth Connection</p>
                                                         <p>Secure authentication. Your password is never stored or seen by our app.</p>
                                                     </div>
-                                                    
                                                     <div className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded p-3">
                                                         <p className="font-medium text-amber-800 mb-1">💡 Don't have Gmail?</p>
                                                         <p>No problem! Use the forwarding address above with any email provider (Outlook, Yahoo, AOL, custom domains, etc.). Just set up email forwarding in your current email client.</p>
@@ -1051,9 +1363,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                         </div>
                                     </div>
                                 </div>
-                                
-
-
 
                                 {/* Email Preferences */}
                                 <div className="bg-white rounded-lg border border-slate-200 p-6">
@@ -1075,6 +1384,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                             />
                                         </div>
 
+                                                <div>
+                                                    <label htmlFor="fromEmail" className="block text-sm font-medium text-slate-700 mb-1">
+                                                        From Email
+                                                    </label>
+                                                    <input
+                                                        type="email"
+                                                        id="fromEmail"
+                                                        name="fromEmail"
+                                                        value={emailFormData.fromEmail || ''}
+                                                        onChange={(e) => handleEmailSettingsChange('fromEmail', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="you@yourdomain.com"
+                                            />
+                                        </div>
+
                                         <div>
                                             <label htmlFor="signature" className="block text-sm font-medium text-slate-700 mb-1">
                                                 Email Signature
@@ -1086,7 +1410,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                                 onChange={(e) => handleEmailSettingsChange('signature', e.target.value)}
                                                 rows={4}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="Best regards,&#10;Your Name&#10;Real Estate Agent&#10;Phone: (555) 123-4567"
+                                                        placeholder="Best regards,\nYour Name\nReal Estate Agent\nPhone: (555) 123-4567"
                                             />
                                         </div>
 
@@ -1123,83 +1447,39 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                 <div className="flex justify-end">
                                     <button
                                         type="submit"
-                                        className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                                    >
-                                        Save Email Settings
+                                                disabled={isEmailSettingsSaving}
+                                                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {isEmailSettingsSaving ? (
+                                                    <>
+                                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                        Saving…
+                                                    </>
+                                                ) : (
+                                                    'Save Email Settings'
+                                                )}
                                     </button>
                                 </div>
-                            </form>
-                        )}
-                        {activeTab === 'calendar' && (
-                            <form onSubmit={handleCalendarSettingsSave} className="p-8">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-slate-900">Calendar Integration</h2>
-                                    <p className="text-slate-500 mt-1">Connect your calendar to sync appointments and automate scheduling.</p>
-                                </div>
-                                 <div className="mt-8 pt-8 border-t border-slate-200">
-                                    <div className="mb-4">
-                                        <h3 className="text-lg font-semibold text-slate-800">Choose Calendar Service</h3>
-                                        <p className="text-sm text-slate-500 mt-1">Tap a card to select your preferred calendar</p>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
-                                        <IntegrationCard
-                                            icon="calendar_month"
-                                            title="Google Calendar"
-                                            description="Sync with your Google account for seamless scheduling."
-                                            tags={[{ label: 'Popular', color: 'blue' }]}
-                                            isSelected={calendarFormData.integrationType === 'google'}
-                                            onClick={() => handleCalendarSettingsChange('integrationType', 'google')}
-                                        />
-                                         <IntegrationCard
-                                            icon="calendar_month"
-                                            title="Apple Calendar"
-                                            description="Integrate with your iCloud Calendar."
-                                            tags={[{ label: 'Apple', color: 'green' }]}
-                                            isSelected={calendarFormData.integrationType === 'apple'}
-                                            onClick={() => handleCalendarSettingsChange('integrationType', 'apple')}
-                                        />
-                                    </div>
-                                </div>
-                                {calendarFormData.integrationType && (
-                                    <div className="mt-8 pt-8 border-t border-slate-200">
-                                         <h3 className="text-xl font-bold text-slate-800 mb-4 capitalize">{calendarFormData.integrationType} Calendar Setup</h3>
-                                         <div className="p-6 bg-slate-50 rounded-lg border border-slate-200 space-y-4">
-                                            <div>
-                                                <h4 className="font-semibold text-slate-700">How it Works</h4>
-                                                <p className="text-sm text-slate-600 mt-1">Connecting your calendar allows our AI to check your real-time availability, schedule showings, and add appointments directly to your calendar, preventing double-bookings.</p>
-                                            </div>
-                                            <div>
-                                                <h4 className="font-semibold text-slate-700">Example Event</h4>
-                                                <div className="mt-2 p-3 bg-white border border-slate-200 rounded-md text-sm">
-                                                    <p className="font-bold text-primary-700">Showing: 123 Oak St w/ John Doe</p>
-                                                    <p className="text-slate-500">Tuesday, August 12, 2:00 PM - 2:30 PM</p>
-                                                </div>
-                                            </div>
-                                             <div className="pt-4">
-                                                 <button type="button" className="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 transition">
-                                                    <span className="font-semibold text-slate-700">Connect with {calendarFormData.integrationType.charAt(0).toUpperCase() + calendarFormData.integrationType.slice(1)}</span>
-                                                 </button>
-                                             </div>
-                                         </div>
-                                    </div>
+                                    </>
                                 )}
-                                <FeatureSection title="AI Scheduling Features" icon="calendar_today">
-                                    <FeatureToggleRow label="AI Scheduling" description="Let the AI assistant find optimal times and book appointments directly." enabled={calendarFormData.aiScheduling} onToggle={(val) => handleCalendarSettingsChange('aiScheduling', val)} />
-                                    <FeatureToggleRow label="Conflict Detection" description="Prevent double-bookings by checking real-time availability." enabled={calendarFormData.conflictDetection} onToggle={(val) => handleCalendarSettingsChange('conflictDetection', val)} />
-                                    <FeatureToggleRow label="Automatic Email Reminders" description="Send automated reminders to clients before an appointment." enabled={calendarFormData.emailReminders} onToggle={(val) => handleCalendarSettingsChange('emailReminders', val)} />
-                                    <FeatureToggleRow label="Auto-Confirm Appointments" description="Automatically confirm appointments without manual approval." enabled={calendarFormData.autoConfirm} onToggle={(val) => handleCalendarSettingsChange('autoConfirm', val)} />
-                                </FeatureSection>
-                                <div className="mt-8 pt-5 border-t border-slate-200 flex justify-end">
-                                    <button type="submit" className="px-6 py-2.5 font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition">
-                                        Save Calendar Settings
-                                    </button>
-                                </div>
                             </form>
                         )}
                         {activeTab === 'security' && (
                            <div className="p-8">
                                 <h2 className="text-2xl font-bold text-slate-900">Security Settings</h2>
                                 <p className="text-slate-500 mt-1">Manage your account security and privacy settings</p>
+
+                                {securityError && (
+                                    <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
+                                        {securityError}
+                                    </div>
+                                )}
+
+                                {securityMessage && (
+                                    <div className="mt-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700" role="status" aria-live="polite">
+                                        {securityMessage}
+                                    </div>
+                                )}
 
                                 {/* Change Password */}
                                 <div className="mt-8 pt-8 border-t border-slate-200">
@@ -1229,9 +1509,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                             value={passwords.confirmNewPassword} 
                                             onChange={handlePasswordChange}
                                         />
-                                        <div>
-                                            <button type="submit" className="px-5 py-2 font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition">
-                                                Update Password
+                                            <div>
+                                                <button
+                                                    type="submit"
+                                                    disabled={isSecuritySaving}
+                                                    className="px-5 py-2 font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                {isSecuritySaving ? 'Updating…' : 'Update Password'}
                                             </button>
                                         </div>
                                     </form>
@@ -1241,6 +1525,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                         
                         {activeTab === 'calendar' && (
                             <form onSubmit={handleCalendarSettingsSave} className="p-8 space-y-8">
+                                {calendarSettingsError && (
+                                    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                        {calendarSettingsError}
+                                    </div>
+                                )}
+                                {calendarSettingsMessage && (
+                                    <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                                        {calendarSettingsMessage}
+                                    </div>
+                                )}
                                 <div className="bg-white border border-primary-100 rounded-xl shadow-sm">
                                     <button
                                         type="button"
@@ -1279,6 +1573,53 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                     <h2 className="text-2xl font-bold text-slate-900">📅 Calendar Integration</h2>
                                     <p className="text-slate-500 mt-1">Connect your Google Calendar to automatically schedule consultations and manage appointments.</p>
                                  </div>
+
+                                <div className="mt-6 bg-white border border-slate-200 rounded-xl">
+                                    <div className="p-6">
+                                        <div className="mb-4">
+                                            <h3 className="text-lg font-semibold text-slate-800">Choose Calendar Service</h3>
+                                            <p className="text-sm text-slate-500 mt-1">Tap a card to select your preferred calendar</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
+                                            <IntegrationCard
+                                                icon="calendar_month"
+                                                title="Google Calendar"
+                                                description="Sync with your Google account for seamless scheduling."
+                                                tags={[{ label: 'Popular', color: 'blue' }]}
+                                                isSelected={calendarFormData.integrationType === 'google'}
+                                                onClick={() => handleCalendarSettingsChange('integrationType', 'google')}
+                                            />
+                                            <IntegrationCard
+                                                icon="calendar_month"
+                                                title="Apple Calendar"
+                                                description="Integrate with your iCloud Calendar."
+                                                tags={[{ label: 'Apple', color: 'green' }]}
+                                                isSelected={calendarFormData.integrationType === 'apple'}
+                                                onClick={() => handleCalendarSettingsChange('integrationType', 'apple')}
+                                            />
+                                        </div>
+                                    </div>
+                                    {calendarFormData.integrationType && (
+                                        <div className="border-t border-slate-200 p-6 space-y-4 bg-slate-50">
+                                            <div>
+                                                <h4 className="font-semibold text-slate-700">How it Works</h4>
+                                                <p className="text-sm text-slate-600 mt-1">
+                                                    Connecting your calendar allows our AI to check availability, schedule showings, and add appointments directly to your calendar without double-bookings.
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-semibold text-slate-700">Example Event</h4>
+                                                <div className="mt-2 p-3 bg-white border border-slate-200 rounded-md text-sm">
+                                                    <p className="font-bold text-primary-700">Showing: 123 Oak St w/ John Doe</p>
+                                                    <p className="text-slate-500">Tuesday, August 12, 2:00 PM - 2:30 PM</p>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-slate-600">
+                                                After selecting {calendarFormData.integrationType === 'google' ? 'Google' : 'your preferred'} calendar, connect your account below to enable automatic scheduling.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Google Calendar Connection */}
                                 <FeatureSection title="Google Calendar Connection" icon="calendar_today">
@@ -1358,23 +1699,25 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                 <FeatureSection title="Booking Preferences" icon="tune">
                                     <div className="space-y-6">
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-3">Available Hours</label>
+                                            <label className="block text-sm font-medium text-slate-700 mb-3" htmlFor="calendar-start-time">Available Hours</label>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
-                                                    <label className="block text-xs text-slate-500 mb-1">Start Time</label>
+                                                    <label className="block text-xs text-slate-500 mb-1" htmlFor="calendar-start-time">Start Time</label>
                                                     <input
                                                         type="time"
                                                         name="startTime"
+                                                        id="calendar-start-time"
                                                         value={calendarFormData.workingHours?.start || '09:00'}
                                                         onChange={handleCalendarInputChange}
                                                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs text-slate-500 mb-1">End Time</label>
+                                                    <label className="block text-xs text-slate-500 mb-1" htmlFor="calendar-end-time">End Time</label>
                                                     <input
                                                         type="time"
                                                         name="endTime"
+                                                        id="calendar-end-time"
                                                         value={calendarFormData.workingHours?.end || '17:00'}
                                                         onChange={handleCalendarInputChange}
                                                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1402,9 +1745,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-3">Consultation Duration</label>
+                                            <label className="block text-sm font-medium text-slate-700 mb-3" htmlFor="calendar-default-duration">Consultation Duration</label>
                                             <select
                                                 name="defaultDuration"
+                                                id="calendar-default-duration"
                                                 value={calendarFormData.defaultDuration || 30}
                                                 onChange={handleCalendarInputChange}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1419,9 +1763,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-3">Buffer Time</label>
+                                            <label className="block text-sm font-medium text-slate-700 mb-3" htmlFor="calendar-buffer-time">Buffer Time</label>
                                             <select
                                                 name="bufferTime"
+                                                id="calendar-buffer-time"
                                                 value={calendarFormData.bufferTime || 15}
                                                 onChange={handleCalendarInputChange}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1504,9 +1849,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                     </button>
                                     <button
                                         type="submit"
-                                        className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                                        disabled={isCalendarSettingsSaving || isCalendarSettingsLoading}
+                                        className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                                     >
-                                        Save Calendar Settings
+                                        {isCalendarSettingsSaving ? 'Saving…' : 'Save Calendar Settings'}
                                     </button>
                                 </div>
                             </form>
@@ -1723,6 +2069,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                     <h2 className="text-2xl font-bold text-slate-900">💳 Billing & Subscription</h2>
                                     <p className="text-slate-500 mt-1">Manage your subscription, billing information, and payment methods.</p>
                                 </div>
+                                {billingError && (
+                                    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
+                                        {billingError}
+                                    </div>
+                                )}
+                                {billingMessage && (
+                                    <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700" role="status" aria-live="polite">
+                                        {billingMessage}
+                                    </div>
+                                )}
                                 <div className="bg-white border border-primary-100 rounded-xl shadow-sm">
                                     <button
                                         type="button"
@@ -1808,6 +2164,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                         <div className="mt-6 flex flex-wrap gap-3">
                                             <button
                                                 type="button"
+                                                onClick={handlePayPalCheckout}
+                                                disabled={!paypalAvailable || isBillingCheckoutLoading}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/40 bg-white/15 text-white font-semibold shadow transition-colors ${(!paypalAvailable || isBillingCheckoutLoading) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/25'}`}
+                                            >
+                                                <span className="material-symbols-outlined text-base">account_balance</span>
+                                                {isBillingCheckoutLoading ? 'Launching checkout...' : paypalAvailable ? 'Manage via PayPal' : 'PayPal unavailable'}
+                                            </button>
+                                            <button
+                                                type="button"
                                                 onClick={handleCancelMembership}
                                                 className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg border border-white/20 hover:bg-white/20 transition-colors"
                                             >
@@ -1823,6 +2188,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
                                                 Talk to Support
                                             </button>
                                         </div>
+                                        {!paypalAvailable && (
+                                            <p className="mt-3 text-xs text-white/80">
+                                                PayPal checkout isn&apos;t available yet. Add your PayPal credentials to enable in-app billing.
+                                            </p>
+                                        )}
                                     </div>
                                 </FeatureSection>
 
@@ -1911,3 +2281,4 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userProfile, onSaveProfile:
 };
 
 export default SettingsPage;
+

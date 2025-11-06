@@ -649,7 +649,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     <button 
                       onClick={async () => {
                         try {
-                          const ok = await googleOAuthService.requestAccess()
+                          const ok = await googleOAuthService.requestAccess({ context: 'calendar' })
                           setGoogleConnected(ok)
                           if (!ok) {
                             console.log('Google auth cancelled or failed')

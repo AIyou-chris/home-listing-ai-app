@@ -2,9 +2,9 @@
 
 We now have an `AgentDashboardBlueprint` component that mirrors the existing demo dashboard so we can iterate module by module. Suggested sequence for enhancements:
 
-1. **Hero / Overview header**
-   - Swap demo copy for production-ready onboarding text.
-   - Surface agent slug + onboarding progress and include quick links to profile, templates, funnels.
+1. **Hero / Overview header** *(✅ 2025-11-03: Blueprint hero implemented with onboarding card, slug pill, quick links)*
+   - Swap demo copy for production-ready onboarding text. *(done)*
+   - Surface agent slug + onboarding progress and include quick links to profile, templates, funnels. *(done)*
 
 2. **Stats row**
    - Replace static counts with Supabase queries (listings, new leads, active automations, pipeline velocity).
@@ -19,6 +19,7 @@ We now have an `AgentDashboardBlueprint` component that mirrors the existing dem
    - Support quick actions (call, email, open conversation) with confirmation modals.
 
 5. **Listings column**
+   - ✅ 2025-11-03: Blueprint reads/writes the Supabase `properties` table (falls back to demo data only when empty).
    - Tie into Supabase `listings` table; allow status badges + “open AI listing app” action.
    - Add “Add new listing” card for empty state.
 

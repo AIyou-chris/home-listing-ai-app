@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageCircle, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Check } from 'lucide-react';
+import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageCircle, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import QRCodeManagementPage from './QRCodeManagementPage';
 import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
 import { continueConversation } from '../services/openaiService';
 import { notifyProfileChange } from '../services/agentProfileService';
-import { createShortLink, ShortLink } from '../services/linkShortenerService';
+
+type EditableElement = HTMLInputElement | HTMLTextAreaElement;
 
 // Use the AICardProfile type from the service
 type AgentProfile = AICardProfile;
@@ -81,20 +82,90 @@ const AICardPage: React.FC = () => {
   const headshotInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
-  const [shortLink, setShortLink] = useState<ShortLink | null>(null);
-  const [isShortLinkLoading, setIsShortLinkLoading] = useState(false);
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const hasUnsavedChangesRef = useRef(false);
+  const serverProfileRef = useRef<AgentProfile | null>(null);
+
+  const sanitizeAssetValue = (
+    value: string | null | undefined,
+    fallback: string | null | undefined
+  ): string | null => {
+    if (value === null) return null;
+    if (value === undefined) return fallback ?? null;
+    const normalized = value.toString();
+    if (normalized.startsWith('blob:')) {
+      return fallback ?? null;
+    }
+    return normalized;
+  };
+
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Unable to read file as data URL'));
+        }
+      };
+      reader.onerror = () => {
+        reject(reader.error ?? new Error('FileReader failed'));
+      };
+      reader.readAsDataURL(file);
+    });
+
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChangesRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
 
   const persistForm = useCallback(async (overrides?: Partial<AgentProfile>) => {
     setIsSaving(true);
     try {
-      const payload = overrides ? { ...form, ...overrides } : form;
-      const savedProfile = await updateAICardProfile(payload);
+      const base = serverProfileRef.current
+        ? { ...serverProfileRef.current, ...form }
+        : { ...form };
+      const payload = overrides ? { ...base, ...overrides } : base;
+
+      const sanitizedPayload: Partial<AgentProfile> = {
+        ...payload,
+        headshot: sanitizeAssetValue(payload.headshot, serverProfileRef.current?.headshot ?? null),
+        logo: sanitizeAssetValue(payload.logo, serverProfileRef.current?.logo ?? null)
+      };
+
+      const fallback = serverProfileRef.current ?? createDefaultProfile();
+      const ensureValue = (value: string | null | undefined, fallbackValue: string): string => {
+        if (typeof value === 'string' && value.trim().length > 0) return value;
+        if (typeof value === 'string') return value;
+        return fallbackValue;
+      };
+
+      sanitizedPayload.fullName = ensureValue(sanitizedPayload.fullName, fallback.fullName);
+      sanitizedPayload.professionalTitle = ensureValue(sanitizedPayload.professionalTitle, fallback.professionalTitle);
+      sanitizedPayload.company = sanitizedPayload.company ?? fallback.company;
+      sanitizedPayload.phone = sanitizedPayload.phone ?? fallback.phone;
+      sanitizedPayload.email = sanitizedPayload.email ?? fallback.email;
+      sanitizedPayload.website = sanitizedPayload.website ?? fallback.website;
+      sanitizedPayload.bio = sanitizedPayload.bio ?? fallback.bio;
+      sanitizedPayload.brandColor = sanitizedPayload.brandColor ?? fallback.brandColor;
+      sanitizedPayload.socialMedia = sanitizedPayload.socialMedia ?? fallback.socialMedia;
+      console.log('[AI Card] persistForm payload', sanitizedPayload)
+      const savedProfile = await updateAICardProfile(sanitizedPayload);
+      console.log('[AI Card] persistForm response', savedProfile)
       setForm(savedProfile);
       setHasUnsavedChanges(false);
       notifyProfileChange(mapToCentralProfile(savedProfile));
+      serverProfileRef.current = savedProfile;
       return savedProfile;
     } catch (error) {
       console.error('Failed to save profile changes:', error);
@@ -111,6 +182,7 @@ const AICardPage: React.FC = () => {
         setIsLoading(true);
         const loadedProfile = await getAICardProfile();
         setForm(loadedProfile);
+        serverProfileRef.current = loadedProfile;
         setHasUnsavedChanges(false);
         setChatMessages([
           { sender: 'ai', text: buildAssistantGreeting(loadedProfile.fullName) }
@@ -125,49 +197,75 @@ const AICardPage: React.FC = () => {
     loadProfile();
   }, []);
 
-  useEffect(() => {
-    if (!form?.id || shortLink) return;
+  const schedule = (fn: () => void) => {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(fn);
+    } else {
+      setTimeout(fn, 0);
+    }
+  };
 
-    const destination =
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/demo/ai-card/${encodeURIComponent(form.id)}`
-        : `https://demo.homelisting.ai/ai-card/${form.id}`;
+  const ensureFocus = (element?: EditableElement, value?: string | null) => {
+    if (!element) return;
+    const elementId = element.id;
+    const resolvedValue = value ?? '';
+    schedule(() => {
+      const target = (elementId ? document.getElementById(elementId) : element) as EditableElement | null;
+      if (!target || document.activeElement === target || !target.isConnected) {
+        return;
+      }
+      target.focus();
+      if (typeof target.setSelectionRange === 'function') {
+        try {
+          const caret = resolvedValue.length;
+          target.setSelectionRange(caret, caret);
+        } catch (error) {
+          console.warn('[AI Card] unable to set selection range', error);
+        }
+      }
+    });
+  };
 
-    const slug =
-      form.fullName
-        ?.toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
-        .slice(0, 20) || `card-${form.id}`;
-
-    setIsShortLinkLoading(true);
-    createShortLink({
-      destination,
-      slashtag: `card-${slug}`,
-      title: `AI Card | ${form.fullName}`,
-      description: 'AI Card generated from the HomeListingAI demo'
-    })
-      .then(result => setShortLink(result))
-      .catch(error => {
-        console.warn('[AICardPage] Short link generation failed', error);
-      })
-      .finally(() => setIsShortLinkLoading(false));
-  }, [form?.id, form?.fullName, shortLink]);
-
-  const handleInputChange = <Key extends keyof AgentProfile>(field: Key, value: AgentProfile[Key]) => {
+  const handleInputChange = <Key extends keyof AgentProfile>(
+    field: Key,
+    value: AgentProfile[Key],
+    element?: EditableElement
+  ) => {
+    console.log('[AI Card] handleInputChange', field, value)
     setForm(prev => ({
       ...prev,
       [field]: value
     }));
     setHasUnsavedChanges(true);
+    const stringValue = typeof value === 'string' ? value : value == null ? '' : String(value);
+    ensureFocus(element, stringValue);
+    if (serverProfileRef.current) {
+      serverProfileRef.current = {
+        ...serverProfileRef.current,
+        [field]: value as AgentProfile[Key]
+      };
+    }
   };
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const el = document.activeElement as HTMLElement | null
+      console.log('[AI Card] state phone now', form.phone, 'activeElement', el?.id, el?.tagName)
+    } else {
+      console.log('[AI Card] state phone now', form.phone, 'activeElement n/a')
+    }
+  }, [form.phone]);
 
   const handleManualSave = useCallback(async () => {
     if (!hasUnsavedChanges) return;
     await persistForm();
   }, [hasUnsavedChanges, persistForm]);
 
-  const handleSocialMediaChange = (platform: keyof AgentProfile['socialMedia'], value: string) => {
+  const handleSocialMediaChange = (
+    platform: keyof AgentProfile['socialMedia'],
+    value: string,
+    element?: EditableElement
+  ) => {
     const updatedSocialMedia: AgentProfile['socialMedia'] = {
       ...form.socialMedia,
       [platform]: value
@@ -178,37 +276,93 @@ const AICardPage: React.FC = () => {
       socialMedia: updatedSocialMedia
     }));
     setHasUnsavedChanges(true);
+    ensureFocus(element, value);
   };
 
   const handleImageUpload = async (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const file = event.target.files?.[0]
+    if (!file) {
+      setForm(prev => ({
+        ...prev,
+        [type]: serverProfileRef.current?.[type] ?? prev[type] ?? null
+      }))
+      return
+    }
 
-    const previewUrl = URL.createObjectURL(file);
-    setForm(prev => ({
-      ...prev,
-      [type]: previewUrl
-    }));
-    setHasUnsavedChanges(true);
-
-    let uploadSucceeded = false;
+    let uploadSucceeded = false
+    let uploadedValue: string | null = null
     try {
-      const uploadResult = await uploadAiCardAsset(type, file);
-      await persistForm({
-        [type]: uploadResult.path
-      });
-      uploadSucceeded = true;
+      const uploadResult = await uploadAiCardAsset(type, file)
+      uploadedValue = uploadResult.path
+      await persistForm({ [type]: uploadedValue })
+      uploadSucceeded = true
     } catch (error) {
-      console.error('Failed to upload image:', error);
-    } finally {
-      if (uploadSucceeded) {
-        URL.revokeObjectURL(previewUrl);
+      console.error('Failed to upload image:', error)
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('User authentication required')) {
+        try {
+          const dataUrl = await fileToDataUrl(file)
+          uploadedValue = dataUrl
+          await persistForm({ [type]: dataUrl })
+          uploadSucceeded = true
+        } catch (fallbackError) {
+          console.error('Failed to persist image fallback:', fallbackError)
+        }
       }
+
+      if (!uploadSucceeded) {
+        setForm(prev => ({
+          ...prev,
+          [type]: serverProfileRef.current?.[type] ?? prev[type] ?? null
+        }))
+        setHasUnsavedChanges(true)
+        if (serverProfileRef.current) {
+          serverProfileRef.current = {
+            ...serverProfileRef.current,
+            [type]: serverProfileRef.current?.[type] ?? null
+          }
+        }
+      }
+    } finally {
       if (event.target) {
-        event.target.value = '';
+        event.target.value = ''
       }
     }
-  };
+
+    if (uploadSucceeded && uploadedValue) {
+      setForm(prev => ({
+        ...prev,
+        [type]: uploadedValue
+      }))
+      setHasUnsavedChanges(false)
+    }
+  }
+
+  const handleRemoveAsset = async (type: 'headshot' | 'logo') => {
+    setForm(prev => ({
+      ...prev,
+      [type]: null
+    }))
+    setHasUnsavedChanges(true)
+    if (serverProfileRef.current) {
+      serverProfileRef.current = {
+        ...serverProfileRef.current,
+        [type]: null
+      }
+    }
+
+    try {
+      const savedProfile = await persistForm({ [type]: null })
+      if (serverProfileRef.current && savedProfile) {
+        serverProfileRef.current = {
+          ...serverProfileRef.current,
+          [type]: savedProfile[type]
+        }
+      }
+    } catch (error) {
+      console.error('Failed to remove asset:', error)
+    }
+  }
 
   const toggleSection = (section: string) => {
     setCollapsedSections(prev => ({
@@ -610,68 +764,6 @@ const AICardPage: React.FC = () => {
         </div>
       </div>
 
-      {(isShortLinkLoading || shortLink) && (
-        <div className="p-4 sm:p-6">
-          <div className="max-w-screen-2xl mx-auto">
-            <div className="bg-white border border-primary-100 rounded-xl shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="rounded-full bg-primary-100 text-primary-700 p-2">
-                  <LinkIcon className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-700">Branded short link</p>
-                  <p className="text-xs text-slate-500">
-                    Share a trackable link to this AI Card. Great for email signatures, QR codes, and social bios.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 w-full sm:w-auto">
-                {isShortLinkLoading ? (
-                  <span className="text-slate-400">Generating link…</span>
-                ) : shortLink ? (
-                  <>
-                    <span className="truncate max-w-[180px] sm:max-w-xs">{shortLink.shortUrl}</span>
-                    <button
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(shortLink.shortUrl);
-                          setCopyState('copied');
-                          setTimeout(() => setCopyState('idle'), 2000);
-                        } catch (error) {
-                          console.error('Clipboard copy failed', error);
-                          setCopyState('error');
-                          setTimeout(() => setCopyState('idle'), 2000);
-                        }
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-primary-600 hover:text-primary-700 transition-colors"
-                    >
-                      {copyState === 'copied' ? (
-                        <>
-                          <Check className="w-3 h-3" />
-                          Copied
-                        </>
-                      ) : copyState === 'error' ? (
-                        <>
-                          <Copy className="w-3 h-3" />
-                          Retry
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3" />
-                          Copy
-                        </>
-                      )}
-                    </button>
-                  </>
-                ) : (
-                  <span className="text-slate-400">Unable to create link automatically.</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Help / Pro Tips */}
       <div className="p-4 sm:p-6">
         <div className="max-w-screen-2xl mx-auto">
@@ -735,7 +827,7 @@ const AICardPage: React.FC = () => {
                       id="ai-card-full-name"
                       type="text"
                       value={form.fullName}
-                      onChange={(e) => handleInputChange('fullName', e.target.value)}
+                      onChange={(e) => handleInputChange('fullName', e.target.value, e.target)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -748,7 +840,7 @@ const AICardPage: React.FC = () => {
                       id="ai-card-professional-title"
                       type="text"
                       value={form.professionalTitle}
-                      onChange={(e) => handleInputChange('professionalTitle', e.target.value)}
+                      onChange={(e) => handleInputChange('professionalTitle', e.target.value, e.target)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -761,7 +853,7 @@ const AICardPage: React.FC = () => {
                       id="ai-card-company"
                       type="text"
                       value={form.company}
-                      onChange={(e) => handleInputChange('company', e.target.value)}
+                      onChange={(e) => handleInputChange('company', e.target.value, e.target)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -775,14 +867,14 @@ const AICardPage: React.FC = () => {
                         id="ai-card-brand-color-picker"
                         type="color"
                         value={form.brandColor}
-                        onChange={(e) => handleInputChange('brandColor', e.target.value)}
+                        onChange={(e) => handleInputChange('brandColor', e.target.value, e.target)}
                         className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
                       />
                       <input
                         id="ai-card-brand-color"
                         type="text"
                         value={form.brandColor}
-                        onChange={(e) => handleInputChange('brandColor', e.target.value)}
+                        onChange={(e) => handleInputChange('brandColor', e.target.value, e.target)}
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -801,7 +893,7 @@ const AICardPage: React.FC = () => {
                       id="ai-card-phone"
                       type="tel"
                       value={form.phone}
-                      onChange={(e) => handleInputChange('phone', e.target.value)}
+                      onChange={(e) => handleInputChange('phone', e.target.value, e.target)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -814,7 +906,7 @@ const AICardPage: React.FC = () => {
                       id="ai-card-email"
                       type="email"
                       value={form.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      onChange={(e) => handleInputChange('email', e.target.value, e.target)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -827,7 +919,7 @@ const AICardPage: React.FC = () => {
                       id="ai-card-website"
                       type="url"
                       value={form.website}
-                      onChange={(e) => handleInputChange('website', e.target.value)}
+                      onChange={(e) => handleInputChange('website', e.target.value, e.target)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -860,6 +952,18 @@ const AICardPage: React.FC = () => {
                       )}
                       <p className="text-sm text-gray-600">Click to upload headshot</p>
                     </div>
+                    {form.headshot && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRemoveAsset('headshot');
+                        }}
+                        className="mt-2 text-xs font-medium text-red-600 hover:text-red-700"
+                      >
+                        Remove headshot
+                      </button>
+                    )}
                     <input
                       ref={headshotInputRef}
                       type="file"
@@ -891,6 +995,18 @@ const AICardPage: React.FC = () => {
                       )}
                       <p className="text-sm text-gray-600">Click to upload logo</p>
                     </div>
+                    {form.logo && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRemoveAsset('logo');
+                        }}
+                        className="mt-2 text-xs font-medium text-red-600 hover:text-red-700"
+                      >
+                        Remove logo
+                      </button>
+                    )}
                     <input
                       ref={logoInputRef}
                       type="file"
@@ -910,7 +1026,7 @@ const AICardPage: React.FC = () => {
                 <textarea
                   id="ai-card-bio"
                   value={form.bio}
-                  onChange={(e) => handleInputChange('bio', e.target.value)}
+                  onChange={(e) => handleInputChange('bio', e.target.value, e.target)}
                   rows={6}
                   placeholder="Tell visitors about your experience and expertise..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
@@ -930,7 +1046,7 @@ const AICardPage: React.FC = () => {
                       type="url"
                       placeholder="https://facebook.com/username"
                       value={form.socialMedia.facebook}
-                      onChange={(e) => handleSocialMediaChange('facebook', e.target.value)}
+                      onChange={(e) => handleSocialMediaChange('facebook', e.target.value, e.target)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -941,7 +1057,7 @@ const AICardPage: React.FC = () => {
                       type="url"
                       placeholder="https://instagram.com/username"
                       value={form.socialMedia.instagram}
-                      onChange={(e) => handleSocialMediaChange('instagram', e.target.value)}
+                      onChange={(e) => handleSocialMediaChange('instagram', e.target.value, e.target)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -952,7 +1068,7 @@ const AICardPage: React.FC = () => {
                       type="url"
                       placeholder="https://twitter.com/username"
                       value={form.socialMedia.twitter}
-                      onChange={(e) => handleSocialMediaChange('twitter', e.target.value)}
+                      onChange={(e) => handleSocialMediaChange('twitter', e.target.value, e.target)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -963,7 +1079,7 @@ const AICardPage: React.FC = () => {
                       type="url"
                       placeholder="https://linkedin.com/in/username"
                       value={form.socialMedia.linkedin}
-                      onChange={(e) => handleSocialMediaChange('linkedin', e.target.value)}
+                      onChange={(e) => handleSocialMediaChange('linkedin', e.target.value, e.target)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -974,7 +1090,7 @@ const AICardPage: React.FC = () => {
                       type="url"
                       placeholder="https://youtube.com/@username"
                       value={form.socialMedia.youtube}
-                      onChange={(e) => handleSocialMediaChange('youtube', e.target.value)}
+                      onChange={(e) => handleSocialMediaChange('youtube', e.target.value, e.target)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>

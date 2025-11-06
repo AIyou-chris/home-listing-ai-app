@@ -56,11 +56,11 @@ class GoogleMeetService {
   async createMeetEvent(event: GoogleMeetEvent): Promise<{ meetLink: string; eventId: string }> {
     try {
       // Check if user is authenticated
-      if (!googleOAuthService.isAuthenticated()) {
+      if (!googleOAuthService.isAuthenticated('calendar')) {
         throw new Error('User not authenticated with Google');
       }
 
-      const accessToken = googleOAuthService.getAccessToken();
+      const accessToken = googleOAuthService.getAccessToken('calendar');
       if (!accessToken) {
         throw new Error('No access token available');
       }
@@ -136,7 +136,7 @@ class GoogleMeetService {
   // Fallback: Create regular calendar event without video conferencing
   private async createRegularCalendarEvent(event: GoogleMeetEvent): Promise<{ meetLink: string; eventId: string }> {
     try {
-      const accessToken = googleOAuthService.getAccessToken();
+      const accessToken = googleOAuthService.getAccessToken('calendar');
       if (!accessToken) {
         throw new Error('No access token available');
       }
@@ -222,11 +222,11 @@ Meeting Link: Will be provided once the event is created.`,
   // Test Google Calendar API connection
   async testCalendarConnection(): Promise<boolean> {
     try {
-      if (!googleOAuthService.isAuthenticated()) {
+      if (!googleOAuthService.isAuthenticated('calendar')) {
         return false;
       }
 
-      const accessToken = googleOAuthService.getAccessToken();
+      const accessToken = googleOAuthService.getAccessToken('calendar');
       if (!accessToken) {
         return false;
       }
@@ -248,11 +248,11 @@ Meeting Link: Will be provided once the event is created.`,
   // Get upcoming consultations
   async getUpcomingConsultations(maxResults: number = 10): Promise<GoogleCalendarEvent[]> {
     try {
-      if (!googleOAuthService.isAuthenticated()) {
+      if (!googleOAuthService.isAuthenticated('calendar')) {
         throw new Error('User not authenticated with Google');
       }
 
-      const accessToken = googleOAuthService.getAccessToken();
+      const accessToken = googleOAuthService.getAccessToken('calendar');
       if (!accessToken) {
         throw new Error('No access token available');
       }
@@ -281,11 +281,11 @@ Meeting Link: Will be provided once the event is created.`,
   // Cancel a consultation
   async cancelConsultation(eventId: string): Promise<boolean> {
     try {
-      if (!googleOAuthService.isAuthenticated()) {
+      if (!googleOAuthService.isAuthenticated('calendar')) {
         throw new Error('User not authenticated with Google');
       }
 
-      const accessToken = googleOAuthService.getAccessToken();
+      const accessToken = googleOAuthService.getAccessToken('calendar');
       if (!accessToken) {
         throw new Error('No access token available');
       }

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Lead, Appointment, LeadStatus } from '../types';
 import { scheduleAppointment } from '../services/schedulerService';
+import type { SchedulerResult } from '../services/schedulerService';
 import AddLeadModal, { type NewLeadPayload } from './AddLeadModal';
 import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from './ScheduleAppointmentModal';
 import ContactLeadModal from './ContactLeadModal';
@@ -386,8 +387,9 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                     onClose={handleCloseScheduleModal}
                     onSchedule={async (apptData: ScheduleAppointmentFormData) => {
                         const linkedPropertyId = schedulingLead?.interestedProperties?.[0] || '';
+                        let scheduledResult: SchedulerResult | null = null;
                         try {
-                            await scheduleAppointment({
+                            scheduledResult = await scheduleAppointment({
                                 name: apptData.name,
                                 email: apptData.email,
                                 phone: apptData.phone,
@@ -405,11 +407,13 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                         } catch (error) {
                             console.error('Failed to schedule appointment:', error);
                         }
+                        const scheduledAt = scheduledResult?.scheduledAt;
+                        const apptId = scheduledResult?.appointmentId || `appt-${Date.now()}`;
                         const appt: Appointment = {
-                            id: `appt-${Date.now()}`,
+                            id: apptId,
                             type: apptData.kind,
-                            date: apptData.date,
-                            time: apptData.time,
+                            date: scheduledAt?.date || apptData.date,
+                            time: scheduledAt?.time || apptData.time,
                             leadId: schedulingLead?.id || 'manual',
                             propertyId: linkedPropertyId,
                             notes: apptData.message || '',
@@ -420,7 +424,10 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                             remindAgent: apptData.remindAgent,
                             remindClient: apptData.remindClient,
                             agentReminderMinutes: apptData.agentReminderMinutes,
-                            clientReminderMinutes: apptData.clientReminderMinutes
+                            clientReminderMinutes: apptData.clientReminderMinutes,
+                            meetLink: scheduledResult?.meetLink,
+                            startIso: scheduledAt?.startIso,
+                            endIso: scheduledAt?.endIso
                         };
                         onNewAppointment?.(appt);
                         handleCloseScheduleModal();

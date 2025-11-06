@@ -14,11 +14,24 @@ const rawHash = window.location.hash.replace(/^#/, '')
 const hashPath = rawHash.split('?')[0]
 const isBlueprintOnlyRoute = hashPath === '/dashboard-blueprint' || hashPath === 'dashboard-blueprint'
 
+if (import.meta.env.DEV) {
+  console.debug('[main] hash routing', {
+    hash: window.location.hash,
+    rawHash,
+    hashPath,
+    isBlueprintOnlyRoute
+  })
+}
+
 const blueprintTree = (
   <StrictMode>
-    <SchedulerProvider>
-      <AgentDashboardBlueprint />
-    </SchedulerProvider>
+    <HashRouter>
+      <ErrorBoundary>
+        <SchedulerProvider>
+          <AgentDashboardBlueprint />
+        </SchedulerProvider>
+      </ErrorBoundary>
+    </HashRouter>
   </StrictMode>
 )
 

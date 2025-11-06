@@ -3,6 +3,28 @@ const cors = require('cors');
 const OpenAI = require('openai');
 const helmet = require('helmet');
 const { createClient } = require('@supabase/supabase-js');
+const { google } = require('googleapis');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const {
+  getPreferences: getNotificationPreferences,
+  updatePreferences: updateNotificationPreferences,
+  shouldSend: shouldSendNotification,
+  DEFAULT_NOTIFICATION_SETTINGS
+} = require('./utils/notificationPreferences');
+const {
+  getEmailSettings,
+  updateEmailSettings,
+  connectEmailProvider,
+  disconnectEmailProvider
+} = require('./utils/emailSettings');
+const {
+  getCalendarSettings,
+  updateCalendarSettings: updateCalendarPreferences,
+  saveCalendarConnection
+} = require('./utils/calendarSettings');
+const createPaymentService = require('./services/paymentService');
 require('dotenv').config();
 
 const app = express();
@@ -30,10 +52,189 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   }
 });
 
+const paymentService = createPaymentService({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+  stripePriceId: process.env.STRIPE_PRICE_ID,
+  stripeProductName: process.env.STRIPE_PRODUCT_NAME,
+  stripeCurrency: process.env.STRIPE_CURRENCY,
+  stripeDefaultAmountCents: process.env.STRIPE_DEFAULT_AMOUNT_CENTS
+    ? Number(process.env.STRIPE_DEFAULT_AMOUNT_CENTS)
+    : undefined,
+  paypalClientId: process.env.PAYPAL_CLIENT_ID,
+  paypalClientSecret: process.env.PAYPAL_CLIENT_SECRET,
+  paypalEnv: process.env.PAYPAL_ENV,
+  paypalCurrency: process.env.PAYPAL_CURRENCY,
+  baseAppUrl:
+    process.env.APP_BASE_URL ||
+    process.env.DASHBOARD_BASE_URL ||
+    'http://localhost:5173'
+});
+
 // Mailgun configuration
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY || '';
 const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || '';
-const MAILGUN_FROM_EMAIL = process.env.MAILGUN_FROM_EMAIL || '';
+const MAILGUN_FROM_EMAIL =
+  process.env.MAILGUN_FROM_EMAIL ||
+  (MAILGUN_DOMAIN ? `HomeListingAI <postmaster@${MAILGUN_DOMAIN}>` : '');
+const isProduction = process.env.NODE_ENV === 'production';
+const missingMailgunVars = ['MAILGUN_API_KEY', 'MAILGUN_DOMAIN'].filter(
+  (key) => !process.env[key]
+);
+
+if (missingMailgunVars.length > 0) {
+  const message = `[Mailgun] Missing configuration: ${missingMailgunVars.join(', ')}`;
+  if (isProduction) {
+    console.error(message);
+    throw new Error(message);
+  } else {
+    console.warn(`${message}. Email sending will be disabled until configured.`);
+  }
+} else if (!MAILGUN_FROM_EMAIL) {
+  console.warn('[Mailgun] MAILGUN_FROM_EMAIL not set. Defaulting to Mailgun postmaster address.');
+}
+
+const toArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean).map((item) => String(item).trim());
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const resolveMailgunFrom = (customFrom) => {
+  const trimmed = customFrom ? String(customFrom).trim() : '';
+  if (trimmed) return trimmed;
+  if (MAILGUN_FROM_EMAIL) return MAILGUN_FROM_EMAIL;
+  if (MAILGUN_DOMAIN) {
+    return `HomeListingAI <postmaster@${MAILGUN_DOMAIN}>`;
+  }
+  return '';
+};
+
+const sendMailgunEmail = async ({
+  to,
+  subject,
+  html,
+  text,
+  from,
+  cc,
+  bcc,
+  replyTo
+}) => {
+  if (!MAILGUN_API_KEY || !MAILGUN_DOMAIN) {
+    const error = new Error('Mailgun configuration missing');
+    error.code = 'MAILGUN_CONFIG_MISSING';
+    throw error;
+  }
+
+  const recipients = toArray(to);
+  if (recipients.length === 0) {
+    const error = new Error('At least one recipient is required');
+    error.code = 'MAILGUN_RECIPIENT_REQUIRED';
+    throw error;
+  }
+
+  if (!subject) {
+    const error = new Error('Email subject is required');
+    error.code = 'MAILGUN_SUBJECT_REQUIRED';
+    throw error;
+  }
+
+  if (!html && !text) {
+    const error = new Error('HTML or text content is required');
+    error.code = 'MAILGUN_CONTENT_REQUIRED';
+    throw error;
+  }
+
+  const body = new URLSearchParams();
+  body.append('from', resolveMailgunFrom(from));
+  recipients.forEach((recipient) => body.append('to', recipient));
+  body.append('subject', String(subject));
+
+  if (html) body.append('html', String(html));
+  if (text) body.append('text', String(text));
+
+  toArray(cc).forEach((recipient) => body.append('cc', recipient));
+  toArray(bcc).forEach((recipient) => body.append('bcc', recipient));
+
+  if (replyTo) {
+    body.append('h:Reply-To', String(replyTo).trim());
+  }
+
+  const response = await fetch(`https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`api:${MAILGUN_API_KEY}`).toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    const error = new Error('Mailgun request failed');
+    error.code = 'MAILGUN_SEND_FAILED';
+    error.details = errorText;
+    error.status = response.status;
+    throw error;
+  }
+
+  try {
+    return await response.json();
+  } catch (error) {
+    return {};
+  }
+};
+
+const createMailgunHandler = (contextLabel) => async (req, res) => {
+  try {
+    const { to, subject, html, text, from, cc, bcc, replyTo, preference } = req.body || {};
+
+    if (preference?.userId && preference?.channel && preference?.event) {
+      const allowed = shouldSendNotification(
+        preference.userId,
+        preference.channel,
+        preference.event
+      );
+
+      if (!allowed) {
+        return res.json({
+          success: false,
+          skipped: true,
+          reason: 'preference_disabled',
+          context: contextLabel
+        });
+      }
+    }
+
+    if (!to || !subject || (!html && !text)) {
+      return res.status(400).json({
+        error: 'Recipient, subject, and either HTML or text content are required.'
+      });
+    }
+
+    const result = await sendMailgunEmail({ to, subject, html, text, from, cc, bcc, replyTo });
+
+    return res.json({
+      success: true,
+      id: result?.id || null,
+      message: result?.message || 'Queued',
+      context: contextLabel
+    });
+  } catch (error) {
+    if (error.code === 'MAILGUN_CONFIG_MISSING') {
+      return res.status(503).json({ error: 'Email service is not configured.' });
+    }
+
+    if (error.code === 'MAILGUN_SEND_FAILED') {
+      return res.status(502).json({ error: 'Failed to send email.', details: error.details });
+    }
+
+    console.error(`Error sending email via Mailgun (${contextLabel}):`, error);
+    return res.status(500).json({ error: 'Unexpected error sending email.' });
+  }
+};
 
 // In-memory storage for real data (in production, this would be a database)
 let users = [];
@@ -659,6 +860,9 @@ const mapAiCardProfileFromRow = (row) =>
         updated_at: row.updated_at
       };
 
+const isResolvableAssetPath = (value) =>
+  typeof value === 'string' && value.trim().length > 0 && !/^https?:/i.test(value) && !/^data:/i.test(value);
+
 const mapAiCardProfileToRow = (profileData = {}) => {
   const payload = {};
   if (profileData.fullName !== undefined) payload.full_name = profileData.fullName;
@@ -671,8 +875,23 @@ const mapAiCardProfileToRow = (profileData = {}) => {
   if (profileData.bio !== undefined) payload.bio = profileData.bio;
   if (profileData.brandColor !== undefined) payload.brand_color = profileData.brandColor;
   if (profileData.socialMedia !== undefined) payload.social_media = profileData.socialMedia;
-  if (profileData.headshot !== undefined) payload.headshot_url = profileData.headshot;
-  if (profileData.logo !== undefined) payload.logo_url = profileData.logo;
+
+  if (profileData.headshot !== undefined) {
+    if (profileData.headshot === null || profileData.headshot === '') {
+      payload.headshot_url = null;
+    } else if (isResolvableAssetPath(profileData.headshot)) {
+      payload.headshot_url = profileData.headshot;
+    }
+  }
+
+  if (profileData.logo !== undefined) {
+    if (profileData.logo === null || profileData.logo === '') {
+      payload.logo_url = null;
+    } else if (isResolvableAssetPath(profileData.logo)) {
+      payload.logo_url = profileData.logo;
+    }
+  }
+
   return payload;
 };
 
@@ -2770,53 +2989,35 @@ app.post('/api/admin/marketing/sequences', (req, res) => {
   }
 });
 
+// Email sending (Mailgun)
+app.post('/api/email/send', createMailgunHandler('app/email/send'));
+
 // Quick email sending via Mailgun
-app.post('/api/admin/email/quick-send', async (req, res) => {
+app.post('/api/admin/email/quick-send', createMailgunHandler('admin/email/quick-send'));
+
+// Notification preferences
+app.get('/api/notifications/preferences/:userId', (req, res) => {
   try {
-    const { to, subject, html, from } = req.body || {};
-
-    if (!to || !subject || !html) {
-      return res.status(400).json({ error: 'Recipient email, subject, and content are required.' });
-    }
-
-    if (!MAILGUN_API_KEY || !MAILGUN_DOMAIN) {
-      console.warn('Mailgun configuration missing. Check MAILGUN_API_KEY and MAILGUN_DOMAIN.');
-      return res.status(503).json({ error: 'Email service is not configured.' });
-    }
-
-    const effectiveFrom =
-      from ||
-      MAILGUN_FROM_EMAIL ||
-      `HomeListingAI <postmaster@${MAILGUN_DOMAIN}>`;
-
-    const body = new URLSearchParams();
-    body.append('from', effectiveFrom);
-    body.append('to', to);
-    body.append('subject', subject);
-    body.append('html', html);
-
-    const response = await fetch(`https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${Buffer.from(`api:${MAILGUN_API_KEY}`).toString('base64')}`,
-      },
-      body,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Mailgun send failed:', errorText);
-      return res.status(502).json({ error: 'Failed to send email.', details: errorText });
-    }
-
-    const result = await response.json();
-    console.log('Mailgun send success:', result.id || result);
-    res.json({ success: true, id: result.id || null });
+    const { userId } = req.params
+    const preferences = getNotificationPreferences(userId)
+    res.json({ success: true, preferences })
   } catch (error) {
-    console.error('Error sending quick email:', error);
-    res.status(500).json({ error: 'Unexpected error sending email.' });
+    console.error('Error fetching notification preferences:', error)
+    res.status(500).json({ success: false, error: 'Failed to load preferences' })
   }
-});
+})
+
+app.patch('/api/notifications/preferences/:userId', (req, res) => {
+  try {
+    const { userId } = req.params
+    const updates = req.body || {}
+    const preferences = updateNotificationPreferences(userId, updates)
+    res.json({ success: true, preferences })
+  } catch (error) {
+    console.error('Error updating notification preferences:', error)
+    res.status(500).json({ success: false, error: 'Failed to update preferences' })
+  }
+})
 
 // Update follow-up sequence
 app.put('/api/admin/marketing/sequences/:sequenceId', (req, res) => {
@@ -4960,4 +5161,346 @@ console.log('   POST /api/listings');
 console.log('   PUT  /api/listings/:listingId');
 console.log('   DELETE /api/listings/:listingId');
 console.log('   GET  /api/listings/:listingId/marketing');
+});
+
+app.post('/api/email/settings/:userId/connections', (req, res) => {
+  try {
+    const { userId } = req.params
+    const { provider, email } = req.body || {}
+
+    if (!provider) {
+      return res.status(400).json({ success: false, error: 'Provider is required' })
+    }
+
+    const connections = connectEmailProvider(userId, provider, email)
+    const { settings } = getEmailSettings(userId)
+    res.json({ success: true, connections, settings })
+  } catch (error) {
+    console.error('Error connecting email provider:', error)
+    res.status(500).json({ success: false, error: 'Failed to connect email provider' })
+  }
+})
+
+app.delete('/api/email/settings/:userId/connections/:provider', (req, res) => {
+  try {
+    const { userId, provider } = req.params
+    const connections = disconnectEmailProvider(userId, provider)
+    const { settings } = getEmailSettings(userId)
+    res.json({ success: true, connections, settings })
+  } catch (error) {
+    console.error('Error disconnecting email provider:', error)
+    res.status(500).json({ success: false, error: 'Failed to disconnect email provider' })
+  }
+})
+
+
+const GOOGLE_OAUTH_CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID || '';
+const GOOGLE_OAUTH_CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET || '';
+const GOOGLE_OAUTH_REDIRECT_URI = process.env.GOOGLE_OAUTH_REDIRECT_URI || '';
+
+const GOOGLE_OAUTH_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/userinfo.email'
+];
+
+const GOOGLE_CALENDAR_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/userinfo.email'
+];
+
+const isGoogleOAuthConfigured = () =>
+  Boolean(GOOGLE_OAUTH_CLIENT_ID && GOOGLE_OAUTH_CLIENT_SECRET && GOOGLE_OAUTH_REDIRECT_URI);
+const pendingGoogleOAuthStates = new Map();
+const GOOGLE_OAUTH_STATE_TTL_MS = 5 * 60 * 1000;
+
+const createGoogleOAuthState = (userId, context = 'gmail', scopes = GOOGLE_OAUTH_SCOPES) => {
+  const payload = {
+    userId,
+    context,
+    scopes,
+    nonce: crypto.randomBytes(16).toString('hex'),
+    createdAt: Date.now()
+  };
+
+  const state = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  pendingGoogleOAuthStates.set(state, payload);
+  return state;
+};
+
+const consumeGoogleOAuthState = (state) => {
+  if (!state || typeof state !== 'string') {
+    return null;
+  }
+
+  const stored = pendingGoogleOAuthStates.get(state);
+  if (!stored) {
+    return null;
+  }
+
+  pendingGoogleOAuthStates.delete(state);
+
+  if (Date.now() - stored.createdAt > GOOGLE_OAUTH_STATE_TTL_MS) {
+    return null;
+  }
+
+  return stored;
+};
+
+const createGoogleOAuthClient = () => {
+   if (!isGoogleOAuthConfigured()) {
+     throw new Error('Google OAuth not configured');
+   }
+ 
+   return new google.auth.OAuth2(
+     GOOGLE_OAUTH_CLIENT_ID,
+     GOOGLE_OAUTH_CLIENT_SECRET,
+     GOOGLE_OAUTH_REDIRECT_URI
+   );
+ };
+ 
+ const sendOAuthResultPage = (res, payload) => {
+   res.set('Content-Type', 'text/html');
+   const serialized = JSON.stringify(payload);
+   res.send(`<!DOCTYPE html><html><body><script>
+     if (window.opener && !window.opener.closed) {
+       window.opener.postMessage(${serialized}, '*');
+     }
+     window.close();
+   </script></body></html>`);
+ };
+
+app.patch('/api/email/settings/:userId', (req, res) => {
+   try {
+     const { userId } = req.params
+     const updates = req.body || {}
+     const payload = updateEmailSettings(userId, updates)
+     res.json({ success: true, ...payload })
+   } catch (error) {
+     console.error('Error updating email settings:', error)
+     res.status(500).json({ success: false, error: 'Failed to update email settings' })
+   }
+ })
+ 
+app.get('/api/calendar/settings/:userId', (req, res) => {
+  try {
+    const { userId } = req.params
+    const payload = getCalendarSettings(userId)
+    res.json({ success: true, ...payload })
+  } catch (error) {
+    console.error('Error fetching calendar settings:', error)
+    res.status(500).json({ success: false, error: 'Failed to load calendar settings' })
+  }
+})
+
+app.patch('/api/calendar/settings/:userId', (req, res) => {
+  try {
+    const { userId } = req.params
+    const updates = req.body || {}
+    const payload = updateCalendarPreferences(userId, updates)
+    res.json({ success: true, ...payload })
+  } catch (error) {
+    console.error('Error updating calendar settings:', error)
+    res.status(500).json({ success: false, error: 'Failed to update calendar settings' })
+  }
+})
+
+app.get('/api/payments/providers', (_req, res) => {
+  try {
+    if (!paymentService?.isConfigured?.()) {
+      return res.status(503).json({ success: false, error: 'No payment providers configured.' })
+    }
+
+    const providers = paymentService.listProviders?.() || []
+    res.json({ success: true, providers })
+  } catch (error) {
+    console.error('Error listing payment providers:', error)
+    res.status(500).json({ success: false, error: 'Failed to fetch payment providers.' })
+  }
+})
+
+app.post('/api/payments/checkout-session', async (req, res) => {
+  try {
+    if (!paymentService?.isConfigured?.()) {
+      return res.status(503).json({ success: false, error: 'Payment processing is not configured.' })
+    }
+
+    const { slug, provider, amountCents } = req.body || {}
+    if (!slug || typeof slug !== 'string') {
+      return res.status(400).json({ success: false, error: 'Agent slug is required.' })
+    }
+
+    const { data: agent, error: agentError } = await supabaseAdmin
+      .from('agents')
+      .select('email, slug, status, payment_status')
+      .eq('slug', slug)
+      .maybeSingle()
+
+    if (agentError) {
+      console.error('Error fetching agent for checkout session:', agentError)
+      return res.status(500).json({ success: false, error: 'Unable to verify agent record.' })
+    }
+
+    if (!agent) {
+      return res.status(404).json({ success: false, error: 'Agent not found.' })
+    }
+
+    const session = await paymentService.createCheckoutSession({
+      slug,
+      email: agent.email,
+      provider,
+      amountCents: typeof amountCents === 'number' ? amountCents : undefined
+    })
+
+    if (!session?.url) {
+      return res.status(502).json({ success: false, error: 'Checkout provider did not return a redirect URL.' })
+    }
+
+    res.json({ success: true, session })
+  } catch (error) {
+    console.error('Error creating checkout session:', error)
+    res.status(500).json({ success: false, error: error?.message || 'Failed to create checkout session.' })
+  }
+})
+
+app.get('/api/email/google/oauth-url', (req, res) => {
+  try {
+    if (!isGoogleOAuthConfigured()) {
+      return res.status(503).json({ success: false, error: 'Google OAuth is not configured.' });
+    }
+
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId query parameter is required.' });
+    }
+
+    const context = typeof req.query.context === 'string' ? req.query.context : 'gmail';
+    const rawScopes = req.query.scopes;
+
+    const scopes = (() => {
+      if (Array.isArray(rawScopes)) {
+        return rawScopes
+          .flatMap((value) => String(value).split(/[\s,]+/))
+          .filter(Boolean);
+      }
+
+      if (typeof rawScopes === 'string') {
+        return rawScopes
+          .split(/[\s,]+/)
+          .filter(Boolean);
+      }
+
+      return context === 'calendar' ? GOOGLE_CALENDAR_SCOPES : GOOGLE_OAUTH_SCOPES;
+    })();
+
+    const oauthClient = createGoogleOAuthClient();
+    const state = createGoogleOAuthState(userId, context, scopes);
+    const url = oauthClient.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+      prompt: 'consent',
+      state
+    });
+
+    res.json({ success: true, url, context });
+  } catch (error) {
+    console.error('Error generating Gmail OAuth URL:', error);
+    res.status(500).json({ success: false, error: 'Failed to generate Gmail OAuth URL.' });
+  }
+});
+
+app.get('/api/email/google/oauth-callback', async (req, res) => {
+  if (!isGoogleOAuthConfigured()) {
+    return sendOAuthResultPage(res, {
+      type: 'gmail-oauth-error',
+      reason: 'Google OAuth is not configured.'
+    });
+  }
+
+  const { code, state, error } = req.query;
+
+  if (error) {
+    return sendOAuthResultPage(res, {
+      type: 'gmail-oauth-error',
+      reason: Array.isArray(error) ? error.join(', ') : error
+    });
+  }
+
+  if (!code || !state) {
+    return sendOAuthResultPage(res, {
+      type: 'gmail-oauth-error',
+      reason: 'Missing required OAuth parameters.'
+    });
+  }
+
+  const storedState = consumeGoogleOAuthState(state);
+  if (!storedState) {
+    return sendOAuthResultPage(res, {
+      type: 'gmail-oauth-error',
+      reason: 'OAuth session expired or invalid.'
+    });
+  }
+
+  try {
+    const oauthClient = createGoogleOAuthClient();
+    const { tokens } = await oauthClient.getToken(code);
+    oauthClient.setCredentials(tokens);
+
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauthClient });
+    const profileResponse = await oauth2.userinfo.get();
+    const emailAddress = profileResponse?.data?.email || `${storedState.userId}@gmail.com`;
+
+    if (storedState.context === 'calendar') {
+      saveCalendarConnection(storedState.userId, {
+        provider: 'google',
+        email: emailAddress,
+        connectedAt: new Date().toISOString(),
+        status: 'active',
+        metadata: {
+          scope: tokens.scope,
+          tokenType: tokens.token_type,
+          expiryDate: tokens.expiry_date || null,
+          hasRefreshToken: Boolean(tokens.refresh_token)
+        }
+      });
+
+      sendOAuthResultPage(res, {
+        type: 'calendar-oauth-success',
+        userId: storedState.userId,
+        email: emailAddress,
+        tokens: {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiryDate: tokens.expiry_date,
+          scope: tokens.scope,
+          tokenType: tokens.token_type,
+          idToken: tokens.id_token
+        }
+      });
+      return;
+    }
+
+    connectEmailProvider(storedState.userId, 'gmail', emailAddress, {
+      credentials: {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiryDate: tokens.expiry_date,
+        scope: tokens.scope,
+        tokenType: tokens.token_type
+      }
+    });
+
+    sendOAuthResultPage(res, {
+      type: 'gmail-oauth-success',
+      userId: storedState.userId,
+      email: emailAddress
+    });
+  } catch (oauthError) {
+    console.error('Error completing Gmail OAuth flow:', oauthError);
+    sendOAuthResultPage(res, {
+      type: `${storedState?.context || 'gmail'}-oauth-error`,
+      reason: oauthError?.message || 'OAuth failed'
+    });
+  }
 });

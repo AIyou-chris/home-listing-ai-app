@@ -13,7 +13,7 @@ const GoogleMeetTest: React.FC = () => {
     
     try {
       // Check if user is authenticated
-      if (!googleOAuthService.isAuthenticated()) {
+      if (!googleOAuthService.isAuthenticated('calendar')) {
         setResult('❌ User not authenticated with Google. Please connect your Google account first.');
         setIsLoading(false);
         return;
@@ -45,7 +45,7 @@ const GoogleMeetTest: React.FC = () => {
 
   const handleGoogleAuth = async () => {
     try {
-      const success = await googleOAuthService.requestAccess();
+      const success = await googleOAuthService.requestAccess({ context: 'calendar' });
       if (success) {
         console.log('Google authentication successful');
       } else {
@@ -64,7 +64,7 @@ const GoogleMeetTest: React.FC = () => {
         {/* Authentication Status */}
         <div className="p-4 bg-gray-50 rounded-lg">
           <h3 className="font-semibold text-gray-700 mb-2">Authentication Status</h3>
-          {googleOAuthService.isAuthenticated() ? (
+          {googleOAuthService.isAuthenticated('calendar') ? (
             <div className="flex items-center text-green-600">
               <span className="material-symbols-outlined mr-2">check_circle</span>
               Connected to Google Calendar
@@ -104,7 +104,7 @@ const GoogleMeetTest: React.FC = () => {
         {/* Test Button */}
         <button
           onClick={testGoogleMeet}
-          disabled={isLoading || !googleOAuthService.isAuthenticated()}
+          disabled={isLoading || !googleOAuthService.isAuthenticated('calendar')}
           className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? 'Testing...' : 'Test Google Meet Consultation'}

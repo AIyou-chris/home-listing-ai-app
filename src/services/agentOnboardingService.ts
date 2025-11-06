@@ -135,6 +135,21 @@ export const agentOnboardingService = {
     return data.session;
   },
 
+  async listPaymentProviders(): Promise<string[]> {
+    try {
+      const response = await fetch(`${getApiBase()}/api/payments/providers`);
+      if (response.status === 503) {
+        return [];
+      }
+
+      const data = await handleResponse<{ providers?: string[] }>(response);
+      return Array.isArray(data.providers) ? data.providers : [];
+    } catch (error) {
+      console.warn('[AgentOnboarding] Failed to load payment providers', error);
+      return [];
+    }
+  },
+
   async pollAgentActivation({
     slug,
     timeoutMs = 120000,

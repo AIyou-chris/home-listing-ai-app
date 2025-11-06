@@ -205,6 +205,258 @@ const normalizeSidekick = (raw: unknown): AISidekick => {
   };
 };
 
+interface SidekickStore {
+  sidekicks: AISidekick[]
+  voices: Voice[]
+}
+
+const SIDEKICKS_STORAGE_KEY = 'hlai_demo_sidekicks'
+
+const isBrowser = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+
+const cloneVoice = (voice: Voice): Voice => ({ ...voice })
+
+const clonePersonality = (personality: AISidekick['personality']): AISidekick['personality'] => ({
+  description: personality.description,
+  traits: [...personality.traits],
+  preset: personality.preset
+})
+
+const deepCloneSidekick = (sidekick: AISidekick): AISidekick => ({
+  ...sidekick,
+  knowledgeBase: [...sidekick.knowledgeBase],
+  personality: clonePersonality(sidekick.personality),
+  stats: { ...sidekick.stats },
+  metadata: sidekick.metadata ? { ...sidekick.metadata } : undefined
+})
+
+const DEFAULT_VOICES: Voice[] = [
+  {
+    id: 'nova',
+    name: 'Nova — Warm & Energetic',
+    openaiVoice: 'nova',
+    gender: 'female',
+    description: 'Friendly, upbeat guide for client-facing conversations.'
+  },
+  {
+    id: 'verse',
+    name: 'Verse — Confident & Direct',
+    openaiVoice: 'verse',
+    gender: 'male',
+    description: 'Bold marketing voice tailored for campaigns and follow-ups.'
+  },
+  {
+    id: 'alloy',
+    name: 'Alloy — Balanced & Informative',
+    openaiVoice: 'alloy',
+    gender: 'neutral',
+    description: 'Even, informative tone for analytics and reporting.'
+  },
+  {
+    id: 'sol',
+    name: 'Sol — Conversational Coach',
+    openaiVoice: 'sol',
+    gender: 'female',
+    description: 'Supportive coaching cadence for training sessions and scripts.'
+  }
+]
+
+const DEFAULT_SIDEKICKS: AISidekick[] = [
+  {
+    id: 'demo-agent-sidekick',
+    userId: 'demo-user',
+    type: 'agent',
+    name: 'Agent Concierge',
+    description: 'Handles deal coordination, buyer updates, and daily huddles with your team.',
+    color: '#8B5CF6',
+    icon: '👤',
+    voiceId: 'nova',
+    knowledgeBase: [
+      'Buyer consultation script: discovery, financing, motivation, timeline.',
+      'Weekly update template summarizing showings, offers, and next steps.',
+      '5-step process for coordinating inspections, appraisal, and closing tasks.'
+    ],
+    personality: {
+      description:
+        'You are the agent’s operations chief: proactive, organized, and crystal-clear with communication.',
+      traits: ['proactive', 'organized', 'empathetic'],
+      preset: 'professional'
+    },
+    stats: {
+      totalTraining: 128,
+      positiveFeedback: 42,
+      improvements: 9
+    },
+    metadata: { type: 'agent', color: '#8B5CF6', icon: '👤' }
+  },
+  {
+    id: 'demo-marketing-sidekick',
+    userId: 'demo-user',
+    type: 'marketing',
+    name: 'Momentum Marketer',
+    description: 'Builds nurture campaigns, listing launches, and social drip content on autopilot.',
+    color: '#F59E0B',
+    icon: '📈',
+    voiceId: 'verse',
+    knowledgeBase: [
+      'Listing launch checklist covering teasers, reels, and email announcements.',
+      '14-day warm nurture sequence for online buyer leads with AI personalization.',
+      'Brand voice pillars: concierge-level, data-backed, optimistic, and tech-forward.'
+    ],
+    personality: {
+      description: 'Energetic strategist obsessed with conversion copy and momentum.',
+      traits: ['creative', 'energetic', 'conversion-focused'],
+      preset: 'creative'
+    },
+    stats: {
+      totalTraining: 94,
+      positiveFeedback: 33,
+      improvements: 7
+    },
+    metadata: { type: 'marketing', color: '#F59E0B', icon: '📈' }
+  },
+  {
+    id: 'demo-listing-sidekick',
+    userId: 'demo-user',
+    type: 'listing',
+    name: 'Listing Strategist',
+    description: 'Produces property descriptions, pricing intel, and open house talking points.',
+    color: '#EF4444',
+    icon: '🏠',
+    voiceId: 'alloy',
+    knowledgeBase: [
+      'Pricing framework: comps ± adjustments for condition, outdoor space, and views.',
+      'Luxury listing adjectives cheat sheet with neighborhood callouts.',
+      'Open house overview script with highlights, lifestyle angles, and CTA.'
+    ],
+    personality: {
+      description: 'Calm, analytical expert who can translate data into persuasive narratives.',
+      traits: ['analytical', 'detail-oriented', 'persuasive'],
+      preset: 'analytical'
+    },
+    stats: {
+      totalTraining: 76,
+      positiveFeedback: 28,
+      improvements: 5
+    },
+    metadata: { type: 'listing', color: '#EF4444', icon: '🏠' }
+  },
+  {
+    id: 'demo-sales-sidekick',
+    userId: 'demo-user',
+    type: 'sales',
+    name: 'Pipeline Coach',
+    description: 'Coaches objection handling, follow-up language, and deal progression.',
+    color: '#10B981',
+    icon: '💼',
+    voiceId: 'sol',
+    knowledgeBase: [
+      'Objection handler library: pricing, commission, timing, and exclusivity.',
+      'Daily call blitz structure with hot/warm/cold lead rotation.',
+      'Call recap template for CRM notes and next-best-action tracking.'
+    ],
+    personality: {
+      description: 'Confident closer who keeps energy high and encourages decisive action.',
+      traits: ['confident', 'results-driven', 'supportive'],
+      preset: 'sales'
+    },
+    stats: {
+      totalTraining: 54,
+      positiveFeedback: 21,
+      improvements: 6
+    },
+    metadata: { type: 'sales', color: '#10B981', icon: '💼' }
+  }
+]
+
+const createDefaultStore = (): SidekickStore => ({
+  sidekicks: DEFAULT_SIDEKICKS.map(deepCloneSidekick),
+  voices: DEFAULT_VOICES.map(cloneVoice)
+})
+
+const readStore = (): SidekickStore => {
+  if (!isBrowser()) {
+    return createDefaultStore()
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SIDEKICKS_STORAGE_KEY)
+    if (!raw) {
+      return createDefaultStore()
+    }
+
+    const parsed = JSON.parse(raw) as Partial<SidekickStore>
+    const voices = Array.isArray(parsed.voices)
+      ? parsed.voices.map(normalizeVoice)
+      : DEFAULT_VOICES.map(cloneVoice)
+
+    const sidekicks = Array.isArray(parsed.sidekicks)
+      ? parsed.sidekicks.map(normalizeSidekick)
+      : DEFAULT_SIDEKICKS.map(deepCloneSidekick)
+
+    return {
+      sidekicks,
+      voices
+    }
+  } catch (error) {
+    console.warn('aiSidekicksService: failed to parse local store', error)
+    return createDefaultStore()
+  }
+}
+
+const writeStore = (store: SidekickStore) => {
+  if (!isBrowser()) {
+    return
+  }
+
+  try {
+    const payload = JSON.stringify({
+      sidekicks: store.sidekicks,
+      voices: store.voices
+    })
+    window.localStorage.setItem(SIDEKICKS_STORAGE_KEY, payload)
+  } catch (error) {
+    console.warn('aiSidekicksService: failed to persist local store', error)
+  }
+}
+
+const ensureStore = (): SidekickStore => {
+  const current = readStore()
+  if (!current.sidekicks.length) {
+    const defaults = createDefaultStore()
+    writeStore(defaults)
+    return defaults
+  }
+  return {
+    sidekicks: current.sidekicks.map(deepCloneSidekick),
+    voices: current.voices.map(cloneVoice)
+  }
+}
+
+const updateStore = (updater: (store: SidekickStore) => SidekickStore): SidekickStore => {
+  const current = ensureStore()
+  const next = updater(current)
+  writeStore(next)
+  return {
+    sidekicks: next.sidekicks.map(deepCloneSidekick),
+    voices: next.voices.map(cloneVoice)
+  }
+}
+
+export const getLocalSidekick = (id: string): AISidekick | undefined => {
+  const store = ensureStore()
+  return store.sidekicks.find(sidekick => sidekick.id === id)
+}
+
+export const upsertLocalSidekick = (sidekick: AISidekick): AISidekick => {
+  const saved: AISidekick = deepCloneSidekick(sidekick)
+  updateStore(store => ({
+    voices: store.voices.map(cloneVoice),
+    sidekicks: [saved, ...store.sidekicks.filter(existing => existing.id !== saved.id)].map(deepCloneSidekick)
+  }))
+  return saved
+}
+
 const defaultHeaders = {
   'Content-Type': 'application/json'
 };
@@ -215,18 +467,38 @@ export const getSidekicks = async (): Promise<{
 }> => {
   const userId = resolveUserId();
   const url = buildUrl('/api/sidekicks', isUuid(userId) ? { userId } : undefined);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to load AI sidekicks (${response.status})`);
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load AI sidekicks (${response.status})`);
+    }
+
+    const data = await response.json();
+    const sidekicks = Array.isArray(data?.sidekicks)
+      ? data.sidekicks.map(normalizeSidekick)
+      : [];
+    const voices = Array.isArray(data?.voices)
+      ? data.voices.map(normalizeVoice)
+      : [];
+
+    const localStore = ensureStore()
+
+    if (sidekicks.length || voices.length) {
+      writeStore({
+        sidekicks: sidekicks.length ? sidekicks.map(deepCloneSidekick) : localStore.sidekicks,
+        voices: voices.length ? voices.map(cloneVoice) : localStore.voices
+      })
+    }
+
+    return {
+      sidekicks: sidekicks.length ? sidekicks : localStore.sidekicks,
+      voices: voices.length ? voices : localStore.voices
+    }
+  } catch (error) {
+    console.warn('aiSidekicksService: falling back to demo sidekicks', error)
+    return ensureStore()
   }
-  const data = await response.json();
-  const sidekicks = Array.isArray(data?.sidekicks)
-    ? data.sidekicks.map(normalizeSidekick)
-    : [];
-  const voices = Array.isArray(data?.voices)
-    ? data.voices.map(normalizeVoice)
-    : [];
-  return { sidekicks, voices };
 };
 
 export const createSidekick = async (

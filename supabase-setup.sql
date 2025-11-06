@@ -127,6 +127,43 @@ CREATE INDEX IF NOT EXISTS idx_appointments_user_id ON public.appointments(user_
 CREATE INDEX IF NOT EXISTS idx_appointments_date ON public.appointments(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_appointments_status ON public.appointments(user_id, status);
 
+-- Leads
+CREATE TABLE IF NOT EXISTS public.leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  email TEXT NULL,
+  phone TEXT NULL,
+  status TEXT NOT NULL DEFAULT 'New',
+  source TEXT NULL,
+  notes TEXT NULL,
+  last_message TEXT NULL,
+  interested_properties TEXT[] NULL,
+  score NUMERIC NULL,
+  last_contact TIMESTAMPTZ NULL,
+  active_sequences TEXT[] NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_leads_user_id ON public.leads(user_id);
+CREATE INDEX IF NOT EXISTS idx_leads_status ON public.leads(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_leads_created_at ON public.leads(user_id, created_at DESC);
+
+-- Lead phone logs
+CREATE TABLE IF NOT EXISTS public.lead_phone_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id UUID NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  call_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  call_outcome TEXT NOT NULL CHECK (call_outcome IN ('connected', 'voicemail', 'no_answer', 'busy', 'other')),
+  call_notes TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lead_logs_lead_id ON public.lead_phone_logs(lead_id, call_started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_logs_user_id ON public.lead_phone_logs(user_id);
+
 -- AI Card Profiles (agent digital business card)
 CREATE TABLE IF NOT EXISTS public.ai_card_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -246,6 +283,8 @@ ALTER TABLE public.ai_usage_monthly ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.security_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.backups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lead_phone_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_card_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_card_qr_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_conversations ENABLE ROW LEVEL SECURITY;
@@ -354,6 +393,55 @@ WITH CHECK (auth.uid() IS NOT NULL AND user_id = auth.uid());
 -- Allow users to delete their own appointments
 CREATE POLICY "Users can delete own appointments"
 ON public.appointments
+FOR DELETE
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+-- ============================================================================
+-- 6a. CREATE RLS POLICIES - LEADS & PHONE LOGS
+-- ============================================================================
+
+DROP POLICY IF EXISTS "Users can read own leads" ON public.leads;
+DROP POLICY IF EXISTS "Users can insert own leads" ON public.leads;
+DROP POLICY IF EXISTS "Users can update own leads" ON public.leads;
+DROP POLICY IF EXISTS "Users can delete own leads" ON public.leads;
+
+CREATE POLICY "Users can read own leads"
+ON public.leads
+FOR SELECT
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+CREATE POLICY "Users can insert own leads"
+ON public.leads
+FOR INSERT
+WITH CHECK (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+CREATE POLICY "Users can update own leads"
+ON public.leads
+FOR UPDATE
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid())
+WITH CHECK (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+CREATE POLICY "Users can delete own leads"
+ON public.leads
+FOR DELETE
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Users can read own lead logs" ON public.lead_phone_logs;
+DROP POLICY IF EXISTS "Users can insert own lead logs" ON public.lead_phone_logs;
+DROP POLICY IF EXISTS "Users can delete own lead logs" ON public.lead_phone_logs;
+
+CREATE POLICY "Users can read own lead logs"
+ON public.lead_phone_logs
+FOR SELECT
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+CREATE POLICY "Users can insert own lead logs"
+ON public.lead_phone_logs
+FOR INSERT
+WITH CHECK (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+CREATE POLICY "Users can delete own lead logs"
+ON public.lead_phone_logs
 FOR DELETE
 USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
 

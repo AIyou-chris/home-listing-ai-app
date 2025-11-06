@@ -1,15 +1,34 @@
 // Email service for sending consultation confirmations and notifications
-interface GmailConnection {
-    email: string;
-    accessToken: string;
+type EmailRecipient = string | string[]
+
+type SendEmailOptions = {
+    fromEmail?: string
+    text?: string
+    cc?: EmailRecipient
+    bcc?: EmailRecipient
+    replyTo?: string
+    preference?: {
+        userId: string
+        channel: 'email'
+        event: string
+    }
 }
 
-type EmailPayload = {
-    to: string;
-    subject: string;
-    html: string;
-    fromEmail?: string;
-};
+type EmailRequestPayload = {
+    to: EmailRecipient
+    subject: string
+    html?: string
+    text?: string
+    from?: string
+    cc?: EmailRecipient
+    bcc?: EmailRecipient
+    replyTo?: string
+    preference?: {
+        userId: string
+        channel: 'email'
+        event: string
+    }
+}
 
 export interface ConsultationData {
     name: string;
@@ -33,91 +52,90 @@ export interface ContactMessageData {
 }
 
 class EmailService {
-    private static instance: EmailService;
+    private static instance: EmailService
+    private readonly endpoint = '/api/email/send'
 
     private constructor() {}
 
     static getInstance(): EmailService {
         if (!EmailService.instance) {
-            EmailService.instance = new EmailService();
+            EmailService.instance = new EmailService()
         }
-        return EmailService.instance;
+        return EmailService.instance
     }
 
-    private async sendViaGmail(to: string, subject: string, html: string, fromEmail?: string): Promise<boolean> {
+    private stripHtml(input: string): string {
+        return input
+            .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+    }
+
+    private async postEmail(payload: EmailRequestPayload): Promise<boolean> {
         try {
-            // Get Gmail connection
-            const gmailConnection = this.getGmailConnection();
-            if (!gmailConnection || !gmailConnection.accessToken) {
-                console.error('No Gmail connection or access token available');
-                return false;
-            }
-
-            // Create email message
-            const message = [
-                `To: ${to}`,
-                `From: ${fromEmail || gmailConnection.email}`,
-                'Content-Type: text/html; charset=UTF-8',
-                `Subject: ${subject}`,
-                '',
-                html
-            ].join('\r\n');
-
-            // Encode message for Gmail API
-            const raw = btoa(unescape(encodeURIComponent(message)))
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
-
-            const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+            const response = await fetch(this.endpoint, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${gmailConnection.accessToken}`,
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ raw })
-            });
+                body: JSON.stringify(payload)
+            })
 
             if (!response.ok) {
-                console.error('Gmail API error:', await response.text());
-                return false;
+                const details = await response.json().catch(() => ({}))
+                console.error('Mailgun email request failed', {
+                    status: response.status,
+                    details
+                })
+                return false
             }
 
-            const result = await response.json();
-            console.log('Email sent successfully:', result.id);
-            return true;
+            const data = await response.json().catch(() => ({}))
+            if (data?.success === false) {
+                console.error('Mailgun email request reported failure', data)
+                return false
+            }
 
+            return true
         } catch (error) {
-            console.error('Error sending email via Gmail:', error);
-            return false;
+            console.error('Mailgun email request errored', error)
+            return false
         }
     }
 
-    private getGmailConnection(): GmailConnection | null {
-        try {
-            const stored = localStorage.getItem('gmail_connection');
-            if (stored) {
-                return JSON.parse(stored) as GmailConnection;
-            }
-        } catch (error) {
-            console.error('Error getting Gmail connection:', error);
-        }
-        return null;
-    }
-
-    async sendEmail(to: string, subject: string, html: string, fromEmail?: string): Promise<boolean> {
-        // Try Gmail first
-        const gmailResult = await this.sendViaGmail(to, subject, html, fromEmail);
-        if (gmailResult) {
-            return true;
+    async sendEmail(to: string, subject: string, html: string, options: SendEmailOptions = {}): Promise<boolean> {
+        const payload: EmailRequestPayload = {
+            to,
+            subject,
+            html,
+            text: options.text,
+            from: options.fromEmail,
+            cc: options.cc,
+            bcc: options.bcc,
+            replyTo: options.replyTo,
+            preference: options.preference
         }
 
-        console.log('Gmail sending failed, no fallback configured');
-        return false;
+        if (!payload.text && html) {
+            payload.text = this.stripHtml(html)
+        }
+
+        const success = await this.postEmail(payload)
+
+        if (!success) {
+            console.error('Failed to send email via backend service', {
+                to,
+                subject
+            })
+        }
+
+        return success
     }
 
     // Send confirmation email to client
-    async sendConsultationConfirmation(data: ConsultationData, meetLink?: string): Promise<boolean> {
+    async sendConsultationConfirmation(data: ConsultationData, meetLink?: string, options: SendEmailOptions = {}): Promise<boolean> {
         try {
             console.log('📧 Attempting to send confirmation email to:', data.email);
             
@@ -150,56 +168,30 @@ class EmailService {
                     </div>
                 `;
 
-            // Send the email using Gmail
-            const emailSent = await this.sendEmail(data.email, subject, html);
+            const emailSent = await this.sendEmail(data.email, subject, html, {
+                text: this.stripHtml(html),
+                ...options
+            });
             
             if (emailSent) {
                 console.log('✅ Confirmation email sent successfully');
                 return true;
             }
 
-            console.log('❌ Failed to send confirmation email');
-            
-            // Show a user-friendly message about the booking
-            alert(`✅ Consultation scheduled successfully!
-
-📅 ${data.name}, your consultation is booked for:
-📆 Date: ${new Date(data.date).toLocaleDateString()}
-⏰ Time: ${data.time}
-📧 Confirmation email: ${data.email}
-
-Note: Email service is currently in demo mode. 
-In production, you would receive confirmation emails.
-
-We've logged your booking details for follow-up.`);
-            
-            return true; // Return true since the booking was successful, just email failed
+            console.warn('❌ Failed to send confirmation email via Mailgun. Continuing without email.')
+            return false;
         } catch (error) {
             console.error('❌ Error in consultation confirmation:', error);
             return false;
         }
     }
 
-    private async sendViaBackend(emailContent: EmailPayload): Promise<boolean> {
-        try {
-            // This would send email via your backend API
-            const response = await fetch('/api/send-email', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(emailContent)
-            });
-            
-            return response.ok;
-        } catch (error) {
-            console.log('📧 Backend email API not available (expected in demo)');
-            return false;
-        }
-    }
-
     // Send notification email to admin
-    async sendAdminNotification(data: ConsultationData, meetLink?: string): Promise<boolean> {
+    async sendAdminNotification(
+        data: ConsultationData,
+        meetLink?: string,
+        options: { userId?: string } = {}
+    ): Promise<boolean> {
         try {
             console.log('📧 Attempting to send admin notification about new consultation');
             
@@ -236,41 +228,41 @@ We've logged your booking details for follow-up.`);
                 `
             };
 
-            // Try Gmail first
-            const sentViaGmail = await this.sendViaGmail(adminEmail, emailContent.subject, emailContent.html);
-            
-            if (sentViaGmail) {
-                console.log('✅ Admin notification sent successfully via Gmail');
-                return true;
+            const preference = options.userId
+                ? {
+                      userId: options.userId,
+                      channel: 'email' as const,
+                      event: 'appointmentScheduled'
+                  }
+                : undefined
+
+            const emailSent = await this.sendEmail(adminEmail, emailContent.subject, emailContent.html, {
+                text: this.stripHtml(emailContent.html),
+                replyTo: data.email,
+                preference
+            })
+
+            if (!emailSent) {
+                console.warn('⚠️ Admin notification could not be sent via Mailgun. Logging instead.')
+                console.log('📋 New consultation booking:', {
+                    client: data.name,
+                    email: data.email,
+                    phone: data.phone,
+                    date: data.date,
+                    time: data.time,
+                    message: data.message,
+                    meetLink: meetLink
+                })
             }
 
-            // Gmail failed, try backend
-            const backendSent = await this.sendViaBackend(emailContent);
-            if (backendSent) {
-                console.log('✅ Admin notification sent successfully via backend');
-                return true;
-            }
-
-            // All methods failed, log the notification
-            console.log('⚠️ Admin notification could not be sent via email, logging instead:');
-            console.log('📋 New consultation booking:', {
-                client: data.name,
-                email: data.email,
-                phone: data.phone,
-                date: data.date,
-                time: data.time,
-                message: data.message,
-                meetLink: meetLink
-            });
-            
-            return true; // Return true since the booking was successful
+            return emailSent
         } catch (error) {
             console.error('❌ Error in admin notification:', error);
             return false;
         }
     }
 
-    async sendContactMessage(data: ContactMessageData): Promise<boolean> {
+    async sendContactMessage(data: ContactMessageData, options: SendEmailOptions = {}): Promise<boolean> {
         try {
             console.log('📧 Forwarding contact message to admin inbox');
 
@@ -297,21 +289,29 @@ We've logged your booking details for follow-up.`);
                 </div>
             `;
 
-            const sent = await this.sendEmail(adminEmail, subject, html, data.email);
-            if (sent) {
-                console.log('✅ Contact message forwarded successfully');
-                return true;
+            const plainText = `New contact message\n\n` +
+                `Name: ${data.name}\n` +
+                `Email: ${data.email}\n` +
+                `Phone: ${data.phone ?? 'Not provided'}\n\n` +
+                `Message:\n${data.message}`
+
+            const sent = await this.sendEmail(adminEmail, subject, html, {
+                text: plainText,
+                replyTo: data.email,
+                ...options
+            })
+
+            if (!sent) {
+                console.warn('⚠️ Contact email could not be sent via Mailgun. Logging instead:')
+                console.table({
+                    name: data.name,
+                    email: data.email,
+                    phone: data.phone ?? 'N/A',
+                    message: data.message
+                })
             }
 
-            console.log('⚠️ Contact email could not be sent via Gmail, logging instead:');
-            console.table({
-                name: data.name,
-                email: data.email,
-                phone: data.phone ?? 'N/A',
-                message: data.message
-            });
-
-            return true;
+            return sent
         } catch (error) {
             console.error('❌ Error sending contact message:', error);
             return false;

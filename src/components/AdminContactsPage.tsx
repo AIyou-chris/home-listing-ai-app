@@ -192,7 +192,7 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 									<button
 										onClick={async () => {
 											try {
-											const ok = await googleOAuthService.requestAccess();
+													const ok = await googleOAuthService.requestAccess({ context: 'calendar' });
 											setGoogleConnected(!!ok);
 										} catch (error) {
 											console.error('Failed to connect Google account:', error);

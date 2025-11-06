@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
-import { Property, AgentProfile } from '../types';
+import { Property, AgentProfile, AIDescription } from '../types';
 import { SAMPLE_AGENT } from '../constants';
 import AddTextKnowledgeModal from './AddTextKnowledgeModal';
 import ListingSidekickWidget from './ListingSidekickWidget'
 import { continueConversation } from '../services/openaiService'
 import PublicPropertyApp from './PublicPropertyApp';
+import { listingsService } from '../services/listingsService';
 
 interface AddListingPageProps {
     onCancel: () => void;
-    onSave: (newProperty: Omit<Property, 'id' | 'description' | 'imageUrl'>) => void;
+    onSave: (property: Property) => void;
     onPreview?: () => void;
 }
 
@@ -131,57 +132,45 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
         setIsSaving(true);
         
         try {
-            // Prepare listing data for backend
-            const listingData = {
+            const features = formData.rawAmenities
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean);
+
+            const description: AIDescription = {
+                title: 'Property Description Preview',
+                paragraphs: formData.description
+                    .split('\n')
+                    .map(p => p.trim())
+                    .filter(Boolean)
+            };
+
+            const agentSnapshot: AgentProfile = {
+                ...SAMPLE_AGENT,
+                ...formData.agent,
+                socials: Array.isArray(formData.agent.socials) ? formData.agent.socials : SAMPLE_AGENT.socials
+            };
+
+            const createdProperty = await listingsService.createProperty({
                 title: formData.propertyTitle,
                 address: formData.address,
-                price: Number(formData.price),
-                bedrooms: Number(formData.beds),
-                bathrooms: Number(formData.baths),
-                squareFeet: Number(formData.sqft),
+                price: Number(formData.price) || 0,
+                bedrooms: Number(formData.beds) || 0,
+                bathrooms: Number(formData.baths) || 0,
+                squareFeet: Number(formData.sqft) || 0,
                 propertyType: 'Single-Family Home',
-                description: formData.description,
-                features: formData.rawAmenities.split(',').map(s => s.trim()),
-                heroPhotos: formData.heroPhotos.map(p => typeof p === 'string' ? p : p.name),
-                galleryPhotos: formData.galleryPhotos.map(p => typeof p === 'string' ? p : p.name),
-                agentId: 'default' // Use centralized profile
-            };
-            
-            // Save to backend
-            const response = await fetch('/api/listings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(listingData),
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to save listing');
-            }
-            
-            const savedListing = await response.json();
-            console.log('✅ Listing saved successfully:', savedListing);
-            
-            // Convert backend format to frontend format for onSave callback
-            const saveData: Omit<Property, 'id' | 'description' | 'imageUrl'> = {
-                title: savedListing.title,
-                address: savedListing.address,
-                price: savedListing.price,
-                bedrooms: savedListing.bedrooms,
-                bathrooms: savedListing.bathrooms,
-                squareFeet: savedListing.squareFeet,
-                propertyType: savedListing.propertyType,
-                features: savedListing.features,
-                heroPhotos: savedListing.heroPhotos,
-                galleryPhotos: savedListing.galleryPhotos,
-                appFeatures: formData.appFeatures,
-                agent: savedListing.agent,
+                status: 'Active',
+                description,
+                features,
+                heroPhotos: formData.heroPhotos,
+                galleryPhotos: formData.galleryPhotos,
                 ctaListingUrl: formData.ctaListingUrl,
-                ctaMediaUrl: formData.ctaMediaUrl
-            };
-            
-            onSave(saveData);
+                ctaMediaUrl: formData.ctaMediaUrl,
+                appFeatures: formData.appFeatures,
+                agentSnapshot
+            });
+
+            onSave(createdProperty);
         } catch (error) {
             console.error('Error saving listing:', error);
             alert('Failed to save listing. Please try again.');

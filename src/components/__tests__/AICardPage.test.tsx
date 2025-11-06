@@ -39,10 +39,6 @@ jest.mock('../../services/aiCardService', () => {
   }
 })
 
-jest.mock('../../services/linkShortenerService', () => ({
-  createShortLink: jest.fn().mockResolvedValue({ shortUrl: 'https://demo.short/abc123' })
-}))
-
 jest.mock('../../services/agentProfileService', () => ({
   notifyProfileChange: jest.fn()
 }))

@@ -751,3 +751,1818 @@ Port 5175 is in use, trying another one...
   ➜  Network: http://192.168.1.28:5173/
 4:32:19 PM [vite] page reload src/main.tsx
 4:32:49 PM [vite] page reload src/main.tsx
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 290 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 252 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+
+  VITE v5.4.21  ready in 1003 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+3:41:13 PM [vite] page reload src/main.tsx
+5:19:58 PM [vite] hmr update /src/index.css, /src/components/ConsultationModal.tsx, /src/App.tsx, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+5:19:58 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+5:19:58 PM [vite] page reload src/context/SchedulerContext.tsx
+5:24:05 PM [vite] hmr update /src/index.css, /src/components/ConsultationModal.tsx, /src/App.tsx, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+5:24:05 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+5:24:05 PM [vite] page reload src/context/SchedulerContext.tsx
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 818 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+5:39:45 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:39:57 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:39:57 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:40:15 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:40:30 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:40:54 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:41:39 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:42:04 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:42:35 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+5:59:23 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+6:45:43 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+6:46:48 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+6:50:49 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+6:50:49 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+6:50:49 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+6:51:27 PM [vite] hmr update /src/App.tsx, /src/index.css
+6:51:27 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:51:27 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:51:41 PM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+6:51:41 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:53:23 PM [vite] hmr update /src/index.css, /src/components/ConsultationModal.tsx, /src/App.tsx, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+6:53:23 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:53:23 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:53:23 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+6:53:23 PM [vite] page reload src/context/SchedulerContext.tsx
+6:53:24 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+6:53:24 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+6:54:04 PM [vite] hmr update /src/index.css, /src/components/ConsultationModal.tsx, /src/App.tsx, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+6:54:04 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:54:04 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:54:05 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+6:54:05 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+6:54:26 PM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+6:54:26 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:54:26 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:54:27 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+6:54:27 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+6:55:47 PM [vite] hmr update /src/App.tsx, /src/index.css
+6:55:47 PM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+6:55:47 PM [vite] hmr update /src/index.css, /src/components/ConsultationModal.tsx, /src/App.tsx, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+6:55:47 PM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+6:55:47 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+6:55:47 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:55:47 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:55:47 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+6:55:47 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+6:55:47 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+7:52:50 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+7:52:53 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 273 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+7:55:13 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+7:55:13 PM [vite] Pre-transform error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+7:55:13 PM [vite] Internal server error: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx: Unexpected token, expected "," (209:33)
+
+  207 |                 key: 'appointmentReminders',
+  208 |                 label: 'Appointment reminders',
+> 209 |                 description: 'We'll nudge you ahead of every booked consultation.'
+      |                                  ^
+  210 |             },
+  211 |             {
+  212 |                 key: 'taskReminders',
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:209:33
+  207|                  key: 'appointmentReminders',
+  208|                  label: 'Appointment reminders',
+  209|                  description: 'We'll nudge you ahead of every booked consultation.'
+     |                                   ^
+  210|              },
+  211|              {
+      at constructor (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6627:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6647:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6927:12)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11821:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseExprListItem (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12176:18)
+      at TypeScriptParserMixin.parseExprList (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12151:22)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12058:26)
+      at TypeScriptParserMixin.parseArrayLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9269:24)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11330:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10899:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10876:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10826:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9801:20)
+      at /Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12427:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10795:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12494:17)
+      at TypeScriptParserMixin.parseObjectProperty (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11951:83)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11979:100)
+      at TypeScriptParserMixin.parseObjPropValue (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9759:18)
+      at TypeScriptParserMixin.parsePropertyDefinition (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11916:17)
+      at TypeScriptParserMixin.parseObjectLike (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11831:21)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11334:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4794:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11076:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11061:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11041:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9852:18)
+7:55:53 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:56:01 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:32:29 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:32:29 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:32:56 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:32:56 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:33:27 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:33:27 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:33:57 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:33:57 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:34:38 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:34:38 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:35:20 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:35:20 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:39:35 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:39:35 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:39:57 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:39:57 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:41:06 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:41:06 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:42:46 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:42:46 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:43:54 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:43:54 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:44:13 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:44:13 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:44:45 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+8:44:45 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 1019 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+6:48:40 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+6:48:40 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+6:49:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+6:49:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:04:32 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:04:32 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:06:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:06:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:07:08 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:07:08 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:07:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:07:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:07:58 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:07:58 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:08:44 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:08:44 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:09:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:09:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:09:26 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:09:26 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:11:23 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:11:23 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:12:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:12:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:12:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:12:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:13:14 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:13:14 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:13:54 AM [vite] hmr update /src/index.css, /src/components/AISidekicks.tsx
+7:13:54 AM [vite] hmr update /src/index.css, /src/components/AISidekicks.tsx
+7:14:44 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:14:44 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:15:35 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:15:35 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:16:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:16:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:17:43 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:17:43 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:18:38 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:18:38 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:19:23 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:19:23 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:20:06 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:20:06 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:20:28 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:20:28 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:21:06 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:21:06 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:21:44 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:21:44 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:22:21 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:22:21 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:23:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:23:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:24:18 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:24:18 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:24:54 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:24:54 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:25:40 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:25:40 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:26:42 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:26:42 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:26:55 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:26:55 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:27:09 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:27:09 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:27:09 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:27:38 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:27:38 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:28:59 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:28:59 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:29:45 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:29:45 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:30:39 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:30:39 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:31:12 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:31:12 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:31:43 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:31:43 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:31:59 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:31:59 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:32:28 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:32:28 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:33:09 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:33:09 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:33:54 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:33:54 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:34:12 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:34:12 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:35:39 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:35:39 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:36:15 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:36:15 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:37:03 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:37:03 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:37:32 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:37:32 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:38:22 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:38:22 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:39:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:39:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:40:05 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:40:05 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:40:20 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:40:20 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:41:48 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:41:48 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:42:27 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:42:27 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:42:28 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:42:57 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:42:57 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:43:27 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:43:27 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:43:58 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:43:58 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:44:47 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:44:47 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:45:52 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:45:52 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:46:27 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:46:27 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:48:50 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:48:50 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+7:48:50 AM [vite] hmr update /src/index.css, /src/components/AISidekicks.tsx
+7:48:50 AM [vite] hmr update /src/index.css, /src/components/AISidekicks.tsx
+8:15:38 AM [vite] .env changed, restarting server...
+8:15:38 AM [vite] .env changed, restarting server...
+8:15:39 AM [vite] server restarted.
+8:15:39 AM [vite] server restarted.
+8:15:58 AM [vite] .env changed, restarting server...
+8:15:58 AM [vite] .env changed, restarting server...
+8:15:58 AM [vite] server restarted.
+8:15:58 AM [vite] server restarted.
+8:16:12 AM [vite] .env changed, restarting server...
+8:16:12 AM [vite] .env changed, restarting server...
+8:16:12 AM [vite] server restarted.
+8:16:12 AM [vite] server restarted.
+8:16:33 AM [vite] .env changed, restarting server...
+8:16:33 AM [vite] .env changed, restarting server...
+8:16:33 AM [vite] server restarted.
+8:16:33 AM [vite] server restarted.
+8:17:02 AM [vite] .env changed, restarting server...
+8:17:02 AM [vite] .env changed, restarting server...
+8:17:02 AM [vite] server restarted.
+8:17:02 AM [vite] server restarted.
+8:17:15 AM [vite] .env changed, restarting server...
+8:17:15 AM [vite] .env changed, restarting server...
+8:17:15 AM [vite] server restarted.
+8:17:15 AM [vite] server restarted.
+8:17:40 AM [vite] .env changed, restarting server...
+8:17:40 AM [vite] .env changed, restarting server...
+8:17:40 AM [vite] server restarted.
+8:17:40 AM [vite] server restarted.
+8:17:53 AM [vite] .env changed, restarting server...
+8:17:53 AM [vite] .env changed, restarting server...
+8:17:53 AM [vite] server restarted.
+8:17:53 AM [vite] server restarted.
+8:18:10 AM [vite] .env changed, restarting server...
+8:18:10 AM [vite] .env changed, restarting server...
+8:18:11 AM [vite] server restarted.
+8:18:11 AM [vite] server restarted.
+8:23:55 AM [vite] .env changed, restarting server...
+8:23:55 AM [vite] .env changed, restarting server...
+8:23:55 AM [vite] server restarted.
+8:23:55 AM [vite] server restarted.
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 1002 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+8:34:34 AM [vite] page reload src/components/AdminAgentsPage.tsx
+8:34:34 AM [vite] page reload src/components/AIAgentHub.tsx
+8:34:34 AM [vite] page reload src/components/AdminModals.tsx
+8:34:34 AM [vite] page reload src/components/AdminModals.tsx
+8:34:34 AM [vite] hmr update /src/components/AnalyticsDashboard.tsx, /src/index.css
+8:34:34 AM [vite] page reload src/components/AdminCRMContacts.tsx
+8:34:34 AM [vite] page reload src/components/AIMarketingProposalPage.tsx
+8:34:34 AM [vite] page reload src/components/AdminCRMContactsSupabase.tsx
+8:34:34 AM [vite] page reload src/components/AdminClientsPage.tsx
+8:34:34 AM [vite] page reload src/components/AdminContactsPage.tsx
+8:34:34 AM [vite] page reload src/components/AIBlogWriterPage.tsx
+8:34:34 AM [vite] hmr update /src/components/AIConversationsPage.tsx, /src/index.css
+8:34:34 AM [vite] page reload src/components/AdminDashboard.tsx
+8:34:34 AM [vite] hmr update /src/components/BlogPage.tsx, /src/index.css
+8:34:34 AM [vite] page reload src/components/AdminKnowledgeBasePage.tsx
+8:34:34 AM [vite] page reload src/components/AgentOnboardingPage.tsx
+8:34:34 AM [vite] page reload src/components/AgentOnboardingPage.tsx
+8:34:34 AM [vite] hmr update /src/components/HelpSalesChatBot.tsx, /src/index.css
+8:34:34 AM [vite] hmr update /src/components/ChatBotFAB.tsx, /src/index.css
+8:34:34 AM [vite] hmr update /src/components/CheckoutPage.tsx, /src/index.css
+8:34:34 AM [vite] page reload src/components/CollapsibleCard.tsx
+8:34:34 AM [vite] hmr update /src/components/Dashboard.tsx, /src/index.css
+8:34:34 AM [vite] page reload src/components/DemoDashboard.tsx
+8:34:34 AM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
+8:34:34 AM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
+8:34:34 AM [vite] hmr update /src/components/PropertyPage.tsx, /src/index.css
+8:34:34 AM [vite] hmr update /src/components/PropertyPage.tsx, /src/index.css
+8:34:35 AM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
+8:34:35 AM [vite] hmr update /src/components/QRCodeManagementPage.tsx, /src/index.css
+8:34:35 AM [vite] page reload src/components/QuickSidekickControl.tsx
+8:34:35 AM [vite] page reload src/components/QuickSidekickControl.tsx
+8:34:35 AM [vite] page reload src/components/RealTimeAnalytics.tsx
+8:34:35 AM [vite] page reload src/components/SecurityDashboard.tsx
+8:34:35 AM [vite] page reload src/components/ShareModal.tsx
+8:34:35 AM [vite] page reload src/components/SidekickAnalyticsDashboard.tsx
+8:34:35 AM [vite] page reload src/components/SidekickAutoAssignment.tsx
+8:34:35 AM [vite] page reload src/components/SidekickLeadScoring.tsx
+8:34:35 AM [vite] page reload src/components/AddContactModal.tsx
+8:34:35 AM [vite] hmr update /src/components/EmailTemplateModal.tsx, /src/index.css
+8:34:35 AM [vite] hmr update /src/components/EmailTemplateModal.tsx, /src/index.css
+8:34:35 AM [vite] hmr update /src/components/ErrorBoundary.tsx, /src/index.css
+8:34:35 AM [vite] hmr update /src/components/ErrorBoundary.tsx, /src/index.css
+8:34:35 AM [vite] page reload src/components/GoogleMeetTest.tsx
+8:34:35 AM [vite] hmr update /src/components/AddLeadModal.tsx, /src/index.css
+8:34:35 AM [vite] hmr update /src/components/AddLeadModal.tsx, /src/index.css
+8:34:35 AM [vite] hmr update /src/components/InteractionHubPage.tsx, /src/index.css
+8:34:35 AM [vite] page reload src/components/ListingAppModals.tsx
+8:34:35 AM [vite] page reload src/components/ListingAppModals.tsx
+8:34:35 AM [vite] page reload src/components/SidekickTrainingWorkflows.tsx
+8:34:36 AM [vite] hmr update /src/components/SignUpPage.tsx, /src/index.css
+8:34:36 AM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/AgentDashboardBlueprint.tsx
+8:34:36 AM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/AgentDashboardBlueprint.tsx
+8:34:36 AM [vite] page reload src/lib/authedFetch.ts
+8:34:36 AM [vite] page reload src/lib/authedPost.ts
+8:34:36 AM [vite] hmr update /src/App.tsx, /src/index.css
+8:34:36 AM [vite] hmr update /src/App.tsx, /src/index.css
+8:34:36 AM [vite] page reload src/services/localAIService.ts
+8:34:36 AM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+8:34:36 AM [vite] page reload src/test/aiRouter.test.ts
+8:34:36 AM [vite] hmr update /src/App.tsx, /src/index.css
+8:34:36 AM [vite] hmr update /src/context/AdminModalContext.tsx, /src/index.css
+8:34:36 AM [vite] hmr update /src/context/AdminModalContext.tsx, /src/index.css
+8:34:36 AM [vite] page reload src/components/AdminAuth.tsx
+8:34:36 AM [vite] hmr update /src/components/ExportModal.tsx, /src/index.css
+8:34:36 AM [vite] page reload src/components/SidekickMultiLanguage.tsx
+8:34:36 AM [vite] page reload src/components/HelpSalesChatBotTestPage.tsx
+8:34:37 AM [vite] page reload src/components/HelpSalesChatBotTestPage.tsx
+8:34:37 AM [vite] page reload src/components/LeadScoringDashboard.tsx
+8:34:37 AM [vite] page reload src/components/LeadScoringDashboard.tsx
+8:34:37 AM [vite] hmr update /src/components/NewLandingPage.tsx, /src/index.css
+8:34:37 AM [vite] hmr update /src/components/SignInPage.tsx, /src/index.css
+8:34:37 AM [vite] hmr update /src/components/SmartTaskManager.tsx, /src/index.css
+8:34:37 AM [vite] hmr update /src/components/TemplateVariableForm.tsx, /src/index.css
+8:34:37 AM [vite] page reload src/components/SimplifiedSidekickSetup.tsx
+8:34:37 AM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
+8:34:37 AM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
+8:34:37 AM [vite] hmr update /src/context/AISidekickContext.tsx, /src/index.css
+8:34:37 AM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css
+8:34:37 AM [vite] page reload src/lib/aiRouter.ts
+8:34:37 AM [vite] page reload src/services/adminService.ts
+8:34:37 AM [vite] page reload src/services/notificationService.ts
+8:34:37 AM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/CheckoutPage.tsx, /src/components/SignUpPage.tsx
+8:34:37 AM [vite] hmr update /src/index.css, /src/context/AISidekickContext.tsx
+8:34:37 AM [vite] hmr update /src/index.css, /src/components/PropertyPage.tsx
+8:34:37 AM [vite] hmr update /src/index.css, /src/components/PropertyPage.tsx
+8:34:37 AM [vite] hmr update /src/App.tsx, /src/index.css
+8:34:37 AM [vite] hmr update /src/index.css, /src/components/AddListingPage.tsx, /src/components/AICardPage.tsx, /src/components/AIInteractiveTraining.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx
+8:34:37 AM [vite] hmr update /src/index.css, /src/components/AddListingPage.tsx, /src/components/AICardPage.tsx, /src/components/AIInteractiveTraining.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx
+8:34:37 AM [vite] page reload src/services/usageService.ts
+8:34:37 AM [vite] hmr update /src/index.css, /src/components/PropertyPage.tsx
+8:34:38 AM [vite] hmr update /src/index.css, /src/components/PropertyPage.tsx
+8:34:38 AM [vite] hmr update /src/index.css, /src/components/AnalyticsDashboard.tsx
+8:34:38 AM [vite] hmr update /src/App.tsx, /src/index.css
+8:34:38 AM [vite] hmr update /src/index.css, /src/components/AIConversationsPage.tsx, /src/components/ListingSidekickWidget.tsx
+8:34:38 AM [vite] hmr update /src/index.css, /src/components/AIConversationsPage.tsx, /src/components/ListingSidekickWidget.tsx
+8:34:38 AM [vite] page reload src/components/__tests__/AICardPage.test.tsx
+8:34:38 AM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+8:34:38 AM [vite] page reload src/main.tsx
+8:34:38 AM [vite] page reload src/main.tsx
+8:34:38 AM [vite] hmr update /src/App.tsx, /src/index.css
+8:34:38 AM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+8:34:38 AM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+8:34:38 AM [vite] hmr update /src/index.css, /src/components/ConsultationModal.tsx, /src/App.tsx, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+8:34:38 AM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+8:34:39 AM [vite] hmr update /src/index.css, /src/components/AISidekicks.tsx
+8:34:40 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 199 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+8:57:40 AM [vite] http proxy error: /api/admin/leads
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:216:20)
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 173 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 177 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 115 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 1080 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+9:35:09 AM [vite] page reload src/main.tsx
+9:35:09 AM [vite] hmr update /src/App.tsx, /src/index.css
+9:35:09 AM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+9:35:09 AM [vite] hmr update /src/index.css, /src/components/ConsultationModal.tsx, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx, /src/App.tsx
+9:35:09 AM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+9:35:09 AM [vite] hmr update /src/index.css, /src/components/AISidekicks.tsx
+9:35:09 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+9:36:55 AM [vite] .env changed, restarting server...
+9:36:55 AM [vite] .env changed, restarting server...
+9:36:55 AM [vite] server restarted.
+9:36:55 AM [vite] server restarted.
+9:50:54 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx, /src/components/SettingsPage.tsx
+9:50:54 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+9:50:54 AM [vite] page reload src/context/SchedulerContext.tsx
+9:51:33 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+9:52:00 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+9:52:16 AM [vite] page reload src/components/GoogleMeetTest.tsx
+9:52:34 AM [vite] hmr update /src/index.css, /src/App.tsx
+9:52:43 AM [vite] page reload src/components/AdminContactsPage.tsx
+9:52:52 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+9:52:52 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+9:52:52 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+9:52:52 AM [vite] page reload src/context/SchedulerContext.tsx
+9:53:36 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+9:53:36 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+9:53:36 AM [vite] page reload src/context/SchedulerContext.tsx
+9:53:43 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+9:53:43 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+9:53:43 AM [vite] page reload src/context/SchedulerContext.tsx
+9:53:52 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+9:53:52 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+9:53:52 AM [vite] page reload src/context/SchedulerContext.tsx
+9:54:00 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+9:54:00 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+9:54:00 AM [vite] page reload src/context/SchedulerContext.tsx
+9:54:34 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+9:54:35 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+9:54:35 AM [vite] page reload src/context/SchedulerContext.tsx
+9:59:00 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+9:59:19 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+9:59:28 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:00:17 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:00:17 AM [vite] Internal server error: Failed to resolve import "../services/calendarSettingsService" from "src/components/SettingsPage.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:4:40
+  18 |  import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+  19 |  import { googleOAuthService } from "../services/googleOAuthService";
+  20 |  import { calendarSettingsService } from "../services/calendarSettingsService";
+     |                                           ^
+  21 |  const TabButton = ({ isActive, onClick, icon, children }) => {
+  22 |    return /* @__PURE__ */ jsxDEV(
+      at TransformPluginContext._formatError (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41)
+      at TransformPluginContext.error (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16)
+      at normalizeUrl (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64307:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64439:39
+      at async Promise.all (index 5)
+      at async TransformPluginContext.transform (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64366:7)
+      at async PluginContainer.transform (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+      at async viteTransformMiddleware (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:62106:24)
+10:00:35 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx
+10:00:35 AM [vite] Pre-transform error: Failed to resolve import "../services/calendarSettingsService" from "src/components/SettingsPage.tsx". Does the file exist?
+10:00:35 AM [vite] Internal server error: Failed to resolve import "../services/calendarSettingsService" from "src/components/SettingsPage.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:4:40
+  18 |  import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+  19 |  import { googleOAuthService } from "../services/googleOAuthService";
+  20 |  import { calendarSettingsService } from "../services/calendarSettingsService";
+     |                                           ^
+  21 |  const TabButton = ({ isActive, onClick, icon, children }) => {
+  22 |    return /* @__PURE__ */ jsxDEV(
+      at TransformPluginContext._formatError (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41)
+      at TransformPluginContext.error (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16)
+      at normalizeUrl (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64307:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64439:39
+      at async Promise.all (index 5)
+      at async TransformPluginContext.transform (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64366:7)
+      at async PluginContainer.transform (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+10:00:35 AM [vite] Pre-transform error: Failed to resolve import "../services/calendarSettingsService" from "src/components/SettingsPage.tsx". Does the file exist?
+10:01:42 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx
+10:01:42 AM [vite] Pre-transform error: Failed to resolve import "../services/calendarSettingsService" from "src/components/SettingsPage.tsx". Does the file exist?
+10:01:42 AM [vite] Internal server error: Failed to resolve import "../services/calendarSettingsService" from "src/components/SettingsPage.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /Volumes/GFY/EatADick/home-listing-ai-app/src/components/SettingsPage.tsx:4:40
+  18 |  import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+  19 |  import { googleOAuthService } from "../services/googleOAuthService";
+  20 |  import { calendarSettingsService } from "../services/calendarSettingsService";
+     |                                           ^
+  21 |  const TabButton = ({ isActive, onClick, icon, children }) => {
+  22 |    return /* @__PURE__ */ jsxDEV(
+      at TransformPluginContext._formatError (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41)
+      at TransformPluginContext.error (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16)
+      at normalizeUrl (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64307:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64439:39
+      at async Promise.all (index 5)
+      at async TransformPluginContext.transform (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64366:7)
+      at async PluginContainer.transform (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///Volumes/GFY/EatADick/home-listing-ai-app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+10:01:42 AM [vite] Pre-transform error: Failed to resolve import "../services/calendarSettingsService" from "src/components/SettingsPage.tsx". Does the file exist?
+10:02:30 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx
+10:02:44 AM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+10:02:57 AM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+10:02:57 AM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+10:03:34 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:03:42 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:03:42 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:04:01 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:04:24 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:04:34 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:05:02 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:05:09 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:05:09 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:05:47 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:05:54 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:07:24 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:07:55 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:08:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:11:51 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx, /src/components/SettingsPage.tsx
+10:11:51 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:11:51 AM [vite] page reload src/context/SchedulerContext.tsx
+10:12:15 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx, /src/components/SettingsPage.tsx
+10:12:15 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:12:15 AM [vite] page reload src/context/SchedulerContext.tsx
+10:12:27 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx, /src/components/SettingsPage.tsx
+10:12:27 AM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:12:27 AM [vite] page reload src/context/SchedulerContext.tsx
+10:12:54 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:13:24 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+10:14:04 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:15:36 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx, /src/components/SettingsPage.tsx
+10:15:36 AM [vite] page reload src/components/GoogleMeetTest.tsx
+10:15:36 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:15:36 AM [vite] page reload src/components/AdminContactsPage.tsx
+10:15:36 AM [vite] hmr update /src/index.css, /src/App.tsx
+10:15:36 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+10:15:36 AM [vite] hmr update /src/index.css, /src/components/SettingsPage.tsx, /src/components/AgentDashboardBlueprint.tsx
+10:15:36 AM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+10:15:36 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+10:15:36 AM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+10:24:46 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:24:57 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:24:57 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:25:54 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+10:26:23 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+10:26:38 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+10:27:01 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+10:27:35 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+10:27:35 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+11:03:54 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:04:10 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:04:30 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:04:42 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:04:42 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:05:01 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:05:15 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:05:33 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:05:51 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:06:14 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/CheckoutPage.tsx, /src/components/SignUpPage.tsx, /src/components/SettingsPage.tsx
+11:07:00 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+11:07:11 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+11:07:11 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+11:07:23 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+11:07:39 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+11:08:00 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+11:08:39 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+11:09:12 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/CheckoutPage.tsx, /src/components/SignUpPage.tsx, /src/components/SettingsPage.tsx
+11:09:12 AM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+11:09:12 AM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+11:20:41 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+11:21:30 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+11:24:37 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+11:24:53 AM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+11:25:48 AM [vite] hmr update /src/App.tsx, /src/index.css
+11:27:20 AM [vite] hmr update /src/App.tsx, /src/index.css
+11:28:16 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+11:28:40 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+11:34:26 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+11:35:18 AM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+11:35:18 AM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+11:35:18 AM [vite] hmr update /src/App.tsx, /src/index.css
+1:09:59 PM [vite] page reload src/components/AdminAgentsPage.tsx
+1:09:59 PM [vite] page reload src/components/AIAgentHub.tsx
+1:09:59 PM [vite] page reload src/components/AdminModals.tsx
+1:09:59 PM [vite] page reload src/components/AdminModals.tsx
+1:09:59 PM [vite] hmr update /src/components/AnalyticsDashboard.tsx, /src/index.css
+1:09:59 PM [vite] hmr update /src/components/AnalyticsDashboard.tsx, /src/index.css
+1:09:59 PM [vite] page reload src/components/AdminCRMContacts.tsx
+1:10:00 PM [vite] page reload src/components/AdminCRMContacts.tsx
+1:10:00 PM [vite] page reload src/components/AIMarketingProposalPage.tsx
+1:10:00 PM [vite] page reload src/components/AdminCRMContactsSupabase.tsx
+1:10:00 PM [vite] page reload src/components/AdminClientsPage.tsx
+1:10:00 PM [vite] page reload src/components/AIBlogWriterPage.tsx
+1:10:00 PM [vite] hmr update /src/components/AIConversationsPage.tsx, /src/index.css
+1:10:00 PM [vite] page reload src/components/AdminDashboard.tsx
+1:10:00 PM [vite] page reload src/components/AdminDashboard.tsx
+1:10:00 PM [vite] hmr update /src/components/BlogPage.tsx, /src/index.css
+1:10:00 PM [vite] page reload src/components/AdminKnowledgeBasePage.tsx
+1:10:00 PM [vite] page reload src/components/AgentOnboardingPage.tsx
+1:10:01 PM [vite] page reload src/components/AgentOnboardingPage.tsx
+1:10:01 PM [vite] hmr update /src/components/HelpSalesChatBot.tsx, /src/index.css
+1:10:01 PM [vite] hmr update /src/components/HelpSalesChatBot.tsx, /src/index.css
+1:10:01 PM [vite] hmr update /src/components/ChatBotFAB.tsx, /src/index.css
+1:10:01 PM [vite] hmr update /src/components/ChatBotFAB.tsx, /src/index.css
+1:10:01 PM [vite] hmr update /src/components/CheckoutPage.tsx, /src/index.css
+1:10:01 PM [vite] hmr update /src/components/CheckoutPage.tsx, /src/index.css
+1:10:01 PM [vite] page reload src/components/CollapsibleCard.tsx
+1:10:01 PM [vite] page reload src/components/CollapsibleCard.tsx
+1:10:02 PM [vite] hmr update /src/components/Dashboard.tsx, /src/index.css
+1:10:02 PM [vite] hmr update /src/components/Dashboard.tsx, /src/index.css
+1:10:02 PM [vite] page reload src/components/DemoDashboard.tsx
+1:10:02 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
+1:10:02 PM [vite] hmr update /src/components/LandingPage.tsx, /src/index.css
+1:10:02 PM [vite] hmr update /src/components/PropertyPage.tsx, /src/index.css
+1:10:02 PM [vite] hmr update /src/components/PublicPropertyApp.tsx, /src/index.css
+1:10:02 PM [vite] hmr update /src/components/QRCodeManagementPage.tsx, /src/index.css
+1:10:02 PM [vite] page reload src/components/QuickSidekickControl.tsx
+1:10:02 PM [vite] page reload src/components/QuickSidekickControl.tsx
+1:10:02 PM [vite] page reload src/components/RealTimeAnalytics.tsx
+1:10:02 PM [vite] page reload src/components/RealTimeAnalytics.tsx
+1:10:02 PM [vite] page reload src/components/SecurityDashboard.tsx
+1:10:02 PM [vite] page reload src/components/ShareModal.tsx
+1:10:02 PM [vite] page reload src/components/ShareModal.tsx
+1:10:02 PM [vite] page reload src/components/SidekickAnalyticsDashboard.tsx
+1:10:02 PM [vite] page reload src/components/SidekickAnalyticsDashboard.tsx
+1:10:02 PM [vite] page reload src/components/SidekickAutoAssignment.tsx
+1:10:03 PM [vite] page reload src/components/SidekickAutoAssignment.tsx
+1:10:03 PM [vite] page reload src/components/SidekickLeadScoring.tsx
+1:10:03 PM [vite] page reload src/components/SidekickLeadScoring.tsx
+1:10:03 PM [vite] page reload src/components/AddContactModal.tsx
+1:10:03 PM [vite] hmr update /src/components/EmailTemplateModal.tsx, /src/index.css
+1:10:03 PM [vite] hmr update /src/components/EmailTemplateModal.tsx, /src/index.css
+1:10:03 PM [vite] hmr update /src/components/ErrorBoundary.tsx, /src/index.css
+1:10:03 PM [vite] hmr update /src/components/AddLeadModal.tsx, /src/index.css
+1:10:03 PM [vite] hmr update /src/components/AddLeadModal.tsx, /src/index.css
+1:10:03 PM [vite] hmr update /src/components/InteractionHubPage.tsx, /src/index.css
+1:10:03 PM [vite] page reload src/components/ListingAppModals.tsx
+1:10:03 PM [vite] page reload src/components/ListingAppModals.tsx
+1:10:03 PM [vite] page reload src/components/SidekickTrainingWorkflows.tsx
+1:10:03 PM [vite] hmr update /src/components/SignUpPage.tsx, /src/index.css
+1:10:03 PM [vite] hmr update /src/components/SignUpPage.tsx, /src/index.css
+1:10:03 PM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx
+1:10:03 PM [vite] page reload src/lib/authedFetch.ts
+1:10:03 PM [vite] page reload src/lib/authedFetch.ts
+1:10:03 PM [vite] page reload src/lib/authedPost.ts
+1:10:03 PM [vite] hmr update /src/index.css, /src/App.tsx
+1:10:03 PM [vite] page reload src/services/localAIService.ts
+1:10:04 PM [vite] page reload src/services/localAIService.ts
+1:10:04 PM [vite] page reload src/test/aiRouter.test.ts
+1:10:04 PM [vite] page reload src/test/aiRouter.test.ts
+1:10:04 PM [vite] hmr update /src/index.css, /src/App.tsx
+1:10:04 PM [vite] hmr update /src/index.css, /src/App.tsx
+1:10:04 PM [vite] hmr update /src/context/AdminModalContext.tsx, /src/index.css
+1:10:04 PM [vite] hmr update /src/context/AdminModalContext.tsx, /src/index.css
+1:10:04 PM [vite] page reload src/components/AdminAuth.tsx
+1:10:04 PM [vite] hmr invalidate /src/context/AdminModalContext.tsx Could not Fast Refresh ("useAdminModal" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:10:04 PM [vite] hmr update /src/index.css, /src/App.tsx
+1:10:04 PM [vite] page reload src/components/AdminAuth.tsx
+1:10:04 PM [vite] hmr update /src/components/ExportModal.tsx, /src/index.css
+1:10:04 PM [vite] page reload src/components/SidekickMultiLanguage.tsx
+1:10:04 PM [vite] page reload src/components/HelpSalesChatBotTestPage.tsx
+1:10:04 PM [vite] page reload src/components/LeadScoringDashboard.tsx
+1:10:04 PM [vite] hmr update /src/components/NewLandingPage.tsx, /src/index.css
+1:10:04 PM [vite] hmr update /src/components/SignInPage.tsx, /src/index.css
+1:10:04 PM [vite] hmr update /src/components/SmartTaskManager.tsx, /src/index.css
+1:10:04 PM [vite] hmr update /src/components/TemplateVariableForm.tsx, /src/index.css
+1:10:04 PM [vite] hmr update /src/components/TemplateVariableForm.tsx, /src/index.css
+1:10:04 PM [vite] page reload src/components/SimplifiedSidekickSetup.tsx
+1:10:05 PM [vite] page reload src/components/SimplifiedSidekickSetup.tsx
+1:10:05 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
+1:10:05 PM [vite] hmr update /src/context/AISidekickContext.tsx, /src/index.css
+1:10:05 PM [vite] hmr update /src/context/AISidekickContext.tsx, /src/index.css
+1:10:05 PM [vite] hmr update /src/context/SchedulerContext.tsx, /src/index.css
+1:10:05 PM [vite] page reload src/lib/aiRouter.ts
+1:10:05 PM [vite] page reload src/services/adminService.ts
+1:10:05 PM [vite] page reload src/services/notificationService.ts
+1:10:05 PM [vite] hmr update /src/index.css, /src/context/AISidekickContext.tsx
+1:10:05 PM [vite] hmr update /src/index.css, /src/components/PropertyPage.tsx
+1:10:05 PM [vite] hmr update /src/index.css, /src/components/PropertyPage.tsx
+1:10:05 PM [vite] hmr update /src/index.css, /src/App.tsx
+1:10:05 PM [vite] hmr update /src/index.css, /src/components/AddListingPage.tsx, /src/components/AICardPage.tsx, /src/components/AIInteractiveTraining.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx
+1:10:05 PM [vite] hmr update /src/index.css, /src/components/AddListingPage.tsx, /src/components/AICardPage.tsx, /src/components/AIInteractiveTraining.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx
+1:10:05 PM [vite] page reload src/services/usageService.ts
+1:10:05 PM [vite] hmr update /src/index.css, /src/components/PropertyPage.tsx
+1:10:05 PM [vite] hmr update /src/index.css, /src/components/PropertyPage.tsx
+1:10:05 PM [vite] hmr update /src/index.css, /src/components/AnalyticsDashboard.tsx
+1:10:05 PM [vite] hmr update /src/index.css, /src/App.tsx
+1:10:06 PM [vite] hmr update /src/index.css, /src/components/AIConversationsPage.tsx, /src/components/ListingSidekickWidget.tsx
+1:10:06 PM [vite] page reload src/components/__tests__/AICardPage.test.tsx
+1:10:06 PM [vite] page reload src/components/__tests__/AICardPage.test.tsx
+1:10:06 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+1:10:06 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+1:10:06 PM [vite] page reload src/main.tsx
+1:10:06 PM [vite] hmr update /src/index.css, /src/components/ConsultationModal.tsx, /src/App.tsx, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/components/AISidekicks.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/components/AISidekicks.tsx
+1:10:07 PM [vite] page reload src/components/GoogleMeetTest.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/App.tsx
+1:10:07 PM [vite] page reload src/components/AdminContactsPage.tsx
+1:10:07 PM [vite] page reload src/components/AdminContactsPage.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/components/SettingsPage.tsx, /src/components/AgentDashboardBlueprint.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/components/SettingsPage.tsx, /src/components/AgentDashboardBlueprint.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx, /src/components/SettingsPage.tsx
+1:10:07 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx, /src/components/SettingsPage.tsx
+1:10:08 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:10:08 PM [vite] page reload src/context/SchedulerContext.tsx
+1:10:08 PM [vite] hmr update /src/components/SettingsPage.tsx, /src/index.css
+1:10:08 PM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/CheckoutPage.tsx, /src/components/SignUpPage.tsx, /src/components/SettingsPage.tsx
+1:10:08 PM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/CheckoutPage.tsx, /src/components/SignUpPage.tsx, /src/components/SettingsPage.tsx
+1:10:08 PM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+1:10:08 PM [vite] page reload src/components/__tests__/SettingsPage.calendar.test.tsx
+1:10:08 PM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+1:10:08 PM [vite] hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+1:10:08 PM [vite] hmr update /src/App.tsx, /src/index.css
+1:10:09 PM [vite] hmr update /src/App.tsx, /src/index.css
+1:10:09 PM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+1:10:09 PM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+1:18:02 PM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/NewLandingPage.tsx, /src/components/AddListingPage.tsx, /src/components/DemoListingPage.tsx, /src/context/AISidekickContext.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+1:18:02 PM [vite] hmr invalidate /src/context/AISidekickContext.tsx Could not Fast Refresh ("useAISidekicks" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:18:02 PM [vite] hmr update /src/index.css, /src/App.tsx
+1:18:20 PM [vite] hmr update /src/index.css, /src/App.tsx, /src/components/AgentDashboardBlueprint.tsx, /src/components/NewLandingPage.tsx, /src/components/AddListingPage.tsx, /src/components/DemoListingPage.tsx, /src/context/AISidekickContext.tsx, /src/components/ContactLeadModal.tsx, /src/components/AnalyticsPage.tsx
+1:18:20 PM [vite] hmr invalidate /src/context/AISidekickContext.tsx Could not Fast Refresh ("useAISidekicks" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:18:20 PM [vite] hmr update /src/index.css, /src/App.tsx
+1:31:55 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:31:55 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:31:55 PM [vite] page reload src/context/SchedulerContext.tsx
+1:32:03 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:32:03 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:32:03 PM [vite] page reload src/context/SchedulerContext.tsx
+1:34:11 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:34:11 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:34:11 PM [vite] page reload src/context/SchedulerContext.tsx
+1:35:10 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:35:10 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:35:10 PM [vite] page reload src/context/SchedulerContext.tsx
+1:35:30 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
+1:35:38 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
+1:35:47 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
+1:35:56 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
+1:35:56 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
+1:36:10 PM [vite] hmr update /src/components/ViewingModal.tsx, /src/index.css
+1:36:37 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:36:37 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:36:37 PM [vite] page reload src/context/SchedulerContext.tsx
+1:40:02 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:40:03 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:40:03 PM [vite] page reload src/context/SchedulerContext.tsx
+1:41:51 PM [vite] page reload src/services/__tests__/schedulerService.test.ts
+1:42:23 PM [vite] page reload src/services/__tests__/schedulerService.test.ts
+1:43:04 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:43:04 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:43:04 PM [vite] page reload src/context/SchedulerContext.tsx
+1:43:25 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:43:25 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:43:25 PM [vite] page reload src/context/SchedulerContext.tsx
+1:43:47 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:43:47 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:43:47 PM [vite] page reload src/context/SchedulerContext.tsx
+1:43:59 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:43:59 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:43:59 PM [vite] page reload src/context/SchedulerContext.tsx
+1:44:19 PM [vite] page reload src/services/__tests__/schedulerService.test.ts
+1:45:03 PM [vite] page reload src/services/__tests__/schedulerService.test.ts
+1:45:16 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:45:16 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:45:16 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:45:16 PM [vite] page reload src/context/SchedulerContext.tsx
+1:45:46 PM [vite] page reload src/services/__tests__/schedulerService.test.ts
+1:46:19 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:46:20 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:46:20 PM [vite] page reload src/context/SchedulerContext.tsx
+1:46:28 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:46:28 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:46:28 PM [vite] page reload src/context/SchedulerContext.tsx
+1:46:28 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:46:36 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:46:36 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:46:36 PM [vite] page reload src/context/SchedulerContext.tsx
+1:46:36 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:46:41 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:46:41 PM [vite] hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+1:46:41 PM [vite] page reload src/context/SchedulerContext.tsx
+1:46:41 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:46:53 PM [vite] page reload src/services/__tests__/schedulerService.test.ts
+1:48:04 PM [vite] page reload src/services/__tests__/schedulerService.test.ts
+1:48:59 PM [vite] hmr update /src/components/ViewingModal.tsx, /src/index.css
+1:48:59 PM [vite] hmr update /src/components/LeadsAndAppointmentsPage.tsx, /src/index.css
+1:48:59 PM [vite] hmr update /src/index.css, /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx
+1:48:59 PM [vite] page reload src/services/__tests__/schedulerService.test.ts
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 191 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+3:13:01 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:13:21 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:19:20 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:19:45 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:30:12 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:30:28 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:34:53 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:35:24 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:35:50 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:38:47 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css
+3:39:01 PM [vite] hmr update /src/components/AICardPage.tsx, /src/index.css

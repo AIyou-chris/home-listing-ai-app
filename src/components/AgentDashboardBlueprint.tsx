@@ -15,7 +15,11 @@ import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import { LogoWithName } from './LogoWithName';
 import { SAMPLE_AGENT } from '../constants';
+import { DEMO_FAT_PROPERTIES } from '../demoConstants';
+import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
+import { calendarSettingsService } from '../services/calendarSettingsService';
+import AgentBlueprintHero from './blueprint/AgentBlueprintHero';
 import {
   Property,
   View,
@@ -35,11 +39,33 @@ type MarketingSequencesResponse = {
   sequences?: FollowUpSequence[];
 };
 
+const cloneDemoProperty = (property: Property, index: number): Property => {
+  const description =
+    typeof property.description === 'string'
+      ? property.description
+      : {
+          ...property.description,
+          paragraphs: [...property.description.paragraphs]
+        };
+
+  return {
+    ...property,
+    id: property.id || `demo-property-${index}`,
+    description,
+    heroPhotos: [...property.heroPhotos],
+    galleryPhotos: property.galleryPhotos ? [...property.galleryPhotos] : undefined,
+    features: [...property.features],
+    appFeatures: { ...property.appFeatures },
+    agent: { ...property.agent }
+  };
+};
+
 const AgentDashboardBlueprint: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [properties, setProperties] = useState<Property[]>([]);
+  const [isLoadingProperties, setIsLoadingProperties] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const selectedProperty = useMemo(
     () => properties.find((property) => property.id === selectedPropertyId) || null,
@@ -56,6 +82,7 @@ const AgentDashboardBlueprint: React.FC = () => {
   const [agentProfile, setAgentProfile] = useState<AgentProfile>({
     ...SAMPLE_AGENT,
     name: 'Blueprint Agent',
+    slug: 'blueprint-agent',
     headshotUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&h=200&auto=format&fit=crop'
   });
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
@@ -100,6 +127,57 @@ const AgentDashboardBlueprint: React.FC = () => {
     planName: 'Solo Agent',
     history: [{ id: 'inv-123', date: '07/15/2024', amount: 59, status: 'Paid' }]
   });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProperties = async () => {
+      setIsLoadingProperties(true);
+      try {
+        const list = await listingsService.listProperties();
+        if (!isMounted) return;
+        if (list.length > 0) {
+          setProperties(list);
+        } else {
+          setProperties(DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index)));
+        }
+      } catch (error) {
+        console.error('[Blueprint] Unable to load properties from Supabase:', error);
+        if (isMounted) {
+          setProperties(DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index)));
+        }
+      } finally {
+        if (isMounted) setIsLoadingProperties(false);
+      }
+    };
+
+    loadProperties();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCalendarSettings = async () => {
+      try {
+        const payload = await calendarSettingsService.fetch(agentProfile.slug ?? 'blueprint-agent');
+        if (isMounted && payload?.settings) {
+          setCalendarSettings(payload.settings);
+        }
+      } catch (error) {
+        console.error('[Blueprint] Unable to load calendar settings:', error);
+      }
+    };
+
+    void loadCalendarSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [agentProfile.slug]);
 
   useEffect(() => {
     let isMounted = true;
@@ -165,25 +243,44 @@ const AgentDashboardBlueprint: React.FC = () => {
     setActiveView('property');
   };
 
-  const handleSetProperty = (updated: Property) => {
+  const handleSetProperty = async (updated: Property) => {
     setProperties((prev) => prev.map((property) => (property.id === updated.id ? updated : property)));
+
+    if (
+      updated.id.startsWith('demo-') ||
+      updated.id.startsWith('prop-demo-') ||
+      updated.id.startsWith('preview-')
+    ) {
+      return;
+    }
+
+    try {
+      const persisted = await listingsService.updateProperty(updated.id, updated);
+      setProperties((prev) => prev.map((property) => (property.id === persisted.id ? persisted : property)));
+    } catch (error) {
+      console.error('[Blueprint] Failed to persist property update:', error);
+    }
   };
 
-  const handleSaveNewProperty = (newProperty: Omit<Property, 'id'>) => {
-    const propertyWithId: Property = {
-      ...newProperty,
-      id: `prop-blueprint-${Date.now()}`
-    };
-    setProperties((prev) => [propertyWithId, ...prev]);
-    setSelectedPropertyId(propertyWithId.id);
+  const handleSaveNewProperty = (newProperty: Property) => {
+    setProperties((prev) => [newProperty, ...prev]);
+    setSelectedPropertyId(newProperty.id);
     setActiveView('property');
   };
 
-  const handleDeleteProperty = (id: string) => {
+  const handleDeleteProperty = async (id: string) => {
     setProperties((prev) => prev.filter((property) => property.id !== id));
     if (selectedPropertyId === id) {
       setSelectedPropertyId(null);
       setActiveView('listings');
+    }
+
+    if (!id.startsWith('demo-') && !id.startsWith('prop-demo-') && !id.startsWith('preview-')) {
+      try {
+        await listingsService.deleteProperty(id);
+      } catch (error) {
+        console.error('[Blueprint] Failed to delete property:', error);
+      }
     }
   };
 
@@ -209,11 +306,8 @@ const AgentDashboardBlueprint: React.FC = () => {
     };
 
     try {
-      const result = await leadsService.create(payload);
-      const createdLead: Lead | undefined = result?.lead;
-      if (createdLead) {
-        setLeads((prev) => [createdLead, ...prev]);
-      }
+      const createdLead = await leadsService.create(payload);
+      setLeads((prev) => [createdLead, ...prev]);
     } catch (error) {
       console.error('Failed to create lead via API, falling back to local insert:', error);
       const fallbackLead: Lead = {
@@ -238,21 +332,106 @@ const AgentDashboardBlueprint: React.FC = () => {
     setSelectedPropertyId(null);
   };
 
+  const onboardingSteps = useMemo(
+    () => [
+      {
+        label: 'Brand profile dialed in',
+        isComplete: Boolean(agentProfile.logoUrl && agentProfile.bio)
+      },
+      {
+        label: 'AI playbooks connected',
+        isComplete: sequences.length > 0
+      },
+      {
+        label: 'Automations staged for launch',
+        isComplete: sequences.length >= 2 && properties.length > 0
+      }
+    ],
+    [agentProfile.logoUrl, agentProfile.bio, sequences.length, properties.length]
+  );
+
+  const onboardingProgress = useMemo(() => {
+    if (!onboardingSteps.length) return 0;
+    const completed = onboardingSteps.filter((step) => step.isComplete).length;
+    return Math.round((completed / onboardingSteps.length) * 100);
+  }, [onboardingSteps]);
+
+  const heroStats = useMemo(
+    () => [
+      {
+        label: 'Active listings in review',
+        value: properties.length.toString().padStart(2, '0')
+      },
+      {
+        label: 'New leads this week',
+        value: leads.length.toString().padStart(2, '0')
+      },
+      {
+        label: 'AI follow-ups queued',
+        value: sequences.length ? sequences.length.toString().padStart(2, '0') : '00'
+      },
+      {
+        label: 'Upcoming appointments',
+        value: appointments.length.toString().padStart(2, '0')
+      }
+    ],
+    [appointments.length, leads.length, properties.length, sequences.length]
+  );
+
+  const heroQuickLinks = [
+    {
+      label: 'Complete branding profile',
+      description: 'Confirm contact details, brand assets, and compliance before launch.',
+      icon: 'account_circle',
+      onClick: () => setActiveView('settings')
+    },
+    {
+      label: 'Review AI automations',
+      description: 'Peek at nurture journeys and AI drafts queued for live rollout.',
+      icon: 'bolt',
+      onClick: () => setActiveView('marketing')
+    },
+    {
+      label: 'Train knowledge base',
+      description: 'Layer in scripts, market intel, and FAQs for the concierge sidekick.',
+      icon: 'neurology',
+      onClick: () => setActiveView('knowledge-base')
+    }
+  ];
+
   const renderMainContent = () => {
     switch (activeView) {
       case 'dashboard':
         return (
-          <Dashboard
-            agentProfile={agentProfile}
-            properties={properties}
-            leads={leads}
-            appointments={appointments}
-            tasks={tasks}
-            onSelectProperty={handleSelectProperty}
-            onTaskUpdate={handleTaskUpdate}
-            onTaskAdd={handleTaskAdd}
-            onTaskDelete={handleTaskDelete}
-          />
+          <div className="space-y-6">
+            <AgentBlueprintHero
+              agent={agentProfile}
+              heroStats={heroStats}
+              quickLinks={heroQuickLinks}
+              onboarding={{
+                percentage: onboardingProgress,
+                label: onboardingProgress === 100 ? 'Ready for launch' : 'Blueprint setup in progress',
+                steps: onboardingSteps
+              }}
+            />
+            {isLoadingProperties && properties.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+                Loading listings…
+              </div>
+            ) : (
+              <Dashboard
+                agentProfile={agentProfile}
+                properties={properties}
+                leads={leads}
+                appointments={appointments}
+                tasks={tasks}
+                onSelectProperty={handleSelectProperty}
+                onTaskUpdate={handleTaskUpdate}
+                onTaskAdd={handleTaskAdd}
+                onTaskDelete={handleTaskDelete}
+              />
+            )}
+          </div>
         );
       case 'leads':
         return (
@@ -301,6 +480,7 @@ const AgentDashboardBlueprint: React.FC = () => {
       case 'settings':
         return (
           <SettingsPage
+            userId={agentProfile.slug ?? 'blueprint-agent'}
             userProfile={agentProfile}
             onSaveProfile={setAgentProfile}
             notificationSettings={notificationSettings}
@@ -328,7 +508,7 @@ const AgentDashboardBlueprint: React.FC = () => {
         );
       default:
         return (
-          <div className="p-8">
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8">
             <h2 className="text-xl font-semibold text-slate-800">Blueprint View Placeholder</h2>
             <p className="text-slate-500 mt-2">We haven&apos;t mapped this tab yet inside the blueprint. Pick another tab from the sidebar.</p>
           </div>
@@ -363,7 +543,9 @@ const AgentDashboardBlueprint: React.FC = () => {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">{renderMainContent()}</main>
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+          <div className="min-h-full space-y-6 p-6">{renderMainContent()}</div>
+        </main>
       </div>
     </div>
   );

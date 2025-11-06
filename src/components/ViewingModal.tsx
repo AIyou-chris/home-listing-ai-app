@@ -13,6 +13,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
   const [form, setForm] = useState({ name: '', email: '', phone: '', date: '', time: 'Afternoon', notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [confirmedSlot, setConfirmedSlot] = useState<{ date: string; time: string } | null>(null)
 
   const set = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -21,8 +22,9 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
     if (!form.name || !form.email || !form.date || !form.time) return
     setSubmitting(true)
     setStatus('idle')
+    setConfirmedSlot(null)
     try {
-      await scheduleAppointment({
+      const result = await scheduleAppointment({
         name: form.name,
         email: form.email,
         phone: form.phone,
@@ -35,6 +37,11 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
         remindClient: true,
         agentReminderMinutes: 60,
         clientReminderMinutes: 1440
+      })
+      const slot = result?.scheduledAt
+      setConfirmedSlot({
+        date: slot?.date || form.date,
+        time: slot?.time || form.time
       })
       setStatus('success')
       setTimeout(() => { onSuccess?.(); onClose() }, 1500)
@@ -88,7 +95,11 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
             <label className='block text-sm font-semibold text-slate-700 mb-1.5'>Notes</label>
             <textarea rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} className='w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500' />
           </div>
-          {status === 'success' && <div className='p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800'>Showing scheduled. Confirmation sent.</div>}
+          {status === 'success' && (
+            <div className='p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800'>
+              Showing scheduled{confirmedSlot ? ` for ${confirmedSlot.date} at ${confirmedSlot.time}` : ''}. Confirmation sent.
+            </div>
+          )}
           {status === 'error' && <div className='p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800'>Failed to schedule. Try again.</div>}
         </div>
         <div className='flex justify-end items-center mt-6 pt-4 border-t border-slate-200'>
