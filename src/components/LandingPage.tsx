@@ -731,6 +731,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                                 <PlanFeature dark>Advanced analytics dashboard</PlanFeature>
                                 <PlanFeature dark>Your own trained GPT</PlanFeature>
                                 <PlanFeature dark>Automated follow-up sequences</PlanFeature>
+                                <PlanFeature dark>AI conversations auto-detect & respond in 12 languages</PlanFeature>
                                 <PlanFeature dark>Auto leads to closing</PlanFeature>
                                 <PlanFeature dark>Need more? We do custom programs</PlanFeature>
                             </ul>
