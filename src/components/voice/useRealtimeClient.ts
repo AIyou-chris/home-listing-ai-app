@@ -4,6 +4,7 @@ import {
   VoiceClientStatus,
   VoiceConnectOptions
 } from '../../types/realtime'
+import { buildApiUrl } from '../../lib/api'
 
 export interface RealtimeClientApi {
   status: VoiceClientStatus
@@ -305,7 +306,7 @@ export const useRealtimeClient = (
             throw new Error('missing local description')
           }
 
-          const response = await fetch('/api/realtime/offer', {
+          const response = await fetch(buildApiUrl('/api/realtime/offer'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

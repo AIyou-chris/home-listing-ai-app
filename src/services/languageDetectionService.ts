@@ -4,12 +4,14 @@ export interface LanguageDetectionResult {
   isReliable?: boolean
 }
 
+import { buildApiUrl } from '../lib/api'
+
 export const detectLanguage = async (text: string): Promise<LanguageDetectionResult | null> => {
   const trimmed = text?.trim()
   if (!trimmed) return null
 
   try {
-    const response = await fetch('/api/language/detect', {
+    const response = await fetch(buildApiUrl('/api/language/detect'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -42,4 +44,6 @@ export const detectLanguage = async (text: string): Promise<LanguageDetectionRes
     return null
   }
 }
+
+
 
