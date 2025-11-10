@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
 import LeadsAndAppointmentsPage from './LeadsAndAppointmentsPage';
@@ -7,19 +7,27 @@ import AddListingPage from './AddListingPage';
 import PropertyPage from './PropertyPage';
 import InteractionHubPage from './InteractionHubPage';
 import AIConversationsPage from './AIConversationsPage';
-import AICardPage from './AICardPage';
 import EnhancedAISidekicksHub from './EnhancedAISidekicksHub';
 import AIInteractiveTraining from './AIInteractiveTraining';
 import MarketingPage from './MarketingPage';
 import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
+import AICardBuilderPage from '../pages/AICardBuilder';
 import { LogoWithName } from './LogoWithName';
 import { SAMPLE_AGENT } from '../constants';
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
 import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
+import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import AgentBlueprintHero from './blueprint/AgentBlueprintHero';
+import { supabase } from '../services/supabase';
+import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
+import {
+  getAgentProfile as fetchCentralAgentProfile,
+  subscribeToProfileChanges,
+  type AgentProfile as CentralAgentProfile
+} from '../services/agentProfileService';
 import {
   Property,
   View,
@@ -63,6 +71,7 @@ const cloneDemoProperty = (property: Property, index: number): Property => {
 const AgentDashboardBlueprint: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = useState(true);
@@ -72,6 +81,7 @@ const AgentDashboardBlueprint: React.FC = () => {
     [properties, selectedPropertyId]
   );
 
+  const [userId, setUserId] = useState<string | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [tasks, setTasks] = useState<AgentTask[]>([]);
@@ -79,6 +89,7 @@ const AgentDashboardBlueprint: React.FC = () => {
   const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
   const [, setIsLeadsLoading] = useState<boolean>(false);
 
+  const notifyApiError = useApiErrorNotifier();
   const [agentProfile, setAgentProfile] = useState<AgentProfile>({
     ...SAMPLE_AGENT,
     name: 'Blueprint Agent',
@@ -128,12 +139,139 @@ const AgentDashboardBlueprint: React.FC = () => {
     history: [{ id: 'inv-123', date: '07/15/2024', amount: 59, status: 'Paid' }]
   });
 
+  const mapCentralProfileToAgentProfile = useCallback(
+    (profile: CentralAgentProfile): AgentProfile => {
+      const socialDefaults = new Map(SAMPLE_AGENT.socials.map((entry) => [entry.platform, entry.url]));
+      const socials: AgentProfile['socials'] = [
+        {
+          platform: 'Twitter',
+          url: profile.socialMedia?.twitter || socialDefaults.get('Twitter') || ''
+        },
+        {
+          platform: 'LinkedIn',
+          url: profile.socialMedia?.linkedin || socialDefaults.get('LinkedIn') || ''
+        },
+        {
+          platform: 'Instagram',
+          url: profile.socialMedia?.instagram || socialDefaults.get('Instagram') || ''
+        },
+        {
+          platform: 'Facebook',
+          url: profile.socialMedia?.facebook || socialDefaults.get('Facebook') || ''
+        },
+        {
+          platform: 'YouTube',
+          url: profile.socialMedia?.youtube || socialDefaults.get('YouTube') || ''
+        },
+        {
+          platform: 'Pinterest',
+          url: socialDefaults.get('Pinterest') || ''
+        }
+      ];
+
+      return {
+        ...SAMPLE_AGENT,
+        name: profile.name || SAMPLE_AGENT.name,
+        title: profile.title || SAMPLE_AGENT.title,
+        company: profile.company || SAMPLE_AGENT.company,
+        phone: profile.phone || SAMPLE_AGENT.phone,
+        email: profile.email || SAMPLE_AGENT.email,
+        website: profile.website || SAMPLE_AGENT.website || '',
+        bio: profile.bio || SAMPLE_AGENT.bio || '',
+        headshotUrl: profile.headshotUrl || SAMPLE_AGENT.headshotUrl,
+        brandColor: profile.brandColor || SAMPLE_AGENT.brandColor,
+        logoUrl: profile.logoUrl || SAMPLE_AGENT.logoUrl,
+        language: profile.language || SAMPLE_AGENT.language,
+        socials,
+        slug: profile.id || SAMPLE_AGENT.slug
+      };
+    },
+    []
+  );
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!mounted) return;
+        const supabaseUser = data?.user ?? null;
+        setIsDemoMode(!supabaseUser);
+        setUserId(supabaseUser?.id ?? null);
+      } catch (error) {
+        console.warn('[Blueprint] Unable to resolve Supabase auth user, defaulting to demo mode', error);
+        if (mounted) setIsDemoMode(true);
+        if (mounted) setUserId(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    let unsubscribe: (() => void) | undefined;
+
+    const loadAgentProfile = async () => {
+      if (isDemoMode) {
+        if (isMounted) {
+          setAgentProfile({
+            ...SAMPLE_AGENT,
+            name: 'Blueprint Agent',
+            slug: 'blueprint-agent',
+            headshotUrl:
+              'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&h=200&auto=format&fit=crop'
+          });
+        }
+        return;
+      }
+      try {
+        const centralProfile = await fetchCentralAgentProfile(userId ?? undefined);
+        if (isMounted && centralProfile) {
+          setAgentProfile(mapCentralProfileToAgentProfile(centralProfile));
+        }
+      } catch (error) {
+        notifyApiError({
+          title: 'Could not load agent profile',
+          description: 'Showing default blueprint profile for now. Refresh after signing in to try again.',
+          error
+        });
+        if (isMounted) {
+          setAgentProfile({
+            ...SAMPLE_AGENT,
+            name: 'Blueprint Agent',
+            slug: 'blueprint-agent'
+          });
+        }
+      }
+    };
+
+    void loadAgentProfile();
+
+    if (!isDemoMode) {
+      unsubscribe = subscribeToProfileChanges((profile) => {
+        if (!isMounted) return;
+        setAgentProfile(mapCentralProfileToAgentProfile(profile));
+      });
+    }
+
+    return () => {
+      isMounted = false;
+      unsubscribe?.();
+    };
+  }, [isDemoMode, mapCentralProfileToAgentProfile, notifyApiError, userId]);
+
   useEffect(() => {
     let isMounted = true;
 
     const loadProperties = async () => {
       setIsLoadingProperties(true);
       try {
+        if (isDemoMode) {
+          setProperties(DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index)));
+          return;
+        }
         const list = await listingsService.listProperties();
         if (!isMounted) return;
         if (list.length > 0) {
@@ -142,7 +280,11 @@ const AgentDashboardBlueprint: React.FC = () => {
           setProperties(DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index)));
         }
       } catch (error) {
-        console.error('[Blueprint] Unable to load properties from Supabase:', error);
+        notifyApiError({
+          title: 'Could not load listings',
+          description: 'Showing demo listings for now. Refresh once you are signed in to try again.',
+          error
+        });
         if (isMounted) {
           setProperties(DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index)));
         }
@@ -156,19 +298,24 @@ const AgentDashboardBlueprint: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isDemoMode, notifyApiError]);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadCalendarSettings = async () => {
+      if (isDemoMode) return;
       try {
         const payload = await calendarSettingsService.fetch(agentProfile.slug ?? 'blueprint-agent');
         if (isMounted && payload?.settings) {
           setCalendarSettings(payload.settings);
         }
       } catch (error) {
-        console.error('[Blueprint] Unable to load calendar settings:', error);
+        notifyApiError({
+          title: 'Could not load calendar settings',
+          description: 'We could not reach the calendar service. Please refresh to try again.',
+          error
+        });
       }
     };
 
@@ -177,7 +324,7 @@ const AgentDashboardBlueprint: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [agentProfile.slug]);
+  }, [agentProfile.slug, isDemoMode, notifyApiError]);
 
   useEffect(() => {
     let isMounted = true;
@@ -189,7 +336,11 @@ const AgentDashboardBlueprint: React.FC = () => {
           setLeads(payload.leads);
         }
       } catch (error) {
-        console.error('[Blueprint] Unable to load leads from API:', error);
+        notifyApiError({
+          title: 'Could not load leads',
+          description: 'Using sample leads for now. Refresh after signing in to try again.',
+          error
+        });
       } finally {
         if (isMounted) {
           setIsLeadsLoading(false);
@@ -201,12 +352,16 @@ const AgentDashboardBlueprint: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [notifyApiError]);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadSequences = async () => {
+      if (isDemoMode) {
+        if (isMounted) setSequences([]);
+        return;
+      }
       if (sequences.length) return;
 
       try {
@@ -227,7 +382,11 @@ const AgentDashboardBlueprint: React.FC = () => {
           );
         }
       } catch (error) {
-        console.error('[Blueprint] Unable to load follow-up sequences:', error);
+        notifyApiError({
+          title: 'Could not load follow-up sequences',
+          description: 'Please refresh the page or try again later.',
+          error
+        });
       }
     };
 
@@ -236,7 +395,7 @@ const AgentDashboardBlueprint: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [sequences.length]);
+  }, [isDemoMode, sequences.length, notifyApiError]);
 
   const handleSelectProperty = (id: string) => {
     setSelectedPropertyId(id);
@@ -246,6 +405,10 @@ const AgentDashboardBlueprint: React.FC = () => {
   const handleSetProperty = async (updated: Property) => {
     setProperties((prev) => prev.map((property) => (property.id === updated.id ? updated : property)));
 
+    if (isDemoMode) {
+      return;
+    }
+
     if (
       updated.id.startsWith('demo-') ||
       updated.id.startsWith('prop-demo-') ||
@@ -254,32 +417,57 @@ const AgentDashboardBlueprint: React.FC = () => {
       return;
     }
 
+    const previousVersion = properties.find((property) => property.id === updated.id);
+
     try {
       const persisted = await listingsService.updateProperty(updated.id, updated);
       setProperties((prev) => prev.map((property) => (property.id === persisted.id ? persisted : property)));
     } catch (error) {
-      console.error('[Blueprint] Failed to persist property update:', error);
+      notifyApiError({
+        title: 'Could not save property changes',
+        description: 'We restored your previous details. Please try again.',
+        error
+      });
+      if (previousVersion) {
+        setProperties((prev) => prev.map((property) => (property.id === previousVersion.id ? previousVersion : property)));
+      }
     }
   };
 
   const handleSaveNewProperty = (newProperty: Property) => {
-    setProperties((prev) => [newProperty, ...prev]);
-    setSelectedPropertyId(newProperty.id);
+    const nextProperty =
+      isDemoMode && !newProperty.id.startsWith('demo-')
+        ? { ...newProperty, id: `demo-${Date.now()}` }
+        : newProperty;
+    setProperties((prev) => [nextProperty, ...prev]);
+    setSelectedPropertyId(nextProperty.id);
     setActiveView('property');
   };
 
   const handleDeleteProperty = async (id: string) => {
+    const removedProperty = properties.find((property) => property.id === id) || null;
     setProperties((prev) => prev.filter((property) => property.id !== id));
     if (selectedPropertyId === id) {
       setSelectedPropertyId(null);
       setActiveView('listings');
     }
 
+    if (isDemoMode) {
+      return;
+    }
+
     if (!id.startsWith('demo-') && !id.startsWith('prop-demo-') && !id.startsWith('preview-')) {
       try {
         await listingsService.deleteProperty(id);
       } catch (error) {
-        console.error('[Blueprint] Failed to delete property:', error);
+        notifyApiError({
+          title: 'Could not delete property',
+          description: 'The listing is still here. Please try again in a moment.',
+          error
+        });
+        if (removedProperty) {
+          setProperties((prev) => [removedProperty, ...prev]);
+        }
       }
     }
   };
@@ -305,11 +493,7 @@ const AgentDashboardBlueprint: React.FC = () => {
       lastMessage: leadData.message
     };
 
-    try {
-      const createdLead = await leadsService.create(payload);
-      setLeads((prev) => [createdLead, ...prev]);
-    } catch (error) {
-      console.error('Failed to create lead via API, falling back to local insert:', error);
+    if (isDemoMode) {
       const fallbackLead: Lead = {
         id: `lead-${Date.now()}`,
         name: leadData.name,
@@ -320,11 +504,42 @@ const AgentDashboardBlueprint: React.FC = () => {
         lastMessage: leadData.message
       };
       setLeads((prev) => [fallbackLead, ...prev]);
+    void logLeadCaptured(fallbackLead);
+      return;
+    }
+
+    try {
+      const createdLead = await leadsService.create(payload);
+      setLeads((prev) => [createdLead, ...prev]);
+    void logLeadCaptured(createdLead);
+    } catch (error) {
+      notifyApiError({
+        title: 'Could not save lead',
+        description: 'We saved a local copy so you do not lose the info. Try syncing again later.',
+        error
+      });
+      const fallbackLead: Lead = {
+        id: `lead-${Date.now()}`,
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone,
+        status: 'New',
+        date: new Date().toISOString(),
+        lastMessage: leadData.message
+      };
+      setLeads((prev) => [fallbackLead, ...prev]);
+    void logLeadCaptured(fallbackLead);
     }
   };
 
   const handleNewAppointment = (appointment: Appointment) => {
     setAppointments((prev) => [appointment, ...prev]);
+    const matchedLead = leads.find((lead) => lead.id === (appointment.leadId ?? ''));
+    if (matchedLead) {
+      void logAppointmentScheduled(appointment, matchedLead);
+    } else {
+      void logAppointmentScheduled(appointment);
+    }
   };
 
   const resetToDashboard = () => {
@@ -443,8 +658,8 @@ const AgentDashboardBlueprint: React.FC = () => {
             onNewAppointment={handleNewAppointment}
           />
         );
-      case 'ai-card':
-        return <AICardPage />;
+      case 'ai-card-builder':
+        return <AICardBuilderPage />;
       case 'ai-conversations':
         return <AIConversationsPage />;
       case 'listings':
@@ -455,10 +670,37 @@ const AgentDashboardBlueprint: React.FC = () => {
             onAddNew={() => setActiveView('add-listing')}
             onDeleteProperty={handleDeleteProperty}
             onBackToDashboard={resetToDashboard}
+            onOpenMarketing={(id) => { setSelectedPropertyId(id); setActiveView('property'); }}
+            onOpenBuilder={(id) => { setSelectedPropertyId(id); setActiveView('edit-listing'); }}
           />
         );
       case 'add-listing':
-        return <AddListingPage onCancel={resetToDashboard} onSave={handleSaveNewProperty} />;
+        return (
+          <AddListingPage
+            onCancel={resetToDashboard}
+            onSave={handleSaveNewProperty}
+            agentProfile={agentProfile}
+          />
+        );
+      case 'edit-listing':
+        return selectedProperty ? (
+          <AddListingPage
+            onCancel={resetToDashboard}
+            onSave={handleSetProperty}
+            initialProperty={selectedProperty}
+            agentProfile={agentProfile}
+          />
+        ) : (
+          <ListingsPage
+            properties={properties}
+            onSelectProperty={handleSelectProperty}
+            onAddNew={() => setActiveView('add-listing')}
+            onDeleteProperty={handleDeleteProperty}
+            onBackToDashboard={resetToDashboard}
+            onOpenMarketing={(id) => { setSelectedPropertyId(id); setActiveView('property'); }}
+            onOpenBuilder={(id) => { setSelectedPropertyId(id); setActiveView('edit-listing'); }}
+          />
+        );
       case 'property':
         return selectedProperty ? (
           <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setActiveView('listings')} />
@@ -469,6 +711,8 @@ const AgentDashboardBlueprint: React.FC = () => {
             onAddNew={() => setActiveView('add-listing')}
             onDeleteProperty={handleDeleteProperty}
             onBackToDashboard={resetToDashboard}
+            onOpenMarketing={(id) => { setSelectedPropertyId(id); setActiveView('property'); }}
+            onOpenBuilder={(id) => { setSelectedPropertyId(id); setActiveView('edit-listing'); }}
           />
         );
       case 'knowledge-base':

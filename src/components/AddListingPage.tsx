@@ -1,17 +1,19 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Property, AgentProfile, AIDescription } from '../types';
 import { SAMPLE_AGENT } from '../constants';
 import AddTextKnowledgeModal from './AddTextKnowledgeModal';
 import ListingSidekickWidget from './ListingSidekickWidget'
 import { continueConversation } from '../services/openaiService'
 import PublicPropertyApp from './PublicPropertyApp';
-import { listingsService } from '../services/listingsService';
+import { listingsService, type CreatePropertyInput } from '../services/listingsService';
 
 interface AddListingPageProps {
     onCancel: () => void;
     onSave: (property: Property) => void;
     onPreview?: () => void;
+    initialProperty?: Property | null;
+    agentProfile?: AgentProfile | null;
 }
 
 const inputClasses = "w-full px-3 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition";
@@ -39,49 +41,57 @@ const CollapsibleSection: React.FC<{ title: string; icon: string; children: Reac
 };
 
 
-const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => {
+const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initialProperty, agentProfile }) => {
+    const mergedAgentProfile = useMemo<AgentProfile>(() => {
+        const combined = { ...SAMPLE_AGENT, ...(agentProfile ?? {}) } as AgentProfile;
+        return {
+            ...combined,
+            socials: Array.isArray(combined.socials)
+                ? combined.socials.map((social) => ({ ...social }))
+                : SAMPLE_AGENT.socials.map((social) => ({ ...social }))
+        };
+    }, [agentProfile]);
+
     // A simplified state for demonstration. In a real app, this would be more robust.
     const [formData, setFormData] = useState({
-        propertyTitle: 'Beautiful 3-Bedroom Home',
-        price: '500000',
-        address: '123 Main Street, Anytown, USA 12345',
-        beds: '3',
-        baths: '2',
-        sqft: '1500',
-        description: 'Describe the property\'s features, amenities, and unique selling points.',
-        heroPhotos: [] as (File | string)[],
-        galleryPhotos: [] as (File | string)[],
-        rawAmenities: 'Hardwood floors, Granite countertops, Stainless steel appliances, Fenced backyard, Fireplace',
-        ctaListingUrl: '',
-        ctaMediaUrl: '',
+        propertyTitle: initialProperty?.title || '',
+        price: initialProperty?.price != null ? String(initialProperty.price) : '',
+        address: initialProperty?.address || '',
+        beds: initialProperty?.bedrooms != null ? String(initialProperty.bedrooms) : '',
+        baths: initialProperty?.bathrooms != null ? String(initialProperty.bathrooms) : '',
+        sqft: initialProperty?.squareFeet != null ? String(initialProperty.squareFeet) : '',
+        description: (typeof initialProperty?.description === 'string'
+            ? (initialProperty?.description as string)
+            : (initialProperty && 'description' in initialProperty && initialProperty.description && typeof initialProperty.description === 'object'
+                ? [initialProperty.description.title, ...(initialProperty.description.paragraphs || [])].filter(Boolean).join('\n')
+                : ''
+              )),
+        heroPhotos: (initialProperty?.heroPhotos as (File | string)[]) || [],
+        galleryPhotos: (initialProperty?.galleryPhotos as (File | string)[]) || [],
+        rawAmenities: Array.isArray(initialProperty?.features) ? initialProperty!.features.join(', ') : '',
+        ctaListingUrl: initialProperty?.ctaListingUrl || '',
+        ctaMediaUrl: initialProperty?.ctaMediaUrl || '',
         appFeatures: {
             gallery: true, schools: true, financing: true, virtualTour: true, amenities: true,
             schedule: true, map: true, history: true, neighborhood: true, reports: true,
             messaging: true
         },
-        agent: {
-            name: 'John Smith',
-            title: 'Real Estate Agent',
-            company: 'Prime Properties',
-            phone: '+1 (555) 123-4567',
-            email: 'john@example.com',
-            website: 'https://example.com',
-            bio: 'Tell visitors about your experience and expertise...',
-            headshotUrl: 'https://example.com/headshot.png',
-            socials: [
-                { platform: 'Facebook', url: 'https://facebook.com/username' },
-                { platform: 'Instagram', url: 'https://instagram.com/username' },
-                { platform: 'Twitter', url: '' },
-                { platform: 'LinkedIn', url: '' },
-                { platform: 'YouTube', url: '' },
-            ] as AgentProfile['socials'],
-            mediaLinks: ['', '']
-        },
+        agent: mergedAgentProfile,
         media: {
              virtualTourUrl: '', propertyVideoUrl: '', droneFootageUrl: '', 
              neighborhoodVideoUrl: '', agentInterviewUrl: '', additionalMediaUrl: ''
         }
     });
+
+    useEffect(() => {
+        setFormData(prev => ({
+            ...prev,
+            agent: {
+                ...mergedAgentProfile,
+                socials: mergedAgentProfile.socials.map((social) => ({ ...social }))
+            }
+        }));
+    }, [mergedAgentProfile]);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [sidekickDescription, setSidekickDescription] = useState('You are the Listing Sidekick. Detail-oriented and helpful. Present property highlights and answer questions clearly.');
@@ -113,7 +123,12 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
             heroPhotos: heroPhotos,
             galleryPhotos: formData.galleryPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p)),
             appFeatures: formData.appFeatures,
-            agent: { ...SAMPLE_AGENT, ...formData.agent },
+            agent: {
+                ...formData.agent,
+                socials: Array.isArray(formData.agent.socials)
+                    ? formData.agent.socials.map((social) => ({ ...social }))
+                    : mergedAgentProfile.socials.map((social) => ({ ...social }))
+            },
             propertyType: 'Single-Family Home',
             features: formData.rawAmenities.split(',').map(s => s.trim()).filter(f => f),
             imageUrl: heroPhotos[0],
@@ -146,12 +161,14 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
             };
 
             const agentSnapshot: AgentProfile = {
-                ...SAMPLE_AGENT,
+                ...mergedAgentProfile,
                 ...formData.agent,
-                socials: Array.isArray(formData.agent.socials) ? formData.agent.socials : SAMPLE_AGENT.socials
+                socials: Array.isArray(formData.agent.socials)
+                    ? formData.agent.socials.map((social) => ({ ...social }))
+                    : mergedAgentProfile.socials
             };
 
-            const createdProperty = await listingsService.createProperty({
+            const payload: CreatePropertyInput = {
                 title: formData.propertyTitle,
                 address: formData.address,
                 price: Number(formData.price) || 0,
@@ -168,9 +185,13 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                 ctaMediaUrl: formData.ctaMediaUrl,
                 appFeatures: formData.appFeatures,
                 agentSnapshot
-            });
+            }
 
-            onSave(createdProperty);
+            const saved = initialProperty
+                ? await listingsService.updateProperty(initialProperty.id, payload)
+                : await listingsService.createProperty(payload)
+
+            onSave(saved);
         } catch (error) {
             console.error('Error saving listing:', error);
             alert('Failed to save listing. Please try again.');
@@ -245,13 +266,13 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                         <CollapsibleSection title="Basic Information" icon="home_work">
                            {/* Form fields here */}
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Title</label><input type="text" name="propertyTitle" value={formData.propertyTitle} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="text" name="price" value={formData.price} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Address</label><input type="text" name="address" value={formData.address} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bedrooms</label><input type="text" name="beds" value={formData.beds} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bathrooms</label><input type="text" name="baths" value={formData.baths} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Square Footage</label><input type="text" name="sqft" value={formData.sqft} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Description</label><textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={4} className={inputClasses}></textarea>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Title</label><input type="text" name="propertyTitle" value={formData.propertyTitle} onChange={handleSimpleChange} className={inputClasses} placeholder="Stunning Mid-Century Retreat" /></div>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="text" name="price" value={formData.price} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 750000" /></div>
+                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Address</label><input type="text" name="address" value={formData.address} onChange={handleSimpleChange} className={inputClasses} placeholder="123 Main Street, Anytown, USA 12345" /></div>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bedrooms</label><input type="text" name="beds" value={formData.beds} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 3" /></div>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bathrooms</label><input type="text" name="baths" value={formData.baths} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 2.5" /></div>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Square Footage</label><input type="text" name="sqft" value={formData.sqft} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 1850" /></div>
+                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Description</label><textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={4} className={inputClasses} placeholder="Describe the property's features, amenities, and unique selling points."></textarea>
                                <button type="button" className="mt-2 text-sm font-semibold text-primary-600 flex items-center gap-1"><span className="material-symbols-outlined w-4 h-4">auto_awesome</span> Generate Description</button></div>
                            </div>
                         </CollapsibleSection>
@@ -346,11 +367,11 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                         
                          <CollapsibleSection title="Agent Information" icon="account_circle">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Agent Name</label><input type="text" className={inputClasses} value={formData.agent.name} readOnly /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Phone</label><input type="tel" className={inputClasses} value={formData.agent.phone} readOnly /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Email</label><input type="email" className={inputClasses} value={formData.agent.email} readOnly /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Website</label><input type="url" className={inputClasses} value={formData.agent.website} readOnly /></div>
-                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Bio</label><textarea rows={3} className={inputClasses} value={formData.agent.bio} readOnly></textarea></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Agent Name</label><input type="text" className={inputClasses} value={formData.agent.name ?? ''} readOnly /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Phone</label><input type="tel" className={inputClasses} value={formData.agent.phone ?? ''} readOnly /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Email</label><input type="email" className={inputClasses} value={formData.agent.email ?? ''} readOnly /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Website</label><input type="url" className={inputClasses} value={formData.agent.website ?? ''} readOnly /></div>
+                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Bio</label><textarea rows={3} className={inputClasses} value={formData.agent.bio ?? ''} readOnly></textarea></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Logo</label><input type="file" className={inputClasses} /></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Headshot</label><input type="file" className={inputClasses} /></div>
                                 <div className="md:col-span-2"><h4 className="font-semibold text-slate-700 mb-2 mt-4">Social Media Links</h4>

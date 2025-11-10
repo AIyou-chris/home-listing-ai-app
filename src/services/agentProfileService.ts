@@ -32,6 +32,128 @@ export interface AgentProfile {
   updated_at?: string;
 }
 
+type ProfileSource = 'supabase' | 'demo';
+
+type LoadOptions = {
+  userId?: string;
+  signal?: AbortSignal;
+  force?: boolean;
+  source?: ProfileSource;
+  demoProfile?: AgentProfile;
+};
+
+let cachedAgentProfile: AgentProfile | null = null;
+let cachedAICardProfile: AICardProfile | null = null;
+let cachedSource: ProfileSource | null = null;
+let cachedUserId: string | undefined;
+let inflightLoad: Promise<AgentProfile> | null = null;
+let profileChangeListeners: Array<(profile: AgentProfile) => void> = [];
+
+const setCachedProfiles = (
+  agentProfile: AgentProfile,
+  options: {
+    aiCardProfile?: AICardProfile | null;
+    source?: ProfileSource;
+    userId?: string;
+    notify?: boolean;
+  } = {}
+) => {
+  cachedAgentProfile = agentProfile;
+  if (options.aiCardProfile !== undefined) {
+    cachedAICardProfile = options.aiCardProfile;
+  }
+  cachedSource = options.source ?? cachedSource ?? 'supabase';
+  if (options.userId !== undefined) {
+    cachedUserId = options.userId;
+  }
+  if (options.notify !== false) {
+    profileChangeListeners.forEach((listener) => {
+      try {
+        listener(agentProfile);
+      } catch (error) {
+        console.error('Error in profile change listener:', error);
+      }
+    });
+  }
+};
+
+const shouldUseCache = (options: LoadOptions = {}) => {
+  if (!cachedAgentProfile) return false;
+  if (options.force) return false;
+  if (options.source && cachedSource && options.source !== cachedSource) return false;
+  if (options.userId && cachedUserId && options.userId !== cachedUserId) return false;
+  if (options.source === 'demo' && cachedSource !== 'demo') return false;
+  if (options.demoProfile && cachedSource !== 'demo') return false;
+  return true;
+};
+
+const loadProfile = async (options: LoadOptions = {}): Promise<AgentProfile> => {
+  if (shouldUseCache(options)) {
+    return cachedAgentProfile as AgentProfile;
+  }
+
+  if (inflightLoad && !options.force) {
+    return inflightLoad;
+  }
+
+  const execute = async () => {
+    if (options.source === 'demo' || options.demoProfile) {
+      const demoProfile =
+        options.demoProfile ??
+        cachedAgentProfile ??
+        (() => {
+          throw new Error('Demo profile requested but no data provided.');
+        })();
+      setCachedProfiles(demoProfile, {
+        aiCardProfile: cachedAICardProfile,
+        source: 'demo',
+        userId: options.userId,
+        notify: true
+      });
+      return demoProfile;
+    }
+
+    const aiCardProfile = await getAICardProfile(options.userId, options.signal);
+    const agentProfile = convertAICardToAgentProfile(aiCardProfile);
+    setCachedProfiles(agentProfile, {
+      aiCardProfile,
+      source: 'supabase',
+      userId: options.userId,
+      notify: true
+    });
+    console.log('✅ Retrieved centralized agent profile');
+    return agentProfile;
+  };
+
+  inflightLoad = execute()
+    .catch((error) => {
+      inflightLoad = null;
+      throw error;
+    })
+    .then((result) => {
+      inflightLoad = null;
+      return result;
+    });
+
+  return inflightLoad;
+};
+
+export const getAgentProfileSnapshot = () => cachedAgentProfile;
+
+export const getAICardProfileSnapshot = () => cachedAICardProfile;
+
+export const resetAgentProfileStore = () => {
+  cachedAgentProfile = null;
+  cachedAICardProfile = null;
+  cachedSource = null;
+  cachedUserId = undefined;
+  inflightLoad = null;
+};
+
+export const refreshAgentProfile = async (options: LoadOptions = {}) => {
+  return loadProfile({ ...options, force: true });
+};
+
 // Convert AI Card profile to standard Agent Profile format
 const convertAICardToAgentProfile = (aiCardProfile: AICardProfile): AgentProfile => {
   return {
@@ -73,14 +195,24 @@ const convertAgentProfileToAICard = (agentProfile: Partial<AgentProfile>): Parti
   return aiCardData;
 };
 
+const buildLoadOptions = (
+  arg1?: string | LoadOptions,
+  arg2?: LoadOptions
+): LoadOptions => {
+  if (typeof arg1 === 'string' || arg1 === undefined) {
+    return { ...arg2, userId: typeof arg1 === 'string' ? arg1 : arg2?.userId };
+  }
+  return { ...arg1 };
+};
+
 // Get the master agent profile (from AI Card)
-export const getAgentProfile = async (userId?: string): Promise<AgentProfile> => {
+export const getAgentProfile = async (
+  arg1?: string | LoadOptions,
+  arg2?: LoadOptions
+): Promise<AgentProfile> => {
   try {
-    const aiCardProfile = await getAICardProfile(userId);
-    const agentProfile = convertAICardToAgentProfile(aiCardProfile);
-    
-    console.log('✅ Retrieved centralized agent profile');
-    return agentProfile;
+    const options = buildLoadOptions(arg1, arg2);
+    return await loadProfile(options);
   } catch (error) {
     console.error('Error getting agent profile:', error);
     throw error;
@@ -93,7 +225,12 @@ export const updateAgentProfile = async (profileData: Partial<AgentProfile>, use
     const aiCardData = convertAgentProfileToAICard(profileData);
     const updatedAICard = await updateAICardProfile(aiCardData, userId);
     const updatedAgentProfile = convertAICardToAgentProfile(updatedAICard);
-    
+    setCachedProfiles(updatedAgentProfile, {
+      aiCardProfile: updatedAICard,
+      source: 'supabase',
+      userId,
+      notify: true
+    });
     console.log('✅ Updated centralized agent profile');
     return updatedAgentProfile;
   } catch (error) {
@@ -161,10 +298,15 @@ export const getProfileForAppointments = async (userId?: string) => {
 };
 
 // Listen for profile changes (for real-time updates across components)
-let profileChangeListeners: Array<(profile: AgentProfile) => void> = [];
-
 export const subscribeToProfileChanges = (callback: (profile: AgentProfile) => void) => {
   profileChangeListeners.push(callback);
+  if (cachedAgentProfile) {
+    try {
+      callback(cachedAgentProfile);
+    } catch (error) {
+      console.error('Error in profile change listener:', error);
+    }
+  }
   
   // Return unsubscribe function
   return () => {
@@ -173,20 +315,19 @@ export const subscribeToProfileChanges = (callback: (profile: AgentProfile) => v
 };
 
 // Notify all listeners when profile changes
-export const notifyProfileChange = (profile: AgentProfile) => {
-  profileChangeListeners.forEach(listener => {
-    try {
-      listener(profile);
-    } catch (error) {
-      console.error('Error in profile change listener:', error);
-    }
+export const notifyProfileChange = (profile: AgentProfile, options: { source?: ProfileSource; userId?: string } = {}) => {
+  setCachedProfiles(profile, {
+    aiCardProfile: cachedAICardProfile,
+    source: options.source ?? cachedSource ?? 'supabase',
+    userId: options.userId ?? cachedUserId,
+    notify: true
   });
 };
 
 // Enhanced update function that notifies listeners
 export const updateAgentProfileWithNotification = async (profileData: Partial<AgentProfile>, userId?: string): Promise<AgentProfile> => {
   const updatedProfile = await updateAgentProfile(profileData, userId);
-  notifyProfileChange(updatedProfile);
+  notifyProfileChange(updatedProfile, { source: 'supabase', userId });
   return updatedProfile;
 };
 
