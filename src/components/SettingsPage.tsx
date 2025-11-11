@@ -1,15 +1,24 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
+import { getAICardProfileSnapshot, refreshAgentProfile } from '../services/agentProfileService';
 import { googleOAuthService } from '../services/googleOAuthService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
+import { billingSettingsService } from '../services/billingSettingsService';
 import { supabase } from '../services/supabase';
 import { agentOnboardingService } from '../services/agentOnboardingService';
+import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 
 type EmailConnection = {
     provider: 'gmail' | 'outlook';
     email: string;
     connectedAt: string;
     status: 'active' | 'expired' | 'error';
+};
+
+type SecuritySettingsState = {
+    loginNotifications: boolean;
+    sessionTimeout: number;
+    analyticsEnabled: boolean;
 };
 
 interface SettingsPageProps {
@@ -284,6 +293,7 @@ const NOTIFICATION_GROUPS: Array<{
 ];
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard }) => {
+    const notifyApiError = useApiErrorNotifier();
     const [activeTab, setActiveTab] = useState<'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('notifications');
     const [emailFormData, setEmailFormData] = useState<EmailSettings>(emailSettings);
     const [calendarFormData, setCalendarFormData] = useState<CalendarSettings>(calendarSettings);
@@ -299,7 +309,85 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     const [isBillingCheckoutLoading, setIsBillingCheckoutLoading] = useState(false);
     const [billingMessage, setBillingMessage] = useState<string | null>(null);
     const [billingError, setBillingError] = useState<string | null>(null);
-    const [isGoogleIntegrationAvailable, setIsGoogleIntegrationAvailable] = useState(false);
+    const googleIntegrationEnabled =
+        String(import.meta.env?.VITE_ENABLE_GOOGLE_INTEGRATIONS ?? '').toLowerCase() === 'true';
+    const googleIntegrationClientPresent =
+        typeof import.meta.env?.VITE_GOOGLE_OAUTH_CLIENT_ID === 'string' &&
+        import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID.trim().length > 0;
+    const initialGoogleIntegrationAvailable =
+        googleOAuthService.isAvailable || googleIntegrationEnabled || googleIntegrationClientPresent;
+    const [isGoogleIntegrationAvailable, setIsGoogleIntegrationAvailable] = useState(initialGoogleIntegrationAvailable);
+    const [planBadge, setPlanBadge] = useState<{ plan?: string; status?: string } | null>(null);
+    const [billingData, setBillingData] = useState<BillingSettings>(_billingSettings);
+    const [isBillingSettingsLoading, setIsBillingSettingsLoading] = useState<boolean>(false);
+    const billingDefaultsRef = useRef<BillingSettings>(_billingSettings);
+    const notificationDefaultsRef = useRef<NotificationSettings>(notificationSettings);
+    const paypalPortalUrl = (() => {
+        const metaEnv = (globalThis as Record<string, unknown> & { __VITE_ENV__?: Record<string, unknown> }).__VITE_ENV__;
+        const value = metaEnv?.VITE_PAYPAL_PORTAL_URL ?? process?.env?.VITE_PAYPAL_PORTAL_URL ?? process?.env?.PAYPAL_PORTAL_URL;
+        return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    })();
+
+    // Read tab query from hash: #/settings?tab=billing
+    useEffect(() => {
+        const handle = () => {
+            const hash = window.location.hash || '';
+            const qIndex = hash.indexOf('?');
+            if (qIndex >= 0) {
+                const qs = new URLSearchParams(hash.substring(qIndex + 1));
+                const tab = (qs.get('tab') || '').toLowerCase();
+                if (tab === 'billing') setActiveTab('billing');
+                if (tab === 'email') setActiveTab('email');
+                if (tab === 'calendar') setActiveTab('calendar');
+                if (tab === 'security') setActiveTab('security');
+                if (tab === 'notifications') setActiveTab('notifications');
+            }
+        };
+        handle();
+        window.addEventListener('hashchange', handle);
+        return () => window.removeEventListener('hashchange', handle);
+    }, []);
+
+    // Load plan/subscription status for billing badge
+    useEffect(() => {
+        const loadPlan = async () => {
+            try {
+                await refreshAgentProfile({ userId, force: true });
+                const profile = getAICardProfileSnapshot();
+                if (!profile) {
+                    return;
+                }
+                // these fields may be injected by backend dynamically
+                const planValue =
+                    typeof profile === 'object' &&
+                    profile !== null &&
+                    'plan' in profile
+                        ? (profile as { plan?: unknown }).plan
+                        : undefined;
+                const statusValue =
+                    typeof profile === 'object' &&
+                    profile !== null &&
+                    'subscription_status' in profile
+                        ? (profile as { subscription_status?: unknown }).subscription_status
+                        : undefined;
+                const plan = typeof planValue === 'string' ? planValue : undefined;
+                const subscriptionStatus =
+                    typeof statusValue === 'string' ? statusValue : undefined;
+                if (plan || subscriptionStatus) {
+                    setPlanBadge({ plan, status: subscriptionStatus });
+                }
+            } catch (error) {
+                notifyApiError({
+                    title: 'Could not load billing status',
+                    description: 'Please refresh the page or contact support if billing info still will not load.',
+                    error
+                });
+            }
+        };
+        if (activeTab === 'billing') {
+            void loadPlan();
+        }
+    }, [activeTab, userId, notifyApiError]);
     const [passwords, setPasswords] = useState({
         currentPassword: '',
         newPassword: '',
@@ -320,6 +408,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     const [isSecuritySaving, setIsSecuritySaving] = useState<boolean>(false);
     const [securityError, setSecurityError] = useState<string | null>(null);
     const [securityMessage, setSecurityMessage] = useState<string | null>(null);
+    const emailDefaultsRef = useRef<EmailSettings>(emailSettings);
+    const emailConnectionsRef = useRef<EmailConnection[]>([]);
     const forwardingAddress = useMemo(() => {
         const baseEmail = emailFormData.fromEmail || userProfile.email || 'agent@homelistingai.com';
         const localPart = (baseEmail.split('@')[0] || 'agent').toLowerCase();
@@ -342,14 +432,27 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
     const applyEmailSettings = useCallback(
         (settings: EmailSettings, connections: EmailConnection[]) => {
-            setEmailFormData(settings);
-            setEmailConnections(connections);
-            _onSaveEmailSettings(settings);
+            const nextSettings = settings ?? emailDefaultsRef.current;
+            const nextConnections = connections ?? emailConnectionsRef.current;
+
+            emailDefaultsRef.current = nextSettings;
+            emailConnectionsRef.current = nextConnections;
+
+            setEmailFormData(nextSettings);
+            setEmailConnections(nextConnections);
+            _onSaveEmailSettings(nextSettings);
         },
         [_onSaveEmailSettings]
     );
 
     const fetchEmailSettings = useCallback(async () => {
+        if (!userId) {
+            return {
+                settings: emailDefaultsRef.current,
+                connections: emailConnectionsRef.current
+            };
+        }
+
         const response = await fetch(`/api/email/settings/${encodeURIComponent(userId)}`);
         if (!response.ok) {
             const message = await response.text().catch(() => '');
@@ -369,23 +472,27 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
             try {
                 const data = await fetchEmailSettings();
-                const nextSettings = (data?.settings as EmailSettings) || emailFormData;
-                const nextConnections = (data?.connections as EmailConnection[]) || [];
+                const nextSettings = (data?.settings as EmailSettings) || emailDefaultsRef.current;
+                const nextConnections = (data?.connections as EmailConnection[]) || emailConnectionsRef.current;
                 applyEmailSettings(nextSettings, nextConnections);
 
                 if (showMessage) {
                     setEmailSaveMessage('Email settings updated.');
                 }
             } catch (error) {
-                console.error('Failed to load email settings:', error);
+                notifyApiError({
+                    title: 'Could not load email settings',
+                    description: 'Please refresh the page or try again in a few moments.',
+                    error
+                });
                 setEmailSettingsError(
                     error instanceof Error
                         ? error.message
                         : 'Unable to load email settings. Please try again.'
                 );
                 if (showLoading) {
-                    setEmailFormData(emailFormData);
-                    setEmailConnections([]);
+                    setEmailFormData(emailDefaultsRef.current);
+                    setEmailConnections(emailConnectionsRef.current);
                 }
             } finally {
                 if (showLoading) {
@@ -393,7 +500,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 }
             }
         },
-        [applyEmailSettings, emailFormData, fetchEmailSettings]
+        [applyEmailSettings, fetchEmailSettings, notifyApiError]
     );
 
     const loadCalendarSettings = useCallback(
@@ -422,7 +529,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 setIsGoogleCalendarConnected(Boolean(payload?.connection && payload.connection.status === 'active'));
                 return nextSettings;
             } catch (error) {
-                console.error('Failed to load calendar settings:', error);
+                notifyApiError({
+                    title: 'Could not load calendar settings',
+                    description: 'We are using your last saved defaults. Please try again later.',
+                    error
+                });
                 if (isMountedRef.current) {
                     setCalendarSettingsError('Unable to load calendar settings. Using defaults for now.');
                     setCalendarFormData(calendarDefaultsRef.current);
@@ -434,14 +545,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 }
             }
         },
-        [_onSaveCalendarSettings, userId]
+        [_onSaveCalendarSettings, userId, notifyApiError]
     );
     
     // Calendar connection state
     const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
     
     // Security settings state
-    const [securitySettings, setSecuritySettings] = useState({
+    const [securitySettings, setSecuritySettings] = useState<SecuritySettingsState>({
+        loginNotifications: true,
+        sessionTimeout: 24,
+        analyticsEnabled: true
+    });
+    const [isSecuritySettingsLoading, setIsSecuritySettingsLoading] = useState<boolean>(false);
+    const securityDefaultsRef = useRef<SecuritySettingsState>({
         loginNotifications: true,
         sessionTimeout: 24,
         analyticsEnabled: true
@@ -451,6 +568,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
         let isActive = true;
 
         const loadPreferences = async () => {
+            if (!userId) {
+                setIsNotificationsLoading(false);
+                return;
+            }
+
             setIsNotificationsLoading(true);
             setNotificationSaveError(null);
 
@@ -463,17 +585,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 const data = await response.json();
                 if (!isActive) return;
 
-                if (data?.preferences) {
-                    setCurrentNotifications(data.preferences as NotificationSettings);
-                    _onSaveNotifications(data.preferences as NotificationSettings);
-                } else {
-        setCurrentNotifications(notificationSettings);
-                }
+                const preferences =
+                    (data?.preferences as NotificationSettings | undefined) ?? notificationDefaultsRef.current;
+
+                setCurrentNotifications(preferences);
+                notificationDefaultsRef.current = preferences;
+                _onSaveNotifications(preferences);
             } catch (error) {
-                console.error('Failed to load notification preferences:', error);
+                notifyApiError({
+                    title: 'Could not load notification preferences',
+                    description: 'Using your last saved options. Refresh to try again.',
+                    error
+                });
                 if (isActive) {
                     setNotificationSaveError('Unable to load notification preferences. Using defaults for now.');
-                    setCurrentNotifications(notificationSettings);
+                    setCurrentNotifications(notificationDefaultsRef.current);
                 }
             } finally {
                 if (isActive) {
@@ -487,17 +613,27 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
         return () => {
             isActive = false;
         };
-    }, [userId, notificationSettings, _onSaveNotifications]);
+    }, [userId, _onSaveNotifications, notifyApiError]);
 
 
     useEffect(() => {
+        notificationDefaultsRef.current = notificationSettings;
         setCurrentNotifications(notificationSettings);
     }, [notificationSettings]);
 
     useEffect(() => {
-        setIsGoogleIntegrationAvailable(googleOAuthService.isAvailable);
+        const available =
+            googleOAuthService.isAvailable ||
+            googleIntegrationEnabled ||
+            googleIntegrationClientPresent;
+
+        if (!googleOAuthService.isAvailable && available) {
+            (googleOAuthService as unknown as { isAvailable: boolean }).isAvailable = true;
+        }
+
+        setIsGoogleIntegrationAvailable(available);
         setIsGoogleCalendarConnected(googleOAuthService.isAuthenticated('calendar'));
-    }, []);
+    }, [googleIntegrationClientPresent, googleIntegrationEnabled]);
 
     useEffect(() => {
         void loadCalendarSettings({ showLoading: true });
@@ -534,15 +670,19 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 const data = await fetchEmailSettings();
                 if (cancelled) return;
 
-                const nextSettings = (data?.settings as EmailSettings) || emailFormData;
-                const nextConnections = (data?.connections as EmailConnection[]) || [];
+                const nextSettings = (data?.settings as EmailSettings) || emailDefaultsRef.current;
+                const nextConnections = (data?.connections as EmailConnection[]) || emailConnectionsRef.current;
                 applyEmailSettings(nextSettings, nextConnections);
             } catch (error) {
-                console.error('Failed to load email settings:', error);
+                notifyApiError({
+                    title: 'Could not load email settings',
+                    description: 'We are using your last saved email preferences. Refresh to try again.',
+                    error
+                });
                 if (!cancelled) {
                     setEmailSettingsError('Unable to load email settings. Using defaults for now.');
-                    setEmailFormData(emailFormData);
-                    setEmailConnections([]);
+                    setEmailFormData(emailDefaultsRef.current);
+                    setEmailConnections(emailConnectionsRef.current);
                 }
             } finally {
                 if (!cancelled) {
@@ -551,15 +691,36 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
             }
         };
 
+        if (!userId) {
+            setIsEmailSettingsLoading(false);
+            return;
+        }
+
         void load();
 
         return () => {
             cancelled = true;
         };
-    }, [applyEmailSettings, emailFormData, fetchEmailSettings]);
+    }, [applyEmailSettings, fetchEmailSettings, notifyApiError, userId]);
+
+    useEffect(() => {
+        emailDefaultsRef.current = emailSettings;
+        setEmailFormData(emailSettings);
+    }, [emailSettings]);
 
     // Email connection handlers
     const handleGmailConnect = async () => {
+        if (!isGoogleIntegrationAvailable) {
+            const message = 'Google OAuth is not configured for this environment. Add your Google client ID, secret, and redirect URI to enable direct Gmail connections.';
+            setEmailSettingsError(message);
+            notifyApiError({
+                title: 'Google OAuth unavailable',
+                description: 'Set GOOGLE_OAUTH_CLIENT_ID / SECRET / REDIRECT_URI (and VITE equivalents) then restart the server to enable Gmail OAuth.',
+                error: new Error(message)
+            });
+            return;
+        }
+
         setIsConnecting('gmail');
         setEmailSettingsError(null);
         setEmailSaveMessage(null);
@@ -569,7 +730,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
             if (response.status === 503) {
                 const payload = await response.json().catch(() => ({}));
-                throw new Error(payload?.error || 'Google OAuth is not configured.');
+                const message =
+                    typeof payload?.error === 'string' && payload.error.length
+                        ? payload.error
+                        : 'Google OAuth is not configured.';
+                throw new Error(message);
             }
 
             if (!response.ok) {
@@ -593,7 +758,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
             oauthPopupRef.current = popup;
         } catch (error) {
-            console.error('Gmail OAuth launch failed:', error);
+            const description =
+                error instanceof Error && /not configured/i.test(error.message)
+                    ? 'Add Google OAuth credentials (.env: GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI and VITE_ENABLE_GOOGLE_INTEGRATIONS=true) then restart the dev server.'
+                    : 'Please allow pop-ups and try connecting Gmail again.';
+
+            notifyApiError({
+                title: 'Google OAuth could not start',
+                description,
+                error
+            });
             setEmailSettingsError(
                 error instanceof Error ? error.message : 'Failed to start Google OAuth.'
             );
@@ -625,7 +799,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
             _onSaveEmailSettings(nextSettings);
             setEmailSaveMessage('Email connection removed.');
         } catch (error) {
-            console.error('Disconnect failed:', error);
+        notifyApiError({
+            title: 'Could not disconnect email account',
+            description: 'Please try again. Your connection is still active.',
+            error
+        });
             setEmailSettingsError('Failed to disconnect email provider. Please try again.');
         } finally {
             setIsConnecting(null);
@@ -636,7 +814,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     const handleGoogleCalendarConnect = async () => {
         setIsConnecting('google');
         try {
-            if (!googleOAuthService.isAvailable) {
+            if (!isGoogleIntegrationAvailable) {
                 setCalendarSettingsError('Google Calendar integration is not available in this environment.');
                 return;
             }
@@ -652,7 +830,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 setCalendarSettingsError('Failed to connect Google Calendar. Please try again.');
             }
         } catch (error) {
-            console.error('Google Calendar connection failed:', error);
+        notifyApiError({
+            title: 'Google Calendar connection failed',
+            description: 'We could not finish the connection. Please try again shortly.',
+            error
+        });
             setIsGoogleCalendarConnected(false);
             setCalendarSettingsError('Failed to connect Google Calendar. Please try again.');
         } finally {
@@ -728,65 +910,343 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
             setIsGoogleCalendarConnected(Boolean(payload?.connection && payload.connection.status === 'active'));
             setCalendarSettingsMessage('Calendar settings saved successfully.');
         } catch (error) {
-            console.error('Failed to save calendar settings:', error);
+        notifyApiError({
+            title: 'Could not save calendar settings',
+            description: 'Please review your changes and try again.',
+            error
+        });
             setCalendarSettingsError('Failed to save calendar settings. Please try again.');
         } finally {
             setIsCalendarSettingsSaving(false);
         }
     };
 
+    const loadBillingSettings = useCallback(
+        async ({ showLoading = false }: { showLoading?: boolean } = {}) => {
+            if (showLoading && isMountedRef.current) {
+                setIsBillingSettingsLoading(true);
+            }
+
+            if (!userId) {
+                if (isMountedRef.current) {
+                    setIsBillingSettingsLoading(false);
+                }
+                return billingDefaultsRef.current;
+            }
+
+            try {
+                const settings = await billingSettingsService.get(userId);
+                const next = settings ?? billingDefaultsRef.current;
+
+                billingDefaultsRef.current = next;
+
+                if (isMountedRef.current) {
+                    setBillingData(next);
+                    setBillingMessage(null);
+                    setBillingError(null);
+                    setPlanBadge(prev => ({
+                        plan: next.planName || prev?.plan,
+                        status: next.planStatus || prev?.status
+                    }));
+                    _onSaveBillingSettings(next);
+                }
+
+                return next;
+            } catch (error) {
+                notifyApiError({
+                    title: 'Could not load billing settings',
+                    description: 'Using your last saved billing history for now.',
+                    error
+                });
+
+                if (isMountedRef.current) {
+                    setBillingError('Unable to load billing settings. Showing your last saved details.');
+                    setBillingData(billingDefaultsRef.current);
+                }
+
+                return billingDefaultsRef.current;
+            } finally {
+                if (isMountedRef.current) {
+                    setIsBillingSettingsLoading(false);
+                }
+            }
+        },
+        [userId, notifyApiError, _onSaveBillingSettings]
+    );
+
+    useEffect(() => {
+        billingDefaultsRef.current = _billingSettings;
+        setBillingData(_billingSettings);
+    }, [_billingSettings]);
+
+    useEffect(() => {
+        void loadBillingSettings({ showLoading: true });
+    }, [loadBillingSettings]);
+
+    const loadSecuritySettings = useCallback(
+        async ({ showLoading = false }: { showLoading?: boolean } = {}) => {
+            if (showLoading) {
+                setIsSecuritySettingsLoading(true);
+            }
+
+            if (!userId) {
+                if (showLoading) {
+                    setIsSecuritySettingsLoading(false);
+                }
+                return securityDefaultsRef.current;
+            }
+
+            setSecurityError(null);
+
+            try {
+                const response = await fetch(`/api/security/settings/${encodeURIComponent(userId)}`);
+                if (!response.ok) {
+                    throw new Error(`Request failed with status ${response.status}`);
+                }
+
+                const data = await response.json();
+                const incoming =
+                    (data?.settings as SecuritySettingsState | undefined) ?? securityDefaultsRef.current;
+
+                const merged: SecuritySettingsState = {
+                    ...securityDefaultsRef.current,
+                    ...incoming
+                };
+
+                securityDefaultsRef.current = merged;
+
+                if (isMountedRef.current) {
+                    setSecuritySettings(merged);
+                }
+
+                return merged;
+            } catch (error) {
+                notifyApiError({
+                    title: 'Could not load security settings',
+                    description: 'Using your last saved security preferences.',
+                    error
+                });
+
+                if (isMountedRef.current) {
+                    setSecurityError('Unable to load security preferences. Using your last saved options.');
+                    setSecuritySettings(securityDefaultsRef.current);
+                }
+
+                return securityDefaultsRef.current;
+            } finally {
+                if (isMountedRef.current) {
+                    setIsSecuritySettingsLoading(false);
+                }
+            }
+        },
+        [userId, notifyApiError]
+    );
+
+    useEffect(() => {
+        securityDefaultsRef.current = securitySettings;
+    }, [securitySettings]);
+
+    useEffect(() => {
+        void loadSecuritySettings({ showLoading: true });
+    }, [loadSecuritySettings]);
+
     // Security handlers
     const handlePasswordSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        if (!isPasswordValid) {
-            alert('Please check password requirements');
+        setSecurityError(null);
+        setSecurityMessage(null);
+
+        const current = passwords.currentPassword.trim();
+        const next = passwords.newPassword.trim();
+        const confirm = passwords.confirmNewPassword.trim();
+
+        if (!current || !next) {
+            setSecurityError('Please enter your current password and choose a new password.');
             return;
         }
-        
+
+        if (next !== confirm) {
+            setSecurityError('New passwords do not match.');
+            return;
+        }
+
+        if (next.length < 8) {
+            setSecurityError('Password must be at least 8 characters.');
+            return;
+        }
+
+        if (!/[A-Z]/.test(next) || !/[0-9]/.test(next) || !/[^A-Za-z0-9]/.test(next)) {
+            setSecurityError('Password must include an uppercase letter, a number, and a symbol.');
+            return;
+        }
+
+        setIsSecuritySaving(true);
+
         try {
-            // Here you would integrate with your authentication service
-            // For now, we'll simulate the password change
-            console.log('Password change request:', {
-                currentPassword: passwords.currentPassword,
-                newPassword: passwords.newPassword
+            const { data: { user }, error: sessionError } = await supabase.auth.getUser();
+            if (sessionError || !user?.email) {
+                throw new Error('Unable to verify your session. Please sign in again.');
+            }
+
+            const email = user.email || userProfile.email;
+            if (!email) {
+                throw new Error('No email associated with this account.');
+            }
+
+            const { error: verifyError } = await supabase.auth.signInWithPassword({
+                email,
+                password: current
             });
-            
-            // Reset form
+
+            if (verifyError) {
+                setSecurityError('Current password is incorrect.');
+                return;
+            }
+
+            const { error: updateError } = await supabase.auth.updateUser({ password: next });
+            if (updateError) {
+                throw updateError;
+            }
+
+            setSecurityMessage('Password updated successfully.');
             setPasswords({
                 currentPassword: '',
                 newPassword: '',
                 confirmNewPassword: ''
             });
-            
-            alert('Password updated successfully!');
         } catch (error) {
-            console.error('Password update failed:', error);
-            alert('Failed to update password. Please try again.');
+            const message = error instanceof Error ? error.message : 'Failed to update password. Please try again.';
+            setSecurityError(message);
+        } finally {
+            setIsSecuritySaving(false);
         }
     };
 
-    const handleSecurityToggle = (setting: string, value: boolean | number) => {
-        setSecuritySettings(prev => ({
-            ...prev,
-            [setting]: value
-        }));
+    const handleSecurityToggle = (setting: keyof SecuritySettingsState, value: boolean | number) => {
+        setSecurityMessage(null);
+        setSecurityError(null);
+        setSecuritySettings(prev => {
+            if (setting === 'sessionTimeout') {
+                const numeric = typeof value === 'number' ? value : parseInt(String(value), 10);
+                if (Number.isNaN(numeric)) {
+                    return prev;
+                }
+
+                return {
+                    ...prev,
+                    sessionTimeout: numeric
+                };
+            }
+
+            return {
+                ...prev,
+                [setting]: Boolean(value)
+            };
+        });
     };
 
-    const handleSecuritySettingsSave = () => {
-        // Here you would save security settings to your backend
-        console.log('Saving security settings:', securitySettings);
-        alert('Security settings saved successfully!');
+    const handleSecuritySettingsSave = async () => {
+        if (!userId || isSecuritySaving || isSecuritySettingsLoading) {
+            return;
+        }
+
+        setSecurityError(null);
+        setSecurityMessage(null);
+        setIsSecuritySaving(true);
+
+        try {
+            const response = await fetch(`/api/security/settings/${encodeURIComponent(userId)}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(securitySettings)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+
+            const data = await response.json();
+            const incoming =
+                (data?.settings as SecuritySettingsState | undefined) ?? securitySettings;
+
+            const merged: SecuritySettingsState = {
+                ...securityDefaultsRef.current,
+                ...incoming
+            };
+
+            securityDefaultsRef.current = merged;
+            setSecuritySettings(merged);
+            setSecurityMessage('Security settings saved successfully.');
+        } catch (error) {
+            notifyApiError({
+                title: 'Could not save security settings',
+                description: 'Please try again in a few moments.',
+                error
+            });
+            setSecurityError('Unable to save security settings. Using your last saved preferences.');
+            setSecuritySettings(securityDefaultsRef.current);
+        } finally {
+            setIsSecuritySaving(false);
+        }
     };
 
     // Password validation
+    const trimmedCurrentPassword = passwords.currentPassword.trim();
+    const trimmedNewPassword = passwords.newPassword.trim();
+    const trimmedConfirmPassword = passwords.confirmNewPassword.trim();
+
     const isPasswordValid = 
-        passwords.newPassword.length >= 8 &&
-        /[A-Z]/.test(passwords.newPassword) &&
-        /[0-9]/.test(passwords.newPassword) &&
-        /[^A-Za-z0-9]/.test(passwords.newPassword) &&
-        passwords.newPassword === passwords.confirmNewPassword &&
-        passwords.currentPassword.length > 0;
+        trimmedNewPassword.length >= 8 &&
+        /[A-Z]/.test(trimmedNewPassword) &&
+        /[0-9]/.test(trimmedNewPassword) &&
+        /[^A-Za-z0-9]/.test(trimmedNewPassword) &&
+        trimmedNewPassword === trimmedConfirmPassword &&
+        trimmedCurrentPassword.length > 0;
+
+    const planStatusLabels: Record<string, string> = {
+        active: 'Active',
+        trialing: 'Trialing',
+        past_due: 'Past Due',
+        cancelled: 'Cancelled',
+        cancel_pending: 'Cancellation Pending'
+    };
+
+    const planStatusBadges: Record<string, string> = {
+        active: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+        trialing: 'bg-indigo-100 text-indigo-700 border border-indigo-200',
+        past_due: 'bg-amber-100 text-amber-700 border border-amber-200',
+        cancelled: 'bg-rose-100 text-rose-700 border border-rose-200',
+        cancel_pending: 'bg-amber-50 text-amber-700 border border-amber-200'
+    };
+
+    const formatCurrency = (amount?: number, currency = 'USD') => {
+        if (typeof amount !== 'number' || Number.isNaN(amount)) {
+            return null;
+        }
+        return amount.toLocaleString(undefined, {
+            style: 'currency',
+            currency,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    };
+
+    const formatDate = (iso?: string | null) => {
+        if (!iso) {
+            return null;
+        }
+        const date = new Date(iso);
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+        return date.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
 
     const openCheckoutUrl = (url: string) => {
         const target = window.open(url, '_blank', 'noopener,noreferrer');
@@ -820,7 +1280,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 setBillingError('Checkout session did not return a redirect URL.');
             }
         } catch (error) {
-            console.error('Billing checkout failed:', error);
+        notifyApiError({
+            title: 'Could not start billing checkout',
+            description: 'Please try again or contact support if the problem continues.',
+            error
+        });
             setBillingError(error instanceof Error ? error.message : 'Unable to start checkout. Please try again.');
         } finally {
             setIsBillingCheckoutLoading(false);
@@ -829,11 +1293,19 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
     // Billing handlers
     const handlePayPalCheckout = () => {
+        if (billingData.managedBy && billingData.managedBy !== 'paypal') {
+            setBillingError(`Your subscription is managed via ${billingData.managedBy}. Please use the ${billingData.managedBy === 'stripe' ? 'Stripe customer portal' : 'billing team'} to make changes.`);
+            return;
+        }
         if (!paypalAvailable) {
             setBillingError('PayPal is not available. Please contact support.');
             return;
         }
-
+        if (paypalPortalUrl) {
+            setBillingMessage('Opening PayPal in a new tab.');
+            window.open(paypalPortalUrl, '_blank');
+            return;
+        }
         void launchBillingCheckout('paypal');
     };
 
@@ -841,10 +1313,44 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
         window.open('mailto:support@homelistingai.com?subject=Billing Support Request', '_blank');
     };
 
-    const handleCancelMembership = () => {
+    const handleCancelMembership = async () => {
+        if (!userId) {
+            setBillingError('Missing account identifier. Please refresh and try again.');
+            return;
+        }
+
         const confirmed = confirm('Are you sure you want to cancel your membership? You will lose access to all AI features at the end of your current billing period.');
-        if (confirmed) {
-            alert('Cancellation request submitted. You will receive a confirmation email shortly.');
+        if (!confirmed) {
+            return;
+        }
+
+        setBillingMessage(null);
+        setBillingError(null);
+        setIsBillingSettingsLoading(true);
+
+        try {
+            const updated = await billingSettingsService.update(userId, {
+                planStatus: 'cancel_pending',
+                cancellationRequestedAt: new Date().toISOString()
+            });
+
+            billingDefaultsRef.current = updated;
+            setBillingData(updated);
+            setPlanBadge(prev => ({
+                plan: updated.planName || prev?.plan,
+                status: updated.planStatus || prev?.status
+            }));
+            _onSaveBillingSettings(updated);
+            setBillingMessage('Cancellation request submitted. You will receive a confirmation email shortly.');
+        } catch (error) {
+            notifyApiError({
+                title: 'Could not submit cancellation request',
+                description: 'Please try again or contact support if the problem continues.',
+                error
+            });
+            setBillingError(error instanceof Error ? error.message : 'Failed to submit cancellation request.');
+        } finally {
+            setIsBillingSettingsLoading(false);
         }
     };
 
@@ -874,19 +1380,23 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 const nextPreferences = (data?.preferences as NotificationSettings) || optimistic;
                 setCurrentNotifications(nextPreferences);
                 _onSaveNotifications(nextPreferences);
-        } catch (error) {
-                console.error('Failed to update notification preference:', error);
+            } catch (error) {
+                notifyApiError({
+                    title: 'Could not update notification preference',
+                    description: 'We reverted the previous setting. Please try again.',
+                    error
+                });
                 setNotificationSaveError('Failed to save notification preference. Please try again.');
                 setCurrentNotifications((prev) => {
                     const reverted = { ...prev, [key]: previousValue };
                     _onSaveNotifications(reverted);
                     return reverted;
                 });
-        } finally {
+            } finally {
                 setIsNotificationsSaving(false);
             }
         },
-        [currentNotifications, userId, _onSaveNotifications]
+        [currentNotifications, notifyApiError, userId, _onSaveNotifications]
     );
 
     const handleEmailSettingsChange = <K extends keyof EmailSettings>(field: K, value: EmailSettings[K]) => {
@@ -920,7 +1430,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
             _onSaveEmailSettings(nextSettings);
             setEmailSaveMessage('Email settings saved.');
         } catch (error) {
-            console.error('Failed to save email settings:', error);
+            notifyApiError({
+                title: 'Could not save email settings',
+                description: 'Please review your details and try again.',
+                error
+            });
             setEmailSettingsError('Failed to save email settings. Please try again.');
         } finally {
             setIsEmailSettingsSaving(false);
@@ -940,69 +1454,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
         setPasswords(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleUpdatePassword = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        setSecurityError(null);
-        setSecurityMessage(null);
-
-        const current = passwords.currentPassword.trim();
-        const next = passwords.newPassword.trim();
-        const confirm = passwords.confirmNewPassword.trim();
-
-        if (!current || !next) {
-            setSecurityError('Please enter your current password and choose a new password.');
-            return;
-        }
-
-        if (next !== confirm) {
-            setSecurityError('New passwords do not match.');
-            return;
-        }
-
-        if (next.length < 8) {
-            setSecurityError('Password must be at least 8 characters.');
-            return;
-        }
-
-        setIsSecuritySaving(true);
-
-        try {
-            const { data: { user }, error: sessionError } = await supabase.auth.getUser();
-            if (sessionError || !user?.email) {
-                throw new Error('Unable to verify your session. Please sign in again.');
-            }
-
-            const email = user.email || userProfile.email;
-            if (!email) {
-                throw new Error('No email associated with this account.');
-            }
-
-            const { error: verifyError } = await supabase.auth.signInWithPassword({
-                email,
-                password: current
-            });
-
-            if (verifyError) {
-                setSecurityError('Current password is incorrect.');
-                return;
-            }
-
-            const { error: updateError } = await supabase.auth.updateUser({ password: next });
-            if (updateError) {
-                throw updateError;
-            }
-
-            setSecurityMessage('Password updated successfully.');
-            setPasswords({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to update password. Please try again.';
-            setSecurityError(message);
-        } finally {
-            setIsSecuritySaving(false);
-        }
-    };
-
     
     const tabs = [
         { id: 'notifications', label: 'Notifications', icon: 'notifications' },
@@ -1013,6 +1464,41 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     ];
 
     const paypalAvailable = paymentProviders.includes('paypal');
+    const subscriptionManagedBy = billingData.managedBy || (paypalAvailable ? 'paypal' : undefined);
+    const planAmountFormatted = formatCurrency(billingData.amount, billingData.currency ?? 'USD');
+    const renewalDateLabel = formatDate(billingData.renewalDate);
+    const cancellationRequestedLabel = formatDate(billingData.cancellationRequestedAt);
+    const billingHistoryEntries = Array.isArray(billingData.history) ? billingData.history : [];
+    const canCancelPlan = !['cancel_pending', 'cancelled'].includes(billingData.planStatus ?? '');
+    const showCancellationNotice = billingData.planStatus === 'cancel_pending' && !!cancellationRequestedLabel;
+    const billingStatusBadges: Record<string, string> = {
+        Paid: 'bg-emerald-100 text-emerald-700',
+        Pending: 'bg-amber-100 text-amber-700',
+        Failed: 'bg-rose-100 text-rose-700'
+    };
+    const manageButtonLabel = (() => {
+        if (subscriptionManagedBy === 'paypal') {
+            return isBillingCheckoutLoading ? 'Opening PayPal…' : 'Manage with PayPal';
+        }
+        if (subscriptionManagedBy === 'stripe') {
+            return 'Managed via Stripe';
+        }
+        if (subscriptionManagedBy === 'manual') {
+            return 'Contact billing';
+        }
+        return 'Manage subscription';
+    })();
+    const manageButtonDisabled =
+        subscriptionManagedBy !== 'paypal' || !paypalAvailable || isBillingCheckoutLoading;
+    const cancelButtonDisabled = !canCancelPlan || isBillingSettingsLoading;
+    const cancelButtonLabel = canCancelPlan
+        ? 'Cancel Plan'
+        : billingData.planStatus === 'cancel_pending'
+            ? 'Cancellation Pending'
+            : 'Plan Cancelled';
+    const historyDescriptionFallback = billingData.planName
+        ? `${billingData.planName} - Subscription`
+        : 'Subscription payment';
 
     useEffect(() => {
         const listener = (event: MessageEvent) => {
@@ -1324,22 +1810,29 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                             )}
 
                                             <div className="flex flex-col sm:flex-row gap-3">
-                                                        {!emailConnections.find((c) => c.provider === 'gmail') && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleGmailConnect}
-                                                                disabled={isConnecting === 'gmail' || isEmailSettingsSaving}
-                                                        className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 transition"
-                                                    >
-                                                        {isConnecting === 'gmail' ? (
-                                                            <>
-                                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                                <span className="font-semibold">Connecting...</span>
-                                                            </>
-                                                        ) : (
-                                                            <span className="font-semibold">📧 Connect Gmail</span>
-                                                        )}
-                                                 </button>
+                                                {!emailConnections.find((c) => c.provider === 'gmail') && (
+                                                    isGoogleIntegrationAvailable ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleGmailConnect}
+                                                            disabled={isConnecting === 'gmail' || isEmailSettingsSaving}
+                                                            className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 transition"
+                                                        >
+                                                            {isConnecting === 'gmail' ? (
+                                                                <>
+                                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                    <span className="font-semibold">Connecting...</span>
+                                                                </>
+                                                            ) : (
+                                                                <span className="font-semibold">📧 Connect Gmail</span>
+                                                            )}
+                                                        </button>
+                                                    ) : (
+                                                        <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                                            <div className="font-semibold text-slate-700 mb-1">Gmail OAuth disabled</div>
+                                                            Add Google OAuth credentials (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, and set `VITE_ENABLE_GOOGLE_INTEGRATIONS=true`) then restart the dev server to enable one-click Gmail connections. Until then, use the forwarding address above.
+                                                        </div>
+                                                    )
                                                 )}
                                             </div>
 
@@ -1469,6 +1962,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                 <h2 className="text-2xl font-bold text-slate-900">Security Settings</h2>
                                 <p className="text-slate-500 mt-1">Manage your account security and privacy settings</p>
 
+                                {isSecuritySettingsLoading && (
+                                    <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                                        Loading your security preferences…
+                                    </div>
+                                )}
+
                                 {securityError && (
                                     <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
                                         {securityError}
@@ -1484,12 +1983,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                 {/* Change Password */}
                                 <div className="mt-8 pt-8 border-t border-slate-200">
                                     <h3 className="text-lg font-bold text-slate-800">Change Password</h3>
-                                    <form onSubmit={handleUpdatePassword} className="mt-4 space-y-4 max-w-md">
+                                    <form onSubmit={handlePasswordSave} className="mt-4 space-y-4 max-w-md">
                                         <FormInput 
                                             label="Current Password" 
                                             id="currentPassword" 
                                             name="currentPassword"
                                             type="password" 
+                                            autoComplete="current-password"
                                             value={passwords.currentPassword} 
                                             onChange={handlePasswordChange}
                                         />
@@ -1498,6 +1998,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                             id="newPassword" 
                                             name="newPassword"
                                             type="password" 
+                                            autoComplete="new-password"
                                             value={passwords.newPassword} 
                                             onChange={handlePasswordChange}
                                         />
@@ -1506,13 +2007,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                             id="confirmNewPassword" 
                                             name="confirmNewPassword"
                                             type="password" 
+                                            autoComplete="new-password"
                                             value={passwords.confirmNewPassword} 
                                             onChange={handlePasswordChange}
                                         />
                                             <div>
                                                 <button
                                                     type="submit"
-                                                    disabled={isSecuritySaving}
+                                                disabled={isSecuritySaving || !isPasswordValid}
                                                     className="px-5 py-2 font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition disabled:cursor-not-allowed disabled:opacity-60"
                                                 >
                                                 {isSecuritySaving ? 'Updating…' : 'Update Password'}
@@ -1578,24 +2080,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                     <div className="p-6">
                                         <div className="mb-4">
                                             <h3 className="text-lg font-semibold text-slate-800">Choose Calendar Service</h3>
-                                            <p className="text-sm text-slate-500 mt-1">Tap a card to select your preferred calendar</p>
+                                            <p className="text-sm text-slate-500 mt-1">Google Calendar is ready to connect below.</p>
                                         </div>
-                                        <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
+                                        <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2">
                                             <IntegrationCard
                                                 icon="calendar_month"
                                                 title="Google Calendar"
                                                 description="Sync with your Google account for seamless scheduling."
                                                 tags={[{ label: 'Popular', color: 'blue' }]}
-                                                isSelected={calendarFormData.integrationType === 'google'}
+                                                isSelected
                                                 onClick={() => handleCalendarSettingsChange('integrationType', 'google')}
-                                            />
-                                            <IntegrationCard
-                                                icon="calendar_month"
-                                                title="Apple Calendar"
-                                                description="Integrate with your iCloud Calendar."
-                                                tags={[{ label: 'Apple', color: 'green' }]}
-                                                isSelected={calendarFormData.integrationType === 'apple'}
-                                                onClick={() => handleCalendarSettingsChange('integrationType', 'apple')}
                                             />
                                         </div>
                                     </div>
@@ -1615,7 +2109,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                                 </div>
                                             </div>
                                             <p className="text-sm text-slate-600">
-                                                After selecting {calendarFormData.integrationType === 'google' ? 'Google' : 'your preferred'} calendar, connect your account below to enable automatic scheduling.
+                                                After selecting Google Calendar, connect your account below to enable automatic scheduling.
                                             </p>
                                         </div>
                                     )}
@@ -1886,6 +2380,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                                 <input
                                                     type="password"
                                                     name="currentPassword"
+                                                autoComplete="current-password"
                                                     value={passwords.currentPassword}
                                                     onChange={handlePasswordChange}
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1898,6 +2393,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                                 <input
                                                     type="password"
                                                     name="newPassword"
+                                                autoComplete="new-password"
                                                     value={passwords.newPassword}
                                                     onChange={handlePasswordChange}
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1930,6 +2426,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                                 <input
                                                     type="password"
                                                     name="confirmNewPassword"
+                                                autoComplete="new-password"
                                                     value={passwords.confirmNewPassword}
                                                     onChange={handlePasswordChange}
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1983,6 +2480,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                                     checked={securitySettings.loginNotifications !== false}
                                                     onChange={(e) => handleSecurityToggle('loginNotifications', e.target.checked)}
                                                     className="sr-only peer"
+                                                    disabled={isSecuritySettingsLoading || isSecuritySaving}
                                                 />
                                                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                                             </label>
@@ -1997,6 +2495,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                                 value={securitySettings.sessionTimeout || 24}
                                                 onChange={(e) => handleSecurityToggle('sessionTimeout', parseInt(e.target.value))}
                                                 className="px-3 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                                disabled={isSecuritySettingsLoading || isSecuritySaving}
                                             >
                                                 <option value={1}>1 hour</option>
                                                 <option value={4}>4 hours</option>
@@ -2022,6 +2521,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                                     checked={securitySettings.analyticsEnabled !== false}
                                                     onChange={(e) => handleSecurityToggle('analyticsEnabled', e.target.checked)}
                                                     className="sr-only peer"
+                                                    disabled={isSecuritySettingsLoading || isSecuritySaving}
                                                 />
                                                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                                             </label>
@@ -2053,9 +2553,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                         <button
                                             type="button"
                                             onClick={handleSecuritySettingsSave}
-                                            className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                                            disabled={isSecuritySaving || isSecuritySettingsLoading}
+                                            className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                                         >
-                                            Save Security Settings
+                                            {isSecuritySaving ? 'Saving…' : 'Save Security Settings'}
                                         </button>
                                     </div>
                                 </div>
@@ -2066,9 +2567,30 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                         {activeTab === 'billing' && (
                             <div className="p-8 space-y-8">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-slate-900">💳 Billing & Subscription</h2>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <h2 className="text-2xl font-bold text-slate-900">💳 Billing & Subscription</h2>
+                                        {planBadge && (planBadge.plan || planBadge.status) && (
+                                            <div className="flex items-center gap-2">
+                                                {planBadge.plan && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200">
+                                                        Plan: {planBadge.plan}
+                                                    </span>
+                                                )}
+                                                {planBadge.status && (
+                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${planStatusBadges[planBadge.status] ?? 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                                        {planStatusLabels[planBadge.status] ?? planBadge.status}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                     <p className="text-slate-500 mt-1">Manage your subscription, billing information, and payment methods.</p>
                                 </div>
+                                {isBillingSettingsLoading && (
+                                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                                        Loading your billing details…
+                                    </div>
+                                )}
                                 {billingError && (
                                     <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
                                         {billingError}
@@ -2115,69 +2637,82 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                 </div>
 
                                 {/* Current Plan - Matching Landing Page */}
-                                 <FeatureSection title="Current Plan" icon="star">
+                                <FeatureSection title="Current Plan" icon="star">
                                     <div className="bg-gradient-to-tr from-primary-700 to-primary-500 text-white rounded-2xl p-8 shadow-2xl">
-                                        <div className="flex items-center justify-between mb-6">
+                                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                             <div>
-                                                <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
-                                                <p className="text-slate-300">Everything you need to dominate your market and close more deals</p>
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <h3 className="text-2xl font-bold text-white">{billingData.planName || 'Subscription Plan'}</h3>
+                                                    {billingData.planStatus && (
+                                                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full ${planStatusBadges[billingData.planStatus] ?? 'bg-white/20 text-white border border-white/30'}`}>
+                                                            {planStatusLabels[billingData.planStatus] ?? billingData.planStatus}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
+                                                {renewalDateLabel && (
+                                                    <p className="mt-2 text-sm text-white/80">Renews on {renewalDateLabel}</p>
+                                                )}
+                                                {subscriptionManagedBy && subscriptionManagedBy !== 'paypal' && (
+                                                    <p className="mt-1 text-xs text-white/80">
+                                                        Managed by {subscriptionManagedBy === 'manual' ? 'our billing team' : subscriptionManagedBy}.
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="text-right">
-                                                <div className="text-3xl font-bold">$139<span className="text-lg font-medium">/mo</span></div>
+                                                {planAmountFormatted ? (
+                                                    <div className="text-3xl font-bold">
+                                                        {planAmountFormatted}
+                                                        <span className="text-lg font-medium">/mo</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-xl font-semibold">Custom Pricing</div>
+                                                )}
+                                                {cancellationRequestedLabel && billingData.planStatus === 'cancel_pending' && (
+                                                    <p className="mt-2 text-sm text-white/80">Access ends after the current period.</p>
+                                                )}
                                             </div>
                                         </div>
-                                        
-                                        <div className="grid grid-cols-2 gap-4 text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>Unlimited AI interactions per month</span>
+
+                                        {showCancellationNotice && (
+                                            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900">
+                                                Cancellation requested on {cancellationRequestedLabel}. You&apos;ll keep access until the end of this billing period.
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>1GB of storage space</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>500 emails per month</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>Advanced analytics dashboard</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>Your own trained GPT</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>Automated follow-up sequences</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>Auto leads to closing</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined w-4 h-4 text-green-400">check_circle</span>
-                                                <span>Need more? We do custom programs</span>
-                                            </div>
+                                        )}
+
+                                        <div className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                                            {[
+                                                'Unlimited AI interactions per month',
+                                                'Advanced analytics dashboard',
+                                                'Automated follow-up sequences',
+                                                'Your AI sidekick trained on your brand',
+                                                'Lead capture to closing automations',
+                                                'Custom programs available any time'
+                                            ].map((feature) => (
+                                                <div key={feature} className="flex items-center gap-2">
+                                                    <span className="material-symbols-outlined w-4 h-4 text-green-300">check_circle</span>
+                                                    <span>{feature}</span>
+                                                </div>
+                                            ))}
                                         </div>
                                         <div className="mt-6 flex flex-wrap gap-3">
                                             <button
                                                 type="button"
                                                 onClick={handlePayPalCheckout}
-                                                disabled={!paypalAvailable || isBillingCheckoutLoading}
-                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/40 bg-white/15 text-white font-semibold shadow transition-colors ${(!paypalAvailable || isBillingCheckoutLoading) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/25'}`}
+                                                disabled={manageButtonDisabled}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/40 bg-white/15 text-white font-semibold shadow transition-colors ${manageButtonDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/25'}`}
                                             >
                                                 <span className="material-symbols-outlined text-base">account_balance</span>
-                                                {isBillingCheckoutLoading ? 'Launching checkout...' : paypalAvailable ? 'Manage via PayPal' : 'PayPal unavailable'}
+                                                {manageButtonLabel}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={handleCancelMembership}
-                                                className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg border border-white/20 hover:bg-white/20 transition-colors"
+                                                disabled={cancelButtonDisabled}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 bg-white/10 text-white transition-colors ${cancelButtonDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/20'}`}
                                             >
                                                 <span className="material-symbols-outlined text-base">cancel</span>
-                                                Cancel Plan
+                                                {cancelButtonLabel}
                                             </button>
                                             <button
                                                 type="button"
@@ -2188,7 +2723,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                                 Talk to Support
                                             </button>
                                         </div>
-                                        {!paypalAvailable && (
+                                        <p className="mt-2 text-xs text-white/90">Changes to your subscription are managed securely through your configured payment provider.</p>
+                                        {!paypalAvailable && subscriptionManagedBy === 'paypal' && (
                                             <p className="mt-3 text-xs text-white/80">
                                                 PayPal checkout isn&apos;t available yet. Add your PayPal credentials to enable in-app billing.
                                             </p>
@@ -2212,39 +2748,48 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-200">
-                                                    <tr>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Dec 15, 2024</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$139.00</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                            <button className="text-primary-600 hover:text-primary-700">Download</button>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Nov 15, 2024</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$139.00</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                            <button className="text-primary-600 hover:text-primary-700">Download</button>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Oct 15, 2024</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">Complete AI Solution - Monthly</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">$139.00</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">Paid</span>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                            <button className="text-primary-600 hover:text-primary-700">Download</button>
-                                                        </td>
-                                                    </tr>
+                                                    {billingHistoryEntries.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={5} className="px-6 py-6 text-center text-sm text-slate-500">
+                                                                No invoices yet. Once you&apos;re billed, receipts will appear here.
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        billingHistoryEntries.map((entry) => {
+                                                            const amountLabel =
+                                                                formatCurrency(entry.amount, billingData.currency ?? 'USD') ??
+                                                                `$${Number(entry.amount || 0).toFixed(2)}`;
+                                                            const dateLabel = formatDate(entry.date) ?? entry.date;
+                                                            return (
+                                                                <tr key={entry.id}>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">{dateLabel}</td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                                                                        {entry.description || historyDescriptionFallback}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">{amountLabel}</td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                                        <span className={`px-2 py-1 text-xs font-medium rounded ${billingStatusBadges[entry.status] ?? 'bg-slate-100 text-slate-700'}`}>
+                                                                            {entry.status}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                                        {entry.invoiceUrl ? (
+                                                                            <a
+                                                                                href={entry.invoiceUrl}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="text-primary-600 hover:text-primary-700"
+                                                                            >
+                                                                                Download
+                                                                            </a>
+                                                                        ) : (
+                                                                            <span className="text-slate-400">Not available</span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })
+                                                    )}
                                                 </tbody>
                                             </table>
                                         </div>

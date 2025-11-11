@@ -478,14 +478,26 @@ export interface EmailSettings {
     trackOpens?: boolean;
 }
 
+export type BillingStatus = 'active' | 'trialing' | 'past_due' | 'cancelled' | 'cancel_pending';
+
+export interface BillingHistoryEntry {
+    id: string;
+    date: string;
+    amount: number;
+    status: 'Paid' | 'Pending' | 'Failed';
+    description?: string;
+    invoiceUrl?: string;
+}
+
 export interface BillingSettings {
-    planName: 'Solo Agent' | 'Pro Team' | 'Brokerage';
-    history: {
-        id: string;
-        date: string;
-        amount: number;
-        status: 'Paid' | 'Pending' | 'Failed';
-    }[];
+    planName: string;
+    planStatus?: BillingStatus;
+    amount?: number;
+    currency?: string;
+    managedBy?: 'stripe' | 'paypal' | 'manual';
+    renewalDate?: string | null;
+    cancellationRequestedAt?: string | null;
+    history: BillingHistoryEntry[];
 }
 
 export type FollowUpHistoryEventType =

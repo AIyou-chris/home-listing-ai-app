@@ -135,8 +135,16 @@ const AgentDashboardBlueprint: React.FC = () => {
     newAppointmentAlerts: true
   });
   const [billingSettings, setBillingSettings] = useState<BillingSettings>({
-    planName: 'Solo Agent',
-    history: [{ id: 'inv-123', date: '07/15/2024', amount: 59, status: 'Paid' }]
+    planName: 'Complete AI Solution',
+    planStatus: 'active',
+    amount: 139,
+    currency: 'USD',
+    managedBy: 'paypal',
+    renewalDate: null,
+    cancellationRequestedAt: null,
+    history: [
+      { id: 'inv-123', date: '2024-07-15', amount: 139, status: 'Paid', description: 'Complete AI Solution - Monthly' }
+    ]
   });
 
   const mapCentralProfileToAgentProfile = useCallback(
@@ -607,10 +615,10 @@ const AgentDashboardBlueprint: React.FC = () => {
       onClick: () => setActiveView('marketing')
     },
     {
-      label: 'Train knowledge base',
-      description: 'Layer in scripts, market intel, and FAQs for the concierge sidekick.',
+      label: 'Train your AI',
+      description: 'Run live conversations and capture feedback to sharpen every sidekick.',
       icon: 'neurology',
-      onClick: () => setActiveView('knowledge-base')
+      onClick: () => setActiveView('ai-training')
     }
   ];
 

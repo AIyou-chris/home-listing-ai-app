@@ -20,20 +20,74 @@ const {
   disconnectEmailProvider
 } = require('./utils/emailSettings');
 const {
+  getBillingSettings,
+  updateBillingSettings
+} = require('./utils/billingSettings');
+const {
+  getSecuritySettings,
+  updateSecuritySettings
+} = require('./utils/securitySettings');
+const {
   getCalendarSettings,
   updateCalendarSettings: updateCalendarPreferences,
   saveCalendarConnection
 } = require('./utils/calendarSettings');
 const createPaymentService = require('./services/paymentService');
-require('dotenv').config();
+const dotenv = require('dotenv');
+
+// Load environment variables from root-level .env files first so the backend picks up shared config
+dotenv.config({
+  path: path.resolve(__dirname, '../.env.local'),
+  override: false
+});
+dotenv.config({
+  path: path.resolve(__dirname, '../.env'),
+  override: false
+});
+// Finally load any backend-specific .env files (default behaviour)
+dotenv.config({
+  path: path.resolve(__dirname, '.env.local'),
+  override: false
+});
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3002;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '16mb' }));
+app.use(express.urlencoded({ extended: true, limit: '16mb' }));
 app.use(helmet());
+
+// PayPal REST helpers (for Smart Buttons + webhooks)
+const PAYPAL_ENV = (process.env.PAYPAL_ENV || 'sandbox').toLowerCase();
+const PAYPAL_API_BASE = process.env.PAYPAL_API_BASE || (PAYPAL_ENV === 'live'
+  ? 'https://api-m.paypal.com'
+  : 'https://api-m.sandbox.paypal.com');
+const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || '';
+const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || '';
+const PAYPAL_WEBHOOK_ID = process.env.PAYPAL_WEBHOOK_ID || '';
+const getPayPalAccessToken = async () => {
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    throw new Error('PayPal credentials not configured');
+  }
+  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
+  const res = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: 'grant_type=client_credentials'
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`PayPal token error: ${res.status} ${text}`);
+  }
+  const data = await res.json();
+  return data.access_token;
+};
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -51,6 +105,134 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     persistSession: false
   }
 });
+console.log('[server] has service role?', Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY));
+
+const FOLLOW_UP_SEQUENCES_TABLE = 'follow_up_sequences_store';
+const FOLLOW_UP_ACTIVE_TABLE = 'follow_up_active_store';
+
+const marketingStore = {
+  async loadSequences(ownerId) {
+    if (!ownerId || !supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return null;
+    }
+    try {
+      const { data, error } = await supabaseAdmin
+        .from(FOLLOW_UP_SEQUENCES_TABLE)
+        .select('sequences')
+        .eq('user_id', ownerId)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      return data?.sequences ?? null;
+    } catch (error) {
+      if (!String(error?.message ?? '').includes('does not exist')) {
+        console.warn('[Marketing] Failed to load follow-up sequences from Supabase:', error.message || error);
+      }
+      return null;
+    }
+  },
+
+  async saveSequences(ownerId, sequences) {
+    if (!ownerId || !supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return false;
+    }
+    try {
+      const { error } = await supabaseAdmin
+        .from(FOLLOW_UP_SEQUENCES_TABLE)
+        .upsert(
+          {
+            user_id: ownerId,
+            sequences,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (error) {
+        throw error;
+      }
+      return true;
+    } catch (error) {
+      if (!String(error?.message ?? '').includes('does not exist')) {
+        console.warn('[Marketing] Failed to persist follow-up sequences to Supabase:', error.message || error);
+      }
+      return false;
+    }
+  },
+
+  async loadActiveFollowUps(ownerId) {
+    if (!ownerId || !supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return null;
+    }
+    try {
+      const { data, error } = await supabaseAdmin
+        .from(FOLLOW_UP_ACTIVE_TABLE)
+        .select('follow_ups')
+        .eq('user_id', ownerId)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      return data?.follow_ups ?? null;
+    } catch (error) {
+      if (!String(error?.message ?? '').includes('does not exist')) {
+        console.warn('[Marketing] Failed to load active follow-ups from Supabase:', error.message || error);
+      }
+      return null;
+    }
+  },
+
+  async saveActiveFollowUps(ownerId, followUps) {
+    if (!ownerId || !supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return false;
+    }
+    try {
+      const { error } = await supabaseAdmin
+        .from(FOLLOW_UP_ACTIVE_TABLE)
+        .upsert(
+          {
+            user_id: ownerId,
+            follow_ups: followUps,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (error) {
+        throw error;
+      }
+      return true;
+    } catch (error) {
+      if (!String(error?.message ?? '').includes('does not exist')) {
+        console.warn('[Marketing] Failed to persist active follow-ups to Supabase:', error.message || error);
+      }
+      return false;
+    }
+  }
+};
+
+const isMarketingUuid = (value) =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+const resolveMarketingOwnerId = (req) => {
+  const headerId =
+    req.headers?.['x-user-id'] ||
+    req.headers?.['x-admin-user-id'] ||
+    req.headers?.['x-agent-id'] ||
+    req.headers?.['x-owner-id'];
+
+  if (isMarketingUuid(headerId)) {
+    return headerId;
+  }
+
+  return isMarketingUuid(DEFAULT_LEAD_USER_ID) ? DEFAULT_LEAD_USER_ID : null;
+};
 
 const paymentService = createPaymentService({
   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
@@ -817,6 +999,8 @@ const mapAppointmentFromRow = (row) => {
   };
 };
 
+const DATA_URL_IMAGE_REGEX = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/i;
+
 const DEFAULT_AI_CARD_PROFILE = {
   id: 'default',
   fullName: '',
@@ -865,6 +1049,8 @@ const mapAiCardProfileFromRow = (row) =>
 const isResolvableAssetPath = (value) =>
   typeof value === 'string' && value.trim().length > 0 && !/^https?:/i.test(value) && !/^data:/i.test(value);
 
+const isDataUrl = (value) => typeof value === 'string' && value.startsWith('data:');
+
 const mapAiCardProfileToRow = (profileData = {}) => {
   const payload = {};
   if (profileData.fullName !== undefined) payload.full_name = profileData.fullName;
@@ -885,7 +1071,9 @@ const mapAiCardProfileToRow = (profileData = {}) => {
   if (profileData.headshot !== undefined) {
     if (profileData.headshot === null || profileData.headshot === '') {
       payload.headshot_url = null;
-    } else if (isResolvableAssetPath(profileData.headshot)) {
+    } else if (isDataUrl(profileData.headshot)) {
+      payload.headshot_url = profileData.headshot;
+    } else if (isResolvableAssetPath(profileData.headshot) || typeof profileData.headshot === 'string') {
       payload.headshot_url = profileData.headshot;
     }
   }
@@ -893,12 +1081,74 @@ const mapAiCardProfileToRow = (profileData = {}) => {
   if (profileData.logo !== undefined) {
     if (profileData.logo === null || profileData.logo === '') {
       payload.logo_url = null;
-    } else if (isResolvableAssetPath(profileData.logo)) {
+    } else if (isDataUrl(profileData.logo)) {
+      payload.logo_url = profileData.logo;
+    } else if (isResolvableAssetPath(profileData.logo) || typeof profileData.logo === 'string') {
       payload.logo_url = profileData.logo;
     }
   }
 
   return payload;
+};
+
+const uploadDataUrlToStorage = async (userId, type, dataUrl, mimeTypeHint) => {
+  const match = DATA_URL_IMAGE_REGEX.exec(dataUrl || '');
+  if (!match) {
+    throw new Error('Invalid data URL provided');
+  }
+
+  const mimeType = mimeTypeHint || match[1] || 'image/jpeg';
+  const base64Data = match[2];
+  const buffer = Buffer.from(base64Data, 'base64');
+  const extension = mimeType.split('/')[1] || 'jpg';
+  const sanitizedExt = extension.replace(/[^a-z0-9]/gi, '') || 'jpg';
+  const assetPath = `${userId}/${type}-${Date.now()}.${sanitizedExt}`;
+
+  const { error } = await supabaseAdmin.storage
+    .from('ai-card-assets')
+    .upload(assetPath, buffer, {
+      contentType: mimeType,
+      cacheControl: '3600',
+      upsert: true
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return assetPath;
+};
+
+const normalizeAiCardProfileAssets = async (userId, profileData = {}) => {
+  const normalized = { ...profileData };
+
+  const processAsset = async (key) => {
+    const value = normalized[key];
+    if (!value || typeof value !== 'string') return;
+    if (!isDataUrl(value)) return;
+
+    const hintKey = `${key}MimeType`;
+
+    try {
+      const storedPath = await uploadDataUrlToStorage(
+        userId,
+        key,
+        value,
+        normalized[hintKey]
+      );
+      normalized[key] = storedPath;
+      delete normalized[hintKey];
+    } catch (error) {
+      console.error(`[AI Card] Failed to persist ${key} data URL for ${userId}:`, error);
+      normalized[key] = value;
+      delete normalized[hintKey];
+    }
+  };
+
+  await processAsset('headshot');
+  await processAsset('logo');
+
+  return normalized;
 };
 
 async function fetchAiCardProfileForUser(userId) {
@@ -974,9 +1224,11 @@ async function upsertAiCardProfileForUser(userId, profileData, { mergeDefaults =
     throw new Error('userId is required for AI Card profile operations');
   }
 
-  const sourceData = mergeDefaults
+  const baseData = mergeDefaults
     ? { ...DEFAULT_AI_CARD_PROFILE, ...profileData }
     : profileData || {};
+
+  const sourceData = await normalizeAiCardProfileAssets(userId, baseData);
 
   const payload = {
     user_id: userId,
@@ -1907,7 +2159,71 @@ app.post('/api/generate-speech', async (req, res) => {
   }
 });
 
+// OpenAI Realtime SDP negotiation endpoint
+app.post('/api/realtime/offer', async (req, res) => {
+  try {
+    const { sdp, type, model } = req.body || {};
+
+    if (!sdp || !type) {
+      return res.status(400).json({ error: 'Missing SDP offer or type' });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    const realtimeModel = typeof model === 'string' && model.trim().length > 0
+      ? model.trim()
+      : 'gpt-4o-realtime-preview';
+
+    const realtimeResponse = await fetch(`https://api.openai.com/v1/realtime?model=${encodeURIComponent(realtimeModel)}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/sdp'
+      },
+      body: sdp
+    });
+
+    if (!realtimeResponse.ok) {
+      const errorText = await realtimeResponse.text();
+      console.error('Realtime SDP negotiation failed', realtimeResponse.status, errorText);
+      return res.status(502).json({ error: 'Realtime negotiation failed' });
+    }
+
+    const answerSdp = await realtimeResponse.text();
+    res.json({ sdp: answerSdp, type: 'answer' });
+  } catch (error) {
+    console.error('Realtime offer error', error);
+    res.status(500).json({ error: 'Failed to negotiate realtime session' });
+  }
+});
+
 // ===== Security API =====
+
+app.get('/api/security/settings/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const payload = await getSecuritySettings(userId, supabaseAdmin);
+    res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error('Error fetching security settings:', error);
+    res.status(500).json({ success: false, error: 'Failed to load security settings' });
+  }
+});
+
+app.patch('/api/security/settings/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const updates = req.body || {};
+    const payload = await updateSecuritySettings(userId, updates, supabaseAdmin);
+    res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error('Error updating security settings:', error);
+    res.status(500).json({ success: false, error: 'Failed to update security settings' });
+  }
+});
 
 // Write audit log
 app.post('/api/security/audit', async (req, res) => {
@@ -2960,8 +3276,14 @@ app.get('/api/leads/scoring-rules', (req, res) => {
 // Marketing API endpoints
 
 // Get all follow-up sequences
-app.get('/api/admin/marketing/sequences', (req, res) => {
+app.get('/api/admin/marketing/sequences', async (req, res) => {
   try {
+    const ownerId = resolveMarketingOwnerId(req);
+    const storedSequences = await marketingStore.loadSequences(ownerId);
+    if (Array.isArray(storedSequences)) {
+      followUpSequences = storedSequences;
+    }
+
     res.json({
       success: true,
       sequences: followUpSequences
@@ -2973,8 +3295,9 @@ app.get('/api/admin/marketing/sequences', (req, res) => {
 });
 
 // Create new follow-up sequence
-app.post('/api/admin/marketing/sequences', (req, res) => {
+app.post('/api/admin/marketing/sequences', async (req, res) => {
   try {
+    const ownerId = resolveMarketingOwnerId(req);
     const newSequence = {
       id: Date.now().toString(),
       ...req.body,
@@ -2983,6 +3306,7 @@ app.post('/api/admin/marketing/sequences', (req, res) => {
     };
     
     followUpSequences.push(newSequence);
+    await marketingStore.saveSequences(ownerId, followUpSequences);
     
     res.json({
       success: true,
@@ -3075,8 +3399,9 @@ app.patch('/api/notifications/preferences/:userId', (req, res) => {
 })
 
 // Update follow-up sequence
-app.put('/api/admin/marketing/sequences/:sequenceId', (req, res) => {
+app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
   try {
+    const ownerId = resolveMarketingOwnerId(req);
     const { sequenceId } = req.params;
     const updates = req.body;
     
@@ -3091,6 +3416,8 @@ app.put('/api/admin/marketing/sequences/:sequenceId', (req, res) => {
       updatedAt: new Date().toISOString()
     };
     
+    await marketingStore.saveSequences(ownerId, followUpSequences);
+
     res.json({
       success: true,
       sequence: followUpSequences[sequenceIndex],
@@ -3103,8 +3430,9 @@ app.put('/api/admin/marketing/sequences/:sequenceId', (req, res) => {
 });
 
 // Delete follow-up sequence
-app.delete('/api/admin/marketing/sequences/:sequenceId', (req, res) => {
+app.delete('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
   try {
+    const ownerId = resolveMarketingOwnerId(req);
     const { sequenceId } = req.params;
     
     const sequenceIndex = followUpSequences.findIndex(seq => seq.id === sequenceId);
@@ -3113,6 +3441,7 @@ app.delete('/api/admin/marketing/sequences/:sequenceId', (req, res) => {
     }
     
     const deletedSequence = followUpSequences.splice(sequenceIndex, 1)[0];
+    await marketingStore.saveSequences(ownerId, followUpSequences);
     
     res.json({
       success: true,
@@ -3126,14 +3455,18 @@ app.delete('/api/admin/marketing/sequences/:sequenceId', (req, res) => {
 });
 
 // Get active follow-ups
-app.get('/api/admin/marketing/active-followups', (req, res) => {
+app.get('/api/admin/marketing/active-followups', async (req, res) => {
   try {
-    // Always regenerate follow-ups to match current leads
-    if (leads.length > 0) {
+    const ownerId = resolveMarketingOwnerId(req);
+    const storedFollowUps = await marketingStore.loadActiveFollowUps(ownerId);
+
+    if (Array.isArray(storedFollowUps)) {
+      activeFollowUps = storedFollowUps;
+    } else if (leads.length > 0 && activeFollowUps.length === 0) {
       generateActiveFollowUps();
+      await marketingStore.saveActiveFollowUps(ownerId, activeFollowUps);
     }
     
-    // Enrich follow-ups with lead and sequence data
     const enrichedFollowUps = activeFollowUps.map(followUp => {
       const lead = leads.find(l => l.id === followUp.leadId);
       const sequence = followUpSequences.find(s => s.id === followUp.sequenceId);
@@ -3165,8 +3498,9 @@ app.get('/api/admin/marketing/active-followups', (req, res) => {
 });
 
 // Update follow-up status
-app.put('/api/admin/marketing/active-followups/:followUpId', (req, res) => {
+app.put('/api/admin/marketing/active-followups/:followUpId', async (req, res) => {
   try {
+    const ownerId = resolveMarketingOwnerId(req);
     const { followUpId } = req.params;
     const { status, currentStepIndex } = req.body;
     
@@ -3192,6 +3526,7 @@ app.put('/api/admin/marketing/active-followups/:followUpId', (req, res) => {
     };
     
     console.log(`📋 Follow-up updated: ${followUpId} -> ${status}`);
+    await marketingStore.saveActiveFollowUps(ownerId, activeFollowUps);
     
     res.json({
       success: true,
@@ -3205,8 +3540,9 @@ app.put('/api/admin/marketing/active-followups/:followUpId', (req, res) => {
 });
 
 // Create new follow-up (enroll lead in sequence)
-app.post('/api/admin/marketing/active-followups', (req, res) => {
+app.post('/api/admin/marketing/active-followups', async (req, res) => {
   try {
+    const ownerId = resolveMarketingOwnerId(req);
     const { leadId, sequenceId } = req.body;
     
     if (!leadId || !sequenceId) {
@@ -3246,6 +3582,7 @@ app.post('/api/admin/marketing/active-followups', (req, res) => {
     activeFollowUps.push(newFollowUp);
     
     console.log(`📋 New follow-up created: ${lead.name} enrolled in ${sequence.name}`);
+    await marketingStore.saveActiveFollowUps(ownerId, activeFollowUps);
     
     res.status(201).json({
       success: true,
@@ -4396,6 +4733,129 @@ app.get('/api/ai-card/profile', async (req, res) => {
   }
 });
 
+// ===== PayPal Smart Buttons endpoints (create & capture) =====
+app.post('/api/paypal/create-order', async (req, res) => {
+  try {
+    const { slug, amount, currency = process.env.PAYPAL_CURRENCY || 'USD', description = 'Subscription', referenceId } = req.body || {};
+    const accessToken = await getPayPalAccessToken();
+    const body = {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          reference_id: referenceId || slug || `ref_${Date.now()}`,
+          amount: { currency_code: currency, value: String(amount || (process.env.STRIPE_DEFAULT_AMOUNT_CENTS ? (Number(process.env.STRIPE_DEFAULT_AMOUNT_CENTS) / 100).toFixed(2) : '59.00')) },
+          description
+        }
+      ],
+      application_context: {
+        user_action: 'PAY_NOW',
+        shipping_preference: 'NO_SHIPPING'
+      }
+    };
+    const r = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      return res.status(400).json({ error: 'paypal_create_failed', details: data });
+    }
+    res.json({ id: data.id, status: data.status, links: data.links });
+  } catch (e) {
+    console.error('paypal create-order error', e);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.post('/api/paypal/capture-order', async (req, res) => {
+  try {
+    const { orderId } = req.body || {};
+    if (!orderId) return res.status(400).json({ error: 'orderId is required' });
+    const accessToken = await getPayPalAccessToken();
+    const r = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders/${orderId}/capture`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      return res.status(400).json({ error: 'paypal_capture_failed', details: data });
+    }
+    // Try to set plan active for current user if provided
+    const userId = req.headers['x-user-id'];
+    if (userId) {
+      try {
+        await supabaseAdmin
+          .from('ai_card_profiles')
+          .update({ plan: 'Solo Agent', subscription_status: 'active', updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+      } catch (e) { console.warn('plan update failed', e?.message); }
+    }
+    res.json({ status: data.status, purchase_units: data.purchase_units });
+  } catch (e) {
+    console.error('paypal capture-order error', e);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Webhook verification and plan update by reference_id when possible
+app.post('/api/paypal/webhook', async (req, res) => {
+  try {
+    if (!PAYPAL_WEBHOOK_ID) return res.status(500).json({ error: 'webhook_not_configured' });
+    const accessToken = await getPayPalAccessToken();
+    const headers = req.headers || {};
+    const verificationBody = {
+      auth_algo: headers['paypal-auth-algo'],
+      cert_url: headers['paypal-cert-url'],
+      transmission_id: headers['paypal-transmission-id'],
+      transmission_sig: headers['paypal-transmission-sig'],
+      transmission_time: headers['paypal-transmission-time'],
+      webhook_id: PAYPAL_WEBHOOK_ID,
+      webhook_event: req.body
+    };
+    const vr = await fetch(`${PAYPAL_API_BASE}/v1/notifications/verify-webhook-signature`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(verificationBody)
+    });
+    const vdata = await vr.json();
+    if (!vr.ok || vdata.verification_status !== 'SUCCESS') {
+      console.warn('paypal webhook verification failed', vdata);
+      return res.status(400).json({ error: 'verification_failed' });
+    }
+    const event = req.body;
+    try {
+      await supabaseAdmin.from('audit_logs').insert({
+        user_id: 'server',
+        action: 'paypal_webhook',
+        resource_type: 'billing',
+        severity: 'info',
+        details: { type: event?.event_type, resource: event?.resource?.id || null }
+      });
+    } catch {}
+    // If capture completed, flip plan if we can resolve user by reference_id
+    if (event?.event_type === 'CHECKOUT.ORDER.APPROVED' || event?.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
+      const pu = event?.resource?.purchase_units?.[0];
+      const slug = pu?.reference_id || pu?.custom_id;
+      // If you maintain a slug->user map, update here. Placeholder shown:
+      // const { data: mapped } = await supabaseAdmin.from('agent_slugs').select('user_id').eq('slug', slug).maybeSingle();
+      // if (mapped?.user_id) await supabaseAdmin.from('ai_card_profiles').update({ plan: 'Solo Agent', subscription_status: 'active' }).eq('user_id', mapped.user_id);
+    }
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error('paypal webhook error', e);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
 // Create new AI Card profile
 app.post('/api/ai-card/profile', async (req, res) => {
   try {
@@ -5147,6 +5607,7 @@ app.listen(port, () => {
   console.log('📝 Available endpoints:');
 console.log('   POST /api/continue-conversation');
 console.log('   POST /api/generate-speech');
+console.log('   POST /api/realtime/offer');
 console.log('   GET  /api/admin/dashboard-metrics');
 console.log('   GET  /api/admin/users');
 console.log('   POST /api/admin/users');
@@ -5217,6 +5678,17 @@ console.log('   PUT  /api/listings/:listingId');
 console.log('   DELETE /api/listings/:listingId');
 console.log('   GET  /api/listings/:listingId/marketing');
 });
+
+app.get('/api/email/settings/:userId', (req, res) => {
+  try {
+    const { userId } = req.params
+    const payload = getEmailSettings(userId)
+    res.json({ success: true, ...payload })
+  } catch (error) {
+    console.error('Error fetching email settings:', error)
+    res.status(500).json({ success: false, error: 'Failed to load email settings' })
+  }
+})
 
 app.post('/api/email/settings/:userId/connections', (req, res) => {
   try {
@@ -5338,6 +5810,29 @@ app.patch('/api/email/settings/:userId', (req, res) => {
    }
  })
  
+app.get('/api/billing/settings/:userId', (req, res) => {
+  try {
+    const { userId } = req.params
+    const payload = getBillingSettings(userId)
+    res.json({ success: true, ...payload })
+  } catch (error) {
+    console.error('Error fetching billing settings:', error)
+    res.status(500).json({ success: false, error: 'Failed to load billing settings' })
+  }
+})
+
+app.patch('/api/billing/settings/:userId', (req, res) => {
+  try {
+    const { userId } = req.params
+    const updates = req.body || {}
+    const payload = updateBillingSettings(userId, updates)
+    res.json({ success: true, ...payload })
+  } catch (error) {
+    console.error('Error updating billing settings:', error)
+    res.status(500).json({ success: false, error: 'Failed to update billing settings' })
+  }
+})
+
 app.get('/api/calendar/settings/:userId', (req, res) => {
   try {
     const { userId } = req.params
