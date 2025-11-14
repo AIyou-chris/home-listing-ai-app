@@ -1,11 +1,9 @@
 #!/bin/sh
-. "$(git rev-parse --show-toplevel)/.husky/_/husky.sh"
 
 # Only run staged checks; full lint/typecheck should run in CI
 
-# staged checks
 if command -v npx >/dev/null 2>&1; then
-	npx lint-staged
+    npx lint-staged
 else
-	"$(npm bin)/lint-staged"
+    "$(npm bin)/lint-staged"
 fi
