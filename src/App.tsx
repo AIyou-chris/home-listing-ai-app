@@ -959,8 +959,22 @@ const App: React.FC = () => {
 			return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
 		};
 
-		const isMarketingLanding = view === 'landing' && !user && !isDemoMode && !isLocalAdmin;
-		const resolvedView = (user || isDemoMode || isLocalAdmin) && view === 'landing' ? 'dashboard' : view;
+        const isMarketingLanding = view === 'landing' && !user && !isDemoMode && !isLocalAdmin;
+        const resolvedView = (user || isDemoMode || isLocalAdmin) && view === 'landing' ? 'dashboard' : view;
+
+        if (!user && !isDemoMode && !isLocalAdmin && view === 'admin-dashboard') {
+            return (
+                <LandingPage
+                    onNavigateToSignUp={handleNavigateToSignUp}
+                    onNavigateToSignIn={handleNavigateToSignIn}
+                    onEnterDemoMode={handleEnterDemoMode}
+                    scrollToSection={scrollToSection}
+                    onScrollComplete={() => setScrollToSection(null)}
+                    onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                    onNavigateToAdmin={handleNavigateToAdmin}
+                />
+            );
+        }
 
 		if (isMarketingLanding) {
 			return (
