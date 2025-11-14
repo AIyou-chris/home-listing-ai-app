@@ -672,6 +672,7 @@ const AgentDashboardBlueprint: React.FC = () => {
             onNewAppointment={handleNewAppointment}
           />
         );
+      case 'ai-card':
       case 'ai-card-builder':
         return <AICardBuilderPage />;
       case 'ai-conversations':
