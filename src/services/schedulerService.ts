@@ -26,7 +26,7 @@ export interface SchedulerInput {
   agentId?: string
   leadId?: string
   propertyId?: string
-  propertyAddress?: string
+  propertyAddress?: string | null
   remindAgent?: boolean
   remindClient?: boolean
   agentReminderMinutes?: number
@@ -532,8 +532,8 @@ ${normalizedInput.message || 'No additional notes'}
     meet_link: calendar.meetLink,
     status: normalizedInput.status || 'Scheduled',
     lead_id: isUuid(normalizedInput.leadId) ? normalizedInput.leadId : undefined,
-    property_id: normalizedInput.propertyId,
-    property_address: normalizedInput.propertyAddress,
+    property_id: normalizedInput.propertyId ?? null,
+    property_address: normalizedInput.propertyAddress ?? null,
     remind_agent: reminders.remindAgent,
     remind_client: reminders.remindClient,
     agent_reminder_minutes_before: reminders.agentReminderMinutes,

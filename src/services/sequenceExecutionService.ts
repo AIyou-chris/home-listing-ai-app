@@ -1,5 +1,12 @@
 import { FollowUpSequence, SequenceStep, Lead, Property, AgentProfile } from '../types';
 import { EmailService } from './emailService';
+
+export type SequenceTriggerType =
+  | 'Lead Capture'
+  | 'Appointment Scheduled'
+  | 'Property Viewed'
+  | 'Buyer Lead'
+  | 'Seller Lead';
 interface SequenceContext {
   lead: Lead;
   property?: Property;
@@ -292,7 +299,7 @@ class SequenceExecutionService {
    * Trigger sequences based on events
    */
   async triggerSequences(
-    triggerType: 'Lead Capture' | 'Appointment Scheduled' | 'Property Viewed',
+    triggerType: SequenceTriggerType,
     context: SequenceContext,
     availableSequences: FollowUpSequence[]
   ): Promise<void> {

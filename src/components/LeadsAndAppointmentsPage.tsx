@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Lead, Appointment, LeadStatus, LeadFunnelType } from '../types';
+import React, { useEffect, useState } from 'react';
+import { Lead, Appointment, LeadStatus, LeadFunnelType, Property } from '../types';
 import { scheduleAppointment } from '../services/schedulerService';
 import type { SchedulerResult } from '../services/schedulerService';
 import AddLeadModal, { type NewLeadPayload } from './AddLeadModal';
@@ -68,9 +68,32 @@ const LeadsList: React.FC<{
     onSchedule: (lead: Lead) => void;
     onContact: (lead: Lead) => void;
     leadFunnels: Record<string, LeadFunnelType | null>;
-    onAssignFunnel: (leadId: string, funnel: LeadFunnelType | null) => void;
+    onAssignFunnel?: (lead: Lead, funnel: LeadFunnelType | null) => void | Promise<void>;
 }> = ({ leads, onSchedule, onContact, leadFunnels, onAssignFunnel }) => {
     const [expandedLeadIds, setExpandedLeadIds] = useState<string[]>(() => leads.map((lead) => lead.id));
+
+    useEffect(() => {
+        setExpandedLeadIds((prev) => {
+            const knownIds = new Set(prev);
+            let changed = false;
+            leads.forEach((lead) => {
+                if (!knownIds.has(lead.id)) {
+                    knownIds.add(lead.id);
+                    changed = true;
+                }
+            });
+            const ordered: string[] = [];
+            leads.forEach((lead) => {
+                if (knownIds.has(lead.id)) {
+                    ordered.push(lead.id);
+                }
+            });
+            if (changed || ordered.length !== prev.length) {
+                return ordered;
+            }
+            return prev;
+        });
+    }, [leads]);
 
     const toggleLead = (leadId: string) => {
         setExpandedLeadIds((prev) =>
@@ -78,10 +101,16 @@ const LeadsList: React.FC<{
         );
     };
 
+    const handleAssign = (lead: Lead, funnel: LeadFunnelType | null) => {
+        if (!onAssignFunnel) return;
+        onAssignFunnel(lead, funnel);
+    };
+
     return (
         <div className="space-y-6">
             {leads.map((lead) => {
                 const isExpanded = expandedLeadIds.includes(lead.id);
+                const selectedFunnel = leadFunnels[lead.id] ?? null;
                 return (
                     <div
                         key={lead.id}
@@ -101,10 +130,10 @@ const LeadsList: React.FC<{
                                         <span className="material-symbols-outlined w-5 h-5 text-slate-400">calendar_today</span>
                                         <span>{lead.date}</span>
                                     </span>
-                                    {leadFunnels[lead.id] && (
+                                    {selectedFunnel && (
                                         <span className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700">
                                             <span className="material-symbols-outlined text-sm">bolt</span>
-                                            {funnelLabelMap[leadFunnels[lead.id] as string]}
+                                            {funnelLabelMap[selectedFunnel]}
                                         </span>
                                     )}
                                 </div>
@@ -142,20 +171,20 @@ const LeadsList: React.FC<{
                                         <button
                                             type="button"
                                             className="text-xs font-semibold text-slate-500 hover:text-slate-700 disabled:text-slate-300"
-                                            onClick={() => onAssignFunnel(lead.id, null)}
-                                            disabled={!leadFunnels[lead.id]}
+                                            onClick={() => handleAssign(lead, null)}
+                                            disabled={!selectedFunnel}
                                         >
                                             Clear selection
                                         </button>
                                     </div>
                                     <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
                                         {funnelOptions.map((option) => {
-                                            const isActive = leadFunnels[lead.id] === option.id;
+                                            const isActive = selectedFunnel === option.id;
                                             return (
                                                 <button
                                                     key={option.id}
                                                     type="button"
-                                                    onClick={() => onAssignFunnel(lead.id, option.id)}
+                                                    onClick={() => handleAssign(lead, option.id)}
                                                     className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
                                                         isActive
                                                             ? `${option.accent} shadow-sm`
@@ -293,9 +322,19 @@ interface LeadsAndAppointmentsPageProps {
     onAddNewLead: (leadData: NewLeadPayload) => void;
     onBackToDashboard: () => void;
     onNewAppointment?: (appt: Appointment) => void;
+    resolvePropertyForLead?: (lead: Lead | null) => Property | undefined;
+    onAssignFunnel?: (lead: Lead, funnel: LeadFunnelType | null) => Promise<void> | void;
 }
 
-const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ leads, appointments, onAddNewLead, onBackToDashboard, onNewAppointment }) => {
+const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
+    leads,
+    appointments,
+    onAddNewLead,
+    onBackToDashboard,
+    onNewAppointment,
+    resolvePropertyForLead,
+    onAssignFunnel
+}) => {
     const [activeTab, setActiveTab] = useState<'leads' | 'appointments'>('leads');
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -312,17 +351,42 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
         return initial;
     });
 
+    useEffect(() => {
+        setLeadFunnels((prev) => {
+            const next: Record<string, LeadFunnelType | null> = {};
+            let changed = Object.keys(prev).length !== leads.length;
+            leads.forEach((lead) => {
+                const normalized = lead.funnelType ?? null;
+                next[lead.id] = normalized;
+                if (prev[lead.id] !== normalized) {
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, [leads]);
 
     const handleOpenScheduleModal = (lead: Lead | null = null) => {
         setSchedulingLead(lead);
         setIsScheduleModalOpen(true);
     };
 
-    const handleAssignFunnel = (leadId: string, funnel: LeadFunnelType | null) => {
+    const handleAssignFunnel = async (lead: Lead, funnel: LeadFunnelType | null) => {
+        const previous = leadFunnels[lead.id] ?? null;
         setLeadFunnels((prev) => ({
             ...prev,
-            [leadId]: funnel
+            [lead.id]: funnel
         }));
+        if (!onAssignFunnel) return;
+        try {
+            await onAssignFunnel(lead, funnel);
+        } catch (error) {
+            console.error('Failed to assign funnel', error);
+            setLeadFunnels((prev) => ({
+                ...prev,
+                [lead.id]: previous
+            }));
+        }
     };
 
     const handleCloseScheduleModal = () => {
@@ -519,7 +583,11 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                     lead={schedulingLead}
                     onClose={handleCloseScheduleModal}
                     onSchedule={async (apptData: ScheduleAppointmentFormData) => {
-                        const linkedPropertyId = schedulingLead?.interestedProperties?.[0] || '';
+                        const propertyContext = resolvePropertyForLead?.(schedulingLead ?? null);
+                        const linkedPropertyId =
+                            propertyContext?.id || schedulingLead?.interestedProperties?.[0] || undefined;
+                        const linkedPropertyAddress =
+                            propertyContext?.address || propertyContext?.title || undefined;
                         let scheduledResult: SchedulerResult | null = null;
                         try {
                             scheduledResult = await scheduleAppointment({
@@ -532,6 +600,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                                 kind: apptData.kind,
                                 leadId: schedulingLead?.id,
                                 propertyId: linkedPropertyId,
+                                propertyAddress: linkedPropertyAddress,
                                 remindAgent: apptData.remindAgent,
                                 remindClient: apptData.remindClient,
                                 agentReminderMinutes: apptData.agentReminderMinutes,
@@ -547,11 +616,12 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                             type: apptData.kind,
                             date: scheduledAt?.date || apptData.date,
                             time: scheduledAt?.time || apptData.time,
-                            leadId: schedulingLead?.id || 'manual',
-                            propertyId: linkedPropertyId,
+                            leadId: schedulingLead?.id ?? null,
+                            propertyId: linkedPropertyId ?? null,
+                            propertyAddress: linkedPropertyAddress ?? undefined,
                             notes: apptData.message || '',
                             status: 'Scheduled',
-                            leadName: apptData.name,
+                            leadName: schedulingLead?.name ?? apptData.name,
                             email: apptData.email,
                             phone: apptData.phone,
                             remindAgent: apptData.remindAgent,

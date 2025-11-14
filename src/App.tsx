@@ -1,7 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { AdminModalProvider } from './context/AdminModalContext';
 import { supabase } from './services/supabase';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence } from './types';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence, LeadFunnelType } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_TASKS, SAMPLE_CONVERSATIONS, SAMPLE_INTERACTIONS } from './constants';
 import LandingPage from './components/LandingPage';
@@ -37,6 +37,12 @@ import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
 import DemoListingPage from './components/DemoListingPage';
 
+const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
+    homebuyer: 'Buyer Lead',
+    seller: 'Seller Lead',
+    postShowing: 'Property Viewed'
+};
+
 
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -54,7 +60,7 @@ import { EnvValidation } from './utils/envValidation';
 // SessionService removed
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
-import SequenceExecutionService from './services/sequenceExecutionService';
+import SequenceExecutionService, { SequenceTriggerType } from './services/sequenceExecutionService';
 import { leadsService, LeadPayload } from './services/leadsService';
 
 
@@ -133,6 +139,25 @@ const App: React.FC = () => {
     const [tasks, setTasks] = useState<AgentTask[]>([]);
     const [, setConversations] = useState<Conversation[]>([]);
     const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
+
+    const resolvePropertyForLead = useCallback(
+        (targetLead?: Lead | null): Property | undefined => {
+            const leadRef = targetLead ?? null;
+            if (leadRef?.interestedProperties?.length) {
+                const matchedProperty = properties.find((property) =>
+                    leadRef.interestedProperties?.includes(property.id)
+                );
+                if (matchedProperty) {
+                    return matchedProperty;
+                }
+            }
+            if (selectedPropertyId) {
+                return properties.find((property) => property.id === selectedPropertyId);
+            }
+            return undefined;
+        },
+        [properties, selectedPropertyId]
+    );
 
     // Removed unused selectedLead state
     const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
@@ -753,23 +778,30 @@ const App: React.FC = () => {
         }
     };
 
-    const triggerLeadSequences = async (lead: Lead) => {
-        try {
-            const sequenceService = SequenceExecutionService.getInstance();
-            await sequenceService.triggerSequences(
-                'Lead Capture',
-                {
-                    lead,
-                    agent: userProfile || SAMPLE_AGENT,
-                    property: selectedPropertyId ? properties.find(p => p.id === selectedPropertyId) : undefined
-                },
-                sequences
-            );
-            console.log('✅ Lead capture sequences triggered for:', lead.name);
-        } catch (error) {
-            console.error('❌ Error triggering sequences:', error);
-        }
-    };
+    const triggerLeadSequences = useCallback(
+        async (
+            lead: Lead,
+            triggerType: SequenceTriggerType = 'Lead Capture',
+            propertyOverride?: Property
+        ) => {
+            try {
+                const sequenceService = SequenceExecutionService.getInstance();
+                await sequenceService.triggerSequences(
+                    triggerType,
+                    {
+                        lead,
+                        agent: userProfile || SAMPLE_AGENT,
+                        property: propertyOverride ?? resolvePropertyForLead(lead)
+                    },
+                    sequences
+                );
+                console.log(`✅ ${triggerType} sequences triggered for:`, lead.name);
+            } catch (error) {
+                console.error('❌ Error triggering sequences:', error);
+            }
+        },
+        [resolvePropertyForLead, sequences, userProfile]
+    );
     
     const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
         const payload: LeadPayload = {
@@ -777,7 +809,8 @@ const App: React.FC = () => {
             email: leadData.email,
             phone: leadData.phone,
             source: leadData.source || 'Website',
-            lastMessage: leadData.message
+            lastMessage: leadData.message,
+            funnelType: null
         };
 
         try {
@@ -793,13 +826,47 @@ const App: React.FC = () => {
                 phone: leadData.phone,
                 lastMessage: leadData.message,
                 status: 'New',
-                date: new Date().toISOString()
+                date: new Date().toISOString(),
+                funnelType: null,
+                interestedProperties: []
             };
             setLeads(prev => [createdLead, ...prev]);
             await triggerLeadSequences(createdLead);
         }
         setView('leads'); 
     };
+
+    const handleLeadFunnelAssigned = useCallback(
+        async (lead: Lead, funnel: LeadFunnelType | null) => {
+            const previous = lead.funnelType ?? null;
+            setLeads((prev) =>
+                prev.map((item) =>
+                    item.id === lead.id ? { ...item, funnelType: funnel ?? undefined } : item
+                )
+            );
+            try {
+                const updatedLead = await leadsService.assignFunnel(lead.id, funnel);
+                setLeads((prev) => prev.map((item) => (item.id === lead.id ? updatedLead : item)));
+                if (funnel) {
+                    const triggerType = FUNNEL_TRIGGER_MAP[funnel];
+                    await triggerLeadSequences(
+                        updatedLead,
+                        triggerType,
+                        resolvePropertyForLead(updatedLead)
+                    );
+                }
+            } catch (error) {
+                console.error('❌ Failed to assign lead funnel:', error);
+                setLeads((prev) =>
+                    prev.map((item) =>
+                        item.id === lead.id ? { ...item, funnelType: previous ?? undefined } : item
+                    )
+                );
+                alert('Unable to update the lead funnel right now. Please try again.');
+            }
+        },
+        [resolvePropertyForLead, triggerLeadSequences]
+    );
 
     // Load appointments from Supabase when user signs in or demo/local admin
     React.useEffect(() => {
@@ -813,10 +880,23 @@ const App: React.FC = () => {
                     type: r.kind,
                     date: r.date,
                     time: r.time_label,
-                    leadId: r.lead_id || '',
-                    propertyId: r.property_id || '',
+                    leadId: r.lead_id ?? null,
+                    propertyId: r.property_id ?? null,
+                    propertyAddress: r.property_address || undefined,
                     notes: r.notes || '',
-                    status: r.status
+                    status: r.status,
+                    leadName: r.name,
+                    email: r.email || undefined,
+                    phone: r.phone || undefined,
+                    remindAgent: r.remind_agent,
+                    remindClient: r.remind_client,
+                    agentReminderMinutes: r.agent_reminder_minutes_before,
+                    clientReminderMinutes: r.client_reminder_minutes_before,
+                    meetLink: r.meet_link || undefined,
+                    startIso: r.start_iso,
+                    endIso: r.end_iso,
+                    createdAt: r.created_at,
+                    updatedAt: r.updated_at
                 }));
                 setAppointments(mapped);
             } catch (e) {
@@ -951,29 +1031,28 @@ const App: React.FC = () => {
 					case 'add-listing': 
 						return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} />;
 					case 'leads': 
-						return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} onNewAppointment={async (appt) => {
-                            setAppointments(prev => [appt, ...prev]);
-                            
-                            // Trigger appointment sequences
-                            try {
-                                const sequenceService = SequenceExecutionService.getInstance();
-                                const lead = leads.find(l => l.id === appt.leadId);
-                                if (lead) {
-                                    await sequenceService.triggerSequences(
-                                        'Appointment Scheduled',
-                                        {
-                                            lead,
-                                            agent: userProfile || SAMPLE_AGENT,
-                                            property: properties.find(p => p.id === appt.propertyId)
-                                        },
-                                        sequences
-                                    );
-                                    console.log('✅ Appointment sequences triggered for:', lead.name);
-                                }
-                            } catch (error) {
-                                console.error('❌ Error triggering appointment sequences:', error);
-                            }
-                        }} />;
+						return (
+							<LeadsAndAppointmentsPage
+								leads={leads}
+								appointments={appointments}
+								onAddNewLead={handleAddNewLead}
+								onBackToDashboard={() => setView('dashboard')}
+								resolvePropertyForLead={resolvePropertyForLead}
+								onNewAppointment={async (appt) => {
+									setAppointments((prev) => [appt, ...prev]);
+
+									const lead = appt.leadId ? leads.find((l) => l.id === appt.leadId) : undefined;
+									if (lead) {
+										await triggerLeadSequences(
+											lead,
+											'Appointment Scheduled',
+											resolvePropertyForLead(lead)
+										);
+									}
+								}}
+								onAssignFunnel={handleLeadFunnelAssigned}
+							/>
+						);
 					case 'inbox': 
 						return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
 					case 'ai-conversations':

@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { Lead, LeadStatus } from '../types'
+import { Lead, LeadStatus, LeadFunnelType } from '../types'
 import { SAMPLE_LEADS } from '../constants'
 
 export interface LeadPayload {
@@ -10,6 +10,7 @@ export interface LeadPayload {
   source?: string
   notes?: string
   lastMessage?: string
+  funnelType?: LeadFunnelType | null
 }
 
 export interface PhoneLogPayload {
@@ -22,6 +23,7 @@ const LEADS_TABLE = 'leads'
 const PHONE_LOGS_TABLE = 'lead_phone_logs'
 
 const VALID_STATUSES: LeadStatus[] = ['New', 'Qualified', 'Contacted', 'Showing', 'Lost']
+const VALID_FUNNEL_TYPES: LeadFunnelType[] = ['homebuyer', 'seller', 'postShowing']
 
 const getCurrentUserId = async (): Promise<string | null> => {
   const { data, error } = await supabase.auth.getUser()
@@ -52,6 +54,7 @@ type LeadRow = {
   interested_properties?: string[] | null
   last_contact?: string | null
   active_sequences?: string[] | null
+  funnel_type?: string | null
 }
 
 const mapLeadRow = (row: LeadRow): Lead => {
@@ -60,6 +63,10 @@ const mapLeadRow = (row: LeadRow): Lead => {
     ? (rawStatus as LeadStatus)
     : 'New'
   const createdAt = row.created_at ? new Date(row.created_at) : null
+  const funnelType =
+    row.funnel_type && VALID_FUNNEL_TYPES.includes(row.funnel_type as LeadFunnelType)
+      ? (row.funnel_type as LeadFunnelType)
+      : undefined
 
   return {
     id: row.id,
@@ -74,7 +81,8 @@ const mapLeadRow = (row: LeadRow): Lead => {
     interestedProperties: row.interested_properties || [],
     createdAt: createdAt ? createdAt.toISOString() : undefined,
     lastContact: row.last_contact || undefined,
-    activeSequences: row.active_sequences || undefined
+    activeSequences: row.active_sequences || undefined,
+    funnelType
   }
 }
 
@@ -132,7 +140,8 @@ export const leadsService = {
       status: payload.status ?? 'New',
       source: payload.source ?? 'Manual',
       notes: payload.notes ?? null,
-      last_message: payload.lastMessage ?? null
+      last_message: payload.lastMessage ?? null,
+      funnel_type: payload.funnelType ?? null
     }
 
     const { data, error } = await supabase.from(LEADS_TABLE).insert(insertPayload).select('*').single()
@@ -153,7 +162,8 @@ export const leadsService = {
       status: payload.status,
       source: payload.source,
       notes: payload.notes,
-      last_message: payload.lastMessage
+      last_message: payload.lastMessage,
+      funnel_type: payload.funnelType ?? null
     }
 
     const { data, error } = await supabase
@@ -263,5 +273,23 @@ export const leadsService = {
         callNotes: data.call_notes || undefined
       }
     }
+  },
+
+  async assignFunnel(leadId: string, funnelType: LeadFunnelType | null) {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      throw new Error('Not authenticated')
+    }
+
+    const { data, error } = await supabase
+      .from(LEADS_TABLE)
+      .update({ funnel_type: funnelType })
+      .eq('id', leadId)
+      .eq('user_id', userId)
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return mapLeadRow(data)
   }
 }

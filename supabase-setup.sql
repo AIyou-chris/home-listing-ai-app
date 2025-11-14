@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS public.leads (
   score NUMERIC NULL,
   last_contact TIMESTAMPTZ NULL,
   active_sequences TEXT[] NULL,
+  funnel_type TEXT NULL CHECK (funnel_type IN ('homebuyer','seller','postShowing')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -149,6 +150,10 @@ CREATE TABLE IF NOT EXISTS public.leads (
 CREATE INDEX IF NOT EXISTS idx_leads_user_id ON public.leads(user_id);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON public.leads(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_leads_created_at ON public.leads(user_id, created_at DESC);
+ALTER TABLE public.leads
+  ADD COLUMN IF NOT EXISTS funnel_type TEXT
+  CHECK (funnel_type IS NULL OR funnel_type IN ('homebuyer','seller','postShowing'));
+CREATE INDEX IF NOT EXISTS idx_leads_funnel_type ON public.leads(user_id, funnel_type);
 
 -- Lead phone logs
 CREATE TABLE IF NOT EXISTS public.lead_phone_logs (
