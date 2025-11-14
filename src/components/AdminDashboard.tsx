@@ -4,6 +4,7 @@ import AddContactModal from './AddContactModal';
 import { supabase } from '../services/supabase';
 import { SystemMonitoringService, HealthStatus } from '../services/systemMonitoringService';
 import { User, Lead } from '../types';
+import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
 
 interface ContactRecord {
   id: string;
@@ -358,6 +359,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                 </div>
 
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl">
+                    <FunnelAnalyticsPanel
+                        variant="embedded"
+                        hideBackButton
+                        title="Leads Funnel Control Center"
+                        subtitle="Monitor lead scoring, funnel health, and sequence feedback without leaving the admin cockpit."
+                    />
+                </div>
 
             </div>
 

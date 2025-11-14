@@ -3,6 +3,71 @@ import { immer } from 'zustand/middleware/immer'
 import { leadsService } from '../services/leadsService'
 import { Lead } from '../types'
 
+const DEFAULT_SCORE_TIERS: ScoreTierResponse[] = [
+  {
+    id: 'Hot',
+    min: 90,
+    max: 120,
+    description: 'Ready for fast-track follow up; has timeline, budget, and a scheduled touchpoint.'
+  },
+  {
+    id: 'Qualified',
+    min: 70,
+    max: 89,
+    description: 'Shared key buying signals and engaged with AI concierge at least twice.'
+  },
+  {
+    id: 'Warm',
+    min: 40,
+    max: 69,
+    description: 'Provided preferences but still needs nurturing automation to progress.'
+  },
+  {
+    id: 'Cold',
+    min: 0,
+    max: 39,
+    description: 'Minimal activity captured. Keep inside the long-term nurture sequence.'
+  }
+]
+
+const DEFAULT_SCORING_RULES: ScoringRuleResponse[] = [
+  {
+    id: 'intake-form',
+    name: 'Completed AI Intake Form',
+    description: 'Lead filled out the AI concierge questionnaire with move timeline + budget.',
+    points: 25,
+    category: 'Intent Signals'
+  },
+  {
+    id: 'home-save',
+    name: 'Saved A Property',
+    description: 'Lead favorited or shared at least one listing inside the AI card.',
+    points: 15,
+    category: 'Engagement'
+  },
+  {
+    id: 'tour-request',
+    name: 'Requested A Tour',
+    description: 'Lead tapped “Book A Tour” or proposed times for an in-person/virtual walkthrough.',
+    points: 30,
+    category: 'Transaction Ready'
+  },
+  {
+    id: 'funds-verified',
+    name: 'Uploaded Pre-Approval Or Proof Of Funds',
+    description: 'Lead confirmed buying power via lender letter or cash verification.',
+    points: 35,
+    category: 'Qualification'
+  },
+  {
+    id: 'agent-call',
+    name: 'Agent Logged Live Call',
+    description: 'Team member logged a voice conversation with detailed notes.',
+    points: 20,
+    category: 'Manual Touch'
+  }
+]
+
 export interface LeadStatsResponse {
   total: number
   new: number
@@ -147,10 +212,15 @@ export const useLeadAnalyticsStore = create<LeadAnalyticsState>()(
       })
 
       try {
+        const scoringPromise = fetchScoringRules().catch((error) => {
+          console.warn('Scoring rule fetch failed, falling back to defaults:', error)
+          return { rules: [...DEFAULT_SCORING_RULES], tiers: [...DEFAULT_SCORE_TIERS] }
+        })
+
         const [statsResponse, leadsResponse, scoringResponse] = await Promise.all([
           leadsService.stats(),
           leadsService.list(),
-          fetchScoringRules()
+          scoringPromise
         ])
 
         const stats: LeadStatsResponse = {
@@ -174,10 +244,13 @@ export const useLeadAnalyticsStore = create<LeadAnalyticsState>()(
         const leads: Lead[] = Array.isArray(leadsResponse?.leads) ? leadsResponse.leads : []
         const leadSources = buildSourceBreakdown(leads)
 
+        const scoringRules = scoringResponse.rules.length > 0 ? scoringResponse.rules : [...DEFAULT_SCORING_RULES]
+        const scoreTiers = scoringResponse.tiers.length > 0 ? scoringResponse.tiers : [...DEFAULT_SCORE_TIERS]
+
         set((state) => {
           state.stats = stats
-          state.scoringRules = scoringResponse.rules
-          state.scoreTiers = scoringResponse.tiers
+          state.scoringRules = scoringRules
+          state.scoreTiers = scoreTiers
           state.leadSources = leadSources
           state.hasHydrated = true
         })
@@ -186,6 +259,9 @@ export const useLeadAnalyticsStore = create<LeadAnalyticsState>()(
         const message = getErrorMessage(error) || 'Unable to load analytics.'
         set((state) => {
           state.error = message
+          state.scoringRules = [...DEFAULT_SCORING_RULES]
+          state.scoreTiers = [...DEFAULT_SCORE_TIERS]
+          state.hasHydrated = true
         })
       } finally {
         set((state) => {

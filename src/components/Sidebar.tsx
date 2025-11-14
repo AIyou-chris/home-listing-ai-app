@@ -55,7 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
     { view: 'listings', icon: 'storefront', label: 'AI Listings' },
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
     { view: 'ai-training', icon: 'school', label: 'Train Your AI' },
-    { view: 'marketing', icon: 'filter_alt', label: 'AI Funnel' },
+    { view: 'funnel-analytics', icon: 'monitoring', label: 'Leads Funnel' },
     { view: 'settings', icon: 'settings', label: 'Settings' },
   ];
   

@@ -43,7 +43,7 @@ export type View =
     | 'inbox'
     | 'knowledge-base'
     | 'ai-training'
-    | 'marketing'
+    | 'funnel-analytics'
     | 'settings'
     | 'demo-dashboard'
     | 'dashboard-blueprint'
@@ -171,6 +171,8 @@ export interface BlogPost {
 
 export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost';
 
+export type LeadFunnelType = 'homebuyer' | 'seller' | 'postShowing';
+
 export interface Lead {
     id: string;
     name: string;
@@ -192,6 +194,7 @@ export interface Lead {
         summary: string;
     }>;
     activeSequences?: string[];
+    funnelType?: LeadFunnelType;
 }
 
 export interface LeadBehavior {

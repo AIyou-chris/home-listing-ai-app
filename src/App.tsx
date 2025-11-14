@@ -22,7 +22,6 @@ import AIConversationsPage from './components/AIConversationsPage';
 import AICardPage from './components/AICardPage';
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
-import MarketingPage from './components/MarketingPage';
 import SettingsPage from './components/SettingsPage';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 
@@ -985,8 +984,6 @@ const App: React.FC = () => {
 						return <EnhancedAISidekicksHub />;
 					case 'ai-training':
 						return <AIInteractiveTraining />;
-					case 'marketing': 
-						return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
 					case 'analytics': 
 						return <AnalyticsDashboard />;
 					case 'ai-sidekicks':

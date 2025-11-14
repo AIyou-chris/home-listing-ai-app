@@ -170,9 +170,9 @@ export const DEMO_FAT_INTERACTIONS: Interaction[] = [];
 
 export const DEMO_SEQUENCES: FollowUpSequence[] = [
     {
-        id: 'welcome-sequence',
-        name: 'Welcome & AI Card Intro',
-        description: 'Send new contacts a polished welcome and showcase your AI business card.',
+        id: 'welcome-new-leads',
+        name: 'Welcome New Leads',
+        description: 'Instant welcome + AI concierge hand-off for every brand-new inquiry.',
         triggerType: 'Lead Capture',
         isActive: true,
         steps: [
@@ -223,9 +223,9 @@ Talk soon,
         ]
     },
     {
-        id: 'buyer-journey-sequence',
-        name: 'Home Buyer Journey',
-        description: 'Guide active buyers from first inquiry to scheduled tours.',
+        id: 'new-homebuyer-sprint',
+        name: 'New Homebuyer Sprint',
+        description: 'Four-touch buyer nurture that moves prospects from wishlist to scheduled tours.',
         triggerType: 'Buyer Lead',
         isActive: true,
         steps: [
@@ -286,9 +286,9 @@ I’d love to keep you ahead of the curve. Want me to set real-time alerts or li
         ]
     },
     {
-        id: 'seller-journey-sequence',
-        name: 'Home Seller Warm-Up',
-        description: 'Educate potential sellers and lead them toward a listing consultation.',
+        id: 'listing-prospecting',
+        name: 'Listing Prospecting Push',
+        description: 'Seller-focused drip that tees up a pricing review and listing consultation.',
         triggerType: 'Seller Lead',
         isActive: true,
         steps: [
@@ -348,50 +348,44 @@ Let me know if you’d like to review the full launch checklist—I’m excited 
         ]
     },
     {
-        id: 'long-touch-sequence',
-        name: 'Long-Term Touchpoints',
-        description: 'Stay in front of past leads or sphere with thoughtful check-ins over time.',
-        triggerType: 'Past Client / Sphere',
+        id: 'post-showing-follow-up',
+        name: 'Post-Showing Follow Up',
+        description: 'High-touch follow up once a lead has toured a home so nothing falls through the cracks.',
+        triggerType: 'Property Viewed',
         isActive: true,
         steps: [
             {
-                id: 'longtouch-email-1',
+                id: 'postshowing-email-1',
                 type: 'email',
-                delay: { value: 30, unit: 'days' },
-                subject: 'Monthly Market Snapshot for {{market.area}}',
+                delay: { value: 1, unit: 'hours' },
+                subject: 'Thank You for Touring {{property.address}}',
                 content: `Hi {{lead.name}},
 
-Sending a quick snapshot of what’s happening in {{market.area}} this month. Even if you’re not ready to move, it’s helpful to know how your equity is performing.
+Loved walking through {{property.address}} with you today. Here’s a quick recap plus anything you asked me to pull:
+• Standout features you reacted to
+• Notes on neighborhood or schools
+• Next steps if you want to move forward
 
-Highlights:
-• Median sale price: $\${market.median_price}
-• Average days on market: {{market.dom}}
-• Buyer demand indicator: {{market.demand}}
-
-If you ever want a personalized update, I’m just a reply away.
+If another property jumped out while we were chatting, drop it here and I’ll get it on the calendar.
 
 {{agent.name}}`
             },
             {
-                id: 'longtouch-task-call',
-                type: 'task',
-                delay: { value: 60, unit: 'days' },
-                content: 'Reach out to {{lead.name}} with a quick voicemail or text—offer value (market update, contractor referral, neighborhood news).'
+                id: 'postshowing-reminder',
+                type: 'reminder',
+                delay: { value: 1, unit: 'days' },
+                content: 'Reminder: text {{lead.name}} with the highlight reel from {{property.address}} plus financing or comps they asked about.'
             },
             {
-                id: 'longtouch-email-2',
+                id: 'postshowing-email-2',
                 type: 'email',
-                delay: { value: 90, unit: 'days' },
-                subject: 'Checking In—Anything I Can Help With?',
+                delay: { value: 2, unit: 'days' },
+                subject: 'Next Showing Ideas + Offer Timeline',
                 content: `Hi {{lead.name}},
 
-Just dropping in to say hello. Many of my clients lean on me for:
-• Vendor recommendations (contractors, painters, lenders)
-• Questions about property values or investment ideas
-• Connecting family or friends who are starting their search
+Based on what stood out at {{property.address}}, I queued up a few alternates that check the same boxes. Want me to line up a second tour or walk you through offer strategy? I can prep numbers anytime.
 
-If something is on your mind—or you just want to talk real estate trends—reply anytime. I’m here for the long haul.
-
+Talk soon,
 {{agent.name}}`
             }
         ]

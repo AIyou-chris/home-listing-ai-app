@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Lead, Appointment, LeadStatus } from '../types';
+import { Lead, Appointment, LeadStatus, LeadFunnelType } from '../types';
 import { scheduleAppointment } from '../services/schedulerService';
 import type { SchedulerResult } from '../services/schedulerService';
 import AddLeadModal, { type NewLeadPayload } from './AddLeadModal';
@@ -34,56 +34,169 @@ const LeadStatusBadge: React.FC<{ status: LeadStatus }> = ({ status }) => {
     );
 };
 
-const LeadsList: React.FC<{ leads: Lead[]; onSchedule: (lead: Lead) => void; onContact: (lead: Lead) => void; }> = ({ leads, onSchedule, onContact }) => (
-    <div className="space-y-6">
-        {leads.map(lead => (
-            <div key={lead.id} className="bg-white rounded-xl shadow-md border border-slate-200/80 p-6 transition-all duration-300 hover:shadow-lg hover:border-slate-300">
-                <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl">
-                        {lead.name.charAt(0)}
-                    </div>
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-3">
-                            <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
-                            <LeadStatusBadge status={lead.status} />
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1">
-                            <span className="material-symbols-outlined w-5 h-5 text-slate-400">calendar_today</span>
-                            <span>{lead.date}</span>
-                        </div>
-                    </div>
-                </div>
+const funnelOptions: Array<{ id: LeadFunnelType; label: string; description: string; icon: string; accent: string }> = [
+    {
+        id: 'homebuyer',
+        label: 'Homebuyer Journey',
+        description: 'Tours, curated matches, financing boosts.',
+        icon: 'maps_home_work',
+        accent: 'text-blue-600 bg-blue-50 border-blue-200'
+    },
+    {
+        id: 'seller',
+        label: 'Seller Funnel',
+        description: 'Story intake, launch campaigns, AI listing tweaks.',
+        icon: 'campaign',
+        accent: 'text-orange-600 bg-orange-50 border-orange-200'
+    },
+    {
+        id: 'postShowing',
+        label: 'Showing Follow-Up',
+        description: 'Surveys, comps, and urgency nudges.',
+        icon: 'event_available',
+        accent: 'text-purple-600 bg-purple-50 border-purple-200'
+    }
+];
 
-                {lead.lastMessage && (
-                    <div className="mt-4 pt-4 border-t border-slate-200/80">
-                         <div className="p-4 bg-slate-50/70 rounded-lg border-l-4 border-primary-300">
-                             <div className="flex items-start gap-3 text-sm text-slate-600">
-                                 <span className="material-symbols-outlined w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5">format_quote</span>
-                                <p className="italic">{lead.lastMessage}</p>
+const funnelLabelMap = funnelOptions.reduce<Record<LeadFunnelType, string>>((map, option) => {
+    map[option.id] = option.label;
+    return map;
+}, {} as Record<LeadFunnelType, string>);
+
+const LeadsList: React.FC<{
+    leads: Lead[];
+    onSchedule: (lead: Lead) => void;
+    onContact: (lead: Lead) => void;
+    leadFunnels: Record<string, LeadFunnelType | null>;
+    onAssignFunnel: (leadId: string, funnel: LeadFunnelType | null) => void;
+}> = ({ leads, onSchedule, onContact, leadFunnels, onAssignFunnel }) => {
+    const [expandedLeadIds, setExpandedLeadIds] = useState<string[]>(() => leads.map((lead) => lead.id));
+
+    const toggleLead = (leadId: string) => {
+        setExpandedLeadIds((prev) =>
+            prev.includes(leadId) ? prev.filter((id) => id !== leadId) : [...prev, leadId]
+        );
+    };
+
+    return (
+        <div className="space-y-6">
+            {leads.map((lead) => {
+                const isExpanded = expandedLeadIds.includes(lead.id);
+                return (
+                    <div
+                        key={lead.id}
+                        className="bg-white rounded-xl shadow-md border border-slate-200/80 p-6 transition-all duration-300 hover:shadow-lg hover:border-slate-300"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl">
+                                {lead.name.charAt(0)}
                             </div>
-                         </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
+                                    <LeadStatusBadge status={lead.status} />
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500 mt-1">
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined w-5 h-5 text-slate-400">calendar_today</span>
+                                        <span>{lead.date}</span>
+                                    </span>
+                                    {leadFunnels[lead.id] && (
+                                        <span className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700">
+                                            <span className="material-symbols-outlined text-sm">bolt</span>
+                                            {funnelLabelMap[leadFunnels[lead.id] as string]}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => toggleLead(lead.id)}
+                                className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                            >
+                                <span className="material-symbols-outlined text-base">
+                                    {isExpanded ? 'expand_less' : 'expand_more'}
+                                </span>
+                                {isExpanded ? 'Collapse' : 'Expand'}
+                            </button>
+                        </div>
+
+                        {isExpanded && (
+                            <>
+                                {lead.lastMessage && (
+                                    <div className="mt-4 pt-4 border-t border-slate-200/80">
+                                        <div className="p-4 bg-slate-50/70 rounded-lg border-l-4 border-primary-300">
+                                            <div className="flex items-start gap-3 text-sm text-slate-600">
+                                                <span className="material-symbols-outlined w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5">format_quote</span>
+                                                <p className="italic">{lead.lastMessage}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="mt-6 border-t border-slate-200/80 pt-4">
+                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-700">Assign to Leads Funnel</p>
+                                            <p className="text-xs text-slate-500">Drop them into the automation that fits their journey.</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="text-xs font-semibold text-slate-500 hover:text-slate-700 disabled:text-slate-300"
+                                            onClick={() => onAssignFunnel(lead.id, null)}
+                                            disabled={!leadFunnels[lead.id]}
+                                        >
+                                            Clear selection
+                                        </button>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                                        {funnelOptions.map((option) => {
+                                            const isActive = leadFunnels[lead.id] === option.id;
+                                            return (
+                                                <button
+                                                    key={option.id}
+                                                    type="button"
+                                                    onClick={() => onAssignFunnel(lead.id, option.id)}
+                                                    className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
+                                                        isActive
+                                                            ? `${option.accent} shadow-sm`
+                                                            : 'border-slate-200 text-slate-600 hover:border-primary-200 hover:bg-primary-50/50'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2 text-sm font-semibold">
+                                                        <span className="material-symbols-outlined text-base">{option.icon}</span>
+                                                        {option.label}
+                                                    </div>
+                                                    <p className="mt-1 text-xs text-slate-500">{option.description}</p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
+                                    <button
+                                        onClick={() => onContact(lead)}
+                                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition"
+                                    >
+                                        <span className="material-symbols-outlined w-5 h-5">contact_mail</span>
+                                        <span>Contact</span>
+                                    </button>
+                                    <button
+                                        onClick={() => onSchedule(lead)}
+                                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg shadow-sm hover:bg-green-600 transition"
+                                    >
+                                        <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
+                                        <span>Schedule</span>
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
-                )}
-                <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
-                    <button
-                        onClick={() => onContact(lead)}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition"
-                    >
-                        <span className="material-symbols-outlined w-5 h-5">contact_mail</span>
-                        <span>Contact</span>
-                    </button>
-                    <button
-                        onClick={() => onSchedule(lead)}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg shadow-sm hover:bg-green-600 transition"
-                    >
-                        <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
-                        <span>Schedule</span>
-                    </button>
-                </div>
-            </div>
-        ))}
-    </div>
-);
+                );
+            })}
+        </div>
+    );
+};
 
 const formatReminderLabel = (minutes?: number) => {
     if (!minutes || minutes <= 0) return '';
@@ -191,11 +304,25 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
     const [schedulingLead, setSchedulingLead] = useState<Lead | null>(null);
     const [contactingLead, setContactingLead] = useState<Lead | null>(null);
     const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+    const [leadFunnels, setLeadFunnels] = useState<Record<string, LeadFunnelType | null>>(() => {
+        const initial: Record<string, LeadFunnelType | null> = {};
+        leads.forEach((lead) => {
+            initial[lead.id] = lead.funnelType ?? null;
+        });
+        return initial;
+    });
 
 
     const handleOpenScheduleModal = (lead: Lead | null = null) => {
         setSchedulingLead(lead);
         setIsScheduleModalOpen(true);
+    };
+
+    const handleAssignFunnel = (leadId: string, funnel: LeadFunnelType | null) => {
+        setLeadFunnels((prev) => ({
+            ...prev,
+            [leadId]: funnel
+        }));
     };
 
     const handleCloseScheduleModal = () => {
@@ -346,7 +473,13 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
 
                     {activeTab === 'leads' ? (
                         <div className="space-y-8">
-                            <LeadsList leads={leads} onSchedule={handleOpenScheduleModal} onContact={handleOpenContactModal} />
+                            <LeadsList
+                                leads={leads}
+                                onSchedule={handleOpenScheduleModal}
+                                onContact={handleOpenContactModal}
+                                leadFunnels={leadFunnels}
+                                onAssignFunnel={handleAssignFunnel}
+                            />
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                                 <div className="lg:col-span-2">
                                     <div className="rounded-lg overflow-hidden border border-slate-200">

@@ -9,7 +9,6 @@ import InteractionHubPage from './InteractionHubPage';
 import AIConversationsPage from './AIConversationsPage';
 import EnhancedAISidekicksHub from './EnhancedAISidekicksHub';
 import AIInteractiveTraining from './AIInteractiveTraining';
-import MarketingPage from './MarketingPage';
 import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardBuilderPage from '../pages/AICardBuilder';
@@ -23,6 +22,7 @@ import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import AgentBlueprintHero from './blueprint/AgentBlueprintHero';
 import { supabase } from '../services/supabase';
 import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
+import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
 import {
   getAgentProfile as fetchCentralAgentProfile,
   subscribeToProfileChanges,
@@ -609,16 +609,22 @@ const AgentDashboardBlueprint: React.FC = () => {
       onClick: () => setActiveView('settings')
     },
     {
-      label: 'Review AI automations',
-      description: 'Peek at nurture journeys and AI drafts queued for live rollout.',
-      icon: 'bolt',
-      onClick: () => setActiveView('marketing')
+      label: 'Tune sequence feedback',
+      description: 'Open the feedback tab to see which drips drive replies and tweak steps.',
+      icon: 'auto_fix_high',
+      onClick: () => setActiveView('funnel-analytics')
     },
     {
       label: 'Train your AI',
       description: 'Run live conversations and capture feedback to sharpen every sidekick.',
       icon: 'neurology',
       onClick: () => setActiveView('ai-training')
+    },
+    {
+      label: 'Review Leads Funnel',
+      description: 'Check lead scoring + conversion health inside the Leads Funnel workspace.',
+      icon: 'monitoring',
+      onClick: () => setActiveView('funnel-analytics')
     }
   ];
 
@@ -727,8 +733,8 @@ const AgentDashboardBlueprint: React.FC = () => {
         return <EnhancedAISidekicksHub />;
       case 'ai-training':
         return <AIInteractiveTraining />;
-      case 'marketing':
-        return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={resetToDashboard} />;
+      case 'funnel-analytics':
+        return <FunnelAnalyticsPanel onBackToDashboard={resetToDashboard} />;
       case 'settings':
         return (
           <SettingsPage

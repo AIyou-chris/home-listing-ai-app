@@ -1,6 +1,7 @@
 import React from 'react';
 import { Property } from '../types';
 import { DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
+import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
 
 interface DemoDashboardProps {
   properties: Property[];
@@ -48,7 +49,7 @@ const DemoDashboard: React.FC<DemoDashboardProps> = ({ properties, onSelectPrope
     const newLeadsCount = leads.filter(l => l.status === 'New').length;
 
     return (
-        <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-10">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900">Demo Dashboard</h1>
@@ -120,6 +121,15 @@ const DemoDashboard: React.FC<DemoDashboardProps> = ({ properties, onSelectPrope
                         ))}
                     </div>
                 </SectionCard>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+                <FunnelAnalyticsPanel
+                    variant="embedded"
+                    hideBackButton
+                    title="Leads Funnel (Demo)"
+                    subtitle="Preview how AI-driven nurture journeys look across funnels, scoring, and sequence feedback."
+                />
             </div>
         </div>
     );

@@ -289,7 +289,7 @@ Best regards,`
                             Loading sequences...
                         </div>
                     ) : availableSequenceOptions.length === 0 ? (
-                        <p className="text-sm text-slate-500">No sequences available yet. Build your first follow-up flow in the AI Funnel tab.</p>
+                        <p className="text-sm text-slate-500">No sequences available yet. Build your first follow-up flow from the Sequence Feedback tab inside Leads Funnel.</p>
                     ) : (
                         <div className="flex flex-col gap-2">
                             <div className="flex flex-col sm:flex-row gap-2">
