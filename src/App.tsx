@@ -43,6 +43,28 @@ const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
     postShowing: 'Property Viewed'
 };
 
+const parseRouteSegments = (raw: string): string[] => {
+    if (!raw) return [];
+    const cleaned = raw.replace(/^#/, '').replace(/^\//, '');
+    if (!cleaned) return [];
+    const [path] = cleaned.split('?');
+    return path
+        .split('/')
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+};
+
+const getRouteInfo = () => {
+    let segments = parseRouteSegments(window.location.hash);
+    if (!segments.length) {
+        segments = parseRouteSegments(window.location.pathname);
+    }
+    return {
+        segments,
+        route: segments[0] || ''
+    };
+};
+
 
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -210,13 +232,10 @@ const App: React.FC = () => {
     const [activeAgentSlug, setActiveAgentSlug] = useState<string | null>(null);
 
 
-    // Handle URL hash routing
+    // Handle URL routing via hash or pathname
     useEffect(() => {
-        const handleHashChange = () => {
-            const rawHash = window.location.hash.substring(1);
-            const [path] = rawHash.split('?');
-            const segments = path.split('/').filter(Boolean);
-            const route = segments[0] || '';
+        const handleRouteChange = () => {
+            const { route, segments } = getRouteInfo();
 
             const resetAdminLogin = () => {
                 setIsAdminLoginOpen(false);
@@ -280,22 +299,23 @@ const App: React.FC = () => {
                     setView('blog-post');
                     break;
                 default:
-                    if (isAdminView(route)) {
+                    if (route && isAdminView(route)) {
                         resetAdminLogin();
                         setView(route);
-                    } else {
+                    } else if (!route) {
                         setView('landing');
                     }
                     break;
             }
         };
 
-        // Handle initial hash with a small delay to avoid race conditions
-        setTimeout(handleHashChange, 100);
-
-        // Listen for hash changes
-        window.addEventListener('hashchange', handleHashChange);
-        return () => window.removeEventListener('hashchange', handleHashChange);
+        handleRouteChange();
+        window.addEventListener('hashchange', handleRouteChange);
+        window.addEventListener('popstate', handleRouteChange);
+        return () => {
+            window.removeEventListener('hashchange', handleRouteChange);
+            window.removeEventListener('popstate', handleRouteChange);
+        };
     }, []);
 
     useEffect(() => {
@@ -317,24 +337,15 @@ const App: React.FC = () => {
             setIsSettingUp(false); // Reset on every auth change
             setIsDemoMode(false); // Reset demo mode on any auth change
 
-            // Check URL hash first - some routes don't require auth
-            const rawHash = window.location.hash.substring(1);
-            const [path] = rawHash.split('?');
-            const segments = path.split('/').filter(Boolean);
-            const route = segments[0] || '';
-            
-            console.log('🔍 initAuth: hash=', window.location.hash, 'route=', route);
-            console.log('🔍 Checking route:', route, 'against dashboard-blueprint');
+            // Check URL hash/path first - some routes don't require auth
+            const { route } = getRouteInfo();
             
             // Allow access to certain routes without auth
             if (route === 'dashboard-blueprint') {
-                console.log('✅✅✅ MATCHED! Setting view to dashboard-blueprint (no auth required)');
-                alert('Route matched! Setting to dashboard-blueprint');
                 setView('dashboard-blueprint');
                 setIsLoading(false);
                 return;
             }
-            console.log('❌ Route did NOT match dashboard-blueprint, continuing...');
 
             // Force signup mode - bypass auth check
             const urlParams = new URLSearchParams(window.location.search);
@@ -438,23 +449,16 @@ const App: React.FC = () => {
                 setTasks([]);
                 setConversations([]);
                 setSequences([]);
-                // Check URL hash to determine view (no user logged in)
-                const rawHash = window.location.hash.substring(1);
-                const [path] = rawHash.split('?');
-                const segments = path.split('/').filter(Boolean);
-                const route = segments[0] || '';
-                
-                console.log('🔍 No user logged in, hash=', window.location.hash, 'route=', route);
-                
-                // Route to the appropriate view based on URL hash
-                if (route === 'dashboard-blueprint') {
-                    console.log('✅ Routing to dashboard-blueprint');
+                const { route: signedOutRoute } = getRouteInfo();
+                console.log('🔍 No user logged in, route=', signedOutRoute);
+
+                if (signedOutRoute === 'dashboard-blueprint') {
                     setView('dashboard-blueprint');
-                } else if (route === 'admin-setup') {
+                } else if (signedOutRoute === 'admin-setup') {
                     setView('admin-setup');
-                } else if (route === 'signup') {
+                } else if (signedOutRoute === 'signup') {
                     setView('signup');
-                } else if (route === 'signin') {
+                } else if (signedOutRoute === 'signin') {
                     setView('signin');
                 } else {
                     console.log('📍 Defaulting to landing');
