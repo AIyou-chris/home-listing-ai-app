@@ -11,7 +11,7 @@ import EnhancedAISidekicksHub from './EnhancedAISidekicksHub';
 import AIInteractiveTraining from './AIInteractiveTraining';
 import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
-import AICardBuilderPage from '../pages/AICardBuilder';
+import AICardPage from './AICardPage';
 import { LogoWithName } from './LogoWithName';
 import { SAMPLE_AGENT } from '../constants';
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
@@ -673,8 +673,7 @@ const AgentDashboardBlueprint: React.FC = () => {
           />
         );
       case 'ai-card':
-      case 'ai-card-builder':
-        return <AICardBuilderPage />;
+        return <AICardPage />;
       case 'ai-conversations':
         return <AIConversationsPage />;
       case 'listings':
