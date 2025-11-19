@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "deploy": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:admin": "tsc -p tsconfig.admin.json --noEmit",
     "verify:mailgun": "node scripts/check-mailgun-config.cjs",
     "ci": "npm run verify:mailgun && npm run lint && npm run typecheck && npm run build",
     "prepare": "husky",

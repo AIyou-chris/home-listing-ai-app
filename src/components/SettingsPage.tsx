@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
-import { getAICardProfileSnapshot, refreshAgentProfile } from '../services/agentProfileService';
 import { googleOAuthService } from '../services/googleOAuthService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
 import { billingSettingsService } from '../services/billingSettingsService';
 import { supabase } from '../services/supabase';
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
+import { useAgentBranding } from '../hooks/useAgentBranding';
+import {
+    updateAgentProfile,
+    type AgentProfile as CentralAgentProfile
+} from '../services/agentProfileService';
+import { getBooleanEnv, getEnvVar } from '../lib/env';
 
 type EmailConnection = {
     provider: 'gmail' | 'outlook';
@@ -35,6 +40,29 @@ interface SettingsPageProps {
     onSaveBillingSettings: (settings: BillingSettings) => void;
     onBackToDashboard: () => void;
 }
+
+const FALLBACK_BRAND_COLOR = '#0ea5e9';
+
+const DEFAULT_SOCIAL_MEDIA_MAP: CentralAgentProfile['socialMedia'] = {
+    facebook: '',
+    instagram: '',
+    twitter: '',
+    linkedin: '',
+    youtube: ''
+};
+
+const normalizeSocialsToMap = (socials?: AgentProfile['socials']): CentralAgentProfile['socialMedia'] => {
+    const base = { ...DEFAULT_SOCIAL_MEDIA_MAP };
+    if (!Array.isArray(socials)) return base;
+    socials.forEach((entry) => {
+        if (!entry?.platform || !entry?.url) return;
+        const key = entry.platform.toLowerCase();
+        if (key in base) {
+            (base as Record<string, string>)[key] = entry.url;
+        }
+    });
+    return base;
+};
 
 const TabButton: React.FC<{
     isActive: boolean;
@@ -294,7 +322,13 @@ const NOTIFICATION_GROUPS: Array<{
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard }) => {
     const notifyApiError = useApiErrorNotifier();
-    const [activeTab, setActiveTab] = useState<'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('notifications');
+    const { uiProfile, refresh: refreshBranding, aiCardProfile } = useAgentBranding();
+    const agentProfile = userProfile ?? uiProfile;
+    const [profileFormData, setProfileFormData] = useState<AgentProfile>(agentProfile);
+    const [isProfileSaving, setIsProfileSaving] = useState(false);
+    const [profileSaveMessage, setProfileSaveMessage] = useState<string | null>(null);
+    const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('profile');
     const [emailFormData, setEmailFormData] = useState<EmailSettings>(emailSettings);
     const [calendarFormData, setCalendarFormData] = useState<CalendarSettings>(calendarSettings);
     const [currentNotifications, setCurrentNotifications] = useState<NotificationSettings>(notificationSettings);
@@ -309,11 +343,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     const [isBillingCheckoutLoading, setIsBillingCheckoutLoading] = useState(false);
     const [billingMessage, setBillingMessage] = useState<string | null>(null);
     const [billingError, setBillingError] = useState<string | null>(null);
-    const googleIntegrationEnabled =
-        String(import.meta.env?.VITE_ENABLE_GOOGLE_INTEGRATIONS ?? '').toLowerCase() === 'true';
-    const googleIntegrationClientPresent =
-        typeof import.meta.env?.VITE_GOOGLE_OAUTH_CLIENT_ID === 'string' &&
-        import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID.trim().length > 0;
+    const googleIntegrationEnabled = useMemo(() => getBooleanEnv('VITE_ENABLE_GOOGLE_INTEGRATIONS'), []);
+    const googleIntegrationClientPresent = useMemo(() => {
+        const clientId = getEnvVar('GOOGLE_OAUTH_CLIENT_ID');
+        return typeof clientId === 'string' && clientId.trim().length > 0;
+    }, []);
     const initialGoogleIntegrationAvailable =
         googleOAuthService.isAvailable || googleIntegrationEnabled || googleIntegrationClientPresent;
     const [isGoogleIntegrationAvailable, setIsGoogleIntegrationAvailable] = useState(initialGoogleIntegrationAvailable);
@@ -324,7 +358,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     const notificationDefaultsRef = useRef<NotificationSettings>(notificationSettings);
     const paypalPortalUrl = (() => {
         const metaEnv = (globalThis as Record<string, unknown> & { __VITE_ENV__?: Record<string, unknown> }).__VITE_ENV__;
-        const value = metaEnv?.VITE_PAYPAL_PORTAL_URL ?? process?.env?.VITE_PAYPAL_PORTAL_URL ?? process?.env?.PAYPAL_PORTAL_URL;
+        const nodeEnv = typeof process !== 'undefined' ? process.env : undefined;
+        const value = metaEnv?.VITE_PAYPAL_PORTAL_URL ?? nodeEnv?.VITE_PAYPAL_PORTAL_URL ?? nodeEnv?.PAYPAL_PORTAL_URL;
         return typeof value === 'string' && value.trim() ? value.trim() : undefined;
     })();
 
@@ -337,6 +372,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 const qs = new URLSearchParams(hash.substring(qIndex + 1));
                 const tab = (qs.get('tab') || '').toLowerCase();
                 if (tab === 'billing') setActiveTab('billing');
+                if (tab === 'profile') setActiveTab('profile');
                 if (tab === 'email') setActiveTab('email');
                 if (tab === 'calendar') setActiveTab('calendar');
                 if (tab === 'security') setActiveTab('security');
@@ -348,34 +384,38 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
         return () => window.removeEventListener('hashchange', handle);
     }, []);
 
+    useEffect(() => {
+        setProfileFormData(agentProfile);
+    }, [agentProfile]);
+
+    const extractPlanInfo = useCallback((profile: typeof aiCardProfile) => {
+        if (!profile) return null;
+        const planValue = 'plan' in profile ? (profile as { plan?: unknown }).plan : undefined;
+        const statusValue =
+            'subscription_status' in profile
+                ? (profile as { subscription_status?: unknown }).subscription_status
+                : undefined;
+        const plan = typeof planValue === 'string' ? planValue : undefined;
+        const subscriptionStatus = typeof statusValue === 'string' ? statusValue : undefined;
+        if (plan || subscriptionStatus) {
+            return { plan, status: subscriptionStatus };
+        }
+        return null;
+    }, []);
+
     // Load plan/subscription status for billing badge
     useEffect(() => {
+        if (activeTab !== 'billing') return;
+
+        const info = extractPlanInfo(aiCardProfile);
+        if (info || aiCardProfile) {
+            setPlanBadge(info);
+            if (info) return;
+        }
+
         const loadPlan = async () => {
             try {
-                await refreshAgentProfile({ userId, force: true });
-                const profile = getAICardProfileSnapshot();
-                if (!profile) {
-                    return;
-                }
-                // these fields may be injected by backend dynamically
-                const planValue =
-                    typeof profile === 'object' &&
-                    profile !== null &&
-                    'plan' in profile
-                        ? (profile as { plan?: unknown }).plan
-                        : undefined;
-                const statusValue =
-                    typeof profile === 'object' &&
-                    profile !== null &&
-                    'subscription_status' in profile
-                        ? (profile as { subscription_status?: unknown }).subscription_status
-                        : undefined;
-                const plan = typeof planValue === 'string' ? planValue : undefined;
-                const subscriptionStatus =
-                    typeof statusValue === 'string' ? statusValue : undefined;
-                if (plan || subscriptionStatus) {
-                    setPlanBadge({ plan, status: subscriptionStatus });
-                }
+                await refreshBranding();
             } catch (error) {
                 notifyApiError({
                     title: 'Could not load billing status',
@@ -384,10 +424,56 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 });
             }
         };
-        if (activeTab === 'billing') {
-            void loadPlan();
+
+        void loadPlan();
+    }, [activeTab, aiCardProfile, extractPlanInfo, refreshBranding, notifyApiError]);
+
+    const handleProfileInputChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => {
+        const { name, value } = e.target;
+        setProfileFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleSocialChange = (
+        index: number,
+        field: 'platform' | 'url',
+        value: string
+    ) => {
+        setProfileFormData((prev) => {
+            const socials = Array.isArray(prev.socials) ? [...prev.socials] : [];
+            const existing = socials[index] ?? { platform: 'LinkedIn', url: '' };
+            socials[index] = { ...existing, [field]: value };
+            return { ...prev, socials };
+        });
+    };
+
+    const handleProfileSave = async (event: React.FormEvent) => {
+        event.preventDefault();
+        setIsProfileSaving(true);
+        setProfileSaveError(null);
+        setProfileSaveMessage(null);
+
+        try {
+            const sanitizedSocials = (profileFormData.socials || []).filter(
+                (entry) => entry?.platform && entry?.url
+            );
+            const sanitizedForm: AgentProfile = { ...profileFormData, socials: sanitizedSocials };
+            const payload = buildCentralProfilePayload(sanitizedForm);
+
+            const updated = await updateAgentProfile(payload);
+            const updatedUiProfile = mapCentralToUiProfile(updated);
+            setProfileFormData(updatedUiProfile);
+            _onSaveProfile(updatedUiProfile);
+            setProfileSaveMessage('Profile updated successfully.');
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : 'Failed to save profile.';
+            setProfileSaveError(message);
+        } finally {
+            setIsProfileSaving(false);
         }
-    }, [activeTab, userId, notifyApiError]);
+    };
     const [passwords, setPasswords] = useState({
         currentPassword: '',
         newPassword: '',
@@ -405,18 +491,58 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     const [isCalendarSettingsSaving, setIsCalendarSettingsSaving] = useState<boolean>(false);
     const [calendarSettingsError, setCalendarSettingsError] = useState<string | null>(null);
     const [calendarSettingsMessage, setCalendarSettingsMessage] = useState<string | null>(null);
-    const [isSecuritySaving, setIsSecuritySaving] = useState<boolean>(false);
-    const [securityError, setSecurityError] = useState<string | null>(null);
-    const [securityMessage, setSecurityMessage] = useState<string | null>(null);
-    const emailDefaultsRef = useRef<EmailSettings>(emailSettings);
-    const emailConnectionsRef = useRef<EmailConnection[]>([]);
-    const forwardingAddress = useMemo(() => {
-        const baseEmail = emailFormData.fromEmail || userProfile.email || 'agent@homelistingai.com';
+const [isSecuritySaving, setIsSecuritySaving] = useState<boolean>(false);
+const [securityError, setSecurityError] = useState<string | null>(null);
+const [securityMessage, setSecurityMessage] = useState<string | null>(null);
+const emailDefaultsRef = useRef<EmailSettings>(emailSettings);
+const emailConnectionsRef = useRef<EmailConnection[]>([]);
+const forwardingAddress = useMemo(() => {
+    const baseEmail = emailFormData.fromEmail || agentProfile.email || 'agent@homelistingai.com';
         const localPart = (baseEmail.split('@')[0] || 'agent').toLowerCase();
         const safeLocalPart = localPart.replace(/[^a-z0-9]/g, '') || 'agent';
         return `agent-${safeLocalPart}@homelistingai.com`;
-    }, [emailFormData.fromEmail, userProfile.email]);
+    }, [emailFormData.fromEmail, agentProfile.email]);
     const oauthPopupRef = useRef<Window | null>(null);
+
+const buildCentralProfilePayload = (form: AgentProfile): Partial<CentralAgentProfile> => ({
+    name: form.name,
+    title: form.title,
+    company: form.company,
+    phone: form.phone,
+    email: form.email,
+    website: form.website ?? '',
+    bio: form.bio ?? '',
+    headshotUrl: form.headshotUrl ?? null,
+    logoUrl: form.logoUrl ?? null,
+    brandColor: form.brandColor ?? FALLBACK_BRAND_COLOR,
+    language: form.language ?? 'en',
+    socialMedia: normalizeSocialsToMap(form.socials)
+});
+
+const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
+    const socials: AgentProfile['socials'] = [
+        { platform: 'Twitter', url: profile.socialMedia.twitter || '' },
+        { platform: 'LinkedIn', url: profile.socialMedia.linkedin || '' },
+        { platform: 'Instagram', url: profile.socialMedia.instagram || '' },
+        { platform: 'Facebook', url: profile.socialMedia.facebook || '' },
+        { platform: 'YouTube', url: profile.socialMedia.youtube || '' }
+    ];
+    return {
+        name: profile.name,
+        slug: profile.id,
+        title: profile.title,
+        company: profile.company,
+        phone: profile.phone,
+        email: profile.email,
+        headshotUrl: profile.headshotUrl,
+        socials,
+        brandColor: profile.brandColor,
+        language: profile.language,
+        logoUrl: profile.logoUrl,
+        website: profile.website,
+        bio: profile.bio
+    };
+};
     const calendarDefaultsRef = useRef<CalendarSettings>(calendarSettings);
     const isMountedRef = useRef(true);
 
@@ -1088,7 +1214,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 throw new Error('Unable to verify your session. Please sign in again.');
             }
 
-            const email = user.email || userProfile.email;
+            const email = user.email || agentProfile.email;
             if (!email) {
                 throw new Error('No email associated with this account.');
             }
@@ -1456,6 +1582,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
     
     const tabs = [
+        { id: 'profile', label: 'Profile', icon: 'account_circle' },
         { id: 'notifications', label: 'Notifications', icon: 'notifications' },
         { id: 'email', label: 'Email', icon: 'mail' },
         { id: 'calendar', label: 'Calendar', icon: 'calendar_today' },
@@ -1579,6 +1706,226 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
                     {/* Main Content */}
                     <main className="flex-1">
+                        {activeTab === 'profile' && (
+                            <form onSubmit={handleProfileSave} className="p-8 space-y-8">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-900">👤 Profile & Branding</h2>
+                                    <p className="text-slate-500 mt-1">
+                                        Update your public-facing details—changes sync to every AI feature instantly.
+                                    </p>
+                                </div>
+
+                                {profileSaveError && (
+                                    <div className="px-4 py-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-sm">
+                                        {profileSaveError}
+                                    </div>
+                                )}
+                                {profileSaveMessage && (
+                                    <div className="px-4 py-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm">
+                                        {profileSaveMessage}
+                                    </div>
+                                )}
+
+                                <FeatureSection title="Basic Information" icon="person">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormInput
+                                            label="Full Name"
+                                            id="profile-name"
+                                            name="name"
+                                            required
+                                            value={profileFormData.name}
+                                            onChange={handleProfileInputChange}
+                                        />
+                                        <FormInput
+                                            label="Professional Title"
+                                            id="profile-title"
+                                            name="title"
+                                            required
+                                            value={profileFormData.title}
+                                            onChange={handleProfileInputChange}
+                                        />
+                                        <FormInput
+                                            label="Company"
+                                            id="profile-company"
+                                            name="company"
+                                            required
+                                            value={profileFormData.company}
+                                            onChange={handleProfileInputChange}
+                                        />
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Brand Color
+                                            </label>
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="color"
+                                                    name="brandColor"
+                                                    value={profileFormData.brandColor || '#0ea5e9'}
+                                                    onChange={handleProfileInputChange}
+                                                    className="w-12 h-12 border border-slate-300 rounded-lg cursor-pointer"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    name="brandColor"
+                                                    value={profileFormData.brandColor || '#0ea5e9'}
+                                                    onChange={handleProfileInputChange}
+                                                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </FeatureSection>
+
+                                <FeatureSection title="Contact Information" icon="contact_phone">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormInput
+                                            label="Phone Number"
+                                            id="profile-phone"
+                                            name="phone"
+                                            required
+                                            value={profileFormData.phone}
+                                            onChange={handleProfileInputChange}
+                                        />
+                                        <FormInput
+                                            label="Email Address"
+                                            id="profile-email"
+                                            name="email"
+                                            required
+                                            type="email"
+                                            value={profileFormData.email}
+                                            onChange={handleProfileInputChange}
+                                        />
+                                        <FormInput
+                                            label="Website"
+                                            id="profile-website"
+                                            name="website"
+                                            type="url"
+                                            value={profileFormData.website ?? ''}
+                                            onChange={handleProfileInputChange}
+                                        />
+                                    </div>
+                                    <div className="mt-6">
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Bio / About You
+                                        </label>
+                                        <textarea
+                                            name="bio"
+                                            value={profileFormData.bio ?? ''}
+                                            onChange={handleProfileInputChange}
+                                            rows={4}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                                            placeholder="Tell your AI assistants how to represent you."
+                                        />
+                                    </div>
+                                </FeatureSection>
+
+                                <FeatureSection title="Brand Assets" icon="image">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormInput
+                                            label="Headshot URL"
+                                            id="profile-headshot"
+                                            name="headshotUrl"
+                                            type="url"
+                                            value={profileFormData.headshotUrl ?? ''}
+                                            onChange={handleProfileInputChange}
+                                        />
+                                        <FormInput
+                                            label="Logo URL"
+                                            id="profile-logo"
+                                            name="logoUrl"
+                                            type="url"
+                                            value={profileFormData.logoUrl ?? ''}
+                                            onChange={handleProfileInputChange}
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {profileFormData.headshotUrl && (
+                                            <div className="flex flex-col items-start">
+                                                <span className="text-sm text-slate-500 mb-2">Headshot preview</span>
+                                                <img
+                                                    src={profileFormData.headshotUrl}
+                                                    alt="Headshot preview"
+                                                    className="w-20 h-20 rounded-full object-cover border-2 border-slate-200"
+                                                />
+                                            </div>
+                                        )}
+                                        {profileFormData.logoUrl && (
+                                            <div className="flex flex-col items-start">
+                                                <span className="text-sm text-slate-500 mb-2">Logo preview</span>
+                                                <img
+                                                    src={profileFormData.logoUrl}
+                                                    alt="Logo preview"
+                                                    className="h-12 w-auto object-contain border border-slate-200 rounded bg-white p-2"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </FeatureSection>
+
+                                <FeatureSection title="Social Links" icon="share">
+                                    <div className="space-y-4">
+                                        {[0, 1, 2, 3].map((index) => {
+                                            const social = profileFormData.socials?.[index] ?? { platform: 'LinkedIn', url: '' };
+                                            return (
+                                                <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            Platform {index + 1}
+                                                        </label>
+                                                        <select
+                                                            value={social.platform}
+                                                            onChange={(e) =>
+                                                                handleSocialChange(
+                                                                    index,
+                                                                    'platform',
+                                                                    e.target.value as AgentProfile['socials'][number]['platform']
+                                                                )
+                                                            }
+                                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                                                        >
+                                                            <option value="LinkedIn">LinkedIn</option>
+                                                            <option value="Facebook">Facebook</option>
+                                                            <option value="Instagram">Instagram</option>
+                                                            <option value="Twitter">Twitter</option>
+                                                            <option value="YouTube">YouTube</option>
+                                                            <option value="Pinterest">Pinterest</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            URL
+                                                        </label>
+                                                        <input
+                                                            type="url"
+                                                            value={social.url}
+                                                            onChange={(e) => handleSocialChange(index, 'url', e.target.value)}
+                                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                                                            placeholder="https://"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </FeatureSection>
+
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <p className="text-sm text-slate-500">
+                                        This info powers AI listings, emails, proposals, QR codes, and more.
+                                    </p>
+                                    <button
+                                        type="submit"
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary-600 text-white font-semibold hover:bg-primary-700 disabled:bg-primary-300"
+                                        disabled={isProfileSaving}
+                                    >
+                                        <span className="material-symbols-outlined text-base">
+                                            {isProfileSaving ? 'hourglass_empty' : 'save'}
+                                        </span>
+                                        {isProfileSaving ? 'Saving…' : 'Save Profile'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
                         {activeTab === 'notifications' && (
                             <div className="p-8 space-y-8">
                                 <div>
@@ -2826,4 +3173,3 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 };
 
 export default SettingsPage;
-

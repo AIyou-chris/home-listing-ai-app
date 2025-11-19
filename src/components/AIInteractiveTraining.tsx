@@ -19,24 +19,44 @@ interface TrainingStatsResponse {
 const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionStats }) => {
 	const [backendStats, setBackendStats] = useState<TrainingStatsResponse | null>(null)
 	const [isLoading, setIsLoading] = useState(false)
+	const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const pendingFetch = useRef<AbortController | null>(null)
 
 	useEffect(() => {
-		const fetchStats = async () => {
-			setIsLoading(true)
-			try {
-				const response = await fetch(`/api/training/feedback/${sidekick}`)
-				if (response.ok) {
-					const stats = await response.json()
-					setBackendStats(stats)
-				}
-			} catch (error) {
-				console.error('Failed to fetch training stats:', error)
-			} finally {
-				setIsLoading(false)
-			}
+		setIsLoading(true)
+		if (refreshTimer.current) {
+			clearTimeout(refreshTimer.current)
 		}
 
-		fetchStats()
+		refreshTimer.current = setTimeout(async () => {
+			pendingFetch.current?.abort()
+			const controller = new AbortController()
+			pendingFetch.current = controller
+			try {
+				const response = await fetch(`/api/training/feedback/${sidekick}`, {
+					signal: controller.signal
+				})
+				if (!response.ok) {
+					throw new Error(`Status ${response.status}`)
+				}
+				const stats = await response.json()
+				setBackendStats(stats)
+			} catch (error) {
+				if ((error as Error).name !== 'AbortError') {
+					console.error('Failed to fetch training stats:', error)
+				}
+			} finally {
+				setIsLoading(false)
+				pendingFetch.current = null
+			}
+		}, 250)
+
+		return () => {
+			if (refreshTimer.current) {
+				clearTimeout(refreshTimer.current)
+			}
+			pendingFetch.current?.abort()
+		}
 	}, [sidekick])
 
 	return (
@@ -123,6 +143,10 @@ const AIInteractiveTraining: React.FC = () => {
 	const [improvementText, setImprovementText] = useState('')
 	const [showImprovementInput, setShowImprovementInput] = useState<string | null>(null)
 	const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false)
+	const [feedbackInFlight, setFeedbackInFlight] = useState<string | null>(null)
+	const [improvementLoadingId, setImprovementLoadingId] = useState<string | null>(null)
+	const [trainingNotification, setTrainingNotification] = useState<string | null>(null)
+	const [trainingError, setTrainingError] = useState<string | null>(null)
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 
 	const sidekicks: SidekickOption[] = [
@@ -165,6 +189,16 @@ const AIInteractiveTraining: React.FC = () => {
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
 	}, [messages])
+
+	useEffect(() => {
+		if (!trainingNotification && !trainingError) return
+		const timer = setTimeout(() => {
+			setTrainingNotification(null)
+			setTrainingError(null)
+		}, 4000)
+
+		return () => clearTimeout(timer)
+	}, [trainingNotification, trainingError])
 
 	const handleSendMessage = async () => {
 		if (!inputMessage.trim() || isLoading) return
@@ -217,10 +251,17 @@ const AIInteractiveTraining: React.FC = () => {
 		}
 	}
 
-	const handleFeedback = async (messageId: string, feedback: 'thumbs_up' | 'thumbs_down') => {
+const handleFeedback = async (messageId: string, feedback: 'thumbs_up' | 'thumbs_down') => {
 		setMessages(prev => prev.map(msg => 
 			msg.id === messageId ? { ...msg, feedback } : msg
 		))
+
+		if (feedbackInFlight === messageId) {
+			return
+		}
+		setFeedbackInFlight(messageId)
+		setTrainingNotification(null)
+		setTrainingError(null)
 
 		// Send feedback to backend training system
 		try {
@@ -240,8 +281,12 @@ const AIInteractiveTraining: React.FC = () => {
 			})
 			
 			console.log('✅ Training feedback sent:', { messageId, feedback, sidekick: selectedSidekick })
+			setTrainingNotification('Training feedback saved.')
 		} catch (error) {
 			console.error('❌ Failed to send training feedback:', error)
+			setTrainingError('Unable to send training feedback. Please try again.')
+		} finally {
+			setFeedbackInFlight(null)
 		}
 
 		// If thumbs down, show improvement input
@@ -250,8 +295,12 @@ const AIInteractiveTraining: React.FC = () => {
 		}
 	}
 
-	const handleImprovement = async (messageId: string) => {
-		if (!improvementText.trim()) return
+const handleImprovement = async (messageId: string) => {
+		if (!improvementText.trim() || improvementLoadingId === messageId) return
+
+		setImprovementLoadingId(messageId)
+		setTrainingNotification(null)
+		setTrainingError(null)
 
 		setMessages(prev => prev.map(msg => 
 			msg.id === messageId ? { ...msg, improvement: improvementText.trim() } : msg
@@ -280,12 +329,15 @@ const AIInteractiveTraining: React.FC = () => {
 				improvement: improvementText.trim(), 
 				sidekick: selectedSidekick 
 			})
+			setTrainingNotification('Improvement saved.')
 		} catch (error) {
 			console.error('❌ Failed to send training improvement:', error)
+			setTrainingError('Unable to save improvement. Please try again.')
 		}
 
 		setImprovementText('')
 		setShowImprovementInput(null)
+		setImprovementLoadingId(null)
 	}
 
 	const clearChat = () => {
@@ -318,7 +370,7 @@ const AIInteractiveTraining: React.FC = () => {
 					{isHelpPanelOpen ? 'Hide Training Tips' : 'Show Training Tips'}
 					<span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
 				</button>
-				{isHelpPanelOpen && (
+							{isHelpPanelOpen && (
 					<div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
 						<div>
 							<h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
@@ -499,6 +551,16 @@ const AIInteractiveTraining: React.FC = () => {
 									</div>
 								</div>
 							)}
+							{trainingNotification && (
+								<div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+									{trainingNotification}
+								</div>
+							)}
+							{trainingError && (
+								<div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+									{trainingError}
+								</div>
+							)}
 
 							{messages.map(message => (
 								<div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -547,14 +609,14 @@ const AIInteractiveTraining: React.FC = () => {
 													rows={2}
 													className="w-full px-2 py-1 text-sm border border-slate-300 rounded text-slate-900"
 												/>
-												<div className="flex gap-2 mt-2">
-													<button
-														onClick={() => handleImprovement(message.id)}
-														disabled={!improvementText.trim()}
-														className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
-													>
-														Save Improvement
-													</button>
+													<div className="flex gap-2 mt-2">
+														<button
+															onClick={() => handleImprovement(message.id)}
+															disabled={!improvementText.trim() || improvementLoadingId === message.id}
+															className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+														>
+															{improvementLoadingId === message.id ? 'Saving...' : 'Save Improvement'}
+														</button>
 													<button
 														onClick={() => {
 															setShowImprovementInput(null)

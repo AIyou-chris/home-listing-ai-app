@@ -5,9 +5,10 @@ import SmartTaskManager from './SmartTaskManager';
 import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor, type LeadScore } from '../services/leadScoringService';
 // Hidden for launch - notification service will be re-enabled post-launch
 // import { notificationService } from '../services/notificationService';
+import { useAgentBranding } from '../hooks/useAgentBranding';
 
 interface DashboardProps {
-  agentProfile: AgentProfile;
+  agentProfile?: AgentProfile;
   properties: Property[];
   leads: Lead[];
   appointments: Appointment[];
@@ -80,7 +81,7 @@ const TaskPriorityIndicator: React.FC<{ priority: TaskPriority }> = ({ priority 
 
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  agentProfile, 
+  agentProfile: agentProfileOverride, 
   properties, 
   leads, 
   appointments, 
@@ -90,6 +91,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   onTaskAdd,
   onTaskDelete
 }) => {
+  const { uiProfile } = useAgentBranding();
+  const agentProfile = agentProfileOverride ?? uiProfile;
   const [isTaskManagerOpen, setIsTaskManagerOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');

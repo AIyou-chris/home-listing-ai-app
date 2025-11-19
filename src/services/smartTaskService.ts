@@ -10,6 +10,21 @@ export interface SmartTaskConditions {
   leadValue?: 'high' | 'medium' | 'low';
 }
 
+const readField = (data: SmartTaskSource, key: string): unknown => {
+  return (data as unknown as Record<string, unknown>)[key];
+};
+
+const parseDateValue = (value: unknown): Date | null => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const candidate = new Date(value);
+    return Number.isNaN(candidate.getTime()) ? null : candidate;
+  }
+  return null;
+};
+
 export type SmartTaskRuleTarget = 'lead' | 'appointment' | 'property';
 
 export interface SmartTaskRule<T extends SmartTaskSource = SmartTaskSource> {
@@ -192,10 +207,12 @@ export class SmartTaskService {
 
     // Check days since last contact
     if (conditions.daysSinceLastContact) {
-      if (!('lastContactDate' in data) || !data.lastContactDate) {
+      const lastContactCandidate = readField(data, 'lastContactDate');
+      const lastContactDate = parseDateValue(lastContactCandidate);
+      if (!lastContactDate) {
         return false;
       }
-      const daysSince = Math.floor((Date.now() - new Date(data.lastContactDate).getTime()) / (1000 * 60 * 60 * 24));
+      const daysSince = Math.floor((Date.now() - lastContactDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysSince < conditions.daysSinceLastContact) {
         return false;
       }
@@ -213,10 +230,12 @@ export class SmartTaskService {
 
     // Check property age
     if (conditions.propertyAge) {
-      if (!('listedDate' in data) || !data.listedDate) {
+      const listedDateCandidate = readField(data, 'listedDate');
+      const listedDate = parseDateValue(listedDateCandidate);
+      if (!listedDate) {
         return false;
       }
-      const daysListed = Math.floor((Date.now() - new Date(data.listedDate).getTime()) / (1000 * 60 * 60 * 24));
+      const daysListed = Math.floor((Date.now() - listedDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysListed < conditions.propertyAge) {
         return false;
       }
@@ -224,7 +243,8 @@ export class SmartTaskService {
 
     // Check lead value
     if (conditions.leadValue) {
-      if (!('value' in data) || data.value !== conditions.leadValue) {
+      const valueCandidate = readField(data, 'value');
+      if (valueCandidate !== conditions.leadValue) {
         return false;
       }
     }

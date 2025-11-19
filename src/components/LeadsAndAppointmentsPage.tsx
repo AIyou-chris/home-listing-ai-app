@@ -1,7 +1,8 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Lead, Appointment, LeadStatus, LeadFunnelType, Property } from '../types';
 import { scheduleAppointment } from '../services/schedulerService';
+import { analyticsService } from '../services/analyticsService';
 import type { SchedulerResult } from '../services/schedulerService';
 import AddLeadModal, { type NewLeadPayload } from './AddLeadModal';
 import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from './ScheduleAppointmentModal';
@@ -96,6 +97,15 @@ const LeadsList: React.FC<{
     }, [leads]);
 
     const toggleLead = (leadId: string) => {
+        const expanded = expandedLeadIds.includes(leadId);
+        void analyticsService.trackInteraction({
+            eventType: 'lead_accordion_toggle',
+            eventData: {
+                leadId,
+                expanded: !expanded,
+                timestamp: new Date().toISOString()
+            }
+        });
         setExpandedLeadIds((prev) =>
             prev.includes(leadId) ? prev.filter((id) => id !== leadId) : [...prev, leadId]
         );
@@ -324,6 +334,7 @@ interface LeadsAndAppointmentsPageProps {
     onNewAppointment?: (appt: Appointment) => void;
     resolvePropertyForLead?: (lead: Lead | null) => Property | undefined;
     onAssignFunnel?: (lead: Lead, funnel: LeadFunnelType | null) => Promise<void> | void;
+    onRefreshData?: () => Promise<void> | void;
 }
 
 const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
@@ -333,7 +344,8 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     onBackToDashboard,
     onNewAppointment,
     resolvePropertyForLead,
-    onAssignFunnel
+    onAssignFunnel,
+    onRefreshData
 }) => {
     const [activeTab, setActiveTab] = useState<'leads' | 'appointments'>('leads');
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
@@ -343,6 +355,8 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     const [schedulingLead, setSchedulingLead] = useState<Lead | null>(null);
     const [contactingLead, setContactingLead] = useState<Lead | null>(null);
     const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+    const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+    const [syncAgeSeconds, setSyncAgeSeconds] = useState(0);
     const [leadFunnels, setLeadFunnels] = useState<Record<string, LeadFunnelType | null>>(() => {
         const initial: Record<string, LeadFunnelType | null> = {};
         leads.forEach((lead) => {
@@ -366,10 +380,59 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
         });
     }, [leads]);
 
+    useEffect(() => {
+        setLastSyncedAt(new Date());
+    }, [leads, appointments]);
+
+    const trackExportEvent = useCallback(() => {
+        void analyticsService.trackInteraction({
+            eventType: 'leads_export',
+            eventData: {
+                leadCount: leads.length,
+                appointmentCount: appointments.length,
+                timestamp: new Date().toISOString()
+            }
+        });
+    }, [appointments.length, leads.length]);
+
     const handleOpenScheduleModal = (lead: Lead | null = null) => {
         setSchedulingLead(lead);
         setIsScheduleModalOpen(true);
     };
+
+    const handleOpenExportModal = () => {
+        trackExportEvent();
+        setIsExportModalOpen(true);
+    };
+
+    const triggerPeriodicRefresh = useCallback(async () => {
+        if (!onRefreshData) return;
+        await onRefreshData();
+        setLastSyncedAt(new Date());
+    }, [onRefreshData]);
+
+    useEffect(() => {
+        if (!lastSyncedAt) {
+            setSyncAgeSeconds(0);
+            return;
+        }
+
+        const updateAge = () => {
+            const ageSeconds = Math.max(0, Math.floor((Date.now() - lastSyncedAt.getTime()) / 1000));
+            setSyncAgeSeconds(ageSeconds);
+        };
+
+        updateAge();
+        const timer = setInterval(updateAge, 1000);
+        return () => clearInterval(timer);
+    }, [lastSyncedAt]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            void triggerPeriodicRefresh();
+        }, 60000);
+        return () => clearInterval(interval);
+    }, [triggerPeriodicRefresh]);
 
     const handleAssignFunnel = async (lead: Lead, funnel: LeadFunnelType | null) => {
         const previous = leadFunnels[lead.id] ?? null;
@@ -425,6 +488,9 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     <div>
                         <h1 className="text-3xl font-bold text-slate-900">Leads & Appointments</h1>
                         <p className="text-slate-500 mt-1">Manage your prospects and schedule showings.</p>
+                        {lastSyncedAt && (
+                            <p className="text-xs text-slate-400 mt-1">Last synced {syncAgeSeconds}s ago</p>
+                        )}
                     </div>
                     <div className="flex items-center gap-2">
                         <button 
@@ -442,7 +508,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                             <span>Schedule Appointment</span>
                         </button>
                         <button 
-                            onClick={() => setIsExportModalOpen(true)}
+                            onClick={handleOpenExportModal}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg font-semibold shadow-sm hover:bg-slate-700 transition"
                         >
                             <span className="material-symbols-outlined w-5 h-5">download</span>

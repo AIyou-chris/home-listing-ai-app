@@ -10,6 +10,8 @@ import {
 } from '../../types'
 import { supabase } from '../../services/supabase'
 import { agentOnboardingService } from '../../services/agentOnboardingService'
+import { AgentBrandingContext } from '../../context/AgentBrandingContextInstance'
+import type { AgentBrandingContextValue } from '../../context/AgentBrandingContext'
 
 jest.mock('../../services/supabase', () => ({
   supabase: {
@@ -92,6 +94,30 @@ const defaultBilling: BillingSettings = {
   history: []
 }
 
+const brandingContextValue: AgentBrandingContextValue = {
+  profile: null,
+  aiCardProfile: null,
+  loading: false,
+  error: null,
+  hasProfile: true,
+  brandColor: '#0ea5e9',
+  headshotUrl: defaultAgent.headshotUrl,
+  logoUrl: defaultAgent.logoUrl,
+  uiProfile: defaultAgent,
+  contact: {
+    name: defaultAgent.name,
+    title: defaultAgent.title,
+    company: defaultAgent.company,
+    phone: defaultAgent.phone,
+    email: defaultAgent.email,
+    website: ''
+  },
+  refresh: jest.fn(),
+  getSocialLink: () => '',
+  getSignature: () => defaultAgent.name,
+  signature: defaultAgent.name
+}
+
 const originalFetch = global.fetch
 const mockedOnboardingService = agentOnboardingService as jest.Mocked<typeof agentOnboardingService>
 const mockedSupabase = supabase as unknown as {
@@ -144,20 +170,22 @@ const createFetchMock = () => {
 
 const renderSettings = () => {
   render(
-    <SettingsPage
-      userId="test-agent"
-      userProfile={defaultAgent}
-      onSaveProfile={jest.fn()}
-      notificationSettings={defaultNotifications}
-      onSaveNotifications={jest.fn()}
-      emailSettings={defaultEmailSettings}
-      onSaveEmailSettings={jest.fn()}
-      calendarSettings={defaultCalendarSettings}
-      onSaveCalendarSettings={jest.fn()}
-      billingSettings={defaultBilling}
-      onSaveBillingSettings={jest.fn()}
-      onBackToDashboard={jest.fn()}
-    />
+    <AgentBrandingContext.Provider value={brandingContextValue}>
+      <SettingsPage
+        userId="test-agent"
+        userProfile={defaultAgent}
+        onSaveProfile={jest.fn()}
+        notificationSettings={defaultNotifications}
+        onSaveNotifications={jest.fn()}
+        emailSettings={defaultEmailSettings}
+        onSaveEmailSettings={jest.fn()}
+        calendarSettings={defaultCalendarSettings}
+        onSaveCalendarSettings={jest.fn()}
+        billingSettings={defaultBilling}
+        onSaveBillingSettings={jest.fn()}
+        onBackToDashboard={jest.fn()}
+      />
+    </AgentBrandingContext.Provider>
   )
 }
 
@@ -188,10 +216,11 @@ describe('SettingsPage calendar tab', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /calendar/i }))
 
-    await screen.findByRole('heading', { name: /calendar integration/i })
+    const headings = await screen.findAllByRole('heading', { name: /calendar integration/i })
+    expect(headings.length).toBeGreaterThanOrEqual(1)
 
     expect(screen.getByText('Google Calendar')).toBeInTheDocument()
-    expect(screen.getByText('Apple Calendar')).toBeInTheDocument()
+    expect(screen.getByText(/Apple or other calendars arrive/i)).toBeInTheDocument()
 
     const saveButtons = screen.getAllByRole('button', { name: /save calendar settings/i })
     expect(saveButtons).toHaveLength(1)
@@ -279,7 +308,7 @@ describe('SettingsPage billing tab', () => {
 
     await waitFor(() => expect(mockedOnboardingService.listPaymentProviders).toHaveBeenCalled())
 
-    const manageButton = await screen.findByRole('button', { name: /manage via paypal/i })
+    const manageButton = await screen.findByRole('button', { name: /manage with paypal/i })
     fireEvent.click(manageButton)
 
     await waitFor(() => {
@@ -293,4 +322,3 @@ describe('SettingsPage billing tab', () => {
     expect(await screen.findByText('Opening PayPal subscription checkout in a new tab.')).toBeInTheDocument()
   })
 })
-

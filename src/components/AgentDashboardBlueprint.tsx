@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
 import LeadsAndAppointmentsPage from './LeadsAndAppointmentsPage';
@@ -13,21 +13,15 @@ import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardPage from './AICardPage';
 import { LogoWithName } from './LogoWithName';
-import { SAMPLE_AGENT } from '../constants';
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
 import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
-import AgentBlueprintHero from './blueprint/AgentBlueprintHero';
 import { supabase } from '../services/supabase';
 import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
 import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
-import {
-  getAgentProfile as fetchCentralAgentProfile,
-  subscribeToProfileChanges,
-  type AgentProfile as CentralAgentProfile
-} from '../services/agentProfileService';
+import { useAgentBranding } from '../hooks/useAgentBranding';
 import {
   Property,
   View,
@@ -81,7 +75,6 @@ const AgentDashboardBlueprint: React.FC = () => {
     [properties, selectedPropertyId]
   );
 
-  const [userId, setUserId] = useState<string | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [tasks, setTasks] = useState<AgentTask[]>([]);
@@ -90,12 +83,8 @@ const AgentDashboardBlueprint: React.FC = () => {
   const [, setIsLeadsLoading] = useState<boolean>(false);
 
   const notifyApiError = useApiErrorNotifier();
-  const [agentProfile, setAgentProfile] = useState<AgentProfile>({
-    ...SAMPLE_AGENT,
-    name: 'Blueprint Agent',
-    slug: 'blueprint-agent',
-    headshotUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&h=200&auto=format&fit=crop'
-  });
+  const { uiProfile } = useAgentBranding();
+  const [agentProfile, setAgentProfile] = useState<AgentProfile>(uiProfile);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     newLead: true,
     appointmentScheduled: true,
@@ -147,55 +136,9 @@ const AgentDashboardBlueprint: React.FC = () => {
     ]
   });
 
-  const mapCentralProfileToAgentProfile = useCallback(
-    (profile: CentralAgentProfile): AgentProfile => {
-      const socialDefaults = new Map(SAMPLE_AGENT.socials.map((entry) => [entry.platform, entry.url]));
-      const socials: AgentProfile['socials'] = [
-        {
-          platform: 'Twitter',
-          url: profile.socialMedia?.twitter || socialDefaults.get('Twitter') || ''
-        },
-        {
-          platform: 'LinkedIn',
-          url: profile.socialMedia?.linkedin || socialDefaults.get('LinkedIn') || ''
-        },
-        {
-          platform: 'Instagram',
-          url: profile.socialMedia?.instagram || socialDefaults.get('Instagram') || ''
-        },
-        {
-          platform: 'Facebook',
-          url: profile.socialMedia?.facebook || socialDefaults.get('Facebook') || ''
-        },
-        {
-          platform: 'YouTube',
-          url: profile.socialMedia?.youtube || socialDefaults.get('YouTube') || ''
-        },
-        {
-          platform: 'Pinterest',
-          url: socialDefaults.get('Pinterest') || ''
-        }
-      ];
-
-      return {
-        ...SAMPLE_AGENT,
-        name: profile.name || SAMPLE_AGENT.name,
-        title: profile.title || SAMPLE_AGENT.title,
-        company: profile.company || SAMPLE_AGENT.company,
-        phone: profile.phone || SAMPLE_AGENT.phone,
-        email: profile.email || SAMPLE_AGENT.email,
-        website: profile.website || SAMPLE_AGENT.website || '',
-        bio: profile.bio || SAMPLE_AGENT.bio || '',
-        headshotUrl: profile.headshotUrl || SAMPLE_AGENT.headshotUrl,
-        brandColor: profile.brandColor || SAMPLE_AGENT.brandColor,
-        logoUrl: profile.logoUrl || SAMPLE_AGENT.logoUrl,
-        language: profile.language || SAMPLE_AGENT.language,
-        socials,
-        slug: profile.id || SAMPLE_AGENT.slug
-      };
-    },
-    []
-  );
+  useEffect(() => {
+    setAgentProfile(uiProfile);
+  }, [uiProfile]);
 
   useEffect(() => {
     let mounted = true;
@@ -205,70 +148,15 @@ const AgentDashboardBlueprint: React.FC = () => {
         if (!mounted) return;
         const supabaseUser = data?.user ?? null;
         setIsDemoMode(!supabaseUser);
-        setUserId(supabaseUser?.id ?? null);
       } catch (error) {
         console.warn('[Blueprint] Unable to resolve Supabase auth user, defaulting to demo mode', error);
         if (mounted) setIsDemoMode(true);
-        if (mounted) setUserId(null);
       }
     })();
     return () => {
       mounted = false;
     };
   }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-    let unsubscribe: (() => void) | undefined;
-
-    const loadAgentProfile = async () => {
-      if (isDemoMode) {
-        if (isMounted) {
-          setAgentProfile({
-            ...SAMPLE_AGENT,
-            name: 'Blueprint Agent',
-            slug: 'blueprint-agent',
-            headshotUrl:
-              'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&h=200&auto=format&fit=crop'
-          });
-        }
-        return;
-      }
-      try {
-        const centralProfile = await fetchCentralAgentProfile(userId ?? undefined);
-        if (isMounted && centralProfile) {
-          setAgentProfile(mapCentralProfileToAgentProfile(centralProfile));
-        }
-      } catch (error) {
-        notifyApiError({
-          title: 'Could not load agent profile',
-          description: 'Showing default blueprint profile for now. Refresh after signing in to try again.',
-          error
-        });
-        if (isMounted) {
-          setAgentProfile({
-            ...SAMPLE_AGENT,
-            name: 'Blueprint Agent',
-            slug: 'blueprint-agent'
-          });
-        }
-      }
-    };
-
-    void loadAgentProfile();
-
-    if (!isDemoMode) {
-      unsubscribe = subscribeToProfileChanges((profile) => {
-        if (!isMounted) return;
-        setAgentProfile(mapCentralProfileToAgentProfile(profile));
-      });
-    }
-
-    return () => {
-      isMounted = false;
-      unsubscribe?.();
-    };
-  }, [isDemoMode, mapCentralProfileToAgentProfile, notifyApiError, userId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -334,33 +222,35 @@ const AgentDashboardBlueprint: React.FC = () => {
     };
   }, [agentProfile.slug, isDemoMode, notifyApiError]);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadLeads = async () => {
-      try {
-        setIsLeadsLoading(true);
-        const payload = await leadsService.list();
-        if (isMounted && Array.isArray(payload?.leads)) {
-          setLeads(payload.leads);
-        }
-      } catch (error) {
-        notifyApiError({
-          title: 'Could not load leads',
-          description: 'Using sample leads for now. Refresh after signing in to try again.',
-          error
-        });
-      } finally {
-        if (isMounted) {
-          setIsLeadsLoading(false);
-        }
-      }
-    };
+  const leadsMountedRef = useRef(true);
 
-    loadLeads();
-    return () => {
-      isMounted = false;
-    };
+  const refreshLeads = useCallback(async () => {
+    try {
+      setIsLeadsLoading(true);
+      const payload = await leadsService.list();
+      if (leadsMountedRef.current && Array.isArray(payload?.leads)) {
+        setLeads(payload.leads);
+      }
+    } catch (error) {
+      notifyApiError({
+        title: 'Could not load leads',
+        description: 'Using sample leads for now. Refresh after signing in to try again.',
+        error
+      });
+    } finally {
+      if (leadsMountedRef.current) {
+        setIsLeadsLoading(false);
+      }
+    }
   }, [notifyApiError]);
+
+  useEffect(() => {
+    leadsMountedRef.current = true;
+    refreshLeads();
+    return () => {
+      leadsMountedRef.current = false;
+    };
+  }, [refreshLeads]);
 
   useEffect(() => {
     let isMounted = true;
@@ -555,94 +445,11 @@ const AgentDashboardBlueprint: React.FC = () => {
     setSelectedPropertyId(null);
   };
 
-  const onboardingSteps = useMemo(
-    () => [
-      {
-        label: 'Brand profile dialed in',
-        isComplete: Boolean(agentProfile.logoUrl && agentProfile.bio)
-      },
-      {
-        label: 'AI playbooks connected',
-        isComplete: sequences.length > 0
-      },
-      {
-        label: 'Automations staged for launch',
-        isComplete: sequences.length >= 2 && properties.length > 0
-      }
-    ],
-    [agentProfile.logoUrl, agentProfile.bio, sequences.length, properties.length]
-  );
-
-  const onboardingProgress = useMemo(() => {
-    if (!onboardingSteps.length) return 0;
-    const completed = onboardingSteps.filter((step) => step.isComplete).length;
-    return Math.round((completed / onboardingSteps.length) * 100);
-  }, [onboardingSteps]);
-
-  const heroStats = useMemo(
-    () => [
-      {
-        label: 'Active listings in review',
-        value: properties.length.toString().padStart(2, '0')
-      },
-      {
-        label: 'New leads this week',
-        value: leads.length.toString().padStart(2, '0')
-      },
-      {
-        label: 'AI follow-ups queued',
-        value: sequences.length ? sequences.length.toString().padStart(2, '0') : '00'
-      },
-      {
-        label: 'Upcoming appointments',
-        value: appointments.length.toString().padStart(2, '0')
-      }
-    ],
-    [appointments.length, leads.length, properties.length, sequences.length]
-  );
-
-  const heroQuickLinks = [
-    {
-      label: 'Complete branding profile',
-      description: 'Confirm contact details, brand assets, and compliance before launch.',
-      icon: 'account_circle',
-      onClick: () => setActiveView('settings')
-    },
-    {
-      label: 'Tune sequence feedback',
-      description: 'Open the feedback tab to see which drips drive replies and tweak steps.',
-      icon: 'auto_fix_high',
-      onClick: () => setActiveView('funnel-analytics')
-    },
-    {
-      label: 'Train your AI',
-      description: 'Run live conversations and capture feedback to sharpen every sidekick.',
-      icon: 'neurology',
-      onClick: () => setActiveView('ai-training')
-    },
-    {
-      label: 'Review Leads Funnel',
-      description: 'Check lead scoring + conversion health inside the Leads Funnel workspace.',
-      icon: 'monitoring',
-      onClick: () => setActiveView('funnel-analytics')
-    }
-  ];
-
   const renderMainContent = () => {
     switch (activeView) {
       case 'dashboard':
         return (
           <div className="space-y-6">
-            <AgentBlueprintHero
-              agent={agentProfile}
-              heroStats={heroStats}
-              quickLinks={heroQuickLinks}
-              onboarding={{
-                percentage: onboardingProgress,
-                label: onboardingProgress === 100 ? 'Ready for launch' : 'Blueprint setup in progress',
-                steps: onboardingSteps
-              }}
-            />
             {isLoadingProperties && properties.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
                 Loading listings…
@@ -670,6 +477,7 @@ const AgentDashboardBlueprint: React.FC = () => {
             onAddNewLead={handleAddNewLead}
             onBackToDashboard={resetToDashboard}
             onNewAppointment={handleNewAppointment}
+            onRefreshData={refreshLeads}
           />
         );
       case 'ai-card':

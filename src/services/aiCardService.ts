@@ -121,11 +121,13 @@ export const uploadAiCardAsset = async (
 };
 
 // Get AI Card profile
-export const getAICardProfile = async (userId?: string): Promise<AICardProfile> => {
+export const getAICardProfile = async (userId?: string, signal?: AbortSignal): Promise<AICardProfile> => {
   try {
     const resolvedUserId = await resolveUserId(userId);
     const queryParams = resolvedUserId ? `?userId=${resolvedUserId}` : '';
-    const response = await fetch(`/api/ai-card/profile${queryParams}`);
+    const response = await fetch(`/api/ai-card/profile${queryParams}`, {
+      signal
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);

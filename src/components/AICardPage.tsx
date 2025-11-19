@@ -236,7 +236,9 @@ const AICardPage: React.FC = () => {
       if (typeof target.setSelectionRange === 'function') {
         try {
           const caret = resolvedValue.length;
-          target.setSelectionRange(caret, caret);
+          if (!(target instanceof HTMLInputElement && target.type === 'color')) {
+            target.setSelectionRange(caret, caret);
+          }
         } catch (error) {
           console.warn('[AI Card] unable to set selection range', error);
         }

@@ -22,10 +22,11 @@ const continueConversationFunction = createErrorStub<{ messages: Array<{ sender:
 
 const getMarketAnalysisFunction = createErrorStub<{ address: string }, MarketData>();
 const generatePropertyReportFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty>; options: GenerateReportOptions }, { text: string }>();
-const generateBlogPostFunction = createErrorStub<{ topic: string; tone: string; targetAudience: string }, { post: AIBlogPost }>();
-const generateVideoScriptFunction = createErrorStub<{ prompt: string; duration: number }, { script: string }>();
-const generateSocialPostTextFunction = createErrorStub<{ prompt: string; platform: SocialPlatform }, { text: string }>();
-const getLocalInfoFunction = createErrorStub<{ location: string }, LocalInfoData>();
+const generateBlogPostFunction = createErrorStub<{ options: { topic: string; keywords: string; tone: string; style: string; audience: string; cta: string; urls?: string[] } }, { post: AIBlogPost }>();
+const generateVideoScriptFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty> }, { text: string }>();
+const generateSocialPostTextFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty>; platforms: SocialPlatform[] }, { text: string }>();
+const generatePromptTextFunction = createErrorStub<{ prompt: string; platform: SocialPlatform }, { text: string }>();
+const getLocalInfoFunction = createErrorStub<{ address: string; category: string }, LocalInfoData>();
 
 interface GenerateReportOptions {
     marketAnalysis: boolean;
@@ -344,7 +345,7 @@ export const generateBlogPost = async (options: {
 }): Promise<AIBlogPost> => {
      try {
         const result = await generateBlogPostFunction({ options });
-        return result.data as AIBlogPost;
+        return result.data.post;
     } catch (error) {
         console.error("Error generating blog post:", error);
         return {
@@ -392,7 +393,7 @@ export const getLocalInfo = async (address: string, category: string): Promise<L
 // Simple text generation function for knowledge base
 export const generateText = async (prompt: string): Promise<string> => {
     try {
-        const res = await generateSocialPostTextFunction({
+        const res = await generatePromptTextFunction({
             prompt,
             platform: 'linkedin'
         });

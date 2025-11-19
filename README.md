@@ -218,6 +218,10 @@ This script will:
    npm run build
    ```
 
+### Go-Live Readiness
+
+The `docs/go-live-checklist.md` document describes the production prep steps for the backend service role path, `/api/properties` security, the required `x-agent-id` header, and the monitoring commands you should run before releasing.
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -227,9 +231,6 @@ Create a `.env.local` file with:
 ```env
 VITE_GEMINI_API_KEY=your_gemini_api_key
 VITE_OPENAI_API_KEY=your_openai_api_key
-VITE_REBRANDLY_API_KEY=your_rebrandly_api_key
-VITE_REBRANDLY_WORKSPACE_ID=your_rebrandly_workspace_id # optional but recommended
-VITE_REBRANDLY_DOMAIN=links.yourbrand.com
 ```
 
 ## 📱 Features

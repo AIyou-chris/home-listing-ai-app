@@ -61,7 +61,7 @@ const EnhancedAISidekicksHub: React.FC = () => {
               <ul className="space-y-1.5 list-disc list-inside">
                 <li><strong>Listing Sidekick:</strong> Embed on property pages, QR flyers, and open-house tablets for instant answers.</li>
                 <li><strong>Sales & Marketing:</strong> Route site chat, email nurtures, and social DMs to the right specialist.</li>
-                <li><strong>Pro tip:</strong> Pair sidekick links with the Rebrandly short URLs so you can track adoption and share effortlessly.</li>
+                <li><strong>Pro tip:</strong> Pair sidekick links with your branded URLs so you can track adoption and share effortlessly.</li>
               </ul>
             </div>
           </div>

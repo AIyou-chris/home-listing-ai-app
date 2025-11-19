@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    __VITE_ENV__: 'import.meta.env'
+  },
   plugins: [react()],
   resolve: {
     // Prevent multiple React copies which cause "Invalid hook call"

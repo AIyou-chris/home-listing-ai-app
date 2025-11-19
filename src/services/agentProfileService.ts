@@ -223,7 +223,7 @@ export const getAgentProfile = async (
 export const updateAgentProfile = async (profileData: Partial<AgentProfile>, userId?: string): Promise<AgentProfile> => {
   try {
     const aiCardData = convertAgentProfileToAICard(profileData);
-    const updatedAICard = await updateAICardProfile(aiCardData, userId);
+    const updatedAICard = await updateAICardProfile(aiCardData);
     const updatedAgentProfile = convertAICardToAgentProfile(updatedAICard);
     setCachedProfiles(updatedAgentProfile, {
       aiCardProfile: updatedAICard,

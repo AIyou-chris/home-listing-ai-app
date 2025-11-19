@@ -36,6 +36,7 @@ export type View =
     | 'leads'
     | 'ai-conversations'
     | 'ai-card-builder'
+    | 'ai-card'
     | 'ai-sidekicks'
     | 'property'
     | 'add-listing'

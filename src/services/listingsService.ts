@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { Property, AIDescription, AgentProfile } from '../types'
 import { SAMPLE_AGENT } from '../constants'
+import { buildApiUrl } from '../lib/api'
 
 const PROPERTIES_TABLE = 'properties'
 
@@ -199,11 +200,24 @@ const buildRowPayload = (input: Partial<CreatePropertyInput>): Record<string, un
 }
 
 export const listingsService = {
-  async listProperties(): Promise<Property[]> {
-    const { data, error } = await supabase
+  async listProperties(agentId?: string): Promise<Property[]> {
+    let effectiveAgentId = agentId
+    if (!effectiveAgentId) {
+      const { data } = await supabase.auth.getUser()
+      effectiveAgentId = data?.user?.id ?? undefined
+    }
+
+    if (!effectiveAgentId) {
+      return []
+    }
+
+    const query = supabase
       .from(PROPERTIES_TABLE)
       .select('*')
+      .eq('agent_id', effectiveAgentId)
       .order('created_at', { ascending: false })
+
+    const { data, error } = await query
 
     if (error) {
       throw new Error(`Failed to load properties: ${error.message}`)
@@ -240,17 +254,32 @@ export const listingsService = {
       status: input.status ?? 'active'
     })
 
-    const { data, error } = await supabase
-      .from(PROPERTIES_TABLE)
-      .insert(payload)
-      .select('*')
-      .single()
-
-    if (error) {
-      throw new Error(`Failed to create property: ${error.message}`)
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    const agentId = userData?.user?.id
+    if (userError || !agentId) {
+      throw new Error('Agent must be signed in to create a property')
     }
 
-    return mapRowToProperty(data as PropertyRow)
+    const response = await fetch(buildApiUrl('/api/properties'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-agent-id': agentId
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      const errorBody = await response.text()
+      throw new Error(`Failed to create property: ${errorBody || response.statusText}`)
+    }
+
+    const result = await response.json()
+    if (!result?.property) {
+      throw new Error('Failed to create property: missing response data')
+    }
+
+    return mapRowToProperty(result.property as PropertyRow)
   },
 
   async updateProperty(id: string, input: CreatePropertyInput | Property): Promise<Property> {
@@ -287,5 +316,3 @@ export const listingsService = {
     }
   }
 }
-
-

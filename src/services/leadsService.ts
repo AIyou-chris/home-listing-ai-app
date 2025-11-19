@@ -149,6 +149,28 @@ export const leadsService = {
     return mapLeadRow(data)
   },
 
+  async findByEmail(email: string) {
+    const normalizedEmail = email?.trim().toLowerCase()
+    if (!normalizedEmail) return null
+
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return null
+    }
+
+    const { data, error } = await supabase
+      .from(LEADS_TABLE)
+      .select('*')
+      .eq('user_id', userId)
+      .ilike('email', normalizedEmail)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (error) throw error
+    if (!data || data.length === 0) return null
+    return mapLeadRow(data[0])
+  },
+
   async update(leadId: string, payload: Partial<LeadPayload>) {
     const userId = await getCurrentUserId()
     if (!userId) {

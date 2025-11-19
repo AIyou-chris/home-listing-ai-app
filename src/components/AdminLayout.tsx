@@ -117,6 +117,28 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     return defaultUsers;
   });
 
+  const [leads, setLeads] = useState<Lead[]>(() => {
+    const savedLeads = localStorage.getItem('adminLeads');
+    if (savedLeads) {
+      try {
+        return JSON.parse(savedLeads) as Lead[];
+      } catch (error) {
+        console.error('Error parsing saved leads:', error);
+      }
+    }
+    return [];
+  });
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [noteContent, setNoteContent] = useState('');
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({
+    date: '',
+    time: '',
+    type: 'Call',
+    notes: ''
+  });
+
 
   // Custom Proposal State
   const {

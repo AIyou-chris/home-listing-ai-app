@@ -2,11 +2,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Property, AgentProfile, AIDescription } from '../types';
 import { SAMPLE_AGENT } from '../constants';
-import AddTextKnowledgeModal from './AddTextKnowledgeModal';
 import ListingSidekickWidget from './ListingSidekickWidget'
-import { continueConversation } from '../services/openaiService'
 import PublicPropertyApp from './PublicPropertyApp';
 import { listingsService, type CreatePropertyInput } from '../services/listingsService';
+import { uploadListingPhoto } from '../services/listingMediaService';
+import { useAgentBranding } from '../hooks/useAgentBranding';
 
 interface AddListingPageProps {
     onCancel: () => void;
@@ -42,15 +42,17 @@ const CollapsibleSection: React.FC<{ title: string; icon: string; children: Reac
 
 
 const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initialProperty, agentProfile }) => {
+    const { uiProfile } = useAgentBranding();
     const mergedAgentProfile = useMemo<AgentProfile>(() => {
-        const combined = { ...SAMPLE_AGENT, ...(agentProfile ?? {}) } as AgentProfile;
+        const baseProfile = agentProfile ?? uiProfile ?? SAMPLE_AGENT;
+        const combined = { ...SAMPLE_AGENT, ...baseProfile } as AgentProfile;
         return {
             ...combined,
             socials: Array.isArray(combined.socials)
                 ? combined.socials.map((social) => ({ ...social }))
                 : SAMPLE_AGENT.socials.map((social) => ({ ...social }))
         };
-    }, [agentProfile]);
+    }, [agentProfile, uiProfile]);
 
     // A simplified state for demonstration. In a real app, this would be more robust.
     const [formData, setFormData] = useState({
@@ -82,6 +84,10 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
              neighborhoodVideoUrl: '', agentInterviewUrl: '', additionalMediaUrl: ''
         }
     });
+    const [photoUrlInput, setPhotoUrlInput] = useState('');
+    const [photoUrlError, setPhotoUrlError] = useState<string | null>(null);
+    const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+    const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
 
     useEffect(() => {
         setFormData(prev => ({
@@ -94,14 +100,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
     }, [mergedAgentProfile]);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [sidekickDescription, setSidekickDescription] = useState('You are the Listing Sidekick. Detail-oriented and helpful. Present property highlights and answer questions clearly.');
-    const [sidekickVoice, setSidekickVoice] = useState('Neutral Voice 1');
-    const [sidekickTestInput, setSidekickTestInput] = useState('');
-    const [sidekickTestReply, setSidekickTestReply] = useState('');
-    const [sidekickTesting, setSidekickTesting] = useState(false);
 
-    const [isTextModalOpen, setIsTextModalOpen] = useState(false);
-    
     const generatePreviewProperty = (): Property => {
         const heroPhotos = formData.heroPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p));
         if (heroPhotos.length === 0) {
@@ -200,19 +199,55 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         }
     };
 
-    // --- Knowledge Base Handlers ---
-    const handleSaveText = (data: { title: string, content: string }) => {
-        console.log("Saving text knowledge:", data);
-        setIsTextModalOpen(false);
+    const attachNewPhotos = (urls: string[]) => {
+        if (urls.length === 0) return;
+        setFormData(prev => {
+            const heroClone = [...prev.heroPhotos];
+            if (heroClone.length < 3) {
+                const space = 3 - heroClone.length;
+                heroClone.push(...urls.slice(0, space));
+            }
+            return {
+                ...prev,
+                heroPhotos: heroClone,
+                galleryPhotos: [...prev.galleryPhotos, ...urls]
+            };
+        });
     };
-    
-    const handleGalleryUpload = (fileList: FileList | null) => {
-        if (!fileList) return;
+
+    const handleAddPhotoUrl = () => {
+        const trimmed = photoUrlInput.trim();
+        if (!trimmed) {
+            setPhotoUrlError('Enter a URL to add an image.');
+            return;
+        }
+        if (!/^https?:\/\//i.test(trimmed)) {
+            setPhotoUrlError('Photo URLs must start with https://');
+            return;
+        }
+        setPhotoUrlError(null);
+        attachNewPhotos([trimmed]);
+        setPhotoUrlInput('');
+    };
+
+    const handleGalleryUpload = async (fileList: FileList | null) => {
+        if (!fileList || fileList.length === 0) return;
+        setIsUploadingPhotos(true);
+        setPhotoUploadError(null);
         const files = Array.from(fileList);
-        setFormData(prev => ({
-            ...prev,
-            galleryPhotos: [...prev.galleryPhotos, ...files]
-        }));
+        try {
+            const uploadedUrls: string[] = [];
+            for (const file of files) {
+                const uploaded = await uploadListingPhoto(file);
+                uploadedUrls.push(uploaded);
+            }
+            attachNewPhotos(uploadedUrls);
+        } catch (error) {
+            console.error('Listing photo upload failed:', error);
+            setPhotoUploadError('Unable to upload photos. Please try again.');
+        } finally {
+            setIsUploadingPhotos(false);
+        }
     };
 
 
@@ -288,23 +323,43 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                                     ))}
                                 </div>
                             </div>
-                             <div>
-                                <h4 className="font-semibold text-slate-700 mb-2 flex items-center gap-2">Import from URL <span className="material-symbols-outlined w-4 h-4 text-slate-400">info</span></h4>
+                            <div>
+                                <h4 className="font-semibold text-slate-700 mb-2 flex flex-wrap items-center gap-2">
+                                    Import from URL
+                                    <span className="material-symbols-outlined w-4 h-4 text-slate-400">info</span>
+                                </h4>
                                  <div className="flex gap-2">
-                                    <input type="url" placeholder="Paste photo URLs from Zillow, Realtor.com, or other sites" className={inputClasses} />
-                                    <button type="button" className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex-shrink-0">Add</button>
+                                    <input
+                                      type="url"
+                                      placeholder="https://cdn.example.com/house.jpg"
+                                      className={inputClasses}
+                                      value={photoUrlInput}
+                                      onChange={(event) => setPhotoUrlInput(event.target.value)}
+                                      disabled={isUploadingPhotos}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      onClick={handleAddPhotoUrl}
+                                      disabled={isUploadingPhotos}
+                                    >
+                                      Add
+                                    </button>
                                  </div>
+                                {photoUrlError && <p className="text-xs text-rose-600 mt-1">{photoUrlError}</p>}
                             </div>
                              <div className="mt-6">
-                                <h4 className="font-semibold text-slate-700 mb-2">Upload Photos</h4>
-                                 <label htmlFor="photo-upload" className="block w-full p-8 text-center bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 cursor-pointer hover:bg-slate-100 hover:border-primary-400">
-                                    <span className="material-symbols-outlined w-8 h-8 mx-auto text-slate-400 mb-2">upload</span>
-                                    <span className="text-slate-600 font-semibold">Drag & drop files here</span>
-                                    <p className="text-sm text-slate-500">or click to browse</p>
-                                    <input id="photo-upload" type="file" multiple className="hidden" onChange={(e) => handleGalleryUpload(e.target.files)}/>
-                                 </label>
-                                 {formData.galleryPhotos.length > 0 && <p className="text-sm mt-2 text-slate-600">{formData.galleryPhotos.length} photos staged for upload.</p>}
-                            </div>
+                               <h4 className="font-semibold text-slate-700 mb-2">Upload Photos</h4>
+                                <label htmlFor="photo-upload" className="block w-full p-8 text-center bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 cursor-pointer hover:bg-slate-100 hover:border-primary-400">
+                                   <span className="material-symbols-outlined w-8 h-8 mx-auto text-slate-400 mb-2">upload</span>
+                                   <span className="text-slate-600 font-semibold">Drag & drop files here</span>
+                                   <p className="text-sm text-slate-500">or click to browse</p>
+                                   <input id="photo-upload" type="file" multiple className="hidden" onChange={(e) => handleGalleryUpload(e.target.files)}/>
+                                </label>
+                                {formData.galleryPhotos.length > 0 && <p className="text-sm mt-2 text-slate-600">{formData.galleryPhotos.length} photos staged for upload.</p>}
+                                {isUploadingPhotos && <p className="text-sm mt-1 text-slate-500">Uploading photos…</p>}
+                                {photoUploadError && <p className="text-sm mt-1 text-rose-600">{photoUploadError}</p>}
+                           </div>
                         </CollapsibleSection>
                         
                         <CollapsibleSection title="Buttons & Links" icon="smart_display">
@@ -390,85 +445,13 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                         </CollapsibleSection>
                         
                         <CollapsibleSection title="Listing Sidekick" icon="smart_toy">
-                          <div className="grid grid-cols-1 gap-6">
-                            <div className="rounded-2xl border border-rose-200 bg-rose-50 overflow-hidden">
-                              <div className="px-4 py-3 border-b border-rose-200 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-rose-600">home</span>
-                                <div className="font-semibold text-slate-900">Listing Sidekick</div>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                <div>
-                                  <div className="text-sm font-semibold text-slate-800 mb-1">Who I am</div>
-                                  <textarea
-                                    rows={3}
-                                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
-                                    value={sidekickDescription}
-                                    onChange={(e) => setSidekickDescription(e.target.value)}
-                                  />
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <button type="button" className="px-3 py-2 rounded-xl text-sm bg-rose-600 hover:bg-rose-700 text-white">AI Personality</button>
-                                  <button type="button" onClick={() => setIsTextModalOpen(true)} className="px-3 py-2 rounded-xl bg-white border border-rose-200 text-sm text-rose-700 hover:bg-rose-100">Add Knowledge</button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="block text-xs text-slate-600 mb-1">Voice</label>
-                                    <select value={sidekickVoice} onChange={(e) => setSidekickVoice(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
-                                      <option>Female Voice 1</option>
-                                      <option>Female Voice 2</option>
-                                      <option>Male Voice 1</option>
-                                      <option>Male Voice 2</option>
-                                      <option>Neutral Voice 1</option>
-                                    </select>
-                                  </div>
-                                </div>
-                                <div className="rounded-xl border border-rose-200 p-3 bg-white">
-                                  <div className="text-sm font-semibold text-slate-900 mb-2">Test Personality</div>
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      value={sidekickTestInput}
-                                      onChange={(e) => setSidekickTestInput(e.target.value)}
-                                      className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                                      placeholder="Enter a question or statement to test..."
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        const q = sidekickTestInput.trim(); if (!q || sidekickTesting) return;
-                                        setSidekickTesting(true); setSidekickTestReply('');
-                                        try {
-                                          const text = await continueConversation([
-                                            { sender: 'system', text: sidekickDescription },
-                                            { sender: 'user', text: q }
-                                          ]);
-                                          setSidekickTestReply(text);
-                                        } catch {
-                                          setSidekickTestReply('Failed to get response');
-                                        } finally {
-                                          setSidekickTesting(false);
-                                        }
-                                      }}
-                                      className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm"
-                                    >
-                                      {sidekickTesting ? 'Testing...' : 'Test Responses'}
-                                    </button>
-                                  </div>
-                                  {sidekickTestReply && (
-                                    <div className="mt-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700 bg-slate-50 whitespace-pre-wrap">{sidekickTestReply}</div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="mb-2 text-sm text-slate-600">Live preview:</div>
-                              <ListingSidekickWidget property={generatePreviewProperty()} />
-                            </div>
+                          <div className="space-y-4">
+                            <div className="text-sm text-slate-600">Live preview:</div>
+                            <ListingSidekickWidget property={generatePreviewProperty()} />
                           </div>
                         </CollapsibleSection>
                     </form>
                 </div>
-                {isTextModalOpen && <AddTextKnowledgeModal onClose={() => setIsTextModalOpen(false)} onSave={handleSaveText} />}
             </div>
         </>
     );

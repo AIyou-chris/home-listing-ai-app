@@ -263,8 +263,7 @@ const AIAgentHub: React.FC = () => {
 
   const [sidekicks, setSidekicks] = useState<SidekickConfig[]>([
     { id: 'agent', title: 'Agent Sidekick', icon: 'person', tone: 'Professional', voice: 'Female Voice 1', accent: 'violet' },
-    { id: 'marketing', title: 'Marketing Sidekick', icon: 'campaign', tone: 'Enthusiastic', voice: 'Female Voice 2', accent: 'amber' },
-    { id: 'listing', title: 'Listing Sidekick', icon: 'home', tone: 'Professional', voice: 'Neutral Voice 1', accent: 'rose' }
+    { id: 'marketing', title: 'Marketing Sidekick', icon: 'campaign', tone: 'Enthusiastic', voice: 'Female Voice 2', accent: 'amber' }
   ])
 
   const [expanded, setExpanded] = useState<Record<SidekickId, boolean>>({ main: false, sales: false, listing: false, agent: false, helper: false, marketing: false, support: false })
@@ -779,7 +778,7 @@ const AIAgentHub: React.FC = () => {
                         // Upload to Supabase
                         if (files.length > 0) {
                           setIsUploadingFiles(true)
-                          const activeFor: SidekickId = showKnowledge ?? 'listing'
+                          const activeFor: SidekickId = showKnowledge ?? 'agent'
                           const userId = getUserId()
                           try {
                             for (const f of files) {
@@ -825,7 +824,7 @@ const AIAgentHub: React.FC = () => {
                     const textBody = kText.trim()
                     const safeTitle = (kTitle.trim() || textBody.slice(0, 60) || 'Text Note').replace(/\s+/g, ' ').trim()
                     if (!textBody) return
-                    const target: SidekickId = showKnowledge ?? 'listing'
+                    const target: SidekickId = showKnowledge ?? 'agent'
                     const userId = getUserId()
                     try {
                       const row = await addTextKb(userId, target, safeTitle, textBody)
@@ -864,7 +863,7 @@ const AIAgentHub: React.FC = () => {
                   <button onClick={async () => {
                     const raw = kUrl.trim()
                     if (!raw) return
-                    const target: SidekickId = showKnowledge ?? 'listing'
+                    const target: SidekickId = showKnowledge ?? 'agent'
                     const userId = getUserId()
                     setIsScraping(true)
                     try {

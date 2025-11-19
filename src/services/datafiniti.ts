@@ -76,6 +76,7 @@ type DatafinitiRecord = Partial<DatafinitiProperty> & Record<string, unknown>;
 
 interface DatafinitiSearchResponse {
   records?: DatafinitiRecord[];
+  [key: string]: unknown;
 }
 
 class DatafinitiService {

@@ -25,6 +25,7 @@ import {
   type ConversationRow,
   type MessageRow
 } from '../services/chatService';
+import { supabase } from '../services/supabase';
 
 type ConversationType = 'chat' | 'voice' | 'email';
 type ConversationStatus = 'active' | 'archived' | 'important' | 'follow-up';
@@ -190,25 +191,45 @@ const AIConversationsPage: React.FC = () => {
   const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
   const [isDetailExpanded, setIsDetailExpanded] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [syncAgeSeconds, setSyncAgeSeconds] = useState(0);
   const welcomeSeededRef = useRef(false);
 
   const loadConversations = useCallback(async () => {
     try {
       setLoadingConversations(true);
       setError(null);
-      const rows = await listConversations();
+      const rows = await listConversations({
+        userId: currentUserId ?? undefined,
+        scope: 'agent'
+      });
       const mapped = rows.map(mapConversationRowToSummary);
       setConversations(mapped);
       if (mapped.length && !selectedConversationId) {
         setSelectedConversationId(mapped[0].id);
       }
+      setLastSyncedAt(new Date());
     } catch (err: unknown) {
       console.error('Failed to load conversations:', err);
       setError('Failed to load conversations.');
     } finally {
       setLoadingConversations(false);
     }
-  }, [selectedConversationId]);
+  }, [selectedConversationId, currentUserId]);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        setCurrentUserId(data?.user?.id ?? null);
+      } catch (error) {
+        console.error('Failed to resolve Supabase user for conversations:', error);
+        setCurrentUserId(null);
+      }
+    };
+    fetchUser();
+  }, []);
 
   useEffect(() => {
     loadConversations();
@@ -230,7 +251,8 @@ const AIConversationsPage: React.FC = () => {
           language: 'English',
           tags: ['Demo', 'AI Sidekick'],
           followUpTask: 'Try sending a reply or archiving this conversation.',
-          metadata: { demo: true, duration: '00:45' }
+          metadata: { demo: true, duration: '00:45' },
+          userId: currentUserId
         });
 
         await appendMessage({
@@ -238,14 +260,16 @@ const AIConversationsPage: React.FC = () => {
           role: 'ai',
           channel: 'chat',
           content:
-            '👋 Welcome! This demo conversation shows how AI captures chats, voice notes, and translations. Click around to explore filters, insights, and exports.'
+            '👋 Welcome! This demo conversation shows how AI captures chats, voice notes, and translations. Click around to explore filters, insights, and exports.',
+          userId: currentUserId
         });
 
         await appendMessage({
           conversationId: demoConversation.id,
           role: 'user',
           channel: 'chat',
-          content: 'Note: You can delete this sample conversation any time once you get the hang of things.'
+          content: 'Note: You can delete this sample conversation any time once you get the hang of things.',
+          userId: currentUserId
         });
 
         await loadConversations();
@@ -257,7 +281,7 @@ const AIConversationsPage: React.FC = () => {
     if (!loadingConversations && conversations.length === 0) {
       ensureWelcomeConversation();
     }
-  }, [loadingConversations, conversations.length, loadConversations]);
+  }, [loadingConversations, conversations.length, loadConversations, currentUserId]);
 
   useEffect(() => {
     setIsDetailExpanded(false);
@@ -321,6 +345,21 @@ const AIConversationsPage: React.FC = () => {
     }
   }, [selectedConversationId, messagesByConversation]);
 
+  useEffect(() => {
+    if (!lastSyncedAt) {
+      setSyncAgeSeconds(0);
+      return;
+    }
+
+    const updateAge = () => {
+      setSyncAgeSeconds(Math.max(0, Math.floor((Date.now() - lastSyncedAt.getTime()) / 1000)));
+    };
+
+    updateAge();
+    const timer = setInterval(updateAge, 1000);
+    return () => clearInterval(timer);
+  }, [lastSyncedAt]);
+
   const selectedConversationSummary = useMemo(() => {
     if (!selectedConversationId) return null;
     return conversations.find((conv) => conv.id === selectedConversationId) || null;
@@ -350,7 +389,10 @@ const AIConversationsPage: React.FC = () => {
   const handleExportConversations = async () => {
     try {
       setIsExporting(true);
-      await exportConversationsCSV();
+      await exportConversationsCSV({
+        scope: 'agent',
+        userId: currentUserId ?? undefined
+      });
     } catch (err) {
       console.error('Failed to export conversations:', err);
       setError('Failed to export conversations.');
@@ -419,6 +461,11 @@ const AIConversationsPage: React.FC = () => {
               <p className="text-slate-600 mt-1">
                 One hub for every AI chat, voice note, translation, and follow-up.
               </p>
+              {lastSyncedAt && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Last synced {syncAgeSeconds}s ago
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <button

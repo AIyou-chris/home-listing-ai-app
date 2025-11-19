@@ -110,6 +110,88 @@ console.log('[server] has service role?', Boolean(process.env.SUPABASE_SERVICE_R
 const FOLLOW_UP_SEQUENCES_TABLE = 'follow_up_sequences_store';
 const FOLLOW_UP_ACTIVE_TABLE = 'follow_up_active_store';
 
+const useLocalAiCardStore = !Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+const localAiCardStore = new Map();
+const normalizeAiCardUserId = (userId) => (userId ? userId.trim().toLowerCase() : 'default');
+
+const useLocalConversationStore = useLocalAiCardStore;
+const localConversationStore = new Map();
+const localConversationMessages = new Map();
+const normalizeConversationUserId = (userId) => normalizeAiCardUserId(userId);
+const DEMO_CONVERSATIONS = [
+  {
+    id: 'demo-conv-1',
+    userId: 'demo-user',
+    scope: 'agent',
+    listingId: null,
+    leadId: null,
+    title: 'Demo Welcome Conversation',
+    contactName: 'Demo Lead',
+    contactEmail: 'demo@lead.com',
+    contactPhone: '(555) 555-0123',
+    type: 'chat',
+    intent: 'welcome',
+    language: 'en',
+    property: null,
+    tags: ['welcome'],
+    voiceTranscript: null,
+    followUpTask: null,
+    metadata: {},
+    status: 'active',
+    lastMessage: 'Hi there! How can we help?',
+    lastMessageAt: new Date().toISOString(),
+    messageCount: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+const ensureLocalConversations = (userId) => {
+  const key = normalizeConversationUserId(userId);
+  if (!localConversationStore.has(key)) {
+    localConversationStore.set(
+      key,
+      DEMO_CONVERSATIONS.map((conv) => ({
+        ...conv,
+        id: `${conv.id}-${key}`,
+        userId: key
+      }))
+    );
+  }
+  return localConversationStore.get(key);
+};
+
+const ensureLocalMessages = (conversationId) => {
+  if (!localConversationMessages.has(conversationId)) {
+    localConversationMessages.set(conversationId, [
+      {
+        id: `${conversationId}-msg-1`,
+        conversation_id: conversationId,
+        user_id: 'demo-user',
+        sender: 'ai',
+        channel: 'chat',
+        content: 'Welcome to HomeListing AI! This is a demo conversation.',
+        translation: null,
+        metadata: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    ]);
+  }
+  return localConversationMessages.get(conversationId);
+};
+
+const respondWithLocalConversations = (ownerId, res) => {
+  const list = ensureLocalConversations(ownerId || DEFAULT_LEAD_USER_ID);
+  return res.json(list.map(mapAiConversationFromRow));
+};
+
+const respondWithLocalMessage = (conversationId, res, message) => {
+  const messages = ensureLocalMessages(conversationId);
+  messages.push(message);
+  return res.json(message);
+};
+
 const marketingStore = {
   async loadSequences(ownerId) {
     if (!ownerId || !supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -420,6 +502,7 @@ const createMailgunHandler = (contextLabel) => async (req, res) => {
 
 // In-memory storage for real data (in production, this would be a database)
 let users = [];
+const listings = [];
 
 const DEFAULT_LEAD_USER_ID =
   process.env.DEFAULT_LEAD_USER_ID || '75114b93-e1c8-4d54-9e43-dd557d9e3ad9';
@@ -1062,10 +1145,6 @@ const mapAiCardProfileToRow = (profileData = {}) => {
   if (profileData.website !== undefined) payload.website = profileData.website;
   if (profileData.bio !== undefined) payload.bio = profileData.bio;
   if (profileData.brandColor !== undefined) payload.brand_color = profileData.brandColor;
-  if (profileData.language !== undefined) {
-    const normalized = String(profileData.language || '').trim().toLowerCase()
-    payload.language = normalized.length > 0 ? normalized : DEFAULT_AI_CARD_PROFILE.language;
-  }
   if (profileData.socialMedia !== undefined) payload.social_media = profileData.socialMedia;
 
   if (profileData.headshot !== undefined) {
@@ -1119,10 +1198,29 @@ const uploadDataUrlToStorage = async (userId, type, dataUrl, mimeTypeHint) => {
   return assetPath;
 };
 
+const createSignedAssetUrl = async (path) => {
+  if (!path) return null;
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from('ai-card-assets')
+      .createSignedUrl(path, 60 * 60 * 24 * 30);
+    if (error) {
+      console.warn('[Storage] Could not create signed URL for', path, error);
+      return null;
+    }
+    return data?.signedUrl || null;
+  } catch (error) {
+    console.error('[Storage] Error creating signed URL for', path, error);
+    return null;
+  }
+};
+
 const normalizeAiCardProfileAssets = async (userId, profileData = {}) => {
   const normalized = { ...profileData };
 
   const processAsset = async (key) => {
+    if (useLocalAiCardStore) return;
+
     const value = normalized[key];
     if (!value || typeof value !== 'string') return;
     if (!isDataUrl(value)) return;
@@ -1153,20 +1251,33 @@ const normalizeAiCardProfileAssets = async (userId, profileData = {}) => {
 
 async function fetchAiCardProfileForUser(userId) {
   if (!userId) return null;
-  const { data, error } = await supabaseAdmin
-    .from('ai_card_profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (error && error.code !== 'PGRST116') {
-    throw error;
+  if (useLocalAiCardStore) {
+    const key = normalizeAiCardUserId(userId);
+    const cached = localAiCardStore.get(key);
+    if (!cached) return null;
+    return mapAiCardProfileFromRow(cached);
   }
 
-  if (!data) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('ai_card_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      console.warn('[AI Card] Failed to load profile from Supabase:', error.message || error);
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+    return mapAiCardProfileFromRow(data);
+  } catch (error) {
+    console.warn('[AI Card] Supabase profile lookup error:', error?.message || error);
     return null;
   }
-  return mapAiCardProfileFromRow(data);
 }
 
 const AI_CONVERSATION_SELECT_FIELDS =
@@ -1235,6 +1346,20 @@ async function upsertAiCardProfileForUser(userId, profileData, { mergeDefaults =
     ...mapAiCardProfileToRow(sourceData),
     updated_at: new Date().toISOString()
   };
+
+  if (useLocalAiCardStore) {
+    const key = normalizeAiCardUserId(userId);
+    const existing = localAiCardStore.get(key);
+    const row = {
+      ...existing,
+      ...payload,
+      id: existing?.id || userId,
+      created_at: existing?.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    localAiCardStore.set(key, row);
+    return mapAiCardProfileFromRow(row);
+  }
 
   const { data, error } = await supabaseAdmin
     .from('ai_card_profiles')
@@ -3941,6 +4066,33 @@ app.put('/api/sidekicks/:sidekickId/voice', async (req, res) => {
   }
 });
 
+app.delete('/api/sidekicks/:sidekickId', async (req, res) => {
+  try {
+    const { sidekickId } = req.params;
+    const existingRow = await getSidekickRowById(sidekickId);
+    if (!existingRow) {
+      return res.status(404).json({ error: 'Sidekick not found' });
+    }
+
+    await supabaseAdmin
+      .from('ai_sidekick_training_feedback')
+      .delete()
+      .eq('sidekick_id', sidekickId);
+
+    const { error } = await supabaseAdmin
+      .from('ai_sidekick_profiles')
+      .delete()
+      .eq('id', sidekickId);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting sidekick:', error);
+    res.status(500).json({ error: 'Failed to delete AI sidekick' });
+  }
+});
+
 app.post('/api/sidekicks/:sidekickId/knowledge', async (req, res) => {
   try {
     const { sidekickId } = req.params;
@@ -4330,6 +4482,9 @@ const ensureConversationOwner = (explicitUserId) => explicitUserId || DEFAULT_LE
 
 // Create a new conversation
 app.post('/api/conversations', async (req, res) => {
+  let ownerId = null;
+  let insertPayload = null;
+
   try {
     const {
       userId,
@@ -4350,13 +4505,13 @@ app.post('/api/conversations', async (req, res) => {
       metadata
     } = req.body || {};
 
-    const ownerId = ensureConversationOwner(userId);
+    ownerId = ensureConversationOwner(userId);
     if (!ownerId) {
       return res.status(400).json({ error: 'userId is required to create a conversation' });
     }
 
     const now = new Date().toISOString();
-    const insertPayload = {
+    insertPayload = {
       user_id: ownerId,
       scope,
       listing_id: listingId || null,
@@ -4381,6 +4536,22 @@ app.post('/api/conversations', async (req, res) => {
       updated_at: now
     };
 
+    if (useLocalConversationStore) {
+      const list = ensureLocalConversations(ownerId);
+      const now = new Date().toISOString();
+      const row = {
+        ...insertPayload,
+        id: `local-${ownerId}-${Date.now()}`,
+        user_id: ownerId,
+        created_at: now,
+        updated_at: now
+      };
+      list.unshift(row);
+      ensureLocalMessages(row.id);
+      console.log(`💬 Created local conversation: ${row.id}`);
+      return res.json(mapAiConversationFromRow(row));
+    }
+
     const { data, error } = await supabaseAdmin
       .from('ai_conversations')
       .insert(insertPayload)
@@ -4395,15 +4566,30 @@ app.post('/api/conversations', async (req, res) => {
     res.json(mapAiConversationFromRow(data));
   } catch (error) {
     console.error('Error creating conversation:', error);
+    if (!useLocalConversationStore) {
+      const list = ensureLocalConversations(ownerId || DEFAULT_LEAD_USER_ID);
+      const now = new Date().toISOString();
+      const row = {
+        ...(insertPayload || {}),
+        id: `local-${ownerId}-${Date.now()}`,
+        user_id: ownerId,
+        created_at: now,
+        updated_at: now
+      };
+      list.unshift(row);
+      ensureLocalMessages(row.id);
+      console.log(`💬 Falling back to local conversation: ${row.id}`);
+      return res.json(mapAiConversationFromRow(row));
+    }
     res.status(500).json({ error: 'Failed to create conversation' });
   }
 });
 
 // List conversations
 app.get('/api/conversations', async (req, res) => {
+  const { userId, scope, listingId, status } = req.query;
+  const ownerId = ensureConversationOwner(userId);
   try {
-    const { userId, scope, listingId, status } = req.query;
-    const ownerId = ensureConversationOwner(userId);
     if (!ownerId) {
       return res.json([]);
     }
@@ -4412,11 +4598,17 @@ app.get('/api/conversations', async (req, res) => {
       .from('ai_conversations')
       .select(AI_CONVERSATION_SELECT_FIELDS)
       .eq('user_id', ownerId)
-      .order('COALESCE(last_message_at, created_at)', { ascending: false });
+      .order('last_message_at', { ascending: false, nulls: 'last' })
+      .order('created_at', { ascending: false, nulls: 'last' });
 
     if (scope) query = query.eq('scope', scope);
     if (listingId) query = query.eq('listing_id', listingId);
     if (status) query = query.eq('status', status);
+
+    if (useLocalConversationStore) {
+      const list = ensureLocalConversations(ownerId);
+      return res.json(list.map(mapAiConversationFromRow));
+    }
 
     const { data, error } = await query;
     if (error) {
@@ -4426,6 +4618,10 @@ app.get('/api/conversations', async (req, res) => {
     res.json((data || []).map(mapAiConversationFromRow));
   } catch (error) {
     console.error('Error listing conversations:', error);
+    if (!useLocalConversationStore) {
+      respondWithLocalConversations(ownerId, res);
+      return;
+    }
     res.status(500).json({ error: 'Failed to list conversations' });
   }
 });
@@ -4435,6 +4631,15 @@ app.get('/api/conversations/:conversationId/messages', async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { limit = 100 } = req.query;
+
+    if (useLocalConversationStore) {
+      const messages = ensureLocalMessages(conversationId);
+      return res.json(messages.slice(0, limit));
+    }
+
+    if (!isUuid(conversationId)) {
+      return res.json([]);
+    }
 
     const { data, error } = await supabaseAdmin
       .from('ai_conversation_messages')
@@ -4456,9 +4661,32 @@ app.get('/api/conversations/:conversationId/messages', async (req, res) => {
 
 // Add a message to a conversation
 app.post('/api/conversations/:conversationId/messages', async (req, res) => {
+  const { conversationId } = req.params;
+  const { role, content, userId, metadata, translation, channel } = req.body || {};
+  const now = new Date().toISOString();
   try {
-    const { conversationId } = req.params;
-    const { role, content, userId, metadata, translation, channel } = req.body || {};
+
+    if (useLocalConversationStore) {
+      const messages = ensureLocalMessages(conversationId);
+      const message = {
+        id: `${conversationId}-msg-${messages.length + 1}`,
+        conversation_id: conversationId,
+        user_id: userId || 'demo-user',
+        sender: role || 'user',
+        channel: channel || 'chat',
+        content,
+        translation: translation || null,
+        metadata: metadata || {},
+        created_at: now,
+        updated_at: now
+      };
+      messages.push(message);
+      return res.json(message);
+    }
+
+    if (!isUuid(conversationId)) {
+      return res.status(400).json({ error: 'Invalid conversation id' });
+    }
 
     const { data: conversation, error: conversationError } = await supabaseAdmin
       .from('ai_conversations')
@@ -4512,6 +4740,22 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
     res.json(mapAiConversationMessageFromRow(messageRow));
   } catch (error) {
     console.error('Error adding message:', error);
+    if (!useLocalConversationStore) {
+      const fallbackMessage = {
+        id: `${conversationId}-msg-fallback-${Date.now()}`,
+        conversation_id: conversationId,
+        user_id: userId || 'demo-user',
+        sender: role === 'user' ? 'agent' : 'ai',
+        channel: channel || 'chat',
+        content: content || '',
+        translation: translation || null,
+        metadata: metadata || {},
+        created_at: now,
+        updated_at: now
+      };
+      respondWithLocalMessage(conversationId, res, fallbackMessage);
+      return;
+    }
     res.status(500).json({ error: 'Failed to add message' });
   }
 });
@@ -4520,7 +4764,7 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
 app.put('/api/conversations/:conversationId', async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const { title, status, last_message_at, followUpTask, intent, language } = req.body || {};
+    const { title, status, last_message_at, followUpTask, intent, language, leadId, contactName, contactEmail, contactPhone } = req.body || {};
 
     const updates = {
       updated_at: new Date().toISOString()
@@ -4532,6 +4776,10 @@ app.put('/api/conversations/:conversationId', async (req, res) => {
     if (followUpTask !== undefined) updates.follow_up_task = followUpTask || null;
     if (intent !== undefined) updates.intent = intent || null;
     if (language !== undefined) updates.language = language || null;
+    if (leadId !== undefined) updates.lead_id = leadId || null;
+    if (contactName !== undefined) updates.contact_name = contactName || null;
+    if (contactEmail !== undefined) updates.contact_email = contactEmail || null;
+    if (contactPhone !== undefined) updates.contact_phone = contactPhone || null;
 
     const { data, error } = await supabaseAdmin
       .from('ai_conversations')
@@ -5399,10 +5647,39 @@ app.delete('/api/appointments/:appointmentId', async (req, res) => {
 
 // Listing/Property Management Endpoints
 
+// Upload listing photo (handled by backend so uploads use service role key)
+app.post('/api/listings/photo-upload', async (req, res) => {
+  try {
+    const { dataUrl, fileName, userId } = req.body || {};
+    if (!dataUrl) {
+      return res.status(400).json({ error: 'dataUrl is required' });
+    }
+
+    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'userId is required to upload a listing photo' });
+    }
+
+    const storedPath = await uploadDataUrlToStorage(targetUserId, 'listing', dataUrl);
+    const signedUrl = await createSignedAssetUrl(storedPath);
+
+    console.log(`🏗️ Uploaded listing photo for ${targetUserId} → ${storedPath}`);
+    res.json({
+      path: storedPath,
+      url: signedUrl || storedPath,
+      fileName: fileName || ''
+    });
+  } catch (error) {
+    console.error('Error uploading listing photo:', error);
+    res.status(500).json({ error: 'Failed to upload listing photo' });
+  }
+});
+
 // Get all listings
 app.get('/api/listings', (req, res) => {
     try {
         const { status, agentId, priceMin, priceMax, bedrooms, propertyType } = req.query;
+        const ownerId = req.query.userId || req.query.user_id;
         let filteredListings = [...listings];
         
         // Filter by status
@@ -5412,7 +5689,14 @@ app.get('/api/listings', (req, res) => {
         
         // Filter by agent
         if (agentId) {
-            filteredListings = filteredListings.filter(listing => listing.agent.id === agentId);
+            filteredListings = filteredListings.filter(
+                listing => listing.agent.id === agentId || listing.agentId === agentId
+            );
+        }
+        
+        // Filter by owner/user
+        if (ownerId) {
+            filteredListings = filteredListings.filter(listing => listing.ownerId === ownerId);
         }
         
         // Filter by price range
@@ -5455,33 +5739,77 @@ app.get('/api/listings', (req, res) => {
 });
 
 // Create new listing
-app.post('/api/listings', (req, res) => {
+app.post('/api/listings', async (req, res) => {
     try {
-        const { title, address, price, bedrooms, bathrooms, squareFeet, propertyType, description, features, heroPhotos, galleryPhotos, agentId } = req.body;
-        
-        if (!title || !address || !price) {
-            return res.status(400).json({ error: 'Title, address, and price are required' });
-        }
-        
-        // Get agent profile for listing
-        const agentProfile = aiCardProfiles[agentId || 'default'] || aiCardProfiles.default;
-        
-        const newListing = {
-            id: `listing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        const {
             title,
             address,
-            price: parseInt(price),
-            bedrooms: parseInt(bedrooms) || 0,
-            bathrooms: parseInt(bathrooms) || 0,
-            squareFeet: parseInt(squareFeet) || 0,
-            propertyType: propertyType || 'Single-Family Home',
-            description: description || '',
-            features: features || [],
-            heroPhotos: heroPhotos || [],
-            galleryPhotos: galleryPhotos || [],
+            price,
+            bedrooms,
+            bathrooms,
+            squareFeet,
+            propertyType,
+            description,
+            features,
+            heroPhotos,
+            galleryPhotos,
+            agentId,
+            userId,
+            user_id
+        } = req.body || {};
+
+        const ownerId = userId || user_id || DEFAULT_LEAD_USER_ID;
+        if (!ownerId) {
+            return res.status(400).json({
+                error: 'Listing owner is required (userId or DEFAULT_LEAD_USER_ID).'
+            });
+        }
+
+        if (!title || !address || price === undefined || price === null || price === '') {
+            return res.status(400).json({ error: 'Title, address, and price are required' });
+        }
+
+        const priceValue = Number(price);
+        if (!Number.isFinite(priceValue) || priceValue < 0) {
+            return res.status(400).json({ error: 'Price must be a non-negative number' });
+        }
+
+        const agentOwnerId = agentId || ownerId;
+        const agentProfile =
+            (await fetchAiCardProfileForUser(agentOwnerId)) || DEFAULT_AI_CARD_PROFILE;
+
+        const bedroomsCount = parseInt(bedrooms, 10) || 0;
+        const bathroomsCount = parseInt(bathrooms, 10) || 0;
+        const squareFeetCount = parseInt(squareFeet, 10) || 0;
+        const propertyTypeValue =
+            ((propertyType || 'Single-Family Home').trim()) || 'Single-Family Home';
+        const descriptionValue = description || '';
+        const ensureArray = (value) =>
+            Array.isArray(value) ? value : value ? [value] : [];
+        const featuresArray = ensureArray(features);
+        const heroPhotosArray = ensureArray(heroPhotos);
+        const galleryPhotosArray = ensureArray(galleryPhotos);
+
+        const formattedPrice = priceValue.toLocaleString('en-US');
+        const propertyTypeTag = propertyTypeValue.replace(/\s+/g, '');
+
+        const newListing = {
+            id: `listing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            ownerId,
+            agentId: agentOwnerId,
+            title,
+            address,
+            price: priceValue,
+            bedrooms: bedroomsCount,
+            bathrooms: bathroomsCount,
+            squareFeet: squareFeetCount,
+            propertyType: propertyTypeValue,
+            description: descriptionValue,
+            features: featuresArray,
+            heroPhotos: heroPhotosArray,
+            galleryPhotos: galleryPhotosArray,
             status: 'active',
             listingDate: new Date().toISOString().split('T')[0],
-            // Add agent information from centralized profile
             agent: {
                 id: agentProfile.id,
                 name: agentProfile.fullName,
@@ -5493,7 +5821,6 @@ app.post('/api/listings', (req, res) => {
                 headshotUrl: agentProfile.headshot,
                 brandColor: agentProfile.brandColor
             },
-            // Initialize marketing data
             marketing: {
                 views: 0,
                 inquiries: 0,
@@ -5502,22 +5829,23 @@ app.post('/api/listings', (req, res) => {
                 socialShares: 0,
                 leadGenerated: 0
             },
-            // AI-generated content placeholder
             aiContent: {
-                marketingDescription: `Discover this amazing ${propertyType.toLowerCase()} at ${address}. ${description}`,
+                marketingDescription: `Discover this amazing ${propertyTypeValue.toLowerCase()} at ${address}. ${descriptionValue}`,
                 socialMediaPosts: [
-                    `🏠✨ NEW LISTING! ${title} - ${bedrooms}BR/${bathrooms}BA ${propertyType} for $${price.toLocaleString()}! ${address} #RealEstate #NewListing #${propertyType.replace(/\s+/g, '')}`,
-                    `Don't miss this incredible opportunity! ${title} offers ${squareFeet} sq ft of luxury living. Contact ${agentProfile.fullName} today! 🏡`
+                    `🏠✨ NEW LISTING! ${title} - ${bedroomsCount}BR/${bathroomsCount}BA ${propertyTypeValue} for $${formattedPrice}! ${address} #RealEstate #NewListing #${propertyTypeTag}`,
+                    `Don't miss this incredible opportunity! ${title} offers ${squareFeetCount} sq ft of luxury living. Contact ${agentProfile.fullName} today! 🏡`
                 ],
-                emailTemplate: `Subject: New Listing - ${title}\n\nDear [Name],\n\nI'm excited to share this incredible new listing with you!\n\n${title}\n${address}\nPrice: $${price.toLocaleString()}\n${bedrooms} Bedrooms, ${bathrooms} Bathrooms\n${squareFeet} Square Feet\n\n${description}\n\nBest regards,\n${agentProfile.fullName}\n${agentProfile.company}`
+                emailTemplate: `Subject: New Listing - ${title}\n\nDear [Name],\n\nI'm excited to share this incredible new listing with you!\n\n${title}\n${address}\nPrice: $${formattedPrice}\n${bedroomsCount} Bedrooms, ${bathroomsCount} Bathrooms\n${squareFeetCount} Square Feet\n\n${descriptionValue}\n\nBest regards,\n${agentProfile.fullName}\n${agentProfile.company}`
             },
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
         };
-        
+
         listings.push(newListing);
-        
-        console.log(`🏠 Created listing: ${title} at ${address} (Agent: ${agentProfile.fullName})`);
+
+        console.log(
+            `🏠 Created listing: ${title} at ${address} (Owner: ${ownerId}, Agent: ${agentProfile.fullName || agentOwnerId})`
+        );
         res.json(newListing);
     } catch (error) {
         console.error('Error creating listing:', error);
@@ -5601,6 +5929,327 @@ app.get('/api/listings/:listingId/marketing', (req, res) => {
         res.status(500).json({ error: 'Failed to get marketing data' });
     }
 });
+
+const PROPERTY_IMAGE_PLACEHOLDER =
+  'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto=format&fit=crop'
+
+const SOCIAL_PLATFORM_ALIAS = Object.freeze({
+  twitter: 'Twitter',
+  pinterest: 'Pinterest',
+  linkedin: 'LinkedIn',
+  youtube: 'YouTube',
+  facebook: 'Facebook',
+  instagram: 'Instagram'
+})
+
+const STATUS_MAP = Object.freeze({
+  active: 'active',
+  pending: 'pending',
+  sold: 'sold'
+})
+
+const normalizeStringValue = (value) => {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length ? trimmed : undefined
+}
+
+const normalizeNumberValue = (value) => {
+  if (value === null || value === undefined) return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+const normalizeTimestamp = (value) => {
+  const normalized = normalizeStringValue(value)
+  if (!normalized) return undefined
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) return undefined
+  return date.toISOString()
+}
+
+const sanitizeStringArray = (value) => {
+  if (!Array.isArray(value)) return undefined
+  const sanitized = value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean)
+  return sanitized
+}
+
+const sanitizePhotoArray = (value, { defaultIfEmpty = false } = {}) => {
+  if (!Array.isArray(value)) return undefined
+  const sanitized = value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean)
+  if (sanitized.length) return sanitized
+  if (defaultIfEmpty) return [PROPERTY_IMAGE_PLACEHOLDER]
+  return null
+}
+
+const sanitizeStatusValue = (value) => {
+  const normalized = normalizeStringValue(value)
+  if (!normalized) return undefined
+  return STATUS_MAP[normalized.toLowerCase()] || undefined
+}
+
+const sanitizeDescriptionValue = (value) => {
+  if (value === null) return null
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed.length ? trimmed : undefined
+  }
+  if (value && typeof value === 'object') {
+    const title = normalizeStringValue(value.title)
+    const paragraphs = Array.isArray(value.paragraphs)
+      ? value.paragraphs
+          .map((paragraph) => (typeof paragraph === 'string' ? paragraph.trim() : ''))
+          .filter(Boolean)
+      : []
+    if (title || paragraphs.length) {
+      return { title: title || '', paragraphs }
+    }
+    return null
+  }
+  return undefined
+}
+
+const sanitizeAppFeaturesValue = (value) => {
+  if (value === null) return null
+  if (!value || typeof value !== 'object') return undefined
+  const sanitized = {}
+  for (const [key, raw] of Object.entries(value)) {
+    if (typeof raw === 'boolean') {
+      sanitized[key] = raw
+    } else if (typeof raw === 'string') {
+      if (raw === 'true') sanitized[key] = true
+      else if (raw === 'false') sanitized[key] = false
+    }
+  }
+  return Object.keys(sanitized).length ? sanitized : null
+}
+
+const sanitizeAgentSnapshotValue = (value) => {
+  if (value === null) return null
+  if (!value || typeof value !== 'object') return null
+  const fieldNames = [
+    'name',
+    'slug',
+    'title',
+    'company',
+    'phone',
+    'email',
+    'headshotUrl',
+    'brandColor',
+    'logoUrl',
+    'website',
+    'bio',
+    'language'
+  ]
+  const sanitized = {}
+  fieldNames.forEach((field) => {
+    const normalized = normalizeStringValue(value[field])
+    if (normalized) {
+      sanitized[field] = normalized
+    }
+  })
+
+  const socials = Array.isArray(value.socials) ? value.socials : []
+  const sanitizedSocials = socials
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const platformRaw = normalizeStringValue(item.platform)
+      const normalizedPlatform = platformRaw && SOCIAL_PLATFORM_ALIAS[platformRaw.toLowerCase()]
+      const url = normalizeStringValue(item.url)
+      if (normalizedPlatform && url) {
+        return { platform: normalizedPlatform, url }
+      }
+      return null
+    })
+    .filter(Boolean)
+
+  if (sanitizedSocials.length) {
+    sanitized.socials = sanitizedSocials
+  }
+
+  return Object.keys(sanitized).length ? sanitized : null
+}
+
+const sanitizePropertyPayload = (body = {}, agentId) => {
+  const now = new Date().toISOString()
+  const payload = {
+    agent_id: agentId,
+    updated_at: now,
+    created_at: normalizeTimestamp(body.created_at) || now
+  }
+
+  const title = normalizeStringValue(body.title)
+  if (title) payload.title = title
+
+  const address = normalizeStringValue(body.address)
+  if (address) payload.address = address
+
+  const price = normalizeNumberValue(body.price)
+  if (price !== undefined) payload.price = price
+
+  const bedrooms = normalizeNumberValue(body.bedrooms)
+  if (bedrooms !== undefined) payload.bedrooms = bedrooms
+
+  const bathrooms = normalizeNumberValue(body.bathrooms)
+  if (bathrooms !== undefined) payload.bathrooms = bathrooms
+
+  const squareFeet = normalizeNumberValue(body.square_feet ?? body.squareFeet)
+  if (squareFeet !== undefined) payload.square_feet = squareFeet
+
+  const propertyType = normalizeStringValue(body.property_type ?? body.propertyType)
+  if (propertyType) payload.property_type = propertyType
+
+  const status = sanitizeStatusValue(body.status)
+  if (status) payload.status = status
+
+  const description = sanitizeDescriptionValue(body.description)
+  if (description !== undefined) payload.description = description
+
+  if (Array.isArray(body.features)) {
+    payload.features = sanitizeStringArray(body.features)
+  } else if (body.features === null) {
+    payload.features = null
+  }
+
+  const heroPhotos = sanitizePhotoArray(body.hero_photos ?? body.heroPhotos, { defaultIfEmpty: true })
+  if (heroPhotos !== undefined) {
+    payload.hero_photos = heroPhotos
+  } else {
+    payload.hero_photos = [PROPERTY_IMAGE_PLACEHOLDER]
+  }
+
+  const galleryPhotos = sanitizePhotoArray(body.gallery_photos ?? body.galleryPhotos)
+  if (galleryPhotos !== undefined) {
+    payload.gallery_photos = galleryPhotos
+  }
+
+  const ctaListingUrl = normalizeStringValue(body.cta_listing_url ?? body.ctaListingUrl)
+  if (ctaListingUrl !== undefined) {
+    payload.cta_listing_url = ctaListingUrl
+  } else if (body.cta_listing_url === null || body.ctaListingUrl === null) {
+    payload.cta_listing_url = null
+  }
+
+  const ctaMediaUrl = normalizeStringValue(body.cta_media_url ?? body.ctaMediaUrl)
+  if (ctaMediaUrl !== undefined) {
+    payload.cta_media_url = ctaMediaUrl
+  } else if (body.cta_media_url === null || body.ctaMediaUrl === null) {
+    payload.cta_media_url = null
+  }
+
+  const appFeatures = sanitizeAppFeaturesValue(body.app_features ?? body.appFeatures)
+  if (appFeatures !== undefined) {
+    payload.app_features = appFeatures
+  }
+
+  const agentSnapshot = sanitizeAgentSnapshotValue(body.agent_snapshot ?? body.agentSnapshot)
+  if (agentSnapshot !== undefined) {
+    payload.agent_snapshot = agentSnapshot
+  }
+
+  return payload
+}
+
+const logPropertyAudit = async (agentId, action, details = {}, severity = 'info', requestId = '') => {
+  try {
+    await supabaseAdmin.from('audit_logs').insert({
+      user_id: agentId || 'system',
+      action,
+      resource_type: 'properties',
+      severity,
+      details: { ...details, requestId },
+      created_at: new Date().toISOString()
+    })
+  } catch (auditError) {
+    console.error(`[${requestId}] Failed to write audit log (${action}):`, auditError)
+  }
+}
+
+const raisePropertyAlert = async (description, requestId, severity = 'warning') => {
+  try {
+    await supabaseAdmin.from('security_alerts').insert({
+      alert_type: 'property_create_failure',
+      description: `${description} (request ${requestId})`,
+      severity,
+      resolved: false,
+      created_at: new Date().toISOString()
+    })
+  } catch (alertError) {
+    console.error(`[${requestId}] Failed to raise security alert:`, alertError)
+  }
+}
+
+app.post('/api/properties', async (req, res) => {
+  const requestId = crypto.randomBytes(5).toString('hex')
+  const rawAgentId = req.headers['x-agent-id']
+  const agentId = typeof rawAgentId === 'string' ? rawAgentId.trim() : ''
+
+  if (!agentId) {
+    console.warn(`[${requestId}] Missing agent identity for property creation request`)
+    return res.status(401).json({ error: 'Agent identity is required', requestId })
+  }
+
+  const payload = sanitizePropertyPayload(req.body, agentId)
+  if (!payload.title || !payload.address || payload.price === undefined) {
+    console.warn(`[${requestId}] Property payload missing required fields`, {
+      agentId,
+      title: payload.title,
+      address: payload.address,
+      price: payload.price
+    })
+    return res.status(400).json({ error: 'Title, address, and price are required', requestId })
+  }
+
+  console.info(`[${requestId}] Creating property`, {
+    agentId,
+    title: payload.title,
+    address: payload.address,
+    price: payload.price
+  })
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .insert(payload)
+      .select('*')
+      .single()
+
+    if (error) {
+      console.error(`[${requestId}] Backend property insert error`, error)
+      await logPropertyAudit(agentId, 'create_property_failure', {
+        reason: error.message,
+        code: error.code,
+        details: error.details || error.hint
+      }, 'warning', requestId)
+      await raisePropertyAlert(`Property insert rejected: ${error.message}`, requestId, 'warning')
+      return res.status(400).json({ error: error.message, requestId })
+    }
+
+    await logPropertyAudit(agentId, 'create_property_success', {
+      propertyId: data?.id,
+      createdAt: payload.created_at
+    }, 'info', requestId)
+
+    console.info(`[${requestId}] Property created`, { agentId, propertyId: data?.id })
+    return res.json({ property: data })
+  } catch (insertError) {
+    console.error(`[${requestId}] Failed to insert property via backend:`, insertError)
+    await logPropertyAudit(agentId, 'create_property_failure', {
+      reason: insertError?.message || String(insertError),
+      stack: insertError?.stack
+    }, 'error', requestId)
+    await raisePropertyAlert(
+      `Exception during property creation: ${insertError?.message || String(insertError)}`,
+      requestId,
+      'critical'
+    )
+    return res.status(500).json({ error: 'Unable to create property', requestId })
+  }
+})
 
 app.listen(port, () => {
   console.log(`🚀 AI Server running on http://localhost:${port} (NEW PORT!)`);

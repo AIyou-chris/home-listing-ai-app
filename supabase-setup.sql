@@ -266,6 +266,31 @@ CREATE TABLE IF NOT EXISTS public.ai_conversation_messages (
 
 CREATE INDEX IF NOT EXISTS idx_ai_conversation_messages_conversation ON public.ai_conversation_messages(conversation_id, created_at);
 
+-- Follow-up Sequences Store (for marketing automation)
+CREATE TABLE IF NOT EXISTS public.follow_up_sequences_store (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sequence_name TEXT NOT NULL,
+  sequence_type TEXT NOT NULL CHECK (sequence_type IN ('email', 'sms', 'call', 'social')),
+  trigger_event TEXT NOT NULL,
+  target_audience TEXT NOT NULL CHECK (target_audience IN ('leads', 'clients', 'prospects')),
+  steps JSONB NOT NULL DEFAULT '[]'::jsonb,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_follow_up_sequences_store_user_id ON public.follow_up_sequences_store(user_id);
+CREATE INDEX IF NOT EXISTS idx_follow_up_sequences_store_active ON public.follow_up_sequences_store(user_id, is_active);
+
+-- Add missing columns to existing tables
+ALTER TABLE public.ai_card_profiles
+  ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en';
+
+ALTER TABLE public.ai_conversations
+  ADD COLUMN IF NOT EXISTS lead_id UUID NULL REFERENCES public.leads(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS scope TEXT NULL;
+
 -- ============================================================================
 -- 2. CREATE STORAGE BUCKET FOR AI KB FILES
 -- ============================================================================
@@ -296,6 +321,7 @@ ALTER TABLE public.ai_card_qr_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_conversation_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_sidekick_training_feedback ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.follow_up_sequences_store ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 4. CREATE RLS POLICIES - AI SIDEKICK PROFILES (user_id is UUID)
@@ -634,6 +660,41 @@ FOR DELETE
 USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
 
 -- ============================================================================
+-- 12a. CREATE RLS POLICIES - FOLLOW-UP SEQUENCES STORE
+-- ============================================================================
+
+-- Drop existing policies first (idempotent)
+DROP POLICY IF EXISTS "Users can read own follow-up sequences" ON public.follow_up_sequences_store;
+DROP POLICY IF EXISTS "Users can insert own follow-up sequences" ON public.follow_up_sequences_store;
+DROP POLICY IF EXISTS "Users can update own follow-up sequences" ON public.follow_up_sequences_store;
+DROP POLICY IF EXISTS "Users can delete own follow-up sequences" ON public.follow_up_sequences_store;
+
+-- Allow users to read their own follow-up sequences
+CREATE POLICY "Users can read own follow-up sequences"
+ON public.follow_up_sequences_store
+FOR SELECT
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+-- Allow users to insert their own follow-up sequences
+CREATE POLICY "Users can insert own follow-up sequences"
+ON public.follow_up_sequences_store
+FOR INSERT
+WITH CHECK (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+-- Allow users to update their own follow-up sequences
+CREATE POLICY "Users can update own follow-up sequences"
+ON public.follow_up_sequences_store
+FOR UPDATE
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid())
+WITH CHECK (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+-- Allow users to delete their own follow-up sequences
+CREATE POLICY "Users can delete own follow-up sequences"
+ON public.follow_up_sequences_store
+FOR DELETE
+USING (auth.uid() IS NOT NULL AND user_id = auth.uid());
+
+-- ============================================================================
 -- 12. CREATE RLS POLICIES - STORAGE (AI KB FILES)
 -- ============================================================================
 
@@ -744,6 +805,12 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS update_ai_sidekick_profiles_updated_at ON public.ai_sidekick_profiles;
 CREATE TRIGGER update_ai_sidekick_profiles_updated_at
   BEFORE UPDATE ON public.ai_sidekick_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_follow_up_sequences_store_updated_at ON public.follow_up_sequences_store;
+CREATE TRIGGER update_follow_up_sequences_store_updated_at
+  BEFORE UPDATE ON public.follow_up_sequences_store
   FOR EACH ROW
   EXECUTE FUNCTION public.update_updated_at_column();
 

@@ -146,10 +146,11 @@ const normalizeVoice = (voice: unknown): Voice => {
 };
 
 const normalizeSidekick = (raw: unknown): AISidekick => {
-  const record = raw as Partial<AISidekick> | Record<string, unknown> | undefined;
+  const record =
+    raw && typeof raw === 'object' ? (raw as Partial<AISidekick>) : ({} as Partial<AISidekick>);
 
   const knowledgeBase =
-    Array.isArray(record?.knowledgeBase) && record.knowledgeBase.length > 0
+    Array.isArray(record.knowledgeBase) && record.knowledgeBase.length > 0
       ? record.knowledgeBase
           .map((entry: unknown) =>
             typeof entry === 'string' ? entry : JSON.stringify(entry)
@@ -157,51 +158,56 @@ const normalizeSidekick = (raw: unknown): AISidekick => {
           .filter((entry: string) => entry.trim().length > 0)
       : [];
 
+  const personalitySource = (record.personality ?? {}) as Partial<AISidekick['personality']>;
   const traits =
-    Array.isArray(record?.personality?.traits) && record.personality.traits.length > 0
-      ? record.personality.traits
-          .map((trait: unknown) =>
-            typeof trait === 'string' ? trait.trim() : ''
-          )
+    Array.isArray(personalitySource.traits) && personalitySource.traits.length > 0
+      ? personalitySource.traits
+          .map((trait: unknown) => (typeof trait === 'string' ? trait.trim() : ''))
           .filter((trait: string) => trait.length > 0)
       : [];
 
-  const stats = record?.stats ?? {};
+  const statsSource = (record.stats ?? {}) as Partial<AISidekick['stats']>;
 
   return {
-    id: typeof record?.id === 'string' ? record.id : '',
-    userId: typeof record?.userId === 'string' ? record.userId : '',
-    type: typeof record?.type === 'string' ? record.type : 'agent',
-    name: typeof record?.name === 'string' ? record.name : 'AI Sidekick',
+    id: typeof record.id === 'string' ? record.id : '',
+    userId: typeof record.userId === 'string' ? record.userId : '',
+    type: typeof record.type === 'string' ? record.type : 'agent',
+    name: typeof record.name === 'string' ? record.name : 'AI Sidekick',
     description:
-      typeof record?.description === 'string' && record.description.trim().length > 0
+      typeof record.description === 'string' && record.description.trim().length > 0
         ? record.description.trim()
         : 'AI assistant to support your real estate workflows.',
-    color: typeof record?.color === 'string' ? record.color : '#6366F1',
-    icon: typeof record?.icon === 'string' ? record.icon : '🤖',
+    color: typeof record.color === 'string' ? record.color : '#6366F1',
+    icon: typeof record.icon === 'string' ? record.icon : '🤖',
     voiceId:
-      typeof record?.voiceId === 'string' && record.voiceId.trim().length > 0
+      typeof record.voiceId === 'string' && record.voiceId.trim().length > 0
         ? record.voiceId.trim()
         : 'nova',
     knowledgeBase,
     personality: {
       description:
-        typeof record?.personality?.description === 'string' &&
-        record.personality.description.trim().length > 0
-          ? record.personality.description.trim()
+        typeof personalitySource.description === 'string' &&
+        personalitySource.description.trim().length > 0
+          ? personalitySource.description.trim()
           : 'Be a proactive, trustworthy assistant who keeps communication crisp and on-brand.',
       traits,
       preset:
-        typeof record?.personality?.preset === 'string' && record.personality.preset.trim().length > 0
-          ? record.personality.preset.trim()
+        typeof personalitySource.preset === 'string' && personalitySource.preset.trim().length > 0
+          ? personalitySource.preset.trim()
           : 'custom'
     },
     stats: {
-      totalTraining: Number.isFinite(stats.totalTraining) ? stats.totalTraining : 0,
-      positiveFeedback: Number.isFinite(stats.positiveFeedback) ? stats.positiveFeedback : 0,
-      improvements: Number.isFinite(stats.improvements) ? stats.improvements : 0
+      totalTraining: Number.isFinite(statsSource.totalTraining ?? NaN)
+        ? (statsSource.totalTraining as number)
+        : 0,
+      positiveFeedback: Number.isFinite(statsSource.positiveFeedback ?? NaN)
+        ? (statsSource.positiveFeedback as number)
+        : 0,
+      improvements: Number.isFinite(statsSource.improvements ?? NaN)
+        ? (statsSource.improvements as number)
+        : 0
     },
-    metadata: typeof record?.metadata === 'object' && record.metadata ? record.metadata : undefined
+    metadata: typeof record.metadata === 'object' && record.metadata ? record.metadata : undefined
   };
 };
 
@@ -647,4 +653,15 @@ export const trainSidekick = async (
     return normalizeSidekick(data.sidekick);
   }
   return null;
+};
+
+export const deleteSidekick = async (sidekickId: string): Promise<void> => {
+  const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}`), {
+    method: 'DELETE',
+    headers: defaultHeaders
+  });
+  if (!response.ok) {
+    const message = await response.text().catch(() => '');
+    throw new Error(message || `Failed to delete sidekick (${response.status})`);
+  }
 };

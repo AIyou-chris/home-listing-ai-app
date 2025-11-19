@@ -22,7 +22,7 @@ export const getListingProfile = async (
   }
   // 1) try per-listing profile
   const { data: listingProfiles, error: listingError } = await supabase
-    .from<SidekickProfile>('ai_sidekick_profiles')
+    .from('ai_sidekick_profiles')
     .select('*')
     .eq('user_id', userId)
     .eq('scope', 'listing')
@@ -37,7 +37,7 @@ export const getListingProfile = async (
 
   // 2) fallback to agent default listing persona
   const { data: agentProfiles, error: agentError } = await supabase
-    .from<SidekickProfile>('ai_sidekick_profiles')
+    .from('ai_sidekick_profiles')
     .select('*')
     .eq('user_id', userId)
     .eq('scope', 'agent')
@@ -66,7 +66,7 @@ export const upsertAgentProfile = async (
     traits: profile.traits ?? null
   }
   const { data, error } = await supabase
-    .from<SidekickProfile>('ai_sidekick_profiles')
+    .from('ai_sidekick_profiles')
     .insert(payload)
     .select('*')
     .single()
@@ -74,4 +74,26 @@ export const upsertAgentProfile = async (
   return data
 }
 
+export const upsertListingProfile = async (
+  userId: string,
+  listingId: string,
+  profile: { description?: string | null; traits?: string[] | null; persona_preset?: string | null }
+): Promise<SidekickProfile> => {
+  const payload = {
+    user_id: userId,
+    scope: 'listing' as const,
+    listing_id: listingId,
+    description: profile.description ?? null,
+    traits: profile.traits ?? null,
+    persona_preset: profile.persona_preset ?? 'custom'
+  }
 
+  const { data, error } = await supabase
+    .from('ai_sidekick_profiles')
+    .upsert(payload, { onConflict: 'user_id,scope,listing_id' })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}

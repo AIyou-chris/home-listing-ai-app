@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from './Modal';
 import EmailTemplateModal from './EmailTemplateModal';
 import { EmailTemplate } from '../constants/emailTemplates';
+import { useAgentBranding } from '../hooks/useAgentBranding';
 
 interface QuickEmailModalProps {
     onClose: () => void;
@@ -21,6 +22,13 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose }) => {
     const [isSending, setIsSending] = useState(false);
     const [status, setStatus] = useState<StatusMessage | null>(null);
     const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+    const { contact, signature } = useAgentBranding();
+
+    useEffect(() => {
+        if (!fromEmail && contact.email) {
+            setFromEmail(contact.email);
+        }
+    }, [contact.email, fromEmail]);
 
     const resetForm = () => {
         setRecipientName('');
@@ -87,6 +95,15 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose }) => {
         } finally {
             setIsSending(false);
         }
+    };
+
+    const handleInsertSignature = () => {
+        if (!signature) return;
+        setBody((prev) => {
+            if (prev.includes(signature)) return prev;
+            const joiner = prev.trim().length > 0 ? '\n\n' : '';
+            return `${prev}${joiner}${signature}`;
+        });
     };
 
     const titleNode = (
@@ -185,6 +202,15 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose }) => {
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                             placeholder="Write your email..."
                         />
+                        {signature && (
+                            <button
+                                type="button"
+                                onClick={handleInsertSignature}
+                                className="mt-2 text-xs font-semibold text-primary-700 hover:underline"
+                            >
+                                Insert saved signature
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -223,4 +249,3 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose }) => {
 };
 
 export default QuickEmailModal;
-

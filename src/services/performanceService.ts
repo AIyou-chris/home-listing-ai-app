@@ -1,5 +1,10 @@
 // SessionService removed
 
+interface LayoutShift extends PerformanceEntry {
+  value: number;
+  hadRecentInput: boolean;
+}
+
 interface PerformanceMemoryEntry {
   usedJSHeapSize: number;
   totalJSHeapSize: number;

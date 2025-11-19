@@ -69,7 +69,7 @@ interface BlogData {
 interface BlogQuestion {
   id: number
   question: string
-  field: keyof BlogData
+  field: Exclude<keyof BlogData, 'links'>
   type: 'text' | 'textarea' | 'select'
   options?: string[]
 }
@@ -1787,4 +1787,3 @@ const AdminKnowledgePanel: React.FC = () => {
 }
 
 export default AdminKnowledgePanel
-

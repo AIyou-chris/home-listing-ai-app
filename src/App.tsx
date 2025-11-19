@@ -91,6 +91,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 type AppUser = {
     uid: string;
+    id: string;
     email: string | null;
     displayName?: string | null;
 };
@@ -331,7 +332,12 @@ const App: React.FC = () => {
         const initAuth = async () => {
             const { data } = await supabase.auth.getUser();
             const currentUser: AppUser | null = data.user
-                ? { uid: data.user.id, email: data.user.email, displayName: data.user.user_metadata?.name }
+                ? {
+                      uid: data.user.id,
+                      id: data.user.id,
+                      email: data.user.email,
+                      displayName: data.user.user_metadata?.name ?? null
+                  }
                 : null;
             setIsLoading(true);
             setIsSettingUp(false); // Reset on every auth change
@@ -473,7 +479,12 @@ const App: React.FC = () => {
 
         const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
             const currentUser: AppUser | null = session?.user
-                ? { uid: session.user.id, email: session.user.email, displayName: session.user.user_metadata?.name }
+                ? {
+                      uid: session.user.id,
+                      id: session.user.id,
+                      email: session.user.email,
+                      displayName: session.user.user_metadata?.name ?? null
+                  }
                 : null;
             // Re-run the same flow with new user
             setIsLoading(true);

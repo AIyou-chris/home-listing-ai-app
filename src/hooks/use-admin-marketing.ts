@@ -19,6 +19,10 @@ export type MarketingFollowUpSequence = FollowUpSequence
 export type MarketingActiveFollowUp = ActiveLeadFollowUp & {
   leadName: string
   sequenceName: string
+  currentStage?: string
+  lastAction?: string
+  nextAction?: string
+  engagementScore?: number
 }
 
 interface UseAdminMarketingOptions {
@@ -132,17 +136,21 @@ const DEMO_ACTIVE_FOLLOWUPS: MarketingActiveFollowUp[] = [
     history: [
       {
         id: 'history-1',
-        type: 'email_sent',
+        type: 'email-sent',
         description: 'AI intro email sent automatically',
         date: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
       },
       {
         id: 'history-2',
-        type: 'email_opened',
+        type: 'email-opened',
         description: 'Lead opened intro email (mobile)',
         date: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString()
       }
-    ]
+    ],
+    currentStage: 'Qualification',
+    lastAction: 'AI intro email sent',
+    nextAction: 'Agent follow-up call',
+    engagementScore: 82
   },
   {
     id: 'active-followup-2',
@@ -156,11 +164,15 @@ const DEMO_ACTIVE_FOLLOWUPS: MarketingActiveFollowUp[] = [
     history: [
       {
         id: 'history-3',
-        type: 'email_clicked',
+        type: 'email-clicked',
         description: 'Lead clicked valuation link',
         date: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
       }
-    ]
+    ],
+    currentStage: 'Nurture',
+    lastAction: 'Link clicked in AI update',
+    nextAction: 'AI follow-up email',
+    engagementScore: 67
   }
 ]
 
@@ -368,4 +380,3 @@ export const useAdminMarketing = ({ autoFetch = false }: UseAdminMarketingOption
     deleteQrCode,
   }
 }
-

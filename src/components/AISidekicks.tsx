@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
+import {
   getSidekicks, 
   updateSidekickPersonality, 
   updateSidekickVoice, 
@@ -8,6 +8,7 @@ import {
   chatWithSidekick,
   trainSidekick,
   createSidekick,
+  deleteSidekick,
   personalityPresets,
   type AISidekick, 
   type Voice,
@@ -17,6 +18,7 @@ import {
 import { continueConversation, generateSpeech } from '../services/openaiService';
 import { normalizeOpenAIVoice } from '../constants/openaiVoices';
 import PageTipBanner from './PageTipBanner';
+import { supabase } from '../services/supabase';
 
 interface AISidekicksProps {}
 
@@ -36,6 +38,9 @@ type SidekickTemplate = {
   };
 };
 
+
+const CACHE_KEY = 'hlai:sidekick-meta';
+const CACHE_TTL = 24 * 60 * 60 * 1000;
 
 const omitKey = <T,>(map: Record<string, T>, key: string): Record<string, T> => {
   const clone = { ...map };
@@ -114,6 +119,26 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  const [notification, setNotification] = useState<{
+    type: 'error' | 'success' | 'info';
+    message: string;
+    retry?: () => void;
+  } | null>(null);
+  const trainingQueue = useRef<
+    Array<{
+      sidekickId: string;
+      userMessage: string;
+      assistantMessage: string;
+      feedback: 'positive' | 'negative';
+    }>
+  >([]);
+  const trainingProcessing = useRef(false);
+  const trainingAnalyticsRef = useRef(0);
+  const [trainingAnalytics, setTrainingAnalytics] = useState({ saved: 0 });
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const trainingAnalyticsKey = agentId ? `hlai:training-analytics:${agentId}` : null;
+  const [deletingSidekickId, setDeletingSidekickId] = useState<string | null>(null);
+
   // Modal states
   const [showPersonalityEditor, setShowPersonalityEditor] = useState(false);
   const [showTrainingChat, setShowTrainingChat] = useState(false);
@@ -193,8 +218,8 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   });
 
   useEffect(() => {
-    loadSidekicks();
-  }, []);
+    void loadSidekicks();
+  }, [loadSidekicks]);
 
   useEffect(() => {
     if (!createForm.voiceId && voices.length > 0) {
@@ -240,7 +265,7 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     };
   }, []);
 
-  const loadSidekicks = async () => {
+  const loadSidekicks = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getSidekicks();
@@ -249,13 +274,95 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
       if (data.sidekicks.length > 0) {
         setSelectedSidekick(data.sidekicks[0]);
       }
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(
+            CACHE_KEY,
+            JSON.stringify({
+              sidekicks: data.sidekicks,
+              voices: data.voices,
+              expiresAt: Date.now() + CACHE_TTL
+            })
+          );
+        } catch {
+          // ignore
+        }
+      }
     } catch (err) {
       setError('Failed to load AI sidekicks');
       console.error(err);
+      setNotification({ type: 'error', message: 'Unable to load sidekicks. Please refresh.' });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const hydrateCache = () => {
+      if (typeof window === 'undefined') return;
+      const raw = window.localStorage.getItem(CACHE_KEY);
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.expiresAt === 'number' && parsed.expiresAt < Date.now()) {
+          window.localStorage.removeItem(CACHE_KEY);
+        } else {
+          if (Array.isArray(parsed.sidekicks)) setSidekicks(parsed.sidekicks);
+          if (Array.isArray(parsed.voices)) setVoices(parsed.voices);
+          if (parsed.sidekicks?.length > 0) {
+            setSelectedSidekick((prev) => prev ?? parsed.sidekicks[0]);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to hydrate sidekick cache', err);
+      }
+    };
+
+    hydrateCache();
+    void loadSidekicks();
+  }, [loadSidekicks]);
+
+  useEffect(() => {
+    if (!notification) return;
+    const timer = setTimeout(() => setNotification(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notification]);
+
+  useEffect(() => {
+    supabase.auth
+      .getUser()
+      .then(({ data }) => {
+        if (data?.user?.id) {
+          setAgentId(data.user.id);
+        }
+      })
+      .catch((err) => console.error('Failed to load user info:', err));
+    const subscription = supabase.auth.onAuthStateChange((_, session) => {
+      if (session?.user?.id) {
+        setAgentId(session.user.id);
+      }
+    });
+    return () => subscription?.data?.unsubscribe?.();
+  }, []);
+
+  useEffect(() => {
+    if (!agentId || !trainingAnalyticsKey) return;
+    if (typeof window === 'undefined') return;
+    const raw = window.localStorage.getItem(trainingAnalyticsKey);
+    if (raw) {
+      const stored = Number(raw);
+      if (!Number.isNaN(stored)) {
+        trainingAnalyticsRef.current = stored;
+        setTrainingAnalytics({ saved: stored });
+      }
+    }
+  }, [agentId, trainingAnalyticsKey]);
+
+  useEffect(() => {
+    if (!agentId || !trainingAnalyticsKey) return;
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(trainingAnalyticsKey, trainingAnalytics.saved.toString());
+  }, [agentId, trainingAnalyticsKey, trainingAnalytics.saved]);
 
   const stopPreviewAudio = useCallback(() => {
     if (audioRef.current) {
@@ -887,7 +994,36 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     }
   };
 
-  const handleTrainingFeedback = async (messageId: string, feedback: 'positive' | 'negative') => {
+  const processTrainingQueue = useCallback(async () => {
+    if (trainingProcessing.current || trainingQueue.current.length === 0) return;
+    trainingProcessing.current = true;
+    try {
+      while (trainingQueue.current.length) {
+        const job = trainingQueue.current.shift()!;
+        try {
+          await trainSidekick(job.sidekickId, job.userMessage, job.assistantMessage, job.feedback);
+          trainingAnalyticsRef.current += 1;
+          setTrainingAnalytics({ saved: trainingAnalyticsRef.current });
+          setNotification({ type: 'success', message: 'Training feedback saved.' });
+        } catch (err) {
+          console.error('Training feedback error:', err);
+          setNotification({
+            type: 'error',
+            message: 'Unable to save training feedback. Tap retry.',
+            retry: () => {
+              void processTrainingQueue();
+            }
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } finally {
+      trainingProcessing.current = false;
+      void loadSidekicks();
+    }
+  }, [loadSidekicks]);
+
+  const handleTrainingFeedback = (messageId: string, feedback: 'positive' | 'negative') => {
     if (!selectedSidekick) return;
     
     const message = chatMessages.find(m => m.id === messageId);
@@ -895,12 +1031,27 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     
     if (!message || !previousMessage) return;
     
+    trainingQueue.current.push({
+      sidekickId: selectedSidekick.id,
+      userMessage: previousMessage.content,
+      assistantMessage: message.content,
+      feedback
+    });
+    void processTrainingQueue();
+  };
+
+  const handleDeleteSidekick = async (sidekickId: string) => {
+    if (!window.confirm('Delete this AI sidekick? This cannot be undone.')) return;
+    setDeletingSidekickId(sidekickId);
     try {
-      await trainSidekick(selectedSidekick.id, previousMessage.content, message.content, feedback);
-      // Reload sidekicks to update stats
-      loadSidekicks();
-    } catch (err) {
-      console.error('Training feedback error:', err);
+      await deleteSidekick(sidekickId);
+      setNotification({ type: 'success', message: 'AI sidekick deleted.' });
+      void loadSidekicks();
+    } catch (error) {
+      console.error('Delete sidekick failed:', error);
+      setNotification({ type: 'error', message: 'Unable to delete sidekick. Try again.' });
+    } finally {
+      setDeletingSidekickId(null);
     }
   };
 
@@ -1020,19 +1171,53 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
             <p className="text-slate-600 mt-2">Advanced AI assistant management with analytics, training, and automation</p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm"
-            >
-              <span className="material-symbols-outlined text-base">add</span>
-              Create Sidekick
-            </button>
             <div className="flex items-center gap-2 bg-green-50 px-3 py-1 rounded-full">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-green-700 text-sm font-medium">All Systems Active</span>
             </div>
           </div>
         </div>
+      </div>
+      {notification && (
+        <div className={`mb-6 rounded-lg border px-4 py-3 text-sm ${notification.type === 'error' ? 'border-rose-200 bg-rose-50 text-rose-800' : notification.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-800'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <span>{notification.message}</span>
+            {notification.retry && (
+              <button
+                onClick={notification.retry}
+                className="px-3 py-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded hover:bg-blue-100"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <p className="text-xs text-slate-500">
+          Training feedback saved: {trainingAnalytics.saved}
+        </p>
+        <p className="text-xs text-slate-500 font-semibold">{trainingAnalytics.saved ? `${trainingAnalytics.saved} saves recorded` : 'Live analytics streaming…'}</p>
+      </div>
+      {notification && (
+        <div className={`mb-4 rounded-lg border px-4 py-3 text-sm ${notification.type === 'error' ? 'border-rose-200 bg-rose-50 text-rose-800' : notification.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-800'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <span>{notification.message}</span>
+            {notification.retry && (
+              <button
+                onClick={notification.retry}
+                className="px-3 py-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded hover:bg-blue-100"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <p className="text-xs text-slate-500">
+          Training feedback saved: {trainingAnalytics.saved}
+        </p>
       </div>
 
       <PageTipBanner
@@ -1090,10 +1275,9 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
 
         {/* Enhanced Interactive Training Card - FEATURED */}
         <div className="md:col-span-2 relative group">
-          {/* Animated gradient border */}
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-xl opacity-75 group-hover:opacity-100 blur animate-pulse"></div>
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-xl opacity-60 group-hover:opacity-100 blur animate-pulse"></div>
           
-          <div className="relative bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 rounded-xl p-8 border-2 border-purple-200">
+          <div className="relative bg-gradient-to-br from-[#f5f3ff] via-[#eef2ff] to-[#fce7ff] rounded-xl p-8 border border-purple-200 shadow-[0_30px_60px_rgba(88,28,135,0.15)]">
             {/* Badge */}
             <div className="absolute top-4 right-4 flex gap-2">
               <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1 rounded-full animate-bounce">
@@ -1138,24 +1322,22 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
                 </div>
 
                 {/* Stats */}
-                <div className="flex items-center gap-4 text-xs text-purple-700 bg-white/50 rounded-lg p-2">
+                <div className="flex items-center gap-4 text-xs text-purple-700 bg-white/70 rounded-full px-4 py-2">
                   <span>🔥 <strong>500+</strong> listings written by agents</span>
                   <span>⚡ <strong>85%</strong> trained on your style</span>
                 </div>
               </div>
             </div>
 
-            {/* CTA Button */}
-            <button
-              onClick={() => {
-                window.location.hash = '/ai-training';
-              }}
-              className="mt-4 w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transform transition hover:scale-105 flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined">chat</span>
-              Start Chatting with Your AI
-              <span className="ml-2">→</span>
-            </button>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={handleOpenCreateModal}
+                className="rounded-full bg-blue-600 text-white font-semibold px-6 py-3 min-w-[240px] shadow-lg shadow-blue-200 transition hover:bg-blue-700 flex items-center gap-2 justify-center"
+              >
+                <span className="material-symbols-outlined text-base">add</span>
+                Create an AI Sidekick
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1177,11 +1359,18 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
                 >
                   {sidekick.icon}
                 </div>
-                <div>
+                <div className="flex-1">
                   <h3 className="font-semibold text-slate-900">{sidekick.name}</h3>
                   <p className="text-sm text-slate-600">{sidekick.description}</p>
                 </div>
-                </div>
+                <button
+                  onClick={() => handleDeleteSidekick(sidekick.id)}
+                  className="ml-auto text-xs text-rose-500 px-3 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition"
+                  disabled={deletingSidekickId === sidekick.id}
+                >
+                  {deletingSidekickId === sidekick.id ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
 
                 <div className="mb-4">
                   <h4 className="font-medium text-slate-900 mb-2">Who I am</h4>
