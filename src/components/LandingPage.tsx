@@ -714,24 +714,53 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                         Simple, transparent pricing. Powerful features. No hidden costs.
                     </p>
                 </div>
-                <div className="mt-16 flex justify-center animate-fade-in-up animation-delay-400">
+
+                {/* Market Crash Survival Story */}
+                <div className="mt-12 max-w-3xl mx-auto animate-fade-in-up animation-delay-300">
+                    <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl p-8 border-2 border-blue-200 shadow-lg">
+                        <div className="prose prose-lg max-w-none">
+                            <p className="text-slate-700 leading-relaxed mb-4">
+                                I lived through the 2007 crash. And again in 2012. I know exactly what it feels like when deals stall, leads dry up, and every dollar needs to work overtime.
+                            </p>
+                            <p className="text-slate-700 leading-relaxed mb-4">
+                                That's why I built this AI tool specifically for realtors navigating today's tightening market.
+                            </p>
+                            <p className="text-slate-800 font-semibold text-xl">
+                                👉 Normally $199/month, but right now, you can get it for just <span className="text-primary-700">$89/month</span>.
+                            </p>
+                            <p className="text-slate-700 leading-relaxed mt-4">
+                                Not as a gimmick. Not for mass adoption. But because I remember how brutal these markets get. And I know smart tech—priced right—can be the difference between treading water and taking territory.
+                            </p>
+                            <p className="text-sm text-slate-500 italic mt-6">
+                                * Price subject to change. Lock in this rate today.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-16 flex justify-center animate-fade-in-up animation-delay-500">
                     {/* Single Plan */}
                     <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform hover:scale-105 transition-all duration-300 animate-fade-in-up glow max-w-md">
+                        {/* Special Pricing Badge */}
+                        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                            <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 px-6 py-2 rounded-full text-sm font-bold shadow-lg animate-pulse">
+                                🔥 Limited Time: $110 OFF
+                            </span>
+                        </div>
                         <div className="flex-grow">
                             <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
                             <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
                             <p className="mt-6">
-                                <span className="text-5xl font-extrabold text-white">$139</span>
+                                <span className="text-5xl font-extrabold text-white">$89</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
+                            <p className="mt-2 text-slate-300 line-through text-sm">Regular price: $199/mo</p>
                             <ul className="mt-8 space-y-4">
                                 <PlanFeature dark>Unlimited AI interactions per month</PlanFeature>
-                                <PlanFeature dark>1GB of storage space</PlanFeature>
-                                <PlanFeature dark>500 emails per month</PlanFeature>
+                                <PlanFeature dark>Up to 3 active listings</PlanFeature>
+                                <PlanFeature dark>300 emails per month</PlanFeature>
                                 <PlanFeature dark>Advanced analytics dashboard</PlanFeature>
                                 <PlanFeature dark>Your own trained GPT</PlanFeature>
                                 <PlanFeature dark>Automated follow-up sequences</PlanFeature>
-                                <PlanFeature dark>AI conversations auto-detect & respond in 12 languages</PlanFeature>
                                 <PlanFeature dark>Auto leads to closing</PlanFeature>
                                 <PlanFeature dark>Need more? We do custom programs</PlanFeature>
                             </ul>
@@ -740,8 +769,11 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                             onClick={onNavigateToSignUp}
                             className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-all duration-300 bg-white text-primary-700 shadow-lg hover:bg-slate-200 transform hover:scale-[1.02]"
                         >
-                            Get Started in 5 Minutes
+                            Lock In This Price Now
                         </button>
+                        <p className="text-center text-xs text-slate-300 mt-3 opacity-90">
+                            Price may increase at any time. Secure your rate today.
+                        </p>
                     </div>
                 </div>
             </div>
