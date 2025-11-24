@@ -1,7 +1,11 @@
 [build]
   command = "npm run build"
   publish = "dist"
-  environment = { NODE_ENV = "production", NPM_CONFIG_PRODUCTION = "false" }
+
+[build.environment]
+  NODE_ENV = "production"
+  NPM_CONFIG_PRODUCTION = "false"
+  VITE_API_BASE_URL = "https://ailistingfinal-production.up.railway.app"
 
 [[headers]]
   for = "/*"
