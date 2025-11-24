@@ -17,6 +17,7 @@
     "verify:mailgun": "node scripts/check-mailgun-config.cjs",
     "ci": "npm run verify:mailgun && npm run lint && npm run typecheck && npm run build",
     "prepare": "husky",
+    "start": "cd backend && node server.cjs",
     "start-server": "bash -c 'mkdir -p logs; npm --prefix backend run -s dev >> logs/backend.out 2>&1 & echo $! > logs/backend.pid; npm run -s dev >> logs/vite.out 2>&1 & echo $! > logs/vite.pid; echo \"✅ Backend PID $(cat logs/backend.pid); Vite PID $(cat logs/vite.pid)\"'",
     "stop-server": "bash -c 'kill $(cat logs/vite.pid) 2>/dev/null || true; kill $(cat logs/backend.pid) 2>/dev/null || true; kill $(cat logs/preview.pid) 2>/dev/null || true; rm -f logs/*.pid; echo \"✅ Servers stopped\"'"
   },
