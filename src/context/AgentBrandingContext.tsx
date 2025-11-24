@@ -13,6 +13,7 @@ import {
   type AgentProfile as CentralAgentProfile,
   type AICardProfile
 } from '../services/agentProfileService';
+import { getAuthenticatedAgentData, type AgentData } from '../services/agentDataService';
 import type { AgentProfile as UiAgentProfile } from '../types';
 import { SAMPLE_AGENT } from '../constants';
 import { AgentBrandingContext } from './AgentBrandingContextInstance';
@@ -60,11 +61,25 @@ const SOCIAL_KEY_MAP: Record<string, UiAgentProfile['socials'][number]['platform
   youtube: 'YouTube'
 };
 
-const buildUiProfile = (profile?: CentralAgentProfile | null): UiAgentProfile => {
-  if (!profile) return SAMPLE_AGENT;
+const buildUiProfile = (profile?: CentralAgentProfile | null, agentData?: AgentData | null): UiAgentProfile => {
+  if (!profile && !agentData) return SAMPLE_AGENT;
+
+  // Merge agent data from agents table (higher priority) with AI Card profile
+  const name = agentData 
+    ? `${agentData.first_name} ${agentData.last_name}`.trim()
+    : profile?.name || SAMPLE_AGENT.name;
+
+  const headshotUrl = agentData?.headshot_url || profile?.headshotUrl || SAMPLE_AGENT.headshotUrl;
+  const email = agentData?.email || profile?.email || SAMPLE_AGENT.email;
+  const phone = agentData?.phone || profile?.phone || SAMPLE_AGENT.phone;
+  const company = agentData?.company || profile?.company || SAMPLE_AGENT.company;
+  const title = agentData?.title || profile?.title || SAMPLE_AGENT.title;
+  const bio = agentData?.bio || profile?.bio || SAMPLE_AGENT.bio;
+  const website = agentData?.website || profile?.website || SAMPLE_AGENT.website;
+  const slug = agentData?.slug || profile?.id || SAMPLE_AGENT.slug;
 
   const socials =
-    profile.socialMedia && typeof profile.socialMedia === 'object'
+    profile?.socialMedia && typeof profile.socialMedia === 'object'
       ? Object.entries(profile.socialMedia)
           .filter(([, url]) => typeof url === 'string' && url.trim().length > 0)
           .map(([platform, url]) => ({
@@ -76,28 +91,29 @@ const buildUiProfile = (profile?: CentralAgentProfile | null): UiAgentProfile =>
       : [];
 
   return {
-    name: profile.name || SAMPLE_AGENT.name,
-    slug: profile.id || SAMPLE_AGENT.slug,
-    title: profile.title || SAMPLE_AGENT.title,
-    company: profile.company || SAMPLE_AGENT.company,
-    phone: profile.phone || SAMPLE_AGENT.phone,
-    email: profile.email || SAMPLE_AGENT.email,
-    headshotUrl: profile.headshotUrl || SAMPLE_AGENT.headshotUrl,
+    name,
+    slug,
+    title,
+    company,
+    phone,
+    email,
+    headshotUrl,
     socials: socials.length > 0 ? socials : SAMPLE_AGENT.socials,
-    brandColor: profile.brandColor || SAMPLE_AGENT.brandColor,
-    logoUrl: profile.logoUrl || SAMPLE_AGENT.logoUrl,
-    website: profile.website || SAMPLE_AGENT.website,
-    bio: profile.bio || SAMPLE_AGENT.bio,
-    language: profile.language || SAMPLE_AGENT.language
+    brandColor: profile?.brandColor || SAMPLE_AGENT.brandColor,
+    logoUrl: profile?.logoUrl || SAMPLE_AGENT.logoUrl,
+    website,
+    bio,
+    language: profile?.language || SAMPLE_AGENT.language
   };
 };
 
 export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [profile, setProfile] = useState<CentralAgentProfile | null>(() => getAgentProfileSnapshot() ?? null);
   const [aiCardProfile, setAiCardProfile] = useState<AICardProfile | null>(() => getAICardProfileSnapshot() ?? null);
+  const [agentData, setAgentData] = useState<AgentData | null>(null);
   const [loading, setLoading] = useState(() => !profile);
   const [error, setError] = useState<Error | null>(null);
-  const uiProfile = useMemo(() => buildUiProfile(profile), [profile]);
+  const uiProfile = useMemo(() => buildUiProfile(profile, agentData), [profile, agentData]);
 
   useEffect(() => {
     let isMounted = true;
@@ -113,11 +129,26 @@ export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({
     const loadProfile = async () => {
       setLoading(true);
       try {
-        const data = await getAgentProfile();
+        // Load both AI Card profile and agent data in parallel
+        const [aiProfile, agentInfo] = await Promise.all([
+          getAgentProfile().catch(() => null),
+          getAuthenticatedAgentData().catch(() => null)
+        ]);
+        
         if (!isMounted) return;
-        setProfile(data);
+        
+        setProfile(aiProfile);
+        setAgentData(agentInfo);
         setAiCardProfile(getAICardProfileSnapshot() ?? null);
         setError(null);
+        
+        if (agentInfo) {
+          console.log('✅ Loaded agent data:', {
+            name: `${agentInfo.first_name} ${agentInfo.last_name}`,
+            email: agentInfo.email,
+            slug: agentInfo.slug
+          });
+        }
       } catch (err) {
         if (!isMounted) return;
         setError(normalizeError(err));
@@ -139,8 +170,13 @@ export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({
 const refresh = useCallback(async () => {
   setLoading(true);
   try {
-    const data = await refreshAgentProfile();
+    const [data, agentInfo] = await Promise.all([
+      refreshAgentProfile().catch(() => null),
+      getAuthenticatedAgentData().catch(() => null)
+    ]);
+    
     setProfile(data);
+    setAgentData(agentInfo);
     setAiCardProfile(getAICardProfileSnapshot() ?? null);
     setError(null);
     return data;
