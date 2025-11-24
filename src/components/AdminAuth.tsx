@@ -13,6 +13,19 @@ const AdminAuth: React.FC<AdminAuthProps> = ({ onAdminModeChange }) => {
   const [allAdminUsers, setAllAdminUsers] = useState<AdminUser[]>([]);
   const [showAdminList, setShowAdminList] = useState(false);
 
+  const extractErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
+      return (error as { message: string }).message;
+    }
+    return 'An unexpected error occurred';
+  };
+
   useEffect(() => {
     // Check if user is in admin mode
     setIsAdminMode(authService.isInAdminMode());
@@ -42,8 +55,8 @@ const AdminAuth: React.FC<AdminAuthProps> = ({ onAdminModeChange }) => {
       setIsAdminMode(true);
       await loadAdminUser();
       onAdminModeChange?.(true);
-    } catch (error: any) {
-      setError(error.message || 'Failed to switch to admin mode');
+    } catch (error) {
+      setError(extractErrorMessage(error) || 'Failed to switch to admin mode');
     } finally {
       setIsLoading(false);
     }
@@ -61,8 +74,8 @@ const AdminAuth: React.FC<AdminAuthProps> = ({ onAdminModeChange }) => {
       const users = await authService.getAllAdminUsers();
       setAllAdminUsers(users);
       setShowAdminList(true);
-    } catch (error: any) {
-      setError(error.message || 'Failed to load admin users');
+    } catch (error) {
+      setError(extractErrorMessage(error) || 'Failed to load admin users');
     }
   };
 
@@ -84,8 +97,8 @@ const AdminAuth: React.FC<AdminAuthProps> = ({ onAdminModeChange }) => {
         }
       });
       alert('Admin user created successfully!');
-    } catch (error: any) {
-      setError(error.message || 'Failed to create admin user');
+    } catch (error) {
+      setError(extractErrorMessage(error) || 'Failed to create admin user');
     }
   };
 
@@ -93,8 +106,8 @@ const AdminAuth: React.FC<AdminAuthProps> = ({ onAdminModeChange }) => {
     try {
       const hasPermission = await authService.hasAdminPermission(permission);
       alert(`Permission '${permission}': ${hasPermission ? 'GRANTED' : 'DENIED'}`);
-    } catch (error: any) {
-      setError(error.message || 'Failed to check permission');
+    } catch (error) {
+      setError(extractErrorMessage(error) || 'Failed to check permission');
     }
   };
 

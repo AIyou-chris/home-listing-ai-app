@@ -2,6 +2,12 @@
 // Firebase removed: stubbed realtime listeners and data access
 
 // Types for admin analytics
+type AnalyticsPayload = Record<string, unknown>;
+type MetricsRecord = Record<string, unknown>;
+type MetricsArray = Array<Record<string, unknown>>;
+type ReportPayload = Record<string, unknown>;
+type ExportRow = Record<string, unknown>;
+
 export interface AdminMetrics {
 	totalUsers: number;
 	activeUsers: number;
@@ -113,7 +119,7 @@ export interface RealTimeData {
 		userId?: string;
 		propertyId?: string;
 		timestamp: Date;
-		data?: any;
+		payload?: AnalyticsPayload;
 	}>;
 	systemAlerts: Array<{
 		id: string;
@@ -132,9 +138,9 @@ export interface RealTimeData {
 // Generic callable response shapes used by frontend consumers
 export interface CalculateMetricsResult {
 	success: boolean;
-	metrics?: any;
+	metrics?: MetricsRecord;
 	message?: string;
-	data?: any;
+	data?: MetricsRecord;
 }
 
 export interface GenerateReportResult {
@@ -142,19 +148,19 @@ export interface GenerateReportResult {
 	reportId?: string;
 	reportType?: string;
 	content?: string;
-	data?: any;
+	data?: ReportPayload;
 	generatedAt?: string;
 }
 
 export interface ExportDataResult {
 	success: boolean;
-	data?: any;
+	data?: ExportRow[];
 	message?: string;
 }
 
 export interface TrackInteractionResult {
 	success: boolean;
-	data?: any;
+	data?: AnalyticsPayload;
 }
 
 // Analytics Service for tracking interactions and generating reports
@@ -173,7 +179,7 @@ export class AnalyticsService {
 
 	async trackInteraction(_data: {
 		eventType: string;
-		eventData?: any;
+		eventData?: AnalyticsPayload;
 		propertyId?: string;
 		sessionId?: string;
 		timestamp?: Date;
@@ -211,52 +217,63 @@ export class AnalyticsService {
 		endDate?: string;
 		propertyId?: string;
 		format?: 'json' | 'csv' | 'excel';
-		filters?: Array<{ field: string; operator: 'equals' | 'contains' | 'greater_than' | 'less_than'; value: any }>;
+		filters?: Array<{ field: string; operator: 'equals' | 'contains' | 'greater_than' | 'less_than'; value: string | number | boolean | string[] }>;
 	}) {
 		return { success: true, data: [] } as ExportDataResult;
 	}
 
-	async trackPageView(pageName: string, additionalData?: any) {
+	async trackPageView(pageName: string, additionalData?: AnalyticsPayload) {
 		return this.trackInteraction({ eventType: 'page_view', eventData: { pageName, ...additionalData } });
 	}
 
-	async trackPropertyView(propertyId: string, additionalData?: any) {
+	async trackPropertyView(propertyId: string, additionalData?: AnalyticsPayload) {
 		return this.trackInteraction({ eventType: 'property_view', propertyId, eventData: additionalData });
 	}
 
-	async trackContactForm(propertyId?: string, formData?: any) {
+	async trackContactForm(propertyId?: string, formData?: AnalyticsPayload) {
 		return this.trackInteraction({ eventType: 'contact_form', propertyId, eventData: formData });
 	}
 
-	async trackPhoneCall(propertyId?: string, callData?: any) {
+	async trackPhoneCall(propertyId?: string, callData?: AnalyticsPayload) {
 		return this.trackInteraction({ eventType: 'phone_call', propertyId, eventData: callData });
 	}
 
-	async trackEmailSent(propertyId?: string, emailData?: any) {
+	async trackEmailSent(propertyId?: string, emailData?: AnalyticsPayload) {
 		return this.trackInteraction({ eventType: 'email_sent', propertyId, eventData: emailData });
 	}
 
-	async trackAppointmentScheduled(propertyId?: string, appointmentData?: any) {
+	async trackAppointmentScheduled(propertyId?: string, appointmentData?: AnalyticsPayload) {
 		return this.trackInteraction({ eventType: 'appointment_scheduled', propertyId, eventData: appointmentData });
 	}
 
-	async trackFavoriteAdded(propertyId: string, favoriteData?: any) {
+	async trackFavoriteAdded(propertyId: string, favoriteData?: AnalyticsPayload) {
 		return this.trackInteraction({ eventType: 'favorite_added', propertyId, eventData: favoriteData });
 	}
 
-	async trackPropertyShare(propertyId: string, shareData?: any) {
+	async trackPropertyShare(propertyId: string, shareData?: AnalyticsPayload) {
 		return this.trackInteraction({ eventType: 'share_property', propertyId, eventData: shareData });
 	}
 
 	async getRealTimeAnalytics(): Promise<RealTimeData> {
-		return { activeUsers: 0, recentEvents: [], systemAlerts: [], performanceMetrics: { responseTime: 0, errorRate: 0, throughput: 0 } };
+		return {
+			activeUsers: 0,
+			recentEvents: [],
+			systemAlerts: [],
+			performanceMetrics: { responseTime: 0, errorRate: 0, throughput: 0 }
+		};
 	}
 
 	async getUserEngagementScore(_userId: string, _timeRange?: string) { return 0; }
-	async getPropertyPerformance(_propertyId: string, _timeRange?: string) { return {}; }
-	async getConversionFunnel(_timeRange?: string) { return { funnelData: [], conversionRates: {} }; }
-	async getTimeBasedAnalytics(_timeRange: '24h' | '7d' | '30d' | '90d') { return { hourly: {}, daily: {} } as any; }
-	async downloadReport(_reportId: string, _format: 'pdf' | 'csv' | 'excel') { return { success: true } as ExportDataResult; }
+	async getPropertyPerformance(_propertyId: string, _timeRange?: string): Promise<MetricsRecord> { return {}; }
+	async getConversionFunnel(_timeRange?: string): Promise<{ funnelData: MetricsArray; conversionRates: Record<string, number> }> {
+		return { funnelData: [], conversionRates: {} };
+	}
+	async getTimeBasedAnalytics(_timeRange: '24h' | '7d' | '30d' | '90d'): Promise<{ hourly: MetricsRecord; daily: MetricsRecord }> {
+		return { hourly: {}, daily: {} };
+	}
+	async downloadReport(_reportId: string, _format: 'pdf' | 'csv' | 'excel'): Promise<ExportDataResult> {
+		return { success: true, data: [] };
+	}
 
 	async getAdminDashboardMetrics(): Promise<AdminMetrics> {
 		return { totalUsers: 0, activeUsers: 0, newUsersToday: 0, totalProperties: 0, totalInteractions: 0, revenue: 0, conversionRate: 0, avgSessionDuration: 0, topPerformingProperties: [], systemHealth: { status: 'healthy', uptime: 100, responseTime: 0, errorRate: 0 } };
@@ -271,17 +288,17 @@ export class AnalyticsService {
 		return { overallRetention: { day1: 0, day7: 0, day30: 0, day90: 0 }, cohortAnalysis: [], churnRate: { monthly: 0, quarterly: 0 }, retentionBySegment: { premium: 0, standard: 0, free: 0 }, revenueRetention: 0 };
 	}
 
-	listenToUserActivity(_callback: (data: any) => void, _maxResults: number = 50): () => void {
+	listenToUserActivity(_callback: (data: AnalyticsPayload) => void, _maxResults: number = 50): () => void {
 		const unsub = () => {};
 		this.realTimeListeners.set('userActivity', unsub);
 		return unsub;
 	}
-	listenToSystemAlerts(_callback: (alerts: any[]) => void, _severity?: 'low' | 'medium' | 'high' | 'critical'): () => void {
+	listenToSystemAlerts(_callback: (alerts: RealTimeData['systemAlerts']) => void, _severity?: 'low' | 'medium' | 'high' | 'critical'): () => void {
 		const unsub = () => {};
 		this.realTimeListeners.set('systemAlerts', unsub);
 		return unsub;
 	}
-	listenToPerformanceMetrics(_callback: (metrics: any) => void): () => void {
+	listenToPerformanceMetrics(_callback: (metrics: RealTimeData['performanceMetrics']) => void): () => void {
 		const unsub = () => {};
 		this.realTimeListeners.set('performanceMetrics', unsub);
 		return unsub;
@@ -291,22 +308,22 @@ export class AnalyticsService {
 		this.realTimeListeners.set('activeUsers', unsub);
 		return unsub;
 	}
-	listenToPropertyViews(_callback: (views: any[]) => void, _propertyId?: string): () => void {
+	listenToPropertyViews(_callback: (views: MetricsArray) => void, _propertyId?: string): () => void {
 		const unsub = () => {};
 		this.realTimeListeners.set('propertyViews', unsub);
 		return unsub;
 	}
-	listenToConversions(_callback: (conversions: any[]) => void): () => void {
+	listenToConversions(_callback: (conversions: MetricsArray) => void): () => void {
 		const unsub = () => {};
 		this.realTimeListeners.set('conversions', unsub);
 		return unsub;
 	}
-	listenToRevenue(_callback: (revenue: any) => void): () => void {
+	listenToRevenue(_callback: (revenue: number) => void): () => void {
 		const unsub = () => {};
 		this.realTimeListeners.set('revenue', unsub);
 		return unsub;
 	}
-	listenToSystemHealth(_callback: (health: any) => void): () => void {
+	listenToSystemHealth(_callback: (health: RealTimeData['systemAlerts'][number]) => void): () => void {
 		const unsub = () => {};
 		this.realTimeListeners.set('systemHealth', unsub);
 		return unsub;

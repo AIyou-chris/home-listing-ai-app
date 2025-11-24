@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "src/components/admin/**/*",
+    "src/hooks/use-admin-marketing.ts",
+    "src/services/**/*",
+    "src/types.ts",
+    "src/env.d.ts"
+  ],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.test.tsx"]
+}

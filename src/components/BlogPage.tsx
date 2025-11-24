@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BlogPost } from '../types';
 
 const BlogPage: React.FC = () => {
@@ -9,11 +9,7 @@ const BlogPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    fetchPosts();
-  }, [currentPage, searchTerm, selectedTag]);
-
-  const fetchPosts = async () => {
+  const fetchPosts = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -34,7 +30,11 @@ const BlogPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchTerm, selectedTag]);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
 
   const allTags = Array.from(new Set(posts.flatMap(post => post.tags)));
 

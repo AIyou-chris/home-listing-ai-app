@@ -90,7 +90,7 @@ const initialLeadForm = {
   notes: ''
 };
 
-export const AdminModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export function AdminModalProvider({ children }: { children: ReactNode }) {
   // User modal states
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditUserModal, setShowEditUserModal] = useState(false);
@@ -181,12 +181,13 @@ export const AdminModalProvider: React.FC<{ children: ReactNode }> = ({ children
       {children}
     </AdminModalContext.Provider>
   );
-};
+}
 
-export const useAdminModal = () => {
+// eslint-disable-next-line react-refresh/only-export-components
+export function useAdminModal() {
   const context = useContext(AdminModalContext);
   if (context === undefined) {
     throw new Error('useAdminModal must be used within an AdminModalProvider');
   }
   return context;
-};
+}

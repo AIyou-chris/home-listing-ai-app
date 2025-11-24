@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import Modal from './Modal';
 import { FollowUpSequence, SequenceAnalytics } from '../types';
+import { SequencePerformanceChart, PerformancePoint } from './funnel/SequencePerformanceChart';
 
 interface SequenceAnalyticsModalProps {
     sequence: FollowUpSequence;
@@ -26,22 +27,40 @@ const StatCard: React.FC<{
 
 const SequenceAnalyticsModal: React.FC<SequenceAnalyticsModalProps> = ({ sequence, onClose }) => {
     // Mock analytics data - in real app, this would come from your analytics service
-    const analytics: SequenceAnalytics = sequence.analytics || {
-        totalLeads: 342,
-        emailsSent: 1256,
-        emailsOpened: 876,
-        emailsClicked: 234,
-        tasksCompleted: 89,
-        meetingsScheduled: 67,
-        appointmentsBooked: 45,
-        responsesReceived: 127,
-        openRate: 69.7,
-        clickRate: 18.6,
-        responseRate: 37.1,
-        appointmentRate: 13.2,
-        avgResponseTime: 8.5,
-        lastUpdated: new Date().toISOString()
+    const analytics: Required<SequenceAnalytics> = {
+        totalLeads: sequence.analytics?.totalLeads ?? 342,
+        emailsSent: sequence.analytics?.emailsSent ?? 1256,
+        emailsOpened: sequence.analytics?.emailsOpened ?? 876,
+        emailsClicked: sequence.analytics?.emailsClicked ?? 234,
+        tasksCompleted: sequence.analytics?.tasksCompleted ?? 89,
+        meetingsScheduled: sequence.analytics?.meetingsScheduled ?? 67,
+        appointmentsBooked: sequence.analytics?.appointmentsBooked ?? 45,
+        responsesReceived: sequence.analytics?.responsesReceived ?? 127,
+        openRate: sequence.analytics?.openRate ?? 69.7,
+        clickRate: sequence.analytics?.clickRate ?? 18.6,
+        responseRate: sequence.analytics?.responseRate ?? 37.1,
+        appointmentRate: sequence.analytics?.appointmentRate ?? 13.2,
+        avgResponseTime: sequence.analytics?.avgResponseTime ?? 8.5,
+        lastUpdated: sequence.analytics?.lastUpdated ?? new Date().toISOString()
     };
+
+    const [selectedWindow, setSelectedWindow] = useState<'7d' | '30d' | '90d'>('30d');
+
+    const opensSeries = useMemo<PerformancePoint[]>(() => {
+        const base = selectedWindow === '7d' ? 7 : selectedWindow === '30d' ? 6 : 8;
+        return Array.from({ length: base }).map((_, index) => ({
+            label: `${index + 1}${selectedWindow === '7d' ? 'd' : 'w'}`,
+            value: Math.round(((sequence.analytics?.emailsOpened ?? 876) / base) * (0.7 + Math.random() * 0.3))
+        }));
+    }, [selectedWindow, sequence.analytics?.emailsOpened]);
+
+    const responseSeries = useMemo<PerformancePoint[]>(() => {
+        const base = selectedWindow === '7d' ? 7 : selectedWindow === '30d' ? 6 : 8;
+        return Array.from({ length: base }).map((_, index) => ({
+            label: `${index + 1}${selectedWindow === '7d' ? 'd' : 'w'}`,
+            value: Math.round(((sequence.analytics?.responsesReceived ?? 127) / base) * (0.6 + Math.random() * 0.4))
+        }));
+    }, [selectedWindow, sequence.analytics?.responsesReceived]);
 
     const formatPercentage = (value: number) => `${value.toFixed(1)}%`;
 
@@ -119,7 +138,7 @@ const SequenceAnalyticsModal: React.FC<SequenceAnalyticsModalProps> = ({ sequenc
                                         'bg-orange-500'
                                     }`}
                                     style={{ 
-                                        width: `${Math.min((24 - analytics.avgResponseTime) / 24 * 100, 100)}%` 
+                                        width: `${Math.max(0, Math.min((24 - analytics.avgResponseTime) / 24 * 100, 100))}%`
                                     }}
                                 ></div>
                             </div>
@@ -159,6 +178,33 @@ const SequenceAnalyticsModal: React.FC<SequenceAnalyticsModalProps> = ({ sequenc
                             <h5 className="text-sm font-medium text-purple-700">Links Clicked</h5>
                             <p className="text-xs text-purple-600">{formatPercentage(analytics.clickRate)} click rate</p>
                         </div>
+                    </div>
+                </div>
+
+                {/* Interactive Charts */}
+                <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-lg font-bold text-slate-800">Engagement Over Time</h4>
+                        <div className="flex items-center gap-2 text-xs">
+                            {(['7d', '30d', '90d'] as const).map((window) => (
+                                <button
+                                    key={window}
+                                    type="button"
+                                    onClick={() => setSelectedWindow(window)}
+                                    className={`px-3 py-1 rounded-full border transition ${
+                                        selectedWindow === window
+                                            ? 'border-primary-500 bg-primary-50 text-primary-700'
+                                            : 'border-slate-200 text-slate-500 hover:border-primary-300 hover:text-primary-600'
+                                    }`}
+                                >
+                                    {window}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <SequencePerformanceChart title="Opens" data={opensSeries} accent="blue" />
+                        <SequencePerformanceChart title="Responses" data={responseSeries} accent="green" />
                     </div>
                 </div>
 

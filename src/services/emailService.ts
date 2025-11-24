@@ -1,4 +1,34 @@
 // Email service for sending consultation confirmations and notifications
+type EmailRecipient = string | string[]
+
+type SendEmailOptions = {
+    fromEmail?: string
+    text?: string
+    cc?: EmailRecipient
+    bcc?: EmailRecipient
+    replyTo?: string
+    preference?: {
+        userId: string
+        channel: 'email'
+        event: string
+    }
+}
+
+type EmailRequestPayload = {
+    to: EmailRecipient
+    subject: string
+    html?: string
+    text?: string
+    from?: string
+    cc?: EmailRecipient
+    bcc?: EmailRecipient
+    replyTo?: string
+    preference?: {
+        userId: string
+        channel: 'email'
+        event: string
+    }
+}
 
 export interface ConsultationData {
     name: string;
@@ -14,27 +44,103 @@ export interface CalendarResult {
     eventId: string;
 }
 
+export interface ContactMessageData {
+    name: string;
+    email: string;
+    phone?: string;
+    message: string;
+}
+
 class EmailService {
-    private static instance: EmailService;
+    private static instance: EmailService
+    private readonly endpoint = '/api/email/send'
 
     private constructor() {}
 
     static getInstance(): EmailService {
         if (!EmailService.instance) {
-            EmailService.instance = new EmailService();
+            EmailService.instance = new EmailService()
         }
-        return EmailService.instance;
+        return EmailService.instance
+    }
+
+    private stripHtml(input: string): string {
+        return input
+            .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+    }
+
+    private async postEmail(payload: EmailRequestPayload): Promise<boolean> {
+        try {
+            const response = await fetch(this.endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+
+            if (!response.ok) {
+                const details = await response.json().catch(() => ({}))
+                console.error('Mailgun email request failed', {
+                    status: response.status,
+                    details
+                })
+                return false
+            }
+
+            const data = await response.json().catch(() => ({}))
+            if (data?.success === false) {
+                console.error('Mailgun email request reported failure', data)
+                return false
+            }
+
+            return true
+        } catch (error) {
+            console.error('Mailgun email request errored', error)
+            return false
+        }
+    }
+
+    async sendEmail(to: string, subject: string, html: string, options: SendEmailOptions = {}): Promise<boolean> {
+        const payload: EmailRequestPayload = {
+            to,
+            subject,
+            html,
+            text: options.text,
+            from: options.fromEmail,
+            cc: options.cc,
+            bcc: options.bcc,
+            replyTo: options.replyTo,
+            preference: options.preference
+        }
+
+        if (!payload.text && html) {
+            payload.text = this.stripHtml(html)
+        }
+
+        const success = await this.postEmail(payload)
+
+        if (!success) {
+            console.error('Failed to send email via backend service', {
+                to,
+                subject
+            })
+        }
+
+        return success
     }
 
     // Send confirmation email to client
-    async sendConsultationConfirmation(data: ConsultationData, meetLink?: string): Promise<boolean> {
+    async sendConsultationConfirmation(data: ConsultationData, meetLink?: string, options: SendEmailOptions = {}): Promise<boolean> {
         try {
             console.log('📧 Attempting to send confirmation email to:', data.email);
             
-            const emailContent = {
-                to: data.email,
-                subject: 'Your Consultation Has Been Scheduled - HomeListingAI',
-                html: `
+            const subject = 'Your Consultation Has Been Scheduled - HomeListingAI';
+            const html = `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                         <h2 style="color: #1e40af;">Your Consultation Has Been Scheduled!</h2>
                         <p>Hi ${data.name},</p>
@@ -60,60 +166,32 @@ class EmailService {
                         
                         <p>Best regards,<br>The HomeListingAI Team</p>
                     </div>
-                `
-            };
+                `;
 
-            // Try sending via backend API if available
-            const backendSent = await this.sendViaBackend(emailContent);
-            if (backendSent) {
-                console.log('✅ Email sent successfully via backend');
+            const emailSent = await this.sendEmail(data.email, subject, html, {
+                text: this.stripHtml(html),
+                ...options
+            });
+            
+            if (emailSent) {
+                console.log('✅ Confirmation email sent successfully');
                 return true;
             }
 
-            // All methods failed, show user what happened
-            console.log('❌ All email sending methods failed');
-            console.log('📋 Email that would have been sent:', emailContent);
-            
-            // Show a user-friendly message about the booking
-            alert(`✅ Consultation scheduled successfully!
-
-📅 ${data.name}, your consultation is booked for:
-📆 Date: ${new Date(data.date).toLocaleDateString()}
-⏰ Time: ${data.time}
-📧 Confirmation email: ${data.email}
-
-Note: Email service is currently in demo mode. 
-In production, you would receive confirmation emails.
-
-We've logged your booking details for follow-up.`);
-            
-            return true; // Return true since the booking was successful, just email failed
+            console.warn('❌ Failed to send confirmation email via Mailgun. Continuing without email.')
+            return false;
         } catch (error) {
             console.error('❌ Error in consultation confirmation:', error);
             return false;
         }
     }
 
-    private async sendViaBackend(emailContent: any): Promise<boolean> {
-        try {
-            // This would send email via your backend API
-            const response = await fetch('/api/send-email', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(emailContent)
-            });
-            
-            return response.ok;
-        } catch (error) {
-            console.log('📧 Backend email API not available (expected in demo)');
-            return false;
-        }
-    }
-
     // Send notification email to admin
-    async sendAdminNotification(data: ConsultationData, meetLink?: string): Promise<boolean> {
+    async sendAdminNotification(
+        data: ConsultationData,
+        meetLink?: string,
+        options: { userId?: string } = {}
+    ): Promise<boolean> {
         try {
             console.log('📧 Attempting to send admin notification about new consultation');
             
@@ -150,31 +228,96 @@ We've logged your booking details for follow-up.`);
                 `
             };
 
-            // Try backend
-            const backendSent = await this.sendViaBackend(emailContent);
-            if (backendSent) {
-                console.log('✅ Admin notification sent successfully via backend');
-                return true;
+            const preference = options.userId
+                ? {
+                      userId: options.userId,
+                      channel: 'email' as const,
+                      event: 'appointmentScheduled'
+                  }
+                : undefined
+
+            const emailSent = await this.sendEmail(adminEmail, emailContent.subject, emailContent.html, {
+                text: this.stripHtml(emailContent.html),
+                replyTo: data.email,
+                preference
+            })
+
+            if (!emailSent) {
+                console.warn('⚠️ Admin notification could not be sent via Mailgun. Logging instead.')
+                console.log('📋 New consultation booking:', {
+                    client: data.name,
+                    email: data.email,
+                    phone: data.phone,
+                    date: data.date,
+                    time: data.time,
+                    message: data.message,
+                    meetLink: meetLink
+                })
             }
 
-            // All methods failed, log the notification
-            console.log('⚠️ Admin notification could not be sent via email, logging instead:');
-            console.log('📋 New consultation booking:', {
-                client: data.name,
-                email: data.email,
-                phone: data.phone,
-                date: data.date,
-                time: data.time,
-                message: data.message,
-                meetLink: meetLink
-            });
-            
-            return true; // Return true since the booking was successful
+            return emailSent
         } catch (error) {
             console.error('❌ Error in admin notification:', error);
             return false;
         }
     }
+
+    async sendContactMessage(data: ContactMessageData, options: SendEmailOptions = {}): Promise<boolean> {
+        try {
+            console.log('📧 Forwarding contact message to admin inbox');
+
+            const adminEmail = 'us@homelistingai.com';
+            const subject = `New contact message from ${data.name}`;
+            const html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #1e293b;">New Contact Message</h2>
+                    <p>You received a new message from the website contact form.</p>
+
+                    <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0;">Contact Details</h3>
+                        <p><strong>Name:</strong> ${data.name}</p>
+                        <p><strong>Email:</strong> <a href="mailto:${data.email}" style="color: #1e40af;">${data.email}</a></p>
+                        <p><strong>Phone:</strong> ${data.phone || 'Not provided'}</p>
+                    </div>
+
+                    <div style="background-color: #eef2ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0;">Message</h3>
+                        <p style="white-space: pre-wrap;">${data.message}</p>
+                    </div>
+
+                    <p>Reply directly to the sender to continue the conversation.</p>
+                </div>
+            `;
+
+            const plainText = `New contact message\n\n` +
+                `Name: ${data.name}\n` +
+                `Email: ${data.email}\n` +
+                `Phone: ${data.phone ?? 'Not provided'}\n\n` +
+                `Message:\n${data.message}`
+
+            const sent = await this.sendEmail(adminEmail, subject, html, {
+                text: plainText,
+                replyTo: data.email,
+                ...options
+            })
+
+            if (!sent) {
+                console.warn('⚠️ Contact email could not be sent via Mailgun. Logging instead:')
+                console.table({
+                    name: data.name,
+                    email: data.email,
+                    phone: data.phone ?? 'N/A',
+                    message: data.message
+                })
+            }
+
+            return sent
+        } catch (error) {
+            console.error('❌ Error sending contact message:', error);
+            return false;
+        }
+    }
 }
 
+export { EmailService };
 export const emailService = EmailService.getInstance();

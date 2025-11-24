@@ -1,28 +1,33 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { AdminModalProvider } from './context/AdminModalContext';
 import { supabase } from './services/supabase';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence } from './types';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence, LeadFunnelType } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_TASKS, SAMPLE_CONVERSATIONS, SAMPLE_INTERACTIONS } from './constants';
 import LandingPage from './components/LandingPage';
 import NewLandingPage from './components/NewLandingPage';
 import SignUpPage from './components/SignUpPage';
 import SignInPage from './components/SignInPage';
+import CheckoutPage from './components/CheckoutPage';
+import { getRegistrationContext } from './services/agentOnboardingService';
 import Dashboard from './components/Dashboard';
+import AgentDashboardBlueprint from './components/AgentDashboardBlueprint';
 import Sidebar from './components/Sidebar';
 import PropertyPage from './components/PropertyPage';
 import ListingsPage from './components/ListingsPage';
 import AddListingPage from './components/AddListingPage';
 import LeadsAndAppointmentsPage from './components/LeadsAndAppointmentsPage';
 import InteractionHubPage from './components/InteractionHubPage';
+import AIConversationsPage from './components/AIConversationsPage';
+import AICardPage from './components/AICardPage';
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
-import MarketingPage from './components/MarketingPage';
 import SettingsPage from './components/SettingsPage';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 import ConsultationModal from './components/ConsultationModal';
 import { AISidekickProvider } from './context/AISidekickContext';
+import { getProfileForDashboard, subscribeToProfileChanges } from './services/agentProfileService';
 // Lazy load admin components for better performance
 const AdminSidebar = lazy(() => import('./components/AdminSidebar'));
 const AdminLayout = lazy(() => import('./components/AdminLayout'));
@@ -31,42 +36,122 @@ const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
 import DemoListingPage from './components/DemoListingPage';
-import AIContentPage from './components/AIContentPage';
+
+const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
+    homebuyer: 'Buyer Lead',
+    seller: 'Seller Lead',
+    postShowing: 'Property Viewed'
+};
+
+const parseRouteSegments = (raw: string): string[] => {
+    if (!raw) return [];
+    const cleaned = raw.replace(/^#/, '').replace(/^\//, '');
+    if (!cleaned) return [];
+    const [path] = cleaned.split('?');
+    return path
+        .split('/')
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+};
+
+const getRouteInfo = () => {
+    let segments = parseRouteSegments(window.location.hash);
+    if (!segments.length) {
+        segments = parseRouteSegments(window.location.pathname);
+    }
+    return {
+        segments,
+        route: segments[0] || ''
+    };
+};
 
 
-import AILeadQualificationTestPage from './components/AILeadQualificationTestPage';
-import HelpSalesChatBotTestPage from './components/HelpSalesChatBotTestPage';
-import AITestNavigation from './components/AITestNavigation';
-import ChatBotFAB from './components/ChatBotFAB';
-import PropertyComparison from './components/PropertyComparison';
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
-import AIAgentHub from './components/AIAgentHub';
+import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
+import AIInteractiveTraining from './components/AIInteractiveTraining';
 
 // import { getProperties, addProperty } from './services/firestoreService';
 // Temporary stubs while migrating off Firebase
-const getProperties = async (_uid: string) => [] as any[];
-const addProperty = async (_data: any, _uid: string) => `prop_${Date.now()}`;
+const getProperties = async (_uid: string): Promise<Property[]> => [];
+const addProperty = async (_data: PersistedProperty, _uid: string): Promise<string> => `prop_${Date.now()}`;
 import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
 // SessionService removed
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
+import SequenceExecutionService, { SequenceTriggerType } from './services/sequenceExecutionService';
+import { leadsService, LeadPayload } from './services/leadsService';
 
 
 // A helper function to delay execution
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+type AppUser = {
+    uid: string;
+    id: string;
+    email: string | null;
+    displayName?: string | null;
+};
+
+type PersistedProperty = Omit<Property, 'id'>;
+
+const ADMIN_VIEWS = [
+    'admin-dashboard',
+    'admin-users',
+    'admin-leads',
+    'admin-contacts',
+    'admin-knowledge-base',
+    'admin-ai-training',
+    'admin-ai-personalities',
+    'admin-ai-content',
+    'admin-marketing',
+    'admin-analytics',
+    'admin-security',
+    'admin-billing',
+    'admin-settings',
+    'admin-setup',
+    'admin-blog-writer',
+    'admin-ai-card'
+] as const;
+
+type AdminView = (typeof ADMIN_VIEWS)[number];
+
+const isAdminView = (value: string): value is AdminView => {
+    return ADMIN_VIEWS.includes(value as AdminView);
+};
+
+interface BackendListing {
+    id: string;
+    title: string;
+    address: string;
+    price: number;
+    bedrooms: number;
+    bathrooms: number;
+    squareFeet: number;
+    propertyType: string;
+    description?: string;
+    heroPhotos?: string[];
+    galleryPhotos?: string[];
+    features?: string[];
+    agent: AgentProfile;
+    ctaListingUrl?: string;
+    ctaMediaUrl?: string;
+}
+
 const App: React.FC = () => {
-    const [user, setUser] = useState<any | null>(null);
+    const [user, setUser] = useState<AppUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSettingUp, setIsSettingUp] = useState(false);
     const [isDemoMode, setIsDemoMode] = useState(false);
     // Use a plain string for view to avoid mismatches between multiple View type declarations
     // (several `types.ts` files exist in the repo). We'll keep runtime checks as strings.
-    const [view, setView] = useState<string>('landing');
+    const [view, setView] = useState<View>('landing');
+    const handleViewChange = useCallback((nextView: View) => {
+        setView(nextView);
+    }, []);
     
 
     const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
@@ -75,15 +160,33 @@ const App: React.FC = () => {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [interactions, setInteractions] = useState<Interaction[]>([]);
     const [tasks, setTasks] = useState<AgentTask[]>([]);
-    const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [, setConversations] = useState<Conversation[]>([]);
     const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
+
+    const resolvePropertyForLead = useCallback(
+        (targetLead?: Lead | null): Property | undefined => {
+            const leadRef = targetLead ?? null;
+            if (leadRef?.interestedProperties?.length) {
+                const matchedProperty = properties.find((property) =>
+                    leadRef.interestedProperties?.includes(property.id)
+                );
+                if (matchedProperty) {
+                    return matchedProperty;
+                }
+            }
+            if (selectedPropertyId) {
+                return properties.find((property) => property.id === selectedPropertyId);
+            }
+            return undefined;
+        },
+        [properties, selectedPropertyId]
+    );
 
     // Removed unused selectedLead state
     const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
     const [scrollToSection, setScrollToSection] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     // Notification system is now handled by NotificationSystem component
-    const [isPropertyComparisonOpen, setIsPropertyComparisonOpen] = useState(false);
     // Removed unused analyticsTimeRange state
     const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
     const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
@@ -92,7 +195,8 @@ const App: React.FC = () => {
 
     // Mock data for settings
     const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
-        const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+    const [, setIsProfileLoading] = useState(false);
+    const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
         newLead: true,
         appointmentScheduled: true,
         aiInteraction: false,
@@ -111,52 +215,108 @@ const App: React.FC = () => {
         monthlyInsights: true
     });
     const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
-    const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({ integrationType: 'google', aiScheduling: true, conflictDetection: true, emailReminders: true, autoConfirm: false });
+    const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
+        integrationType: 'google',
+        aiScheduling: true,
+        conflictDetection: true,
+        emailReminders: true,
+        autoConfirm: false,
+        workingHours: { start: '09:00', end: '17:00' },
+        workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        defaultDuration: 60,
+        bufferTime: 15,
+        smsReminders: true,
+        newAppointmentAlerts: true
+    });
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid'}] });
     // Removed unused state variables
+    const [activeAgentSlug, setActiveAgentSlug] = useState<string | null>(null);
 
 
-    // Handle URL hash routing
+    // Handle URL routing via hash or pathname
     useEffect(() => {
-        const handleHashChange = () => {
-            const hash = window.location.hash.substring(1); // Remove the #
-            if (hash === 'admin-dashboard') {
-                setView('admin-dashboard');
-                // Reset admin login modal state when going to admin-dashboard
+        const handleRouteChange = () => {
+            const { route, segments } = getRouteInfo();
+
+            const resetAdminLogin = () => {
                 setIsAdminLoginOpen(false);
                 setAdminLoginError(null);
-            } else if (hash === 'admin-setup') {
-                setView('admin-setup');
-                // Reset admin login modal state when going to admin-setup
-                setIsAdminLoginOpen(false);
-                setAdminLoginError(null);
-            } else if (hash === 'ai-content') {
-                // Chat bots disabled: ignore ai-content route
-                setView('dashboard');
-            } else if (hash === 'landing') {
-                setView('landing');
-            } else if (hash === 'signin') {
-                setView('signin');
-            } else if (hash === 'signup') {
-                setView('signup');
-            } else if (hash === 'test') {
-                setView('landing');
-            } else if (hash === 'openai-test') {
-                // removed
-                setView('dashboard');
-            } else if (hash === 'ai-sidekicks') {
-                setView('ai-sidekicks');
-            } else if (hash === 'demo-listing') {
-                setView('demo-listing');
+            };
+
+            switch (route) {
+                case '':
+                case 'landing':
+                    setActiveAgentSlug(null);
+                    setIsDemoMode(false);
+                    setView('landing');
+                    break;
+                case 'signup':
+                    setActiveAgentSlug(null);
+                    setView('signup');
+                    break;
+                case 'signin':
+                    setActiveAgentSlug(null);
+                    setView('signin');
+                    break;
+                case 'checkout':
+                    setActiveAgentSlug(segments[1] || null);
+                    setView('checkout');
+                    break;
+                case 'dashboard':
+                    setActiveAgentSlug(segments[1] || null);
+                    setView('dashboard');
+                    break;
+                case 'dashboard-blueprint':
+                    setActiveAgentSlug(null);
+                    setView('dashboard-blueprint');
+                    break;
+                case 'admin-dashboard':
+                    resetAdminLogin();
+                    setView('admin-dashboard');
+                    break;
+                case 'admin-setup':
+                    resetAdminLogin();
+                    setView('admin-setup');
+                    break;
+                case 'ai-card':
+                    setView('dashboard');
+                    break;
+                case 'test':
+                    setView('landing');
+                    break;
+                case 'openai-test':
+                    setView('dashboard');
+                    break;
+                case 'ai-sidekicks':
+                    setView('ai-sidekicks');
+                    break;
+                case 'demo-listing':
+                    setView('demo-listing');
+                    break;
+                case 'blog':
+                    setView('blog');
+                    break;
+                case 'blog-post':
+                    setView('blog-post');
+                    break;
+                default:
+                    if (route && isAdminView(route)) {
+                        resetAdminLogin();
+                        setView(route);
+                    } else if (!route) {
+                        setView('landing');
+                    }
+                    break;
             }
         };
 
-        // Handle initial hash with a small delay to avoid race conditions
-        setTimeout(handleHashChange, 100);
-
-        // Listen for hash changes
-        window.addEventListener('hashchange', handleHashChange);
-        return () => window.removeEventListener('hashchange', handleHashChange);
+        handleRouteChange();
+        window.addEventListener('hashchange', handleRouteChange);
+        window.addEventListener('popstate', handleRouteChange);
+        return () => {
+            window.removeEventListener('hashchange', handleRouteChange);
+            window.removeEventListener('popstate', handleRouteChange);
+        };
     }, []);
 
     useEffect(() => {
@@ -171,12 +331,27 @@ const App: React.FC = () => {
         
         const initAuth = async () => {
             const { data } = await supabase.auth.getUser();
-            const currentUser = data.user
-                ? { uid: data.user.id, email: data.user.email, displayName: data.user.user_metadata?.name }
+            const currentUser: AppUser | null = data.user
+                ? {
+                      uid: data.user.id,
+                      id: data.user.id,
+                      email: data.user.email,
+                      displayName: data.user.user_metadata?.name ?? null
+                  }
                 : null;
             setIsLoading(true);
             setIsSettingUp(false); // Reset on every auth change
             setIsDemoMode(false); // Reset demo mode on any auth change
+
+            // Check URL hash/path first - some routes don't require auth
+            const { route } = getRouteInfo();
+            
+            // Allow access to certain routes without auth
+            if (route === 'dashboard-blueprint') {
+                setView('dashboard-blueprint');
+                setIsLoading(false);
+                return;
+            }
 
             // Force signup mode - bypass auth check
             const urlParams = new URLSearchParams(window.location.search);
@@ -242,7 +417,6 @@ const App: React.FC = () => {
                     setUser(currentUser);
                     setUserProfile(profileToLoad);
                     setProperties(propertiesToLoad);
-                    setLeads(DEMO_FAT_LEADS); // Using demo data for now
                     setAppointments(DEMO_FAT_APPOINTMENTS); // Using demo data for now
                     setInteractions(SAMPLE_INTERACTIONS); // Using demo data for now
                     setTasks(SAMPLE_TASKS);
@@ -281,8 +455,20 @@ const App: React.FC = () => {
                 setTasks([]);
                 setConversations([]);
                 setSequences([]);
-                // Don't override admin-setup view when user signs out
-                if (view !== 'admin-setup') {
+                const { route: signedOutRoute } = getRouteInfo();
+                console.log('🔍 No user logged in, route=', signedOutRoute);
+
+                if (signedOutRoute === 'dashboard-blueprint') {
+                    setView('dashboard-blueprint');
+                } else if (signedOutRoute === 'admin-setup') {
+                    setView('admin-setup');
+                } else if (signedOutRoute === 'signup') {
+                    setView('signup');
+                } else if (signedOutRoute === 'signin') {
+                    setView('signin');
+                } else {
+                    console.log('📍 Defaulting to landing');
+                    setIsDemoMode(false);
                     setView('landing');
                 }
             }
@@ -292,8 +478,13 @@ const App: React.FC = () => {
         initAuth();
 
         const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            const currentUser = session?.user
-                ? { uid: session.user.id, email: session.user.email, displayName: session.user.user_metadata?.name }
+            const currentUser: AppUser | null = session?.user
+                ? {
+                      uid: session.user.id,
+                      id: session.user.id,
+                      email: session.user.email,
+                      displayName: session.user.user_metadata?.name ?? null
+                  }
                 : null;
             // Re-run the same flow with new user
             setIsLoading(true);
@@ -312,15 +503,140 @@ const App: React.FC = () => {
         return () => { sub.subscription.unsubscribe(); };
     }, []);
 
+    // Load centralized agent profile and set up real-time updates
+    useEffect(() => {
+        if (user && !isDemoMode) {
+                    // Load centralized agent profile
+        loadAgentProfile();
+        
+        // Load listings from backend
+        loadListingsFromBackend();
+            
+            // Subscribe to profile changes for real-time updates
+            const unsubscribe = subscribeToProfileChanges((updatedProfile) => {
+                setUserProfile(prev => ({
+                    ...prev,
+                    name: updatedProfile.name,
+                    title: updatedProfile.title,
+                    company: updatedProfile.company,
+                    headshotUrl: updatedProfile.headshotUrl,
+                    email: updatedProfile.email,
+                    phone: updatedProfile.phone
+                }));
+                console.log('🔄 Profile updated across app');
+            });
+            
+            return () => {
+                unsubscribe();
+            };
+        }
+    }, [user, isDemoMode]);
 
-    const handleNavigateToSignUp = () => setView('signup');
-    const handleNavigateToSignIn = () => setView('signin');
-    const handleNavigateToLanding = () => setView('landing');
+    const handleNavigateToSignUp = () => {
+        setView('signup');
+        window.location.hash = 'signup';
+    };
+    const handleNavigateToSignIn = () => {
+        setView('signin');
+        window.location.hash = 'signin';
+    };
+    const handleNavigateToLanding = () => {
+        setIsDemoMode(false);
+        setView('landing');
+        window.location.hash = 'landing';
+    };
+    
+    const loadLeadsFromBackend = async () => {
+        try {
+            const data = await leadsService.list();
+            setLeads(data.leads || []);
+            console.log('✅ Loaded leads from backend:', data.leads?.length || 0);
+        } catch (error) {
+            console.error('Error loading leads from backend:', error);
+            setLeads(DEMO_FAT_LEADS);
+        }
+    };
+
+    // Load centralized agent profile
+    const loadAgentProfile = async () => {
+        try {
+            setIsProfileLoading(true);
+            const profileData = await getProfileForDashboard();
+            setUserProfile(prev => ({
+                ...prev,
+                name: profileData.name,
+                title: profileData.title,
+                company: profileData.company,
+                headshotUrl: profileData.headshotUrl,
+                email: profileData.email,
+                phone: profileData.phone,
+                language: profileData.language ?? prev.language
+            }));
+            console.log('✅ Loaded centralized agent profile');
+        } catch (error) {
+            console.error('Failed to load agent profile:', error);
+            // Keep using SAMPLE_AGENT as fallback
+        } finally {
+            setIsProfileLoading(false);
+        }
+    };
+
+    // Load listings from backend
+    const loadListingsFromBackend = async () => {
+        try {
+            const response = await fetch('/api/listings');
+            if (response.ok) {
+                const data: { listings?: BackendListing[] } = await response.json();
+                // Convert backend format to frontend format
+                const backendListings: BackendListing[] = Array.isArray(data.listings) ? data.listings : [];
+                const frontendProperties = backendListings.map((listing) => ({
+                    id: listing.id,
+                    title: listing.title,
+                    address: listing.address,
+                    price: listing.price,
+                    bedrooms: listing.bedrooms,
+                    bathrooms: listing.bathrooms,
+                    squareFeet: listing.squareFeet,
+                    propertyType: listing.propertyType,
+                    description: listing.description || '',
+                    imageUrl: listing.heroPhotos?.[0] || '/demo/home-1.png',
+                    features: listing.features || [],
+                    heroPhotos: listing.heroPhotos || [],
+                    galleryPhotos: listing.galleryPhotos || [],
+                    agent: listing.agent,
+                    appFeatures: {
+                        gallery: true,
+                        schools: true,
+                        financing: true,
+                        virtualTour: true,
+                        amenities: true,
+                        schedule: true,
+                        map: true,
+                        history: true,
+                        neighborhood: true,
+                        reports: true,
+                        messaging: true
+                    },
+                    ctaListingUrl: listing.ctaListingUrl ?? '',
+                    ctaMediaUrl: listing.ctaMediaUrl ?? ''
+                }));
+                setProperties(frontendProperties);
+                console.log('✅ Loaded listings from backend:', frontendProperties.length);
+            } else {
+                console.warn('Failed to load listings from backend, using demo data');
+                setProperties(DEMO_FAT_PROPERTIES);
+            }
+        } catch (error) {
+            console.error('Error loading listings from backend:', error);
+            setProperties(DEMO_FAT_PROPERTIES);
+        }
+    };
     
     const handleEnterDemoMode = () => {
         setIsDemoMode(true);
         setProperties(DEMO_FAT_PROPERTIES);
-        setLeads(DEMO_FAT_LEADS);
+        // Load leads from backend in demo mode too
+        loadLeadsFromBackend();
         setAppointments(DEMO_FAT_APPOINTMENTS);
         setInteractions(SAMPLE_INTERACTIONS);
         setTasks(SAMPLE_TASKS);
@@ -375,7 +691,8 @@ const App: React.FC = () => {
             setIsAdminLoginOpen(false);
             setView('admin-dashboard');
             window.location.hash = 'admin-dashboard';
-        } catch (error: any) {
+        } catch (error) {
+            console.error('Admin login failed', error);
             setAdminLoginError('Invalid login credentials');
         } finally {
             setIsAdminLoginLoading(false);
@@ -394,10 +711,6 @@ const App: React.FC = () => {
         setView('landing');
         setScrollToSection(sectionId);
     };
-
-    // Notification handler for future use - will be used when implementing real notifications
-     
-    // Notification handling is now managed by NotificationSystem component
 
     // Notification handling is now managed by NotificationSystem component
 
@@ -456,8 +769,9 @@ const App: React.FC = () => {
             }, 4000);
         } else if (user) { // Only save to Firestore if a real user is logged in
             try {
-                const { id, ...dataForFirestore } = propertyForState;
-                const newDocId = await addProperty(dataForFirestore, user.uid);
+                const { id: _discardedId, ...dataForPersistence } = propertyForState;
+                void _discardedId;
+                const newDocId = await addProperty(dataForPersistence, user.uid);
                 
                 setProperties(prev => prev.map(p => p.id === tempId ? { ...p, id: newDocId } : p));
             } catch (error) {
@@ -478,20 +792,96 @@ const App: React.FC = () => {
             }
         }
     };
+
+    const triggerLeadSequences = useCallback(
+        async (
+            lead: Lead,
+            triggerType: SequenceTriggerType = 'Lead Capture',
+            propertyOverride?: Property
+        ) => {
+            try {
+                const sequenceService = SequenceExecutionService.getInstance();
+                await sequenceService.triggerSequences(
+                    triggerType,
+                    {
+                        lead,
+                        agent: userProfile || SAMPLE_AGENT,
+                        property: propertyOverride ?? resolvePropertyForLead(lead)
+                    },
+                    sequences
+                );
+                console.log(`✅ ${triggerType} sequences triggered for:`, lead.name);
+            } catch (error) {
+                console.error('❌ Error triggering sequences:', error);
+            }
+        },
+        [resolvePropertyForLead, sequences, userProfile]
+    );
     
-    const handleAddNewLead = (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
-        const newLead: Lead = {
-            id: `lead-${Date.now()}`,
+    const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
+        const payload: LeadPayload = {
             name: leadData.name,
             email: leadData.email,
             phone: leadData.phone,
+            source: leadData.source || 'Website',
             lastMessage: leadData.message,
-            status: 'New',
-            date: new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' })
+            funnelType: null
         };
-        setLeads(prev => [newLead, ...prev]);
+
+        try {
+            const createdLead = await leadsService.create(payload);
+            setLeads(prev => [createdLead, ...prev]);
+            await triggerLeadSequences(createdLead);
+        } catch (error) {
+            console.error('❌ Failed to create lead via API, using local fallback:', error);
+            const createdLead: Lead = {
+                id: `lead-${Date.now()}`,
+                name: leadData.name,
+                email: leadData.email,
+                phone: leadData.phone,
+                lastMessage: leadData.message,
+                status: 'New',
+                date: new Date().toISOString(),
+                funnelType: null,
+                interestedProperties: []
+            };
+            setLeads(prev => [createdLead, ...prev]);
+            await triggerLeadSequences(createdLead);
+        }
         setView('leads'); 
     };
+
+    const handleLeadFunnelAssigned = useCallback(
+        async (lead: Lead, funnel: LeadFunnelType | null) => {
+            const previous = lead.funnelType ?? null;
+            setLeads((prev) =>
+                prev.map((item) =>
+                    item.id === lead.id ? { ...item, funnelType: funnel ?? undefined } : item
+                )
+            );
+            try {
+                const updatedLead = await leadsService.assignFunnel(lead.id, funnel);
+                setLeads((prev) => prev.map((item) => (item.id === lead.id ? updatedLead : item)));
+                if (funnel) {
+                    const triggerType = FUNNEL_TRIGGER_MAP[funnel];
+                    await triggerLeadSequences(
+                        updatedLead,
+                        triggerType,
+                        resolvePropertyForLead(updatedLead)
+                    );
+                }
+            } catch (error) {
+                console.error('❌ Failed to assign lead funnel:', error);
+                setLeads((prev) =>
+                    prev.map((item) =>
+                        item.id === lead.id ? { ...item, funnelType: previous ?? undefined } : item
+                    )
+                );
+                alert('Unable to update the lead funnel right now. Please try again.');
+            }
+        },
+        [resolvePropertyForLead, triggerLeadSequences]
+    );
 
     // Load appointments from Supabase when user signs in or demo/local admin
     React.useEffect(() => {
@@ -505,10 +895,23 @@ const App: React.FC = () => {
                     type: r.kind,
                     date: r.date,
                     time: r.time_label,
-                    leadId: r.lead_id || '',
-                    propertyId: r.property_id || '',
+                    leadId: r.lead_id ?? null,
+                    propertyId: r.property_id ?? null,
+                    propertyAddress: r.property_address || undefined,
                     notes: r.notes || '',
-                    status: r.status
+                    status: r.status,
+                    leadName: r.name,
+                    email: r.email || undefined,
+                    phone: r.phone || undefined,
+                    remindAgent: r.remind_agent,
+                    remindClient: r.remind_client,
+                    agentReminderMinutes: r.agent_reminder_minutes_before,
+                    clientReminderMinutes: r.client_reminder_minutes_before,
+                    meetLink: r.meet_link || undefined,
+                    startIso: r.start_iso,
+                    endIso: r.end_iso,
+                    createdAt: r.created_at,
+                    updatedAt: r.updated_at
                 }));
                 setAppointments(mapped);
             } catch (e) {
@@ -540,29 +943,78 @@ const App: React.FC = () => {
 	}
 
 	const renderViewContent = () => {
-		// Logged-in, Demo, or Local Admin views
-		if (user || isDemoMode || isLocalAdmin) {
-			// If explicitly viewing landing, render standalone marketing page
-			if (view === 'landing') {
+		const registrationContext = getRegistrationContext() as { slug?: string } | null;
+		const slugForCheckout = activeAgentSlug || registrationContext?.slug || null;
+		const renderCheckout = () => {
+			if (!slugForCheckout) {
 				return (
-					<LandingPage 
-						onNavigateToSignUp={handleNavigateToSignUp} 
-						onNavigateToSignIn={handleNavigateToSignIn} 
-						onEnterDemoMode={handleEnterDemoMode}
-						scrollToSection={scrollToSection}
-						onScrollComplete={() => setScrollToSection(null)}
-						onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-						onNavigateToAdmin={handleNavigateToAdmin}
-					/>
+					<div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
+						<div className="max-w-md space-y-4">
+							<h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
+							<p className="text-sm text-slate-600">
+								Your secure checkout link may have expired. Please restart the signup process to generate a new link.
+							</p>
+							<button
+								type="button"
+								onClick={handleNavigateToSignUp}
+								className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
+							>
+								<span className="material-symbols-outlined text-base">person_add</span>
+								Start new signup
+							</button>
+						</div>
+					</div>
 				);
 			}
+
+			return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
+		};
+
+        const isMarketingLanding = view === 'landing' && !user && !isDemoMode && !isLocalAdmin;
+        const resolvedView = (user || isDemoMode || isLocalAdmin) && view === 'landing' ? 'dashboard' : view;
+
+        if (!user && !isDemoMode && !isLocalAdmin && view === 'admin-dashboard') {
+            return (
+                <LandingPage
+                    onNavigateToSignUp={handleNavigateToSignUp}
+                    onNavigateToSignIn={handleNavigateToSignIn}
+                    onEnterDemoMode={handleEnterDemoMode}
+                    scrollToSection={scrollToSection}
+                    onScrollComplete={() => setScrollToSection(null)}
+                    onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                    onNavigateToAdmin={handleNavigateToAdmin}
+                />
+            );
+        }
+
+		if (isMarketingLanding) {
+			return (
+				<LandingPage
+					onNavigateToSignUp={handleNavigateToSignUp}
+					onNavigateToSignIn={handleNavigateToSignIn}
+					onEnterDemoMode={handleEnterDemoMode}
+					scrollToSection={scrollToSection}
+					onScrollComplete={() => setScrollToSection(null)}
+					onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+					onNavigateToAdmin={handleNavigateToAdmin}
+				/>
+			);
+		}
+
+		// Logged-in, Demo, or Local Admin views
+		if ((user || isDemoMode || isLocalAdmin) && view === 'dashboard-blueprint') {
+			return <AgentDashboardBlueprint />;
+		}
+
+		if (user || isDemoMode || isLocalAdmin) {
+
 			const mainContent = () => {
-				switch(view) {
-					case 'landing':
+				switch(resolvedView) {
+					case 'openai-test':
 						return (
-							<LandingPage 
-								onNavigateToSignUp={handleNavigateToSignUp} 
-								onNavigateToSignIn={handleNavigateToSignIn} 
+							<LandingPage
+								onNavigateToSignUp={handleNavigateToSignUp}
+								onNavigateToSignIn={handleNavigateToSignIn}
 								onEnterDemoMode={handleEnterDemoMode}
 								scrollToSection={scrollToSection}
 								onScrollComplete={() => setScrollToSection(null)}
@@ -570,20 +1022,11 @@ const App: React.FC = () => {
 								onNavigateToAdmin={handleNavigateToAdmin}
 							/>
 						);
-					case 'openai-test':
-						return <LandingPage 
-							onNavigateToSignUp={handleNavigateToSignUp} 
-							onNavigateToSignIn={handleNavigateToSignIn} 
-							onEnterDemoMode={handleEnterDemoMode}
-							scrollToSection={scrollToSection}
-							onScrollComplete={() => setScrollToSection(null)}
-							onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-							onNavigateToAdmin={handleNavigateToAdmin}
-						/>;
 					case 'admin-dashboard':
-						return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
+						return <AdminModalProvider><AdminLayout currentView={resolvedView} /></AdminModalProvider>;
 					case 'admin-users':
 					case 'admin-knowledge-base': 
+					case 'admin-ai-training':
 					case 'admin-ai-personalities':
 					case 'admin-marketing': 
 					case 'admin-analytics': 
@@ -602,11 +1045,14 @@ const App: React.FC = () => {
 							appointments={appointments} 
 							tasks={tasks} 
 							onSelectProperty={handleSelectProperty} 
-							onAddNew={() => setView('add-listing')}
 							onTaskUpdate={handleTaskUpdate}
 							onTaskAdd={handleTaskAdd}
 							onTaskDelete={handleTaskDelete}
 						/>;
+					case 'dashboard-blueprint':
+						return <AgentDashboardBlueprint />;
+					case 'checkout':
+						return renderCheckout();
 					case 'property': 
 						return selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setView('listings')} /> : <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')} />;
 					case 'listings': 
@@ -614,25 +1060,47 @@ const App: React.FC = () => {
 					case 'add-listing': 
 						return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} />;
 					case 'leads': 
-						return <LeadsAndAppointmentsPage leads={leads} appointments={appointments} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} onNewAppointment={(appt) => setAppointments(prev => [appt, ...prev])} />;
+						return (
+							<LeadsAndAppointmentsPage
+								leads={leads}
+								appointments={appointments}
+								onAddNewLead={handleAddNewLead}
+								onBackToDashboard={() => setView('dashboard')}
+								resolvePropertyForLead={resolvePropertyForLead}
+								onNewAppointment={async (appt) => {
+									setAppointments((prev) => [appt, ...prev]);
+
+									const lead = appt.leadId ? leads.find((l) => l.id === appt.leadId) : undefined;
+									if (lead) {
+										await triggerLeadSequences(
+											lead,
+											'Appointment Scheduled',
+											resolvePropertyForLead(lead)
+										);
+									}
+								}}
+								onAssignFunnel={handleLeadFunnelAssigned}
+							/>
+						);
 					case 'inbox': 
 						return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
 					case 'ai-conversations':
-						return <AIContentPage />;
-					case 'ai-content':
-						return <AIContentPage />;
+						return <AIConversationsPage />;
+					case 'ai-card':
+						return <AICardPage />;
 					case 'knowledge-base': 
-						return <AIAgentHub />;
-					case 'marketing': 
-						return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={() => setView('dashboard')} />;
+						return <EnhancedAISidekicksHub />;
+					case 'ai-training':
+						return <AIInteractiveTraining />;
 					case 'analytics': 
 						return <AnalyticsDashboard />;
 					case 'ai-sidekicks':
-						return <AIAgentHub />;
+						return <EnhancedAISidekicksHub />;
 					case 'demo-listing':
 						return <DemoListingPage />;
 					case 'settings': 
 						return <SettingsPage 
+							userId={user?.uid ?? 'guest-agent'}
 							userProfile={userProfile}
 							onSaveProfile={setUserProfile}
 							notificationSettings={notificationSettings}
@@ -653,7 +1121,6 @@ const App: React.FC = () => {
 							appointments={appointments} 
 							tasks={tasks} 
 							onSelectProperty={handleSelectProperty} 
-							onAddNew={() => setView('add-listing')}
 							onTaskUpdate={handleTaskUpdate}
 							onTaskAdd={handleTaskAdd}
 							onTaskDelete={handleTaskDelete}
@@ -666,14 +1133,17 @@ const App: React.FC = () => {
 				return (
 					<div className="flex h-screen bg-slate-50">
 						<Suspense fallback={<LoadingSpinner />}>
-							<AdminSidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+							<AdminSidebar activeView={view} setView={handleViewChange} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 						</Suspense>
 						<div className="flex-1 flex flex-col overflow-hidden">
-							<header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
-								<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
-									<span className="material-symbols-outlined">menu</span>
+							<header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
+								<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
+									<span className="material-symbols-outlined text-xl">menu</span>
 								</button>
-								<LogoWithName />
+								<div className="flex-1 flex justify-center">
+									<LogoWithName />
+								</div>
+								<div className="w-10"></div> {/* Spacer for balance */}
 							</header>
 							<main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
 								<Suspense fallback={<LoadingSpinner />}>
@@ -687,19 +1157,18 @@ const App: React.FC = () => {
 
 			return (
 				<div className="flex h-screen bg-slate-50">
-					<Sidebar activeView={view as any} setView={setView as any} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+					<Sidebar activeView={view} setView={handleViewChange} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 					<div className="flex-1 flex flex-col overflow-hidden">
-						<header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
-							<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600" aria-label="Open menu">
-								<span className="material-symbols-outlined">menu</span>
+						<header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
+							<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
+								<span className="material-symbols-outlined text-xl">menu</span>
 							</button>
-							<LogoWithName />
-							<div className="flex items-center space-x-2">
-								<NotificationSystem userId={user?.uid || ''} />
-								<button onClick={() => setIsPropertyComparisonOpen(true)} className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Compare properties">
-									<span className="material-symbols-outlined">compare</span>
-								</button>
+							<div className="flex-1 flex justify-center">
+								<LogoWithName />
 							</div>
+                            <div className="flex items-center space-x-1">
+                                <NotificationSystem userId={user?.uid || ''} />
+                            </div>
 						</header>
 						<main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
 							{mainContent()}
@@ -715,6 +1184,10 @@ const App: React.FC = () => {
 				return <SignUpPage onNavigateToSignIn={handleNavigateToSignIn} onNavigateToLanding={handleNavigateToLanding} onNavigateToSection={handleNavigateToSection} onEnterDemoMode={handleEnterDemoMode} />;
 			case 'signin':
 				return <SignInPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToLanding={handleNavigateToLanding} onNavigateToSection={handleNavigateToSection} onEnterDemoMode={handleEnterDemoMode} />;
+			case 'checkout':
+				return renderCheckout();
+			case 'dashboard-blueprint':
+				return <AgentDashboardBlueprint />;
 			case 'landing':
 				return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
 			case 'new-landing':
@@ -742,6 +1215,25 @@ const App: React.FC = () => {
 		}
 	};
 
+	// DEBUG: Log current state before render
+	console.log('🎨 RENDERING with view=', view, 'hash=', window.location.hash);
+
+	// OVERRIDE: Check hash directly at render time
+	const currentHash = window.location.hash.substring(1);
+	const [hashPath] = currentHash.split('?');
+	const hashRoute = hashPath.split('/').filter(Boolean)[0] || '';
+	
+	if (hashRoute === 'dashboard-blueprint') {
+		console.log('🚀 FORCING dashboard-blueprint render from hash');
+		return (
+			<ErrorBoundary>
+				<AISidekickProvider>
+					<AgentDashboardBlueprint />
+				</AISidekickProvider>
+			</ErrorBoundary>
+		);
+	}
+
 	return (
 		<ErrorBoundary>
 			<AISidekickProvider>
@@ -755,17 +1247,20 @@ const App: React.FC = () => {
 					<AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
 				</Suspense>
 			)}
-			<ChatBotFAB
-				context={{
-					userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
-					currentPage: view,
-					previousInteractions: user ? 1 : 0,
-					userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
-				}}
-				onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
-				onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
-				position="bottom-right"
-			/>
+			{/* Temporarily disabled while building */}
+			{/* {view !== 'ai-card' && (
+				<ChatBotFAB
+					context={{
+						userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
+						currentPage: view,
+						previousInteractions: user ? 1 : 0,
+						userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
+					}}
+					onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
+					onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
+					position="bottom-right"
+				/>
+			)} */}
 		</ErrorBoundary>
 	);
 };

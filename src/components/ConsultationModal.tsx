@@ -1,9 +1,6 @@
-
-
 import React, { useState } from 'react';
 import Modal from './Modal';
 import { emailService } from '../services/emailService';
-// import { addConsultation } from '../services/firestoreService'; // removed with Firebase
 import { ValidationUtils } from '../utils/validation';
 
 interface ConsultationModalProps {
@@ -16,8 +13,6 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
         name: '',
         email: '',
         phone: '',
-        date: '',
-        time: '',
         message: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,7 +49,7 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
 
         try {
             // Validate required fields
-            if (!formData.name || !formData.email || !formData.date || !formData.time) {
+            if (!formData.name || !formData.email || !formData.message) {
                 throw new Error('Please fill in all required fields');
             }
 
@@ -63,38 +58,13 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
                 throw new Error('Please enter a valid email address');
             }
 
-            // Combine date and time
-            const dateTime = new Date(`${formData.date}T${formData.time}`);
-            const endTime = new Date(dateTime.getTime() + 30 * 60000); // 30 minutes duration
-
-            // Create calendar event
-            const event = {
-                summary: `Free Consultation - ${formData.name}`,
-                description: `Free consultation request from ${formData.name}
-
-Contact Information:
-- Email: ${formData.email}
-- Phone: ${formData.phone}
-
-Message:
-${formData.message || 'No additional message provided'}
-
-This consultation was booked through the HomeListingAI website.`,
-                startTime: dateTime.toISOString(),
-                endTime: endTime.toISOString(),
-                attendees: [formData.email, 'us@homelistingai.com']
-            };
-
-            // Send confirmation email to client
-            console.log('📧 Sending confirmation email...');
-            await emailService.sendConsultationConfirmation(formData, undefined);
-
-            // Send notification email to admin
-            console.log('📧 Sending admin notification...');
-            await emailService.sendAdminNotification(formData, undefined);
-
-            // Save to admin dashboard
-            await saveToAdminDashboard(formData, { meetLink: '', eventId: `apt-${Date.now()}` });
+            // Send contact message to admin
+            await emailService.sendContactMessage({
+                name: formData.name,
+                email: formData.email,
+                phone: formData.phone,
+                message: formData.message
+            });
 
             setSubmitStatus('success');
             setTimeout(() => {
@@ -103,24 +73,17 @@ This consultation was booked through the HomeListingAI website.`,
             }, 2000);
 
         } catch (error) {
-            console.error('Error scheduling consultation:', error);
+            console.error('Error sending contact message:', error);
             setSubmitStatus('error');
         } finally {
             setIsSubmitting(false);
         }
     };
 
-
-
-    const saveToAdminDashboard = async (_data: any, _calendarResult: any) => {
-        // Firebase removed: persist via Supabase later if needed
-        return;
-    };
-
     const titleNode = (
         <div>
-            <h3 className="text-xl font-bold text-slate-800">Schedule Free Consultation</h3>
-            <p className="text-sm text-slate-500 mt-0.5">Book your personalized AI consultation</p>
+            <h3 className="text-xl font-bold text-slate-800">Contact Our Team</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Tell us how we can help you grow with AI</p>
         </div>
     );
 
@@ -183,49 +146,19 @@ This consultation was booked through the HomeListingAI website.`,
                         />
                     </div>
 
-                    {/* Date and Time */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="date" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                                Preferred Date *
-                            </label>
-                            <input
-                                id="date"
-                                type="date"
-                                required
-                                value={formData.date}
-                                onChange={(e) => handleInputChange('date', e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
-                                min={new Date().toISOString().split('T')[0]}
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="time" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                                Preferred Time *
-                            </label>
-                            <input
-                                id="time"
-                                type="time"
-                                required
-                                value={formData.time}
-                                onChange={(e) => handleInputChange('time', e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
-                            />
-                        </div>
-                    </div>
-
                     {/* Message */}
                     <div>
                         <label htmlFor="message" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                            Additional Message
+                            How can we help? *
                         </label>
                         <textarea
                             id="message"
-                            rows={4}
+                            rows={5}
+                            required
                             value={formData.message}
                             onChange={(e) => handleInputChange('message', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
-                            placeholder="Tell us about your real estate needs, questions, or specific properties you're interested in..."
+                            placeholder="Share a bit about your goals, questions, or the support you need…"
                         />
                     </div>
 
@@ -233,7 +166,7 @@ This consultation was booked through the HomeListingAI website.`,
                     {submitStatus === 'success' && (
                         <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                             <p className="text-green-800 text-sm">
-                                ✅ Consultation scheduled successfully! Check your email for confirmation.
+                                ✅ Thanks for reaching out! Our team will get back to you shortly.
                             </p>
                         </div>
                     )}
@@ -241,7 +174,7 @@ This consultation was booked through the HomeListingAI website.`,
                     {submitStatus === 'error' && (
                         <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                             <p className="text-red-800 text-sm">
-                                ❌ There was an error scheduling your consultation. Please try again.
+                                ❌ There was an error sending your message. Please try again.
                             </p>
                         </div>
                     )}
@@ -264,12 +197,12 @@ This consultation was booked through the HomeListingAI website.`,
                         {isSubmitting ? (
                             <>
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                <span>Scheduling...</span>
+                                <span>Sending...</span>
                             </>
                         ) : (
                             <>
-                                <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
-                                <span>Schedule Consultation</span>
+                                <span className="material-symbols-outlined w-5 h-5">send</span>
+                                <span>Send Message</span>
                             </>
                         )}
                     </button>

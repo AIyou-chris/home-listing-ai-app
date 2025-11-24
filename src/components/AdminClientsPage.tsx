@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AgentProfile, Property, Lead, Appointment } from '../types';
+import { AgentProfile, Property, Lead, Appointment, LeadStatus } from '../types';
 import ContactLeadModal from './ContactLeadModal';
 
 interface AdminClientsPageProps {
@@ -231,17 +231,21 @@ const BroadcastMessageModal: React.FC<{
   );
 };
 
+const STATUS_OPTIONS = ['all', 'active', 'trial', 'suspended'] as const;
+type StatusFilter = (typeof STATUS_OPTIONS)[number];
+
 const AdminClientsPage: React.FC<AdminClientsPageProps> = ({
-  agentProfile,
-  properties,
-  leads,
-  appointments,
-  onSelectProperty,
-  onAddNew,
+  agentProfile: _agentProfile,
+  properties: _properties,
+  leads: _leads,
+  appointments: _appointments,
+  onSelectProperty: _onSelectProperty,
+  onAddNew: _onAddNew,
   onBackToDashboard
 }) => {
+  void (_agentProfile, _properties, _leads, _appointments, _onSelectProperty, _onAddNew);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'trial' | 'suspended'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
@@ -334,8 +338,8 @@ const AdminClientsPage: React.FC<AdminClientsPageProps> = ({
     console.log('Broadcasting message to all clients:', { subject, message });
     
     // Simulate sending emails
-    const promises = activeClients.map(client => 
-      new Promise(resolve => setTimeout(resolve, Math.random() * 1000))
+    const promises = activeClients.map(() =>
+      new Promise((resolve) => setTimeout(resolve, Math.random() * 1000))
     );
     
     await Promise.all(promises);
@@ -394,7 +398,12 @@ const AdminClientsPage: React.FC<AdminClientsPageProps> = ({
             <div>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (STATUS_OPTIONS.includes(value as StatusFilter)) {
+                    setStatusFilter(value as StatusFilter);
+                  }
+                }}
                 className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
                 <option value="all">All Status</option>
@@ -427,7 +436,7 @@ const AdminClientsPage: React.FC<AdminClientsPageProps> = ({
             name: selectedClient.name,
             email: selectedClient.email,
             phone: '',
-            status: 'New' as any,
+            status: 'New' as LeadStatus,
             date: selectedClient.joinDate,
             lastMessage: selectedClient.lastMessage || ''
           }}

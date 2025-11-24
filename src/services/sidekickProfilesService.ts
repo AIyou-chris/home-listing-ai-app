@@ -21,29 +21,34 @@ export const getListingProfile = async (
     return null
   }
   // 1) try per-listing profile
-  try {
-    const { data: listing, error: e1 } = await supabase
-      .from('ai_sidekick_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('scope', 'listing')
-      .eq('listing_id', listingId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-    if (!e1 && listing && listing.length > 0) return listing[0] as any
-  } catch {}
+  const { data: listingProfiles, error: listingError } = await supabase
+    .from('ai_sidekick_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('scope', 'listing')
+    .eq('listing_id', listingId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (listingError) {
+    console.error('Failed to fetch listing sidekick profile', listingError)
+  } else if (listingProfiles && listingProfiles.length > 0) {
+    return listingProfiles[0]
+  }
+
   // 2) fallback to agent default listing persona
-  try {
-    const { data: agent, error: e2 } = await supabase
-      .from('ai_sidekick_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('scope', 'agent')
-      .is('listing_id', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-    if (!e2 && agent && agent.length > 0) return agent[0] as any
-  } catch {}
+  const { data: agentProfiles, error: agentError } = await supabase
+    .from('ai_sidekick_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('scope', 'agent')
+    .is('listing_id', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (agentError) {
+    console.error('Failed to fetch agent sidekick profile', agentError)
+  } else if (agentProfiles && agentProfiles.length > 0) {
+    return agentProfiles[0]
+  }
   return null
 }
 
@@ -54,7 +59,7 @@ export const upsertAgentProfile = async (
   const payload = {
     user_id: userId,
     scope: 'agent' as const,
-    listing_id: null as const,
+    listing_id: null,
     voice_label: profile.voice_label ?? null,
     persona_preset: profile.persona_preset ?? 'custom',
     description: profile.description ?? null,
@@ -66,7 +71,29 @@ export const upsertAgentProfile = async (
     .select('*')
     .single()
   if (error) throw error
-  return data as unknown as SidekickProfile
+  return data
 }
 
+export const upsertListingProfile = async (
+  userId: string,
+  listingId: string,
+  profile: { description?: string | null; traits?: string[] | null; persona_preset?: string | null }
+): Promise<SidekickProfile> => {
+  const payload = {
+    user_id: userId,
+    scope: 'listing' as const,
+    listing_id: listingId,
+    description: profile.description ?? null,
+    traits: profile.traits ?? null,
+    persona_preset: profile.persona_preset ?? 'custom'
+  }
 
+  const { data, error } = await supabase
+    .from('ai_sidekick_profiles')
+    .upsert(payload, { onConflict: 'user_id,scope,listing_id' })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}

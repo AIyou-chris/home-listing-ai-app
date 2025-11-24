@@ -1,6 +1,6 @@
 import AdminService from '../services/adminService';
 import DatabaseService from '../services/databaseService';
-import { User, AdminSettings, BroadcastMessage } from '../types';
+import { BroadcastMessage } from '../types';
 
 export const testAdminService = async () => {
     console.log('🧪 Testing AdminService...');

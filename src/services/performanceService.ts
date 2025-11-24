@@ -1,5 +1,16 @@
 // SessionService removed
 
+interface LayoutShift extends PerformanceEntry {
+  value: number;
+  hadRecentInput: boolean;
+}
+
+interface PerformanceMemoryEntry {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
 export class PerformanceService {
   private static observers: PerformanceObserver[] = [];
   private static isInitialized = false;
@@ -33,11 +44,13 @@ export class PerformanceService {
       if ('PerformanceObserver' in window) {
         const lcpObserver = new PerformanceObserver((list) => {
           const entries = list.getEntries();
-          const lastEntry = entries[entries.length - 1];
-          
-          // SessionService removed - no-op
+          const lastEntry = entries.at(-1) as PerformanceEntry | undefined;
+
+          if (lastEntry) {
+            console.debug('PerformanceService:LCP', lastEntry.startTime);
+          }
         });
-        
+
         lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
         this.observers.push(lcpObserver);
       }
@@ -45,12 +58,12 @@ export class PerformanceService {
       // First Input Delay (FID)
       if ('PerformanceObserver' in window) {
         const fidObserver = new PerformanceObserver((list) => {
-          const entries = list.getEntries();
-          entries.forEach((entry: any) => {
-            // SessionService removed - no-op
+          const entries = list.getEntries() as PerformanceEventTiming[];
+          entries.forEach((entry) => {
+            console.debug('PerformanceService:FID', entry.processingStart - entry.startTime);
           });
         });
-        
+
         fidObserver.observe({ entryTypes: ['first-input'] });
         this.observers.push(fidObserver);
       }
@@ -59,16 +72,16 @@ export class PerformanceService {
       if ('PerformanceObserver' in window) {
         let clsValue = 0;
         const clsObserver = new PerformanceObserver((list) => {
-          const entries = list.getEntries();
-          entries.forEach((entry: any) => {
+          const entries = list.getEntries() as LayoutShift[];
+          entries.forEach((entry) => {
             if (!entry.hadRecentInput) {
               clsValue += entry.value;
             }
           });
-          
-          // SessionService removed - no-op
+
+          console.debug('PerformanceService:CLS', clsValue);
         });
-        
+
         clsObserver.observe({ entryTypes: ['layout-shift'] });
         this.observers.push(clsObserver);
       }
@@ -82,12 +95,12 @@ export class PerformanceService {
     try {
       if ('PerformanceObserver' in window) {
         const resourceObserver = new PerformanceObserver((list) => {
-          const entries = list.getEntries();
-          
-          entries.forEach((entry: any) => {
+          const entries = list.getEntries() as PerformanceResourceTiming[];
+
+          entries.forEach((entry) => {
             // Track slow resources (> 1 second)
             if (entry.duration > 1000) {
-              // SessionService removed - no-op
+              console.debug('PerformanceService:slow resource', entry.name, entry.duration);
             }
           });
         });
@@ -106,9 +119,9 @@ export class PerformanceService {
       if ('PerformanceObserver' in window) {
         const longTaskObserver = new PerformanceObserver((list) => {
           const entries = list.getEntries();
-          
-          entries.forEach((entry: any) => {
-            // SessionService removed - no-op
+
+          entries.forEach((entry) => {
+            console.debug('PerformanceService:long task', entry.startTime, entry.duration);
           });
         });
         
@@ -125,10 +138,10 @@ export class PerformanceService {
     try {
       if ('PerformanceObserver' in window) {
         const navigationObserver = new PerformanceObserver((list) => {
-          const entries = list.getEntries();
-          
-          entries.forEach((entry: any) => {
-            const metrics = {
+          const entries = list.getEntries() as PerformanceNavigationTiming[];
+
+          entries.forEach((entry) => {
+            const metrics: Record<string, number> = {
               dns: Math.round(entry.domainLookupEnd - entry.domainLookupStart),
               tcp: Math.round(entry.connectEnd - entry.connectStart),
               request: Math.round(entry.responseStart - entry.requestStart),
@@ -137,10 +150,10 @@ export class PerformanceService {
               load: Math.round(entry.loadEventEnd - entry.loadEventStart),
               total: Math.round(entry.loadEventEnd - entry.startTime)
             };
-            
+
             Object.entries(metrics).forEach(([key, value]) => {
               if (value > 0) {
-                // SessionService removed - no-op
+                console.debug(`PerformanceService:navigation ${key}`, value);
               }
             });
           });
@@ -158,19 +171,19 @@ export class PerformanceService {
   private static trackPageLoadPerformance(): void {
     window.addEventListener('load', () => {
       setTimeout(() => {
-        const navigation = performance.getEntriesByType('navigation')[0] as any;
-        
-        if (navigation) {
-          const navStart = navigation.startTime ?? 0
-          const metrics = {
-            ttfb: navigation.responseStart - navigation.requestStart,
-            domContentLoaded: navigation.domContentLoadedEventEnd - navStart,
-            windowLoad: navigation.loadEventEnd - navStart,
-            domInteractive: navigation.domInteractive - navStart
-          } as any;
-          
+        const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+
+        if (navigationEntry) {
+          const navStart = navigationEntry.startTime ?? 0;
+          const metrics: Record<string, number> = {
+            ttfb: navigationEntry.responseStart - navigationEntry.requestStart,
+            domContentLoaded: navigationEntry.domContentLoadedEventEnd - navStart,
+            windowLoad: navigationEntry.loadEventEnd - navStart,
+            domInteractive: navigationEntry.domInteractive - navStart
+          };
+
           Object.entries(metrics).forEach(([key, value]) => {
-            // SessionService removed - no-op
+            console.debug(`PerformanceService:page load ${key}`, value);
           });
         }
       }, 0);
@@ -179,46 +192,44 @@ export class PerformanceService {
 
   // Track custom performance metrics
   static trackCustomMetric(name: string, value: number, unit: string = 'ms'): void {
-    // SessionService removed - no-op
+    console.debug('PerformanceService:custom metric', { name, value, unit });
   }
 
   // Track API response times
   static trackApiCall(endpoint: string, duration: number, status: number): void {
-    // SessionService removed - no-op
+    console.debug('PerformanceService:api call', { endpoint, duration, status });
 
-    // Track slow API calls
     if (duration > 2000) {
-      // SessionService removed - no-op
+      console.warn('PerformanceService:slow api call detected', { endpoint, duration, status });
     }
   }
 
   // Track component render times
   static trackComponentRender(componentName: string, renderTime: number): void {
-    // SessionService removed - no-op
+    console.debug('PerformanceService:component render', { componentName, renderTime });
   }
 
   // Track memory usage
   static trackMemoryUsage(): void {
     if ('memory' in performance) {
-      const memory = (performance as any).memory;
-      
-      // SessionService removed - no-op
+      const memoryInfo = (performance as unknown as { memory: PerformanceMemoryEntry }).memory;
+
+      console.debug('PerformanceService:memory usage', memoryInfo.usedJSHeapSize);
     }
   }
 
   // Get current performance metrics
-  static getCurrentMetrics(): Record<string, any> {
-    const navigation = performance.getEntriesByType('navigation')[0] as any;
-    
+  static getCurrentMetrics(): Record<string, number> {
+    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+
     if (!navigation) return {};
-    
-    const navStart = navigation.startTime ?? 0
+
+    const navStart = navigation.startTime ?? 0;
     return {
       ttfb: Math.round(navigation.responseStart - navigation.requestStart),
       domContentLoaded: Math.round(navigation.domContentLoadedEventEnd - navStart),
       windowLoad: Math.round(navigation.loadEventEnd - navStart),
-      domInteractive: Math.round(navigation.domInteractive - navStart),
-      timestamp: Date.now()
+      domInteractive: Math.round(navigation.domInteractive - navStart)
     };
   }
 

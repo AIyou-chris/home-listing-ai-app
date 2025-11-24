@@ -1,71 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { LogoWithName } from './LogoWithName';
-import { DEMO_FAT_PROPERTIES } from '../demoConstants';
-import { Property, isAIDescription } from '../types';
-import { ListingAppModals } from './ListingAppModals';
 import ChatBotFAB from './ChatBotFAB';
-
-
-type ModalType = 'schools' | 'financing' | 'schedule' | 'save' | 'share' | 'voice' | null;
-
-// --- Helper Components from PublicPropertyApp ---
-const TwitterIcon: React.FC<{className?: string}> = ({ className }) => (<svg fill="currentColor" viewBox="0 0 24 24" className={className}><path d="M22.46,6C21.69,6.35 20.86,6.58 20,6.69C20.88,6.16 21.56,5.32 21.88,4.31C21.05,4.81 20.13,5.16 19.16,5.36C18.37,4.5 17.26,4 16,4C13.65,4 11.73,5.92 11.73,8.29C11.73,8.63 11.77,8.96 11.84,9.27C8.28,9.09 5.11,7.38 3,4.79C2.63,5.42 2.42,6.16 2.42,6.94C2.42,8.43 3.17,9.75 4.33,10.5C3.62,10.5 2.96,10.3 2.38,10C2.38,10 2.38,10 2.38,10.03C2.38,12.11 3.86,13.85 5.82,14.24C5.46,14.34 5.08,14.39 4.69,14.39C4.42,14.39 4.15,14.36 3.89,14.31C4.43,16 6,17.26 7.89,17.29C6.43,18.45 4.58,19.13 2.56,19.13C2.22,19.13 1.88,19.11 1.54,19.07C3.44,20.29 5.7,21 8.12,21C16,21 20.33,14.46 20.33,8.79C20.33,8.6 20.33,8.42 20.32,8.23C21.16,7.63 21.88,6.87 22.46,6Z"></path></svg>);
-const PinterestIcon: React.FC<{className?: string}> = ({ className }) => (<svg fill="currentColor" viewBox="0 0 24 24" className={className}><path d="M13,16.2C12.2,16.2 11.5,15.9 11,15.3C10.5,14.7 10.2,14 10.2,13.2C10.2,12.5 10.5,11.8 11,11.2C11.5,10.6 12.2,10.3 13,10.3C13.8,10.3 14.5,10.6 15,11.2C15.5,11.8 15.8,12.5 15.8,13.2C15.8,14 15.5,14.7 15,15.3C14.5,15.9 13.8,16.2 13,16.2M12,2C6.5,2 2,6.5 2,12C2,16.2 4.6,19.8 8.5,21.2C8.5,20.5 8.6,19.5 8.8,18.4L9.5,15.2C9.5,15.2 9.2,14.6 9.2,13.8C9.2,12.4 10.1,11.3 11.1,11.3C12,11.3 12.4,12 12.4,12.7C12.4,13.5 11.9,14.8 11.6,15.9C11.4,16.9 12.2,17.7 13.2,17.7C15,17.7 16.4,15.7 16.4,13.2C16.4,10.9 14.8,9.2 12.5,9.2C9.8,9.2 8.1,11.1 8.1,13.6C8.1,14.3 8.4,15 8.7,15.5C8.8,15.6 8.8,15.7 8.8,15.8L8.6,16.6C8.5,16.9 8.4,17.1 8.1,16.9C7.1,16.4 6.4,14.9 6.4,13.5C6.4,10.4 8.7,7.5 13.2,7.5C17,7.5 19.6,10 19.6,13.1C19.6,16.5 17.4,19.2 14.2,19.2C13.1,19.2 12,18.6 11.7,17.9L11.2,19.2C10.6,20.8 10,22.2 9.8,22.9C10.5,23.2 11.2,23.3 12,23.3C17.5,23.3 22,18.8 22,13.3C22,7.7 17.5,3.3 12,3.3"></path></svg>);
-const LinkedInIcon: React.FC<{className?: string}> = ({ className }) => (<svg fill="currentColor" viewBox="0 0 24 24" className={className}><path d="M19,3A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3H19M18.5,18.5V13.2A3.26,3.26 0 0,0 15.24,9.94C14.39,9.94 13.4,10.43 12.9,11.24V10.13H10.13V18.5H12.9V13.57C12.9,12.8 13.5,12.17 14.31,12.17A1.4,1.4 0 0,1 15.71,13.57V18.5H18.5M6.88,8.56A1.68,1.68 0 0,0 8.56,6.88C8.56,6 8,5.43 7.21,5.43A1.68,1.68 0 0,0 5.53,6.88C5.53,7.74 6,8.31 6.88,8.31V8.56H6.88M8.27,18.5V10.13H5.53V18.5H8.27Z"></path></svg>);
-const YouTubeIcon: React.FC<{className?: string}> = ({ className }) => (<svg fill="currentColor" viewBox="0 0 24 24" className={className}><path d="M10,15L15.19,12L10,9V15M21.56,7.17C21.69,7.64 21.78,8.27 21.84,9.07C21.91,9.87 21.94,10.56 21.94,11.16L22,12C22,14.19 21.84,15.8 21.56,16.83C21.31,17.73 20.73,18.31 19.83,18.56C19.36,18.69 18.73,18.78 17.93,18.84C17.13,18.91 16.44,18.94 15.84,18.94L15,19C12.81,19 11.2,18.84 10.17,18.56C9.27,18.31 8.69,17.73 8.44,16.83C8.31,16.36 8.22,15.73 8.16,14.93C8.09,14.13 8.06,13.44 8.06,12.84L8,12C8,9.81 8.16,8.2 8.44,7.17C8.69,6.27 9.27,5.69 10.17,5.44C10.64,5.31 11.27,5.22 12.07,5.16C12.87,5.09 13.56,5.06 14.16,5.06L15,5C17.19,5 18.8,5.16 19.83,5.44C20.73,5.69 21.31,6.27 21.56,7.17Z"></path></svg>);
-
-const ImageCarousel: React.FC<{ images: string[] }> = ({ images }) => {
-    const [currentIndex, setCurrentIndex] = useState(0);
-
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setCurrentIndex(prev => (prev + 1) % images.length);
-        }, 3000);
-        return () => clearInterval(timer);
-    }, [images.length]);
-
-    return (
-        <div className="relative w-full aspect-[4/3] overflow-hidden rounded-b-3xl">
-            {images.map((img, index) => (
-                <img
-                    key={index}
-                    src={img}
-                    alt={`Property image ${index + 1}`}
-                    className={`absolute top-0 left-0 w-full h-full object-cover transition-opacity duration-500 ${index === currentIndex ? 'opacity-100' : 'opacity-0'}`}
-                />
-            ))}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2">
-                {images.map((_, index) => (
-                    <button
-                        key={index}
-                        onClick={() => setCurrentIndex(index)}
-                        className={`w-2 h-2 rounded-full transition-colors ${index === currentIndex ? 'bg-white' : 'bg-white/50'}`}
-                    />
-                ))}
-            </div>
-        </div>
-    );
-};
-
-const InfoPill: React.FC<{ icon: string, value: string | number, label: string }> = ({ icon, value, label }) => (
-    <div className="flex flex-col items-center justify-center space-y-1">
-        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-            <span className="material-symbols-outlined w-5 h-5">{icon}</span>
-        </div>
-        <p className="font-bold text-sm text-slate-800">{value}</p>
-        <p className="text-[10px] text-slate-500">{label}</p>
-    </div>
-);
-
-const FeatureButton: React.FC<{ icon: string, label: string, enabled?: boolean, onClick?: () => void }> = ({ icon, label, enabled = true, onClick }) => {
-    if (!enabled) return null;
-    return (
-        <button onClick={onClick} className="flex flex-col items-center justify-center space-y-1 p-1 bg-white rounded-xl shadow-sm border border-slate-200/60 w-full h-full text-center hover:bg-slate-50 transition-colors disabled:opacity-50" disabled={!onClick}>
-            <div className="text-blue-600"><span className="material-symbols-outlined" style={{fontSize: '24px'}}>{icon}</span></div>
-            <p className="text-xs font-semibold text-slate-700">{label}</p>
-        </button>
-    );
-};
 
 // --- New Components for the Redesigned Page ---
 
@@ -138,8 +73,10 @@ const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () 
     );
 };
 
+type DemoFeatureId = 'analytics' | 'personality' | 'leadgen' | 'notifications';
+
 const RevolutionaryAIFeaturesSection: React.FC = () => {
-    const [activeDemo, setActiveDemo] = useState<'analytics' | 'personality' | 'leadgen' | 'notifications'>('analytics');
+    const [activeDemo, setActiveDemo] = useState<DemoFeatureId>('analytics');
 
     const DemoSection: React.FC<{ title: string; children: React.ReactNode; isActive: boolean }> = ({ title, children, isActive }) => (
         <div className={`transition-all duration-500 ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute'}`}>
@@ -232,15 +169,15 @@ const RevolutionaryAIFeaturesSection: React.FC = () => {
 
                 {/* Feature Navigation */}
                 <div className="flex flex-wrap justify-center gap-4 mb-12 animate-fade-in-up animation-delay-400">
-                    {[
+                    {([
                         { id: 'analytics', label: 'Analytics Dashboard', icon: '📊' },
                         { id: 'personality', label: 'AI Personalities', icon: '🎭' },
                         { id: 'leadgen', label: 'Lead Generation', icon: '🎯' },
                         { id: 'notifications', label: 'Smart Notifications', icon: '🔔' }
-                    ].map(feature => (
+                    ] as Array<{ id: DemoFeatureId; label: string; icon: string }>).map(feature => (
                         <button
                             key={feature.id}
-                            onClick={() => setActiveDemo(feature.id as any)}
+                            onClick={() => setActiveDemo(feature.id)}
                             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 ${
                                 activeDemo === feature.id
                                     ? 'bg-primary-600 text-white shadow-lg'
@@ -549,13 +486,13 @@ const RevolutionaryAIFeaturesSection: React.FC = () => {
     );
 };
 
-const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ onEnterDemoMode }) => {
+const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void; onNavigateToSignUp: () => void }> = ({ onEnterDemoMode, onNavigateToSignUp }) => {
     const features = [
         { icon: 'track_changes', title: 'Never Lose a Lead', description: 'Watch in real-time as every inquiry—from your website, ads, or QR codes—populates your dashboard instantly.' },
         { icon: 'psychology', title: 'Know Who to Call Next', description: 'Our AI doesn\'t just capture leads; it qualifies them. See who is pre-approved and ready to talk, so you can focus on the hottest prospects.' },
         { icon: 'autoplay', title: 'Follow-Up on Autopilot', description: 'Launch powerful, multi-step follow-up sequences with a single click. Nurture every lead perfectly without lifting a finger.' },
         { icon: 'language', title: 'AI App Listing', description: "Transform each property into an interactive, AI-powered mobile app that buyers can engage with 24/7. It's your always-on open house." },
-        { icon: 'auto_stories', title: 'AI Content Studio', description: 'Generate blog posts, social media updates, and professional property reports with a single click. Save hours on marketing.' },
+        { icon: 'translate', title: '12 Languages, Zero Barriers', description: 'AI automatically detects and responds in 12 languages. Connect with international buyers and expand your market reach effortlessly.' },
         { icon: 'insights', title: 'Actionable Analytics', description: 'See which marketing channels are working and get insights to optimize your strategy, budget, and ROI.' },
     ];
 
@@ -622,16 +559,16 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ o
                 </div>
 
                 <div className="mt-12 animate-fade-in-up animation-delay-800 flex justify-center gap-4">
+                    <button onClick={onNavigateToSignUp} className="px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg shadow-lg hover:bg-blue-700 transition-all text-lg transform hover:scale-105 btn-animate">
+                        <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
+                            Get Started Now
+                        </span>
+                    </button>
                     <button onClick={onEnterDemoMode} className="px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg transform hover:scale-105 btn-animate">
                         <span className="flex items-center gap-2">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
-                        </span>
-                    </button>
-                    <button onClick={onEnterDemoMode} className="px-8 py-4 bg-orange-500 text-white font-semibold rounded-lg shadow-lg hover:bg-orange-600 transition-all text-lg transform hover:scale-105 btn-animate">
-                        <span className="flex items-center gap-2">
-                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
-                            Try It Free for 3 Days
                         </span>
                     </button>
                 </div>
@@ -640,23 +577,7 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void }> = ({ o
     );
 };
 
-const InteractiveListingAppEmbed: React.FC<{ onOpenModal: (modal: ModalType) => void }> = () => {
-    // Phone frame with an iframe that loads the live demo route
-    return (
-        <div className="relative mx-auto border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[760px] w-[425px] shadow-xl">
-            <div className="w-[148px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
-            <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[72px] rounded-l-lg"></div>
-            <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[124px] rounded-l-lg"></div>
-            <div className="h-[64px] w-[3px] bg-gray-800 absolute -right-[17px] top-[142px] rounded-r-lg"></div>
-            <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white">
-                <iframe src="/#demo-listing" title="Listing Demo" className="w-full h-full" style={{ border: '0' }} />
-            </div>
-        </div>
-    );
-};
-
-
-const AIAppShowcaseSection: React.FC<{ onOpenModal: (modal: ModalType) => void }> = ({ onOpenModal }) => {
+const AIAppShowcaseSection: React.FC = () => {
     const highlights = [
         { icon: 'smart_toy', title: 'Your 24/7 AI Assistant', description: 'Engage buyers instantly with an AI that answers questions, provides details, and captures leads around the clock.' },
         { icon: 'touch_app', title: 'Interactive Buyer Tools', description: 'Empower buyers with built-in mortgage calculators, school information, and one-tap showing requests.' },
@@ -714,8 +635,84 @@ const AIAppShowcaseSection: React.FC<{ onOpenModal: (modal: ModalType) => void }
                     </p>
                 </div>
                 <div className="mt-16 grid lg:grid-cols-2 gap-16 items-center animate-fade-in-up animation-delay-400">
-                    {/* Demo embed removed for now */}
-                    <div className="hidden lg:block"></div>
+                    {/* Left Column - Listing App Preview */}
+                    <div className="flex justify-center lg:justify-end animate-fade-in-left">
+                        <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden transform hover:scale-105 transition-all duration-300">
+                            {/* Property Image */}
+                            <div className="relative">
+                                <img 
+                                    src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&auto=format&fit=crop&q=80" 
+                                    alt="Modern home" 
+                                    className="w-full h-48 object-cover"
+                                />
+                                <div className="absolute bottom-2 left-2 bg-slate-900/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                                    I'M REALTORS®
+                                </div>
+                            </div>
+                            
+                            {/* Property Details */}
+                            <div className="p-6">
+                                <h3 className="text-xl font-bold text-slate-900 mb-2">Stunning Mid-Century Modern in Silver Lake</h3>
+                                <div className="flex items-center gap-1 text-slate-600 mb-4">
+                                    <span className="material-symbols-outlined text-lg">location_on</span>
+                                </div>
+                                <div className="text-3xl font-bold text-green-600 mb-6">$500,000.00</div>
+                                
+                                {/* Property Stats */}
+                                <div className="grid grid-cols-3 gap-4 mb-6 bg-slate-50 rounded-xl p-4">
+                                    <div className="text-center">
+                                        <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-blue-600">bed</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-slate-900">0</div>
+                                        <div className="text-xs text-slate-600">Bedrooms</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-blue-600">bathtub</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-slate-900">0</div>
+                                        <div className="text-xs text-slate-600">Bathrooms</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-blue-600">square_foot</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-slate-900">0</div>
+                                        <div className="text-xs text-slate-600">Sq Ft</div>
+                                    </div>
+                                </div>
+                                
+                                {/* CTA Button */}
+                                <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 mb-4">
+                                    <span className="material-symbols-outlined">mic</span>
+                                    Talk to the Home Now
+                                </button>
+                                
+                                {/* Action Icons */}
+                                <div className="grid grid-cols-4 gap-2">
+                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <span className="material-symbols-outlined text-blue-600">event</span>
+                                        <span className="text-xs text-slate-600">Showings</span>
+                                    </button>
+                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <span className="material-symbols-outlined text-blue-600">bookmark</span>
+                                        <span className="text-xs text-slate-600">Save</span>
+                                    </button>
+                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <span className="material-symbols-outlined text-blue-600">chat</span>
+                                        <span className="text-xs text-slate-600">Contact</span>
+                                    </button>
+                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <span className="material-symbols-outlined text-blue-600">share</span>
+                                        <span className="text-xs text-slate-600">Share</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Right Column - Features */}
                     <div className="space-y-8 animate-fade-in-right">
                         {highlights.map((item, index) => (
                             <div key={item.title} className="flex items-start gap-5 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 
@@ -737,7 +734,7 @@ const AIAppShowcaseSection: React.FC<{ onOpenModal: (modal: ModalType) => void }
 };
 
 
-const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultationModal: () => void; }> = ({ onNavigateToSignUp, onOpenConsultationModal }) => {
+const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNavigateToSignUp }) => {
     const PlanFeature: React.FC<{ children: React.ReactNode, dark?: boolean }> = ({ children, dark }) => (
         <li className="flex items-start gap-3">
             <span className={`material-symbols-outlined w-6 h-6 ${dark ? 'text-green-400' : 'text-green-500'} flex-shrink-0 mt-0.5`}>check_circle</span>
@@ -793,25 +790,65 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                         Simple, transparent pricing. Powerful features. No hidden costs.
                     </p>
                 </div>
-                <div className="mt-16 flex justify-center animate-fade-in-up animation-delay-400">
+
+                {/* Market Crash Survival Story */}
+                <div className="mt-12 max-w-3xl mx-auto animate-fade-in-up animation-delay-300">
+                    <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-2xl p-8 border-2 border-blue-200 shadow-lg relative overflow-hidden">
+                        {/* Subtle background pattern */}
+                        <div className="absolute inset-0 opacity-5">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full blur-2xl"></div>
+                            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-pink-400 to-blue-400 rounded-full blur-2xl"></div>
+                        </div>
+                        <div className="relative z-10">
+                        <div className="prose prose-lg max-w-none">
+                            <p className="text-slate-700 leading-relaxed mb-4">
+                                I lived through the 2007 crash. And again in 2012. I know exactly what it feels like when deals stall, leads dry up, and every dollar needs to work overtime.
+                            </p>
+                            <p className="text-slate-700 leading-relaxed mb-4">
+                                That's why I built this AI tool specifically for realtors navigating today's tightening market.
+                            </p>
+                            <p className="text-slate-800 font-semibold text-xl">
+                                👉 Normally $199/month, but right now, you can get it for just <span className="text-primary-700">$89/month</span>.
+                            </p>
+                            <p className="text-slate-700 leading-relaxed mt-4">
+                                Not as a gimmick. Not for mass adoption. But because I remember how brutal these markets get. And I know smart tech—priced right—can be the difference between treading water and taking territory.
+                            </p>
+                            <p className="text-slate-800 font-medium mt-6">
+                                — Chris Potter, Founder
+                            </p>
+                            <p className="text-sm text-slate-500 italic mt-4">
+                                * Price subject to change. Lock in this rate today.
+                            </p>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-16 flex justify-center animate-fade-in-up animation-delay-500">
                     {/* Single Plan */}
                     <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform hover:scale-105 transition-all duration-300 animate-fade-in-up glow max-w-md">
                         <div className="flex-grow">
                             <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
                             <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
                             <p className="mt-6">
-                                <span className="text-5xl font-extrabold text-white">$79</span>
+                                <span className="text-5xl font-extrabold text-white">$89</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
-                            <p className="mt-1 text-sm text-slate-300">Three Active Listings</p>
+                            <p className="mt-2 text-slate-300 line-through text-sm">Regular price: $199/mo</p>
                             <ul className="mt-8 space-y-4">
-                                <PlanFeature dark>500 AI interactions per month</PlanFeature>
-                                <PlanFeature dark>1GB of storage space</PlanFeature>
-                                <PlanFeature dark>200 emails per month</PlanFeature>
+                                <PlanFeature dark>Unlimited AI interactions per month</PlanFeature>
+                                <PlanFeature dark>Up to 3 active listings</PlanFeature>
+                                <PlanFeature dark>300 emails per month</PlanFeature>
                                 <PlanFeature dark>Advanced analytics dashboard</PlanFeature>
-                                <PlanFeature dark>AI Content Studio</PlanFeature>
+                                <PlanFeature dark>Your own trained GPT</PlanFeature>
                                 <PlanFeature dark>Automated follow-up sequences</PlanFeature>
-                                <PlanFeature dark>Priority email support</PlanFeature>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined text-white text-xl mt-0.5">check_circle</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-slate-100">AI conversations auto-detect & respond in 12 languages</span>
+                                        <span className="material-symbols-outlined text-yellow-300 text-lg">language</span>
+                                    </div>
+                                </li>
+                                <PlanFeature dark>Auto leads to closing</PlanFeature>
                                 <PlanFeature dark>Need more? We do custom programs</PlanFeature>
                             </ul>
                         </div>
@@ -819,8 +856,11 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                             onClick={onNavigateToSignUp}
                             className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-all duration-300 bg-white text-primary-700 shadow-lg hover:bg-slate-200 transform hover:scale-[1.02]"
                         >
-                            Get Started Today for Free
+                            Lock In This Price Now
                         </button>
+                        <p className="text-center text-xs text-slate-300 mt-3 opacity-90">
+                            Price may increase at any time. Secure your rate today.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -921,7 +961,7 @@ const WhiteLabelSection: React.FC<{ onOpenConsultationModal: () => void; }> = ({
     );
 };
 
-const FeaturesGridSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNavigateToSignUp }) => {
+const FeaturesGridSection: React.FC = () => {
     const features = [
         { icon: "rocket_launch", title: "Generate 3x More Leads", description: "AI responds instantly to every buyer inquiry, capturing leads while you sleep." },
         { icon: "bolt", title: "Close Deals Faster", description: "Pre-qualified buyers arrive ready to buy, shortening your sales cycle." },
@@ -1495,16 +1535,16 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                         It never sleeps, always follows up, and sounds just like you... <a href="#what-you-get" className="font-semibold text-primary-600 hover:underline">and so much more</a>.
                     </p>
                     <div className="mt-8 flex justify-center lg:justify-start gap-4 animate-fade-in-up animation-delay-400">
-                        <button onClick={onNavigateToSignUp} className="flex items-center gap-2 px-6 py-3.5 bg-orange-500 text-white font-semibold rounded-lg shadow-md hover:bg-orange-600 transition-all transform hover:scale-105 btn-animate">
+                        <button onClick={onNavigateToSignUp} className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
-                            Try It Free for 3 Days
+                            Get Started Now
                         </button>
                         <button onClick={onEnterDemoMode} className="flex items-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
                         </button>
                     </div>
-                    <p className="mt-3 text-sm text-slate-500 text-center lg:text-left animate-fade-in-up animation-delay-600">No card. No pressure. Just power.</p>
+                    <p className="mt-3 text-sm text-slate-500 text-center lg:text-left animate-fade-in-up animation-delay-600">Professional AI solution. No setup fees.</p>
                 </div>
                 <div className="relative animate-fade-in-up animation-delay-600">
                     <div className="relative lg:animate-float">
@@ -1558,20 +1598,8 @@ interface LandingPageProps {
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin }) => {
-    const [activeModal, setActiveModal] = useState<ModalType>(null);
-
-    // Use a real property from demo data for the interactive embed
-    const propertyForDemo = DEMO_FAT_PROPERTIES[0] || null; 
-
     return (
         <div className="bg-white font-sans">
-             {activeModal && (
-                <ListingAppModals 
-                    activeModal={activeModal}
-                    onClose={() => setActiveModal(null)}
-                    property={propertyForDemo}
-                />
-            )}
             <Header
                 onNavigateToSignUp={onNavigateToSignUp}
                 onNavigateToSignIn={onNavigateToSignIn}
@@ -1581,12 +1609,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
                 <RevolutionaryAIFeaturesSection />
-                <DashboardShowcaseSection onEnterDemoMode={onEnterDemoMode} />
-                <AIAppShowcaseSection onOpenModal={setActiveModal} />
-                <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenConsultationModal={onOpenConsultationModal} />
+                <DashboardShowcaseSection onEnterDemoMode={onEnterDemoMode} onNavigateToSignUp={onNavigateToSignUp} />
+                <AIAppShowcaseSection />
+                <PricingSection onNavigateToSignUp={onNavigateToSignUp} />
                 <WhiteLabelSection onOpenConsultationModal={onOpenConsultationModal} />
                 <AboutUsSection />
-                <FeaturesGridSection onNavigateToSignUp={onNavigateToSignUp} />
+                <FeaturesGridSection />
                 <WhatYouGetSectionNew />
                 <TestimonialsSection />
                 <FaqSection />

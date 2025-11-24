@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import ScheduleAppointmentModal from '../components/ScheduleAppointmentModal'
+import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from '../components/ScheduleAppointmentModal'
 import { scheduleAppointment, AppointmentKind } from '../services/schedulerService'
 
 interface OpenOptions {
@@ -17,12 +17,6 @@ interface SchedulerContextValue {
 const SchedulerContext = createContext<SchedulerContextValue | undefined>(
   undefined
 )
-
-export const useScheduler = (): SchedulerContextValue => {
-  const ctx = useContext(SchedulerContext)
-  if (!ctx) throw new Error('useScheduler must be used within SchedulerProvider')
-  return ctx
-}
 
 export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
   children
@@ -62,7 +56,7 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
               : null
           }
           onClose={handleClose}
-          onSchedule={async (data: any) => {
+          onSchedule={async (data: ScheduleAppointmentFormData) => {
             if (submitting) return
             setSubmitting(true)
             try {
@@ -73,13 +67,18 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
                 date: data.date,
                 time: data.time,
                 message: data.message,
-                kind: prefill?.kind || 'Consultation'
+                kind: data.kind || prefill?.kind || 'Consultation',
+                remindAgent: data.remindAgent,
+                remindClient: data.remindClient,
+                agentReminderMinutes: data.agentReminderMinutes,
+                clientReminderMinutes: data.clientReminderMinutes
               })
               handleClose()
               alert('Appointment scheduled successfully')
-            } catch (e: any) {
-              console.error('Schedule error', e)
-              alert(e?.message || 'Failed to schedule appointment')
+            } catch (error: unknown) {
+              const message = error instanceof Error ? error.message : 'Failed to schedule appointment'
+              console.error('Schedule error', error)
+              alert(message)
             } finally {
               setSubmitting(false)
             }
@@ -90,4 +89,10 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export const useScheduler = (): SchedulerContextValue => {
+  const ctx = useContext(SchedulerContext)
+  if (!ctx) throw new Error('useScheduler must be used within SchedulerProvider')
+  return ctx
+}
 

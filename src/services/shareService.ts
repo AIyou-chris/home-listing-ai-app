@@ -1,4 +1,28 @@
 // Share Service for sharing content via text, email, and other methods
+
+interface ShareableDescription {
+	paragraphs?: string[]
+}
+
+export interface ShareableProperty {
+	id: string
+	address: string
+	description?: string | ShareableDescription
+	price?: number
+	bedrooms?: number
+	bathrooms?: number
+	squareFeet?: number
+}
+
+export interface MarketingProposalSummary {
+	id: string
+	propertyAddress: string
+	executiveSummary?: string
+	marketAnalysis?: string
+	pricingStrategy?: string
+	marketingPlan?: string
+}
+
 export class ShareService {
 	// Share content using native Web Share API (mobile-friendly)
 	static async shareContent(data: {
@@ -59,14 +83,17 @@ export class ShareService {
 	}
 
 	// Generate shareable content for property reports
-	static generatePropertyShareContent(property: any, reportType: 'description' | 'analysis' | 'proposal') {
+	static generatePropertyShareContent(property: ShareableProperty, reportType: 'description' | 'analysis' | 'proposal') {
 		const baseText = `Check out this amazing property at ${property.address}!`;
+		const descriptionText = typeof property.description === 'string'
+			? property.description
+			: property.description?.paragraphs?.join('\n\n') ?? 'Beautiful property with great features.'
 		
 		switch (reportType) {
 			case 'description':
 				return {
 					title: `Property Description - ${property.address}`,
-					text: `${baseText}\n\n${property.description?.paragraphs?.join('\n\n') || property.description || 'Beautiful property with great features.'}`,
+					text: `${baseText}\n\n${descriptionText}`,
 					url: `${window.location.origin}/property/${property.id}`
 				};
 			case 'analysis':
@@ -91,7 +118,7 @@ export class ShareService {
 	}
 
 	// Generate shareable content for marketing proposals
-	static generateMarketingProposalShareContent(proposal: any) {
+	static generateMarketingProposalShareContent(proposal: MarketingProposalSummary) {
 		return {
 			title: `Marketing Proposal - ${proposal.propertyAddress}`,
 			text: `Marketing Proposal for ${proposal.propertyAddress}\n\nExecutive Summary:\n${proposal.executiveSummary}\n\nKey Highlights:\n• Market Analysis: ${proposal.marketAnalysis}\n• Pricing Strategy: ${proposal.pricingStrategy}\n• Marketing Plan: ${proposal.marketingPlan}`,

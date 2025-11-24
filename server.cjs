@@ -120,9 +120,56 @@ let followUpSequences = [
     triggerType: 'Lead Capture',
     isActive: true,
     steps: [
-      { id: '1', type: 'email', delay: { value: 0, unit: 'hours' }, content: 'Welcome email' },
-      { id: '2', type: 'email', delay: { value: 1, unit: 'days' }, content: 'Follow-up email' },
-      { id: '3', type: 'email', delay: { value: 3, unit: 'days' }, content: 'Value proposition' }
+      { 
+        id: '1', 
+        type: 'email', 
+        delay: { value: 0, unit: 'minutes' }, 
+        subject: 'Welcome! Thanks for your interest in {{property.address}}',
+        content: `Hi {{lead.name}},
+
+Thank you for your interest in {{property.address}}! I'm {{agent.name}}, your dedicated real estate agent.
+
+I received your inquiry and wanted to respond immediately. This {{property.type}} is a fantastic opportunity with:
+• {{property.bedrooms}} bedrooms, {{property.bathrooms}} bathrooms
+• {{property.squareFeet}} square feet
+• Located at {{property.address}}
+
+I'd love to show you this property and answer any questions you might have. Are you available for a showing this week?
+
+You can reach me at {{agent.phone}} or simply reply to this email.
+
+Best regards,
+{{agent.name}}
+{{agent.title}}
+{{agent.company}}`
+      },
+      { 
+        id: '2', 
+        type: 'email', 
+        delay: { value: 1, unit: 'days' }, 
+        subject: 'Market insights for {{property.address}}',
+        content: `Hi {{lead.name}},
+
+I wanted to share some additional information about {{property.address}} and the surrounding area.
+
+This property is in a highly desirable neighborhood with:
+• Great schools nearby
+• Easy access to shopping and dining
+• Strong property value appreciation
+
+Properties like this one typically don't stay on the market long. Would you like to schedule a showing?
+
+Let me know what works best for your schedule.
+
+{{agent.name}}
+{{agent.phone}}`
+      },
+      { 
+        id: '3', 
+        type: 'task', 
+        delay: { value: 3, unit: 'days' }, 
+        content: 'Call {{lead.name}} at {{lead.phone}} to follow up on {{property.address}} and see if they need additional information or want to schedule a showing.'
+      }
     ],
     analytics: { totalLeads: 156, openRate: 78, responseRate: 23 }
   },
@@ -133,9 +180,58 @@ let followUpSequences = [
     triggerType: 'Appointment Scheduled',
     isActive: true,
     steps: [
-      { id: '1', type: 'email', delay: { value: 1, unit: 'hours' }, content: 'Thank you email' },
-      { id: '2', type: 'email', delay: { value: 2, unit: 'days' }, content: 'Feedback request' },
-      { id: '3', type: 'email', delay: { value: 7, unit: 'days' }, content: 'Additional properties' }
+      { 
+        id: '1', 
+        type: 'email', 
+        delay: { value: 1, unit: 'hours' }, 
+        subject: 'Appointment confirmed - Looking forward to meeting you!',
+        content: `Hi {{lead.name}},
+
+Thank you for scheduling an appointment with me! I'm looking forward to meeting with you.
+
+Here are the details:
+• Date: [Appointment Date]
+• Time: [Appointment Time]
+• Location: {{property.address}}
+
+I'll bring all the relevant information about the property and can answer any questions you might have.
+
+If you need to reschedule or have any questions before we meet, please don't hesitate to call me at {{agent.phone}}.
+
+See you soon!
+
+{{agent.name}}
+{{agent.title}}`
+      },
+      { 
+        id: '2', 
+        type: 'email', 
+        delay: { value: 1, unit: 'days' }, 
+        subject: 'How did you like {{property.address}}?',
+        content: `Hi {{lead.name}},
+
+I hope you enjoyed seeing {{property.address}} yesterday! 
+
+What were your initial thoughts about the property? I'd love to hear your feedback and answer any questions that came up during our meeting.
+
+If you're interested in moving forward, I can help you with:
+• Preparing and submitting an offer
+• Connecting you with trusted lenders
+• Providing additional market analysis
+
+I also have several other properties that might interest you based on what we discussed. Would you like me to send those over?
+
+Feel free to call or text me at {{agent.phone}} anytime.
+
+Best regards,
+{{agent.name}}`
+      },
+      { 
+        id: '3', 
+        type: 'task', 
+        delay: { value: 3, unit: 'days' }, 
+        content: 'Follow up with {{lead.name}} via phone call to discuss their thoughts on {{property.address}} and see if they want to view additional properties or make an offer.'
+      }
     ],
     analytics: { totalLeads: 89, openRate: 82, responseRate: 31 }
   }
@@ -1057,6 +1153,23 @@ app.get('/api/admin/marketing/sequences', (req, res) => {
     });
   } catch (error) {
     console.error('Get sequences error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get sequence by ID (for execution service)
+app.get('/api/admin/marketing/sequences/:id', (req, res) => {
+  try {
+    const sequence = followUpSequences.find(s => s.id === req.params.id);
+    if (!sequence) {
+      return res.status(404).json({ error: 'Sequence not found' });
+    }
+    res.json({
+      success: true,
+      sequence
+    });
+  } catch (error) {
+    console.error('Get sequence by ID error:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X, Check, AlertCircle, Info, MessageSquare } from 'lucide-react';
-import NotificationService from '../services/notificationService';
 import { UserNotification } from '../types';
 
 interface NotificationSystemProps {
@@ -13,22 +12,21 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ userId }) => {
     const [unreadCount, setUnreadCount] = useState(0);
 
     useEffect(() => {
-        // Load initial notifications
-        loadNotifications();
-        
-        // Temporarily disabled Firebase real-time updates
-        // const unsubscribe = NotificationService.subscribeToUserNotifications(userId, (newNotifications) => {
-        //     setNotifications(newNotifications);
-        //     setUnreadCount(newNotifications.filter(n => !n.read).length);
-        // });
+        const run = async () => {
+            try {
+                await loadNotifications();
+            } catch (error) {
+                console.error('Failed to load notifications', error);
+            }
+        };
 
-        // return () => unsubscribe();
+        void run();
     }, [userId]);
 
     const loadNotifications = async () => {
         try {
             // Temporarily disabled Firebase notifications
-            // const userNotifications = await NotificationService.getUserNotifications(userId);
+            // const userNotifications = await NotificationService.getUserNotifications(uid);
             // setNotifications(userNotifications);
             // setUnreadCount(userNotifications.filter(n => !n.read).length);
             
@@ -44,7 +42,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ userId }) => {
         try {
             // Temporarily disabled Firebase notifications
             // await NotificationService.markNotificationAsRead(notificationId);
-            console.log('Mark as read disabled');
+            console.info('Mark as read disabled:', notificationId);
         } catch (error) {
             console.error('Error marking notification as read:', error);
         }
@@ -54,7 +52,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ userId }) => {
         try {
             // Temporarily disabled Firebase notifications
             // await NotificationService.markAllNotificationsAsRead(userId);
-            console.log('Mark all as read disabled');
+            console.info('Mark all as read disabled for user:', userId);
         } catch (error) {
             console.error('Error marking all notifications as read:', error);
         }
@@ -72,21 +70,6 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ userId }) => {
                 return <Info className="w-4 h-4" />;
             default:
                 return <Bell className="w-4 h-4" />;
-        }
-    };
-
-    const getPriorityColor = (priority: UserNotification['priority']) => {
-        switch (priority) {
-            case 'urgent':
-                return 'border-red-500 bg-red-50';
-            case 'high':
-                return 'border-orange-500 bg-orange-50';
-            case 'medium':
-                return 'border-blue-500 bg-blue-50';
-            case 'low':
-                return 'border-gray-500 bg-gray-50';
-            default:
-                return 'border-gray-300 bg-white';
         }
     };
 

@@ -3,11 +3,26 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { Lead } from '../types';
+import { AppointmentKind } from '../services/schedulerService';
 
 interface ScheduleAppointmentModalProps {
     lead?: Lead | null;
     onClose: () => void;
-    onSchedule: (appointmentData: object) => void;
+    onSchedule: (appointmentData: ScheduleAppointmentFormData) => void;
+}
+
+export interface ScheduleAppointmentFormData {
+    name: string;
+    email: string;
+    phone: string;
+    date: string;
+    time: string;
+    message: string;
+    kind: AppointmentKind;
+    remindAgent: boolean;
+    remindClient: boolean;
+    agentReminderMinutes: number;
+    clientReminderMinutes: number;
 }
 
 // Reusable form components from AddLeadModal for consistency
@@ -50,13 +65,18 @@ const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) 
 
 
 const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lead, onClose, onSchedule }) => {
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<ScheduleAppointmentFormData>({
         name: '',
         email: '',
         phone: '',
         date: '',
         time: 'Afternoon (1 PM - 4 PM)',
-        message: ''
+        message: '',
+        kind: 'Consultation',
+        remindAgent: true,
+        remindClient: true,
+        agentReminderMinutes: 60,
+        clientReminderMinutes: 1440
     });
 
     useEffect(() => {
@@ -72,7 +92,16 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'agentReminderMinutes' || name === 'clientReminderMinutes') {
+            setFormData(prev => ({ ...prev, [name]: Number(value) }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
+    };
+
+    const handleToggle = (name: 'remindAgent' | 'remindClient') => (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { checked } = e.target;
+        setFormData(prev => ({ ...prev, [name]: checked }));
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -82,11 +111,21 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
 
     return (
         <Modal title="Schedule Appointment" onClose={onClose}>
-            <form onSubmit={handleSubmit}>
-                <div className="p-8">
+            <form onSubmit={handleSubmit} className="flex flex-col min-h-full">
+                <div className="flex-1 p-8 pb-6">
                     <FormRow>
                         <Label htmlFor="appt-name">Name *</Label>
                         <Input type="text" id="appt-name" name="name" placeholder="Enter full name" value={formData.name} onChange={handleChange} required />
+                    </FormRow>
+                    <FormRow>
+                        <Label htmlFor="appt-kind">Appointment Type *</Label>
+                        <Select id="appt-kind" name="kind" value={formData.kind} onChange={handleChange}>
+                            <option value="Consultation">Consultation</option>
+                            <option value="Showing">Showing</option>
+                            <option value="Open House">Open House</option>
+                            <option value="Virtual Tour">Virtual Tour</option>
+                            <option value="Follow-up">Follow-up</option>
+                        </Select>
                     </FormRow>
                     <FormRow>
                         <Label htmlFor="appt-email">Email *</Label>
@@ -110,6 +149,9 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
                                 <option>Morning (9 AM - 12 PM)</option>
                                 <option>Afternoon (1 PM - 4 PM)</option>
                                 <option>Evening (5 PM - 7 PM)</option>
+                                <option>10:00 AM</option>
+                                <option>2:00 PM</option>
+                                <option>6:00 PM</option>
                             </Select>
                         </FormRow>
                     </div>
@@ -117,14 +159,67 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
                         <Label htmlFor="appt-message">Message</Label>
                         <Textarea id="appt-message" name="message" placeholder="Any special requests or notes" value={formData.message} onChange={handleChange} />
                     </FormRow>
+                    <div className="mt-6 space-y-3">
+                        <h4 className="text-sm font-semibold text-slate-700">Reminders</h4>
+                        <div className="flex items-start justify-between gap-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="remind-agent"
+                                        name="remindAgent"
+                                        checked={formData.remindAgent}
+                                        onChange={handleToggle('remindAgent')}
+                                        className="h-4 w-4 text-primary-600 border-slate-300 rounded"
+                                    />
+                                    <Label htmlFor="remind-agent">Notify Agent</Label>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">Send a heads-up before the meeting starts.</p>
+                            </div>
+                            <div className="w-40">
+                                <Select name="agentReminderMinutes" value={formData.agentReminderMinutes} onChange={handleChange}>
+                                    <option value={15}>15 minutes before</option>
+                                    <option value={30}>30 minutes before</option>
+                                    <option value={60}>1 hour before</option>
+                                    <option value={120}>2 hours before</option>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="flex items-start justify-between gap-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="remind-client"
+                                        name="remindClient"
+                                        checked={formData.remindClient}
+                                        onChange={handleToggle('remindClient')}
+                                        className="h-4 w-4 text-primary-600 border-slate-300 rounded"
+                                    />
+                                    <Label htmlFor="remind-client">Notify Client</Label>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">Send reassurance so the client never forgets.</p>
+                            </div>
+                            <div className="w-40">
+                                <Select name="clientReminderMinutes" value={formData.clientReminderMinutes} onChange={handleChange}>
+                                    <option value={60}>1 hour before</option>
+                                    <option value={180}>3 hours before</option>
+                                    <option value={720}>12 hours before</option>
+                                    <option value={1440}>1 day before</option>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex justify-end items-center px-8 py-6 bg-slate-50 border-t border-slate-200 rounded-b-xl">
-                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition mr-2">
-                        Cancel
-                    </button>
-                    <button type="submit" className="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition">
-                        Schedule Appointment
-                    </button>
+                <div className="sticky bottom-0 z-10 border-t border-slate-200 bg-white">
+                    <div className="flex justify-end items-center px-8 py-5 gap-3">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" className="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition">
+                            Schedule Appointment
+                        </button>
+                    </div>
                 </div>
             </form>
         </Modal>

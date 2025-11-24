@@ -3,6 +3,7 @@ import type { AgentTask, AIPersonality } from './types';
 
 export const SAMPLE_AGENT: AgentProfile = {
   name: 'Sarah Johnson',
+  slug: 'sarah-johnson',
   title: 'Luxury Real Estate Specialist',
   company: 'Prestige Properties',
   phone: '(305) 555-1234',
@@ -13,6 +14,7 @@ export const SAMPLE_AGENT: AgentProfile = {
     { platform: 'LinkedIn', url: 'https://linkedin.com' },
   ],
   brandColor: '#0ea5e9', // a nice sky blue
+  language: 'en',
   logoUrl: 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?q=80&w=200&h=80&auto=format&fit=crop&crop=center', // Professional real estate logo placeholder
   website: 'https://prestigeproperties.com',
   bio: 'With over 15 years of experience in the luxury market, Sarah Johnson combines deep market knowledge with a passion for client success. Her dedication and expertise make her a trusted advisor for buyers and sellers of distinguished properties.'
@@ -26,13 +28,7 @@ export const SAMPLE_SCHOOLS: School[] = [
 ];
 
 
-export const SAMPLE_LEADS: Lead[] = [
-    { id: 'lead1', name: 'John Doe', status: 'New', email: 'john.d@example.com', phone: '(555) 123-4567', date: '08/15/2025', lastMessage: 'Interested in the property on Ocean Drive. What is the HOA fee?' },
-    { id: 'lead2', name: 'Jane Smith', status: 'Qualified', email: 'jane.s@example.com', phone: '(555) 987-6543', date: '08/14/2025', lastMessage: 'Pre-approved for $3M, looking for ocean views.' },
-    { id: 'lead3', name: 'Sam Wilson', status: 'Contacted', email: 'sam.w@example.com', phone: '(555) 555-5555', date: '08/14/2025', lastMessage: 'Left a voicemail. Seems interested in scheduling a tour this weekend.' },
-    { id: 'lead4', name: 'Maria Garcia', status: 'Showing', email: 'maria.g@example.com', phone: '(555) 111-2222', date: '08/13/2025', lastMessage: 'Showing scheduled for Saturday at 2 PM.' },
-    { id: 'lead5', name: 'Alex Thompson', status: 'Lost', email: 'alex.t@example.com', phone: '(555) 333-4444', date: '08/12/2025', lastMessage: 'Decided to buy in a different neighborhood.' },
-];
+export const SAMPLE_LEADS: Lead[] = [];
 
 export const SAMPLE_APPOINTMENTS: Appointment[] = [
     { id: 'appt1', type: 'Showing', date: '08/16/2025', time: '10:00 AM', leadId: 'lead1', propertyId: 'prop1', notes: 'Client interested in seeing the master suite and backyard.' },

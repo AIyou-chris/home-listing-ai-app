@@ -1,81 +1,22 @@
 
-import React, { useState } from 'react';
-import { Property, LocalInfoData, AgentProfile } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Property, AgentProfile, AIDescription } from '../types';
 import { SAMPLE_AGENT } from '../constants';
-import { getLocalInfo } from '../services/geminiService';
-import Modal from './Modal';
-import AddTextKnowledgeModal from './AddTextKnowledgeModal';
-import AddUrlScraperModal from './AddUrlScraperModal';
 import ListingSidekickWidget from './ListingSidekickWidget'
-import { continueConversation } from '../services/openaiService'
 import PublicPropertyApp from './PublicPropertyApp';
+import { listingsService, type CreatePropertyInput } from '../services/listingsService';
+import { uploadListingPhoto } from '../services/listingMediaService';
+import { useAgentBranding } from '../hooks/useAgentBranding';
 
 interface AddListingPageProps {
     onCancel: () => void;
-    onSave: (newProperty: Omit<Property, 'id' | 'description' | 'imageUrl'>) => void;
+    onSave: (property: Property) => void;
     onPreview?: () => void;
+    initialProperty?: Property | null;
+    agentProfile?: AgentProfile | null;
 }
 
 const inputClasses = "w-full px-3 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition";
-
-
-const LocalInfoModal: React.FC<{
-    onClose: () => void;
-    title: string;
-    isLoading: boolean;
-    data: LocalInfoData | null;
-}> = ({ onClose, title, isLoading, data }) => {
-    
-    const modalTitle = (
-        <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined w-6 h-6 text-primary-600">travel_explore</span>
-            <h3 className="text-xl font-bold text-slate-800">{title}</h3>
-        </div>
-    );
-
-    return (
-        <Modal title={modalTitle} onClose={onClose}>
-            <div className="p-6 max-h-[70vh] overflow-y-auto">
-                {isLoading ? (
-                    <div className="flex flex-col items-center justify-center h-48">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-                        <p className="mt-4 text-slate-600">Fetching local data with AI...</p>
-                    </div>
-                ) : data ? (
-                    <div>
-                        <div
-                            className="prose prose-slate max-w-none prose-headings:font-bold prose-p:text-slate-600"
-                            dangerouslySetInnerHTML={{ __html: data.summary.replace(/\n/g, '<br />').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
-                        />
-                        {data.sources && data.sources.length > 0 && (
-                            <div className="mt-6 pt-4 border-t border-slate-200">
-                                <h4 className="font-semibold text-slate-700 mb-2">Sources</h4>
-                                <ul className="list-disc list-inside space-y-1 text-sm">
-                                    {data.sources.map((source, index) => (
-                                        <li key={index}>
-                                            <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline break-words">
-                                                {source.title || source.uri}
-                                            </a>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="text-center h-48 flex flex-col justify-center">
-                        <p className="text-slate-500">Could not retrieve information. Please try again.</p>
-                    </div>
-                )}
-            </div>
-             <div className="flex justify-end items-center px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-xl">
-                <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
-                    Close
-                </button>
-            </div>
-        </Modal>
-    );
-};
 
 
 const CollapsibleSection: React.FC<{ title: string; icon: string; children: React.ReactNode; }> = ({ title, icon, children }) => {
@@ -99,118 +40,67 @@ const CollapsibleSection: React.FC<{ title: string; icon: string; children: Reac
     );
 };
 
-const FeatureToggle: React.FC<{
-  icon: string;
-  title: string;
-  description: string;
-  enabled: boolean;
-  setEnabled: (enabled: boolean) => void;
-  onInfoClick?: () => void;
-}> = ({ icon, title, description, enabled, setEnabled, onInfoClick }) => {
-  return (
-    <div className={`p-4 rounded-xl bg-green-50 border border-green-200/40 transition-all duration-300 flex items-center justify-between gap-3`}>
-        <div className="flex items-center min-w-0">
-          <span className="material-symbols-outlined w-6 h-6 mr-3 text-slate-500 flex-shrink-0">{icon}</span>
-          <div className="min-w-0">
-            <h4 className="font-bold text-slate-800 truncate text-sm">{title}</h4>
-            <p className="text-xs text-slate-500 truncate">{description}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-          {onInfoClick && (
-              <button
-                  type="button"
-                  onClick={onInfoClick}
-                  className="p-1 rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors"
-                  aria-label={`Get info about ${title}`}
-              >
-                  <span className="material-symbols-outlined w-5 h-5">info</span>
-              </button>
-          )}
-          <button
-            type="button"
-            role="switch"
-            aria-checked={enabled}
-            onClick={() => setEnabled(!enabled)}
-            className={`relative inline-flex items-center h-7 rounded-full w-12 cursor-pointer transition-colors duration-200 ease-in-out ${enabled ? 'bg-green-500' : 'bg-slate-300'}`}
-          >
-            <span className={`inline-block w-5 h-5 transform bg-white rounded-full transition-transform duration-200 ease-in-out shadow-sm ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
-        </div>
-    </div>
-  );
-};
 
-interface UploadedFile {
-    id: string;
-    name: string;
-    size: string;
-    status: 'uploading' | 'complete' | 'error';
-    progress: number;
-}
+const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initialProperty, agentProfile }) => {
+    const { uiProfile } = useAgentBranding();
+    const mergedAgentProfile = useMemo<AgentProfile>(() => {
+        const baseProfile = agentProfile ?? uiProfile ?? SAMPLE_AGENT;
+        const combined = { ...SAMPLE_AGENT, ...baseProfile } as AgentProfile;
+        return {
+            ...combined,
+            socials: Array.isArray(combined.socials)
+                ? combined.socials.map((social) => ({ ...social }))
+                : SAMPLE_AGENT.socials.map((social) => ({ ...social }))
+        };
+    }, [agentProfile, uiProfile]);
 
-const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => {
     // A simplified state for demonstration. In a real app, this would be more robust.
     const [formData, setFormData] = useState({
-        propertyTitle: 'Beautiful 3-Bedroom Home',
-        price: '500000',
-        address: '123 Main Street, Anytown, USA 12345',
-        beds: '3',
-        baths: '2',
-        sqft: '1500',
-        description: 'Describe the property\'s features, amenities, and unique selling points.',
-        heroPhotos: [] as (File | string)[],
-        galleryPhotos: [] as (File | string)[],
-        rawAmenities: 'Hardwood floors, Granite countertops, Stainless steel appliances, Fenced backyard, Fireplace',
+        propertyTitle: initialProperty?.title || '',
+        price: initialProperty?.price != null ? String(initialProperty.price) : '',
+        address: initialProperty?.address || '',
+        beds: initialProperty?.bedrooms != null ? String(initialProperty.bedrooms) : '',
+        baths: initialProperty?.bathrooms != null ? String(initialProperty.bathrooms) : '',
+        sqft: initialProperty?.squareFeet != null ? String(initialProperty.squareFeet) : '',
+        description: (typeof initialProperty?.description === 'string'
+            ? (initialProperty?.description as string)
+            : (initialProperty && 'description' in initialProperty && initialProperty.description && typeof initialProperty.description === 'object'
+                ? [initialProperty.description.title, ...(initialProperty.description.paragraphs || [])].filter(Boolean).join('\n')
+                : ''
+              )),
+        heroPhotos: (initialProperty?.heroPhotos as (File | string)[]) || [],
+        galleryPhotos: (initialProperty?.galleryPhotos as (File | string)[]) || [],
+        rawAmenities: Array.isArray(initialProperty?.features) ? initialProperty!.features.join(', ') : '',
+        ctaListingUrl: initialProperty?.ctaListingUrl || '',
+        ctaMediaUrl: initialProperty?.ctaMediaUrl || '',
         appFeatures: {
             gallery: true, schools: true, financing: true, virtualTour: true, amenities: true,
             schedule: true, map: true, history: true, neighborhood: true, reports: true,
             messaging: true
         },
-        agent: {
-            name: 'John Smith',
-            title: 'Real Estate Agent',
-            company: 'Prime Properties',
-            phone: '+1 (555) 123-4567',
-            email: 'john@example.com',
-            website: 'https://example.com',
-            bio: 'Tell visitors about your experience and expertise...',
-            headshotUrl: 'https://example.com/headshot.png',
-            socials: [
-                { platform: 'Facebook', url: 'https://facebook.com/username' },
-                { platform: 'Instagram', url: 'https://instagram.com/username' },
-                { platform: 'Twitter', url: '' },
-                { platform: 'LinkedIn', url: '' },
-                { platform: 'YouTube', url: '' },
-            ] as AgentProfile['socials'],
-            mediaLinks: ['', '']
-        },
+        agent: mergedAgentProfile,
         media: {
              virtualTourUrl: '', propertyVideoUrl: '', droneFootageUrl: '', 
              neighborhoodVideoUrl: '', agentInterviewUrl: '', additionalMediaUrl: ''
         }
     });
+    const [photoUrlInput, setPhotoUrlInput] = useState('');
+    const [photoUrlError, setPhotoUrlError] = useState<string | null>(null);
+    const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+    const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+
+    useEffect(() => {
+        setFormData(prev => ({
+            ...prev,
+            agent: {
+                ...mergedAgentProfile,
+                socials: mergedAgentProfile.socials.map((social) => ({ ...social }))
+            }
+        }));
+    }, [mergedAgentProfile]);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [sidekickDescription, setSidekickDescription] = useState('You are the Listing Sidekick. Detail-oriented and helpful. Present property highlights and answer questions clearly.');
-    const [sidekickVoice, setSidekickVoice] = useState('Neutral Voice 1');
-    const [sidekickTestInput, setSidekickTestInput] = useState('');
-    const [sidekickTestReply, setSidekickTestReply] = useState('');
-    const [sidekickTesting, setSidekickTesting] = useState(false);
 
-    const [localInfoModal, setLocalInfoModal] = useState<{
-        isOpen: boolean;
-        category: string;
-        data: LocalInfoData | null;
-        isLoading: boolean;
-    }>({ isOpen: false, category: '', data: null, isLoading: false });
-
-    // State for Knowledge Base section
-    const [isTextModalOpen, setIsTextModalOpen] = useState(false);
-    const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
-    const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-    const [isDragging, setIsDragging] = useState(false);
-    
     const generatePreviewProperty = (): Property => {
         const heroPhotos = formData.heroPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p));
         if (heroPhotos.length === 0) {
@@ -232,7 +122,12 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
             heroPhotos: heroPhotos,
             galleryPhotos: formData.galleryPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p)),
             appFeatures: formData.appFeatures,
-            agent: { ...SAMPLE_AGENT, ...formData.agent },
+            agent: {
+                ...formData.agent,
+                socials: Array.isArray(formData.agent.socials)
+                    ? formData.agent.socials.map((social) => ({ ...social }))
+                    : mergedAgentProfile.socials.map((social) => ({ ...social }))
+            },
             propertyType: 'Single-Family Home',
             features: formData.rawAmenities.split(',').map(s => s.trim()).filter(f => f),
             imageUrl: heroPhotos[0],
@@ -241,145 +136,121 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
         };
     };
 
-    const handleFetchLocalInfo = async (category: string, userFriendlyName: string) => {
-        if (!formData.address) {
-            alert("Please enter a property address first.");
-            return;
-        }
-        setLocalInfoModal({ isOpen: true, category: userFriendlyName, data: null, isLoading: true });
-        try {
-            const result = await getLocalInfo(formData.address, category);
-            setLocalInfoModal(prev => ({ ...prev, data: result, isLoading: false }));
-        } catch (error) {
-            console.error(error);
-            setLocalInfoModal(prev => ({ ...prev, data: null, isLoading: false }));
-        }
-    };
-
     const handleSimpleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
-    
-    const handleFeatureToggle = (feature: string, enabled: boolean) => {
-        setFormData(prev => ({
-            ...prev,
-            appFeatures: { ...prev.appFeatures, [feature]: enabled }
-        }));
-    };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        // Here you would process the formData, upload files and get back URLs,
-        // then call the onSave prop.
-        const saveData: Omit<Property, 'id' | 'description' | 'imageUrl'> = {
-            title: formData.propertyTitle,
-            address: formData.address,
-            price: Number(formData.price),
-            bedrooms: Number(formData.beds),
-            bathrooms: Number(formData.baths),
-            squareFeet: Number(formData.sqft),
-            propertyType: 'Single-Family Home', // Example
-            features: formData.rawAmenities.split(',').map(s => s.trim()),
-            // In a real app, these would be URLs from a server
-            heroPhotos: formData.heroPhotos.map(p => typeof p === 'string' ? p : p.name),
-            galleryPhotos: formData.galleryPhotos.map(p => typeof p === 'string' ? p : p.name),
-            appFeatures: formData.appFeatures,
-            agent: { ...formData.agent, socials: [] }, // Simplify for demo
-            ctaListingUrl: formData.ctaListingUrl,
-            ctaMediaUrl: formData.ctaMediaUrl
-        };
-        onSave(saveData);
+        
+        try {
+            const features = formData.rawAmenities
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean);
+
+            const description: AIDescription = {
+                title: 'Property Description Preview',
+                paragraphs: formData.description
+                    .split('\n')
+                    .map(p => p.trim())
+                    .filter(Boolean)
+            };
+
+            const agentSnapshot: AgentProfile = {
+                ...mergedAgentProfile,
+                ...formData.agent,
+                socials: Array.isArray(formData.agent.socials)
+                    ? formData.agent.socials.map((social) => ({ ...social }))
+                    : mergedAgentProfile.socials
+            };
+
+            const payload: CreatePropertyInput = {
+                title: formData.propertyTitle,
+                address: formData.address,
+                price: Number(formData.price) || 0,
+                bedrooms: Number(formData.beds) || 0,
+                bathrooms: Number(formData.baths) || 0,
+                squareFeet: Number(formData.sqft) || 0,
+                propertyType: 'Single-Family Home',
+                status: 'Active',
+                description,
+                features,
+                heroPhotos: formData.heroPhotos,
+                galleryPhotos: formData.galleryPhotos,
+                ctaListingUrl: formData.ctaListingUrl,
+                ctaMediaUrl: formData.ctaMediaUrl,
+                appFeatures: formData.appFeatures,
+                agentSnapshot
+            }
+
+            const saved = initialProperty
+                ? await listingsService.updateProperty(initialProperty.id, payload)
+                : await listingsService.createProperty(payload)
+
+            onSave(saved);
+        } catch (error) {
+            console.error('Error saving listing:', error);
+            alert('Failed to save listing. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
-    // --- Knowledge Base Handlers ---
-    const handleSaveText = (data: { title: string, content: string }) => {
-        console.log("Saving text knowledge:", data);
-        setIsTextModalOpen(false);
-    };
-
-    const handleSaveUrl = (url: string) => {
-        console.log("Saving URL to scrape:", url);
-        setIsUrlModalOpen(false);
-    };
-    
-    const handleFiles = (files: File[]) => {
-        const newFiles: UploadedFile[] = files.map(file => ({
-            id: `file-${Date.now()}-${Math.random()}`,
-            name: file.name,
-            size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-            status: 'uploading',
-            progress: 0,
-        }));
-
-        setUploadedFiles(prev => [...prev, ...newFiles]);
-
-        // Mock upload progress
-        newFiles.forEach(file => {
-            const interval = setInterval(() => {
-                setUploadedFiles(prev => prev.map(f => {
-                    if (f.id === file.id && f.progress < 100) {
-                        return { ...f, progress: f.progress + 10 };
-                    }
-                    return f;
-                }));
-            }, 200);
-
-            setTimeout(() => {
-                clearInterval(interval);
-                setUploadedFiles(prev => prev.map(f => {
-                    if (f.id === file.id) {
-                        return { ...f, status: 'complete', progress: 100 };
-                    }
-                    return f;
-                }));
-            }, 2200);
+    const attachNewPhotos = (urls: string[]) => {
+        if (urls.length === 0) return;
+        setFormData(prev => {
+            const heroClone = [...prev.heroPhotos];
+            if (heroClone.length < 3) {
+                const space = 3 - heroClone.length;
+                heroClone.push(...urls.slice(0, space));
+            }
+            return {
+                ...prev,
+                heroPhotos: heroClone,
+                galleryPhotos: [...prev.galleryPhotos, ...urls]
+            };
         });
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, section?: 'gallery') => {
-        if (e.target.files) {
-            const files = Array.from(e.target.files);
-            if (section === 'gallery') {
-                setFormData(prev => ({
-                    ...prev,
-                    galleryPhotos: [...prev.galleryPhotos, ...files]
-                }));
-            } else {
-                handleFiles(files);
+    const handleAddPhotoUrl = () => {
+        const trimmed = photoUrlInput.trim();
+        if (!trimmed) {
+            setPhotoUrlError('Enter a URL to add an image.');
+            return;
+        }
+        if (!/^https?:\/\//i.test(trimmed)) {
+            setPhotoUrlError('Photo URLs must start with https://');
+            return;
+        }
+        setPhotoUrlError(null);
+        attachNewPhotos([trimmed]);
+        setPhotoUrlInput('');
+    };
+
+    const handleGalleryUpload = async (fileList: FileList | null) => {
+        if (!fileList || fileList.length === 0) return;
+        setIsUploadingPhotos(true);
+        setPhotoUploadError(null);
+        const files = Array.from(fileList);
+        try {
+            const uploadedUrls: string[] = [];
+            for (const file of files) {
+                const uploaded = await uploadListingPhoto(file);
+                uploadedUrls.push(uploaded);
             }
+            attachNewPhotos(uploadedUrls);
+        } catch (error) {
+            console.error('Listing photo upload failed:', error);
+            setPhotoUploadError('Unable to upload photos. Please try again.');
+        } finally {
+            setIsUploadingPhotos(false);
         }
     };
 
-    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
-    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            handleFiles(Array.from(e.dataTransfer.files));
-            e.dataTransfer.clearData();
-        }
-    };
-    const handleRemoveFile = (fileId: string) => { setUploadedFiles(prev => prev.filter(f => f.id !== fileId)); };
 
-
-    const featureList = [
-      { id: 'gallery', icon: 'photo_camera', title: 'Gallery', desc: 'Photo showcase' },
-      { id: 'schools', icon: 'school', title: 'Schools', desc: 'Local education data', category: 'schools' },
-      { id: 'financing', icon: 'payments', title: 'Financing', desc: 'Mortgage calculator' },
-      { id: 'virtualTour', icon: 'videocam', title: 'Virtual Tour', desc: '3D walkthrough' },
-      { id: 'amenities', icon: 'home_work', title: 'Amenities', desc: 'Restaurants & shops', category: 'amenities' },
-      { id: 'schedule', icon: 'calendar_month', title: 'Schedule', desc: 'Book showings' },
-      { id: 'history', icon: 'schedule', title: 'History', desc: 'Property timeline' },
-      { id: 'neighborhood', icon: 'storefront', title: 'Neighborhood', desc: 'Area info & vibe', category: 'neighborhood' },
-      { id: 'reports', icon: 'analytics', title: 'Reports', desc: 'Property reports' },
-      { id: 'messaging', icon: 'chat_bubble', title: 'Messaging', desc: 'Contact forms' },
-    ];
-    
     return (
         <>
             {isPreviewing && (
@@ -430,13 +301,13 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                         <CollapsibleSection title="Basic Information" icon="home_work">
                            {/* Form fields here */}
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Title</label><input type="text" name="propertyTitle" value={formData.propertyTitle} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="text" name="price" value={formData.price} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Address</label><input type="text" name="address" value={formData.address} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bedrooms</label><input type="text" name="beds" value={formData.beds} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bathrooms</label><input type="text" name="baths" value={formData.baths} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Square Footage</label><input type="text" name="sqft" value={formData.sqft} onChange={handleSimpleChange} className={inputClasses} /></div>
-                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Description</label><textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={4} className={inputClasses}></textarea>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Title</label><input type="text" name="propertyTitle" value={formData.propertyTitle} onChange={handleSimpleChange} className={inputClasses} placeholder="Stunning Mid-Century Retreat" /></div>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="text" name="price" value={formData.price} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 750000" /></div>
+                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Address</label><input type="text" name="address" value={formData.address} onChange={handleSimpleChange} className={inputClasses} placeholder="123 Main Street, Anytown, USA 12345" /></div>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bedrooms</label><input type="text" name="beds" value={formData.beds} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 3" /></div>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bathrooms</label><input type="text" name="baths" value={formData.baths} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 2.5" /></div>
+                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Square Footage</label><input type="text" name="sqft" value={formData.sqft} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 1850" /></div>
+                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Description</label><textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={4} className={inputClasses} placeholder="Describe the property's features, amenities, and unique selling points."></textarea>
                                <button type="button" className="mt-2 text-sm font-semibold text-primary-600 flex items-center gap-1"><span className="material-symbols-outlined w-4 h-4">auto_awesome</span> Generate Description</button></div>
                            </div>
                         </CollapsibleSection>
@@ -452,23 +323,43 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                                     ))}
                                 </div>
                             </div>
-                             <div>
-                                <h4 className="font-semibold text-slate-700 mb-2 flex items-center gap-2">Import from URL <span className="material-symbols-outlined w-4 h-4 text-slate-400">info</span></h4>
+                            <div>
+                                <h4 className="font-semibold text-slate-700 mb-2 flex flex-wrap items-center gap-2">
+                                    Import from URL
+                                    <span className="material-symbols-outlined w-4 h-4 text-slate-400">info</span>
+                                </h4>
                                  <div className="flex gap-2">
-                                    <input type="url" placeholder="Paste photo URLs from Zillow, Realtor.com, or other sites" className={inputClasses} />
-                                    <button type="button" className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex-shrink-0">Add</button>
+                                    <input
+                                      type="url"
+                                      placeholder="https://cdn.example.com/house.jpg"
+                                      className={inputClasses}
+                                      value={photoUrlInput}
+                                      onChange={(event) => setPhotoUrlInput(event.target.value)}
+                                      disabled={isUploadingPhotos}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      onClick={handleAddPhotoUrl}
+                                      disabled={isUploadingPhotos}
+                                    >
+                                      Add
+                                    </button>
                                  </div>
+                                {photoUrlError && <p className="text-xs text-rose-600 mt-1">{photoUrlError}</p>}
                             </div>
                              <div className="mt-6">
-                                <h4 className="font-semibold text-slate-700 mb-2">Upload Photos</h4>
-                                 <label htmlFor="photo-upload" className="block w-full p-8 text-center bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 cursor-pointer hover:bg-slate-100 hover:border-primary-400">
-                                    <span className="material-symbols-outlined w-8 h-8 mx-auto text-slate-400 mb-2">upload</span>
-                                    <span className="text-slate-600 font-semibold">Drag & drop files here</span>
-                                    <p className="text-sm text-slate-500">or click to browse</p>
-                                    <input id="photo-upload" type="file" multiple className="hidden" onChange={(e) => handleFileChange(e, 'gallery')}/>
-                                 </label>
-                                 {formData.galleryPhotos.length > 0 && <p className="text-sm mt-2 text-slate-600">{formData.galleryPhotos.length} photos staged for upload.</p>}
-                            </div>
+                               <h4 className="font-semibold text-slate-700 mb-2">Upload Photos</h4>
+                                <label htmlFor="photo-upload" className="block w-full p-8 text-center bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 cursor-pointer hover:bg-slate-100 hover:border-primary-400">
+                                   <span className="material-symbols-outlined w-8 h-8 mx-auto text-slate-400 mb-2">upload</span>
+                                   <span className="text-slate-600 font-semibold">Drag & drop files here</span>
+                                   <p className="text-sm text-slate-500">or click to browse</p>
+                                   <input id="photo-upload" type="file" multiple className="hidden" onChange={(e) => handleGalleryUpload(e.target.files)}/>
+                                </label>
+                                {formData.galleryPhotos.length > 0 && <p className="text-sm mt-2 text-slate-600">{formData.galleryPhotos.length} photos staged for upload.</p>}
+                                {isUploadingPhotos && <p className="text-sm mt-1 text-slate-500">Uploading photos…</p>}
+                                {photoUploadError && <p className="text-sm mt-1 text-rose-600">{photoUploadError}</p>}
+                           </div>
                         </CollapsibleSection>
                         
                         <CollapsibleSection title="Buttons & Links" icon="smart_display">
@@ -480,7 +371,14 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                                   <span>To Listing</span>
                                 </button>
                                 <label className="block text-xs text-slate-600 mt-3 mb-1">Listing URL</label>
-                                <input type="url" placeholder="https://your-listing-url.com" className={inputClasses} />
+                                <input
+                                  type="url"
+                                  name="ctaListingUrl"
+                                  value={formData.ctaListingUrl}
+                                  onChange={handleSimpleChange}
+                                  placeholder="https://your-listing-url.com"
+                                  className={inputClasses}
+                                />
                               </div>
                               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                                 <button type="button" className="w-full h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2">
@@ -488,7 +386,14 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                                   <span>Media</span>
                                 </button>
                                 <label className="block text-xs text-slate-600 mt-3 mb-1">Media URL</label>
-                                <input type="url" placeholder="https://your-media-url.com" className={inputClasses} />
+                                <input
+                                  type="url"
+                                  name="ctaMediaUrl"
+                                  value={formData.ctaMediaUrl}
+                                  onChange={handleSimpleChange}
+                                  placeholder="https://your-media-url.com"
+                                  className={inputClasses}
+                                />
                               </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -517,11 +422,11 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                         
                          <CollapsibleSection title="Agent Information" icon="account_circle">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Agent Name</label><input type="text" className={inputClasses} value={formData.agent.name} readOnly /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Phone</label><input type="tel" className={inputClasses} value={formData.agent.phone} readOnly /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Email</label><input type="email" className={inputClasses} value={formData.agent.email} readOnly /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Website</label><input type="url" className={inputClasses} value={formData.agent.website} readOnly /></div>
-                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Bio</label><textarea rows={3} className={inputClasses} value={formData.agent.bio} readOnly></textarea></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Agent Name</label><input type="text" className={inputClasses} value={formData.agent.name ?? ''} readOnly /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Phone</label><input type="tel" className={inputClasses} value={formData.agent.phone ?? ''} readOnly /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Email</label><input type="email" className={inputClasses} value={formData.agent.email ?? ''} readOnly /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Website</label><input type="url" className={inputClasses} value={formData.agent.website ?? ''} readOnly /></div>
+                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Bio</label><textarea rows={3} className={inputClasses} value={formData.agent.bio ?? ''} readOnly></textarea></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Logo</label><input type="file" className={inputClasses} /></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Headshot</label><input type="file" className={inputClasses} /></div>
                                 <div className="md:col-span-2"><h4 className="font-semibold text-slate-700 mb-2 mt-4">Social Media Links</h4>
@@ -540,94 +445,13 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave }) => 
                         </CollapsibleSection>
                         
                         <CollapsibleSection title="Listing Sidekick" icon="smart_toy">
-                          <div className="grid grid-cols-1 gap-6">
-                            <div className="rounded-2xl border border-rose-200 bg-rose-50 overflow-hidden">
-                              <div className="px-4 py-3 border-b border-rose-200 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-rose-600">home</span>
-                                <div className="font-semibold text-slate-900">Listing Sidekick</div>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                <div>
-                                  <div className="text-sm font-semibold text-slate-800 mb-1">Who I am</div>
-                                  <textarea
-                                    rows={3}
-                                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
-                                    value={sidekickDescription}
-                                    onChange={(e) => setSidekickDescription(e.target.value)}
-                                  />
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <button type="button" className="px-3 py-2 rounded-xl text-sm bg-rose-600 hover:bg-rose-700 text-white">AI Personality</button>
-                                  <button type="button" onClick={() => setIsTextModalOpen(true)} className="px-3 py-2 rounded-xl bg-white border border-rose-200 text-sm text-rose-700 hover:bg-rose-100">Add Knowledge</button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="block text-xs text-slate-600 mb-1">Voice</label>
-                                    <select value={sidekickVoice} onChange={(e) => setSidekickVoice(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
-                                      <option>Female Voice 1</option>
-                                      <option>Female Voice 2</option>
-                                      <option>Male Voice 1</option>
-                                      <option>Male Voice 2</option>
-                                      <option>Neutral Voice 1</option>
-                                    </select>
-                                  </div>
-                                </div>
-                                <div className="rounded-xl border border-rose-200 p-3 bg-white">
-                                  <div className="text-sm font-semibold text-slate-900 mb-2">Test Personality</div>
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      value={sidekickTestInput}
-                                      onChange={(e) => setSidekickTestInput(e.target.value)}
-                                      className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                                      placeholder="Enter a question or statement to test..."
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        const q = sidekickTestInput.trim(); if (!q || sidekickTesting) return;
-                                        setSidekickTesting(true); setSidekickTestReply('');
-                                        try {
-                                          const text = await continueConversation([
-                                            { sender: 'system', text: sidekickDescription },
-                                            { sender: 'user', text: q }
-                                          ]);
-                                          setSidekickTestReply(text);
-                                        } catch {
-                                          setSidekickTestReply('Failed to get response');
-                                        } finally {
-                                          setSidekickTesting(false);
-                                        }
-                                      }}
-                                      className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm"
-                                    >
-                                      {sidekickTesting ? 'Testing...' : 'Test Responses'}
-                                    </button>
-                                  </div>
-                                  {sidekickTestReply && (
-                                    <div className="mt-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700 bg-slate-50 whitespace-pre-wrap">{sidekickTestReply}</div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="mb-2 text-sm text-slate-600">Live preview:</div>
-                              <ListingSidekickWidget property={generatePreviewProperty()} />
-                            </div>
+                          <div className="space-y-4">
+                            <div className="text-sm text-slate-600">Live preview:</div>
+                            <ListingSidekickWidget property={generatePreviewProperty()} />
                           </div>
                         </CollapsibleSection>
                     </form>
                 </div>
-                {localInfoModal.isOpen && (
-                    <LocalInfoModal
-                        onClose={() => setLocalInfoModal({ isOpen: false, category: '', data: null, isLoading: false })}
-                        title={`Local Info: ${localInfoModal.category}`}
-                        isLoading={localInfoModal.isLoading}
-                        data={localInfoModal.data}
-                    />
-                )}
-                {isTextModalOpen && <AddTextKnowledgeModal onClose={() => setIsTextModalOpen(false)} onSave={handleSaveText} />}
-                {isUrlModalOpen && <AddUrlScraperModal onClose={() => setIsUrlModalOpen(false)} onSave={handleSaveUrl} />}
             </div>
         </>
     );

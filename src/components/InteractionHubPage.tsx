@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Interaction, Property, InteractionSourceType } from '../types';
-import AddLeadModal from './AddLeadModal';
+import AddLeadModal, { type NewLeadPayload } from './AddLeadModal';
 
 interface InteractionHubPageProps {
     properties: Property[];
     onBackToDashboard: () => void;
-    onAddNewLead: (leadData: any) => void;
+    onAddNewLead: (leadData: NewLeadPayload) => void;
     interactions: Interaction[];
     setInteractions: React.Dispatch<React.SetStateAction<Interaction[]>>;
 }

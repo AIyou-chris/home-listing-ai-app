@@ -1,4 +1,50 @@
-import { Lead, LeadStatus } from '../types';
+import { Lead } from '../types';
+
+interface LeadWarningDetail {
+    leadId?: string;
+    leadName?: string;
+    warnings?: string[];
+}
+
+type LeadScoreWarnings = Array<string | LeadWarningDetail>;
+
+interface LeadFailure {
+    leadId?: string;
+    leadName?: string;
+    reasons?: string[];
+    reason?: string;
+}
+
+interface LeadScoreResponsePayload {
+    score?: LeadScore;
+    warnings?: LeadScoreWarnings;
+    details?: string[];
+    reasons?: string[];
+    error?: string;
+    message?: string;
+    code?: string;
+    failedLeads?: LeadFailure[];
+    missingLeadIds?: Array<string | null | undefined>;
+}
+
+interface LeadScoreErrorInfo {
+    message: string;
+    status?: number;
+    code?: string;
+}
+
+interface LeadsPayload {
+    leads?: Array<{
+        id: string;
+        score?: number;
+        scoreTier?: string;
+        scoreBreakdown?: ScoreBreakdown[];
+        scoreLastUpdated?: string;
+        updatedAt?: string;
+    }>;
+}
+
+type LeadValidationError = Error & { isLeadValidationError: true };
 
 export interface ScoringRule {
     id: string;
@@ -180,29 +226,241 @@ export const SCORE_TIERS = {
 };
 
 export class LeadScoringService {
-    // Calculate lead score based on rules
-    static calculateLeadScore(lead: Lead): LeadScore {
+    private static backendOfflineUntil: number | null = null;
+    private static leadErrorCache = new Map<string, { reason: string; status?: number; code?: string; recordedAt: number }>();
+    private static loggedMessages = new Set<string>();
+    private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
+    private static readonly BACKEND_RETRY_DELAY_MS = 30 * 1000;
+
+    private static logOnce(message: string, key: string, level: 'warn' | 'info' = 'warn') {
+        if (this.loggedMessages.has(key)) {
+            return;
+        }
+        this.loggedMessages.add(key);
+        const logger = level === 'info' ? console.info : console.warn;
+        logger(message);
+    }
+
+    private static shouldSkipLeadBackendCall(leadId: string): boolean {
+        if (!leadId) {
+            return false;
+        }
+        const cached = this.leadErrorCache.get(leadId);
+        if (!cached) {
+            return false;
+        }
+        if (Date.now() - cached.recordedAt > this.CACHE_TTL_MS) {
+            this.leadErrorCache.delete(leadId);
+            this.loggedMessages.delete(`lead-fail-${leadId}`);
+            return false;
+        }
+        return true;
+    }
+
+    private static cacheLeadFailure(leadId: string, reason: string, status?: number, code?: string) {
+        if (!leadId) {
+            return;
+        }
+        this.leadErrorCache.set(leadId, {
+            reason,
+            status,
+            code,
+            recordedAt: Date.now()
+        });
+    }
+
+    private static flushLeadFailure(leadId: string) {
+        if (!leadId) {
+            return;
+        }
+        if (this.leadErrorCache.delete(leadId)) {
+            this.loggedMessages.delete(`lead-fail-${leadId}`);
+            this.loggedMessages.delete(`lead-missing-${leadId}`);
+        }
+    }
+
+    private static createLeadValidationError(message: string): LeadValidationError {
+        const error = new Error(message) as LeadValidationError;
+        error.isLeadValidationError = true;
+        return error;
+    }
+
+    private static isLeadValidationError(error: unknown): error is LeadValidationError {
+        return Boolean((error as LeadValidationError)?.isLeadValidationError);
+    }
+
+    private static formatWarnings(warnings: LeadScoreWarnings | undefined): string[] {
+        if (!Array.isArray(warnings)) {
+            return [];
+        }
+        return warnings
+            .map(warning => {
+                if (typeof warning === 'string') {
+                    return warning;
+                }
+                if (Array.isArray(warning?.warnings)) {
+                    return warning.warnings.join('; ');
+                }
+                return '';
+            })
+            .filter((warning): warning is string => Boolean(warning));
+    }
+
+    private static extractWarningDetails(warnings: LeadScoreWarnings | undefined): LeadWarningDetail[] {
+        if (!Array.isArray(warnings)) {
+            return [];
+        }
+        return warnings.filter((warning): warning is LeadWarningDetail => typeof warning === 'object' && warning !== null);
+    }
+
+    private static mapScoreTier(value: unknown): LeadScore['tier'] {
+        if (value === 'Qualified' || value === 'Hot' || value === 'Warm' || value === 'Cold') {
+            return value;
+        }
+        return 'Cold';
+    }
+
+    private static extractErrorInfo(
+        response: Response | null,
+        payload: LeadScoreResponsePayload | null,
+        fallbackMessage: string
+    ): LeadScoreErrorInfo {
+        const details = Array.isArray(payload?.details) ? payload.details.join('; ') : undefined;
+        const reasons = Array.isArray(payload?.reasons) ? payload.reasons.join('; ') : undefined;
+        return {
+            message: details || reasons || payload?.error || payload?.message || response?.statusText || fallbackMessage,
+            status: response?.status,
+            code: payload?.code
+        };
+    }
+
+    private static recordBulkFailures(payload: LeadScoreResponsePayload | null) {
+        if (!payload) {
+            return;
+        }
+
+        if (Array.isArray(payload.failedLeads)) {
+            payload.failedLeads.forEach(failed => {
+                const leadId = typeof failed?.leadId === 'string' ? failed.leadId : undefined;
+                if (!leadId) {
+                    return;
+                }
+                const reasons = Array.isArray(failed?.reasons) ? failed.reasons.join('; ') : failed?.reason;
+                const message = reasons || 'Lead could not be scored';
+                this.cacheLeadFailure(leadId, message, 422, 'lead_validation_failed');
+                this.logOnce(
+                    `Lead ${failed?.leadName || leadId} could not be scored: ${message}`,
+                    `lead-fail-${leadId}`
+                );
+            });
+        }
+
+        if (Array.isArray(payload.missingLeadIds)) {
+            payload.missingLeadIds.forEach(leadId => {
+                if (typeof leadId !== 'string') {
+                    return;
+                }
+                this.cacheLeadFailure(leadId, 'Lead could not be found on the backend', 404, 'lead_not_found');
+                this.logOnce(
+                    `Lead ${leadId} could not be found on the backend during scoring`,
+                    `lead-missing-${leadId}`
+                );
+            });
+        }
+    }
+
+    private static resetBackendOutageFlags() {
+        this.backendOfflineUntil = null;
+        this.loggedMessages.delete('backend-scoring-unavailable');
+        this.loggedMessages.delete('backend-offline');
+        this.loggedMessages.delete('bulk-backend-offline');
+    }
+
+    // Calculate lead score - prefers backend, falls back gracefully
+    static async calculateLeadScore(lead: Lead): Promise<LeadScore> {
+        if (!lead || !lead.id) {
+            this.logOnce('Lead scoring requested without a valid lead id; using client-side fallback', 'missing-lead-id');
+            return this.calculateLeadScoreClientSide(lead);
+        }
+
+        if (this.backendOfflineUntil && this.backendOfflineUntil > Date.now()) {
+            this.logOnce('Skipping backend lead scoring while service is unavailable; using client-side fallback', 'backend-offline', 'info');
+            return this.calculateLeadScoreClientSide(lead);
+        }
+
+        if (this.shouldSkipLeadBackendCall(lead.id)) {
+            return this.calculateLeadScoreClientSide(lead);
+        }
+
+        let response: Response | null = null;
+        let payload: LeadScoreResponsePayload | null = null;
+
+        try {
+            response = await fetch(`/api/leads/${lead.id}/score`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            try {
+                payload = await response.json() as LeadScoreResponsePayload;
+            } catch {
+                payload = null;
+            }
+
+            if (!response.ok || !payload?.score) {
+                const errorInfo = this.extractErrorInfo(response, payload, 'Failed to calculate lead score');
+                this.cacheLeadFailure(lead.id, errorInfo.message, errorInfo.status, errorInfo.code);
+                throw this.createLeadValidationError(errorInfo.message);
+            }
+
+            this.flushLeadFailure(lead.id);
+            this.resetBackendOutageFlags();
+
+            const warningMessages = this.formatWarnings(payload.warnings);
+            if (warningMessages.length > 0) {
+                this.logOnce(
+                    `Lead scoring warnings for ${lead.name || lead.id}: ${warningMessages.join('; ')}`,
+                    `lead-warn-${lead.id}`,
+                    'info'
+                );
+            }
+
+            return payload.score;
+        } catch (error) {
+            if (this.isLeadValidationError(error)) {
+                return this.calculateLeadScoreClientSide(lead);
+            }
+
+            const message = error instanceof Error ? error.message : String(error);
+            this.logOnce(`Backend lead scoring unavailable (${message}); using client-side fallback`, 'backend-scoring-unavailable');
+            this.backendOfflineUntil = Date.now() + this.BACKEND_RETRY_DELAY_MS;
+            return this.calculateLeadScoreClientSide(lead);
+        }
+    }
+
+    // Fallback client-side calculation (kept for offline/error scenarios)
+    static calculateLeadScoreClientSide(lead: Lead): LeadScore {
         const breakdown: ScoreBreakdown[] = [];
         let totalScore = 0;
 
-        // Apply each scoring rule
         for (const rule of LEAD_SCORING_RULES) {
             if (rule.condition(lead)) {
-                const appliedCount = 1; // For now, each rule applies once
+                const appliedCount = 1;
                 const points = rule.points * appliedCount;
                 
                 totalScore += points;
                 breakdown.push({
                     ruleId: rule.id,
                     ruleName: rule.name,
-                    points: points,
+                    points,
                     category: rule.category,
-                    appliedCount: appliedCount
+                    appliedCount
                 });
             }
         }
 
-        // Determine tier based on total score
         let tier: LeadScore['tier'] = 'Cold';
         if (totalScore >= SCORE_TIERS.QUALIFIED.min) tier = 'Qualified';
         else if (totalScore >= SCORE_TIERS.HOT.min) tier = 'Hot';
@@ -217,9 +475,141 @@ export class LeadScoringService {
         };
     }
 
-    // Calculate scores for multiple leads
-    static calculateBulkScores(leads: Lead[]): LeadScore[] {
-        return leads.map(lead => this.calculateLeadScore(lead));
+    // Calculate scores for multiple leads with smarter fallbacks
+    static async calculateBulkScores(leads: Lead[]): Promise<LeadScore[]> {
+        if (!Array.isArray(leads) || leads.length === 0) {
+            return [];
+        }
+
+        if (this.backendOfflineUntil && this.backendOfflineUntil > Date.now()) {
+            this.logOnce('Skipping bulk scoring while backend is unavailable; using client-side fallback', 'bulk-backend-offline', 'info');
+            return Promise.all(leads.map(async lead => this.calculateLeadScoreClientSide(lead)));
+        }
+
+        try {
+            const response = await fetch('/api/leads/score-all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    leadIds: leads.map(lead => lead?.id).filter((id): id is string => Boolean(id))
+                })
+            });
+
+            let payload: LeadScoreResponsePayload | null = null;
+            try {
+                payload = await response.json() as LeadScoreResponsePayload;
+            } catch {
+                payload = null;
+            }
+
+            if (!response.ok) {
+                const errorInfo = this.extractErrorInfo(response, payload, 'Bulk scoring request failed');
+                this.recordBulkFailures(payload);
+                this.logOnce(`Bulk backend scoring failed: ${errorInfo.message}`, 'bulk-scoring-error');
+                throw new Error(errorInfo.message);
+            }
+
+            this.recordBulkFailures(payload);
+            this.resetBackendOutageFlags();
+
+            const warningDetails = this.extractWarningDetails(payload?.warnings);
+            warningDetails.forEach(warning => {
+                if (warning.leadId && Array.isArray(warning.warnings) && warning.warnings.length > 0) {
+                    this.logOnce(
+                        `Lead scoring warnings for ${warning.leadName || warning.leadId}: ${warning.warnings.join('; ')}`,
+                        `lead-warn-${warning.leadId}`,
+                        'info'
+                    );
+                }
+            });
+
+            const leadsResponse = await fetch('/api/admin/leads');
+            let leadsPayload: LeadsPayload | null = null;
+            try {
+                leadsPayload = await leadsResponse.json() as LeadsPayload;
+            } catch {
+                leadsPayload = null;
+            }
+
+            if (leadsResponse.ok && Array.isArray(leadsPayload?.leads)) {
+                return leadsPayload.leads.map(lead => ({
+                    leadId: lead.id,
+                    totalScore: lead.score ?? 0,
+                    tier: this.mapScoreTier(lead.scoreTier),
+                    breakdown: lead.scoreBreakdown ?? [],
+                    lastUpdated: lead.scoreLastUpdated || lead.updatedAt || new Date().toISOString()
+                }));
+            }
+
+            const fallbackInfo = this.extractErrorInfo(leadsResponse, null, 'Failed to load scored leads');
+            throw new Error(fallbackInfo.message);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logOnce(`Bulk scoring fallback engaged (${message})`, 'bulk-scoring-fallback');
+            this.backendOfflineUntil = Date.now() + this.BACKEND_RETRY_DELAY_MS;
+        }
+
+        const scores = await Promise.all(
+            leads.map(async lead => {
+                try {
+                    return await this.calculateLeadScore(lead);
+                } catch {
+                    return this.calculateLeadScoreClientSide(lead);
+                }
+            })
+        );
+        return scores;
+    }
+
+    // Get lead score from backend with caching of failure states
+    static async getLeadScore(leadId: string): Promise<LeadScore | null> {
+        const normalizedLeadId = leadId?.trim();
+        if (!normalizedLeadId) {
+            this.logOnce('Lead score lookup requested without an id', 'score-lookup-missing');
+            return null;
+        }
+
+        if (this.shouldSkipLeadBackendCall(normalizedLeadId)) {
+            return null;
+        }
+
+        try {
+            const response = await fetch(`/api/leads/${normalizedLeadId}/score`);
+            let payload: LeadScoreResponsePayload | null = null;
+            try {
+                payload = await response.json() as LeadScoreResponsePayload;
+            } catch {
+                payload = null;
+            }
+
+            if (!response.ok || !payload?.score) {
+                const errorInfo = this.extractErrorInfo(response, payload, 'Failed to load lead score');
+                this.cacheLeadFailure(normalizedLeadId, errorInfo.message, errorInfo.status, errorInfo.code);
+                throw this.createLeadValidationError(errorInfo.message);
+            }
+
+            this.flushLeadFailure(normalizedLeadId);
+            this.resetBackendOutageFlags();
+
+            const warningMessages = this.formatWarnings(payload.warnings);
+            if (warningMessages.length > 0) {
+                this.logOnce(
+                    `Lead scoring warnings for ${payload.score?.leadId || normalizedLeadId}: ${warningMessages.join('; ')}`,
+                    `lead-warn-${normalizedLeadId}`,
+                    'info'
+                );
+            }
+
+            return payload.score;
+        } catch (error) {
+            if (!this.isLeadValidationError(error)) {
+                const message = error instanceof Error ? error.message : String(error);
+                this.logOnce(`Lead score lookup failed (${message})`, `score-lookup-error-${normalizedLeadId}`);
+            }
+            return null;
+        }
     }
 
     // Get scoring insights for analytics
@@ -283,13 +673,18 @@ export class LeadScoringService {
     }
 
     // Sort leads by score (highest first)
-    static sortLeadsByScore(leads: Lead[]): { lead: Lead; score: LeadScore }[] {
-        const leadScores = this.calculateBulkScores(leads);
-        
-        return leads.map(lead => ({
-            lead,
-            score: leadScores.find(s => s.leadId === lead.id)!
-        })).sort((a, b) => b.score.totalScore - a.score.totalScore);
+    static sortLeadsByScore(leads: Lead[], precomputedScores: LeadScore[] = []): { lead: Lead; score: LeadScore }[] {
+        const scoreMap = new Map(precomputedScores.map(score => [score.leadId, score]));
+
+        return leads
+            .map(lead => {
+                const existing = scoreMap.get(lead.id);
+                return {
+                    lead,
+                    score: existing ?? this.calculateLeadScoreClientSide(lead)
+                };
+            })
+            .sort((a, b) => b.score.totalScore - a.score.totalScore);
     }
 }
 

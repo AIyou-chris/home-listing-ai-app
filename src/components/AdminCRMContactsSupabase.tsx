@@ -1,10 +1,24 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../services/supabase';
 import { supabaseContactService } from '../services/supabaseContactService';
 import { Contact, ContactNote, ContactFile } from '../services/supabase';
 
 const LEAD_STAGES = ['New', 'Qualified', 'Contacted', 'Showing', 'Lost'];
 const CLIENT_STAGES = ['Onboarding', 'Active', 'Under Contract', 'Closed'];
+
+type ContactRole = 'lead' | 'client';
+
+interface SubscriptionLike {
+	unsubscribe: () => void;
+}
+
+const hasUnsubscribe = (value: unknown): value is SubscriptionLike =>
+	Boolean(value) && typeof (value as SubscriptionLike).unsubscribe === 'function';
+
+const getFileCreatedAt = (file: ContactFile): string | null => {
+	const withDate = file as ContactFile & { created_at?: string };
+	return typeof withDate.created_at === 'string' ? withDate.created_at : null;
+};
 
 const AdminCRMContactsSupabase: React.FC = () => {
 	const [contacts, setContacts] = useState<Contact[]>([]);
@@ -15,7 +29,7 @@ const AdminCRMContactsSupabase: React.FC = () => {
 		name: '',
 		email: '',
 		phone: '',
-		role: 'lead' as 'lead' | 'client',
+		role: 'lead' as ContactRole,
 		stage: 'New',
 		avatar: '',
 		sequences: [] as string[],
@@ -53,6 +67,7 @@ const AdminCRMContactsSupabase: React.FC = () => {
 		}
 		
 		const loadContacts = async () => {
+			let unsubscribeContacts: (() => void) | null = null;
 			try {
 				const { data: { user } } = await supabase.auth.getUser()
 				if (user) {
@@ -64,11 +79,15 @@ const AdminCRMContactsSupabase: React.FC = () => {
 					setIsLoading(false);
 					
 					// Set up real-time listener
-					const unsubscribeContacts = await supabaseContactService.onContactsChange((loadedContacts) => {
+					const listener = await supabaseContactService.onContactsChange((loadedContacts) => {
 						console.log('Contacts updated via real-time:', loadedContacts.length, 'contacts');
 						setContacts(loadedContacts);
 					});
-					return unsubscribeContacts;
+					if (typeof listener === 'function') {
+						unsubscribeContacts = listener;
+					} else if (hasUnsubscribe(listener)) {
+						unsubscribeContacts = () => listener.unsubscribe();
+					}
 				} else {
 					console.log('No user authenticated');
 					setContacts(readLocalContacts());
@@ -78,29 +97,38 @@ const AdminCRMContactsSupabase: React.FC = () => {
 				console.error('Error loading contacts:', error);
 				setIsLoading(false);
 			}
+			return unsubscribeContacts;
 		};
 
-		loadContacts();
+		let stopContacts: (() => void) | null = null;
+		loadContacts().then((fn) => {
+			stopContacts = fn ?? null;
+		});
 
 		// Listen for auth changes
 		const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
 			if (event === 'SIGNED_IN' && session?.user) {
-				loadContacts();
+				loadContacts().then((fn) => {
+					stopContacts = fn ?? stopContacts;
+				});
 			} else if (event === 'SIGNED_OUT') {
 				setContacts([]);
 				setIsLoading(false);
 			}
 		});
 
-		return () => subscription.unsubscribe();
+		return () => {
+			stopContacts?.();
+			subscription.unsubscribe();
+		};
 	}, []);
 
 	// Load notes/files and subscribe for real-time updates for the active contact
 	useEffect(() => {
 		if (!actionContact) return;
 
-		let unsubscribeNotes: any = null;
-		let unsubscribeFiles: any = null;
+		let unsubscribeNotes: (() => void) | null = null;
+		let unsubscribeFiles: (() => void) | null = null;
 
 		const init = async () => {
 			try {
@@ -111,14 +139,24 @@ const AdminCRMContactsSupabase: React.FC = () => {
 				setNotesById(prev => ({ ...prev, [actionContact.id]: notes }));
 				setFilesById(prev => ({ ...prev, [actionContact.id]: files }));
 				// Subscribe to realtime updates
-				unsubscribeNotes = await supabaseContactService.onContactNotesChange(
+				const notesListener = await supabaseContactService.onContactNotesChange(
 					actionContact.id,
 					(updated) => setNotesById(prev => ({ ...prev, [actionContact.id]: updated }))
 				);
-				unsubscribeFiles = await supabaseContactService.onContactFilesChange(
+				if (typeof notesListener === 'function') {
+					unsubscribeNotes = notesListener;
+				} else if (hasUnsubscribe(notesListener)) {
+					unsubscribeNotes = () => notesListener.unsubscribe();
+				}
+				const filesListener = await supabaseContactService.onContactFilesChange(
 					actionContact.id,
 					(updated) => setFilesById(prev => ({ ...prev, [actionContact.id]: updated }))
 				);
+				if (typeof filesListener === 'function') {
+					unsubscribeFiles = filesListener;
+				} else if (hasUnsubscribe(filesListener)) {
+					unsubscribeFiles = () => filesListener.unsubscribe();
+				}
 			} catch (error) {
 				console.error('Failed to initialize contact data:', error);
 			}
@@ -127,8 +165,12 @@ const AdminCRMContactsSupabase: React.FC = () => {
 		init();
 
 		return () => {
-			try { unsubscribeNotes?.unsubscribe?.(); } catch {}
-			try { unsubscribeFiles?.unsubscribe?.(); } catch {}
+			try { unsubscribeNotes?.(); } catch {
+				// ignore unsubscribe errors
+			}
+			try { unsubscribeFiles?.(); } catch {
+				// ignore unsubscribe errors
+			}
 		};
 	}, [actionContact]);
 
@@ -245,7 +287,7 @@ const AdminCRMContactsSupabase: React.FC = () => {
 		}
 	};
 
-	const addFakeContact = async () => {
+		const addFakeContact = async () => {
 		const localInsert = () => {
 			const key = 'hlai_contacts'
 			const raw = localStorage.getItem(key)
@@ -523,7 +565,18 @@ const AdminCRMContactsSupabase: React.FC = () => {
 								<div className="grid grid-cols-2 gap-2">
 									<div>
 										<label className="block text-xs text-gray-500 mb-1">Type</label>
-										<select value={form.role} onChange={e => setForm({ ...form, role: e.target.value as any, stage: e.target.value === 'lead' ? 'New' : 'Onboarding' })} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+								<select
+									value={form.role}
+									onChange={(e) => {
+										const nextRole: ContactRole = e.target.value === 'client' ? 'client' : 'lead';
+										setForm({
+											...form,
+											role: nextRole,
+											stage: nextRole === 'lead' ? 'New' : 'Onboarding',
+										});
+									}}
+									className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+								>
 											<option value="lead">Lead</option>
 											<option value="client">Client</option>
 										</select>
@@ -631,10 +684,15 @@ const AdminCRMContactsSupabase: React.FC = () => {
 											<div key={file.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
 												<div className="flex items-center gap-3">
 													<span className="material-symbols-outlined text-blue-600">description</span>
-													<div>
-														<div className="text-sm font-medium text-gray-900">{file.name}</div>
-														<div className="text-xs text-gray-500">Added {new Date(file.created_at).toLocaleDateString()}</div>
-													</div>
+										<div>
+											<div className="text-sm font-medium text-gray-900">{file.name}</div>
+											<div className="text-xs text-gray-500">
+												Added {(() => {
+													const createdAt = getFileCreatedAt(file);
+													return createdAt ? new Date(createdAt).toLocaleDateString() : '—';
+												})()}
+											</div>
+										</div>
 												</div>
 												<div className="flex items-center gap-2">
 													<a 

@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
-// Supabase auth
-import { supabase } from '../services/supabase';
+import { agentOnboardingService } from '../services/agentOnboardingService';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
 import { Logo } from './Logo';
@@ -26,81 +25,54 @@ const FeatureHighlight: React.FC<{ icon: string, title: string, children: React.
 );
 
 const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSection, onEnterDemoMode }: SignUpPageProps): JSX.Element => {
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [fullName, setFullName] = useState('');
     const [error, setError] = useState<React.ReactNode>('');
-    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
 
-        // Validate inputs
-        if (!email || !password || !fullName) {
+        if (!firstName || !lastName || !email) {
             setError('Please fill in all fields');
             return;
         }
 
-        // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             setError('Please enter a valid email address');
             return;
         }
 
-        // Validate password strength
-        if (password.length < 6) {
-            setError('Password must be at least 6 characters long');
-            return;
-        }
+        setIsSubmitting(true);
 
-        // Create user
         try {
-            console.log('Attempting to create user with email:', email);
-            
-            const { error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: {
-                        name: fullName,
-                        role: 'agent',
-                        plan: 'Solo Agent'
-                    }
-                }
+            const registration = await agentOnboardingService.registerAgent({
+                firstName,
+                lastName,
+                email
             });
-            
-            if (error) throw error;
-            
-            alert('Account created! Please check your email to confirm your account.');
-        } catch (error: any) {
+            window.location.hash = `checkout/${registration.slug}`;
+        } catch (error) {
             console.error('Signup error:', error);
-            if (error.code === 'auth/email-already-in-use') {
+            const message = error instanceof Error ? error.message : 'An error occurred during sign up. Please try again.';
+            if (message.toLowerCase().includes('duplicate') || message.toLowerCase().includes('already')) {
                 setError(
                     <span>
-                        This email address is already in use. Please{' '}
+                        This email is already registered.{' '}
                         <button type="button" onClick={onNavigateToSignIn} className="font-semibold text-primary-600 hover:underline focus:outline-none">
-                            sign in
-                        </button>
-                        {' '}or use a different email.
+                            Sign in
+                        </button>{' '}
+                        or use a different email.
                     </span>
                 );
             } else {
-                switch (error.code) {
-                    case 'auth/invalid-email':
-                        setError('Please enter a valid email address.');
-                        break;
-                    case 'auth/operation-not-allowed':
-                        setError('Email/password accounts are not enabled. Please contact support.');
-                        break;
-                    case 'auth/weak-password':
-                        setError('Please choose a stronger password (at least 6 characters).');
-                        break;
-                    default:
-                        setError(error.message || 'An error occurred during sign up. Please try again.');
-                }
+                setError(message);
             }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -140,9 +112,9 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                             </div>
                             
                             <div className="flex justify-around text-sm text-slate-500 font-medium pt-5 border-t border-slate-200">
-                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> No credit card required</div>
+                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Secure Stripe & PayPal checkout</div>
                                 <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Cancel anytime</div>
-                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Auto-delete after 7 days</div>
+                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Auto-delete trial data after 7 days</div>
                             </div>
                         </div>
 
@@ -152,22 +124,19 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                             <p className="text-sm text-slate-500 mt-1">Get started in less than 30 seconds</p>
 
                             <form className="mt-8 space-y-6" onSubmit={handleSignUp}>
-                                <div>
-                                    <label htmlFor="full-name" className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name</label>
-                                    <input type="text" id="full-name" value={fullName} onChange={e => setFullName(e.target.value)} required className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition" placeholder="Enter your full name" />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="first-name" className="block text-sm font-semibold text-slate-700 mb-1.5">First Name</label>
+                                        <input type="text" id="first-name" value={firstName} onChange={e => setFirstName(e.target.value)} required className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition" placeholder="Chris" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="last-name" className="block text-sm font-semibold text-slate-700 mb-1.5">Last Name</label>
+                                        <input type="text" id="last-name" value={lastName} onChange={e => setLastName(e.target.value)} required className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition" placeholder="Potter" />
+                                    </div>
                                 </div>
                                 <div>
                                     <label htmlFor="email-address" className="block text-sm font-semibold text-slate-700 mb-1.5">Email Address</label>
-                                    <input type="email" id="email-address" value={email} onChange={e => setEmail(e.target.value)} required className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition" placeholder="Enter your email" />
-                                </div>
-                                <div>
-                                    <label htmlFor="password"  className="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
-                                    <div className="relative">
-                                        <input type={isPasswordVisible ? "text" : "password"} id="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition" />
-                                        <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-500 hover:text-primary-600">
-                                            <span className="material-symbols-outlined w-5 h-5">{isPasswordVisible ? 'visibility_off' : 'visibility'}</span>
-                                        </button>
-                                    </div>
+                                    <input type="email" id="email-address" value={email} onChange={e => setEmail(e.target.value)} required className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition" placeholder="chris@aiyouagent.com" />
                                 </div>
 
                                 {error && (
@@ -180,8 +149,8 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                     <div className="flex items-start gap-3">
                                         <span className="material-symbols-outlined w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5">info</span>
                                         <div>
-                                            <h4 className="font-semibold">Temporary Account Notice</h4>
-                                            <p className="text-xs mt-1">This trial account and all data will be automatically deleted after 7 days. Perfect for testing without any long-term commitment!</p>
+                                            <h4 className="font-semibold">How onboarding works</h4>
+                                            <p className="text-xs mt-1">After checkout we instantly generate your dashboard, email you a secure temporary password, preload your AI funnels, and auto-delete all trial data after 7 days.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -191,14 +160,14 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                         <span className="material-symbols-outlined w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5">gavel</span>
                                         <div>
                                             <h4 className="font-semibold">Important Legal Notice</h4>
-                                            <p className="text-xs mt-1">HomeListingAI provides tools and functionality only. You are responsible for all marketing content, communications, and compliance with real estate laws and regulations. Please review our Terms of Service and Privacy Policy.</p>
+                                            <p className="text-xs mt-1">AI You Agent provides tools and automations only. You are responsible for all marketing content, communications, and compliance with real estate laws and regulations. Please review our Terms of Service and Privacy Policy.</p>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <button type="submit" className="w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                                        → Start Free Trial
+                                    <button type="submit" disabled={isSubmitting} className={`w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg shadow-md transition-shadow ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-lg'}`}>
+                                        {isSubmitting ? 'Preparing checkout...' : '→ Continue to Secure Checkout'}
                                     </button>
                                 </div>
                             </form>

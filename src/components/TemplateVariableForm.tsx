@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
-import { EmailTemplate, TEMPLATE_VARIABLES } from '../constants/emailTemplates';
+import { EmailTemplate } from '../constants/emailTemplates';
+import { useAgentBranding } from '../hooks/useAgentBranding';
 
 interface TemplateVariableFormProps {
     template: EmailTemplate;
@@ -22,6 +23,19 @@ const TemplateVariableForm: React.FC<TemplateVariableFormProps> = ({ template, o
     const [variables, setVariables] = useState<VariableValues>({});
     const [showAISuggestions, setShowAISuggestions] = useState<string | null>(null);
     const [previewMode, setPreviewMode] = useState(false);
+    const { contact, getSignature } = useAgentBranding();
+    const signature = useMemo(() => getSignature(), [getSignature]);
+    const defaultAgentValues = useMemo<Record<string, string>>(() => {
+        const entries: Record<string, string> = {};
+        if (contact.name) entries['agent.name'] = contact.name;
+        if (contact.title) entries['agent.title'] = contact.title;
+        if (contact.company) entries['agent.company'] = contact.company;
+        if (contact.phone) entries['agent.phone'] = contact.phone;
+        if (contact.email) entries['agent.email'] = contact.email;
+        if (contact.website) entries['agent.website'] = contact.website;
+        if (signature) entries['agent.signature'] = signature;
+        return entries;
+    }, [contact, signature]);
 
     // Extract variables from template
     const extractVariables = (text: string): string[] => {
@@ -40,6 +54,13 @@ const TemplateVariableForm: React.FC<TemplateVariableFormProps> = ({ template, o
     ];
 
     // Smart suggestions based on real estate context
+    const withPrimary = (value?: string, defaults: string[] = []) => {
+        const trimmed = value?.trim();
+        if (!trimmed) return defaults;
+        const filtered = defaults.filter((entry) => entry !== trimmed);
+        return [trimmed, ...filtered];
+    };
+
     const getSmartSuggestions = (variable: string): SmartSuggestion => {
         const suggestions: Record<string, SmartSuggestion> = {
             'lead.name': {
@@ -79,23 +100,38 @@ const TemplateVariableForm: React.FC<TemplateVariableFormProps> = ({ template, o
             },
             'agent.name': {
                 field: 'Your Name',
-                suggestions: ['John Agent', 'Sarah Realtor', 'Mike Broker', 'Lisa Sales'],
+                suggestions: withPrimary(contact.name, ['John Agent', 'Sarah Realtor', 'Mike Broker', 'Lisa Sales']),
                 context: 'Your professional name'
             },
             'agent.title': {
                 field: 'Your Title',
-                suggestions: ['Licensed Real Estate Agent', 'Senior Realtor', 'Real Estate Specialist', 'Property Consultant'],
+                suggestions: withPrimary(contact.title, ['Licensed Real Estate Agent', 'Senior Realtor', 'Real Estate Specialist', 'Property Consultant']),
                 context: 'Your professional title'
             },
             'agent.company': {
                 field: 'Company Name',
-                suggestions: ['ABC Realty', 'Premier Properties', 'Dream Home Real Estate', 'Elite Realty Group'],
+                suggestions: withPrimary(contact.company, ['ABC Realty', 'Premier Properties', 'Dream Home Real Estate', 'Elite Realty Group']),
                 context: 'Your real estate company'
             },
             'agent.phone': {
                 field: 'Phone Number',
-                suggestions: ['(555) 123-4567', '(555) 987-6543', '(555) 246-8135', '(555) 369-2580'],
+                suggestions: withPrimary(contact.phone, ['(555) 123-4567', '(555) 987-6543', '(555) 246-8135', '(555) 369-2580']),
                 context: 'Your direct phone number'
+            },
+            'agent.email': {
+                field: 'Your Email',
+                suggestions: withPrimary(contact.email, ['agent@yourdomain.com', 'hello@yourbrokerage.com']),
+                context: 'Your preferred contact email'
+            },
+            'agent.website': {
+                field: 'Website',
+                suggestions: withPrimary(contact.website, ['https://yourdomain.com', 'https://yourbrokerage.com']),
+                context: 'Website or landing page link'
+            },
+            'agent.signature': {
+                field: 'Email Signature',
+                suggestions: signature ? [signature] : [],
+                context: 'Signature block for consistent branding'
             },
             'date': {
                 field: 'Date',
@@ -119,6 +155,18 @@ const TemplateVariableForm: React.FC<TemplateVariableFormProps> = ({ template, o
             context: 'Custom value for this field'
         };
     };
+
+    useEffect(() => {
+        setVariables(prev => {
+            const next = { ...prev };
+            Object.entries(defaultAgentValues).forEach(([variable, value]) => {
+                if (!next[variable] && value) {
+                    next[variable] = value;
+                }
+            });
+            return next;
+        });
+    }, [template.id, defaultAgentValues]);
 
     const handleVariableChange = (variable: string, value: string) => {
         setVariables(prev => ({ ...prev, [variable]: value }));

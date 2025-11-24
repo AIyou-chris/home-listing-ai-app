@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Property, ChatMessage, School } from '../types';
+import { Property, ChatMessage } from '../types';
 import { SAMPLE_SCHOOLS } from '../constants';
 import { answerPropertyQuestion } from '../services/geminiService';
 

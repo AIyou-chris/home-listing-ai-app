@@ -92,9 +92,10 @@ const AddContactModal: React.FC<AddContactModalProps> = ({ isOpen, onClose, onCo
             });
             onContactAdded();
             onClose();
-        } catch (err: any) {
+        } catch (err) {
             console.error('Error adding contact:', err);
-            setError(err.message || 'Failed to add contact');
+            const message = err instanceof Error ? err.message : 'Failed to add contact';
+            setError(message);
         } finally {
             setIsLoading(false);
         }

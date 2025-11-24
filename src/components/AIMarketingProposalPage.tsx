@@ -30,12 +30,32 @@ interface AIQuestion {
 	placeholder?: string;
 }
 
+type SupabaseUser = {
+	uid: string;
+	email?: string;
+};
+
+type ShareContent = {
+	subject: string;
+	body: string;
+};
+
+interface QuestionResponse {
+	success: boolean;
+	questions?: AIQuestion[];
+}
+
+interface ProposalResponse {
+	success: boolean;
+	proposal?: MarketingProposal;
+}
+
 const AIMarketingProposalPage: React.FC = () => {
-	const [user, setUser] = useState<any>(null);
+	const [user, setUser] = useState<SupabaseUser | null>(null);
 	const [proposals, setProposals] = useState<MarketingProposal[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [showShareModal, setShowShareModal] = useState(false);
-	const [shareContent, setShareContent] = useState<any>(null);
+	const [shareContent, setShareContent] = useState<ShareContent | null>(null);
 
 	// AI Questionnaire State
 	const [currentStep, setCurrentStep] = useState<'intro' | 'questions' | 'generating' | 'complete'>('intro');
@@ -77,10 +97,11 @@ const AIMarketingProposalPage: React.FC = () => {
 
 		try {
 			// Generate AI questions based on context
-			  // Firebase functions removed - using mock implementation
-			const result = { data: { success: true, questions: getDefaultQuestions() } } as any
+			const result: { data: QuestionResponse } = {
+				data: { success: true, questions: getDefaultQuestions() },
+			};
 
-			if (result.data.success) {
+			if (result.data.success && Array.isArray(result.data.questions)) {
 				setQuestions(result.data.questions);
 				setCurrentQuestionIndex(0);
 			} else {
@@ -176,16 +197,24 @@ const AIMarketingProposalPage: React.FC = () => {
 		setLoading(true);
 
 		try {
-			  // Firebase functions removed - using mock implementation
-			
-			const result = { data: { success: true, proposal: {
-				id: 'demo',
-				propertyAddress: '123 Main St',
-				agentInfo: { name: 'Agent', email: 'agent@example.com', phone: '', experience: '3-5 years' },
-				executiveSummary: 'Demo', marketAnalysis: 'Demo', pricingStrategy: 'Demo', marketingPlan: 'Demo', timeline: '2 weeks', createdAt: new Date()
-			} } } as any
+			const result: { data: ProposalResponse } = {
+				data: {
+					success: true,
+					proposal: {
+						id: 'demo',
+						propertyAddress: '123 Main St',
+						agentInfo: { name: 'Agent', email: 'agent@example.com', phone: '', experience: '3-5 years' },
+						executiveSummary: 'Demo',
+						marketAnalysis: 'Demo',
+						pricingStrategy: 'Demo',
+						marketingPlan: 'Demo',
+						timeline: '2 weeks',
+						createdAt: new Date(),
+					},
+				},
+			};
 
-			if (result.data.success) {
+			if (result.data.success && result.data.proposal) {
 				setGeneratedProposal(result.data.proposal);
 				setCurrentStep('complete');
 				loadProposals(); // Reload proposals list

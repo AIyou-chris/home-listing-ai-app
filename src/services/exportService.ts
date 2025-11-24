@@ -70,7 +70,12 @@ export class ExportService {
       'Time',
       'Type',
       'Status',
-      'Notes'
+      'Notes',
+      'Agent Reminder Enabled',
+      'Agent Reminder Minutes',
+      'Client Reminder Enabled',
+      'Client Reminder Minutes',
+      'Meeting Link'
     ];
     
     const rows = appointments.map(appt => [
@@ -80,7 +85,12 @@ export class ExportService {
       this.formatTime(appt.time, opts.timeFormat),
       appt.type || '',
       appt.status || 'Scheduled',
-      appt.notes || ''
+      appt.notes || '',
+      appt.remindAgent ? 'Yes' : 'No',
+      appt.remindAgent ? String(appt.agentReminderMinutes ?? '') : '',
+      appt.remindClient ? 'Yes' : 'No',
+      appt.remindClient ? String(appt.clientReminderMinutes ?? '') : '',
+      appt.meetLink || ''
     ]);
     
     let csv = '';

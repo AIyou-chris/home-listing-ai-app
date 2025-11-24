@@ -1,23 +1,50 @@
 import { AgentTask, Lead, Appointment, Property, TaskPriority } from '../types';
 
-export interface SmartTaskRule {
+type SmartTaskSource = Lead | Appointment | Property;
+
+export interface SmartTaskConditions {
+  leadStatus?: string[];
+  daysSinceLastContact?: number;
+  appointmentType?: string[];
+  propertyAge?: number;
+  leadValue?: 'high' | 'medium' | 'low';
+}
+
+const readField = (data: SmartTaskSource, key: string): unknown => {
+  return (data as unknown as Record<string, unknown>)[key];
+};
+
+const parseDateValue = (value: unknown): Date | null => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const candidate = new Date(value);
+    return Number.isNaN(candidate.getTime()) ? null : candidate;
+  }
+  return null;
+};
+
+export type SmartTaskRuleTarget = 'lead' | 'appointment' | 'property';
+
+export interface SmartTaskRule<T extends SmartTaskSource = SmartTaskSource> {
   id: string;
   name: string;
   description: string;
   category: 'follow-up' | 'preparation' | 'marketing' | 'maintenance' | 'analysis';
   priority: TaskPriority;
-  conditions: {
-    leadStatus?: string[];
-    daysSinceLastContact?: number;
-    appointmentType?: string[];
-    propertyAge?: number;
-    leadValue?: 'high' | 'medium' | 'low';
-  };
-  generateTask: (data: any) => AgentTask;
+  conditions: SmartTaskConditions;
+  target: SmartTaskRuleTarget;
+  generateTask: (data: T) => AgentTask;
 }
 
+type SmartTaskRuleConfig =
+  | (SmartTaskRule<Lead> & { target: 'lead' })
+  | (SmartTaskRule<Appointment> & { target: 'appointment' })
+  | (SmartTaskRule<Property> & { target: 'property' });
+
 export class SmartTaskService {
-  private static rules: SmartTaskRule[] = [
+  private static rules: SmartTaskRuleConfig[] = [
     // Follow-up Tasks
     {
       id: 'new-lead-followup',
@@ -29,6 +56,7 @@ export class SmartTaskService {
         leadStatus: ['New'],
         daysSinceLastContact: 1
       },
+      target: 'lead',
       generateTask: (lead: Lead) => ({
         id: `task-${Date.now()}-${Math.random()}`,
         text: `Follow up with ${lead.name} about their interest in ${lead.lastMessage?.includes('property') ? 'the property' : 'real estate'}`,
@@ -47,6 +75,7 @@ export class SmartTaskService {
         leadStatus: ['Qualified'],
         daysSinceLastContact: 3
       },
+      target: 'lead',
       generateTask: (lead: Lead) => ({
         id: `task-${Date.now()}-${Math.random()}`,
         text: `Send personalized market update to ${lead.name} based on their interests`,
@@ -64,6 +93,7 @@ export class SmartTaskService {
       conditions: {
         appointmentType: ['showing', 'viewing']
       },
+      target: 'appointment',
       generateTask: (appointment: Appointment) => ({
         id: `task-${Date.now()}-${Math.random()}`,
         text: `Prepare showing materials for ${appointment.leadName} at ${appointment.propertyAddress}`,
@@ -81,6 +111,7 @@ export class SmartTaskService {
       conditions: {
         propertyAge: 30 // 30 days
       },
+      target: 'property',
       generateTask: (property: Property) => ({
         id: `task-${Date.now()}-${Math.random()}`,
         text: `Update photos for ${property.address} - listing is getting stale`,
@@ -98,6 +129,7 @@ export class SmartTaskService {
       conditions: {
         leadValue: 'high'
       },
+      target: 'lead',
       generateTask: (lead: Lead) => ({
         id: `task-${Date.now()}-${Math.random()}`,
         text: `VIP follow-up: Schedule personal consultation with ${lead.name} (High-value lead)`,
@@ -115,6 +147,7 @@ export class SmartTaskService {
       conditions: {
         propertyAge: 14 // 14 days
       },
+      target: 'property',
       generateTask: (property: Property) => ({
         id: `task-${Date.now()}-${Math.random()}`,
         text: `Generate market analysis for ${property.address} - adjust pricing if needed`,
@@ -132,70 +165,86 @@ export class SmartTaskService {
   ): AgentTask[] {
     const tasks: AgentTask[] = [];
 
-    // Generate tasks based on leads
-    leads.forEach(lead => {
-      this.rules.forEach(rule => {
-        if (this.matchesConditions(lead, rule.conditions)) {
-          tasks.push(rule.generateTask(lead));
-        }
-      });
-    });
-
-    // Generate tasks based on appointments
-    appointments.forEach(appointment => {
-      this.rules.forEach(rule => {
-        if (this.matchesConditions(appointment, rule.conditions)) {
-          tasks.push(rule.generateTask(appointment));
-        }
-      });
-    });
-
-    // Generate tasks based on properties
-    properties.forEach(property => {
-      this.rules.forEach(rule => {
-        if (this.matchesConditions(property, rule.conditions)) {
-          tasks.push(rule.generateTask(property));
-        }
-      });
+    this.rules.forEach(rule => {
+      switch (rule.target) {
+        case 'lead':
+          leads.forEach(lead => {
+            if (this.matchesConditions(lead, rule.conditions)) {
+              tasks.push(rule.generateTask(lead));
+            }
+          });
+          break;
+        case 'appointment':
+          appointments.forEach(appointment => {
+            if (this.matchesConditions(appointment, rule.conditions)) {
+              tasks.push(rule.generateTask(appointment));
+            }
+          });
+          break;
+        case 'property':
+          properties.forEach(property => {
+            if (this.matchesConditions(property, rule.conditions)) {
+              tasks.push(rule.generateTask(property));
+            }
+          });
+          break;
+      }
     });
 
     return tasks;
   }
 
-  private static matchesConditions(data: any, conditions: any): boolean {
+  private static matchesConditions(data: SmartTaskSource, conditions: SmartTaskConditions): boolean {
     // Check lead status
-    if (conditions.leadStatus && data.status) {
+    if (conditions.leadStatus) {
+      if (!('status' in data) || typeof data.status !== 'string') {
+        return false;
+      }
       if (!conditions.leadStatus.includes(data.status)) {
         return false;
       }
     }
 
     // Check days since last contact
-    if (conditions.daysSinceLastContact && data.lastContactDate) {
-      const daysSince = Math.floor((Date.now() - new Date(data.lastContactDate).getTime()) / (1000 * 60 * 60 * 24));
+    if (conditions.daysSinceLastContact) {
+      const lastContactCandidate = readField(data, 'lastContactDate');
+      const lastContactDate = parseDateValue(lastContactCandidate);
+      if (!lastContactDate) {
+        return false;
+      }
+      const daysSince = Math.floor((Date.now() - lastContactDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysSince < conditions.daysSinceLastContact) {
         return false;
       }
     }
 
     // Check appointment type
-    if (conditions.appointmentType && data.type) {
+    if (conditions.appointmentType) {
+      if (!('type' in data) || typeof data.type !== 'string') {
+        return false;
+      }
       if (!conditions.appointmentType.includes(data.type)) {
         return false;
       }
     }
 
     // Check property age
-    if (conditions.propertyAge && data.listedDate) {
-      const daysListed = Math.floor((Date.now() - new Date(data.listedDate).getTime()) / (1000 * 60 * 60 * 24));
+    if (conditions.propertyAge) {
+      const listedDateCandidate = readField(data, 'listedDate');
+      const listedDate = parseDateValue(listedDateCandidate);
+      if (!listedDate) {
+        return false;
+      }
+      const daysListed = Math.floor((Date.now() - listedDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysListed < conditions.propertyAge) {
         return false;
       }
     }
 
     // Check lead value
-    if (conditions.leadValue && data.value) {
-      if (data.value !== conditions.leadValue) {
+    if (conditions.leadValue) {
+      const valueCandidate = readField(data, 'value');
+      if (valueCandidate !== conditions.leadValue) {
         return false;
       }
     }

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { AI_PERSONALITIES, AI_VOICES, KNOWLEDGE_BASE_PRIORITIES, DEFAULT_AI_ASSIGNMENTS } from '../constants';
+import { AI_PERSONALITIES, DEFAULT_AI_ASSIGNMENTS } from '../constants';
 
 const NewLandingPage: React.FC = () => {
-    const [activeDemo, setActiveDemo] = useState<'analytics' | 'personality' | 'comparison' | 'notifications'>('analytics');
-    const [selectedPersonality, setSelectedPersonality] = useState('pers-1');
+    type DemoId = 'analytics' | 'personality' | 'comparison' | 'notifications' | 'multilingual';
+
+    const [activeDemo, setActiveDemo] = useState<DemoId>('analytics');
     const [testQuestion, setTestQuestion] = useState('What makes this property a good investment?');
     const [personalityResponses, setPersonalityResponses] = useState<{[key: string]: string}>({});
 
@@ -42,8 +43,7 @@ const NewLandingPage: React.FC = () => {
                             is Here
                         </h1>
                         <p className="text-xl text-slate-600 mb-8 max-w-3xl mx-auto">
-                            Transform your property business with AI-powered insights, real-time analytics, 
-                            intelligent automation, and three specialized AI sidekicks.
+                            Transform your property business with AI-powered insights, real-time analytics, intelligent automation, and three specialized AI sidekicks—now fluent in 12 languages with automatic detection for every conversation.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
                             <button className="bg-primary-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-primary-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
@@ -75,11 +75,12 @@ const NewLandingPage: React.FC = () => {
                             { id: 'analytics', label: 'Analytics Dashboard', icon: '📊' },
                             { id: 'personality', label: 'AI Personalities', icon: '🎭' },
                             { id: 'comparison', label: 'Property Comparison', icon: '⚖️' },
-                            { id: 'notifications', label: 'Smart Notifications', icon: '🔔' }
+                            { id: 'notifications', label: 'Smart Notifications', icon: '🔔' },
+                            { id: 'multilingual', label: 'Multilingual AI', icon: '🌐' }
                         ].map(feature => (
                             <button
                                 key={feature.id}
-                                onClick={() => setActiveDemo(feature.id as any)}
+                                onClick={() => setActiveDemo(feature.id as DemoId)}
                                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
                                     activeDemo === feature.id
                                         ? 'bg-primary-600 text-white shadow-lg'
@@ -160,7 +161,7 @@ const NewLandingPage: React.FC = () => {
                                 <div>
                                     <h4 className="font-semibold text-slate-900 mb-4">Your Three AI Sidekicks</h4>
                                     <div className="space-y-4">
-                                        {DEFAULT_AI_ASSIGNMENTS.map((sidekick, index) => (
+                                        {DEFAULT_AI_ASSIGNMENTS.map((sidekick) => (
                                             <div key={sidekick.id} className="bg-white p-4 rounded-lg border border-slate-200">
                                                 <div className="flex items-center gap-3 mb-2">
                                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
@@ -342,6 +343,44 @@ const NewLandingPage: React.FC = () => {
                                                 </div>
                                             ))}
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </DemoSection>
+
+                        <DemoSection title="Multilingual AI Assistants" isActive={activeDemo === 'multilingual'}>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div className="space-y-6">
+                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                                        <h4 className="font-semibold text-slate-900 mb-3">Auto-Detect Conversations</h4>
+                                        <p className="text-slate-600 text-sm">
+                                            Our AI listens for the language your lead is speaking—Spanish, French, Mandarin, and more—and instantly switches the entire experience to match. No settings to change, no scripts to rewrite.
+                                        </p>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                                        <h4 className="font-semibold text-slate-900 mb-3">Twelve Languages Out of the Box</h4>
+                                        <div className="grid grid-cols-2 gap-3 text-sm text-slate-700">
+                                            {[['English', 'en'], ['Spanish', 'es'], ['French', 'fr'], ['German', 'de'], ['Italian', 'it'], ['Portuguese', 'pt'], ['Chinese (Simplified)', 'zh-cn'], ['Chinese (Traditional)', 'zh-tw'], ['Japanese', 'ja'], ['Korean', 'ko'], ['Portuguese (Brazil)', 'pt-br'], ['Portuguese (Portugal)', 'pt-pt']].map(([label, code]) => (
+                                                <div key={code} className="flex items-center gap-2">
+                                                    <span className="text-primary-600 text-lg">•</span>
+                                                    <span>{label}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 flex flex-col gap-6">
+                                    <div className="bg-primary-50 border border-primary-100 rounded-lg p-4">
+                                        <h5 className="font-semibold text-primary-700 mb-2">Live Example</h5>
+                                        <p className="text-sm text-primary-700">
+                                            “Hola, estoy buscando un condominio en Miami.”
+                                        </p>
+                                        <p className="text-xs text-primary-500 mt-2">Detected: Spanish • Confidence 0.94 • Switching assistant language to Spanish</p>
+                                    </div>
+                                    <div className="space-y-4 text-sm text-slate-600">
+                                        <p><strong>Consistent Messaging:</strong> AI emails, listing descriptions, and sidekick replies stay in the same language, end-to-end.</p>
+                                        <p><strong>Agent Preference:</strong> The language you set on the AI Business Card flows to training, listings, analytics, and scheduling.</p>
+                                        <p><strong>Global-Friendly:</strong> Capture international buyers and sellers without hiring extra staff.</p>
                                     </div>
                                 </div>
                             </div>

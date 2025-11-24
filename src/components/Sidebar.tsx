@@ -24,9 +24,9 @@ const NavItem: React.FC<{
 }> = ({ viewName, activeView, setView, icon, children, onClose }) => {
   const isListingsActive = viewName === 'listings' && (activeView === 'listings' || activeView === 'property' || activeView === 'add-listing');
   const isLeadsActive = viewName === 'leads' && activeView === 'leads';
-  const isAiContentActive = viewName === 'ai-content' && (activeView === 'ai-content' || activeView === 'inbox');
+  const isAiCardActive = viewName === 'ai-card' && (activeView === 'ai-card' || activeView === 'inbox');
   
-  const isActive = activeView === viewName || isListingsActive || isLeadsActive || isAiContentActive;
+  const isActive = activeView === viewName || isListingsActive || isLeadsActive || isAiCardActive;
 
   return (
     <button
@@ -34,13 +34,13 @@ const NavItem: React.FC<{
         setView(viewName);
         onClose();
       }}
-      className={`flex w-full items-center space-x-3 rounded-lg px-3 py-2.5 text-sm transition-colors duration-200 ${
+      className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${
         isActive
-          ? 'bg-primary-100 font-semibold text-primary-700'
-          : 'font-medium text-slate-600 hover:bg-slate-200/60'
+          ? 'bg-primary-600 font-semibold text-white shadow-sm'
+          : 'font-medium text-slate-600 hover:bg-slate-100'
       }`}
     >
-      <Icon name={icon} className={`transition-colors ${isActive ? 'text-primary-600' : 'text-slate-500'}`} />
+      <Icon name={icon} className={`transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`} />
       <span>{children}</span>
     </button>
   );
@@ -50,12 +50,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
   const navItems = [
     { view: 'dashboard', icon: 'home', label: 'Overview' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
+    { view: 'ai-card', icon: 'badge', label: 'AI Card' },
     { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
     { view: 'listings', icon: 'storefront', label: 'AI Listings' },
-    { view: 'ai-content', icon: 'forum', label: 'AI Content' },
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
-    { view: 'marketing', icon: 'campaign', label: 'Marketing' },
-    { view: 'blog', icon: 'article', label: 'Blog' },
+    { view: 'ai-training', icon: 'school', label: 'Train Your AI' },
+    { view: 'funnel-analytics', icon: 'monitoring', label: 'Leads Funnel' },
     { view: 'settings', icon: 'settings', label: 'Settings' },
   ];
   
@@ -90,19 +90,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
             </div>
 
 
-            <nav className="flex-1 space-y-1">
-                {navItems.map((item) => (
-                <NavItem
-                    key={item.view}
-                    viewName={item.view as View}
-                    activeView={activeView}
-                    setView={setView}
-                    icon={item.icon}
-                    onClose={onClose}
-                >
-                    {item.label}
-                </NavItem>
-                ))}
+            <nav className="flex-1">
+                <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm divide-y divide-slate-200">
+                    {navItems.map((item) => (
+                        <NavItem
+                            key={item.view}
+                            viewName={item.view as View}
+                            activeView={activeView}
+                            setView={setView}
+                            icon={item.icon}
+                            onClose={onClose}
+                        >
+                            {item.label}
+                        </NavItem>
+                    ))}
+                </div>
             </nav>
 
             <div className="mt-auto flex flex-col space-y-2 border-t border-slate-200 pt-4">
@@ -117,5 +119,3 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
 };
 
 export default Sidebar;
-
-

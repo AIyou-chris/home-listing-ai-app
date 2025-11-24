@@ -1,19 +1,72 @@
 // Firebase functions removed; keep service API signatures intact
-import { ChatMessage } from '../types';
 
 /**
  * Continues a conversation using OpenAI's GPT models
  * @param messages Array of chat messages to continue the conversation from
+ * @param sidekick Optional sidekick type for training context
  * @returns A promise that resolves to the AI's response text
  */
-export const continueConversation = async (messages: Array<{ sender: string; text: string }>): Promise<string> => {
+import {
+  buildLanguageInstruction,
+  detectAndUpdateLanguage,
+  getPreferredLanguage
+} from './languagePreferenceService'
+import { buildApiUrl, getApiBaseUrl } from '../lib/api'
+
+interface ContinueConversationOptions {
+  language?: string
+}
+
+export const continueConversation = async (
+  messages: Array<{ sender: string; text: string }>, 
+  sidekick?: string,
+  options?: ContinueConversationOptions
+): Promise<string> => {
   try {
-    // Local mock response to keep UI functional
-    const last = messages[messages.length - 1]?.text || '';
-    return `AI: Received ${last.length} chars.`;
+    let overrideLanguage = options?.language
+    if (!overrideLanguage) {
+      const lastUserMessage = [...messages].reverse().find((m) => m.sender === 'user')?.text
+      if (lastUserMessage) {
+        const detected = await detectAndUpdateLanguage(lastUserMessage)
+        if (detected) {
+          overrideLanguage = detected
+        }
+      }
+    }
+
+    const preferredLanguage = getPreferredLanguage(overrideLanguage)
+    const languageInstruction = buildLanguageInstruction(preferredLanguage)
+    const existingSystemPrompt = messages.find(m => m.sender === 'system')?.text
+    const combinedSystemPrompt = [existingSystemPrompt, languageInstruction]
+      .filter((text): text is string => Boolean(text && text.trim().length > 0))
+      .join('\n\n') || undefined
+    const finalMessages = messages.filter(m => m.sender !== 'system')
+
+    const response = await fetch(buildApiUrl('/api/continue-conversation'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: finalMessages,
+        sidekick,
+        role: 'agent',
+        preferredLanguage,
+        systemPrompt: combinedSystemPrompt
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.response || data.message || 'No response received';
   } catch (error) {
     console.error('Error continuing conversation:', error);
-    throw new Error('Failed to get AI response: ' + (error instanceof Error ? error.message : String(error)));
+    // Fallback response
+    const last = messages[messages.length - 1]?.text || '';
+    return `I apologize, but I'm having trouble connecting right now. You asked about: "${last.substring(0, 100)}${last.length > 100 ? '...' : ''}"`;
   }
 };
 
@@ -30,7 +83,8 @@ export const generateSpeech = async (
   try {
     console.log("🎤 Generating speech with OpenAI:", { text: text.substring(0, 50) + '...', voice });
     
-    const response = await fetch('http://localhost:3002/api/generate-speech', {
+    const apiBase = getApiBaseUrl() || import.meta.env.VITE_API_URL || 'https://ailisitnghome-43boqi59o-ai-you.vercel.app'
+    const response = await fetch(`${apiBase}/api/generate-speech`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -84,6 +138,7 @@ export const generateImage = async (
   if (!prompt.trim()) throw new Error('Prompt is required');
   try {
     // Return placeholder data in local mode
+    console.info('generateImage invoked (placeholder)', { prompt, size });
     return { url: undefined, b64: '' };
   } catch (error) {
     console.error('Error generating image:', error);

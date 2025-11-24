@@ -1,6 +1,15 @@
 // Firebase removed. Provide lightweight local auth stubs to keep UI working.
-type User = { uid: string; email?: string; displayName?: string };
-const auth = { currentUser: null as User | null, onAuthStateChanged: (_cb: any) => () => {} };
+type User = { uid: string; email?: string; displayName?: string; getIdToken?: () => Promise<string> };
+
+type AuthStateChangeCallback = (user: User | null) => void;
+
+const auth = {
+    currentUser: null as User | null,
+    onAuthStateChanged: (callback: AuthStateChangeCallback): (() => void) => {
+        callback(auth.currentUser);
+        return () => {};
+    }
+};
 
 export interface AgentProfile {
     id: string;
@@ -63,6 +72,41 @@ export interface AuthState {
     isAdmin: boolean;
 }
 
+const getApiBaseUrl = (): string | null => {
+    const raw = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_API_BASE_URL
+    if (typeof raw !== 'string') {
+        return null
+    }
+
+    const trimmed = raw.trim()
+    if (!trimmed) {
+        return null
+    }
+
+    return trimmed.replace(/\/+$/, '')
+}
+
+const API_BASE_URL = getApiBaseUrl()
+
+const isAbsoluteUrl = (url: string) => /^https?:\/\//i.test(url)
+
+const resolveApiUrl = (input: string): string => {
+    if (!input) {
+        return input
+    }
+
+    if (isAbsoluteUrl(input)) {
+        return input
+    }
+
+    const sanitizedPath = input.startsWith('/') ? input.slice(1) : input
+    if (API_BASE_URL) {
+        return `${API_BASE_URL}/${sanitizedPath}`
+    }
+
+    return input.startsWith('/') ? input : `/${sanitizedPath}`
+}
+
 export class AuthService {
     private static instance: AuthService;
     private authStateListeners: ((state: AuthState) => void)[] = [];
@@ -119,27 +163,54 @@ export class AuthService {
             features: { aiChat: true, fileUpload: true, emailAutomation: true, qrTracking: true, analytics: true, sequences: true },
             createdAt: new Date(),
             updatedAt: new Date()
-        } as AgentProfile;
+        };
     }
 
     // Complete onboarding
     async completeOnboarding(agentId: string, onboardingData: Partial<AgentProfile>): Promise<void> {
-        const key = `hlai_agent_${agentId}`
-        const raw = localStorage.getItem(key)
-        const prev = raw ? (JSON.parse(raw) as Partial<AgentProfile>) : {}
+        const key = `hlai_agent_${agentId}`;
+        const raw = localStorage.getItem(key);
+        const prev = raw ? (JSON.parse(raw) as Partial<AgentProfile>) : {};
+
+        const defaultFeatures = prev.features || { aiChat: true, fileUpload: true, emailAutomation: true, qrTracking: true, analytics: true, sequences: true };
+        const updatedFeatures = onboardingData.features
+            ? { ...defaultFeatures, ...onboardingData.features }
+            : defaultFeatures;
+
+        const createdAt = prev.createdAt ? new Date(prev.createdAt as unknown as string) : new Date();
+        const trialEndDate = onboardingData.trialEndDate
+            ? onboardingData.trialEndDate
+            : prev.trialEndDate
+                ? new Date(prev.trialEndDate as unknown as string)
+                : undefined;
+
         const updated: AgentProfile = {
-            ...(prev as AgentProfile),
             id: agentId,
-            name: prev.name || 'Agent',
-            email: prev.email || '',
+            name: onboardingData.name || prev.name || 'Agent',
+            email: onboardingData.email || prev.email || '',
             isOnboardingComplete: true,
-            subscriptionStatus: prev.subscriptionStatus || 'trial',
-            features: prev.features || { aiChat: true, fileUpload: true, emailAutomation: true, qrTracking: true, analytics: true, sequences: true },
-            createdAt: prev.createdAt ? new Date(prev.createdAt) : new Date(),
+            subscriptionStatus: onboardingData.subscriptionStatus || prev.subscriptionStatus || 'trial',
+            features: updatedFeatures,
+            createdAt,
             updatedAt: new Date(),
-            ...onboardingData,
-        } as AgentProfile
-        localStorage.setItem(key, JSON.stringify(updated))
+            trialEndDate,
+            targetMarkets: prev.targetMarkets,
+            averagePropertyPrice: prev.averagePropertyPrice,
+            bio: prev.bio,
+            communicationStyle: prev.communicationStyle,
+            tone: prev.tone,
+            expertise: prev.expertise,
+            specialties: prev.specialties,
+            commonQuestions: prev.commonQuestions,
+            uniqueSellingPoints: prev.uniqueSellingPoints,
+            company: prev.company,
+            phone: prev.phone,
+            website: prev.website,
+            yearsExperience: prev.yearsExperience,
+            ...onboardingData
+        };
+
+        localStorage.setItem(key, JSON.stringify(updated));
     }
 
     // Get current agent profile
@@ -147,16 +218,23 @@ export class AuthService {
         const user = auth.currentUser;
         if (!user) return null;
 
-        const key = `hlai_agent_${user.uid}`
-        const raw = localStorage.getItem(key)
-        if (!raw) return null
-        const data = JSON.parse(raw)
+        const key = `hlai_agent_${user.uid}`;
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const data = JSON.parse(raw) as Partial<AgentProfile> & { trialEndDate?: string };
+
         return {
-            ...(data as AgentProfile),
-            createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
-            updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
-            trialEndDate: data.trialEndDate ? new Date(data.trialEndDate) : undefined
-        } as AgentProfile
+            ...data,
+            id: data.id || user.uid,
+            name: data.name || user.displayName || 'Agent',
+            email: data.email || user.email || '',
+            createdAt: data.createdAt ? new Date(data.createdAt as unknown as string) : new Date(),
+            updatedAt: data.updatedAt ? new Date(data.updatedAt as unknown as string) : new Date(),
+            trialEndDate: data.trialEndDate ? new Date(data.trialEndDate as unknown as string) : undefined,
+            features: data.features || { aiChat: true, fileUpload: true, emailAutomation: true, qrTracking: true, analytics: true, sequences: true },
+            subscriptionStatus: data.subscriptionStatus || 'trial',
+            isOnboardingComplete: data.isOnboardingComplete ?? false
+        };
     }
 
     // Update agent profile
@@ -164,11 +242,16 @@ export class AuthService {
         const user = auth.currentUser;
         if (!user) throw new Error('No authenticated user');
 
-        const key = `hlai_agent_${user.uid}`
-        const raw = localStorage.getItem(key)
-        const prev = raw ? (JSON.parse(raw) as AgentProfile) : await this.getOrCreateAgentProfile(user)
-        const next: AgentProfile = { ...prev, ...updates, updatedAt: new Date() }
-        localStorage.setItem(key, JSON.stringify(next))
+        const key = `hlai_agent_${user.uid}`;
+        const raw = localStorage.getItem(key);
+        const prev = raw ? (JSON.parse(raw) as AgentProfile) : await this.getOrCreateAgentProfile(user);
+        const next: AgentProfile = {
+            ...prev,
+            ...updates,
+            features: updates.features ? { ...prev.features, ...updates.features } : prev.features,
+            updatedAt: new Date()
+        };
+        localStorage.setItem(key, JSON.stringify(next));
     }
 
     // Check if trial is active
@@ -323,7 +406,7 @@ export class AuthService {
     async getAllAdminUsers(): Promise<AdminUser[]> { return [] }
 
     // Create new admin user (super admin only)
-    async createAdminUser(adminData: {
+    async createAdminUser(_adminData: {
         email: string;
         name: string;
         role: AdminUser['role'];
@@ -335,27 +418,27 @@ export class AuthService {
         }
 
         // No-op in local mode
-        return
+        return;
     }
 
     // Update admin user permissions (super admin only)
-    async updateAdminUser(adminId: string, updates: Partial<AdminUser>): Promise<void> {
+    async updateAdminUser(_adminId: string, _updates: Partial<AdminUser>): Promise<void> {
         const hasPermission = await this.hasAdminPermission('userManagement');
         if (!hasPermission) {
             throw new Error('Insufficient permissions to update admin users');
         }
 
-        return
+        return;
     }
 
     // Deactivate admin user (super admin only)
-    async deactivateAdminUser(adminId: string): Promise<void> {
+    async deactivateAdminUser(_adminId: string): Promise<void> {
         const hasPermission = await this.hasAdminPermission('userManagement');
         if (!hasPermission) {
             throw new Error('Insufficient permissions to deactivate admin users');
         }
 
-        return
+        return;
     }
 
     // Get current user's auth token
@@ -363,29 +446,34 @@ export class AuthService {
         const user = auth.currentUser;
         if (!user) return null;
 
-        try {
-            return typeof (user as any).getIdToken === 'function' ? await (user as any).getIdToken() : 'dev-token';
-        } catch (error) {
-            console.error('Error getting auth token:', error);
-            return null;
+        if (typeof user.getIdToken === 'function') {
+            try {
+                return await user.getIdToken();
+            } catch (error) {
+                console.error('Error getting auth token:', error);
+                return null;
+            }
         }
+
+        return 'dev-token';
     }
 
     // Make authenticated API request
     async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
-        const isLocalApi = url.startsWith('http://localhost:5001/') || url.startsWith('http://127.0.0.1:5001/');
+        const resolvedUrl = resolveApiUrl(url)
+        const isLocalApi = resolvedUrl.includes('http://localhost:5001/') || resolvedUrl.includes('http://127.0.0.1:5001/') || resolvedUrl.startsWith('/')
         const token = await this.getAuthToken();
         if (!token && !isLocalApi) {
-            throw new Error('No authentication token available');
+            console.warn('AuthService: proceeding without auth token for', resolvedUrl);
         }
 
-        const headers = {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            ...options.headers
-        } as Record<string, string>;
+        const headers = new Headers(options.headers);
+        headers.set('Content-Type', 'application/json');
+        if (token) {
+            headers.set('Authorization', `Bearer ${token}`);
+        }
 
-        return fetch(url, {
+        return fetch(resolvedUrl, {
             ...options,
             headers
         });

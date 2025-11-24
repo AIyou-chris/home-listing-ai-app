@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { listTranscripts, deleteTranscript } from '../services/aiTranscriptsService';
 import { resolveUserId } from '../services/userId';
-import { Property, ChatMessage, AIDescription, isAIDescription } from '../types';
+import { Property, ChatMessage, isAIDescription } from '../types';
 import { generatePropertyDescription, answerPropertyQuestion } from '../services/geminiService';
 import ListingSidekickWidget from './ListingSidekickWidget'
 
@@ -11,6 +11,122 @@ interface PropertyPageProps {
   setProperty: (updatedProperty: Property) => void;
   onBack: () => void;
 }
+
+const QuickQRGenerator: React.FC<{ property: Property }> = ({ property }) => {
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [isGenerated, setIsGenerated] = useState(false);
+
+  const generateQR = () => {
+    const propertyUrl = `https://homelistingai.app/p/${property.id}`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(propertyUrl)}`;
+    setQrCodeUrl(qrUrl);
+    setIsGenerated(true);
+  };
+
+  const downloadQR = () => {
+    const link = document.createElement('a');
+    link.href = qrCodeUrl;
+    link.download = `qr-${property.address.split(',')[0].replace(/\s+/g, '-')}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+        <span className="material-symbols-outlined">qr_code</span>
+        Quick QR Code
+      </h3>
+      
+      {!isGenerated ? (
+        <div className="text-center">
+          <p className="text-sm text-slate-600 mb-4">
+            Generate a QR code for this property listing
+          </p>
+          <button
+            onClick={generateQR}
+            className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
+          >
+            Generate QR Code
+          </button>
+        </div>
+      ) : (
+        <div className="text-center space-y-4">
+          <img src={qrCodeUrl} alt="Property QR Code" className="mx-auto border rounded-lg" />
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500">
+              Links to: {property.address}
+            </p>
+            <button
+              onClick={downloadQR}
+              className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition"
+            >
+              Download QR Code
+            </button>
+            <button
+              onClick={() => setIsGenerated(false)}
+              className="w-full px-4 py-2 text-primary-600 hover:text-primary-700 transition text-sm"
+            >
+              Generate New
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PropertyMapWidget: React.FC<{ property: Property }> = ({ property }) => {
+  const openInGoogleMaps = () => {
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(property.address)}`;
+    window.open(mapsUrl, '_blank');
+  };
+
+  const openInAppleMaps = () => {
+    const appleMapsUrl = `https://maps.apple.com/?q=${encodeURIComponent(property.address)}`;
+    window.open(appleMapsUrl, '_blank');
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+        <span className="material-symbols-outlined">map</span>
+        Location & Maps
+      </h3>
+      
+      <div className="space-y-4">
+        <div className="p-3 bg-slate-50 rounded-lg">
+          <p className="text-sm font-medium text-slate-700 mb-1">Address</p>
+          <p className="text-slate-600">{property.address}</p>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={openInGoogleMaps}
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+          >
+            <span className="material-symbols-outlined text-lg">map</span>
+            <span>Google Maps</span>
+          </button>
+          <button
+            onClick={openInAppleMaps}
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 text-white rounded-lg font-medium hover:bg-slate-900 transition"
+          >
+            <span className="material-symbols-outlined text-lg">location_on</span>
+            <span>Apple Maps</span>
+          </button>
+        </div>
+        
+        <div className="text-center">
+          <p className="text-xs text-slate-500">
+            Click to view neighborhood, nearby amenities, and directions
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const AIInteractionLoader = () => (
     <div className="flex items-center space-x-2">
@@ -161,7 +277,9 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                 setUserInput(draft);
                 localStorage.removeItem('hlai_transcript_draft');
             }
-        } catch {}
+        } catch (error) {
+            console.warn('Failed to restore transcript draft from storage', error);
+        }
     }, []);
 
     return (
@@ -208,7 +326,9 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                             const uid = resolveUserId();
                             const rows = await listTranscripts(uid, 50);
                             setPickerItems(rows.map(r => ({ id: r.id, title: r.title || r.content.slice(0, 60), content: r.content, sidekick: r.sidekick, created_at: r.created_at })));
-                        } catch {}
+                        } catch (error) {
+                            console.warn('Failed to load transcripts for picker', error);
+                        }
                         setPickerLoading(false);
                     }} className="p-2.5 rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-300" title="Browse transcripts">
                         <span className="material-symbols-outlined w-5 h-5">description</span>
@@ -217,7 +337,9 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                         try {
                             const draft = localStorage.getItem('hlai_transcript_draft');
                             if (draft && draft.trim()) setUserInput(draft);
-                        } catch {}
+                        } catch (error) {
+                            console.warn('Failed to insert transcript draft', error);
+                        }
                     }} className="p-2.5 rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-300" title="Insert from transcript">
                         <span className="material-symbols-outlined w-5 h-5">content_paste</span>
                     </button>
@@ -237,7 +359,7 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                         <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
                             <div className="flex items-center gap-2">
                                 <input value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search…" className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-                                <select value={pickerSidekick} onChange={e => setPickerSidekick(e.target.value as any)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                                <select value={pickerSidekick} onChange={e => setPickerSidekick(e.target.value as typeof pickerSidekick)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
                                     {['all','main','sales','marketing','listing','agent','helper','support'].map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
@@ -316,6 +438,8 @@ const PropertyPage: React.FC<PropertyPageProps> = ({ property, setProperty, onBa
 
         <div className="lg:col-span-2 space-y-6">
             <ListingSidekickWidget property={property} />
+            <QuickQRGenerator property={property} />
+            <PropertyMapWidget property={property} />
             <AIAssistant property={property} />
         </div>
       </div>

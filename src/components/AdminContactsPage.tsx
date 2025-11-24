@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Appointment, Lead, User } from '../types';
 import CalendarView from './CalendarView';
+import { googleOAuthService } from '../services/googleOAuthService';
+import { emailService } from '../services/emailService';
 // Firebase services removed - using Supabase alternatives
 import { useScheduler } from '../context/SchedulerContext';
 
@@ -183,6 +185,29 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 					<div className="bg-white rounded-xl shadow-sm border border-slate-200/80">
 						<div className="p-4 border-b border-slate-200 flex items-center justify-between">
 							<h2 className="text-sm font-semibold text-slate-800">Calendar</h2>
+							<div className="flex items-center gap-2">
+								{!googleConnected ? (
+									<button
+										onClick={async () => {
+											try {
+													const ok = await googleOAuthService.requestAccess({ context: 'calendar' });
+											setGoogleConnected(!!ok);
+										} catch (error) {
+											console.error('Failed to connect Google account:', error);
+										}
+										}}
+										className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
+									>
+										<span className="material-symbols-outlined w-4 h-4">link</span>
+										Connect Google
+									</button>
+								) : (
+									<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+										<span className="material-symbols-outlined w-4 h-4">check_circle</span>
+										Connected
+									</span>
+								)}
+							</div>
 						</div>
 						<div className="p-3">
 							<CalendarView appointments={localAppointments} />
@@ -321,12 +346,12 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 										onClick={async () => {
 											if (!editEmail) return;
 											setIsDraftingEmail(true);
-											try {
-												            const uid = 'admin-user'; // Auth removed
-												            const res = []; // FileUploadService removed
-												const suggestion = res.aiSuggestions?.[0]?.content || res.templates?.[0]?.content || '';
-												if (suggestion && !emailBody) setEmailBody(suggestion);
-											} catch {}
+									try {
+										const suggestion = '';
+										if (suggestion && !emailBody) setEmailBody(suggestion);
+									} catch (error) {
+										console.error('Failed to draft email with AI', error);
+									}
 											setIsDraftingEmail(false);
 										}}
 										className="px-3 py-2 rounded-md bg-slate-100 text-slate-700 text-sm"
@@ -335,13 +360,20 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 									</button>
 									<button
 										onClick={async () => {
-											           if (!editEmail || !emailSubject || !emailBody) return; // Auth removed
+											if (!editEmail || !emailSubject || !emailBody) return;
 											setIsSendingEmail(true);
-											try {
-												            // FileUploadService removed - using Supabase alternatives
-												alert('Email sent');
+							try {
+								const success = await emailService.sendEmail(editEmail, emailSubject, emailBody);
+												if (success) {
+													alert('✅ Email sent successfully!');
+													setEditEmail('');
+													setEmailSubject('');
+													setEmailBody('');
+												} else {
+													alert('❌ Failed to send email. Please connect Gmail in Settings first.');
+												}
 											} catch (e) {
-												alert('Failed to send');
+												alert('❌ Email sending failed: ' + (e as Error).message);
 											}
 											setIsSendingEmail(false);
 										}}
@@ -480,5 +512,3 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 };
 
 export default AdminContactsPage;
-
-

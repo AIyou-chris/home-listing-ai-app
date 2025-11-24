@@ -26,15 +26,9 @@ You need an OpenAI API key with access to GPT-5 (or GPT-4 as fallback):
 OPENAI_API_KEY=sk-your-actual-openai-api-key
 ```
 
-### 2. Deploy Firebase Functions
+### 2. Deploy Server Functions (optional)
 
-After setting up your API key, deploy the Firebase functions:
-
-```bash
-cd functions
-npm run build
-firebase deploy --only functions:continueConversation,functions:generateSpeech
-```
+If you maintain server-side functions for advanced AI workflows, deploy them using your preferred infrastructure (e.g., Cloud Run, Vercel Functions, Netlify Functions). Ensure the environment includes your `OPENAI_API_KEY`.
 
 ## Features
 
@@ -69,20 +63,11 @@ The following voices are available for text-to-speech:
 
 If you encounter issues:
 
-1. Check Firebase function logs for errors
+1. Check your server logs (if applicable) for errors
 2. Verify your OpenAI API key is valid and has access to the required models
-3. Ensure your Firebase project has billing enabled for external API calls
+3. Ensure your hosting environment permits outbound requests to OpenAI
 4. Check that the OpenAI API is not experiencing downtime
 
 ## Reverting to Gemini (if needed)
 
-If you need to revert to the Google Gemini implementation:
-
-1. Update the `package.json` main field to point back to the original index.js
-2. Deploy the original functions
-
-```bash
-cd functions
-npm run build
-firebase deploy --only functions
-```
+If you need to revert to the Google Gemini implementation, swap your service layer back to the Gemini client and redeploy your chosen server environment.

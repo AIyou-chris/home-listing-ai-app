@@ -1,25 +1,95 @@
 import React, { useState, useEffect } from 'react';
-import { useAdminModal } from '../context/AdminModalContext';
 import { AdminModals } from './AdminModals';
 import AddContactModal from './AddContactModal';
 import { supabase } from '../services/supabase';
+import { SystemMonitoringService, HealthStatus } from '../services/systemMonitoringService';
+import { User, Lead } from '../types';
+import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
 
-// Simple status widget
-const StatusWidget: React.FC<{ serviceName: string; status: 'Online' | 'Offline' | 'Error' }> = ({ serviceName, status }) => {
-    const statusInfo = {
-        Online: { text: 'Online', color: 'text-green-400', dotClass: 'bg-green-500 animate-pulse' },
-        Offline: { text: 'Offline', color: 'text-red-400', dotClass: 'bg-red-500' },
-        Error: { text: 'Error', color: 'text-yellow-400', dotClass: 'bg-yellow-500' },
+interface ContactRecord {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: 'lead' | 'client' | 'agent';
+  stage?: string | null;
+  pipeline_note?: string | null;
+  created_at?: string;
+}
+
+// Enhanced status widget with real-time monitoring
+const StatusWidget: React.FC<{ 
+    serviceName: string; 
+    healthStatus: HealthStatus | null;
+    isLoading?: boolean;
+}> = ({ serviceName, healthStatus, isLoading = false }) => {
+    const getStatusInfo = () => {
+        if (isLoading) {
+            return {
+                text: 'Checking...',
+                color: 'text-gray-400',
+                dotClass: 'bg-gray-500 animate-pulse'
+            };
+        }
+
+        if (!healthStatus) {
+            return {
+                text: 'Unknown',
+                color: 'text-gray-400',
+                dotClass: 'bg-gray-500'
+            };
+        }
+
+        switch (healthStatus.status) {
+            case 'healthy':
+                return {
+                    text: 'Online',
+                    color: 'text-green-400',
+                    dotClass: 'bg-green-500 animate-pulse'
+                };
+            case 'warning':
+                return {
+                    text: 'Warning',
+                    color: 'text-yellow-400',
+                    dotClass: 'bg-yellow-500 animate-pulse'
+                };
+            case 'error':
+                return {
+                    text: 'Error',
+                    color: 'text-red-400',
+                    dotClass: 'bg-red-500'
+                };
+            default:
+                return {
+                    text: 'Unknown',
+                    color: 'text-gray-400',
+                    dotClass: 'bg-gray-500'
+                };
+        }
     };
-    const currentStatus = statusInfo[status];
+
+    const statusInfo = getStatusInfo();
+    const responseTime = healthStatus?.responseTime;
 
     return (
-        <div className="bg-slate-800 rounded-lg p-5 border border-slate-700/50 flex justify-between items-center">
-            <div>
-                <p className="text-sm font-medium text-slate-400">{serviceName}</p>
-                <p className={`text-xl font-bold ${currentStatus.color}`}>{currentStatus.text}</p>
+        <div className="bg-slate-800 rounded-lg p-5 border border-slate-700/50">
+            <div className="flex justify-between items-start mb-2">
+                <div>
+                    <p className="text-sm font-medium text-slate-400">{serviceName}</p>
+                    <p className={`text-xl font-bold ${statusInfo.color}`}>{statusInfo.text}</p>
+                </div>
+                <div className={`w-3 h-3 rounded-full ${statusInfo.dotClass}`}></div>
             </div>
-            <div className={`w-3 h-3 rounded-full ${currentStatus.dotClass}`}></div>
+            {responseTime !== undefined && (
+                <div className="text-xs text-slate-500 mt-1">
+                    Response: {responseTime.toFixed(0)}ms
+                </div>
+            )}
+            {healthStatus?.message && healthStatus.status !== 'healthy' && (
+                <div className="text-xs text-slate-400 mt-2 line-clamp-2" title={healthStatus.message}>
+                    {healthStatus.message}
+                </div>
+            )}
         </div>
     );
 };
@@ -48,35 +118,61 @@ const MetricWidget: React.FC<{ title: string; value: string; change: string; ico
 
 // Main AdminDashboard component
 interface AdminDashboardProps {
-  users?: any[];
-  leads?: any[];
+  users?: User[];
+  leads?: Lead[];
   onDeleteUser?: (userId: string) => void;
   onDeleteLead?: (leadId: string) => void;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
     users: propUsers = [], 
-    leads: propLeads = [], 
-    onDeleteUser,
-    onDeleteLead 
+    leads: _propLeads = [], 
+    onDeleteUser: _onDeleteUser,
+    onDeleteLead: _onDeleteLead 
 }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [showAddContactModal, setShowAddContactModal] = useState(false);
-    const [contacts, setContacts] = useState<any[]>([]);
+    const [contacts, setContacts] = useState<ContactRecord[]>([]);
     
-    // Use centralized modal context instead of local state
-    const {
-        setShowAddUserModal,
-        setShowAddLeadModal,
-        setEditingUser,
-        setEditUserForm,
-        setEditingLead,
-        setEditLeadForm
-    } = useAdminModal();
-
+    // System monitoring states
+    const [apiHealth, setApiHealth] = useState<HealthStatus | null>(null);
+    const [dbHealth, setDbHealth] = useState<HealthStatus | null>(null);
+    const [aiHealth, setAiHealth] = useState<HealthStatus | null>(null);
+    const [healthLoading, setHealthLoading] = useState(true);
+    
     // Use the users and leads directly from props - no local state needed
     const users = propUsers;
-    const leads = propLeads;
+
+    // Load system health status
+    useEffect(() => {
+        const loadHealthStatus = async () => {
+            try {
+                const monitoring = SystemMonitoringService.getInstance();
+                
+                // Check API health
+                const apiStatus = await monitoring.checkSystemHealth();
+                setApiHealth(apiStatus);
+                
+                // Check database health
+                const dbStatus = await monitoring.checkDatabaseHealth();
+                setDbHealth(dbStatus);
+                
+                // Check AI services health
+                const aiStatus = await monitoring.checkAIServicesHealth();
+                setAiHealth(aiStatus);
+            } catch (error) {
+                console.error('Error loading health status:', error);
+            } finally {
+                setHealthLoading(false);
+            }
+        };
+
+        loadHealthStatus();
+        
+        // Refresh health status every 30 seconds
+        const interval = setInterval(loadHealthStatus, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         const loadContacts = async () => {
@@ -84,14 +180,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
                     const { data, error } = await supabase
-                        .from('contacts')
+                        .from<ContactRecord>('contacts')
                         .select('*')
                         .eq('user_id', user.id);
                     
                     if (error) {
                         console.error('Error loading contacts:', error);
                     } else {
-                        setContacts(data || []);
+                        setContacts(data ?? []);
                     }
                 }
             } catch (error) {
@@ -103,40 +199,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         loadContacts();
     }, []);
-
-    const handleEditUserClick = (user: any) => {
-        setEditingUser(user);
-        setEditUserForm({
-            name: user.name || '',
-            email: user.email || '',
-            role: user.role || 'agent',
-            plan: user.plan || 'Solo Agent'
-        });
-    };
-
-    const handleEditLeadClick = (lead: any) => {
-        setEditingLead(lead);
-        setEditLeadForm({
-            name: lead.name || '',
-            email: lead.email || '',
-            phone: lead.phone || '',
-            status: lead.status || 'new',
-            source: lead.source || '',
-            notes: lead.notes || ''
-        });
-    };
-
-    const handleDeleteUser = (userId: string) => {
-        if (window.confirm('Are you sure you want to delete this user?')) {
-            onDeleteUser?.(userId);
-        }
-    };
-
-    const handleDeleteLead = (leadId: string) => {
-        if (window.confirm('Are you sure you want to delete this lead?')) {
-            onDeleteLead?.(leadId);
-        }
-    };
 
     if (isLoading) {
         return (
@@ -207,9 +269,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {/* System Status */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <StatusWidget serviceName="API Server" status="Online" />
-                    <StatusWidget serviceName="Database" status="Online" />
-                    <StatusWidget serviceName="AI Services" status="Online" />
+                    <StatusWidget serviceName="API Server" healthStatus={apiHealth} isLoading={healthLoading} />
+                    <StatusWidget serviceName="Database" healthStatus={dbHealth} isLoading={healthLoading} />
+                    <StatusWidget serviceName="AI Services" healthStatus={aiHealth} isLoading={healthLoading} />
                 </div>
 
                 {/* Recent Contacts Table */}
@@ -297,13 +359,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                 </div>
 
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl">
+                    <FunnelAnalyticsPanel
+                        variant="embedded"
+                        hideBackButton
+                        title="Leads Funnel Control Center"
+                        subtitle="Monitor lead scoring, funnel health, and sequence feedback without leaving the admin cockpit."
+                    />
+                </div>
 
             </div>
 
             {/* Centralized Modals - handlers are managed by AdminLayout */}
             <AdminModals
-                users={users}
-                leads={leads}
                 onAddUser={async () => { console.log('Add user handled by AdminLayout') }}
                 onEditUser={async () => { console.log('Edit user handled by AdminLayout') }}
                 onAddLead={async () => { console.log('Add lead handled by AdminLayout') }}
@@ -318,14 +386,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     // Refresh contacts data
                     try {
                         const { data: { user } } = await supabase.auth.getUser();
-                        if (user) {
+                    if (user) {
                             const { data, error } = await supabase
-                                .from('contacts')
+                                .from<ContactRecord>('contacts')
                                 .select('*')
                                 .eq('user_id', user.id);
                             
                             if (!error) {
-                                setContacts(data || []);
+                                setContacts(data ?? []);
                             }
                         }
                     } catch (error) {

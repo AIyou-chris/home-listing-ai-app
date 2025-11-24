@@ -1,5 +1,6 @@
 export interface AgentProfile {
   name: string;
+  slug?: string;
   title: string;
   company: string;
   phone: string;
@@ -10,6 +11,7 @@ export interface AgentProfile {
   logoUrl?: string;
   website?: string;
   bio?: string;
+  language?: string;
 }
 
 export interface AIDescription {
@@ -17,8 +19,13 @@ export interface AIDescription {
   paragraphs: string[];
 }
 
-export function isAIDescription(description: any): description is AIDescription {
-  return description && typeof description === 'object' && typeof description.title === 'string' && Array.isArray(description.paragraphs);
+export function isAIDescription(description: unknown): description is AIDescription {
+  if (!description || typeof description !== 'object') {
+    return false;
+  }
+
+  const candidate = description as { title?: unknown; paragraphs?: unknown };
+  return typeof candidate.title === 'string' && Array.isArray(candidate.paragraphs);
 }
 
 // Expanded View union to include additional development/test routes used in the app
@@ -28,22 +35,31 @@ export type View =
     | 'listings'
     | 'leads'
     | 'ai-conversations'
+    | 'ai-card-builder'
+    | 'ai-card'
+    | 'ai-sidekicks'
     | 'property'
     | 'add-listing'
+    | 'edit-listing'
     | 'inbox'
     | 'knowledge-base'
-    | 'marketing'
+    | 'ai-training'
+    | 'funnel-analytics'
     | 'settings'
     | 'demo-dashboard'
+    | 'dashboard-blueprint'
     | 'landing'
     | 'new-landing'
     | 'signup'
+    | 'checkout'
     | 'signin'
     | 'admin-dashboard'
     | 'admin-users'
     | 'admin-leads'
     | 'admin-contacts'
     | 'admin-knowledge-base'
+    | 'admin-ai-training'
+    | 'admin-ai-card'
     | 'admin-ai-personalities'
     | 'admin-ai-content'
     | 'admin-marketing'
@@ -156,6 +172,8 @@ export interface BlogPost {
 
 export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost';
 
+export type LeadFunnelType = 'homebuyer' | 'seller' | 'postShowing';
+
 export interface Lead {
     id: string;
     name: string;
@@ -168,6 +186,16 @@ export interface Lead {
     notes?: string;
     score?: LeadScore;
     behaviors?: LeadBehavior[];
+    interestedProperties?: string[];
+    lastContact?: string;
+    createdAt?: string;
+    aiInteractions?: Array<{
+        timestamp: string;
+        type: string;
+        summary: string;
+    }>;
+    activeSequences?: string[];
+    funnelType?: LeadFunnelType;
 }
 
 export interface LeadBehavior {
@@ -175,7 +203,7 @@ export interface LeadBehavior {
     eventType: TriggerEventType;
     description: string;
     timestamp: string;
-    metadata?: { [key: string]: any };
+    metadata?: Record<string, unknown>;
 }
 
 export interface Appointment {
@@ -183,12 +211,23 @@ export interface Appointment {
     type: 'Showing' | 'Consultation' | 'Open House' | 'Virtual Tour' | 'Follow-up';
     date: string;
     time: string;
-    leadId: string;
-    propertyId: string;
-    notes: string;
+    leadId?: string | null;
+    propertyId?: string | null;
+    notes?: string;
     status?: 'Scheduled' | 'Completed' | 'Cancelled';
     leadName?: string;
-    propertyAddress?: string;
+    propertyAddress?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    meetLink?: string | null;
+    remindAgent?: boolean;
+    remindClient?: boolean;
+    agentReminderMinutes?: number;
+    clientReminderMinutes?: number;
+    startIso?: string;
+    endIso?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface Conversation {
@@ -252,11 +291,24 @@ export interface PersonalityTest {
     }[];
 }
 
-export type TriggerType = 'Lead Capture' | 'Appointment Scheduled' | 'Property Viewed' | 'Market Update' | 'Custom' | 'Account Created';
+export type TriggerType =
+    | 'Lead Capture'
+    | 'Appointment Scheduled'
+    | 'Property Viewed'
+    | 'Market Update'
+    | 'Custom'
+    | 'Account Created'
+    | 'Buyer Lead'
+    | 'Seller Lead'
+    | 'Past Client / Sphere'
+    | 'Lead Created'
+    | 'Lead Qualified'
+    | 'Seller Inquiry'
+    | 'Lead Dormant';
 
 export interface SequenceStep {
     id: string;
-    type: 'email' | 'ai-email' | 'task' | 'meeting';
+    type: 'email' | 'ai-email' | 'task' | 'meeting' | 'reminder';
     delay: { value: number; unit: 'minutes' | 'hours' | 'days' };
     content: string;
     subject?: string;
@@ -265,6 +317,8 @@ export interface SequenceStep {
         time: string;
         location: string;
     };
+    reminder?: string;
+    nextAction?: string;
 }
 
 export interface FollowUpSequence {
@@ -280,20 +334,20 @@ export interface FollowUpSequence {
 
 // Sequence Performance Analytics
 export interface SequenceAnalytics {
-    totalLeads: number;
-    emailsSent: number;
-    emailsOpened: number;
-    emailsClicked: number;
-    tasksCompleted: number;
-    meetingsScheduled: number;
-    appointmentsBooked: number;
-    responsesReceived: number;
-    openRate: number;
-    clickRate: number;
-    responseRate: number;
-    appointmentRate: number;
-    avgResponseTime: number; // in hours
-    lastUpdated: string;
+    totalLeads?: number;
+    emailsSent?: number;
+    emailsOpened?: number;
+    emailsClicked?: number;
+    tasksCompleted?: number;
+    meetingsScheduled?: number;
+    appointmentsBooked?: number;
+    responsesReceived?: number;
+    openRate?: number;
+    clickRate?: number;
+    responseRate?: number;
+    appointmentRate?: number;
+    avgResponseTime?: number; // in hours
+    lastUpdated?: string;
 }
 
 // Smart Triggers
@@ -405,6 +459,15 @@ export interface CalendarSettings {
     conflictDetection: boolean;
     emailReminders: boolean;
     autoConfirm: boolean;
+    workingHours: {
+        start: string;
+        end: string;
+    };
+    workingDays: string[];
+    defaultDuration: number;
+    bufferTime: number;
+    smsReminders: boolean;
+    newAppointmentAlerts: boolean;
 }
 
 export interface EmailSettings {
@@ -419,17 +482,40 @@ export interface EmailSettings {
     trackOpens?: boolean;
 }
 
-export interface BillingSettings {
-    planName: 'Solo Agent' | 'Pro Team' | 'Brokerage';
-    history: {
-        id: string;
-        date: string;
-        amount: number;
-        status: 'Paid' | 'Pending' | 'Failed';
-    }[];
+export type BillingStatus = 'active' | 'trialing' | 'past_due' | 'cancelled' | 'cancel_pending';
+
+export interface BillingHistoryEntry {
+    id: string;
+    date: string;
+    amount: number;
+    status: 'Paid' | 'Pending' | 'Failed';
+    description?: string;
+    invoiceUrl?: string;
 }
 
-export type FollowUpHistoryEventType = 'enroll' | 'email-sent' | 'email-opened' | 'task-created' | 'meeting-set' | 'pause' | 'resume' | 'cancel' | 'complete';
+export interface BillingSettings {
+    planName: string;
+    planStatus?: BillingStatus;
+    amount?: number;
+    currency?: string;
+    managedBy?: 'stripe' | 'paypal' | 'manual';
+    renewalDate?: string | null;
+    cancellationRequestedAt?: string | null;
+    history: BillingHistoryEntry[];
+}
+
+export type FollowUpHistoryEventType =
+    | 'enroll'
+    | 'email-sent'
+    | 'email-opened'
+    | 'email-clicked'
+    | 'task-created'
+    | 'meeting-set'
+    | 'pause'
+    | 'resume'
+    | 'cancel'
+    | 'complete'
+    | 'manual-touch';
 
 export interface FollowUpHistoryEvent {
     id: string;

@@ -11,7 +11,7 @@ export interface EmailTemplate {
 export interface PushNotification {
   title: string;
   body: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   badge?: number;
 }
 
@@ -24,6 +24,11 @@ export interface ScheduledEmail {
   status: 'pending' | 'sent' | 'failed';
 }
 
+const notificationStore = new Map<string, UserNotification[]>();
+const broadcastStore: BroadcastMessage[] = [];
+const systemAlertStore: SystemAlert[] = [];
+const scheduledEmailStore: ScheduledEmail[] = [];
+
 export default class NotificationService {
     // Send notification to a single user
     static async sendNotificationToUser(
@@ -34,8 +39,23 @@ export default class NotificationService {
         priority: UserNotification['priority'] = 'medium',
         expiresAt?: string
     ): Promise<string> {
-        // DatabaseService removed
-        return 'notif_' + Date.now();
+        const id = `notif_${Date.now()}`;
+        const notification: UserNotification = {
+            id,
+            userId,
+            title,
+            content,
+            type,
+            priority,
+            read: false,
+            createdAt: new Date().toISOString(),
+            expiresAt
+        };
+
+        const existing = notificationStore.get(userId) ?? [];
+        notificationStore.set(userId, [...existing, notification]);
+
+        return id;
     }
 
     static async sendNotificationToMultipleUsers(
@@ -56,21 +76,41 @@ export default class NotificationService {
     }
 
     static async getUserNotifications(userId: string, read?: boolean): Promise<UserNotification[]> {
-        // DatabaseService removed
-        return [];
+        const notifications = notificationStore.get(userId) ?? [];
+        if (typeof read === 'boolean') {
+            return notifications.filter(notification => notification.read === read);
+        }
+        return [...notifications];
     }
 
     static async markNotificationAsRead(notificationId: string): Promise<void> {
-        // DatabaseService removed - no-op
+        for (const [userId, notifications] of notificationStore.entries()) {
+            const updated = notifications.map(notification =>
+                notification.id === notificationId
+                    ? { ...notification, read: true, readAt: new Date().toISOString() }
+                    : notification
+            );
+            notificationStore.set(userId, updated);
+        }
     }
 
     static async markAllNotificationsAsRead(userId: string): Promise<void> {
-        // DatabaseService removed - no-op
+        const notifications = notificationStore.get(userId);
+        if (!notifications) return;
+
+        notificationStore.set(
+            userId,
+            notifications.map(notification => ({
+                ...notification,
+                read: true,
+                readAt: new Date().toISOString()
+            }))
+        );
     }
 
     static async getUnreadNotificationCount(userId: string): Promise<number> {
-        // DatabaseService removed
-        return 0;
+        const notifications = notificationStore.get(userId) ?? [];
+        return notifications.filter(notification => !notification.read).length;
     }
 
     // Broadcast Messages
@@ -83,8 +123,27 @@ export default class NotificationService {
         sentBy: string,
         scheduledFor?: string
     ): Promise<string> {
-        // DatabaseService removed
-        return 'broadcast_' + Date.now();
+        const message: BroadcastMessage = {
+            id: `broadcast_${Date.now()}`,
+            title,
+            content,
+            messageType,
+            priority,
+            targetAudience,
+            sentBy,
+            sentAt: scheduledFor ?? new Date().toISOString(),
+            scheduledFor,
+            status: scheduledFor ? 'scheduled' : 'draft',
+            deliveryStats: {
+                totalRecipients: targetAudience.length,
+                delivered: 0,
+                read: 0,
+                failed: 0
+            }
+        };
+
+        broadcastStore.push(message);
+        return message.id;
     }
 
     static async sendBroadcastMessage(
@@ -95,10 +154,29 @@ export default class NotificationService {
         targetAudience: string[],
         sentBy: string
     ): Promise<string> {
-        // DatabaseService removed
-        const messageId = 'bulk_' + Date.now();
+        const messageId = `broadcast_${Date.now()}`;
+        const deliveryStats = {
+            totalRecipients: targetAudience.length,
+            delivered: targetAudience.length,
+            read: 0,
+            failed: 0
+        };
 
-        // Send notifications to all target users
+        const message: BroadcastMessage = {
+            id: messageId,
+            title,
+            content,
+            messageType,
+            priority,
+            targetAudience,
+            sentBy,
+            sentAt: new Date().toISOString(),
+            status: 'sent',
+            deliveryStats
+        };
+
+        broadcastStore.push(message);
+
         await this.sendNotificationToMultipleUsers(
             targetAudience,
             title,
@@ -111,33 +189,82 @@ export default class NotificationService {
     }
 
     static async getBroadcastMessages(status?: BroadcastMessage['status']): Promise<BroadcastMessage[]> {
-        // DatabaseService removed
-        return [];
+        if (status) {
+            return broadcastStore.filter(message => message.status === status);
+        }
+        return [...broadcastStore];
     }
 
     static async updateBroadcastMessage(messageId: string, updates: Partial<BroadcastMessage>): Promise<void> {
-        // DatabaseService removed - no-op
+        const index = broadcastStore.findIndex(message => message.id === messageId);
+        if (index === -1) return;
+
+        broadcastStore[index] = {
+            ...broadcastStore[index],
+            ...updates,
+            deliveryStats: {
+                ...broadcastStore[index].deliveryStats,
+                ...(updates.deliveryStats ?? {})
+            }
+        };
     }
 
     static async sendBroadcastNotification(message: Omit<BroadcastMessage, 'id'>): Promise<void> {
-        // DatabaseService removed - no-op
+        await this.sendBroadcastMessage(
+            message.title,
+            message.content,
+            message.messageType,
+            message.priority,
+            message.targetAudience,
+            message.sentBy
+        );
     }
 
     static async sendUserNotification(userId: string, notification: Omit<UserNotification, 'id' | 'createdAt'>): Promise<void> {
-        // DatabaseService removed - no-op
+        await this.sendNotificationToUser(
+            userId,
+            notification.title,
+            notification.content,
+            notification.type,
+            notification.priority,
+            notification.expiresAt
+        );
     }
 
     static async sendEmailToUsers(userIds: string[], email: EmailTemplate): Promise<void> {
-        // DatabaseService removed - no-op
+        for (const userId of userIds) {
+            const sentEmail: ScheduledEmail = {
+                id: `email_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                to: userId,
+                subject: email.subject,
+                body: email.body,
+                scheduledFor: new Date().toISOString(),
+                status: 'sent'
+            };
+            scheduledEmailStore.push(sentEmail);
+        }
     }
 
     static async sendScheduledEmail(scheduledEmail: Omit<ScheduledEmail, 'id' | 'status'>): Promise<string> {
-        // DatabaseService removed
-        return 'scheduled_' + Date.now();
+        const email: ScheduledEmail = {
+            ...scheduledEmail,
+            id: `scheduled_${Date.now()}`,
+            status: 'pending'
+        };
+        scheduledEmailStore.push(email);
+        return email.id;
     }
 
     static async sendPushNotification(userIds: string[], notification: PushNotification): Promise<void> {
-        // DatabaseService removed - no-op
+        for (const userId of userIds) {
+            await this.sendNotificationToUser(
+                userId,
+                notification.title,
+                notification.body,
+                'system',
+                'medium'
+            );
+        }
     }
 
     // System Alerts
@@ -148,21 +275,43 @@ export default class NotificationService {
         severity: SystemAlert['severity'],
         component: string
     ): Promise<string> {
-        // DatabaseService removed
-        return 'alert_' + Date.now();
+        const alert: SystemAlert = {
+            id: `alert_${Date.now()}`,
+            type,
+            title,
+            description,
+            severity,
+            component,
+            createdAt: new Date().toISOString(),
+            status: 'active'
+        };
+
+        systemAlertStore.push(alert);
+        return alert.id;
     }
 
     static async getSystemAlerts(status?: SystemAlert['status']): Promise<SystemAlert[]> {
-        // DatabaseService removed
-        return [];
+        if (status) {
+            return systemAlertStore.filter(alert => alert.status === status);
+        }
+        return [...systemAlertStore];
     }
 
     static async acknowledgeSystemAlert(alertId: string, acknowledgedBy: string): Promise<void> {
-        // DatabaseService removed - no-op
+        const alert = systemAlertStore.find(item => item.id === alertId);
+        if (!alert) return;
+
+        alert.status = 'acknowledged';
+        alert.acknowledgedBy = acknowledgedBy;
+        alert.acknowledgedAt = new Date().toISOString();
     }
 
     static async resolveSystemAlert(alertId: string): Promise<void> {
-        // DatabaseService removed - no-op
+        const alert = systemAlertStore.find(item => item.id === alertId);
+        if (!alert) return;
+
+        alert.status = 'resolved';
+        alert.resolvedAt = new Date().toISOString();
     }
 
     // Helper methods for common notifications
@@ -199,14 +348,12 @@ export default class NotificationService {
         content: string,
         priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium'
     ): Promise<string> {
-        // DatabaseService removed
-        const users: any[] = [];
-        const userIds = users.map(user => user.id);
+        const userIds = Array.from(notificationStore.keys());
         
         const messageId = await this.createBroadcastMessage(
             title,
             content,
-            'system',
+            'System',
             priority,
             userIds,
             'system'
@@ -225,12 +372,12 @@ export default class NotificationService {
 
     // Real-time subscriptions (no-op implementations)
     static subscribeToUserNotifications(userId: string, callback: (notifications: UserNotification[]) => void) {
-        // DatabaseService removed
+        callback(notificationStore.get(userId) ?? []);
         return () => {};
     }
 
     static subscribeToSystemAlerts(callback: (alerts: SystemAlert[]) => void) {
-        // DatabaseService removed
+        callback([...systemAlertStore]);
         return () => {};
     }
 

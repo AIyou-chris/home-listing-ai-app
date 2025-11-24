@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AgentProfile } from '../types';
 import { generateText } from '../services/geminiService';
 
@@ -6,8 +6,10 @@ interface AdminKnowledgeBasePageProps {
     agentProfile: AgentProfile;
 }
 
-const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentProfile }) => {
-    const [activeTab, setActiveTab] = useState<'agent' | 'listing' | 'personalities' | 'conversations' | 'marketing'>('agent');
+type TabId = 'agent' | 'listing' | 'personalities' | 'conversations' | 'marketing';
+
+const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentProfile: _agentProfile }) => {
+    const [activeTab, setActiveTab] = useState<TabId>('agent');
     const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     
@@ -78,7 +80,7 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
         setIsTesting(false);
     };
 
-    const tabs = [
+    const tabs: Array<{ id: TabId; label: string; icon: string }> = [
         { id: 'agent', label: 'Admin Agent Knowledge Base', icon: 'person' },
         { id: 'listing', label: 'Admin Listing Knowledge Base', icon: 'home' },
         { id: 'personalities', label: 'Admin AI Personalities', icon: 'psychology' },
@@ -101,7 +103,7 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as any)}
+                                    onClick={() => setActiveTab(tab.id)}
                                     className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${
                                         activeTab === tab.id
                                             ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'

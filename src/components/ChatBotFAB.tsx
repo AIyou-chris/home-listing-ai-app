@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import HelpSalesChatBotComponent from './HelpSalesChatBot';
+import HelpSalesChatBotComponent, { type LeadPayload, type SupportTicketPayload } from './HelpSalesChatBot';
+import { VoiceBubble } from './voice/VoiceBubble';
 import { ChatBotContext } from '../services/helpSalesChatBot';
 
 interface ChatBotFABProps {
   context: ChatBotContext;
-  onLeadGenerated?: (leadInfo: any) => void;
-  onSupportTicket?: (ticketInfo: any) => void;
+  onLeadGenerated?: (leadInfo: LeadPayload) => void;
+  onSupportTicket?: (ticketInfo: SupportTicketPayload) => void;
   position?: 'bottom-right' | 'bottom-left';
   className?: string;
 }
@@ -20,6 +21,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isVoiceView, setIsVoiceView] = useState(false);
 
   // Auto-show welcome message after a delay for new visitors
   useEffect(() => {
@@ -34,19 +36,25 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   }, [context]);
 
   const handleToggleChat = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen) {
-      setHasNewMessage(false);
-      setUnreadCount(0);
+    if (isOpen) {
+      setIsVoiceView(false);
     }
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setHasNewMessage(false);
+        setUnreadCount(0);
+      }
+      return next;
+    });
   };
 
-  const handleLeadGenerated = (leadInfo: any) => {
+  const handleLeadGenerated = (leadInfo: LeadPayload) => {
     onLeadGenerated?.(leadInfo);
     // Could show a success notification here
   };
 
-  const handleSupportTicket = (ticketInfo: any) => {
+  const handleSupportTicket = (ticketInfo: SupportTicketPayload) => {
     onSupportTicket?.(ticketInfo);
     // Could show a ticket created notification here
   };
@@ -75,24 +83,65 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
                   <p className="text-xs opacity-90">Here to help!</p>
                 </div>
               </div>
-              <button
-                onClick={handleToggleChat}
-                className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-1 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsVoiceView((prev) => !prev)}
+                  className="flex items-center justify-center h-8 w-8 rounded-full bg-white/15 hover:bg-white/25 transition-colors"
+                  aria-label={isVoiceView ? 'Back to chat view' : 'Flip to voice assistant'}
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {isVoiceView ? 'chat' : 'mic'}
+                  </span>
+                </button>
+                <button
+                  onClick={handleToggleChat}
+                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-1 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Chat Component */}
-            <div className="flex-1 min-h-0">
-              <HelpSalesChatBotComponent
-                context={context}
-                onLeadGenerated={handleLeadGenerated}
-                onSupportTicket={handleSupportTicket}
-                className="h-full rounded-none border-none shadow-none"
-              />
+            <div className="flex-1 min-h-0 relative">
+              <div className="relative h-full w-full" style={{ perspective: '2000px' }}>
+                <div
+                  className="absolute inset-0 transition-transform duration-500"
+                  style={{
+                    transformStyle: 'preserve-3d',
+                    transform: isVoiceView ? 'rotateY(180deg)' : 'rotateY(0deg)'
+                  }}
+                >
+                  <div
+                    className="absolute inset-0 bg-white"
+                    style={{ backfaceVisibility: 'hidden' }}
+                  >
+                    <HelpSalesChatBotComponent
+                      context={context}
+                      onLeadGenerated={handleLeadGenerated}
+                      onSupportTicket={handleSupportTicket}
+                      className="h-full rounded-none border-none shadow-none"
+                    />
+                  </div>
+                  <div
+                    className="absolute inset-0"
+                    style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                  >
+                    <VoiceBubble
+                      assistantName="AI Voice Concierge"
+                      sidekickId="demo-sales-sidekick"
+                      systemPrompt="Always guide the conversation toward demonstrating how HomeListingAI grows an agent's pipeline, and close with a clear next step."
+                      autoConnect={isVoiceView}
+                      showHeader={false}
+                      className="rounded-lg"
+                      onClose={() => setIsVoiceView(false)}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

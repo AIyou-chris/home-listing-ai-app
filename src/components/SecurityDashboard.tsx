@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SecurityService, useSecurity } from '../services/securityService';
 import { 
 	Shield, 
@@ -9,141 +9,245 @@ import {
 	Lock, 
 	Unlock,
 	Download,
-	Upload,
-	Eye,
 	Clock,
 	CheckCircle,
 	XCircle,
 	RefreshCw
 } from 'lucide-react';
 
-interface SecurityStatus {
-	auditStatus: any;
-	alertsStatus: any;
-	backupStatus: any;
-	lastUpdated: string;
+type TimestampLike = string | number | Date | { toDate?: () => Date };
+
+interface SecurityStatusSummary {
+  auditStatus?: { totalActions?: number } & Record<string, unknown>;
+  alertsStatus?: { total?: number } & Record<string, unknown>;
+  backupStatus?: { total?: number } & Record<string, unknown>;
+  lastUpdated?: string;
+  [key: string]: unknown;
 }
 
 interface AuditLog {
-	id: string;
-	action: string;
-	resourceType: string;
-	severity: string;
-	performedBy: string;
-	timestamp: any;
-	details: any;
+  id: string;
+  action: string;
+  resourceType: string;
+  severity: string;
+  performedBy: string;
+  timestamp: TimestampLike;
+  details: Record<string, unknown>;
 }
 
 interface SecurityAlert {
-	id: string;
-	alertType: string;
-	description: string;
-	severity: string;
-	timestamp: any;
-	resolved: boolean;
+  id: string;
+  alertType: string;
+  description: string;
+  severity: string;
+  timestamp: TimestampLike;
+  resolved: boolean;
 }
 
+interface BackupRecord {
+  id: string;
+  backupId: string;
+  backupType: string;
+  status: string;
+  totalDocuments: number;
+  startTime: TimestampLike;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const resolveTimestamp = (value: TimestampLike | undefined): Date => {
+  if (!value) {
+    return new Date();
+  }
+  if (typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
+    return value.toDate();
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  return new Date(value);
+};
+
+const formatTimestamp = (value: TimestampLike): string => {
+  const resolved = resolveTimestamp(value);
+  return Number.isNaN(resolved.valueOf()) ? '—' : resolved.toLocaleString();
+};
+
+const toStringOr = (value: unknown, fallback: string): string =>
+  typeof value === 'string' && value.trim().length > 0 ? value : fallback;
+
+const toNumberOr = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const asDetails = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
+
+const getArray = (value: unknown, key: string): unknown[] =>
+  isRecord(value) && Array.isArray(value[key]) ? (value[key] as unknown[]) : [];
+
+const getSecurityStatus = (value: unknown): SecurityStatusSummary | null =>
+  (isRecord(value) ? (value as SecurityStatusSummary) : null);
+
 const SecurityDashboard: React.FC = () => {
-	const [securityStatus, setSecurityStatus] = useState<SecurityStatus | null>(null);
-	const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-	const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
-	const [backupHistory, setBackupHistory] = useState<any[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [activeTab, setActiveTab] = useState('overview');
-	const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d'>('24h');
-	const { logAction } = useSecurity();
+  const [securityStatus, setSecurityStatus] = useState<SecurityStatusSummary | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
+  const [backupHistory, setBackupHistory] = useState<BackupRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d'>('24h');
+  const { logAction } = useSecurity();
 
-	const API_BASE = (import.meta as any)?.env?.VITE_API_URL || 'http://localhost:3002';
+  const API_BASE = import.meta.env?.VITE_API_URL ?? 'https://ailisitnghome-43boqi59o-ai-you.vercel.app';
 
-		useEffect(() => {
-			let cancelled = false;
-			const run = async () => {
-				await loadSecurityData(cancelled);
-				if (!cancelled) {
-					logAction('security_dashboard_accessed', 'security', { timeRange });
-				}
-			};
-			run();
-			return () => {
-				cancelled = true;
-			};
-		}, [timeRange]);
+  const mapAudit = useCallback((log: unknown): AuditLog => {
+    const record = isRecord(log) ? log : {};
+    const id = toStringOr(record.id ?? record.log_id, `${record.action ?? 'action'}_${record.created_at ?? Date.now()}`);
+    const timestamp = (record.timestamp ?? record.created_at) as TimestampLike | undefined;
+    return {
+      id,
+      action: toStringOr(record.action ?? record.event, 'unknown'),
+      resourceType: toStringOr(record.resourceType ?? record.resource_type, 'unknown'),
+      severity: toStringOr(record.severity, 'info'),
+      performedBy: toStringOr(record.performedBy ?? record.user_id, 'system'),
+      timestamp: timestamp ?? new Date().toISOString(),
+      details: asDetails(record.details)
+    };
+  }, []);
 
-		const loadSecurityData = async (cancelled?: boolean) => {
-			try {
-				if (!cancelled) setLoading(true);
+  const mapAlert = useCallback((alert: unknown): SecurityAlert => {
+    const record = isRecord(alert) ? alert : {};
+    const id = toStringOr(
+      record.id ?? record.alert_id,
+      `${record.alert_type ?? record.alertType ?? 'alert'}_${record.created_at ?? Date.now()}`
+    );
+    const timestamp = (record.timestamp ?? record.created_at) as TimestampLike | undefined;
+    return {
+      id,
+      alertType: toStringOr(record.alertType ?? record.alert_type, 'unknown'),
+      description: toStringOr(record.description, ''),
+      severity: toStringOr(record.severity, 'warning'),
+      timestamp: timestamp ?? new Date().toISOString(),
+      resolved: typeof record.resolved === 'boolean' ? record.resolved : false
+    };
+  }, []);
 
-				// Compute time window
-				const now = new Date();
-				const start = new Date(now);
-				switch (timeRange) {
-					case '1h': start.setHours(start.getHours() - 1); break;
-					case '24h': start.setHours(start.getHours() - 24); break;
-					case '7d': start.setDate(start.getDate() - 7); break;
-					case '30d': start.setDate(start.getDate() - 30); break;
-				}
+  const mapBackup = useCallback((backup: unknown): BackupRecord => {
+    const record = isRecord(backup) ? backup : {};
+    const id = toStringOr(record.id ?? record.backupId, `${record.created_at ?? Date.now()}`);
+    const startTime = (record.startTime ?? record.created_at) as TimestampLike | undefined;
+    return {
+      id,
+      backupId: toStringOr(record.backupId ?? record.id, 'unknown'),
+      backupType: toStringOr(record.backupType ?? record.backup_type, 'manual'),
+      status: toStringOr(record.status, 'completed'),
+      totalDocuments: toNumberOr(record.totalDocuments ?? record.total_documents, 0),
+      startTime: startTime ?? new Date().toISOString()
+    };
+  }, []);
 
-				// Fetch in parallel
-				const [statusRes, logsRes, alertsRes, backupsRes] = await Promise.all([
-					SecurityService.getSecurityStatus(),
-					SecurityService.getAuditLogs({ startDate: start.toISOString(), endDate: now.toISOString(), limit: 50 }),
-					SecurityService.getSecurityAlerts({ limit: 20 }),
-					SecurityService.getBackupHistory({ limit: 10 })
-				]);
+  const loadSecurityData = useCallback(
+    async (shouldCancel?: () => boolean) => {
+      const isCancelled = () => (shouldCancel ? shouldCancel() : false);
+      try {
+        if (!isCancelled()) setLoading(true);
 
-				// Mappers to normalize shapes
-				const mapAudit = (log: any): AuditLog => ({
-					id: log.id || log.log_id || `${log.action || 'action'}_${log.created_at || Date.now()}`,
-					action: log.action || log.event || 'unknown',
-					resourceType: log.resourceType || log.resource_type || 'unknown',
-					severity: log.severity || 'info',
-					performedBy: log.performedBy || log.user_id || 'system',
-					timestamp: log.timestamp || log.created_at || new Date().toISOString(),
-					details: log.details || {}
-				});
+        const now = new Date();
+        const start = new Date(now);
+        switch (timeRange) {
+          case '1h':
+            start.setHours(start.getHours() - 1);
+            break;
+          case '24h':
+            start.setHours(start.getHours() - 24);
+            break;
+          case '7d':
+            start.setDate(start.getDate() - 7);
+            break;
+          case '30d':
+            start.setDate(start.getDate() - 30);
+            break;
+        }
 
-				const mapAlert = (a: any): SecurityAlert => ({
-					id: a.id || `${a.alert_type || a.alertType || 'alert'}_${a.created_at || Date.now()}`,
-					alertType: a.alertType || a.alert_type || 'unknown',
-					description: a.description || '',
-					severity: a.severity || 'warning',
-					timestamp: a.timestamp || a.created_at || new Date().toISOString(),
-					resolved: typeof a.resolved === 'boolean' ? a.resolved : false
-				});
+        const [statusRes, logsRes, alertsRes, backupsRes] = await Promise.all([
+          SecurityService.getSecurityStatus(),
+          SecurityService.getAuditLogs({ startDate: start.toISOString(), endDate: now.toISOString(), limit: 50 }),
+          SecurityService.getSecurityAlerts({ limit: 20 }),
+          SecurityService.getBackupHistory({ limit: 10 })
+        ]);
 
-				const mapBackup = (b: any) => ({
-					id: b.id || b.backupId || `${b.created_at || Date.now()}`,
-					backupId: b.backupId || b.id || 'unknown',
-					backupType: b.backupType || b.backup_type || 'manual',
-					status: b.status || 'completed',
-					totalDocuments: b.totalDocuments || 0,
-					startTime: b.startTime || b.created_at || new Date().toISOString()
-				});
+        const mappedLogs: AuditLog[] = getArray(logsRes, 'auditLogs').map(mapAudit);
+        const mappedAlerts: SecurityAlert[] = getArray(alertsRes, 'alerts').map(mapAlert);
+        const mappedBackups: BackupRecord[] = getArray(backupsRes, 'backups').map(mapBackup);
 
-				const mappedLogs: AuditLog[] = (logsRes?.auditLogs || []).map(mapAudit);
-				const mappedAlerts: SecurityAlert[] = (alertsRes?.alerts || []).map(mapAlert);
-				const mappedBackups = (backupsRes?.backups || []).map(mapBackup);
+        const derivedStatus: SecurityStatusSummary = {
+          auditStatus: { totalActions: mappedLogs.length },
+          alertsStatus: { total: mappedAlerts.length },
+          backupStatus: { total: mappedBackups.length },
+          lastUpdated: new Date().toISOString()
+        };
 
-				// Derive a minimal status summary for header metrics if service doesn't provide totals
-				const derivedStatus: SecurityStatus = {
-					auditStatus: { totalActions: mappedLogs.length },
-					alertsStatus: { total: mappedAlerts.length },
-					backupStatus: { total: mappedBackups.length },
-					lastUpdated: new Date().toISOString()
-				};
+        if (!isCancelled()) {
+          const statusSummary = getSecurityStatus(statusRes);
+          const mergedStatus: SecurityStatusSummary = statusSummary
+            ? {
+                ...statusSummary,
+                auditStatus: {
+                  ...(statusSummary.auditStatus ?? {}),
+                  totalActions:
+                    statusSummary.auditStatus?.totalActions ?? derivedStatus.auditStatus?.totalActions
+                },
+                alertsStatus: {
+                  ...(statusSummary.alertsStatus ?? {}),
+                  total: statusSummary.alertsStatus?.total ?? derivedStatus.alertsStatus?.total
+                },
+                backupStatus: {
+                  ...(statusSummary.backupStatus ?? {}),
+                  total: statusSummary.backupStatus?.total ?? derivedStatus.backupStatus?.total
+                },
+                lastUpdated: statusSummary.lastUpdated ?? derivedStatus.lastUpdated
+              }
+            : derivedStatus;
+          setSecurityStatus(mergedStatus);
+          setAuditLogs(mappedLogs);
+          setSecurityAlerts(mappedAlerts);
+          setBackupHistory(mappedBackups);
+        }
+      } catch (error) {
+        console.error('Error loading security data:', error);
+      } finally {
+        if (!isCancelled()) setLoading(false);
+      }
+    },
+    [mapAlert, mapAudit, mapBackup, timeRange]
+  );
 
-				if (!cancelled) {
-					setSecurityStatus(statusRes || derivedStatus);
-					setAuditLogs(mappedLogs);
-					setSecurityAlerts(mappedAlerts);
-					setBackupHistory(mappedBackups);
-				}
-			} catch (error) {
-				console.error('Error loading security data:', error);
-			} finally {
-				if (!cancelled) setLoading(false);
-			}
-		};
+  const logDashboardAccess = useCallback(() => {
+    logAction('security_dashboard_accessed', 'security', { timeRange });
+  }, [logAction, timeRange]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const shouldCancel = () => cancelled;
+
+    const run = async () => {
+      await loadSecurityData(shouldCancel);
+      if (!shouldCancel()) {
+        logDashboardAccess();
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadSecurityData, logDashboardAccess]);
 
 	const handleCreateBackup = async () => {
 		try {
@@ -423,7 +527,7 @@ const SecurityDashboard: React.FC = () => {
 													</span>
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-													{new Date(log.timestamp?.toDate?.() || log.timestamp).toLocaleString()}
+													{formatTimestamp(log.timestamp)}
 												</td>
 											</tr>
 										))}
@@ -470,7 +574,7 @@ const SecurityDashboard: React.FC = () => {
 														</div>
 														<p className="text-gray-600 mb-2">{alert.description}</p>
 														<p className="text-sm text-gray-500">
-															{new Date(alert.timestamp?.toDate?.() || alert.timestamp).toLocaleString()}
+															{formatTimestamp(alert.timestamp)}
 														</p>
 													</div>
 													{!alert.resolved && (
@@ -547,7 +651,7 @@ const SecurityDashboard: React.FC = () => {
 														{backup.totalDocuments || 0}
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-														{new Date(backup.startTime?.toDate?.() || backup.startTime).toLocaleString()}
+														{formatTimestamp(backup.startTime)}
 													</td>
 												</tr>
 											))}

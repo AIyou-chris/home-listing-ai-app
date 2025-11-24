@@ -14,6 +14,20 @@ const AnalyticsTest: React.FC = () => {
 		setTestResults([]);
 
 		try {
+			const describeResult = (value: unknown) => {
+				if (Array.isArray(value)) {
+					return `items: ${value.length}`;
+				}
+				if (value && typeof value === 'object') {
+					const summary = Object.entries(value as Record<string, unknown>)
+						.slice(0, 3)
+						.map(([key, entry]) => `${key}: ${typeof entry}`)
+						.join(', ');
+					return summary || 'object';
+				}
+				return String(value ?? 'n/a');
+			};
+
 			// Test 1: Track interaction
 			addResult('Testing trackInteraction...');
 			await analyticsService.trackInteraction({
@@ -39,6 +53,7 @@ const AnalyticsTest: React.FC = () => {
 				endDate: new Date().toISOString()
 			});
 			addResult('✅ calculateMetrics successful');
+			addResult(`   ↪ metrics: ${describeResult(metricsResult)}`);
 
 			// Test 5: Generate report
 			addResult('Testing generateReport...');
@@ -48,6 +63,7 @@ const AnalyticsTest: React.FC = () => {
 				endDate: new Date().toISOString()
 			});
 			addResult('✅ generateReport successful');
+			addResult(`   ↪ report: ${describeResult(reportResult)}`);
 
 			// Test 6: Export data
 			addResult('Testing exportData...');
@@ -58,6 +74,7 @@ const AnalyticsTest: React.FC = () => {
 				endDate: new Date().toISOString()
 			});
 			addResult('✅ exportData successful');
+			addResult(`   ↪ export: ${describeResult(exportResult)}`);
 
 			addResult('🎉 All tests completed successfully!');
 

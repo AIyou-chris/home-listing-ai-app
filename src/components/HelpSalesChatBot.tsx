@@ -2,10 +2,27 @@ import React, { useState, useRef, useEffect } from 'react';
 import { HelpSalesChatBot, ChatBotResponse, ChatBotContext, ChatBotMode } from '../services/helpSalesChatBot';
 import { ChatMessage } from '../types';
 
+export interface LeadPayload {
+  message: string;
+  response: string;
+  priority: ChatBotResponse['priority'];
+  category: ChatBotResponse['category'];
+  timestamp: Date;
+}
+
+export interface SupportTicketPayload {
+  message: string;
+  response: string;
+  priority: ChatBotResponse['priority'];
+  category: ChatBotResponse['category'];
+  needsHandoff: boolean;
+  timestamp: Date;
+}
+
 interface HelpSalesChatBotProps {
   context: ChatBotContext;
-  onLeadGenerated?: (leadInfo: any) => void;
-  onSupportTicket?: (ticketInfo: any) => void;
+  onLeadGenerated?: (leadInfo: LeadPayload) => void;
+  onSupportTicket?: (ticketInfo: SupportTicketPayload) => void;
   className?: string;
   initialMode?: ChatBotMode;
 }

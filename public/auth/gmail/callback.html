@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gmail OAuth Callback</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #f8fafc;
+        }
+        .callback-container {
+            text-align: center;
+            padding: 2rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e5e7eb;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="callback-container">
+        <div class="spinner"></div>
+        <h3>Connecting Gmail...</h3>
+        <p id="status">Please wait while we complete the connection.</p>
+    </div>
+
+    <script>
+        (function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('error');
+            const statusEl = document.getElementById('status');
+
+            if (error) {
+                // OAuth error
+                statusEl.textContent = 'Connection failed: ' + error;
+                statusEl.className = 'error';
+                
+                if (window.opener) {
+                    window.opener.postMessage({
+                        type: 'GMAIL_OAUTH_ERROR',
+                        error: error
+                    }, window.location.origin);
+                }
+                
+                setTimeout(() => window.close(), 3000);
+                return;
+            }
+
+            if (code) {
+                // OAuth success
+                statusEl.textContent = 'Gmail connected successfully!';
+                statusEl.className = 'success';
+                
+                if (window.opener) {
+                    window.opener.postMessage({
+                        type: 'GMAIL_OAUTH_SUCCESS',
+                        code: code
+                    }, window.location.origin);
+                }
+                
+                setTimeout(() => window.close(), 2000);
+                return;
+            }
+
+            // No code or error - shouldn't happen
+            statusEl.textContent = 'Invalid callback parameters';
+            statusEl.className = 'error';
+            setTimeout(() => window.close(), 3000);
+        })();
+    </script>
+</body>
+</html>

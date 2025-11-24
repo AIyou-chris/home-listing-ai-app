@@ -10,7 +10,7 @@ We've successfully migrated the AI functionality from Google's Gemini API to Ope
 
 ## Implementation Details
 
-### Backend (Firebase Functions)
+### Backend (Server Functions)
 
 1. Created new OpenAI-based functions:
    - `continueConversation`: For AI chat using GPT-5, with fallbacks to GPT-4 and GPT-3.5-turbo
@@ -42,25 +42,16 @@ Created a test script (`test-openai.ts`) to verify:
 
 ## Configuration
 
-The OpenAI API key should never be committed to source control. Store it in environment variables or use Firebase Functions config. Examples:
+The OpenAI API key should never be committed to source control. Store it in environment variables or a secure secrets manager. Examples:
 
 - Local development: add the key to a local `.env` file (not committed) and load it with your dev tools.
-- Production (recommended): set the key in Firebase Functions config:
-
-```bash
-firebase functions:config:set openai.key="YOUR_OPENAI_API_KEY"
-```
-
-Then in your functions, access it via `functions.config().openai?.key`.
+- Production: configure the key using your hosting provider's secrets manager (e.g., Vercel environment variables, Cloud Run secrets, Netlify environment variables).
 
 If you previously exposed a key in this repository or elsewhere, rotate the key immediately.
 
 ## Deployment
 
-The functions are deployed to Firebase using:
-```bash
-firebase deploy --only functions:continueConversation,functions:generateSpeech
-```
+Deploy your server functions using the workflow provided by your hosting provider (e.g., `vercel deploy`, `gcloud run deploy`, `netlify deploy`).
 
 ## Next Steps
 

@@ -6,6 +6,15 @@
 /dist
 /functions/lib
 
+# Backend dependencies (prevent accidental commits)
+backend/node_modules/
+
+# Local logs directory
+/logs/
+
+# Media samples
+*.mp3
+
 # Firebase
 .firebase/
 hosting..cache
@@ -31,3 +40,10 @@ yarn-error.log*
 *.sln
 *.sw?.env
 .env.local
+.vercel
+
+# Local Netlify folder
+.netlify
+
+.DS_Store
+backend/data/
