@@ -6251,8 +6251,8 @@ app.post('/api/properties', async (req, res) => {
   }
 })
 
-app.listen(port, () => {
-  console.log(`🚀 AI Server running on http://localhost:${port} (NEW PORT!)`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`🚀 AI Server running on http://0.0.0.0:${port}`);
   console.log('📝 Available endpoints:');
 console.log('   POST /api/continue-conversation');
 console.log('   POST /api/generate-speech');
