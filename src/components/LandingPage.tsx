@@ -793,7 +793,13 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
 
                 {/* Market Crash Survival Story */}
                 <div className="mt-12 max-w-3xl mx-auto animate-fade-in-up animation-delay-300">
-                    <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl p-8 border-2 border-blue-200 shadow-lg">
+                    <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-2xl p-8 border-2 border-blue-200 shadow-lg relative overflow-hidden">
+                        {/* Subtle background pattern */}
+                        <div className="absolute inset-0 opacity-5">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full blur-2xl"></div>
+                            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-pink-400 to-blue-400 rounded-full blur-2xl"></div>
+                        </div>
+                        <div className="relative z-10">
                         <div className="prose prose-lg max-w-none">
                             <p className="text-slate-700 leading-relaxed mb-4">
                                 I lived through the 2007 crash. And again in 2012. I know exactly what it feels like when deals stall, leads dry up, and every dollar needs to work overtime.
@@ -811,17 +817,12 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                                 * Price subject to change. Lock in this rate today.
                             </p>
                         </div>
+                        </div>
                     </div>
                 </div>
                 <div className="mt-16 flex justify-center animate-fade-in-up animation-delay-500">
                     {/* Single Plan */}
                     <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform hover:scale-105 transition-all duration-300 animate-fade-in-up glow max-w-md">
-                        {/* Special Pricing Badge */}
-                        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                            <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 px-6 py-2 rounded-full text-sm font-bold shadow-lg animate-pulse">
-                                🔥 Limited Time: $110 OFF
-                            </span>
-                        </div>
                         <div className="flex-grow">
                             <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
                             <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
