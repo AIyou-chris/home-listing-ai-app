@@ -635,8 +635,84 @@ const AIAppShowcaseSection: React.FC = () => {
                     </p>
                 </div>
                 <div className="mt-16 grid lg:grid-cols-2 gap-16 items-center animate-fade-in-up animation-delay-400">
-                    {/* Demo embed removed for now */}
-                    <div className="hidden lg:block"></div>
+                    {/* Left Column - Listing App Preview */}
+                    <div className="flex justify-center lg:justify-end animate-fade-in-left">
+                        <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden transform hover:scale-105 transition-all duration-300">
+                            {/* Property Image */}
+                            <div className="relative">
+                                <img 
+                                    src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&auto=format&fit=crop&q=80" 
+                                    alt="Modern home" 
+                                    className="w-full h-48 object-cover"
+                                />
+                                <div className="absolute bottom-2 left-2 bg-slate-900/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                                    I'M REALTORS®
+                                </div>
+                            </div>
+                            
+                            {/* Property Details */}
+                            <div className="p-6">
+                                <h3 className="text-xl font-bold text-slate-900 mb-2">Stunning Mid-Century Modern in Silver Lake</h3>
+                                <div className="flex items-center gap-1 text-slate-600 mb-4">
+                                    <span className="material-symbols-outlined text-lg">location_on</span>
+                                </div>
+                                <div className="text-3xl font-bold text-green-600 mb-6">$500,000.00</div>
+                                
+                                {/* Property Stats */}
+                                <div className="grid grid-cols-3 gap-4 mb-6 bg-slate-50 rounded-xl p-4">
+                                    <div className="text-center">
+                                        <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-blue-600">bed</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-slate-900">0</div>
+                                        <div className="text-xs text-slate-600">Bedrooms</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-blue-600">bathtub</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-slate-900">0</div>
+                                        <div className="text-xs text-slate-600">Bathrooms</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-blue-600">square_foot</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-slate-900">0</div>
+                                        <div className="text-xs text-slate-600">Sq Ft</div>
+                                    </div>
+                                </div>
+                                
+                                {/* CTA Button */}
+                                <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 mb-4">
+                                    <span className="material-symbols-outlined">mic</span>
+                                    Talk to the Home Now
+                                </button>
+                                
+                                {/* Action Icons */}
+                                <div className="grid grid-cols-4 gap-2">
+                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <span className="material-symbols-outlined text-blue-600">event</span>
+                                        <span className="text-xs text-slate-600">Showings</span>
+                                    </button>
+                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <span className="material-symbols-outlined text-blue-600">bookmark</span>
+                                        <span className="text-xs text-slate-600">Save</span>
+                                    </button>
+                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <span className="material-symbols-outlined text-blue-600">chat</span>
+                                        <span className="text-xs text-slate-600">Contact</span>
+                                    </button>
+                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <span className="material-symbols-outlined text-blue-600">share</span>
+                                        <span className="text-xs text-slate-600">Share</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Right Column - Features */}
                     <div className="space-y-8 animate-fade-in-right">
                         {highlights.map((item, index) => (
                             <div key={item.title} className="flex items-start gap-5 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 
