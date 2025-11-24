@@ -15,7 +15,7 @@ module.exports = ({
   stripePriceId,
   stripeProductName = 'AI You Agent Subscription',
   stripeCurrency = 'usd',
-  stripeDefaultAmountCents = 5900,
+  stripeDefaultAmountCents = 8900,
   paypalClientId,
   paypalClientSecret,
   paypalEnv = 'sandbox',

@@ -138,7 +138,7 @@ This is your final reminder - your trial ends tomorrow at midnight.
 
 💳 Simple Upgrade Process:
 • Click the upgrade button in your dashboard
-• Choose your plan (starting at $59/month)
+• Choose your plan (starting at $89/month)
 • Continue using all features immediately
 
 Questions? Reply to this email - I'm here to help!
