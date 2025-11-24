@@ -761,6 +761,13 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                                 <PlanFeature dark>Advanced analytics dashboard</PlanFeature>
                                 <PlanFeature dark>Your own trained GPT</PlanFeature>
                                 <PlanFeature dark>Automated follow-up sequences</PlanFeature>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined text-white text-xl mt-0.5">check_circle</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-slate-100">AI conversations auto-detect & respond in 12 languages</span>
+                                        <span className="material-symbols-outlined text-yellow-300 text-lg">language</span>
+                                    </div>
+                                </li>
                                 <PlanFeature dark>Auto leads to closing</PlanFeature>
                                 <PlanFeature dark>Need more? We do custom programs</PlanFeature>
                             </ul>
