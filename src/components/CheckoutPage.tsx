@@ -187,38 +187,23 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                   </div>
 
                   <div className="p-5 border border-slate-200 rounded-xl">
-                    <h2 className="font-semibold text-slate-800">Secure payment</h2>
+                    <h2 className="font-semibold text-slate-800">Secure payment with PayPal</h2>
                     <p className="text-sm text-slate-600 mt-2">
-                      Choose the processor that works best for you. You&apos;ll be redirected to a secure hosted checkout page.
+                      You&apos;ll be redirected to PayPal&apos;s secure checkout page to complete your payment.
                     </p>
-                    <div className="mt-6 space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => handleCheckout('stripe')}
-                        disabled={isCreatingSession}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-slate-300 text-sm font-semibold transition ${isCreatingSession ? 'opacity-70 cursor-not-allowed' : 'hover:border-indigo-500 hover:text-indigo-600'}`}
-                      >
-                        <span className="material-symbols-outlined text-base">credit_card</span>
-                        {isCreatingSession ? 'Opening checkout...' : 'Pay with Stripe'}
-                      </button>
+                    <div className="mt-6">
                       <button
                         type="button"
                         onClick={() => handleCheckout('paypal')}
                         disabled={isCreatingSession}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-slate-300 text-sm font-semibold transition ${isCreatingSession ? 'opacity-70 cursor-not-allowed' : 'hover:border-indigo-500 hover:text-indigo-600'}`}
-                      >
-                        <span className="material-symbols-outlined text-base">account_balance</span>
-                        {isCreatingSession ? 'Opening checkout...' : 'Pay with PayPal'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCheckout(undefined)}
-                        disabled={isCreatingSession}
                         className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold shadow ${isCreatingSession ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-500'}`}
                       >
-                        <span className="material-symbols-outlined text-base">auto_mode</span>
-                        {isCreatingSession ? 'Opening checkout...' : 'Use recommended provider'}
+                        <span className="material-symbols-outlined text-base">account_balance</span>
+                        {isCreatingSession ? 'Opening checkout...' : 'Continue to PayPal Checkout'}
                       </button>
+                      <p className="text-xs text-slate-500 mt-3 text-center">
+                        Secure payment processing by PayPal
+                      </p>
                     </div>
                   </div>
                 </div>
