@@ -813,7 +813,10 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                             <p className="text-slate-700 leading-relaxed mt-4">
                                 Not as a gimmick. Not for mass adoption. But because I remember how brutal these markets get. And I know smart tech—priced right—can be the difference between treading water and taking territory.
                             </p>
-                            <p className="text-sm text-slate-500 italic mt-6">
+                            <p className="text-slate-800 font-medium mt-6">
+                                — Chris Potter, Founder
+                            </p>
+                            <p className="text-sm text-slate-500 italic mt-4">
                                 * Price subject to change. Lock in this rate today.
                             </p>
                         </div>
