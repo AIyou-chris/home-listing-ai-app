@@ -63,6 +63,8 @@ const AICardPage: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
 
   const [activeTab, setActiveTab] = useState<'edit' | 'preview' | 'qr-codes'>('edit');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -416,6 +418,8 @@ const AICardPage: React.FC = () => {
       const shareData = await shareAICard(method, form.id);
       
       if (method === 'copy') {
+        setShareUrl(shareData.url);
+        setShowShareModal(true);
         await navigator.clipboard.writeText(shareData.url);
         console.log('✅ AI Card URL copied to clipboard');
       } else {
@@ -1054,6 +1058,66 @@ const AICardPage: React.FC = () => {
           <QRCodeManagementPage />
         )}
       </div>
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-fade-in">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Card URL Copied!</h3>
+              <p className="text-gray-600">Share this link to showcase your AI business card</p>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <div className="flex items-center space-x-2">
+                <input 
+                  type="text" 
+                  value={shareUrl}
+                  readOnly
+                  className="flex-1 bg-transparent text-sm text-gray-700 outline-none"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareUrl);
+                  }}
+                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <button
+                onClick={() => window.open(`sms:?body=${encodeURIComponent(shareUrl)}`, '_blank')}
+                className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <Mail className="w-5 h-5 text-gray-700" />
+                <span className="text-sm font-medium text-gray-700">Text</span>
+              </button>
+              <button
+                onClick={() => window.open(`mailto:?body=${encodeURIComponent(shareUrl)}`, '_blank')}
+                className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <Mail className="w-5 h-5 text-gray-700" />
+                <span className="text-sm font-medium text-gray-700">Email</span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowShareModal(false)}
+              className="w-full py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
