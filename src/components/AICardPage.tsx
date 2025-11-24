@@ -1,20 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageCircle, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import QRCodeManagementPage from './QRCodeManagementPage';
 import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
 import { setPreferredLanguage } from '../services/languagePreferenceService';
-import { continueConversation } from '../services/openaiService';
 import { notifyProfileChange } from '../services/agentProfileService';
 
 type EditableElement = HTMLInputElement | HTMLTextAreaElement;
 
 // Use the AICardProfile type from the service
 type AgentProfile = AICardProfile;
-
-const buildAssistantGreeting = (fullName?: string | null) =>
-  fullName && fullName.trim().length > 0
-    ? `Hi! I'm ${fullName.trim()}'s AI assistant. How can I help you today?`
-    : "Hi! I'm your AI assistant. How can I help you today?";
 
 const createEmptySocialLinks = (): AgentProfile['socialMedia'] => ({
   facebook: '',
@@ -69,14 +63,8 @@ const AICardPage: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [chatMessages, setChatMessages] = useState<Array<{sender: 'user' | 'ai'; text: string}>>([
-    { sender: 'ai', text: buildAssistantGreeting(form.fullName) }
-  ]);
-  const [chatInput, setChatInput] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'edit' | 'preview' | 'qr-codes'>('edit');
-  const [showAISidekick, setShowAISidekick] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     // Check if we're on mobile (screen width < 768px)
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -196,9 +184,6 @@ const AICardPage: React.FC = () => {
         setForm(loadedProfile);
         serverProfileRef.current = loadedProfile;
         setHasUnsavedChanges(false);
-        setChatMessages([
-          { sender: 'ai', text: buildAssistantGreeting(loadedProfile.fullName) }
-        ]);
       } catch (error) {
         console.error('Failed to load AI Card profile:', error);
       } finally {
@@ -424,32 +409,6 @@ const AICardPage: React.FC = () => {
     }
   };
 
-  // Handle AI Chat
-  const handleChatSend = async () => {
-    if (!chatInput.trim() || isChatLoading) return;
-    
-    const userMessage = { sender: 'user' as const, text: chatInput };
-    setChatMessages(prev => [...prev, userMessage]);
-    setChatInput('');
-    setIsChatLoading(true);
-    
-    try {
-      const aiResponse = await continueConversation([
-        { sender: 'system', text: `You are ${form.fullName}'s AI assistant. Help visitors with real estate questions. Be professional and helpful.` },
-        { sender: 'user', text: chatInput }
-      ], 'agent');
-      
-      const aiMessage = { sender: 'ai' as const, text: aiResponse };
-      setChatMessages(prev => [...prev, aiMessage]);
-    } catch (error) {
-      console.error('Chat error:', error);
-      const errorMessage = { sender: 'ai' as const, text: 'Sorry, I had trouble processing that. Please try again.' };
-      setChatMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
-
   // Handle sharing
   const handleShare = async (method: string) => {
     try {
@@ -628,70 +587,6 @@ const AICardPage: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {/* AI Sidekick Chat Bubble */}
-        <button
-          onClick={() => setShowAISidekick(!showAISidekick)}
-          className="absolute bottom-4 right-4 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
-          style={{ backgroundColor: form.brandColor }}
-        >
-          <MessageCircle className="w-6 h-6 text-white" />
-        </button>
-
-        {/* AI Chat Interface */}
-        {showAISidekick && (
-          <div className="absolute bottom-20 right-4 w-80 h-96 bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
-            {/* Chat Header */}
-            <div 
-              className="p-4 text-white"
-              style={{ backgroundColor: form.brandColor }}
-            >
-              <h3 className="font-semibold">AI Assistant</h3>
-              <p className="text-sm opacity-90">Ask me about properties!</p>
-            </div>
-            
-            {/* Chat Messages */}
-            <div className="flex-1 p-4 space-y-3 overflow-y-auto">
-              {chatMessages.map((message, index) => (
-                <div key={index} className={`rounded-lg p-3 max-w-xs ${
-                  message.sender === 'ai' 
-                    ? 'bg-gray-100' 
-                    : 'bg-blue-500 text-white ml-auto'
-                }`}>
-                  <p className="text-sm">{message.text}</p>
-                </div>
-              ))}
-              {isChatLoading && (
-                <div className="bg-gray-100 rounded-lg p-3 max-w-xs">
-                  <p className="text-sm">Typing...</p>
-                </div>
-              )}
-            </div>
-            
-            {/* Chat Input */}
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleChatSend()}
-                  placeholder="Type your message..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={isChatLoading}
-                />
-                <button 
-                  onClick={handleChatSend}
-                  disabled={isChatLoading || !chatInput.trim()}
-                  className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-                  style={{ backgroundColor: form.brandColor }}
-                >
-                  Send
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
