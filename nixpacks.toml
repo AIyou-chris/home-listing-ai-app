@@ -2,10 +2,10 @@
 nixPkgs = ['nodejs_18', 'npm-9_x']
 
 [phases.install]
-cmds = ['npm ci --production']
+cmds = ['cd backend && npm install']
 
 [phases.build]
 cmds = []
 
 [start]
-cmd = 'node server.cjs'
+cmd = 'cd backend && node server.cjs'
