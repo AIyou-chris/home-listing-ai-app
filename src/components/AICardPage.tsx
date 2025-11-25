@@ -4,6 +4,7 @@ import QRCodeManagementPage from './QRCodeManagementPage';
 import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
 import { setPreferredLanguage } from '../services/languagePreferenceService';
 import { notifyProfileChange } from '../services/agentProfileService';
+import { DEMO_AI_CARD_PROFILE } from '../constants';
 
 type EditableElement = HTMLInputElement | HTMLTextAreaElement;
 
@@ -58,13 +59,14 @@ const mapToCentralProfile = (profile: AgentProfile) => ({
   updated_at: profile.updated_at
 });
 
-const AICardPage: React.FC = () => {
+const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) => {
   const [form, setForm] = useState<AgentProfile>(() => createDefaultProfile());
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [showDemoNotice, setShowDemoNotice] = useState(isDemoMode);
 
   const [activeTab, setActiveTab] = useState<'edit' | 'preview' | 'qr-codes'>('edit');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -129,6 +131,13 @@ const AICardPage: React.FC = () => {
   }, [hasUnsavedChanges]);
 
   const persistForm = useCallback(async (overrides?: Partial<AgentProfile>) => {
+    if (isDemoMode) {
+      // In demo mode, just update local state without saving
+      console.log('[AI Card Demo] Changes not saved in demo mode');
+      setShowDemoNotice(true);
+      setTimeout(() => setShowDemoNotice(false), 3000);
+      return form;
+    }
     setIsSaving(true);
     try {
       const base = serverProfileRef.current
@@ -175,17 +184,24 @@ const AICardPage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [form]);
+  }, [form, isDemoMode]);
 
   // Load profile on component mount
   useEffect(() => {
     const loadProfile = async () => {
       try {
         setIsLoading(true);
-        const loadedProfile = await getAICardProfile();
-        setForm(loadedProfile);
-        serverProfileRef.current = loadedProfile;
-        setHasUnsavedChanges(false);
+        if (isDemoMode) {
+          // Load demo data in demo mode
+          setForm(DEMO_AI_CARD_PROFILE as AgentProfile);
+          serverProfileRef.current = DEMO_AI_CARD_PROFILE as AgentProfile;
+          setHasUnsavedChanges(false);
+        } else {
+          const loadedProfile = await getAICardProfile();
+          setForm(loadedProfile);
+          serverProfileRef.current = loadedProfile;
+          setHasUnsavedChanges(false);
+        }
       } catch (error) {
         console.error('Failed to load AI Card profile:', error);
       } finally {
@@ -194,7 +210,7 @@ const AICardPage: React.FC = () => {
     };
 
     loadProfile();
-  }, []);
+  }, [isDemoMode]);
 
   useEffect(() => {
     if (form.language) {
@@ -597,14 +613,22 @@ const AICardPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Demo Mode Notice */}
+      {showDemoNotice && (
+        <div className="fixed top-4 right-4 z-50 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
+          <span className="material-symbols-outlined">info</span>
+          <span className="font-medium">Demo Mode: Changes are not saved</span>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
           {/* Title Section */}
           <div className="text-center lg:text-left">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Business Card</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Business Card {isDemoMode && <span className="text-sm font-normal text-blue-600">(Demo)</span>}</h1>
             <p className="text-sm sm:text-base text-gray-600 mt-1">
-              Create your interactive AI-powered business card
+              {isDemoMode ? 'Explore the AI Business Card features - changes won\'t be saved' : 'Create your interactive AI-powered business card'}
               {isSaving && <span className="text-blue-600 ml-2">• Saving...</span>}
               {isLoading && <span className="text-blue-600 ml-2">• Loading...</span>}
             </p>

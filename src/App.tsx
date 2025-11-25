@@ -1076,7 +1076,7 @@ const App: React.FC = () => {
 					case 'ai-conversations':
 						return <AIConversationsPage />;
 					case 'ai-card':
-						return <AICardPage />;
+						return <AICardPage isDemoMode={isDemoMode} />;
 					case 'knowledge-base': 
 						return <EnhancedAISidekicksHub />;
 					case 'ai-training':

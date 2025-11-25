@@ -20,6 +20,28 @@ export const SAMPLE_AGENT: AgentProfile = {
   bio: 'With over 15 years of experience in the luxury market, Sarah Johnson combines deep market knowledge with a passion for client success. Her dedication and expertise make her a trusted advisor for buyers and sellers of distinguished properties.'
 };
 
+export const DEMO_AI_CARD_PROFILE = {
+  id: 'demo-ai-card',
+  fullName: 'Sarah Johnson',
+  professionalTitle: 'Luxury Real Estate Specialist',
+  company: 'Prestige Properties',
+  phone: '(305) 555-1234',
+  email: 'sarah.j@prestigeprop.com',
+  website: 'https://prestigeproperties.com',
+  bio: 'With over 15 years of experience in the luxury market, Sarah Johnson combines deep market knowledge with a passion for client success. Her dedication and expertise make her a trusted advisor for buyers and sellers of distinguished properties.',
+  brandColor: '#0ea5e9',
+  language: 'en',
+  socialMedia: {
+    facebook: 'https://facebook.com/sarahjohnsonrealestate',
+    instagram: 'https://instagram.com/sarahjohnson_realtor',
+    twitter: 'https://twitter.com/sarahjrealtor',
+    linkedin: 'https://linkedin.com/in/sarah-johnson-realtor',
+    youtube: 'https://youtube.com/@sarahjohnsonhomes'
+  },
+  headshot: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=400&h=400&auto=format&fit=crop',
+  logo: 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?q=80&w=400&h=160&auto=format&fit=crop&crop=center'
+};
+
 export const SAMPLE_SCHOOLS: School[] = [
   { name: 'Bayview Elementary School', type: 'Public', grades: 'K-5', rating: 4.5, distance: 1.2 },
   { name: 'Sunset Middle School', type: 'Public', grades: '6-8', rating: 4.2, distance: 2.5 },
