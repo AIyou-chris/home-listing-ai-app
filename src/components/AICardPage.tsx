@@ -613,14 +613,6 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Demo Mode Notice */}
-      {showDemoNotice && (
-        <div className="fixed top-4 right-4 z-50 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
-          <span className="material-symbols-outlined">info</span>
-          <span className="font-medium">Demo Mode: Changes are not saved</span>
-        </div>
-      )}
-      
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
@@ -710,16 +702,28 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       {/* Help / Pro Tips */}
       <div className="p-4 sm:p-6">
         <div className="max-w-screen-2xl mx-auto">
-          <button
-            type="button"
-            onClick={() => setIsHelpPanelOpen(prev => !prev)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
-            aria-expanded={isHelpPanelOpen}
-          >
-            <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
-            {isHelpPanelOpen ? 'Hide AI Card Tips' : 'Show AI Card Tips'}
-            <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsHelpPanelOpen(prev => !prev)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+              aria-expanded={isHelpPanelOpen}
+            >
+              <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
+              {isHelpPanelOpen ? 'Hide AI Card Tips' : 'Show AI Card Tips'}
+              <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
+            </button>
+            {isDemoMode && (
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                showDemoNotice 
+                  ? 'bg-blue-500 text-white shadow-md' 
+                  : 'bg-blue-50 text-blue-700 border border-blue-100'
+              }`}>
+                <span className="material-symbols-outlined text-sm">info</span>
+                <span>Demo Mode: Changes not saved</span>
+              </div>
+            )}
+          </div>
           {isHelpPanelOpen && (
             <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
               <div>
@@ -1079,7 +1083,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
           </div>
         ) : (
           // QR Codes Management
-          <QRCodeManagementPage />
+          <QRCodeManagementPage isDemoMode={isDemoMode} />
         )}
       </div>
 

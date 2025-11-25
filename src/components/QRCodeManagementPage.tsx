@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { QrCode, Plus, Eye, Download, Trash2, Edit3 } from 'lucide-react';
 import {
   listAICardQRCodes,
@@ -18,7 +18,46 @@ const emptyEditorState: QRCodeEditorState = {
   destinationUrl: ''
 };
 
-const QRCodeManagementPage: React.FC = () => {
+const DEMO_QR_CODES: AICardQRCode[] = [
+  {
+    id: 'demo-qr-1',
+    label: 'Business Card',
+    destinationUrl: 'https://homelistingai.com/ai-card/sarah-johnson',
+    qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://homelistingai.com/ai-card/sarah-johnson',
+    totalScans: 127,
+    createdAt: '2025-11-01T10:00:00Z',
+    lastScannedAt: '2025-11-24T15:30:00Z'
+  },
+  {
+    id: 'demo-qr-2',
+    label: 'Open House Signage',
+    destinationUrl: 'https://homelistingai.com/ai-card/sarah-johnson?ref=openhouse',
+    qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://homelistingai.com/ai-card/sarah-johnson?ref=openhouse',
+    totalScans: 89,
+    createdAt: '2025-10-15T14:20:00Z',
+    lastScannedAt: '2025-11-23T11:45:00Z'
+  },
+  {
+    id: 'demo-qr-3',
+    label: 'Property Flyer',
+    destinationUrl: 'https://homelistingai.com/property/sunset-blvd-2847',
+    qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://homelistingai.com/property/sunset-blvd-2847',
+    totalScans: 234,
+    createdAt: '2025-09-20T09:15:00Z',
+    lastScannedAt: '2025-11-25T08:20:00Z'
+  },
+  {
+    id: 'demo-qr-4',
+    label: 'Email Signature',
+    destinationUrl: 'https://homelistingai.com/ai-card/sarah-johnson?ref=email',
+    qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://homelistingai.com/ai-card/sarah-johnson?ref=email',
+    totalScans: 56,
+    createdAt: '2025-08-10T16:30:00Z',
+    lastScannedAt: '2025-11-22T14:10:00Z'
+  }
+];
+
+const QRCodeManagementPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) => {
   const [qrCodes, setQrCodes] = useState<AICardQRCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -41,12 +80,17 @@ const QRCodeManagementPage: React.FC = () => {
     return Math.round(totalScans / qrCodes.length);
   }, [totalScans, qrCodes.length]);
 
-  const loadQRCodes = async () => {
+  const loadQRCodes = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await listAICardQRCodes();
-      setQrCodes(data);
+      if (isDemoMode) {
+        // Load demo QR codes in demo mode
+        setQrCodes(DEMO_QR_CODES);
+      } else {
+        const data = await listAICardQRCodes();
+        setQrCodes(data);
+      }
     } catch (err: unknown) {
       console.error('Failed to load QR codes:', err);
       setError(err instanceof Error ? err.message : 'Failed to load QR codes');
@@ -54,11 +98,11 @@ const QRCodeManagementPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isDemoMode]);
 
   useEffect(() => {
     loadQRCodes();
-  }, []);
+  }, [loadQRCodes]);
 
   const resetCreateModal = () => {
     setCreateState(emptyEditorState);
@@ -72,6 +116,10 @@ const QRCodeManagementPage: React.FC = () => {
   };
 
   const handleCreateQR = async () => {
+    if (isDemoMode) {
+      alert('Demo Mode: QR codes cannot be created in demo mode');
+      return;
+    }
     if (!createState.label.trim()) {
       setError('Label is required.');
       return;
@@ -91,6 +139,10 @@ const QRCodeManagementPage: React.FC = () => {
   };
 
   const handleDeleteQR = async (id: string) => {
+    if (isDemoMode) {
+      alert('Demo Mode: QR codes cannot be deleted in demo mode');
+      return;
+    }
     try {
       setIsSaving(true);
       await deleteAICardQRCode(id);
@@ -113,6 +165,10 @@ const QRCodeManagementPage: React.FC = () => {
   };
 
   const handleUpdateQR = async () => {
+    if (isDemoMode) {
+      alert('Demo Mode: QR codes cannot be edited in demo mode');
+      return;
+    }
     if (!editingQR) return;
     if (!editState.label.trim()) {
       setError('Label is required.');

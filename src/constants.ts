@@ -39,7 +39,7 @@ export const DEMO_AI_CARD_PROFILE = {
     youtube: 'https://youtube.com/@sarahjohnsonhomes'
   },
   headshot: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=400&h=400&auto=format&fit=crop',
-  logo: 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?q=80&w=400&h=160&auto=format&fit=crop&crop=center'
+  logo: '/newlogo.png'
 };
 
 export const SAMPLE_SCHOOLS: School[] = [
