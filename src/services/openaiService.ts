@@ -83,7 +83,7 @@ export const generateSpeech = async (
   try {
     console.log("🎤 Generating speech with OpenAI:", { text: text.substring(0, 50) + '...', voice });
     
-    const apiBase = getApiBaseUrl() || import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL
+    const apiBase = getApiBaseUrl() || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL
     const response = await fetch(`${apiBase}/api/generate-speech`, {
       method: 'POST',
       headers: {
