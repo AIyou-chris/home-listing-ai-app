@@ -10,6 +10,7 @@ interface ChatBotFABProps {
   position?: 'bottom-right' | 'bottom-left';
   className?: string;
   showWelcomeMessage?: boolean;
+  initialOpen?: boolean;
 }
 
 export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
@@ -18,12 +19,22 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   onSupportTicket,
   position = 'bottom-right',
   className = '',
-  showWelcomeMessage = true
+  showWelcomeMessage = true,
+  initialOpen = false
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(initialOpen);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isVoiceView, setIsVoiceView] = useState(context.userType === 'visitor');
+
+  // Update isOpen when initialOpen changes
+  useEffect(() => {
+    if (initialOpen) {
+      setIsOpen(true);
+      setHasNewMessage(false);
+      setUnreadCount(0);
+    }
+  }, [initialOpen]);
 
   // Auto-show welcome message after a delay for new visitors
   useEffect(() => {

@@ -1496,7 +1496,7 @@ const FooterNew: React.FC<{ onNavigateToAdmin: () => void; }> = ({ onNavigateToA
     </footer>
 );
 
-const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void }> = ({ onNavigateToSignUp, onEnterDemoMode }) => (
+const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void }> = ({ onNavigateToSignUp, onEnterDemoMode, onOpenChatBot }) => (
     <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-28 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-white"></div>
         
@@ -1545,6 +1545,12 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                         <button onClick={onEnterDemoMode} className="flex items-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
+                        </button>
+                    </div>
+                    <div className="mt-4 flex justify-center lg:justify-start animate-fade-in-up animation-delay-500">
+                        <button onClick={onOpenChatBot} className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 animate-pulse-subtle">
+                            <span className="material-symbols-outlined text-xl">mic</span>
+                            🎤 Chat with AI Assistant
                         </button>
                     </div>
                     <p className="mt-3 text-sm text-slate-500 text-center lg:text-left animate-fade-in-up animation-delay-600">Professional AI solution. No setup fees.</p>
@@ -1601,6 +1607,12 @@ interface LandingPageProps {
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin }) => {
+    const [isChatOpen, setIsChatOpen] = React.useState(false);
+    
+    const handleOpenChatBot = () => {
+        setIsChatOpen(true);
+    };
+    
     return (
         <div className="bg-white font-sans">
             <Header
@@ -1610,7 +1622,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 onOpenConsultationModal={onOpenConsultationModal}
             />
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
-                <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+                <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} />
                 <RevolutionaryAIFeaturesSection />
                 <DashboardShowcaseSection onEnterDemoMode={onEnterDemoMode} onNavigateToSignUp={onNavigateToSignUp} />
                 <AIAppShowcaseSection />
@@ -1642,6 +1654,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                     // Could create support ticket or send notification
                 }}
                 position="bottom-right"
+                initialOpen={isChatOpen}
             />
         </div>
     );
