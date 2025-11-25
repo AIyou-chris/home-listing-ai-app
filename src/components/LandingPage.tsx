@@ -1548,7 +1548,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                         </button>
                     </div>
                     <div className="mt-4 flex justify-center lg:justify-start animate-fade-in-up animation-delay-500">
-                        <button onClick={onOpenChatBot} className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 animate-pulse-subtle">
+                        <button onClick={onOpenChatBot} className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-105 animate-pulse-subtle">
                             <span className="material-symbols-outlined text-xl">mic</span>
                             🎤 Chat with AI Assistant
                         </button>
