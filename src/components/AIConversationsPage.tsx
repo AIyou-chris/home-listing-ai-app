@@ -26,6 +26,7 @@ import {
   type MessageRow
 } from '../services/chatService';
 import { supabase } from '../services/supabase';
+import { DEMO_AI_CONVERSATIONS } from '../constants';
 
 type ConversationType = 'chat' | 'voice' | 'email';
 type ConversationStatus = 'active' | 'archived' | 'important' | 'follow-up';
@@ -178,7 +179,7 @@ const parseDurationToMinutes = (duration?: string | null) => {
   return 0;
 };
 
-const AIConversationsPage: React.FC = () => {
+const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) => {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ConversationMessage[]>>({});
   const [loadingConversations, setLoadingConversations] = useState(true);
@@ -200,6 +201,35 @@ const AIConversationsPage: React.FC = () => {
     try {
       setLoadingConversations(true);
       setError(null);
+      
+      if (isDemoMode) {
+        // Load demo conversations in demo mode
+        const demoConvs = DEMO_AI_CONVERSATIONS.map(conv => ({
+          id: conv.id,
+          contactName: conv.contactName,
+          contactEmail: conv.contactEmail,
+          contactPhone: conv.contactPhone,
+          type: conv.type,
+          lastMessage: conv.lastMessage,
+          timestamp: conv.timestamp,
+          status: conv.status,
+          messageCount: conv.messageCount,
+          property: conv.property,
+          tags: conv.tags,
+          intent: conv.intent,
+          duration: null,
+          language: undefined,
+          voiceTranscript: undefined,
+          followUpTask: undefined
+        }));
+        setConversations(demoConvs);
+        if (demoConvs.length && !selectedConversationId) {
+          setSelectedConversationId(demoConvs[0].id);
+        }
+        setLastSyncedAt(new Date());
+        return;
+      }
+      
       const rows = await listConversations({
         userId: currentUserId ?? undefined,
         scope: 'agent'
@@ -216,9 +246,13 @@ const AIConversationsPage: React.FC = () => {
     } finally {
       setLoadingConversations(false);
     }
-  }, [selectedConversationId, currentUserId]);
+  }, [selectedConversationId, currentUserId, isDemoMode]);
 
   useEffect(() => {
+    if (isDemoMode) {
+      setCurrentUserId('demo-user');
+      return;
+    }
     const fetchUser = async () => {
       try {
         const { data } = await supabase.auth.getUser();
@@ -229,13 +263,17 @@ const AIConversationsPage: React.FC = () => {
       }
     };
     fetchUser();
-  }, []);
+  }, [isDemoMode]);
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
 
   useEffect(() => {
+    if (isDemoMode) {
+      // Skip welcome conversation in demo mode - we have demo conversations
+      return;
+    }
     const ensureWelcomeConversation = async () => {
       if (welcomeSeededRef.current) return;
       welcomeSeededRef.current = true;
@@ -281,7 +319,7 @@ const AIConversationsPage: React.FC = () => {
     if (!loadingConversations && conversations.length === 0) {
       ensureWelcomeConversation();
     }
-  }, [loadingConversations, conversations.length, loadConversations, currentUserId]);
+  }, [loadingConversations, conversations.length, loadConversations, currentUserId, isDemoMode]);
 
   useEffect(() => {
     setIsDetailExpanded(false);
@@ -325,6 +363,25 @@ const AIConversationsPage: React.FC = () => {
     const loadMessagesForConversation = async (conversationId: string) => {
       if (!conversationId) return;
       if (messagesByConversation[conversationId]) return;
+      
+      if (isDemoMode) {
+        // Load demo messages in demo mode
+        const demoConv = DEMO_AI_CONVERSATIONS.find(c => c.id === conversationId);
+        if (demoConv && demoConv.messages) {
+          setMessagesByConversation((prev) => ({
+            ...prev,
+            [conversationId]: demoConv.messages.map((msg, idx) => ({
+              id: `${conversationId}-msg-${idx}`,
+              role: msg.role,
+              content: msg.content,
+              timestamp: new Date(Date.now() - (demoConv.messages.length - idx) * 60000).toISOString(),
+              channel: 'chat' as const
+            }))
+          }));
+        }
+        return;
+      }
+      
       try {
         setLoadingMessages(true);
         const rows = await getMessages(conversationId);
@@ -343,7 +400,7 @@ const AIConversationsPage: React.FC = () => {
     if (selectedConversationId) {
       loadMessagesForConversation(selectedConversationId);
     }
-  }, [selectedConversationId, messagesByConversation]);
+  }, [selectedConversationId, messagesByConversation, isDemoMode]);
 
   useEffect(() => {
     if (!lastSyncedAt) {

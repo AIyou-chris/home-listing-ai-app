@@ -1074,7 +1074,7 @@ const App: React.FC = () => {
 					case 'inbox': 
 						return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
 					case 'ai-conversations':
-						return <AIConversationsPage />;
+						return <AIConversationsPage isDemoMode={isDemoMode} />;
 					case 'ai-card':
 						return <AICardPage isDemoMode={isDemoMode} />;
 					case 'knowledge-base': 
