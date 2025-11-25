@@ -859,6 +859,13 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                         </p>
                     </div>
                 </div>
+                
+                {/* Team/Office Programs Note */}
+                <div className="mt-8 text-center animate-fade-in-up animation-delay-600">
+                    <p className="text-slate-600 text-lg">
+                        Looking for team or full office programs? <a href="mailto:chris@homelistingai.com" className="text-primary-600 hover:text-primary-700 font-semibold underline">Just reach out</a> →
+                    </p>
+                </div>
             </div>
         </section>
     );
