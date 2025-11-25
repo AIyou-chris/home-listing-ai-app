@@ -801,19 +801,21 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                         </div>
                         <div className="relative z-10">
                         <div className="prose prose-lg max-w-none">
-                            <p className="text-slate-700 leading-relaxed mb-4">
+                            <p className="text-slate-700 leading-relaxed mb-4" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.2rem' }}>
                                 I lived through the 2007 crash. And again in 2012. I know exactly what it feels like when deals stall, leads dry up, and every dollar needs to work overtime.
                             </p>
-                            <p className="text-slate-700 leading-relaxed mb-4">
+                            <p className="text-slate-700 leading-relaxed mb-4" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.2rem' }}>
                                 That's why I built this AI tool specifically for realtors navigating today's tightening market.
                             </p>
-                            <p className="text-slate-800 font-semibold text-xl">
-                                👉 Normally $199/month, but right now, you can get it for just <span className="text-primary-700">$89/month</span>.
-                            </p>
-                            <p className="text-slate-700 leading-relaxed mt-4">
+                            <p className="text-slate-700 leading-relaxed mb-6" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.2rem' }}>
                                 Not as a gimmick. Not for mass adoption. But because I remember how brutal these markets get. And I know smart tech—priced right—can be the difference between treading water and taking territory.
                             </p>
-                            <p className="text-slate-800 font-medium mt-6">
+                            <div className="mt-6 pt-6 border-t-2 border-dashed border-slate-300">
+                                <p className="text-slate-800 font-semibold text-xl" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
+                                    👉 Normally $199/month, but right now, you can get it for just <span className="text-primary-700">$89/month</span>.
+                                </p>
+                            </div>
+                            <p className="text-slate-800 font-medium mt-8" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
                                 — Chris Potter, Founder
                             </p>
                             <p className="text-sm text-slate-500 italic mt-4">
