@@ -5,7 +5,7 @@
 [build.environment]
   NODE_ENV = "production"
   NPM_CONFIG_PRODUCTION = "false"
-  VITE_API_BASE_URL = "https://ailistingfinal-production.up.railway.app"
+  VITE_API_BASE_URL = "https://home-listing-ai-backend.onrender.com"
 
 [[headers]]
   for = "/*"
