@@ -57,7 +57,7 @@ export const AdminUsersPanel: React.FC<AdminUsersPanelProps> = ({
     setHealthStatus('loading')
     setHealthError(null)
 
-    const baseUrl = import.meta.env.VITE_API_URL ?? 'https://ailisitnghome-43boqi59o-ai-you.vercel.app'
+    const baseUrl = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? ''
 
     try {
       const response = await fetch(`${baseUrl}/api/admin/settings`)

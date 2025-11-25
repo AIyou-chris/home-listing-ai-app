@@ -103,7 +103,7 @@ const SecurityDashboard: React.FC = () => {
   const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d'>('24h');
   const { logAction } = useSecurity();
 
-  const API_BASE = import.meta.env?.VITE_API_URL ?? 'https://ailisitnghome-43boqi59o-ai-you.vercel.app';
+  const API_BASE = import.meta.env?.VITE_API_URL ?? import.meta.env?.VITE_API_BASE_URL ?? '';
 
   const mapAudit = useCallback((log: unknown): AuditLog => {
     const record = isRecord(log) ? log : {};

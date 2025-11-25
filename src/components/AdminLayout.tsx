@@ -576,7 +576,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 <h3 className="text-sm font-semibold text-slate-900">API Health</h3>
                 <button
                   onClick={async () => {
-                    const base = import.meta.env?.VITE_API_URL || 'https://ailisitnghome-43boqi59o-ai-you.vercel.app'
+                    const base = import.meta.env?.VITE_API_URL || import.meta.env?.VITE_API_BASE_URL || ''
                     const btn = document.getElementById('hlai-health-result')
                     try {
                       const res = await fetch(`${base}/api/admin/settings`)
