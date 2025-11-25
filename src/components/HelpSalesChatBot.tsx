@@ -25,6 +25,7 @@ interface HelpSalesChatBotProps {
   onSupportTicket?: (ticketInfo: SupportTicketPayload) => void;
   className?: string;
   initialMode?: ChatBotMode;
+  onToggleVoice?: () => void;
 }
 
 export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
@@ -32,7 +33,8 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
   onLeadGenerated,
   onSupportTicket,
   className = '',
-  initialMode = 'general'
+  initialMode = 'general',
+  onToggleVoice
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -318,6 +320,14 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={isLoading}
           />
+          <button
+            type="button"
+            onClick={onToggleVoice}
+            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+            title="Voice input"
+          >
+            <span className="material-symbols-outlined text-xl">mic</span>
+          </button>
           <button
             onClick={handleSendMessage}
             disabled={isLoading || !inputValue.trim()}

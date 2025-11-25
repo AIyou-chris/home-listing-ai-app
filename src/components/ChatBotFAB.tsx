@@ -23,7 +23,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isVoiceView, setIsVoiceView] = useState(false);
+  const [isVoiceView, setIsVoiceView] = useState(context.userType === 'visitor');
 
   // Auto-show welcome message after a delay for new visitors
   useEffect(() => {
@@ -125,6 +125,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
                       context={context}
                       onLeadGenerated={handleLeadGenerated}
                       onSupportTicket={handleSupportTicket}
+                      onToggleVoice={() => setIsVoiceView((prev) => !prev)}
                       className="h-full rounded-none border-none shadow-none"
                     />
                   </div>
