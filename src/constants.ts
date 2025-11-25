@@ -70,14 +70,14 @@ export const SAMPLE_SOCIAL_POSTS: SocialPost[] = [
 ];
 
 export const SAMPLE_TASKS: AgentTask[] = [
-    { id: 'task1', text: 'Follow up with Emily Rodriguez about pool maintenance questions', isCompleted: false, dueDate: '2024-01-21', priority: 'High' },
-    { id: 'task2', text: 'Prepare investment analysis for David Park', isCompleted: false, dueDate: '2024-01-22', priority: 'High' },
-    { id: 'task3', text: 'Send school district info to Thompson family', isCompleted: false, dueDate: '2024-01-23', priority: 'Medium' },
-    { id: 'task4', text: 'Update listing photos for Silver Lake property', isCompleted: true, dueDate: '2024-01-20', priority: 'Medium' },
-    { id: 'task5', text: 'Send Marcus Chen commute time analysis', isCompleted: true, dueDate: '2024-01-19', priority: 'High' },
-    { id: 'task6', text: 'Create curated property list for Jennifer Martinez', isCompleted: false, dueDate: '2024-01-24', priority: 'Medium' },
-    { id: 'task7', text: 'Schedule home inspection for Austin property', isCompleted: false, dueDate: '2024-01-25', priority: 'Medium' },
-    { id: 'task8', text: 'Send market update newsletter to all leads', isCompleted: false, dueDate: '2024-01-26', priority: 'Low' }
+    { id: 'task1', text: 'Follow up with Emily Rodriguez about pool maintenance questions', isCompleted: false, dueDate: '2025-11-25', priority: 'High' },
+    { id: 'task2', text: 'Prepare investment analysis for David Park', isCompleted: false, dueDate: '2025-11-26', priority: 'High' },
+    { id: 'task3', text: 'Send school district info to Thompson family', isCompleted: false, dueDate: '2025-11-27', priority: 'Medium' },
+    { id: 'task4', text: 'Update listing photos for Silver Lake property', isCompleted: true, dueDate: '2025-11-24', priority: 'Medium' },
+    { id: 'task5', text: 'Send Marcus Chen commute time analysis', isCompleted: true, dueDate: '2025-11-23', priority: 'High' },
+    { id: 'task6', text: 'Create curated property list for Jennifer Martinez', isCompleted: false, dueDate: '2025-11-28', priority: 'Medium' },
+    { id: 'task7', text: 'Schedule home inspection for Austin property', isCompleted: false, dueDate: '2025-11-29', priority: 'Medium' },
+    { id: 'task8', text: 'Send market update newsletter to all leads', isCompleted: false, dueDate: '2025-11-30', priority: 'Low' }
 ];
 
 export const AI_PERSONALITIES: AIPersonality[] = [

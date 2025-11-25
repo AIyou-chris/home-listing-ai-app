@@ -90,15 +90,15 @@ export const DEMO_FAT_LEADS: Lead[] = [
     phone: '(555) 123-4567',
     source: 'Website Chat',
     status: 'New',
-    date: '2024-01-20T09:15:00Z',
+    date: '2025-11-24T09:15:00Z',
     lastMessage: 'Asked about pool maintenance and neighborhood safety.',
     interestedProperties: ['demo-1'],
     notes: 'Interested in mid-century homes with pools. First-time buyer, pre-approved up to $1.3M.',
-    lastContact: '2024-01-20T09:15:00Z',
-    createdAt: '2024-01-20T09:15:00Z',
+    lastContact: '2025-11-24T09:15:00Z',
+    createdAt: '2025-11-24T09:15:00Z',
     aiInteractions: [
       {
-        timestamp: '2024-01-20T09:15:00Z',
+        timestamp: '2025-11-24T09:15:00Z',
         type: 'chat',
         summary: 'Inquired about pool maintenance and neighborhood safety. Showed strong interest in architectural features.'
       }
@@ -111,15 +111,15 @@ export const DEMO_FAT_LEADS: Lead[] = [
     phone: '(555) 987-6543',
     source: 'Property Listings',
     status: 'Contacted',
-    date: '2024-01-19T14:15:00Z',
+    date: '2025-11-23T14:15:00Z',
     lastMessage: 'Discussed school ratings and commute times to downtown Austin.',
     interestedProperties: ['demo-2'],
     notes: 'Tech professional relocating from SF. Needs quick closing, cash buyer.',
-    lastContact: '2024-01-19T16:30:00Z',
-    createdAt: '2024-01-19T14:15:00Z',
+    lastContact: '2025-11-23T16:30:00Z',
+    createdAt: '2025-11-23T14:15:00Z',
     aiInteractions: [
       {
-        timestamp: '2024-01-19T16:30:00Z',
+        timestamp: '2025-11-23T16:30:00Z',
         type: 'voice',
         summary: 'Discussed school ratings and commute times to downtown Austin. Ready to schedule viewing.'
       }
@@ -132,20 +132,20 @@ export const DEMO_FAT_LEADS: Lead[] = [
     phone: '(555) 234-8901',
     source: 'Referral',
     status: 'Qualified',
-    date: '2024-01-18T11:00:00Z',
+    date: '2025-11-22T11:00:00Z',
     lastMessage: 'Looking for family-friendly neighborhoods with good schools.',
     interestedProperties: ['demo-2'],
     notes: 'Young family with two kids (ages 5 & 8). Moving from out of state for job relocation. Budget: $800K-$950K.',
-    lastContact: '2024-01-19T10:00:00Z',
-    createdAt: '2024-01-18T11:00:00Z',
+    lastContact: '2025-11-23T10:00:00Z',
+    createdAt: '2025-11-22T11:00:00Z',
     aiInteractions: [
       {
-        timestamp: '2024-01-18T15:20:00Z',
+        timestamp: '2025-11-22T15:20:00Z',
         type: 'chat',
         summary: 'Asked about school districts, parks, and family activities in the area.'
       },
       {
-        timestamp: '2024-01-19T10:00:00Z',
+        timestamp: '2025-11-23T10:00:00Z',
         type: 'email',
         summary: 'Sent information on top-rated schools and community amenities. Very engaged.'
       }
@@ -158,20 +158,20 @@ export const DEMO_FAT_LEADS: Lead[] = [
     phone: '(555) 345-6789',
     source: 'Website Form',
     status: 'Showing',
-    date: '2024-01-17T08:30:00Z',
+    date: '2025-11-21T08:30:00Z',
     lastMessage: 'Interested in investment properties with rental potential.',
     interestedProperties: ['demo-1', 'demo-2'],
     notes: 'Real estate investor looking for properties in appreciating markets. Cash buyer, quick close preferred.',
-    lastContact: '2024-01-20T14:00:00Z',
-    createdAt: '2024-01-17T08:30:00Z',
+    lastContact: '2025-11-24T14:00:00Z',
+    createdAt: '2025-11-21T08:30:00Z',
     aiInteractions: [
       {
-        timestamp: '2024-01-17T08:30:00Z',
+        timestamp: '2025-11-21T08:30:00Z',
         type: 'chat',
         summary: 'Discussed ROI potential and rental market trends in LA and Austin.'
       },
       {
-        timestamp: '2024-01-20T14:00:00Z',
+        timestamp: '2025-11-24T14:00:00Z',
         type: 'voice',
         summary: 'Scheduled showings for both properties. Very interested in closing within 30 days.'
       }
@@ -184,20 +184,20 @@ export const DEMO_FAT_LEADS: Lead[] = [
     phone: '(555) 456-7890',
     source: 'Instagram',
     status: 'Contacted',
-    date: '2024-01-16T13:45:00Z',
+    date: '2025-11-20T13:45:00Z',
     lastMessage: 'Love the modern aesthetic! Looking for something similar in my price range.',
     interestedProperties: ['demo-1'],
     notes: 'Interior designer with great eye for unique homes. Pre-approved $900K-$1.2M. Flexible timeline.',
-    lastContact: '2024-01-18T09:30:00Z',
-    createdAt: '2024-01-16T13:45:00Z',
+    lastContact: '2025-11-22T09:30:00Z',
+    createdAt: '2025-11-20T13:45:00Z',
     aiInteractions: [
       {
-        timestamp: '2024-01-16T13:45:00Z',
+        timestamp: '2025-11-20T13:45:00Z',
         type: 'chat',
         summary: 'Expressed love for mid-century modern architecture and outdoor spaces.'
       },
       {
-        timestamp: '2024-01-18T09:30:00Z',
+        timestamp: '2025-11-22T09:30:00Z',
         type: 'email',
         summary: 'Sent curated list of architectural gems in the area. High engagement.'
       }
@@ -212,7 +212,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Marcus Chen',
     propertyId: 'demo-2',
     propertyAddress: '156 Maple Grove Lane, Austin, TX',
-    date: '2024-01-22',
+    date: '2025-11-26',
     time: '10:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -230,7 +230,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Emily Rodriguez',
     propertyId: 'demo-1',
     propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
-    date: '2024-01-21',
+    date: '2025-11-25',
     time: '14:30',
     type: 'Showing',
     status: 'Scheduled',
@@ -248,7 +248,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'David Park',
     propertyId: 'demo-1',
     propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
-    date: '2024-01-23',
+    date: '2025-11-27',
     time: '09:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -266,7 +266,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'David Park',
     propertyId: 'demo-2',
     propertyAddress: '156 Maple Grove Lane, Austin, TX',
-    date: '2024-01-23',
+    date: '2025-11-27',
     time: '15:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -284,7 +284,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Sarah & James Thompson',
     propertyId: 'demo-2',
     propertyAddress: '156 Maple Grove Lane, Austin, TX',
-    date: '2024-01-24',
+    date: '2025-11-28',
     time: '11:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -302,7 +302,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Jennifer Martinez',
     propertyId: 'demo-1',
     propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
-    date: '2024-01-25',
+    date: '2025-11-29',
     time: '16:00',
     type: 'Showing',
     status: 'Scheduled',
