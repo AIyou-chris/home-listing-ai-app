@@ -546,17 +546,6 @@ const App: React.FC = () => {
         setView('landing');
         window.location.hash = 'landing';
     };
-    
-    const loadLeadsFromBackend = async () => {
-        try {
-            const data = await leadsService.list();
-            setLeads(data.leads || []);
-            console.log('✅ Loaded leads from backend:', data.leads?.length || 0);
-        } catch (error) {
-            console.error('Error loading leads from backend:', error);
-            setLeads(DEMO_FAT_LEADS);
-        }
-    };
 
     // Load centralized agent profile
     const loadAgentProfile = async () => {
@@ -636,8 +625,7 @@ const App: React.FC = () => {
     const handleEnterDemoMode = () => {
         setIsDemoMode(true);
         setProperties(DEMO_FAT_PROPERTIES);
-        // Load leads from backend in demo mode too
-        loadLeadsFromBackend();
+        setLeads(DEMO_FAT_LEADS);
         setAppointments(DEMO_FAT_APPOINTMENTS);
         setInteractions(SAMPLE_INTERACTIONS);
         setTasks(SAMPLE_TASKS);
