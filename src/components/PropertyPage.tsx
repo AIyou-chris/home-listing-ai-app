@@ -171,10 +171,10 @@ const AIDescriptionSection: React.FC<{ description: Property['description'], onG
                 <button
                     onClick={onGenerate}
                     disabled={isGenerating}
-                    className="flex-shrink-0 flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg shadow-md hover:shadow-lg hover:from-primary-600 hover:to-primary-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 relative z-10"
+                    className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg shadow-md hover:shadow-lg hover:from-primary-600 hover:to-primary-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 z-10"
                 >
-                    <span className="material-symbols-outlined w-5 h-5">sparkles</span>
-                    <span className="whitespace-nowrap">{isGenerating ? 'Generating...' : 'Regenerate'}</span>
+                    <span className="material-symbols-outlined text-lg">refresh</span>
+                    <span className="whitespace-nowrap font-medium">{isGenerating ? 'Generating...' : 'Regenerate'}</span>
                 </button>
             </div>
             <div className={`${isOpen ? 'block' : 'hidden'} md:block`}>
