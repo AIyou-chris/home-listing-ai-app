@@ -161,10 +161,10 @@ const AIDescriptionSection: React.FC<{ description: Property['description'], onG
     const [isOpen, setIsOpen] = useState(false);
     return (
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-6 sm:p-8 mt-8">
-            <div className="flex justify-between items-center mb-5">
-                <button type="button" onClick={() => setIsOpen(!isOpen)} className="flex-grow flex items-center justify-between text-left md:pointer-events-none pr-4">
-                    <h3 className="text-2xl font-bold text-slate-900">AI-Powered Description</h3>
-                     <span className="material-symbols-outlined w-6 h-6 text-slate-500 transition-transform duration-300 md:hidden" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+            <div className="flex justify-between items-center mb-5 gap-4">
+                <button type="button" onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between text-left md:pointer-events-none min-w-0">
+                    <h3 className="text-2xl font-bold text-slate-900 mr-2">AI-Powered Description</h3>
+                     <span className="material-symbols-outlined w-6 h-6 text-slate-500 transition-transform duration-300 md:hidden flex-shrink-0" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
                         expand_more
                     </span>
                 </button>
