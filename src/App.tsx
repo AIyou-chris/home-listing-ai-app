@@ -36,6 +36,7 @@ const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
 import DemoListingPage from './components/DemoListingPage';
+import ChatBotFAB from './components/ChatBotFAB';
 
 const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
     homebuyer: 'Buyer Lead',
@@ -1247,8 +1248,7 @@ const App: React.FC = () => {
 					<AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
 				</Suspense>
 			)}
-			{/* Temporarily disabled while building */}
-			{/* {view !== 'ai-card' && (
+			{view !== 'landing' && view !== 'new-landing' && (
 				<ChatBotFAB
 					context={{
 						userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
@@ -1259,8 +1259,9 @@ const App: React.FC = () => {
 					onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
 					onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
 					position="bottom-right"
+					showWelcomeMessage={false}
 				/>
-			)} */}
+			)}
 		</ErrorBoundary>
 	);
 };

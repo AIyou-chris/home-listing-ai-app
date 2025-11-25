@@ -9,6 +9,7 @@ interface ChatBotFABProps {
   onSupportTicket?: (ticketInfo: SupportTicketPayload) => void;
   position?: 'bottom-right' | 'bottom-left';
   className?: string;
+  showWelcomeMessage?: boolean;
 }
 
 export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
@@ -16,7 +17,8 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   onLeadGenerated,
   onSupportTicket,
   position = 'bottom-right',
-  className = ''
+  className = '',
+  showWelcomeMessage = true
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
@@ -25,7 +27,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
 
   // Auto-show welcome message after a delay for new visitors
   useEffect(() => {
-    if (context.userType === 'visitor' && !context.previousInteractions) {
+    if (showWelcomeMessage && context.userType === 'visitor' && !context.previousInteractions) {
       const timer = setTimeout(() => {
         setHasNewMessage(true);
         setUnreadCount(1);
@@ -33,7 +35,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
 
       return () => clearTimeout(timer);
     }
-  }, [context]);
+  }, [context, showWelcomeMessage]);
 
   const handleToggleChat = () => {
     if (isOpen) {
