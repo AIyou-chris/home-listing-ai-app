@@ -10,5 +10,4 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3002
-      - fromGroup: home-listing-ai-env
+        value: 10000
