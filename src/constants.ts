@@ -70,11 +70,14 @@ export const SAMPLE_SOCIAL_POSTS: SocialPost[] = [
 ];
 
 export const SAMPLE_TASKS: AgentTask[] = [
-    { id: 'task1', text: 'Follow up with Jane Smith about property viewing', isCompleted: false, dueDate: '2025-08-12', priority: 'High' },
-    { id: 'task2', text: 'Prepare CMA for 742 Ocean Drive', isCompleted: false, dueDate: '2025-08-13', priority: 'Medium' },
-    { id: 'task3', text: 'Update listing photos for Chicago loft', isCompleted: true, dueDate: '2025-08-11', priority: 'Medium' },
-    { id: 'task4', text: 'Schedule home inspection for Aspen cabin', isCompleted: false, dueDate: '2025-08-14', priority: 'High' },
-    { id: 'task5', text: 'Send market update newsletter to clients', isCompleted: false, dueDate: '2025-08-15', priority: 'Low' }
+    { id: 'task1', text: 'Follow up with Emily Rodriguez about pool maintenance questions', isCompleted: false, dueDate: '2024-01-21', priority: 'High' },
+    { id: 'task2', text: 'Prepare investment analysis for David Park', isCompleted: false, dueDate: '2024-01-22', priority: 'High' },
+    { id: 'task3', text: 'Send school district info to Thompson family', isCompleted: false, dueDate: '2024-01-23', priority: 'Medium' },
+    { id: 'task4', text: 'Update listing photos for Silver Lake property', isCompleted: true, dueDate: '2024-01-20', priority: 'Medium' },
+    { id: 'task5', text: 'Send Marcus Chen commute time analysis', isCompleted: true, dueDate: '2024-01-19', priority: 'High' },
+    { id: 'task6', text: 'Create curated property list for Jennifer Martinez', isCompleted: false, dueDate: '2024-01-24', priority: 'Medium' },
+    { id: 'task7', text: 'Schedule home inspection for Austin property', isCompleted: false, dueDate: '2024-01-25', priority: 'Medium' },
+    { id: 'task8', text: 'Send market update newsletter to all leads', isCompleted: false, dueDate: '2024-01-26', priority: 'Low' }
 ];
 
 export const AI_PERSONALITIES: AIPersonality[] = [

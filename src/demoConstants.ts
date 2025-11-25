@@ -124,6 +124,84 @@ export const DEMO_FAT_LEADS: Lead[] = [
         summary: 'Discussed school ratings and commute times to downtown Austin. Ready to schedule viewing.'
       }
     ]
+  },
+  {
+    id: 'lead-demo-3',
+    name: 'Sarah & James Thompson',
+    email: 'thompson.family@gmail.com',
+    phone: '(555) 234-8901',
+    source: 'Referral',
+    status: 'Qualified',
+    date: '2024-01-18T11:00:00Z',
+    lastMessage: 'Looking for family-friendly neighborhoods with good schools.',
+    interestedProperties: ['demo-2'],
+    notes: 'Young family with two kids (ages 5 & 8). Moving from out of state for job relocation. Budget: $800K-$950K.',
+    lastContact: '2024-01-19T10:00:00Z',
+    createdAt: '2024-01-18T11:00:00Z',
+    aiInteractions: [
+      {
+        timestamp: '2024-01-18T15:20:00Z',
+        type: 'chat',
+        summary: 'Asked about school districts, parks, and family activities in the area.'
+      },
+      {
+        timestamp: '2024-01-19T10:00:00Z',
+        type: 'email',
+        summary: 'Sent information on top-rated schools and community amenities. Very engaged.'
+      }
+    ]
+  },
+  {
+    id: 'lead-demo-4',
+    name: 'David Park',
+    email: 'd.park@investco.com',
+    phone: '(555) 345-6789',
+    source: 'Website Form',
+    status: 'Showing',
+    date: '2024-01-17T08:30:00Z',
+    lastMessage: 'Interested in investment properties with rental potential.',
+    interestedProperties: ['demo-1', 'demo-2'],
+    notes: 'Real estate investor looking for properties in appreciating markets. Cash buyer, quick close preferred.',
+    lastContact: '2024-01-20T14:00:00Z',
+    createdAt: '2024-01-17T08:30:00Z',
+    aiInteractions: [
+      {
+        timestamp: '2024-01-17T08:30:00Z',
+        type: 'chat',
+        summary: 'Discussed ROI potential and rental market trends in LA and Austin.'
+      },
+      {
+        timestamp: '2024-01-20T14:00:00Z',
+        type: 'voice',
+        summary: 'Scheduled showings for both properties. Very interested in closing within 30 days.'
+      }
+    ]
+  },
+  {
+    id: 'lead-demo-5',
+    name: 'Jennifer Martinez',
+    email: 'jmartinez.design@email.com',
+    phone: '(555) 456-7890',
+    source: 'Instagram',
+    status: 'Contacted',
+    date: '2024-01-16T13:45:00Z',
+    lastMessage: 'Love the modern aesthetic! Looking for something similar in my price range.',
+    interestedProperties: ['demo-1'],
+    notes: 'Interior designer with great eye for unique homes. Pre-approved $900K-$1.2M. Flexible timeline.',
+    lastContact: '2024-01-18T09:30:00Z',
+    createdAt: '2024-01-16T13:45:00Z',
+    aiInteractions: [
+      {
+        timestamp: '2024-01-16T13:45:00Z',
+        type: 'chat',
+        summary: 'Expressed love for mid-century modern architecture and outdoor spaces.'
+      },
+      {
+        timestamp: '2024-01-18T09:30:00Z',
+        type: 'email',
+        summary: 'Sent curated list of architectural gems in the area. High engagement.'
+      }
+    ]
   }
 ];
 
@@ -163,6 +241,78 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     remindClient: true,
     agentReminderMinutes: 60,
     clientReminderMinutes: 720
+  },
+  {
+    id: 'appt-demo-3',
+    leadId: 'lead-demo-4',
+    leadName: 'David Park',
+    propertyId: 'demo-1',
+    propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
+    date: '2024-01-23',
+    time: '09:00',
+    type: 'Showing',
+    status: 'Scheduled',
+    notes: 'Investor viewing - focus on rental potential and ROI.',
+    email: 'd.park@investco.com',
+    phone: '(555) 345-6789',
+    remindAgent: true,
+    remindClient: true,
+    agentReminderMinutes: 60,
+    clientReminderMinutes: 1440
+  },
+  {
+    id: 'appt-demo-4',
+    leadId: 'lead-demo-4',
+    leadName: 'David Park',
+    propertyId: 'demo-2',
+    propertyAddress: '156 Maple Grove Lane, Austin, TX',
+    date: '2024-01-23',
+    time: '15:00',
+    type: 'Showing',
+    status: 'Scheduled',
+    notes: 'Second property viewing same day. Client is very motivated.',
+    email: 'd.park@investco.com',
+    phone: '(555) 345-6789',
+    remindAgent: true,
+    remindClient: true,
+    agentReminderMinutes: 60,
+    clientReminderMinutes: 1440
+  },
+  {
+    id: 'appt-demo-5',
+    leadId: 'lead-demo-3',
+    leadName: 'Sarah & James Thompson',
+    propertyId: 'demo-2',
+    propertyAddress: '156 Maple Grove Lane, Austin, TX',
+    date: '2024-01-24',
+    time: '11:00',
+    type: 'Showing',
+    status: 'Scheduled',
+    notes: 'Family viewing - bring info on local schools and parks.',
+    email: 'thompson.family@gmail.com',
+    phone: '(555) 234-8901',
+    remindAgent: true,
+    remindClient: true,
+    agentReminderMinutes: 60,
+    clientReminderMinutes: 1440
+  },
+  {
+    id: 'appt-demo-6',
+    leadId: 'lead-demo-5',
+    leadName: 'Jennifer Martinez',
+    propertyId: 'demo-1',
+    propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
+    date: '2024-01-25',
+    time: '16:00',
+    type: 'Showing',
+    status: 'Scheduled',
+    notes: 'Designer client - highlight architectural details and unique features.',
+    email: 'jmartinez.design@email.com',
+    phone: '(555) 456-7890',
+    remindAgent: true,
+    remindClient: true,
+    agentReminderMinutes: 60,
+    clientReminderMinutes: 1440
   }
 ];
 
