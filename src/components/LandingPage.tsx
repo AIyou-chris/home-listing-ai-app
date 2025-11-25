@@ -734,7 +734,7 @@ const AIAppShowcaseSection: React.FC = () => {
 };
 
 
-const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNavigateToSignUp }) => {
+const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultationModal: () => void }> = ({ onNavigateToSignUp, onOpenConsultationModal }) => {
     const PlanFeature: React.FC<{ children: React.ReactNode, dark?: boolean }> = ({ children, dark }) => (
         <li className="flex items-start gap-3">
             <span className={`material-symbols-outlined w-6 h-6 ${dark ? 'text-green-400' : 'text-green-500'} flex-shrink-0 mt-0.5`}>check_circle</span>
@@ -863,7 +863,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                 {/* Team/Office Programs Note */}
                 <div className="mt-8 text-center animate-fade-in-up animation-delay-600">
                     <p className="text-slate-600 text-lg">
-                        Looking for team or full office programs? <a href="mailto:chris@homelistingai.com" className="text-primary-600 hover:text-primary-700 font-semibold underline">Just reach out</a> →
+                        Looking for team or full office programs? <button onClick={onOpenConsultationModal} className="text-primary-600 hover:text-primary-700 font-semibold underline">Just reach out</button> →
                     </p>
                 </div>
             </div>
@@ -1614,7 +1614,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <RevolutionaryAIFeaturesSection />
                 <DashboardShowcaseSection onEnterDemoMode={onEnterDemoMode} onNavigateToSignUp={onNavigateToSignUp} />
                 <AIAppShowcaseSection />
-                <PricingSection onNavigateToSignUp={onNavigateToSignUp} />
+                <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenConsultationModal={onOpenConsultationModal} />
                 <WhiteLabelSection onOpenConsultationModal={onOpenConsultationModal} />
                 <AboutUsSection />
                 <FeaturesGridSection />
