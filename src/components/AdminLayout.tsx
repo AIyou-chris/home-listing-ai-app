@@ -3,6 +3,7 @@ import { useAdminModal } from '../context/AdminModalContext';
 import { AdminModals } from './AdminModals';
 import { View, User, Lead, LeadStatus } from '../types';
 // Firebase removed - using Supabase
+import AdminDashboard from './AdminDashboard';
 import ExportModal from './ExportModal';
 import { AuthService } from '../services/authService';
 import { googleOAuthService } from '../services/googleOAuthService';
@@ -17,7 +18,6 @@ import AdminBlogWriterPanel from './admin/admin-blog-writer-panel';
 import AIContentPage from './AIContentPage';
 import AICardPage from './AICardPage';
 import AIInteractiveTraining from './AIInteractiveTraining';
-import AgentDashboardBlueprint from './AgentDashboardBlueprint';
 // Persona service removed
 
 // Firebase utilities removed
@@ -494,7 +494,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     }
     switch (currentView) {
       case 'admin-dashboard':
-        return <AgentDashboardBlueprint />;
+        return <AdminDashboard users={users} leads={leads} onDeleteUser={handleDeleteUser} onDeleteLead={handleDeleteLead} />;
       case 'admin-contacts':
         return <AdminCRMContactsSupabase />;
       case 'admin-users':
@@ -2453,7 +2453,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       case 'admin-blog-writer':
         return <AdminBlogWriterPanel />;
       default:
-        return <AgentDashboardBlueprint />;
+        return <AdminDashboard users={users} leads={leads} onDeleteUser={handleDeleteUser} onDeleteLead={handleDeleteLead} />;
     }
   };
 
