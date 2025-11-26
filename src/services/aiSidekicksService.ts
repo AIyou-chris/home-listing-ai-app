@@ -426,6 +426,10 @@ const writeStore = (store: SidekickStore) => {
   }
 }
 
+export interface GetSidekicksOptions {
+  demoMode?: boolean;
+}
+
 const ensureStore = (): SidekickStore => {
   const current = readStore()
   if (!current.sidekicks.length) {
@@ -467,10 +471,16 @@ const defaultHeaders = {
   'Content-Type': 'application/json'
 };
 
-export const getSidekicks = async (): Promise<{
+export const getSidekicks = async (
+  options?: GetSidekicksOptions
+): Promise<{
   sidekicks: AISidekick[];
   voices: Voice[];
 }> => {
+  if (options?.demoMode) {
+    return ensureStore();
+  }
+
   const userId = resolveUserId();
   const url = buildUrl('/api/sidekicks', isUuid(userId) ? { userId } : undefined);
 

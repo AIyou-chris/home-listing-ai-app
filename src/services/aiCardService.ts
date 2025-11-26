@@ -223,7 +223,15 @@ export const generateQRCode = async (userId?: string, cardUrl?: string): Promise
     return qrData;
   } catch (error) {
     console.error('Error generating QR code:', error);
-    throw error;
+    const fallbackUrl = cardUrl
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(cardUrl)}`
+      : 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HomeListingAI%20QR';
+    console.info('Using fallback QR service for AI Card', fallbackUrl);
+    return {
+      qrCode: fallbackUrl,
+      url: cardUrl ?? '',
+      profileId: userId ?? 'demo'
+    };
   }
 };
 

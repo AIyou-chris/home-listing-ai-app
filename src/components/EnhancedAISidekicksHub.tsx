@@ -1,7 +1,11 @@
 import React, { useState } from 'react'
 import AISidekicks from './AISidekicks'
 
-const EnhancedAISidekicksHub: React.FC = () => {
+interface EnhancedAISidekicksHubProps {
+  isDemoMode?: boolean
+}
+
+const EnhancedAISidekicksHub: React.FC<EnhancedAISidekicksHubProps> = ({ isDemoMode = false }) => {
   const [isHelpOpen, setIsHelpOpen] = useState(false)
 
   return (
@@ -70,7 +74,7 @@ const EnhancedAISidekicksHub: React.FC = () => {
 
       {/* Content Area */}
       <div className="flex-1">
-        <AISidekicks />
+        <AISidekicks isDemoMode={isDemoMode} />
       </div>
 
     </div>

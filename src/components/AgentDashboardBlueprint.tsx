@@ -18,7 +18,6 @@ import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
-import { supabase } from '../services/supabase';
 import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
 import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
 import { useAgentBranding } from '../hooks/useAgentBranding';
@@ -65,7 +64,7 @@ const cloneDemoProperty = (property: Property, index: number): Property => {
 const AgentDashboardBlueprint: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isDemoMode] = useState(false);
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = useState(true);
@@ -139,24 +138,6 @@ const AgentDashboardBlueprint: React.FC = () => {
   useEffect(() => {
     setAgentProfile(uiProfile);
   }, [uiProfile]);
-
-  useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (!mounted) return;
-        const supabaseUser = data?.user ?? null;
-        setIsDemoMode(!supabaseUser);
-      } catch (error) {
-        console.warn('[Blueprint] Unable to resolve Supabase auth user, defaulting to demo mode', error);
-        if (mounted) setIsDemoMode(true);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -481,9 +462,9 @@ const AgentDashboardBlueprint: React.FC = () => {
           />
         );
       case 'ai-card':
-        return <AICardPage />;
+        return <AICardPage isDemoMode={isDemoMode} />;
       case 'ai-conversations':
-        return <AIConversationsPage />;
+        return <AIConversationsPage isDemoMode={isDemoMode} />;
       case 'listings':
         return (
           <ListingsPage
@@ -538,9 +519,9 @@ const AgentDashboardBlueprint: React.FC = () => {
           />
         );
       case 'knowledge-base':
-        return <EnhancedAISidekicksHub />;
+        return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
       case 'ai-training':
-        return <AIInteractiveTraining />;
+        return <AIInteractiveTraining demoMode={isDemoMode} />;
       case 'funnel-analytics':
         return <FunnelAnalyticsPanel onBackToDashboard={resetToDashboard} />;
       case 'settings':

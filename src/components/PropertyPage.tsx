@@ -4,7 +4,6 @@ import { listTranscripts, deleteTranscript } from '../services/aiTranscriptsServ
 import { resolveUserId } from '../services/userId';
 import { Property, ChatMessage, isAIDescription } from '../types';
 import { generatePropertyDescription, answerPropertyQuestion } from '../services/geminiService';
-import ListingSidekickWidget from './ListingSidekickWidget'
 
 interface PropertyPageProps {
   property: Property;
@@ -437,7 +436,6 @@ const PropertyPage: React.FC<PropertyPageProps> = ({ property, setProperty, onBa
         </div>
 
         <div className="lg:col-span-2 space-y-6">
-            <ListingSidekickWidget property={property} />
             <QuickQRGenerator property={property} />
             <PropertyMapWidget property={property} />
             <AIAssistant property={property} />

@@ -72,6 +72,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
 import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
 import AIInteractiveTraining from './components/AIInteractiveTraining';
+import FunnelAnalyticsPanel from './components/FunnelAnalyticsPanel';
 
 // import { getProperties, addProperty } from './services/firestoreService';
 // Temporary stubs while migrating off Firebase
@@ -1078,13 +1079,22 @@ const App: React.FC = () => {
 					case 'ai-card':
 						return <AICardPage isDemoMode={isDemoMode} />;
 					case 'knowledge-base': 
-						return <EnhancedAISidekicksHub />;
+						return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
 					case 'ai-training':
-						return <AIInteractiveTraining />;
+						return <AIInteractiveTraining demoMode={isDemoMode} />;
+					case 'funnel-analytics':
+						return (
+							<FunnelAnalyticsPanel
+								onBackToDashboard={() => setView('dashboard')}
+								title="Leads Funnel"
+								subtitle="Homebuyer, Seller, and Showing funnels for every lead"
+								variant="page"
+							/>
+						);
 					case 'analytics': 
 						return <AnalyticsDashboard />;
 					case 'ai-sidekicks':
-						return <EnhancedAISidekicksHub />;
+						return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
 					case 'demo-listing':
 						return <DemoListingPage />;
 					case 'settings': 

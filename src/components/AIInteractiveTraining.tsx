@@ -8,6 +8,7 @@ interface TrainingStatsProps {
 		positiveCount: number
 		improvementCount: number
 	}
+	demoMode?: boolean
 }
 
 interface TrainingStatsResponse {
@@ -16,13 +17,19 @@ interface TrainingStatsResponse {
 	improvementCount?: number
 }
 
-const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionStats }) => {
+const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionStats, demoMode = false }) => {
 	const [backendStats, setBackendStats] = useState<TrainingStatsResponse | null>(null)
 	const [isLoading, setIsLoading] = useState(false)
 	const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const pendingFetch = useRef<AbortController | null>(null)
 
 	useEffect(() => {
+		if (demoMode) {
+			setBackendStats(null)
+			setIsLoading(false)
+			return
+		}
+
 		setIsLoading(true)
 		if (refreshTimer.current) {
 			clearTimeout(refreshTimer.current)
@@ -47,7 +54,9 @@ const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionS
 				}
 			} finally {
 				setIsLoading(false)
-				pendingFetch.current = null
+				if (pendingFetch.current?.signal === controller.signal) {
+					pendingFetch.current = null
+				}
 			}
 		}, 250)
 
@@ -57,7 +66,7 @@ const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionS
 			}
 			pendingFetch.current?.abort()
 		}
-	}, [sidekick])
+	}, [sidekick, demoMode])
 
 	return (
 		<div className="mt-6 p-4 bg-white rounded-lg border border-slate-200">
@@ -135,7 +144,7 @@ Your job is to:
 Core objective:
 Deliver a complete, ready-to-train AI system that learns like a real assistant — not just from text, but from behavior, tone, and intent. Detect what we’re missing, make recommendations, and confirm when the AI is truly “trained to perform.”`
 
-const AIInteractiveTraining: React.FC = () => {
+const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = false }) => {
 	const [selectedSidekick, setSelectedSidekick] = useState<string>('marketing')
 	const [messages, setMessages] = useState<ChatMessage[]>([])
 	const [inputMessage, setInputMessage] = useState('')
@@ -251,7 +260,7 @@ const AIInteractiveTraining: React.FC = () => {
 		}
 	}
 
-const handleFeedback = async (messageId: string, feedback: 'thumbs_up' | 'thumbs_down') => {
+	const handleFeedback = async (messageId: string, feedback: 'thumbs_up' | 'thumbs_down') => {
 		setMessages(prev => prev.map(msg => 
 			msg.id === messageId ? { ...msg, feedback } : msg
 		))
@@ -264,6 +273,12 @@ const handleFeedback = async (messageId: string, feedback: 'thumbs_up' | 'thumbs
 		setTrainingError(null)
 
 		// Send feedback to backend training system
+		if (demoMode) {
+			console.log('Demo mode – training feedback skipped')
+			setTrainingNotification('Demo mode: feedback is not saved.')
+			setFeedbackInFlight(null)
+			return
+		}
 		try {
 			const message = messages.find(m => m.id === messageId)
 			const userMessage = messages[messages.findIndex(m => m.id === messageId) - 1]
@@ -295,12 +310,21 @@ const handleFeedback = async (messageId: string, feedback: 'thumbs_up' | 'thumbs
 		}
 	}
 
-const handleImprovement = async (messageId: string) => {
+	const handleImprovement = async (messageId: string) => {
 		if (!improvementText.trim() || improvementLoadingId === messageId) return
 
 		setImprovementLoadingId(messageId)
 		setTrainingNotification(null)
 		setTrainingError(null)
+
+		if (demoMode) {
+			console.log('Demo mode – training improvements skipped')
+			setTrainingNotification('Demo mode: improvements are not saved.')
+			setImprovementText('')
+			setShowImprovementInput(null)
+			setImprovementLoadingId(null)
+			return
+		}
 
 		setMessages(prev => prev.map(msg => 
 			msg.id === messageId ? { ...msg, improvement: improvementText.trim() } : msg
@@ -430,7 +454,7 @@ const handleImprovement = async (messageId: string) => {
 						conversations: messages.filter(m => m.role === 'user').length,
 						positiveCount: messages.filter(m => m.feedback === 'thumbs_up').length,
 						improvementCount: messages.filter(m => m.improvement).length
-					}} />
+					}} demoMode={demoMode} />
 				</div>
 
 				{/* Chat Interface */}

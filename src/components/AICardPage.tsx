@@ -35,12 +35,6 @@ const createDefaultProfile = (): AgentProfile => ({
     logo: null
   });
 
-const LANGUAGE_OPTIONS: Array<{ code: string; label: string }> = [
-  { code: 'en', label: 'English' },
-  { code: 'es', label: 'Spanish' },
-  { code: 'fr', label: 'French' }
-];
-
 const mapToCentralProfile = (profile: AgentProfile) => ({
   id: profile.id,
   name: profile.fullName,
@@ -827,22 +821,6 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                     </div>
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label htmlFor="ai-card-language" className="block text-sm font-medium text-gray-700 mb-2">
-                      Primary Language
-                    </label>
-                    <select
-                      id="ai-card-language"
-                      value={form.language}
-                      onChange={(e) => handleInputChange('language', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {LANGUAGE_OPTIONS.map(option => (
-                        <option key={option.code} value={option.code}>{option.label}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">Sidekicks, AI emails, and listings will use this language by default.</p>
-                  </div>
                 </div>
               </CollapsibleSection>
 

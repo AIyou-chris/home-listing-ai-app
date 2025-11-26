@@ -20,7 +20,9 @@ import { normalizeOpenAIVoice } from '../constants/openaiVoices';
 import PageTipBanner from './PageTipBanner';
 import { supabase } from '../services/supabase';
 
-interface AISidekicksProps {}
+interface AISidekicksProps {
+  isDemoMode?: boolean;
+}
 
 type SidekickTemplate = {
   id: string;
@@ -112,7 +114,7 @@ const sidekickTemplates: SidekickTemplate[] = [
   }
 ];
 
-const AISidekicks: React.FC<AISidekicksProps> = () => {
+const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false }) => {
   const [sidekicks, setSidekicks] = useState<AISidekick[]>([]);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedSidekick, setSelectedSidekick] = useState<AISidekick | null>(null);
@@ -218,10 +220,6 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   });
 
   useEffect(() => {
-    void loadSidekicks();
-  }, [loadSidekicks]);
-
-  useEffect(() => {
     if (!createForm.voiceId && voices.length > 0) {
       setCreateForm(prev => ({ ...prev, voiceId: voices[0].id }));
     }
@@ -263,12 +261,12 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
         window.speechSynthesis.cancel();
       }
     };
-  }, []);
+  }, [isDemoMode]);
 
   const loadSidekicks = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getSidekicks();
+      const data = await getSidekicks({ demoMode: isDemoMode });
       setSidekicks(data.sidekicks);
       setVoices(data.voices);
       if (data.sidekicks.length > 0) {
@@ -295,7 +293,7 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isDemoMode]);
 
   useEffect(() => {
     const hydrateCache = () => {
