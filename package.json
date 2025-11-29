@@ -43,6 +43,7 @@
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^29.5.12",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
@@ -67,6 +68,12 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "jsdom",
+    "moduleNameMapper": {
+      "\\.(css|less|scss|sass)$": "<rootDir>/src/test/__mocks__/styleMock.ts"
+    },
+    "transform": {
+      "^.+\\.(ts|tsx)$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.jest.json" }]
+    },
     "moduleFileExtensions": [
       "ts",
       "tsx",

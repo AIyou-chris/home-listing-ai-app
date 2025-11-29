@@ -78,6 +78,7 @@ const TimelineItem: React.FC<{ event: FollowUpHistoryEvent }> = ({ event }) => {
         enroll: { icon: 'auto_awesome', color: 'text-purple-600' },
         'email-sent': { icon: 'mail', color: 'text-blue-600' },
         'email-opened': { icon: 'drafts', color: 'text-green-600' },
+        'email-clicked': { icon: 'ads_click', color: 'text-purple-600' },
         'task-created': { icon: 'edit', color: 'text-yellow-600' },
         'meeting-set': { icon: 'calendar_month', color: 'text-indigo-600' },
         pause: { icon: 'pause_circle', color: 'text-orange-600' },

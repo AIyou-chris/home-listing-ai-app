@@ -12,6 +12,7 @@ import {
   getPreferredLanguage
 } from './languagePreferenceService'
 import { buildApiUrl, getApiBaseUrl } from '../lib/api'
+import { getEnvValue } from '../lib/env'
 
 interface ContinueConversationOptions {
   language?: string
@@ -83,7 +84,7 @@ export const generateSpeech = async (
   try {
     console.log("🎤 Generating speech with OpenAI:", { text: text.substring(0, 50) + '...', voice });
     
-    const apiBase = getApiBaseUrl() || import.meta.env.VITE_API_URL || 'https://ailisitnghome-43boqi59o-ai-you.vercel.app'
+    const apiBase = getApiBaseUrl() || getEnvValue('VITE_API_URL') || 'https://ailisitnghome-43boqi59o-ai-you.vercel.app'
     const response = await fetch(`${apiBase}/api/generate-speech`, {
       method: 'POST',
       headers: {

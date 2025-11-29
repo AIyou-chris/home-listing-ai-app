@@ -45,6 +45,34 @@ export interface MessageRow {
 
 const randomId = () => `${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`
 
+const localConversations: ConversationRow[] = []
+const localMessages: Record<string, MessageRow[]> = {}
+
+const upsertLocalConversation = (row: ConversationRow) => {
+  const index = localConversations.findIndex((item) => item.id === row.id)
+  if (index >= 0) {
+    localConversations[index] = { ...localConversations[index], ...row }
+  } else {
+    localConversations.push({ ...row })
+  }
+}
+
+const pushLocalMessage = (message: MessageRow) => {
+  if (!localMessages[message.conversation_id]) {
+    localMessages[message.conversation_id] = []
+  }
+  localMessages[message.conversation_id].push(message)
+  const conversation = localConversations.find((item) => item.id === message.conversation_id)
+  if (conversation) {
+    conversation.last_message = message.content
+    conversation.last_message_at = message.created_at
+    conversation.message_count = (conversation.message_count ?? 0) + 1
+    conversation.language = conversation.language ?? (typeof message.translation === 'object' && message.translation
+      ? ((message.translation as Record<string, unknown>).language as string | undefined) ?? conversation.language
+      : conversation.language)
+  }
+}
+
 const buildMockConversation = (params: {
   userId?: string | null
   scope: ChatScope
@@ -136,10 +164,16 @@ export const createConversation = async (params: {
     }
 
     const data = await response.json();
-    return data as ConversationRow;
+    const row = data as ConversationRow;
+    upsertLocalConversation(row);
+    localMessages[row.id] = localMessages[row.id] ?? [];
+    return row;
   } catch (error) {
     console.warn('[chatService] Falling back to mock conversation:', error)
-    return buildMockConversation(params)
+    const mock = buildMockConversation(params)
+    upsertLocalConversation(mock)
+    localMessages[mock.id] = localMessages[mock.id] ?? []
+    return mock
   }
 }
 
@@ -161,10 +195,16 @@ export const listConversations = async (params: {
     }
 
     const data = await response.json();
-    return data as ConversationRow[];
+    const rows = data as ConversationRow[];
+    localConversations.length = 0
+    rows.forEach((row) => {
+      upsertLocalConversation(row)
+      localMessages[row.id] = localMessages[row.id] ?? []
+    })
+    return rows;
   } catch (error) {
     console.error('Error listing conversations:', error);
-    return [] as ConversationRow[];
+    return [...localConversations];
   }
 }
 
@@ -180,10 +220,12 @@ export const getMessages = async (
     }
 
     const data = await response.json();
-    return data as MessageRow[];
+    const rows = data as MessageRow[];
+    localMessages[conversationId] = rows.map((row) => ({ ...row }))
+    return rows;
   } catch (error) {
     console.error('Error getting messages:', error);
-    return [] as MessageRow[];
+    return localMessages[conversationId] ? [...localMessages[conversationId]] : ([] as MessageRow[]);
   }
 }
 
@@ -217,10 +259,12 @@ export const appendMessage = async (params: {
     }
 
     const data = await response.json();
-    return data as MessageRow;
+    const row = data as MessageRow;
+    pushLocalMessage(row)
+    return row;
   } catch (error) {
     console.warn('[chatService] Falling back to mock message append:', error)
-    return {
+    const row: MessageRow = {
       id: randomId(),
       conversation_id: params.conversationId,
       user_id: params.userId ?? null,
@@ -231,6 +275,8 @@ export const appendMessage = async (params: {
       metadata: params.metadata ?? null,
       created_at: new Date().toISOString()
     }
+    pushLocalMessage(row)
+    return row
   }
 }
 
@@ -243,7 +289,11 @@ export const deleteConversation = async (conversationId: string) => {
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-
+    delete localMessages[conversationId]
+    const index = localConversations.findIndex((conv) => conv.id === conversationId)
+    if (index >= 0) {
+      localConversations.splice(index, 1)
+    }
     return true;
   } catch (error) {
     console.error('Error deleting conversation:', error);

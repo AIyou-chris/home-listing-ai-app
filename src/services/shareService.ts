@@ -94,25 +94,29 @@ export class ShareService {
 				return {
 					title: `Property Description - ${property.address}`,
 					text: `${baseText}\n\n${descriptionText}`,
-					url: `${window.location.origin}/property/${property.id}`
+					url: `${window.location.origin}/property/${property.id}`,
+					type: 'property' as const
 				};
 			case 'analysis':
 				return {
 					title: `Market Analysis - ${property.address}`,
 					text: `${baseText}\n\nMarket Analysis:\n• Price: $${property.price?.toLocaleString()}\n• Bedrooms: ${property.bedrooms}\n• Bathrooms: ${property.bathrooms}\n• Square Feet: ${property.squareFeet?.toLocaleString()}`,
-					url: `${window.location.origin}/property/${property.id}/analysis`
+					url: `${window.location.origin}/property/${property.id}/analysis`,
+					type: 'report' as const
 				};
 			case 'proposal':
 				return {
 					title: `Marketing Proposal - ${property.address}`,
 					text: `${baseText}\n\nMarketing Proposal:\n• Professional marketing strategy\n• Market positioning\n• Pricing recommendations\n• Timeline and next steps`,
-					url: `${window.location.origin}/property/${property.id}/proposal`
+					url: `${window.location.origin}/property/${property.id}/proposal`,
+					type: 'proposal' as const
 				};
 			default:
 				return {
 					title: `Property - ${property.address}`,
 					text: baseText,
-					url: `${window.location.origin}/property/${property.id}`
+					url: `${window.location.origin}/property/${property.id}`,
+					type: 'property' as const
 				};
 		}
 	}
@@ -122,7 +126,8 @@ export class ShareService {
 		return {
 			title: `Marketing Proposal - ${proposal.propertyAddress}`,
 			text: `Marketing Proposal for ${proposal.propertyAddress}\n\nExecutive Summary:\n${proposal.executiveSummary}\n\nKey Highlights:\n• Market Analysis: ${proposal.marketAnalysis}\n• Pricing Strategy: ${proposal.pricingStrategy}\n• Marketing Plan: ${proposal.marketingPlan}`,
-			url: `${window.location.origin}/proposal/${proposal.id}`
+			url: `${window.location.origin}/proposal/${proposal.id}`,
+			type: 'marketing' as const
 		};
 	}
 

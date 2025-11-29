@@ -1,7 +1,7 @@
 import React from 'react'
 
 import CalendarView from '../CalendarView'
-import { Lead, LeadStatus } from '../../types'
+import { Appointment, Lead, LeadStatus } from '../../types'
 
 type ContactTab = 'email' | 'call' | 'note'
 type LeadsTab = 'leads' | 'appointments' | 'scoring'
@@ -15,7 +15,10 @@ interface ScheduleForm {
 
 interface AdminLeadsPanelProps {
   leads: Lead[]
+  appointments: Appointment[]
   isLoading: boolean
+  appointmentsLoading: boolean
+  appointmentsError?: string | null
   errorMessage?: string | null
   googleConnected: boolean
   onConnectGoogle: () => Promise<void> | void
@@ -57,7 +60,10 @@ const getLeadStatusStyle = (status: LeadStatus) => statusStyles[status]
 
 const AdminLeadsPanel: React.FC<AdminLeadsPanelProps> = ({
   leads,
+  appointments,
   isLoading,
+  appointmentsLoading,
+  appointmentsError,
   errorMessage,
   googleConnected,
   onConnectGoogle,
@@ -148,15 +154,43 @@ const AdminLeadsPanel: React.FC<AdminLeadsPanelProps> = ({
       <section className="mb-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <CalendarView appointments={[]} />
+            <CalendarView appointments={appointments} />
           </div>
           <div className="bg-white rounded-lg shadow-sm border border-slate-200/80 p-5">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Upcoming Appointments</h3>
             <div className="space-y-3">
-              <div className="text-center text-slate-500 py-8">
-                <span className="material-symbols-outlined text-4xl mb-2 block">event_available</span>
-                <p>No appointments scheduled</p>
-              </div>
+              {appointmentsLoading ? (
+                <div className="text-sm text-slate-500 py-4">Loading appointments…</div>
+              ) : appointments.length > 0 ? (
+                appointments.slice(0, 5).map(appt => (
+                  <div key={appt.id} className="border border-slate-200 rounded-lg p-3 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-slate-800 truncate pr-2">
+                        {appt.leadName || appt.notes || 'Appointment'}
+                      </div>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700">
+                        {appt.type}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {appt.date || 'Date TBD'} · {appt.time || 'Time TBD'}
+                    </div>
+                    {appt.propertyAddress && (
+                      <div className="text-xs text-slate-500 mt-1">
+                        {appt.propertyAddress}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-slate-500 py-8">
+                  <span className="material-symbols-outlined text-4xl mb-2 block">event_available</span>
+                  <p>No appointments scheduled</p>
+                </div>
+              )}
+              {appointmentsError && (
+                <p className="text-xs text-red-600">{appointmentsError}</p>
+              )}
             </div>
           </div>
         </div>

@@ -969,7 +969,7 @@ const computeAppointmentIsoRange = (dateValue, timeLabel, durationMinutes = 30) 
 };
 
 const APPOINTMENT_SELECT_FIELDS =
-  'id, user_id, lead_id, property_id, property_address, kind, name, email, phone, date, time_label, start_iso, end_iso, meet_link, notes, status, remind_agent, remind_client, agent_reminder_minutes_before, client_reminder_minutes_before, created_at, updated_at';
+  'id, user_id, lead_id, property_id, kind, name, email, phone, date, time_label, start_iso, end_iso, meet_link, notes, status, remind_agent, remind_client, agent_reminder_minutes_before, client_reminder_minutes_before, created_at, updated_at';
 
 const mapAppointmentFromRow = (row) => {
   if (!row) return null;
@@ -982,7 +982,7 @@ const mapAppointmentFromRow = (row) => {
     leadId: row.lead_id || '',
     leadName: row.name || '',
     propertyId: row.property_id || '',
-    propertyAddress: row.property_address || '',
+    propertyAddress: row.property_address || row.propertyAddress || '',
     email: row.email || '',
     phone: row.phone || '',
     notes: row.notes || '',
@@ -1089,6 +1089,401 @@ const mapAiCardProfileToRow = (profileData = {}) => {
   }
 
   return payload;
+};
+
+const DEFAULT_PROPERTY_IMAGE =
+  'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=1200&auto=format&fit=crop';
+
+const DEFAULT_PROPERTY_APP_FEATURES = {
+  gallery: true,
+  schools: true,
+  financing: true,
+  virtualTour: true,
+  amenities: true,
+  schedule: true,
+  map: true,
+  history: true,
+  neighborhood: true,
+  reports: true,
+  messaging: true
+};
+
+const AGENT_SOCIAL_PLATFORMS = ['Twitter', 'LinkedIn', 'Instagram', 'Facebook', 'YouTube', 'Pinterest'];
+
+const DEFAULT_AGENT_SNAPSHOT = {
+  name: '',
+  title: '',
+  company: '',
+  phone: '',
+  email: '',
+  headshotUrl: '',
+  socials: AGENT_SOCIAL_PLATFORMS.map((platform) => ({ platform, url: '' })),
+  brandColor: '#0ea5e9',
+  logoUrl: '',
+  website: '',
+  bio: '',
+  language: 'en'
+};
+
+const normalizeSocialPlatform = (platform) => {
+  if (typeof platform !== 'string') return null;
+  const normalized = platform.toLowerCase();
+  return (
+    AGENT_SOCIAL_PLATFORMS.find((candidate) => candidate.toLowerCase() === normalized) ?? null
+  );
+};
+
+const normalizeAgentSocials = (socials) => {
+  if (!Array.isArray(socials)) {
+    return DEFAULT_AGENT_SNAPSHOT.socials.map((entry) => ({ ...entry }));
+  }
+
+  const socialMap = new Map(
+    DEFAULT_AGENT_SNAPSHOT.socials.map((entry) => [entry.platform, entry.url || ''])
+  );
+
+  socials.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const platform = normalizeSocialPlatform(entry.platform);
+    if (!platform) return;
+    const url =
+      typeof entry.url === 'string'
+        ? entry.url
+        : typeof entry.href === 'string'
+        ? entry.href
+        : '';
+    socialMap.set(platform, url);
+  });
+
+  return AGENT_SOCIAL_PLATFORMS.map((platform) => ({
+    platform,
+    url: socialMap.get(platform) || ''
+  }));
+};
+
+const ensureAgentSnapshotForProperty = (snapshot) => {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return {
+      ...DEFAULT_AGENT_SNAPSHOT,
+      socials: DEFAULT_AGENT_SNAPSHOT.socials.map((entry) => ({ ...entry }))
+    };
+  }
+
+  const candidate = snapshot;
+  const next = {
+    ...DEFAULT_AGENT_SNAPSHOT,
+    socials: DEFAULT_AGENT_SNAPSHOT.socials.map((entry) => ({ ...entry }))
+  };
+
+  if (typeof candidate.name === 'string') next.name = candidate.name;
+  if (typeof candidate.fullName === 'string') next.name = candidate.fullName;
+  if (typeof candidate.title === 'string') next.title = candidate.title;
+  if (typeof candidate.professionalTitle === 'string') next.title = candidate.professionalTitle;
+  if (typeof candidate.company === 'string') next.company = candidate.company;
+  if (typeof candidate.phone === 'string') next.phone = candidate.phone;
+  if (typeof candidate.email === 'string') next.email = candidate.email;
+  if (typeof candidate.headshotUrl === 'string') next.headshotUrl = candidate.headshotUrl;
+  if (typeof candidate.headshot === 'string') next.headshotUrl = candidate.headshot;
+  if (typeof candidate.brandColor === 'string') next.brandColor = candidate.brandColor;
+  if (typeof candidate.logoUrl === 'string') next.logoUrl = candidate.logoUrl;
+  if (typeof candidate.logo === 'string') next.logoUrl = candidate.logo;
+  if (typeof candidate.website === 'string') next.website = candidate.website;
+  if (typeof candidate.bio === 'string') next.bio = candidate.bio;
+  if (typeof candidate.language === 'string') next.language = candidate.language;
+
+  if (Array.isArray(candidate.socials)) {
+    next.socials = normalizeAgentSocials(candidate.socials);
+  } else if (candidate.socialMedia && typeof candidate.socialMedia === 'object') {
+    const socialEntries = AGENT_SOCIAL_PLATFORMS.map((platform) => {
+      const key = platform.toLowerCase();
+      const url =
+        typeof candidate.socialMedia[key] === 'string'
+          ? candidate.socialMedia[key]
+          : '';
+      return { platform, url };
+    });
+    next.socials = normalizeAgentSocials(socialEntries);
+  }
+
+  return next;
+};
+
+const mapAiCardProfileToAgentSnapshot = (profile) => {
+  if (!profile || typeof profile !== 'object') {
+    return {
+      ...DEFAULT_AGENT_SNAPSHOT,
+      socials: DEFAULT_AGENT_SNAPSHOT.socials.map((entry) => ({ ...entry }))
+    };
+  }
+
+  const socials = AGENT_SOCIAL_PLATFORMS.map((platform) => {
+    const key = platform.toLowerCase();
+    const url =
+      profile.socialMedia && typeof profile.socialMedia === 'object'
+        ? profile.socialMedia[key]
+        : '';
+    return { platform, url: typeof url === 'string' ? url : '' };
+  });
+
+  return {
+    ...DEFAULT_AGENT_SNAPSHOT,
+    name: profile.fullName || profile.name || DEFAULT_AGENT_SNAPSHOT.name,
+    title:
+      profile.professionalTitle ||
+      profile.title ||
+      DEFAULT_AGENT_SNAPSHOT.title,
+    company: profile.company || DEFAULT_AGENT_SNAPSHOT.company,
+    phone: profile.phone || DEFAULT_AGENT_SNAPSHOT.phone,
+    email: profile.email || DEFAULT_AGENT_SNAPSHOT.email,
+    headshotUrl: profile.headshot || profile.headshotUrl || DEFAULT_AGENT_SNAPSHOT.headshotUrl,
+    socials: normalizeAgentSocials(socials),
+    brandColor: profile.brandColor || DEFAULT_AGENT_SNAPSHOT.brandColor,
+    logoUrl: profile.logo || profile.logoUrl || DEFAULT_AGENT_SNAPSHOT.logoUrl,
+    website: profile.website || DEFAULT_AGENT_SNAPSHOT.website,
+    bio: profile.bio || DEFAULT_AGENT_SNAPSHOT.bio,
+    language: profile.language || DEFAULT_AGENT_SNAPSHOT.language
+  };
+};
+
+const ensurePropertyAppFeatures = (value) => {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_PROPERTY_APP_FEATURES };
+  }
+  return { ...DEFAULT_PROPERTY_APP_FEATURES, ...value };
+};
+
+const normalizePropertyStatusForStorage = (status) => {
+  if (!status) return 'active';
+  const normalized = String(status).toLowerCase();
+  if (['active', 'pending', 'sold'].includes(normalized)) {
+    return normalized;
+  }
+  return normalized;
+};
+
+const mapPropertyStatusFromRow = (status) => {
+  if (!status) return undefined;
+  const normalized = String(status).toLowerCase();
+  if (normalized === 'active') return 'Active';
+  if (normalized === 'pending') return 'Pending';
+  if (normalized === 'sold') return 'Sold';
+  return status;
+};
+
+const normalizeDescriptionForStorage = (description) => {
+  if (description === undefined) return undefined;
+  if (description === null) return null;
+  if (typeof description === 'string') return description;
+  if (description && typeof description === 'object') {
+    const candidate = description;
+    return {
+      title: typeof candidate.title === 'string' ? candidate.title : '',
+      paragraphs: Array.isArray(candidate.paragraphs)
+        ? candidate.paragraphs.filter((item) => typeof item === 'string')
+        : []
+    };
+  }
+  return null;
+};
+
+const normalizeStringArray = (value) => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === 'string' ? item : null))
+    .filter((item) => item && item.trim().length > 0);
+};
+
+const mapPropertyRow = (row) => {
+  if (!row) return null;
+  const heroPhotos = Array.isArray(row.hero_photos) ? row.hero_photos : [];
+  const galleryPhotos = Array.isArray(row.gallery_photos) ? row.gallery_photos : [];
+  const description =
+    typeof row.description === 'string' || (row.description && typeof row.description === 'object')
+      ? row.description
+      : '';
+
+  return {
+    id: row.id,
+    title: row.title || '',
+    address: row.address || '',
+    price: Number(row.price) || 0,
+    bedrooms: row.bedrooms !== null && row.bedrooms !== undefined ? Number(row.bedrooms) : 0,
+    bathrooms: row.bathrooms !== null && row.bathrooms !== undefined ? Number(row.bathrooms) : 0,
+    squareFeet: row.square_feet !== null && row.square_feet !== undefined ? Number(row.square_feet) : 0,
+    status: mapPropertyStatusFromRow(row.status),
+    listedDate: row.created_at || undefined,
+    description,
+    heroPhotos,
+    galleryPhotos,
+    propertyType: row.property_type || 'Single Family',
+    features: Array.isArray(row.features) ? row.features : [],
+    appFeatures: ensurePropertyAppFeatures(row.app_features),
+    agent: ensureAgentSnapshotForProperty(row.agent_snapshot),
+    imageUrl: heroPhotos[0] || galleryPhotos[0] || DEFAULT_PROPERTY_IMAGE,
+    ctaListingUrl: row.cta_listing_url || undefined,
+    ctaMediaUrl: row.cta_media_url || undefined
+  };
+};
+
+const buildPropertyStats = (rows) =>
+  rows.reduce(
+    (stats, row) => {
+      const status = String(row.status || '').toLowerCase();
+      if (status === 'active') stats.active += 1;
+      if (status === 'pending') stats.pending += 1;
+      if (status === 'sold') stats.sold += 1;
+
+      const marketing = row.marketing && typeof row.marketing === 'object' ? row.marketing : {};
+      stats.totalViews += Number(marketing.views) || 0;
+      stats.totalInquiries += Number(marketing.inquiries) || 0;
+      return stats;
+    },
+    { active: 0, pending: 0, sold: 0, totalViews: 0, totalInquiries: 0 }
+  );
+
+const ensureListingOwner = (explicitUserId) => explicitUserId || DEFAULT_LEAD_USER_ID || null;
+
+const buildPropertyInsertPayload = (body, ownerId, agentSnapshot) => {
+  const heroPhotos = normalizeStringArray(body?.heroPhotos);
+  const galleryPhotos = normalizeStringArray(body?.galleryPhotos);
+
+  return {
+    user_id: ownerId,
+    agent_id: body?.agentId || ownerId,
+    title: typeof body?.title === 'string' ? body.title.trim() : null,
+    address: typeof body?.address === 'string' ? body.address.trim() : null,
+    price: body?.price !== undefined ? Number(body.price) : 0,
+    bedrooms: body?.bedrooms !== undefined ? Number(body.bedrooms) : null,
+    bathrooms: body?.bathrooms !== undefined ? Number(body.bathrooms) : null,
+    square_feet: body?.squareFeet !== undefined ? Number(body.squareFeet) : null,
+    property_type: typeof body?.propertyType === 'string' ? body.propertyType : null,
+    status: normalizePropertyStatusForStorage(body?.status),
+    description: normalizeDescriptionForStorage(body?.description),
+    features: Array.isArray(body?.features) ? body.features : [],
+    hero_photos: heroPhotos.length > 0 ? heroPhotos : [DEFAULT_PROPERTY_IMAGE],
+    gallery_photos: galleryPhotos.length > 0 ? galleryPhotos : null,
+    cta_listing_url: typeof body?.ctaListingUrl === 'string' ? body.ctaListingUrl : null,
+    cta_media_url: typeof body?.ctaMediaUrl === 'string' ? body.ctaMediaUrl : null,
+    app_features: ensurePropertyAppFeatures(body?.appFeatures),
+    agent_snapshot: agentSnapshot,
+    marketing:
+      body?.marketing && typeof body.marketing === 'object'
+        ? body.marketing
+        : {
+            views: 0,
+            inquiries: 0,
+            showings: 0,
+            favorites: 0,
+            socialShares: 0,
+            leadGenerated: 0
+          },
+    ai_content:
+      body?.aiContent && typeof body.aiContent === 'object'
+        ? body.aiContent
+        : {
+            marketingDescription:
+              typeof body?.marketingDescription === 'string'
+                ? body.marketingDescription
+                : typeof body?.description === 'string'
+                ? body.description
+                : '',
+            socialMediaPosts: Array.isArray(body?.socialMediaPosts) ? body.socialMediaPosts : [],
+            emailTemplate: typeof body?.emailTemplate === 'string' ? body.emailTemplate : ''
+          },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+};
+
+const buildPropertyUpdatePayload = (body) => {
+  const payload = {
+    updated_at: new Date().toISOString()
+  };
+
+  if (body?.title !== undefined) payload.title = typeof body.title === 'string' ? body.title : null;
+  if (body?.address !== undefined) payload.address = typeof body.address === 'string' ? body.address : null;
+  if (body?.price !== undefined) payload.price = body.price !== null ? Number(body.price) : null;
+  if (body?.bedrooms !== undefined) payload.bedrooms = body.bedrooms !== null ? Number(body.bedrooms) : null;
+  if (body?.bathrooms !== undefined) payload.bathrooms = body.bathrooms !== null ? Number(body.bathrooms) : null;
+  if (body?.squareFeet !== undefined) payload.square_feet = body.squareFeet !== null ? Number(body.squareFeet) : null;
+  if (body?.propertyType !== undefined) payload.property_type = body.propertyType ?? null;
+  if (body?.status !== undefined) payload.status = normalizePropertyStatusForStorage(body.status);
+  if (body?.description !== undefined) payload.description = normalizeDescriptionForStorage(body.description);
+  if (body?.features !== undefined) payload.features = Array.isArray(body.features) ? body.features : [];
+  if (body?.heroPhotos !== undefined) {
+    const heroPhotos = normalizeStringArray(body.heroPhotos);
+    payload.hero_photos = heroPhotos.length > 0 ? heroPhotos : [DEFAULT_PROPERTY_IMAGE];
+  }
+  if (body?.galleryPhotos !== undefined) {
+    const gallery = normalizeStringArray(body.galleryPhotos);
+    payload.gallery_photos = gallery.length > 0 ? gallery : null;
+  }
+  if (body?.ctaListingUrl !== undefined) payload.cta_listing_url = body.ctaListingUrl ?? null;
+  if (body?.ctaMediaUrl !== undefined) payload.cta_media_url = body.ctaMediaUrl ?? null;
+  if (body?.appFeatures !== undefined) payload.app_features = ensurePropertyAppFeatures(body.appFeatures);
+  if (body?.agentSnapshot !== undefined) {
+    payload.agent_snapshot = ensureAgentSnapshotForProperty(body.agentSnapshot);
+  }
+  if (body?.marketing !== undefined) {
+    payload.marketing = body.marketing && typeof body.marketing === 'object' ? body.marketing : null;
+  }
+  if (body?.aiContent !== undefined) {
+    payload.ai_content = body.aiContent && typeof body.aiContent === 'object' ? body.aiContent : null;
+  }
+
+  return payload;
+};
+
+const buildMarketingPayload = (row) => {
+  if (!row) {
+    return {
+      views: 0,
+      inquiries: 0,
+      showings: 0,
+      favorites: 0,
+      socialShares: 0,
+      leadGenerated: 0,
+      aiContent: {
+        marketingDescription: '',
+        socialMediaPosts: [],
+        emailTemplate: ''
+      },
+      agent: ensureAgentSnapshotForProperty(null),
+      listingInfo: {
+        title: '',
+        address: '',
+        price: 0,
+        bedrooms: 0,
+        bathrooms: 0
+      }
+    };
+  }
+
+  const marketing = row.marketing && typeof row.marketing === 'object' ? row.marketing : {};
+  const aiContent = row.ai_content && typeof row.ai_content === 'object' ? row.ai_content : {};
+
+  return {
+    views: Number(marketing.views) || 0,
+    inquiries: Number(marketing.inquiries) || 0,
+    showings: Number(marketing.showings) || 0,
+    favorites: Number(marketing.favorites) || 0,
+    socialShares: Number(marketing.socialShares) || 0,
+    leadGenerated: Number(marketing.leadGenerated) || 0,
+    aiContent: {
+      marketingDescription:
+        typeof aiContent.marketingDescription === 'string' ? aiContent.marketingDescription : '',
+      socialMediaPosts: Array.isArray(aiContent.socialMediaPosts) ? aiContent.socialMediaPosts : [],
+      emailTemplate: typeof aiContent.emailTemplate === 'string' ? aiContent.emailTemplate : ''
+    },
+    agent: ensureAgentSnapshotForProperty(row.agent_snapshot),
+    listingInfo: {
+      title: row.title || '',
+      address: row.address || '',
+      price: Number(row.price) || 0,
+      bedrooms: row.bedrooms !== null && row.bedrooms !== undefined ? Number(row.bedrooms) : 0,
+      bathrooms: row.bathrooms !== null && row.bathrooms !== undefined ? Number(row.bathrooms) : 0
+    }
+  };
 };
 
 const uploadDataUrlToStorage = async (userId, type, dataUrl, mimeTypeHint) => {
@@ -4412,7 +4807,8 @@ app.get('/api/conversations', async (req, res) => {
       .from('ai_conversations')
       .select(AI_CONVERSATION_SELECT_FIELDS)
       .eq('user_id', ownerId)
-      .order('COALESCE(last_message_at, created_at)', { ascending: false });
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false, nullsFirst: false });
 
     if (scope) query = query.eq('scope', scope);
     if (listingId) query = query.eq('listing_id', listingId);
@@ -4435,6 +4831,10 @@ app.get('/api/conversations/:conversationId/messages', async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { limit = 100 } = req.query;
+
+    if (!isUuid(conversationId)) {
+      return res.json([]);
+    }
 
     const { data, error } = await supabaseAdmin
       .from('ai_conversation_messages')
@@ -5231,7 +5631,6 @@ app.post('/api/appointments', async (req, res) => {
       user_id: ownerId,
       lead_id: isUuid(leadId) ? leadId : null,
       property_id: propertyId || null,
-      property_address: propertyAddress || null,
       kind,
       name: contactName,
       email: contactEmail || null,
@@ -5297,9 +5696,6 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
     if (updates.status) updatePayload.status = updates.status;
     if (updates.meetLink !== undefined) updatePayload.meet_link = updates.meetLink || null;
     if (updates.propertyId !== undefined) updatePayload.property_id = updates.propertyId || null;
-    if (updates.propertyAddress !== undefined) {
-      updatePayload.property_address = updates.propertyAddress || null;
-    }
     if (updates.remindAgent !== undefined) {
       updatePayload.remind_agent = Boolean(updates.remindAgent);
     }
@@ -5400,206 +5796,231 @@ app.delete('/api/appointments/:appointmentId', async (req, res) => {
 // Listing/Property Management Endpoints
 
 // Get all listings
-app.get('/api/listings', (req, res) => {
-    try {
-        const { status, agentId, priceMin, priceMax, bedrooms, propertyType } = req.query;
-        let filteredListings = [...listings];
-        
-        // Filter by status
-        if (status && status !== 'all') {
-            filteredListings = filteredListings.filter(listing => listing.status === status);
-        }
-        
-        // Filter by agent
-        if (agentId) {
-            filteredListings = filteredListings.filter(listing => listing.agent.id === agentId);
-        }
-        
-        // Filter by price range
-        if (priceMin) {
-            filteredListings = filteredListings.filter(listing => listing.price >= parseInt(priceMin));
-        }
-        if (priceMax) {
-            filteredListings = filteredListings.filter(listing => listing.price <= parseInt(priceMax));
-        }
-        
-        // Filter by bedrooms
-        if (bedrooms) {
-            filteredListings = filteredListings.filter(listing => listing.bedrooms >= parseInt(bedrooms));
-        }
-        
-        // Filter by property type
-        if (propertyType) {
-            filteredListings = filteredListings.filter(listing => listing.propertyType === propertyType);
-        }
-        
-        // Sort by listing date (newest first)
-        filteredListings.sort((a, b) => new Date(b.listingDate).getTime() - new Date(a.listingDate).getTime());
-        
-        console.log(`🏠 Retrieved ${filteredListings.length} listings`);
-        res.json({
-            listings: filteredListings,
-            total: filteredListings.length,
-            stats: {
-                active: listings.filter(l => l.status === 'active').length,
-                pending: listings.filter(l => l.status === 'pending').length,
-                sold: listings.filter(l => l.status === 'sold').length,
-                totalViews: listings.reduce((sum, l) => sum + (l.marketing?.views || 0), 0),
-                totalInquiries: listings.reduce((sum, l) => sum + (l.marketing?.inquiries || 0), 0)
-            }
-        });
-    } catch (error) {
-        console.error('Error getting listings:', error);
-        res.status(500).json({ error: 'Failed to get listings' });
+app.get('/api/listings', async (req, res) => {
+  try {
+    if (!supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.warn('[Listings] Service role key not configured. Returning empty listing set.');
+      return res.json({
+        listings: [],
+        total: 0,
+        stats: { active: 0, pending: 0, sold: 0, totalViews: 0, totalInquiries: 0 }
+      });
     }
+
+    const { status, agentId, priceMin, priceMax, bedrooms, propertyType, userId } = req.query;
+    const ownerId = ensureListingOwner(userId);
+
+    if (!ownerId) {
+      return res.json({
+        listings: [],
+        total: 0,
+        stats: { active: 0, pending: 0, sold: 0, totalViews: 0, totalInquiries: 0 }
+      });
+    }
+
+    let query = supabaseAdmin
+      .from('properties')
+      .select('*')
+      .eq('user_id', ownerId);
+
+    if (agentId) {
+      query = query.eq('agent_id', agentId);
+    }
+
+    if (status && status !== 'all') {
+      query = query.eq('status', String(status).toLowerCase());
+    }
+
+    if (propertyType) {
+      query = query.eq('property_type', propertyType);
+    }
+
+    if (priceMin !== undefined) {
+      query = query.gte('price', Number(priceMin));
+    }
+
+    if (priceMax !== undefined) {
+      query = query.lte('price', Number(priceMax));
+    }
+
+    if (bedrooms !== undefined) {
+      query = query.gte('bedrooms', Number(bedrooms));
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    const mapped = (data || []).map(mapPropertyRow).filter((property) => property !== null);
+    const stats = buildPropertyStats(data || []);
+
+    console.log(`🏠 Retrieved ${mapped.length} listings for ${ownerId}`);
+
+    res.json({
+      listings: mapped,
+      total: mapped.length,
+      stats
+    });
+  } catch (error) {
+    console.error('Error getting listings:', error);
+    res.status(500).json({ error: 'Failed to get listings' });
+  }
 });
 
 // Create new listing
-app.post('/api/listings', (req, res) => {
-    try {
-        const { title, address, price, bedrooms, bathrooms, squareFeet, propertyType, description, features, heroPhotos, galleryPhotos, agentId } = req.body;
-        
-        if (!title || !address || !price) {
-            return res.status(400).json({ error: 'Title, address, and price are required' });
-        }
-        
-        // Get agent profile for listing
-        const agentProfile = aiCardProfiles[agentId || 'default'] || aiCardProfiles.default;
-        
-        const newListing = {
-            id: `listing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            title,
-            address,
-            price: parseInt(price),
-            bedrooms: parseInt(bedrooms) || 0,
-            bathrooms: parseInt(bathrooms) || 0,
-            squareFeet: parseInt(squareFeet) || 0,
-            propertyType: propertyType || 'Single-Family Home',
-            description: description || '',
-            features: features || [],
-            heroPhotos: heroPhotos || [],
-            galleryPhotos: galleryPhotos || [],
-            status: 'active',
-            listingDate: new Date().toISOString().split('T')[0],
-            // Add agent information from centralized profile
-            agent: {
-                id: agentProfile.id,
-                name: agentProfile.fullName,
-                title: agentProfile.professionalTitle,
-                company: agentProfile.company,
-                phone: agentProfile.phone,
-                email: agentProfile.email,
-                website: agentProfile.website,
-                headshotUrl: agentProfile.headshot,
-                brandColor: agentProfile.brandColor
-            },
-            // Initialize marketing data
-            marketing: {
-                views: 0,
-                inquiries: 0,
-                showings: 0,
-                favorites: 0,
-                socialShares: 0,
-                leadGenerated: 0
-            },
-            // AI-generated content placeholder
-            aiContent: {
-                marketingDescription: `Discover this amazing ${propertyType.toLowerCase()} at ${address}. ${description}`,
-                socialMediaPosts: [
-                    `🏠✨ NEW LISTING! ${title} - ${bedrooms}BR/${bathrooms}BA ${propertyType} for $${price.toLocaleString()}! ${address} #RealEstate #NewListing #${propertyType.replace(/\s+/g, '')}`,
-                    `Don't miss this incredible opportunity! ${title} offers ${squareFeet} sq ft of luxury living. Contact ${agentProfile.fullName} today! 🏡`
-                ],
-                emailTemplate: `Subject: New Listing - ${title}\n\nDear [Name],\n\nI'm excited to share this incredible new listing with you!\n\n${title}\n${address}\nPrice: $${price.toLocaleString()}\n${bedrooms} Bedrooms, ${bathrooms} Bathrooms\n${squareFeet} Square Feet\n\n${description}\n\nBest regards,\n${agentProfile.fullName}\n${agentProfile.company}`
-            },
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        };
-        
-        listings.push(newListing);
-        
-        console.log(`🏠 Created listing: ${title} at ${address} (Agent: ${agentProfile.fullName})`);
-        res.json(newListing);
-    } catch (error) {
-        console.error('Error creating listing:', error);
-        res.status(500).json({ error: 'Failed to create listing' });
+app.post('/api/listings', async (req, res) => {
+  try {
+    if (!supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(503).json({ error: 'Listings service not configured' });
     }
+
+    const ownerId = ensureListingOwner(req.body?.userId);
+    if (!ownerId) {
+      return res.status(400).json({ error: 'userId is required to create a listing' });
+    }
+
+    const { title, address, price } = req.body || {};
+
+    if (!title || !address || (price === undefined || price === null)) {
+      return res.status(400).json({ error: 'Title, address, and price are required' });
+    }
+
+    const agentProfile =
+      (await fetchAiCardProfileForUser(req.body?.agentId || ownerId)) || DEFAULT_AI_CARD_PROFILE;
+    const agentSnapshot = mapAiCardProfileToAgentSnapshot(agentProfile);
+
+    const payload = buildPropertyInsertPayload(req.body || {}, ownerId, agentSnapshot);
+
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .insert(payload)
+      .select('*')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(`🏠 Created listing "${payload.title}" for ${ownerId}`);
+    res.status(201).json(mapPropertyRow(data));
+  } catch (error) {
+    console.error('Error creating listing:', error);
+    res.status(500).json({ error: 'Failed to create listing' });
+  }
 });
 
 // Update listing
-app.put('/api/listings/:listingId', (req, res) => {
-    try {
-        const { listingId } = req.params;
-        const updates = req.body;
-        
-        const listingIndex = listings.findIndex(listing => listing.id === listingId);
-        if (listingIndex === -1) {
-            return res.status(404).json({ error: 'Listing not found' });
-        }
-        
-        // Update listing data
-        listings[listingIndex] = {
-            ...listings[listingIndex],
-            ...updates,
-            updated_at: new Date().toISOString()
-        };
-        
-        console.log(`🏠 Updated listing: ${listingId}`);
-        res.json(listings[listingIndex]);
-    } catch (error) {
-        console.error('Error updating listing:', error);
-        res.status(500).json({ error: 'Failed to update listing' });
+app.put('/api/listings/:listingId', async (req, res) => {
+  try {
+    if (!supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(503).json({ error: 'Listings service not configured' });
     }
+
+    const { listingId } = req.params;
+    const ownerId = ensureListingOwner(req.body?.userId);
+    if (!ownerId) {
+      return res.status(400).json({ error: 'userId is required to update a listing' });
+    }
+
+    const updates = buildPropertyUpdatePayload(req.body || {});
+
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .update(updates)
+      .eq('id', listingId)
+      .eq('user_id', ownerId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    console.log(`🏠 Updated listing ${listingId}`);
+    res.json(mapPropertyRow(data));
+  } catch (error) {
+    console.error('Error updating listing:', error);
+    res.status(500).json({ error: 'Failed to update listing' });
+  }
 });
 
 // Delete listing
-app.delete('/api/listings/:listingId', (req, res) => {
-    try {
-        const { listingId } = req.params;
-        
-        const listingIndex = listings.findIndex(listing => listing.id === listingId);
-        if (listingIndex === -1) {
-            return res.status(404).json({ error: 'Listing not found' });
-        }
-        
-        const deletedListing = listings.splice(listingIndex, 1)[0];
-        
-        console.log(`🏠 Deleted listing: ${listingId}`);
-        res.json({ message: 'Listing deleted successfully', listing: deletedListing });
-    } catch (error) {
-        console.error('Error deleting listing:', error);
-        res.status(500).json({ error: 'Failed to delete listing' });
+app.delete('/api/listings/:listingId', async (req, res) => {
+  try {
+    if (!supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(503).json({ error: 'Listings service not configured' });
     }
+
+    const { listingId } = req.params;
+    const ownerId = ensureListingOwner(req.body?.userId);
+    if (!ownerId) {
+      return res.status(400).json({ error: 'userId is required to delete a listing' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .delete()
+      .eq('id', listingId)
+      .eq('user_id', ownerId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    console.log(`🏠 Deleted listing ${listingId}`);
+    res.json({ message: 'Listing deleted successfully', listing: mapPropertyRow(data) });
+  } catch (error) {
+    console.error('Error deleting listing:', error);
+    res.status(500).json({ error: 'Failed to delete listing' });
+  }
 });
 
 // Get listing marketing data
-app.get('/api/listings/:listingId/marketing', (req, res) => {
-    try {
-        const { listingId } = req.params;
-        
-        const listing = listings.find(l => l.id === listingId);
-        if (!listing) {
-            return res.status(404).json({ error: 'Listing not found' });
-        }
-        
-        const marketingData = {
-            ...listing.marketing,
-            aiContent: listing.aiContent,
-            agent: listing.agent,
-            listingInfo: {
-                title: listing.title,
-                address: listing.address,
-                price: listing.price,
-                bedrooms: listing.bedrooms,
-                bathrooms: listing.bathrooms
-            }
-        };
-        
-        console.log(`📊 Retrieved marketing data for listing: ${listingId}`);
-        res.json(marketingData);
-    } catch (error) {
-        console.error('Error getting listing marketing data:', error);
-        res.status(500).json({ error: 'Failed to get marketing data' });
+app.get('/api/listings/:listingId/marketing', async (req, res) => {
+  try {
+    if (!supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(503).json({ error: 'Listings service not configured' });
     }
+
+    const { listingId } = req.params;
+    const ownerId = ensureListingOwner(req.query?.userId);
+    if (!ownerId) {
+      return res.status(400).json({ error: 'userId is required to load marketing data' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .select('id, title, address, price, bedrooms, bathrooms, marketing, ai_content, agent_snapshot')
+      .eq('id', listingId)
+      .eq('user_id', ownerId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    console.log(`📊 Retrieved marketing data for listing ${listingId}`);
+    res.json(buildMarketingPayload(data));
+  } catch (error) {
+    console.error('Error getting listing marketing data:', error);
+    res.status(500).json({ error: 'Failed to get marketing data' });
+  }
 });
 
 app.listen(port, () => {

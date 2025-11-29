@@ -213,7 +213,7 @@ const AgentOnboardingPage: React.FC<AgentOnboardingPageProps> = ({ onComplete })
                                     <label className="block text-sm font-medium text-slate-700 mb-2">Communication Style</label>
                                     <select
                                         value={formData.communicationStyle}
-                                        onChange={(e) => handleInputChange('communicationStyle', e.target.value)}
+                                        onChange={(e) => handleInputChange('communicationStyle', e.target.value as OnboardingData['communicationStyle'])}
                                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                                     >
                                         <option value="professional">Professional</option>
@@ -226,7 +226,7 @@ const AgentOnboardingPage: React.FC<AgentOnboardingPageProps> = ({ onComplete })
                                     <label className="block text-sm font-medium text-slate-700 mb-2">Tone</label>
                                     <select
                                         value={formData.tone}
-                                        onChange={(e) => handleInputChange('tone', e.target.value)}
+                                        onChange={(e) => handleInputChange('tone', e.target.value as OnboardingData['tone'])}
                                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                                     >
                                         <option value="enthusiastic">Enthusiastic</option>

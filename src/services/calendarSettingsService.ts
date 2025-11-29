@@ -1,4 +1,5 @@
 import { CalendarSettings } from '../types'
+import { getAuthenticatedUserId } from './session-utils'
 
 export interface CalendarConnectionInfo {
   provider: string | null
@@ -29,8 +30,37 @@ const handleResponse = async (response: Response): Promise<CalendarSettingsRespo
   return data
 }
 
-const fetchSettings = async (userId: string): Promise<CalendarSettingsResponse> => {
-  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(userId)}`)
+const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
+  integrationType: null,
+  aiScheduling: true,
+  conflictDetection: true,
+  emailReminders: true,
+  autoConfirm: false,
+  workingHours: { start: '09:00', end: '17:00' },
+  workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+  defaultDuration: 60,
+  bufferTime: 15,
+  smsReminders: true,
+  newAppointmentAlerts: true
+}
+
+const buildDemoResponse = (): CalendarSettingsResponse => ({
+  settings: { ...DEFAULT_CALENDAR_SETTINGS },
+  connection: {
+    provider: null,
+    email: null,
+    connectedAt: null,
+    status: 'demo'
+  }
+})
+
+const fetchSettings = async (userId?: string): Promise<CalendarSettingsResponse> => {
+  const resolvedUserId = userId ?? (await getAuthenticatedUserId())
+  if (!resolvedUserId) {
+    return buildDemoResponse()
+  }
+
+  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(resolvedUserId)}`)
   return handleResponse(response)
 }
 
@@ -38,7 +68,12 @@ const updateSettings = async (
   userId: string,
   settings: Partial<CalendarSettings>
 ): Promise<CalendarSettingsResponse> => {
-  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(userId)}`, {
+  const resolvedUserId = userId || (await getAuthenticatedUserId())
+  if (!resolvedUserId) {
+    return { success: false, ...buildDemoResponse() }
+  }
+
+  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(resolvedUserId)}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
@@ -55,5 +90,8 @@ export const calendarSettingsService = {
 }
 
 export default calendarSettingsService
+
+
+
 
 

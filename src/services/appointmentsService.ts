@@ -1,4 +1,6 @@
 import { supabase } from './supabase'
+import { SAMPLE_APPOINTMENTS } from '../constants'
+import { getAuthenticatedUserId } from './session-utils'
 
 export interface AppointmentRow {
   id: string
@@ -75,9 +77,47 @@ export const insertAppointment = async (row: InsertAppointmentInput) => {
   return data as AppointmentRow
 }
 
+const buildDemoAppointmentRows = (): AppointmentRow[] => {
+  return SAMPLE_APPOINTMENTS.map((appointment, index) => {
+    const label = appointment.time || '02:00 PM'
+    const baseDate = new Date(`${appointment.date} ${label}`)
+    const start = Number.isNaN(baseDate.getTime()) ? new Date(Date.now() + index * 60 * 60 * 1000) : baseDate
+    const end = new Date(start.getTime() + 30 * 60 * 1000)
+
+    return {
+      id: appointment.id || `demo-appt-${index}`,
+      user_id: 'demo-user',
+      lead_id: appointment.leadId ?? null,
+      property_id: appointment.propertyId ?? null,
+      property_address: appointment.propertyAddress ?? null,
+      kind: appointment.type,
+      name: appointment.leadName ?? appointment.notes ?? 'Prospect Meeting',
+      email: appointment.email ?? null,
+      phone: appointment.phone ?? null,
+      date: appointment.date,
+      time_label: label,
+      start_iso: appointment.startIso ?? start.toISOString(),
+      end_iso: appointment.endIso ?? end.toISOString(),
+      meet_link: appointment.meetLink ?? null,
+      notes: appointment.notes ?? null,
+      status: appointment.status ?? 'Scheduled',
+      remind_agent: appointment.remindAgent ?? true,
+      remind_client: appointment.remindClient ?? true,
+      agent_reminder_minutes_before: appointment.agentReminderMinutes ?? 60,
+      client_reminder_minutes_before: appointment.clientReminderMinutes ?? 60,
+      created_at: appointment.createdAt ?? start.toISOString(),
+      updated_at: appointment.updatedAt ?? start.toISOString()
+    }
+  })
+}
+
 export const listAppointments = async (userId?: string) => {
-  const query = supabase.from('appointments').select('*').order('start_iso', { ascending: true })
-  if (userId) query.eq('user_id', userId)
+  const resolvedUserId = userId ?? (await getAuthenticatedUserId())
+  if (!resolvedUserId) {
+    return buildDemoAppointmentRows()
+  }
+
+  const query = supabase.from('appointments').select('*').eq('user_id', resolvedUserId).order('start_iso', { ascending: true })
   const { data, error } = await query
   if (error) throw error
   return (data || []) as AppointmentRow[]

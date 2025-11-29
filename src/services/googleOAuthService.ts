@@ -1,3 +1,5 @@
+import { getEnvValue as readEnvValue } from '../lib/env'
+
 type AuthScope = string[]
 
 interface AuthResult {
@@ -62,22 +64,7 @@ class GoogleOAuthService {
   }
 
   private getEnvValue(key: string): string | undefined {
-    try {
-      const metaEnv = Function('return (typeof import !== "undefined" && import.meta && import.meta.env) ? import.meta.env : undefined;')() as Record<string, unknown> | undefined
-      const metaValue = metaEnv?.[key]
-      if (typeof metaValue === 'string') {
-        return metaValue
-      }
-    } catch (_) {
-      // ignore
-    }
-
-    const processEnv = (globalThis as { process?: { env?: Record<string, unknown> } }).process?.env
-    if (processEnv && typeof processEnv[key] === 'string') {
-      return processEnv[key] as string
-    }
-
-    return undefined
+    return readEnvValue(key)
   }
 
   private loadStoredCredentials(): StoredCredentials | null {

@@ -1,5 +1,7 @@
+import { getEnvValue } from './env'
+
 const normalizeBase = (): string => {
-  const raw = import.meta.env?.VITE_API_BASE_URL
+  const raw = getEnvValue('VITE_API_BASE_URL')
   if (typeof raw !== 'string') return ''
   const trimmed = raw.trim()
   if (!trimmed.length) return ''

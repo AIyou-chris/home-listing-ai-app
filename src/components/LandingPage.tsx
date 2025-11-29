@@ -492,7 +492,11 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void; onNaviga
         { icon: 'psychology', title: 'Know Who to Call Next', description: 'Our AI doesn\'t just capture leads; it qualifies them. See who is pre-approved and ready to talk, so you can focus on the hottest prospects.' },
         { icon: 'autoplay', title: 'Follow-Up on Autopilot', description: 'Launch powerful, multi-step follow-up sequences with a single click. Nurture every lead perfectly without lifting a finger.' },
         { icon: 'language', title: 'AI App Listing', description: "Transform each property into an interactive, AI-powered mobile app that buyers can engage with 24/7. It's your always-on open house." },
-        { icon: 'auto_stories', title: 'AI Content Studio', description: 'Generate blog posts, social media updates, and professional property reports with a single click. Save hours on marketing.' },
+        { 
+            icon: 'translate', 
+            title: 'Multi‑Language Capture', 
+            description: 'Capture and understand leads in Spanish, Chinese, and Hindi out of the box — with support for 50+ languages. All inputs are auto‑translated back to English for seamless conversation and follow‑up.' 
+        },
         { icon: 'insights', title: 'Actionable Analytics', description: 'See which marketing channels are working and get insights to optimize your strategy, budget, and ROI.' },
     ];
 
@@ -627,17 +631,103 @@ const AIAppShowcaseSection: React.FC = () => {
                 <div className="absolute bottom-1/4 left-1/4 w-24 h-24 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
             </div>
             
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 <div className="text-center">
                     <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 animate-fade-in-up">From Home To Lead Machine</h2>
                     <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                         Transform your listings into lead magnets! Build your AI listing app in minutes, then watch as your home becomes a powerful lead generation machine.
                     </p>
                 </div>
-                <div className="mt-16 grid lg:grid-cols-2 gap-16 items-center animate-fade-in-up animation-delay-400">
-                    {/* Demo embed removed for now */}
-                    <div className="hidden lg:block"></div>
-                    <div className="space-y-8 animate-fade-in-right">
+                <div className="mt-12 grid lg:grid-cols-2 gap-8 items-center animate-fade-in-up animation-delay-400">
+                    {/* Left: App preview image (phone mock) */}
+                    <div className="flex justify-center order-2 lg:order-1">
+                        <div className="relative w-[320px] md:w-[340px] rounded-[24px] border border-slate-200 shadow-2xl bg-white overflow-hidden">
+                            {/* Phone bezel */}
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-6 bg-black/80 rounded-b-3xl z-10"></div>
+                            {/* Screen area with fixed phone aspect */}
+                            <div className="relative w-full bg-white" style={{ aspectRatio: '9 / 16' }}>
+                                {/* Mock AI Listing App */}
+                                <div className="absolute inset-0 flex flex-col bg-white">
+                                    {/* Hero image */}
+                                    <div
+                                        className="h-36 w-full bg-cover bg-center"
+                                        style={{ backgroundImage: "url('/demo/home-1.png')" }}
+                                    />
+                                    {/* Body */}
+                                    <div className="flex-1 overflow-hidden p-3">
+                                        <h4 className="text-slate-900 font-extrabold text-[15px] leading-snug">
+                                            Stunning Mid-Century Modern in Silver Lake
+                                        </h4>
+                                        <div className="mt-1 text-xs text-slate-500 flex items-start gap-1">
+                                            <span className="material-symbols-outlined text-[16px] leading-4">location_on</span>
+                                            <span>2847 Sunset Boulevard, Los Angeles, CA 90026</span>
+                                        </div>
+                                        <div className="mt-2 text-emerald-600 font-extrabold text-xl">$1,250,000</div>
+                                        {/* Stats */}
+                                        <div className="mt-3 grid grid-cols-3 gap-2 bg-slate-50 rounded-xl border border-slate-200 p-2.5 text-center">
+                                            <div>
+                                                <div className="flex items-center justify-center gap-1 text-slate-600">
+                                                    <span className="material-symbols-outlined text-[18px]">bed</span>
+                                                    <span className="text-sm font-semibold">3</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 mt-0.5">Bedrooms</div>
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center justify-center gap-1 text-slate-600">
+                                                    <span className="material-symbols-outlined text-[18px]">bathtub</span>
+                                                    <span className="text-sm font-semibold">2.5</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 mt-0.5">Bathrooms</div>
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center justify-center gap-1 text-slate-600">
+                                                    <span className="material-symbols-outlined text-[18px]">straighten</span>
+                                                    <span className="text-sm font-semibold">2,100</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 mt-0.5">Sq Ft</div>
+                                            </div>
+                                        </div>
+                                        {/* Mock description */}
+                                        <div className="mt-3 text-[12px] text-slate-600 leading-snug">
+                                            Welcome to this mid‑century modern gem in the heart of Silver Lake. Sun‑filled
+                                            living spaces flow into a chef’s kitchen with quartz counters and custom walnut
+                                            cabinetry. Enjoy city‑light views, an inviting primary suite, and a private
+                                            backyard perfect for evening gatherings.
+                                        </div>
+                                        {/* CTA */}
+                                        <button className="mt-3 w-full py-2.5 rounded-xl text-white font-bold bg-gradient-to-r from-blue-600 to-purple-600 shadow-md hover:shadow-lg transition">
+                                            <span className="inline-flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-[18px]">smart_toy</span>
+                                                Talk to the Home Now
+                                            </span>
+                                        </button>
+                                    </div>
+                                    {/* Bottom actions */}
+                                    <div className="px-3 py-1.5 border-t border-slate-200 bg-white">
+                                        <div className="grid grid-cols-4 gap-2 text-center">
+                                            <div className="flex flex-col items-center text-[10px] text-slate-600">
+                                                <span className="material-symbols-outlined text-[16px]">event_available</span>
+                                                <span>Showings</span>
+                                            </div>
+                                            <div className="flex flex-col items-center text-[10px] text-slate-600">
+                                                <span className="material-symbols-outlined text-[16px]">bookmark</span>
+                                                <span>Save</span>
+                                            </div>
+                                            <div className="flex flex-col items-center text-[10px] text-slate-600">
+                                                <span className="material-symbols-outlined text-[16px]">forum</span>
+                                                <span>Contact</span>
+                                            </div>
+                                            <div className="flex flex-col items-center text-[10px] text-slate-600">
+                                                <span className="material-symbols-outlined text-[16px]">share</span>
+                                                <span>Share</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="space-y-8 animate-fade-in-right order-1 lg:order-2">
                         {highlights.map((item, index) => (
                             <div key={item.title} className="flex items-start gap-5 transform hover:scale-105 transition-all duration-300 animate-fade-in-up" 
                                  style={{ animationDelay: `${index * 150}ms` }}>
@@ -720,10 +810,18 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                         <div className="flex-grow">
                             <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
                             <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
-                            <p className="mt-6">
-                                <span className="text-5xl font-extrabold text-white">$139</span>
-                                <span className="text-xl font-medium text-slate-300">/mo</span>
-                            </p>
+                            <div className="mt-6 space-y-2">
+                                <div className="flex items-baseline gap-3">
+                                    <span className="text-lg font-semibold text-slate-200 line-through">$249/mo</span>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-5xl font-extrabold text-white">$139</span>
+                                        <span className="text-xl font-medium text-slate-300">/mo</span>
+                                    </div>
+                                </div>
+                                <p className="text-sm text-slate-200">
+                                    Launch special pricing — lock in $139/mo for life when you join now.
+                                </p>
+                            </div>
                             <ul className="mt-8 space-y-4">
                                 <PlanFeature dark>Unlimited AI interactions per month</PlanFeature>
                                 <PlanFeature dark>1GB of storage space</PlanFeature>
@@ -742,6 +840,9 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNaviga
                         >
                             Get Started in 5 Minutes
                         </button>
+                        <p className="mt-4 text-xs text-slate-200 text-center opacity-80">
+                            Pricing may change without notice. Secure the $139/mo launch rate forever.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -1502,7 +1603,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
             </main>
             <FooterNew onNavigateToAdmin={onNavigateToAdmin} />
-            
+
             {/* Chat Bot FAB for visitors */}
             <ChatBotFAB
                 context={{

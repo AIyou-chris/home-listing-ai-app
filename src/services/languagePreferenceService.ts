@@ -112,3 +112,5 @@ export const detectAndUpdateLanguage = async (
   return normalized
 }
 
+
+

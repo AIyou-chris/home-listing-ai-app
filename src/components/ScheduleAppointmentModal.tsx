@@ -1,12 +1,13 @@
 
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
 import { Lead } from '../types';
 import { AppointmentKind } from '../services/schedulerService';
 
 interface ScheduleAppointmentModalProps {
     lead?: Lead | null;
+    initialDate?: string;
+    initialTime?: string;
     onClose: () => void;
     onSchedule: (appointmentData: ScheduleAppointmentFormData) => void;
 }
@@ -63,14 +64,32 @@ const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) 
     </div>
 );
 
+const DEFAULT_TIME = 'Afternoon (1 PM - 4 PM)';
+const BASE_TIME_OPTIONS: string[] = [
+    'Morning (9 AM - 12 PM)',
+    'Afternoon (1 PM - 4 PM)',
+    'Evening (5 PM - 7 PM)',
+    '10:00 AM',
+    '2:00 PM',
+    '6:00 PM'
+];
 
-const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lead, onClose, onSchedule }) => {
+const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lead, initialDate, initialTime, onClose, onSchedule }) => {
+    const normalizedInitialTime = initialTime && initialTime.trim().length > 0 ? initialTime : DEFAULT_TIME;
+    const timeOptions = useMemo(() => {
+        const options = [...BASE_TIME_OPTIONS];
+        if (normalizedInitialTime && !options.includes(normalizedInitialTime)) {
+            options.push(normalizedInitialTime);
+        }
+        return Array.from(new Set(options));
+    }, [normalizedInitialTime]);
+
     const [formData, setFormData] = useState<ScheduleAppointmentFormData>({
         name: '',
         email: '',
         phone: '',
-        date: '',
-        time: 'Afternoon (1 PM - 4 PM)',
+        date: initialDate ?? '',
+        time: normalizedInitialTime,
         message: '',
         kind: 'Consultation',
         remindAgent: true,
@@ -146,12 +165,9 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
                         <FormRow>
                              <Label htmlFor="appt-time">Preferred Time *</Label>
                              <Select id="appt-time" name="time" value={formData.time} onChange={handleChange}>
-                                <option>Morning (9 AM - 12 PM)</option>
-                                <option>Afternoon (1 PM - 4 PM)</option>
-                                <option>Evening (5 PM - 7 PM)</option>
-                                <option>10:00 AM</option>
-                                <option>2:00 PM</option>
-                                <option>6:00 PM</option>
+                                {timeOptions.map(option => (
+                                    <option key={option} value={option}>{option}</option>
+                                ))}
                             </Select>
                         </FormRow>
                     </div>

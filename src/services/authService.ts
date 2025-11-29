@@ -72,8 +72,22 @@ export interface AuthState {
     isAdmin: boolean;
 }
 
+const readEnv = (key: string): string | undefined => {
+    const metaEnv = (globalThis as Record<string, unknown> & { __VITE_ENV__?: Record<string, unknown> }).__VITE_ENV__
+    const metaValue = metaEnv?.[key]
+    if (typeof metaValue === 'string') {
+        return metaValue
+    }
+
+    if (typeof process !== 'undefined' && process.env && typeof process.env[key] === 'string') {
+        return process.env[key] as string
+    }
+
+    return undefined
+}
+
 const getApiBaseUrl = (): string | null => {
-    const raw = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_API_BASE_URL
+    const raw = readEnv('VITE_API_BASE_URL') ?? readEnv('API_BASE_URL')
     if (typeof raw !== 'string') {
         return null
     }

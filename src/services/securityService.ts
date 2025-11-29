@@ -140,7 +140,7 @@ export class SecurityService {
 				};
 			}
 			try {
-				let q = supabase.from<AuditLogRow>('audit_logs').select('*').order('created_at', { ascending: false });
+				let q = supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
 				if (params.startDate) q = q.gte('created_at', params.startDate);
 				if (params.endDate) q = q.lte('created_at', params.endDate);
 				if (params.action) q = q.eq('action', params.action);
@@ -148,7 +148,7 @@ export class SecurityService {
 				if (params.limit) q = q.limit(params.limit);
 				const { data, error } = await q;
 				if (error) throw error;
-				return { auditLogs: data || [] };
+				return { auditLogs: (data as AuditLogRow[] | null) || [] };
 			} catch (err) {
 				console.error('getAuditLogs error:', err);
 				return { auditLogs: [] };
@@ -171,13 +171,13 @@ export class SecurityService {
 				};
 			}
 			try {
-				let q = supabase.from<SecurityAlertRow>('security_alerts').select('*').order('created_at', { ascending: false });
+				let q = supabase.from('security_alerts').select('*').order('created_at', { ascending: false });
 				if (params.severity) q = q.eq('severity', params.severity);
 				if (typeof params.resolved === 'boolean') q = q.eq('resolved', params.resolved);
 				if (params.limit) q = q.limit(params.limit);
 				const { data, error } = await q;
 				if (error) throw error;
-				return { alerts: data || [] };
+				return { alerts: (data as SecurityAlertRow[] | null) || [] };
 			} catch (err) {
 				console.error('getSecurityAlerts error:', err);
 				return { alerts: [] };
@@ -235,13 +235,13 @@ export class SecurityService {
 				};
 			}
 			try {
-				let q = supabase.from<BackupRow>('backups').select('*').order('created_at', { ascending: false });
+				let q = supabase.from('backups').select('*').order('created_at', { ascending: false });
 				if (params.backupType) q = q.eq('backup_type', params.backupType);
 				if (params.status) q = q.eq('status', params.status);
 				if (params.limit) q = q.limit(params.limit);
 				const { data, error } = await q;
 				if (error) throw error;
-				return { backups: data || [] };
+				return { backups: (data as BackupRow[] | null) || [] };
 			} catch (err) {
 				console.error('getBackupHistory error:', err);
 				return { backups: [] };

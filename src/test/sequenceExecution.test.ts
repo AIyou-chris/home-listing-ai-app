@@ -38,8 +38,7 @@ const mockAgent: AgentProfile = {
   website: 'https://primeproperties.com',
   bio: 'Experienced agent',
   headshotUrl: '',
-  socials: [],
-  mediaLinks: []
+  socials: []
 };
 
 const mockSequence: FollowUpSequence = {

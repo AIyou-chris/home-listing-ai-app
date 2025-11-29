@@ -3,6 +3,7 @@ import { saveTranscript } from '../services/aiTranscriptsService'
 import { resolveUserId } from '../services/userId'
 import { continueConversation as aiContinue } from '../services/openaiService'
 import { listKb, uploadFileKb, addTextKb, addUrlKb, deleteKb, getEntry, getPublicUrl, type KbEntry, type SidekickId } from '../services/supabaseKb'
+import { getEnvValue } from '../lib/env'
 
 interface AgentCard {
   id: string
@@ -92,7 +93,7 @@ interface SpeechRecognitionInstance {
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
 
-interface SpeechRecognitionWindow extends Window {
+type SpeechRecognitionWindow = Window & {
   SpeechRecognition?: SpeechRecognitionConstructor
   webkitSpeechRecognition?: SpeechRecognitionConstructor
 }
@@ -164,7 +165,7 @@ const AIAgentHub: React.FC = () => {
     'Neutral Voice 1': 'alloy'   // balanced, neutral delivery
   }
 
-  const apiBaseEnv = import.meta.env?.VITE_API_BASE_URL
+  const apiBaseEnv = getEnvValue('VITE_API_BASE_URL')
   const API_BASE_URL = typeof apiBaseEnv === 'string' ? apiBaseEnv.replace(/\/$/, '') : ''
 
   // Five preset personalities for dropdown

@@ -1,50 +1,19 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { HashRouter } from 'react-router-dom'
+import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App'
-import ErrorBoundary from './components/ErrorBoundary'
-import { SchedulerProvider } from './context/SchedulerContext'
-import AgentDashboardBlueprint from './components/AgentDashboardBlueprint'
+
+const globalEnv = globalThis as typeof globalThis & { __VITE_ENV__?: Record<string, unknown> }
+globalEnv.__VITE_ENV__ = import.meta.env
 
 const rootElement = document.getElementById('root')!
 const root = createRoot(rootElement)
 
-const rawHash = window.location.hash.replace(/^#/, '')
-const hashPath = rawHash.split('?')[0]
-const isBlueprintOnlyRoute = hashPath === '/dashboard-blueprint' || hashPath === 'dashboard-blueprint'
-
-if (import.meta.env.DEV) {
-  console.debug('[main] hash routing', {
-    hash: window.location.hash,
-    rawHash,
-    hashPath,
-    isBlueprintOnlyRoute
-  })
-}
-
-const blueprintTree = (
+root.render(
   <StrictMode>
-    <HashRouter>
-      <ErrorBoundary>
-        <SchedulerProvider>
-          <AgentDashboardBlueprint />
-        </SchedulerProvider>
-      </ErrorBoundary>
-    </HashRouter>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>
 )
-
-const appTree = (
-  <StrictMode>
-    <HashRouter>
-      <ErrorBoundary>
-        <SchedulerProvider>
-          <App />
-        </SchedulerProvider>
-      </ErrorBoundary>
-    </HashRouter>
-  </StrictMode>
-)
-
-root.render(isBlueprintOnlyRoute ? blueprintTree : appTree)

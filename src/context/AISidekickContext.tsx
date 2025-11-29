@@ -42,6 +42,16 @@ const Ctx = createContext<ContextValue | null>(null);
 
 const STORAGE_KEY = 'hlai_role_personality_map_v1';
 
+const isRolePersonalityMap = (value: unknown): value is RolePersonalityMap => {
+	if (typeof value !== 'object' || value === null) return false;
+	const candidate = value as Partial<RolePersonalityMap>;
+	return (
+		typeof candidate.defaultRole === 'string' &&
+		typeof candidate.byRole === 'object' &&
+		Array.isArray(candidate.customOverrides)
+	);
+};
+
 export const AISidekickProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [roleMap, setRoleMap] = useState<RolePersonalityMap>(() => {
 		try {
@@ -73,7 +83,9 @@ export const AISidekickProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 		const uid = resolveUserId();
 		if (!uid) return;
 		loadRoleMap(uid).then(remote => {
-			if (remote) setRoleMap(remote as RolePersonalityMap);
+			if (isRolePersonalityMap(remote)) {
+				setRoleMap(remote);
+			}
 		}).catch(error => {
 			console.error('[AISidekickContext] Failed to load role map remotely:', error);
 		});

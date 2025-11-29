@@ -66,10 +66,14 @@ interface BlogData {
   content: string
 }
 
+type BlogScalarField = {
+  [Key in keyof BlogData]: BlogData[Key] extends string ? Key : never
+}[keyof BlogData]
+
 interface BlogQuestion {
   id: number
   question: string
-  field: keyof BlogData
+  field: BlogScalarField
   type: 'text' | 'textarea' | 'select'
   options?: string[]
 }
@@ -639,7 +643,7 @@ const AdminKnowledgePanel: React.FC = () => {
 
   const blogProgress = useMemo(() => ((blogStep + 1) / blogQuestions.length) * 100, [blogStep])
 
-  const updateBlogField = (field: keyof BlogData, value: string) => {
+const updateBlogField = (field: BlogScalarField, value: string) => {
     setBlogData(prev => ({ ...prev, [field]: value }))
   }
 

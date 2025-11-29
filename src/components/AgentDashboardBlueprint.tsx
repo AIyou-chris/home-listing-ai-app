@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
 import LeadsAndAppointmentsPage from './LeadsAndAppointmentsPage';
 import ListingsPage from './ListingsPage';
@@ -9,9 +8,7 @@ import InteractionHubPage from './InteractionHubPage';
 import AIConversationsPage from './AIConversationsPage';
 import EnhancedAISidekicksHub from './EnhancedAISidekicksHub';
 import AIInteractiveTraining from './AIInteractiveTraining';
-import MarketingPage from './MarketingPage';
 import SettingsPage from './SettingsPage';
-import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardBuilderPage from '../pages/AICardBuilder';
 import { LogoWithName } from './LogoWithName';
 import { SAMPLE_AGENT } from '../constants';
@@ -30,7 +27,6 @@ import {
 } from '../services/agentProfileService';
 import {
   Property,
-  View,
   Lead,
   Appointment,
   AgentTask,
@@ -46,6 +42,97 @@ import {
 type MarketingSequencesResponse = {
   sequences?: FollowUpSequence[];
 };
+
+type BlueprintView =
+  | 'dashboard'
+  | 'leads'
+  | 'ai-card-builder'
+  | 'ai-conversations'
+  | 'listings'
+  | 'inbox'
+  | 'property'
+  | 'add-listing'
+  | 'edit-listing'
+  | 'knowledge-base'
+  | 'ai-training'
+  | 'settings';
+
+const blueprintNavItems: Array<{ view: BlueprintView; icon: string; label: string }> = [
+  { view: 'dashboard', icon: 'home', label: 'Overview' },
+  { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
+  { view: 'ai-card-builder', icon: 'add_card', label: 'AI Card Builder' },
+  { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
+  { view: 'listings', icon: 'storefront', label: 'AI Listings' },
+  { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
+  { view: 'ai-training', icon: 'school', label: 'Train Your AI' },
+  { view: 'settings', icon: 'settings', label: 'Settings' }
+]
+
+const BlueprintSidebar: React.FC<{
+  activeView: BlueprintView
+  onSelect: (view: BlueprintView) => void
+  isOpen: boolean
+  onClose: () => void
+}> = ({ activeView, onSelect, isOpen, onClose }) => {
+  return (
+    <>
+      <div
+        className={`fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-40 h-full w-64 flex-col border-r border-slate-200 bg-white px-4 py-6
+          transform transition-transform duration-300 ease-in-out
+          md:static md:flex md:translate-x-0
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        <div className="flex justify-between items-center px-2 mb-6">
+          <button
+            onClick={() => {
+              onSelect('dashboard')
+              onClose()
+            }}
+            className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg"
+          >
+            <LogoWithName />
+          </button>
+          <button onClick={onClose} className="md:hidden p-1 rounded-full text-slate-500 hover:bg-slate-100" type="button">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <nav className="flex-1">
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm divide-y divide-slate-200">
+            {blueprintNavItems.map((item) => {
+              const isActive = activeView === item.view
+              return (
+                <button
+                  key={item.view}
+                  type="button"
+                  onClick={() => {
+                    onSelect(item.view)
+                    onClose()
+                  }}
+                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${
+                    isActive
+                      ? 'bg-primary-600 font-semibold text-white shadow-sm'
+                      : 'font-medium text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className={`material-symbols-outlined transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`}>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+      </aside>
+    </>
+  )
+}
 
 const cloneDemoProperty = (property: Property, index: number): Property => {
   const description =
@@ -69,7 +156,7 @@ const cloneDemoProperty = (property: Property, index: number): Property => {
 };
 
 const AgentDashboardBlueprint: React.FC = () => {
-  const [activeView, setActiveView] = useState<View>('dashboard');
+  const [activeView, setActiveView] = useState<BlueprintView>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
 
@@ -609,12 +696,6 @@ const AgentDashboardBlueprint: React.FC = () => {
       onClick: () => setActiveView('settings')
     },
     {
-      label: 'Review AI automations',
-      description: 'Peek at nurture journeys and AI drafts queued for live rollout.',
-      icon: 'bolt',
-      onClick: () => setActiveView('marketing')
-    },
-    {
       label: 'Train your AI',
       description: 'Run live conversations and capture feedback to sharpen every sidekick.',
       icon: 'neurology',
@@ -678,7 +759,6 @@ const AgentDashboardBlueprint: React.FC = () => {
             onAddNew={() => setActiveView('add-listing')}
             onDeleteProperty={handleDeleteProperty}
             onBackToDashboard={resetToDashboard}
-            onOpenMarketing={(id) => { setSelectedPropertyId(id); setActiveView('property'); }}
             onOpenBuilder={(id) => { setSelectedPropertyId(id); setActiveView('edit-listing'); }}
           />
         );
@@ -705,7 +785,6 @@ const AgentDashboardBlueprint: React.FC = () => {
             onAddNew={() => setActiveView('add-listing')}
             onDeleteProperty={handleDeleteProperty}
             onBackToDashboard={resetToDashboard}
-            onOpenMarketing={(id) => { setSelectedPropertyId(id); setActiveView('property'); }}
             onOpenBuilder={(id) => { setSelectedPropertyId(id); setActiveView('edit-listing'); }}
           />
         );
@@ -719,7 +798,6 @@ const AgentDashboardBlueprint: React.FC = () => {
             onAddNew={() => setActiveView('add-listing')}
             onDeleteProperty={handleDeleteProperty}
             onBackToDashboard={resetToDashboard}
-            onOpenMarketing={(id) => { setSelectedPropertyId(id); setActiveView('property'); }}
             onOpenBuilder={(id) => { setSelectedPropertyId(id); setActiveView('edit-listing'); }}
           />
         );
@@ -727,8 +805,6 @@ const AgentDashboardBlueprint: React.FC = () => {
         return <EnhancedAISidekicksHub />;
       case 'ai-training':
         return <AIInteractiveTraining />;
-      case 'marketing':
-        return <MarketingPage properties={properties} sequences={sequences} setSequences={setSequences} onBackToDashboard={resetToDashboard} />;
       case 'settings':
         return (
           <SettingsPage
@@ -746,8 +822,6 @@ const AgentDashboardBlueprint: React.FC = () => {
             onBackToDashboard={resetToDashboard}
           />
         );
-      case 'analytics':
-        return <AnalyticsDashboard />;
       case 'inbox':
         return (
           <InteractionHubPage
@@ -770,7 +844,7 @@ const AgentDashboardBlueprint: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar activeView={activeView} setView={setActiveView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <BlueprintSidebar activeView={activeView} onSelect={setActiveView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">

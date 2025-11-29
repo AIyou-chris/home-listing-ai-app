@@ -6,6 +6,8 @@ interface PerformanceMemoryEntry {
   jsHeapSizeLimit: number;
 }
 
+type LayoutShiftEntry = PerformanceEntry & { value: number; hadRecentInput: boolean };
+
 export class PerformanceService {
   private static observers: PerformanceObserver[] = [];
   private static isInitialized = false;
@@ -39,7 +41,7 @@ export class PerformanceService {
       if ('PerformanceObserver' in window) {
         const lcpObserver = new PerformanceObserver((list) => {
           const entries = list.getEntries();
-          const lastEntry = entries.at(-1) as PerformanceEntry | undefined;
+          const lastEntry = entries.length ? (entries[entries.length - 1] as PerformanceEntry) : undefined;
 
           if (lastEntry) {
             console.debug('PerformanceService:LCP', lastEntry.startTime);
@@ -67,7 +69,7 @@ export class PerformanceService {
       if ('PerformanceObserver' in window) {
         let clsValue = 0;
         const clsObserver = new PerformanceObserver((list) => {
-          const entries = list.getEntries() as LayoutShift[];
+          const entries = list.getEntries() as LayoutShiftEntry[];
           entries.forEach((entry) => {
             if (!entry.hadRecentInput) {
               clsValue += entry.value;

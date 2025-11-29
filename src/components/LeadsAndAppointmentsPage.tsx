@@ -8,6 +8,7 @@ import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from './Schedul
 import ContactLeadModal from './ContactLeadModal';
 import CalendarView from './CalendarView';
 import ExportModal from './ExportModal';
+import { logLeadContact } from '../services/aiFunnelService';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: string, iconBgColor: string }> = ({ title, value, icon, iconBgColor }) => (
   <div className="bg-white rounded-lg shadow-sm p-5 flex items-center space-x-4">
@@ -174,6 +175,30 @@ const AppointmentsList: React.FC<{ appointments: Appointment[] }> = ({ appointme
     );
 };
 
+const formatDateForInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const formatDateForDisplay = (iso?: string) => {
+    if (!iso) return 'Select a day';
+    const parts = iso.split('-').map(Number);
+    if (parts.length === 3 && parts.every(Number.isFinite)) {
+        const [year, month, day] = parts;
+        const parsed = new Date(year, month - 1, day);
+        if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toLocaleDateString(undefined, {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+    }
+    return iso;
+};
+
 interface LeadsAndAppointmentsPageProps {
     leads: Lead[];
     appointments: Appointment[];
@@ -191,9 +216,19 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
     const [schedulingLead, setSchedulingLead] = useState<Lead | null>(null);
     const [contactingLead, setContactingLead] = useState<Lead | null>(null);
     const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+    const todayKey = formatDateForInput(new Date());
+    const [selectedCalendarDate, setSelectedCalendarDate] = useState(todayKey);
+    const [schedulePrefill, setSchedulePrefill] = useState<{ date?: string; time?: string }>({
+        date: todayKey
+    });
 
+    const scheduleModalKey = `${schedulingLead?.id ?? 'new'}-${schedulePrefill.date ?? 'na'}-${schedulePrefill.time ?? 'default'}`;
 
-    const handleOpenScheduleModal = (lead: Lead | null = null) => {
+    const handleOpenScheduleModal = (lead: Lead | null = null, options?: { date?: string; time?: string }) => {
+        setSchedulePrefill(prev => ({
+            date: options?.date ?? selectedCalendarDate ?? prev.date,
+            time: options?.time ?? prev.time
+        }));
         setSchedulingLead(lead);
         setIsScheduleModalOpen(true);
     };
@@ -218,10 +253,14 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
         // Use a slight delay to ensure the first modal has time to close
         // and avoid UI jank from overlapping modals.
         setTimeout(() => {
-            handleOpenScheduleModal(lead);
+            handleOpenScheduleModal(lead, { date: selectedCalendarDate });
         }, 100);
     };
 
+    const handleSelectCalendarDate = (isoDate: string) => {
+        setSelectedCalendarDate(isoDate);
+        setSchedulePrefill(prev => ({ ...prev, date: isoDate }));
+    };
 
     return (
         <>
@@ -349,8 +388,26 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                             <LeadsList leads={leads} onSchedule={handleOpenScheduleModal} onContact={handleOpenContactModal} />
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                                 <div className="lg:col-span-2">
-                                    <div className="rounded-lg overflow-hidden border border-slate-200">
-                                        <CalendarView appointments={appointments} />
+                                    <div className="space-y-3">
+                                        <div className="bg-white rounded-lg border border-slate-200/80 shadow-sm px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                            <div>
+                                                <p className="text-sm font-semibold text-slate-700">Selected day</p>
+                                                <p className="text-sm text-slate-500">{formatDateForDisplay(selectedCalendarDate)}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenScheduleModal(null, { date: selectedCalendarDate })}
+                                                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
+                                            >
+                                                <span className="material-symbols-outlined h-5 w-5">add</span>
+                                                Schedule on this day
+                                            </button>
+                                        </div>
+                                        <CalendarView
+                                            appointments={appointments}
+                                            selectedDate={selectedCalendarDate}
+                                            onSelectDate={handleSelectCalendarDate}
+                                        />
                                     </div>
                                 </div>
                                 <div className="lg:col-span-1">
@@ -361,8 +418,26 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                     ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="lg:col-span-2">
-                                <div className="scale-95 origin-top rounded-lg overflow-hidden border border-slate-200">
-                                    <CalendarView appointments={appointments} />
+                                <div className="space-y-3 transform origin-top scale-95">
+                                    <div className="bg-white rounded-lg border border-slate-200/80 shadow-sm px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-700">Selected day</p>
+                                            <p className="text-sm text-slate-500">{formatDateForDisplay(selectedCalendarDate)}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenScheduleModal(null, { date: selectedCalendarDate })}
+                                            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
+                                        >
+                                            <span className="material-symbols-outlined h-5 w-5">add</span>
+                                            Schedule on this day
+                                        </button>
+                                    </div>
+                                    <CalendarView
+                                        appointments={appointments}
+                                        selectedDate={selectedCalendarDate}
+                                        onSelectDate={handleSelectCalendarDate}
+                                    />
                                 </div>
                             </div>
                             <div className="lg:col-span-1">
@@ -383,7 +458,10 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
             )}
              {isScheduleModalOpen && (
                 <ScheduleAppointmentModal 
+                    key={scheduleModalKey}
                     lead={schedulingLead}
+                    initialDate={schedulePrefill.date}
+                    initialTime={schedulePrefill.time}
                     onClose={handleCloseScheduleModal}
                     onSchedule={async (apptData: ScheduleAppointmentFormData) => {
                         const linkedPropertyId = schedulingLead?.interestedProperties?.[0] || '';
@@ -430,17 +508,36 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({ lea
                             endIso: scheduledAt?.endIso
                         };
                         onNewAppointment?.(appt);
+                        setSelectedCalendarDate(appt.date);
+                        setSchedulePrefill({ date: appt.date, time: appt.time });
                         handleCloseScheduleModal();
                     }}
                 />
             )}
-              {isContactModalOpen && contactingLead && (
-                 <ContactLeadModal
-                     lead={contactingLead}
-                     onClose={handleCloseContactModal}
-                     onSchedule={() => handleSwitchToSchedule(contactingLead)}
-                 />
-             )}
+            {isContactModalOpen && contactingLead && (
+                <ContactLeadModal
+                    lead={contactingLead}
+                    onClose={handleCloseContactModal}
+                    onSchedule={() => handleSwitchToSchedule(contactingLead)}
+                    onSendEmail={(payload) => {
+                        const body = (payload?.body ?? '').trim();
+                        if (!body) return;
+                        void logLeadContact(contactingLead, {
+                            method: 'email',
+                            notes: body,
+                            outcome: payload.subject?.trim()
+                        });
+                    }}
+                    onAddNote={(payload) => {
+                        const trimmed = (payload ?? '').trim();
+                        if (!trimmed) return;
+                        void logLeadContact(contactingLead, {
+                            method: 'note',
+                            notes: trimmed
+                        });
+                    }}
+                />
+            )}
              {isExportModalOpen && (
                  <ExportModal
                      isOpen={isExportModalOpen}

@@ -36,6 +36,7 @@ export type VoiceBubbleProps = {
   autoConnect?: boolean
   onResponseText?: (text: string) => void
   onFinalResponse?: (text: string) => void
+  onUserSpeechFinal?: (text: string) => void
   showHeader?: boolean
   className?: string
   onClose?: () => void
@@ -118,6 +119,7 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
   autoConnect = false,
   onResponseText,
   onFinalResponse,
+  onUserSpeechFinal,
   showHeader = true,
   className,
   onClose
@@ -129,6 +131,7 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
   const [activePrompt, setActivePrompt] = useState(systemPrompt || defaultPrompt)
   const [activeAssistantName, setActiveAssistantName] = useState(assistantName)
   const [loadingSidekick, setLoadingSidekick] = useState(false)
+  const transcriptRef = useRef('')
 
   useEffect(() => {
     let isMounted = true
@@ -187,7 +190,10 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
   }, [assistantName, sidekickId, systemPrompt])
 
   const client = useRealtimeClient({
-    onPartialTranscript: (value) => setInterimTranscript(value),
+    onPartialTranscript: (value) => {
+      transcriptRef.current = value
+      setInterimTranscript(value)
+    },
     onAssistantDelta: (value) => {
       setAssistantCaption(value)
       setIsAssistantSpeaking(value.trim().length > 0)
@@ -208,45 +214,56 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
     return 'Ready to chat'
   }, [client.isListening, client.status, isAssistantSpeaking, loadingSidekick])
 
+  const commitUserSpeech = useCallback(() => {
+    const transcript = transcriptRef.current.trim()
+    if (transcript) {
+      onUserSpeechFinal?.(transcript)
+    }
+    transcriptRef.current = ''
+    setInterimTranscript('')
+  }, [onUserSpeechFinal])
+
   const connect = useCallback(async () => {
     if (!activePrompt || loadingSidekick) return
     await client.connect({ model, systemPrompt: activePrompt })
   }, [activePrompt, client, loadingSidekick, model])
 
   const handleFinish = useCallback(() => {
+    commitUserSpeech()
     client.finalizeUserSpeech()
-  }, [client])
+  }, [client, commitUserSpeech])
 
   const handleRestart = useCallback(() => {
-    setInterimTranscript('')
+    commitUserSpeech()
     setAssistantCaption('')
     setIsAssistantSpeaking(false)
     client.resetConversation()
-  }, [client])
+  }, [client, commitUserSpeech])
 
   const handleBack = useCallback(() => {
+    commitUserSpeech()
     client.stopListening()
     client.disconnect()
     setIsAssistantSpeaking(false)
     onClose?.()
-  }, [client, onClose])
+  }, [client, commitUserSpeech, onClose])
 
   const showAssistantText = assistantCaption.trim().length > 0
   const waveMode: WaveMode = loadingSidekick
     ? 'idle'
     : client.isListening
-      ? 'listening'
-      : isAssistantSpeaking
-        ? 'speaking'
+    ? 'listening'
+    : isAssistantSpeaking
+      ? 'speaking'
         : 'idle'
   const micState = loadingSidekick
     ? 'idle'
     : client.status === 'connecting'
-      ? 'connecting'
-      : client.isListening
-        ? 'listening'
-        : isAssistantSpeaking
-          ? 'speaking'
+    ? 'connecting'
+    : client.isListening
+      ? 'listening'
+      : isAssistantSpeaking
+        ? 'speaking'
           : 'idle'
 
   const micGlowClass =
@@ -276,8 +293,10 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
   React.useEffect(() => {
     if (client.isListening) {
       setIsAssistantSpeaking(false)
+    } else {
+      commitUserSpeech()
     }
-  }, [client.isListening])
+  }, [client.isListening, commitUserSpeech])
 
   const statusCaption = loadingSidekick
     ? 'Preparing our sales concierge...'

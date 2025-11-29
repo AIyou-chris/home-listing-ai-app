@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
 import { getAICardProfileSnapshot, refreshAgentProfile } from '../services/agentProfileService';
 import { googleOAuthService } from '../services/googleOAuthService';
@@ -7,6 +8,7 @@ import { billingSettingsService } from '../services/billingSettingsService';
 import { supabase } from '../services/supabase';
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
+import { getEnvValue } from '../lib/env';
 
 type EmailConnection = {
     provider: 'gmail' | 'outlook';
@@ -20,6 +22,8 @@ type SecuritySettingsState = {
     sessionTimeout: number;
     analyticsEnabled: boolean;
 };
+
+type SettingsTab = 'notifications' | 'email' | 'calendar' | 'security' | 'billing';
 
 interface SettingsPageProps {
     userId: string;
@@ -294,7 +298,10 @@ const NOTIFICATION_GROUPS: Array<{
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard }) => {
     const notifyApiError = useApiErrorNotifier();
-    const [activeTab, setActiveTab] = useState<'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('notifications');
+    const [activeTab, setActiveTab] = useState<SettingsTab>('notifications');
+    const location = useLocation();
+    const navigate = useNavigate();
+    const search = location.search;
     const [emailFormData, setEmailFormData] = useState<EmailSettings>(emailSettings);
     const [calendarFormData, setCalendarFormData] = useState<CalendarSettings>(calendarSettings);
     const [currentNotifications, setCurrentNotifications] = useState<NotificationSettings>(notificationSettings);
@@ -309,11 +316,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     const [isBillingCheckoutLoading, setIsBillingCheckoutLoading] = useState(false);
     const [billingMessage, setBillingMessage] = useState<string | null>(null);
     const [billingError, setBillingError] = useState<string | null>(null);
-    const googleIntegrationEnabled =
-        String(import.meta.env?.VITE_ENABLE_GOOGLE_INTEGRATIONS ?? '').toLowerCase() === 'true';
-    const googleIntegrationClientPresent =
-        typeof import.meta.env?.VITE_GOOGLE_OAUTH_CLIENT_ID === 'string' &&
-        import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID.trim().length > 0;
+    const googleIntegrationFlag = getEnvValue('VITE_ENABLE_GOOGLE_INTEGRATIONS');
+    const googleClientId = getEnvValue('VITE_GOOGLE_OAUTH_CLIENT_ID');
+    const googleIntegrationEnabled = String(googleIntegrationFlag ?? '').toLowerCase() === 'true';
+    const googleIntegrationClientPresent = typeof googleClientId === 'string' && googleClientId.trim().length > 0;
     const initialGoogleIntegrationAvailable =
         googleOAuthService.isAvailable || googleIntegrationEnabled || googleIntegrationClientPresent;
     const [isGoogleIntegrationAvailable, setIsGoogleIntegrationAvailable] = useState(initialGoogleIntegrationAvailable);
@@ -328,25 +334,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
         return typeof value === 'string' && value.trim() ? value.trim() : undefined;
     })();
 
-    // Read tab query from hash: #/settings?tab=billing
+    // Sync tab from query string (?tab=billing)
     useEffect(() => {
-        const handle = () => {
-            const hash = window.location.hash || '';
-            const qIndex = hash.indexOf('?');
-            if (qIndex >= 0) {
-                const qs = new URLSearchParams(hash.substring(qIndex + 1));
-                const tab = (qs.get('tab') || '').toLowerCase();
-                if (tab === 'billing') setActiveTab('billing');
-                if (tab === 'email') setActiveTab('email');
-                if (tab === 'calendar') setActiveTab('calendar');
-                if (tab === 'security') setActiveTab('security');
-                if (tab === 'notifications') setActiveTab('notifications');
-            }
-        };
-        handle();
-        window.addEventListener('hashchange', handle);
-        return () => window.removeEventListener('hashchange', handle);
-    }, []);
+        const params = new URLSearchParams(search);
+        const tab = (params.get('tab') || '').toLowerCase();
+        if (tab === 'billing') setActiveTab('billing');
+        else if (tab === 'email') setActiveTab('email');
+        else if (tab === 'calendar') setActiveTab('calendar');
+        else if (tab === 'security') setActiveTab('security');
+        else if (tab === 'notifications') setActiveTab('notifications');
+    }, [search]);
+
+    const handleTabChange = (tabId: SettingsTab) => {
+        setActiveTab(tabId);
+        navigate(`/app/settings?tab=${tabId}`, { replace: true });
+    };
 
     // Load plan/subscription status for billing badge
     useEffect(() => {
@@ -1568,7 +1570,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                                 <TabButton
                                     key={tab.id}
                                     isActive={activeTab === tab.id}
-                                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                                    onClick={() => handleTabChange(tab.id as typeof activeTab)}
                                     icon={tab.icon}
                                 >
                                     {tab.label}

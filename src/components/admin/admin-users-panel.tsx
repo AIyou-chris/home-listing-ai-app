@@ -1,15 +1,22 @@
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
+import type { AdminUser } from '../../services/adminAuthService'
+import { getEnvValue } from '../../lib/env'
 
-import { User } from '../../types'
+type PanelUser = AdminUser & {
+  id: string
+  status: 'Active' | 'Inactive' | 'Invited' | 'Suspended' | 'Pending'
+  dateJoined: string
+  aiInteractions?: number
+}
 
 type ApiHealthStatus = 'idle' | 'loading' | 'ok' | 'down' | 'error'
 
 interface AdminUsersPanelProps {
-  users: User[]
+  users: PanelUser[]
   isLoading?: boolean
   errorMessage?: string | null
   onCreateUser: () => void
-  onEditUser: (user: User) => void
+  onEditUser: (user: PanelUser) => void
   onDeleteUser: (userId: string) => Promise<void> | void
   onRefreshUsers?: () => Promise<void> | void
 }
@@ -57,7 +64,7 @@ export const AdminUsersPanel: React.FC<AdminUsersPanelProps> = ({
     setHealthStatus('loading')
     setHealthError(null)
 
-    const baseUrl = import.meta.env.VITE_API_URL ?? 'https://ailisitnghome-43boqi59o-ai-you.vercel.app'
+    const baseUrl = getEnvValue('VITE_API_URL') ?? 'https://ailisitnghome-43boqi59o-ai-you.vercel.app'
 
     try {
       const response = await fetch(`${baseUrl}/api/admin/settings`)

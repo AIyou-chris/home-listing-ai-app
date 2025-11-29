@@ -1,8 +1,22 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { continueConversation } from '../services/openaiService'
+import {
+	chatWithSidekick,
+	getSidekicks,
+	trainSidekick,
+	type AISidekick,
+	type ChatHistoryEntry
+} from '../services/aiSidekicksService'
+import { SIDEKICK_TEMPLATES } from '../constants/sidekickTemplates'
 
 interface TrainingStatsProps {
-	sidekick: string
+	sidekickName: string
+	isLoading?: boolean
+	backendStats?: {
+		totalTraining?: number
+		positiveFeedback?: number
+		improvements?: number
+	}
 	currentSessionStats: {
 		conversations: number
 		positiveCount: number
@@ -10,38 +24,25 @@ interface TrainingStatsProps {
 	}
 }
 
-interface TrainingStatsResponse {
-	totalFeedback?: number
-	positiveCount?: number
-	improvementCount?: number
-}
+const TrainingStats: React.FC<TrainingStatsProps> = ({
+	sidekickName,
+	isLoading,
+	backendStats,
+	currentSessionStats
+}) => {
+	const persistedTotal = backendStats?.totalTraining ?? 0
+	const persistedPositive = backendStats?.positiveFeedback ?? 0
+	const persistedImprovements = backendStats?.improvements ?? 0
 
-const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionStats }) => {
-	const [backendStats, setBackendStats] = useState<TrainingStatsResponse | null>(null)
-	const [isLoading, setIsLoading] = useState(false)
+	const combinedTotal = persistedTotal + currentSessionStats.conversations
+	const combinedPositive = persistedPositive + currentSessionStats.positiveCount
+	const combinedImprovements = persistedImprovements + currentSessionStats.improvementCount
 
-	useEffect(() => {
-		const fetchStats = async () => {
-			setIsLoading(true)
-			try {
-				const response = await fetch(`/api/training/feedback/${sidekick}`)
-				if (response.ok) {
-					const stats = await response.json()
-					setBackendStats(stats)
-				}
-			} catch (error) {
-				console.error('Failed to fetch training stats:', error)
-			} finally {
-				setIsLoading(false)
-			}
-		}
-
-		fetchStats()
-	}, [sidekick])
+	const successRate = combinedTotal > 0 ? Math.round((combinedPositive / combinedTotal) * 100) : 0
 
 	return (
 		<div className="mt-6 p-4 bg-white rounded-lg border border-slate-200">
-			<h4 className="font-medium text-slate-900 mb-3">Training Progress</h4>
+			<h4 className="font-medium text-slate-900 mb-3">Training Progress — {sidekickName}</h4>
 			{isLoading ? (
 				<div className="text-center py-4">
 					<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
@@ -50,18 +51,18 @@ const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionS
 				<div className="space-y-2">
 					<div className="flex justify-between text-sm">
 						<span className="text-slate-600">Total Training</span>
-						<span className="font-medium">{backendStats?.totalFeedback || 0}</span>
+						<span className="font-medium">{combinedTotal}</span>
 					</div>
 					<div className="flex justify-between text-sm">
 						<span className="text-slate-600">Positive Feedback</span>
 						<span className="font-medium text-green-600">
-							{(backendStats?.positiveCount || 0) + currentSessionStats.positiveCount}
+							{combinedPositive}
 						</span>
 					</div>
 					<div className="flex justify-between text-sm">
 						<span className="text-slate-600">Improvements</span>
 						<span className="font-medium text-amber-600">
-							{(backendStats?.improvementCount || 0) + currentSessionStats.improvementCount}
+							{combinedImprovements}
 						</span>
 					</div>
 					<div className="flex justify-between text-sm">
@@ -70,13 +71,11 @@ const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionS
 							{currentSessionStats.conversations}
 						</span>
 					</div>
-					{backendStats?.positiveCount > 0 && (
+					{combinedTotal > 0 && (
 						<div className="pt-2 border-t border-slate-100">
 							<div className="flex justify-between text-xs">
 								<span className="text-slate-500">Success Rate</span>
-								<span className="font-medium text-green-600">
-									{Math.round((backendStats.positiveCount / backendStats.totalFeedback) * 100)}%
-								</span>
+								<span className="font-medium text-green-600">{successRate}%</span>
 							</div>
 						</div>
 					)}
@@ -97,11 +96,18 @@ interface ChatMessage {
 
 interface SidekickOption {
 	id: string
+	scope: string
 	name: string
 	icon: string
 	description: string
 	systemPrompt: string
 	color: string
+	source: 'remote' | 'demo'
+	stats?: {
+		totalTraining: number
+		positiveFeedback: number
+		improvements: number
+	}
 }
 
 const TRAINING_ARCHITECT_PROMPT = `You are the AI Trainer and System Architect for our project.
@@ -116,63 +122,159 @@ Core objective:
 Deliver a complete, ready-to-train AI system that learns like a real assistant — not just from text, but from behavior, tone, and intent. Detect what we’re missing, make recommendations, and confirm when the AI is truly “trained to perform.”`
 
 const AIInteractiveTraining: React.FC = () => {
-	const [selectedSidekick, setSelectedSidekick] = useState<string>('marketing')
+	const [selectedSidekick, setSelectedSidekick] = useState<string>('')
 	const [messages, setMessages] = useState<ChatMessage[]>([])
 	const [inputMessage, setInputMessage] = useState('')
 	const [isLoading, setIsLoading] = useState(false)
 	const [improvementText, setImprovementText] = useState('')
 	const [showImprovementInput, setShowImprovementInput] = useState<string | null>(null)
 	const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false)
+	const [sidekickOptions, setSidekickOptions] = useState<SidekickOption[]>([])
+	const [isLoadingSidekicks, setIsLoadingSidekicks] = useState(false)
+	const [sidekickError, setSidekickError] = useState<string | null>(null)
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 
-	const sidekicks: SidekickOption[] = [
-		{
-			id: 'marketing',
-			name: 'Marketing Sidekick',
-			icon: 'campaign',
-			description: 'Social media, content creation, marketing campaigns',
-			systemPrompt: 'You are a Marketing Sidekick for a real estate agent. Create engaging, conversion-focused marketing content. Be creative, on-brand, and results-oriented. Help with social media posts, email campaigns, property descriptions, and marketing strategies.',
-			color: 'bg-amber-100 text-amber-800 border-amber-200'
-		},
-		{
-			id: 'agent',
-			name: 'Agent Sidekick',
-			icon: 'person',
-			description: 'Client communication, scheduling, general assistance',
-			systemPrompt: 'You are an Agent Sidekick for a real estate professional. Help with client communication, appointment scheduling, follow-ups, and general real estate tasks. Be professional, helpful, and client-focused.',
-			color: 'bg-blue-100 text-blue-800 border-blue-200'
-		},
-		{
-			id: 'listing',
-			name: 'Listing Sidekick',
-			icon: 'home',
-			description: 'Property descriptions, listing details, market analysis',
-			systemPrompt: 'You are a Listing Sidekick specializing in property descriptions and listing content. Create compelling, accurate property descriptions that highlight key features and benefits. Be detailed, persuasive, and market-aware.',
-			color: 'bg-green-100 text-green-800 border-green-200'
-		},
-		{
-			id: 'sales',
-			name: 'Sales Sidekick',
-			icon: 'trending_up',
-			description: 'Lead qualification, objection handling, closing strategies',
-			systemPrompt: 'You are a Sales Sidekick focused on lead qualification and conversion. Help with objection handling, closing strategies, and sales conversations. Be persuasive, confident, and results-driven.',
-			color: 'bg-red-100 text-red-800 border-red-200'
+	const hexToRgba = useCallback((hex: string, alpha: number) => {
+		const sanitized = hex.replace('#', '')
+		if (!sanitized) {
+			return `rgba(99, 102, 241, ${alpha})`
 		}
-	]
+		const normalized =
+			sanitized.length === 3
+				? sanitized
+						.split('')
+						.map((char) => `${char}${char}`)
+						.join('')
+				: sanitized.padEnd(6, '0').slice(0, 6)
+		const bigint = Number.parseInt(normalized, 16)
+		const r = (bigint >> 16) & 255
+		const g = (bigint >> 8) & 255
+		const b = bigint & 255
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`
+	}, [])
 
-	const currentSidekick = sidekicks.find(s => s.id === selectedSidekick) || sidekicks[0]
+	const buildRemoteSidekickOption = useCallback((sidekick: AISidekick): SidekickOption => {
+		const metadata = sidekick.metadata as Record<string, unknown> | undefined
+		const iconCandidate = metadata?.icon
+		const colorCandidate = metadata?.color
+		const knowledgePreview = Array.isArray(sidekick.knowledgeBase) && sidekick.knowledgeBase.length > 0
+			? `Key knowledge:\n${sidekick.knowledgeBase.slice(0, 3).join('\n')}`
+			: ''
+
+		return {
+			id: sidekick.id,
+		scope: typeof sidekick.type === 'string' && sidekick.type.trim().length > 0 ? sidekick.type : 'agent',
+			name: sidekick.name || 'AI Sidekick',
+			icon:
+				typeof iconCandidate === 'string' && iconCandidate.trim().length > 0
+					? iconCandidate
+					: 'smart_toy',
+			description: sidekick.description || 'AI assistant',
+			systemPrompt: [
+				sidekick.personality?.description,
+				knowledgePreview
+			]
+				.filter(Boolean)
+				.join('\n\n'),
+			color:
+				typeof colorCandidate === 'string' && colorCandidate.trim().length > 0
+					? colorCandidate
+					: '#6366F1',
+			source: 'remote',
+			stats: sidekick.stats
+		}
+	}, [])
+
+	const buildTemplateOptions = useCallback((): SidekickOption[] => {
+		return SIDEKICK_TEMPLATES.map((template) => ({
+			id: template.id,
+		scope: template.type,
+			name: template.label,
+			icon: template.icon,
+			description: template.description,
+			systemPrompt: template.personality.description,
+			color: template.color,
+			source: 'demo'
+		}))
+	}, [])
+
+	const loadSidekicks = useCallback(async () => {
+		setIsLoadingSidekicks(true)
+		setSidekickError(null)
+		try {
+			const data = await getSidekicks()
+			if (data.sidekicks.length > 0) {
+				const options = data.sidekicks.map(buildRemoteSidekickOption)
+				setSidekickOptions(options)
+				return
+			}
+			const fallbackOptions = buildTemplateOptions()
+			setSidekickOptions(fallbackOptions)
+		} catch (error) {
+			console.error('Failed to load AI sidekicks for training:', error)
+			setSidekickError('Could not load AI sidekicks. Showing training templates.')
+			setSidekickOptions(buildTemplateOptions())
+		} finally {
+			setIsLoadingSidekicks(false)
+		}
+	}, [buildRemoteSidekickOption, buildTemplateOptions])
+
+	useEffect(() => {
+		void loadSidekicks()
+	}, [loadSidekicks])
+
+	useEffect(() => {
+		if (sidekickOptions.length === 0) return
+		setSelectedSidekick((prev) => {
+			if (prev && sidekickOptions.some((option) => option.id === prev)) {
+				return prev
+			}
+			return sidekickOptions[0]?.id ?? prev
+		})
+	}, [sidekickOptions])
+
+	const currentSidekick = useMemo(
+		() => sidekickOptions.find((option) => option.id === selectedSidekick) ?? sidekickOptions[0],
+		[sidekickOptions, selectedSidekick]
+	)
+
+	const activeScope = currentSidekick?.scope ?? ''
+	const knowledgePreview = useMemo(() => {
+		const prompt = currentSidekick?.systemPrompt
+		if (!prompt) return ''
+		const lines = prompt
+			.split('\n')
+			.map(line => line.trim())
+			.filter(line => line.length > 0)
+		return lines.slice(0, 6).join('\n')
+	}, [currentSidekick?.systemPrompt])
 
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
 	}, [messages])
 
-	const handleSendMessage = async () => {
-		if (!inputMessage.trim() || isLoading) return
+	if (!currentSidekick) {
+		return (
+			<div className="p-6 max-w-6xl mx-auto">
+				<div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+					Loading sidekicks…
+				</div>
+			</div>
+		)
+	}
+
+	const sendMessage = async (overrideText?: string) => {
+		const text = (overrideText ?? inputMessage).trim()
+		if (!text || isLoading) return
+		if (!currentSidekick) {
+			alert('No AI sidekick available right now. Please try again in a moment.')
+			return
+		}
 
 		const userMessage: ChatMessage = {
 			id: `user-${Date.now()}`,
 			role: 'user',
-			content: inputMessage.trim(),
+			content: text,
 			timestamp: new Date().toISOString()
 		}
 
@@ -181,22 +283,43 @@ const AIInteractiveTraining: React.FC = () => {
 		setIsLoading(true)
 
 		try {
-			const conversationHistory = messages.map(msg => ({
-				sender: msg.role === 'assistant' ? 'assistant' : 'user',
-				text: msg.content
+			const priorMessages: ChatHistoryEntry[] = messages.map(msg => ({
+				role: msg.role === 'assistant' ? 'assistant' : 'user',
+				content: msg.content
 			}))
+			let assistantText = ''
 
-			const response = await continueConversation([
-				{ sender: 'system', text: TRAINING_ARCHITECT_PROMPT },
-				{ sender: 'system', text: currentSidekick.systemPrompt },
-				...conversationHistory,
-				{ sender: 'user', text: inputMessage.trim() }
-			], selectedSidekick)
+			if (currentSidekick.source === 'remote' && currentSidekick.id) {
+				try {
+					const { response } = await chatWithSidekick(currentSidekick.id, text, priorMessages)
+					assistantText = response
+				} catch (chatError) {
+					console.error('Remote sidekick chat failed, falling back to training prompt flow:', chatError)
+				}
+			}
+
+			if (!assistantText) {
+				const conversationHistory = [...messages, userMessage].map(msg => ({
+					sender: msg.role === 'assistant' ? 'assistant' : 'user',
+					text: msg.content
+				}))
+
+				const response = await continueConversation(
+					[
+						{ sender: 'system', text: TRAINING_ARCHITECT_PROMPT },
+						...(currentSidekick.systemPrompt ? [{ sender: 'system', text: currentSidekick.systemPrompt }] : []),
+						...conversationHistory,
+						{ sender: 'user', text }
+					],
+					currentSidekick.scope
+				)
+				assistantText = response
+			}
 
 			const assistantMessage: ChatMessage = {
 				id: `assistant-${Date.now()}`,
 				role: 'assistant',
-				content: response,
+				content: assistantText,
 				timestamp: new Date().toISOString(),
 				feedback: null
 			}
@@ -218,30 +341,38 @@ const AIInteractiveTraining: React.FC = () => {
 	}
 
 	const handleFeedback = async (messageId: string, feedback: 'thumbs_up' | 'thumbs_down') => {
-		setMessages(prev => prev.map(msg => 
+		const message = messages.find(m => m.id === messageId)
+		const previousMessageIndex = messages.findIndex(m => m.id === messageId) - 1
+		const userMessage = previousMessageIndex >= 0 ? messages[previousMessageIndex] : undefined
+
+		setMessages(prev => prev.map(msg =>
 			msg.id === messageId ? { ...msg, feedback } : msg
 		))
 
-		// Send feedback to backend training system
-		try {
-			const message = messages.find(m => m.id === messageId)
-			const userMessage = messages[messages.findIndex(m => m.id === messageId) - 1]
-			
-			await fetch('/api/training/feedback', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					messageId,
-					sidekick: selectedSidekick,
-					feedback,
-					userMessage: userMessage?.content || '',
-					assistantMessage: message?.content || ''
+		const activeSidekick = sidekickOptions.find(option => option.id === selectedSidekick)
+		if (activeSidekick?.source === 'remote' && activeSidekick.id) {
+			try {
+				const updated = await trainSidekick(activeSidekick.id, {
+					userMessage: userMessage?.content ?? '',
+					assistantMessage: message?.content ?? '',
+					feedback: feedback === 'thumbs_up' ? 'positive' : 'negative',
+					messageId
 				})
-			})
-			
-			console.log('✅ Training feedback sent:', { messageId, feedback, sidekick: selectedSidekick })
-		} catch (error) {
-			console.error('❌ Failed to send training feedback:', error)
+				if (updated) {
+					setSidekickOptions(prev =>
+						prev.map(option =>
+							option.id === updated.id
+								? {
+										...option,
+										stats: updated.stats
+									}
+								: option
+						)
+					)
+				}
+			} catch (error) {
+				console.error('❌ Failed to record training feedback:', error)
+			}
 		}
 
 		// If thumbs down, show improvement input
@@ -253,35 +384,40 @@ const AIInteractiveTraining: React.FC = () => {
 	const handleImprovement = async (messageId: string) => {
 		if (!improvementText.trim()) return
 
+		const trimmed = improvementText.trim()
+		const message = messages.find(m => m.id === messageId)
+		const previousMessageIndex = messages.findIndex(m => m.id === messageId) - 1
+		const userMessage = previousMessageIndex >= 0 ? messages[previousMessageIndex] : undefined
+
 		setMessages(prev => prev.map(msg => 
-			msg.id === messageId ? { ...msg, improvement: improvementText.trim() } : msg
+			msg.id === messageId ? { ...msg, improvement: trimmed } : msg
 		))
 
-		// Send improvement to backend training system
-		try {
-			const message = messages.find(m => m.id === messageId)
-			const userMessage = messages[messages.findIndex(m => m.id === messageId) - 1]
-			
-			await fetch('/api/training/feedback', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					messageId,
-					sidekick: selectedSidekick,
-					feedback: 'thumbs_down', // Already set, but include for context
-					improvement: improvementText.trim(),
-					userMessage: userMessage?.content || '',
-					assistantMessage: message?.content || ''
+		const activeSidekick = sidekickOptions.find(option => option.id === selectedSidekick)
+		if (activeSidekick?.source === 'remote' && activeSidekick.id) {
+			try {
+				const updated = await trainSidekick(activeSidekick.id, {
+					userMessage: userMessage?.content ?? '',
+					assistantMessage: message?.content ?? '',
+					feedback: 'negative',
+					improvement: trimmed,
+					messageId
 				})
-			})
-			
-			console.log('✅ Training improvement sent:', { 
-				messageId, 
-				improvement: improvementText.trim(), 
-				sidekick: selectedSidekick 
-			})
-		} catch (error) {
-			console.error('❌ Failed to send training improvement:', error)
+				if (updated) {
+					setSidekickOptions(prev =>
+						prev.map(option =>
+							option.id === updated.id
+								? {
+										...option,
+										stats: updated.stats
+									}
+								: option
+						)
+					)
+				}
+			} catch (error) {
+				console.error('❌ Failed to send training improvement:', error)
+			}
 		}
 
 		setImprovementText('')
@@ -295,7 +431,7 @@ const AIInteractiveTraining: React.FC = () => {
 	const handleKeyPress = (e: React.KeyboardEvent) => {
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault()
-			handleSendMessage()
+			void sendMessage()
 		}
 	}
 
@@ -342,6 +478,17 @@ const AIInteractiveTraining: React.FC = () => {
 								<li><strong>Pro tip:</strong> After training, jump back to AI Sidekicks or the live chat to feel the difference right away—your feedback is live as soon as you submit it.</li>
 							</ul>
 						</div>
+						<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+							<h3 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
+								<span className="material-symbols-outlined text-base">translate</span>
+								Multilingual replies (keep default English)
+							</h3>
+							<ul className="text-sm text-blue-900 space-y-1 list-disc list-inside">
+								<li>Ask ad‑hoc in chat: “Answer in Spanish” or “Answer in Mandarin”.</li>
+								<li>Translate your draft: “Translate this to Spanish: &lt;your English reply&gt;”.</li>
+								<li>We auto‑translate back to English for analytics/search when needed.</li>
+							</ul>
+						</div>
 					</div>
 				)}
 			</div>
@@ -350,42 +497,84 @@ const AIInteractiveTraining: React.FC = () => {
 				{/* Sidekick Selection */}
 				<div className="lg:col-span-1">
 					<h3 className="text-lg font-semibold text-slate-900 mb-4">Choose Sidekick</h3>
+					{sidekickError && (
+						<div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+							{sidekickError}
+						</div>
+					)}
 					<div className="space-y-3">
-						{sidekicks.map(sidekick => (
-							<button
-								key={sidekick.id}
-								onClick={() => {
-									setSelectedSidekick(sidekick.id)
-									clearChat()
-								}}
-								className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-									selectedSidekick === sidekick.id
-										? `${sidekick.color} border-current shadow-md`
-										: 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
-								}`}
-							>
-								<div className="flex items-center gap-3 mb-2">
-									<span className="material-symbols-outlined">{sidekick.icon}</span>
-									<h4 className="font-semibold">{sidekick.name}</h4>
-								</div>
-								<p className="text-sm opacity-75">{sidekick.description}</p>
-							</button>
-						))}
+						{isLoadingSidekicks && sidekickOptions.length === 0 ? (
+							<div className="text-sm text-slate-500">Loading sidekicks…</div>
+						) : (
+							sidekickOptions.map(sidekick => {
+								const isSelected = selectedSidekick === sidekick.id
+								const style: React.CSSProperties = sidekick.color
+									? {
+											borderColor: sidekick.color,
+											backgroundColor: isSelected ? hexToRgba(sidekick.color, 0.12) : undefined
+										}
+									: {}
+								return (
+									<button
+										key={sidekick.id}
+										onClick={() => {
+											setSelectedSidekick(sidekick.id)
+											clearChat()
+										}}
+										className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+											isSelected ? 'shadow-md ring-2 ring-offset-1 ring-primary-200' : 'hover:border-slate-300 hover:shadow-sm'
+										}`}
+										style={style}
+									>
+										<div className="flex items-center gap-3 mb-2">
+											<span className="material-symbols-outlined">{sidekick.icon}</span>
+											<div>
+												<h4 className="font-semibold">{sidekick.name}</h4>
+												<p className="text-[11px] uppercase tracking-wide text-slate-400">{sidekick.source === 'remote' ? 'Linked Sidekick' : 'Demo Template'}</p>
+											</div>
+										</div>
+										<p className="text-sm opacity-75">{sidekick.description}</p>
+									</button>
+								)
+							})
+						)}
 					</div>
 
 					{/* Training Stats */}
-					<TrainingStats sidekick={selectedSidekick} currentSessionStats={{
-						conversations: messages.filter(m => m.role === 'user').length,
-						positiveCount: messages.filter(m => m.feedback === 'thumbs_up').length,
-						improvementCount: messages.filter(m => m.improvement).length
-					}} />
+					<TrainingStats
+						sidekickName={currentSidekick?.name ?? 'AI Sidekick'}
+						isLoading={isLoadingSidekicks}
+						backendStats={currentSidekick?.stats}
+						currentSessionStats={{
+							conversations: messages.filter(m => m.role === 'user').length,
+							positiveCount: messages.filter(m => m.feedback === 'thumbs_up').length,
+							improvementCount: messages.filter(m => m.improvement).length
+						}}
+					/>
+
+					{currentSidekick?.source === 'remote' && knowledgePreview && (
+						<div className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
+							<h4 className="font-medium text-slate-900 mb-2">Knowledge highlights</h4>
+							<p className="text-xs text-slate-600 whitespace-pre-line leading-relaxed">{knowledgePreview}</p>
+						</div>
+					)}
 				</div>
 
 				{/* Chat Interface */}
 				<div className="lg:col-span-3">
 					<div className="bg-white rounded-lg border border-slate-200 h-[600px] flex flex-col">
 						{/* Chat Header */}
-						<div className={`p-4 border-b border-slate-200 ${currentSidekick.color} rounded-t-lg`}>
+						<div
+							className="p-4 border-b border-slate-200 rounded-t-lg"
+							style={
+								currentSidekick?.color
+									? {
+											backgroundColor: hexToRgba(currentSidekick.color, 0.12),
+											borderColor: currentSidekick.color
+										}
+									: undefined
+							}
+						>
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-3">
 									<span className="material-symbols-outlined text-2xl">{currentSidekick.icon}</span>
@@ -412,7 +601,7 @@ const AIInteractiveTraining: React.FC = () => {
 									<p className="text-slate-600">Ask your {currentSidekick.name.toLowerCase()} for help with something specific</p>
 									<div className="mt-4 space-y-3">
 										<p className="text-sm text-slate-500">Try these examples:</p>
-										{selectedSidekick === 'marketing' && (
+										{activeScope === 'marketing' && (
 											<div className="space-y-2">
 												{[
 													"Create a social media post for a luxury condo",
@@ -423,8 +612,7 @@ const AIInteractiveTraining: React.FC = () => {
 													<button
 														key={idx}
 														onClick={() => {
-															setInputMessage(prompt)
-															setTimeout(() => handleSendMessage(), 100)
+															void sendMessage(prompt)
 														}}
 														className="block w-full text-left px-3 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
 													>
@@ -433,7 +621,7 @@ const AIInteractiveTraining: React.FC = () => {
 												))}
 											</div>
 										)}
-										{selectedSidekick === 'listing' && (
+										{activeScope === 'listing' && (
 											<div className="space-y-2">
 												{[
 													"Write a description for a 3BR family home",
@@ -444,8 +632,7 @@ const AIInteractiveTraining: React.FC = () => {
 													<button
 														key={idx}
 														onClick={() => {
-															setInputMessage(prompt)
-															setTimeout(() => handleSendMessage(), 100)
+															void sendMessage(prompt)
 														}}
 														className="block w-full text-left px-3 py-2 text-sm text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
 													>
@@ -454,7 +641,7 @@ const AIInteractiveTraining: React.FC = () => {
 												))}
 											</div>
 										)}
-										{selectedSidekick === 'agent' && (
+										{activeScope === 'agent' && (
 											<div className="space-y-2">
 												{[
 													"Help me respond to a client asking about mortgage rates",
@@ -465,8 +652,7 @@ const AIInteractiveTraining: React.FC = () => {
 													<button
 														key={idx}
 														onClick={() => {
-															setInputMessage(prompt)
-															setTimeout(() => handleSendMessage(), 100)
+															void sendMessage(prompt)
 														}}
 														className="block w-full text-left px-3 py-2 text-sm text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
 													>
@@ -475,7 +661,7 @@ const AIInteractiveTraining: React.FC = () => {
 												))}
 											</div>
 										)}
-										{selectedSidekick === 'sales' && (
+										{activeScope === 'sales' && (
 											<div className="space-y-2">
 												{[
 													"Help me handle a price objection from a buyer",
@@ -486,8 +672,7 @@ const AIInteractiveTraining: React.FC = () => {
 													<button
 														key={idx}
 														onClick={() => {
-															setInputMessage(prompt)
-															setTimeout(() => handleSendMessage(), 100)
+															void sendMessage(prompt)
 														}}
 														className="block w-full text-left px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
 													>
@@ -607,7 +792,7 @@ const AIInteractiveTraining: React.FC = () => {
 									className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
 								/>
 								<button
-									onClick={handleSendMessage}
+									onClick={() => { void sendMessage() }}
 									disabled={!inputMessage.trim() || isLoading}
 									className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 								>

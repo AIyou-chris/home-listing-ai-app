@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { BlogPost } from '../types';
 
 const BLOG_META_ATTRIBUTE = 'data-blog-meta';
@@ -137,6 +138,9 @@ const BlogPostPage: React.FC = () => {
   const [post, setPost] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { slug: slugParam } = useParams<{ slug?: string }>();
 
   const fetchPost = useCallback(async (slug: string) => {
     try {
@@ -183,13 +187,17 @@ const BlogPostPage: React.FC = () => {
     }
   }, []);
 
+  const slugFromQuery = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('slug') ?? undefined;
+  }, [location.search]);
+
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const slug = window.location.hash.split('/').pop();
-    if (slug) {
-      void fetchPost(slug);
+    const resolvedSlug = slugParam ?? slugFromQuery;
+    if (resolvedSlug) {
+      void fetchPost(resolvedSlug);
     }
-  }, [fetchPost]);
+  }, [fetchPost, slugFromQuery, slugParam]);
 
   const renderMarkdown = (content: string) => {
     // Simple markdown rendering
@@ -267,7 +275,7 @@ const BlogPostPage: React.FC = () => {
           <h3 className="text-lg font-semibold text-slate-900 mb-2">Article Not Found</h3>
           <p className="text-slate-500 mb-6">The article you're looking for doesn't exist.</p>
           <button
-            onClick={() => window.location.hash = 'blog'}
+            onClick={() => navigate('/blog')}
             className="px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
           >
             Back to Blog
@@ -280,7 +288,7 @@ const BlogPostPage: React.FC = () => {
   const handleShare = async (platform: 'copy' | 'twitter' | 'linkedin' | 'facebook') => {
     if (!post || typeof window === 'undefined') return;
 
-    const url = `${window.location.origin}/#blog-post/${post.slug}`;
+    const url = `${window.location.origin}/blog/${post.slug}`;
 
     switch (platform) {
       case 'copy': {
@@ -318,7 +326,7 @@ const BlogPostPage: React.FC = () => {
       <div className="bg-white border-b border-slate-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <button
-            onClick={() => window.location.hash = 'blog'}
+            onClick={() => navigate('/blog')}
             className="flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6 transition"
           >
             <span className="material-symbols-outlined w-5 h-5">arrow_back</span>
@@ -466,7 +474,7 @@ const BlogPostPage: React.FC = () => {
 
               <div className="flex justify-center">
                 <button
-                  onClick={() => window.location.hash = 'blog'}
+                  onClick={() => navigate('/blog')}
                   className="px-8 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
                 >
                   Back to Blog

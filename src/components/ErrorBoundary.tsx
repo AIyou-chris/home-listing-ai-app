@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { getBooleanEnvValue } from '../lib/env';
 
 interface Props {
   children: ReactNode;
@@ -30,7 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
     });
 
     // Log to external service in production
-    if (import.meta.env.PROD) {
+    if (getBooleanEnvValue('PROD')) {
       // TODO: Send to error tracking service (Sentry, LogRocket, etc.)
       console.error('Production error:', {
         error: error.message,
@@ -68,7 +69,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </p>
             </div>
 
-            {import.meta.env.DEV && this.state.error && (
+            {getBooleanEnvValue('DEV') && this.state.error && (
               <details className="mb-4">
                 <summary className="text-sm font-medium text-gray-700 cursor-pointer">
                   Error Details (Development Only)

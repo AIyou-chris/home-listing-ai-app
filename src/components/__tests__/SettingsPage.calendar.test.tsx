@@ -1,5 +1,6 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import SettingsPage from '../SettingsPage'
 import {
   AgentProfile,
@@ -10,6 +11,7 @@ import {
 } from '../../types'
 import { supabase } from '../../services/supabase'
 import { agentOnboardingService } from '../../services/agentOnboardingService'
+import { ToastProvider } from '../../context/ToastContext'
 
 jest.mock('../../services/supabase', () => ({
   supabase: {
@@ -144,20 +146,24 @@ const createFetchMock = () => {
 
 const renderSettings = () => {
   render(
-    <SettingsPage
-      userId="test-agent"
-      userProfile={defaultAgent}
-      onSaveProfile={jest.fn()}
-      notificationSettings={defaultNotifications}
-      onSaveNotifications={jest.fn()}
-      emailSettings={defaultEmailSettings}
-      onSaveEmailSettings={jest.fn()}
-      calendarSettings={defaultCalendarSettings}
-      onSaveCalendarSettings={jest.fn()}
-      billingSettings={defaultBilling}
-      onSaveBillingSettings={jest.fn()}
-      onBackToDashboard={jest.fn()}
-    />
+    <MemoryRouter>
+      <ToastProvider>
+        <SettingsPage
+          userId="test-agent"
+          userProfile={defaultAgent}
+          onSaveProfile={jest.fn()}
+          notificationSettings={defaultNotifications}
+          onSaveNotifications={jest.fn()}
+          emailSettings={defaultEmailSettings}
+          onSaveEmailSettings={jest.fn()}
+          calendarSettings={defaultCalendarSettings}
+          onSaveCalendarSettings={jest.fn()}
+          billingSettings={defaultBilling}
+          onSaveBillingSettings={jest.fn()}
+          onBackToDashboard={jest.fn()}
+        />
+      </ToastProvider>
+    </MemoryRouter>
   )
 }
 
@@ -191,7 +197,6 @@ describe('SettingsPage calendar tab', () => {
     await screen.findByRole('heading', { name: /calendar integration/i })
 
     expect(screen.getByText('Google Calendar')).toBeInTheDocument()
-    expect(screen.getByText('Apple Calendar')).toBeInTheDocument()
 
     const saveButtons = screen.getAllByRole('button', { name: /save calendar settings/i })
     expect(saveButtons).toHaveLength(1)
@@ -279,7 +284,8 @@ describe('SettingsPage billing tab', () => {
 
     await waitFor(() => expect(mockedOnboardingService.listPaymentProviders).toHaveBeenCalled())
 
-    const manageButton = await screen.findByRole('button', { name: /manage via paypal/i })
+    const manageButton = await screen.findByRole('button', { name: /manage with paypal/i })
+    await waitFor(() => expect(manageButton).not.toBeDisabled())
     fireEvent.click(manageButton)
 
     await waitFor(() => {

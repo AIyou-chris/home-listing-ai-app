@@ -1,3 +1,5 @@
+import { getEnvValue } from '../lib/env';
+
 export interface AgentRegistrationPayload {
   firstName: string;
   lastName: string;
@@ -14,6 +16,8 @@ export interface AgentRecord {
   payment_status?: string | null;
   created_at?: string;
   activated_at?: string | null;
+  plan_amount?: number | null;
+  plan_currency?: string | null;
 }
 
 export interface AgentRegistrationResponse {
@@ -33,7 +37,7 @@ export interface CheckoutSessionResponse {
 const REGISTRATION_STORAGE_KEY = 'aiyouagent:agent-registration';
 
 const getApiBase = () => {
-  const base = import.meta.env.VITE_API_BASE_URL;
+  const base = getEnvValue('VITE_API_BASE_URL');
   if (base) {
     return base.endsWith('/') ? base.slice(0, -1) : base;
   }

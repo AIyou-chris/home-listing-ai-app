@@ -121,11 +121,11 @@ export const uploadAiCardAsset = async (
 };
 
 // Get AI Card profile
-export const getAICardProfile = async (userId?: string): Promise<AICardProfile> => {
+export const getAICardProfile = async (userId?: string, signal?: AbortSignal): Promise<AICardProfile> => {
   try {
     const resolvedUserId = await resolveUserId(userId);
     const queryParams = resolvedUserId ? `?userId=${resolvedUserId}` : '';
-    const response = await fetch(`/api/ai-card/profile${queryParams}`);
+    const response = await fetch(`/api/ai-card/profile${queryParams}`, { signal });
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -193,6 +193,23 @@ export const updateAICardProfile = async (profileData: Partial<AICardProfile>, u
     return profile;
   } catch (error) {
     console.error('Error updating AI Card profile:', error);
+    throw error;
+  }
+};
+
+export const deleteAICardProfile = async (userId?: string): Promise<void> => {
+  try {
+    const resolvedUserId = await resolveUserId(userId);
+    const queryParams = resolvedUserId ? `?userId=${encodeURIComponent(resolvedUserId)}` : '';
+    const response = await fetch(`/api/ai-card/profile${queryParams}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    console.log('🗑️ Deleted AI Card profile');
+  } catch (error) {
+    console.error('Error deleting AI Card profile:', error);
     throw error;
   }
 };
@@ -265,11 +282,17 @@ export const listAICardQRCodes = async (userId?: string): Promise<AICardQRCode[]
   return data;
 };
 
-export const createAICardQRCode = async (
-  label: string,
-  destinationUrl?: string,
-  userId?: string
-): Promise<AICardQRCode> => {
+export const createAICardQRCode = async ({
+  label,
+  destinationUrl,
+  userId,
+  metadata
+}: {
+  label: string;
+  destinationUrl?: string;
+  userId?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<AICardQRCode> => {
   const resolvedUserId = await resolveUserId(userId);
   const response = await fetch('/api/ai-card/qr-codes', {
     method: 'POST',
@@ -277,7 +300,8 @@ export const createAICardQRCode = async (
     body: JSON.stringify({
       userId: resolvedUserId,
       label,
-      destinationUrl
+      destinationUrl,
+      metadata
     })
   });
   if (!response.ok) {

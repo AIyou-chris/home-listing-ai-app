@@ -2,6 +2,7 @@ import { insertAppointment, listAppointments } from './appointmentsService'
 import type { AppointmentRow } from './appointmentsService'
 import { supabase } from './supabase'
 import { googleOAuthService } from './googleOAuthService'
+import { getEnvValue } from '../lib/env'
 import { googleMeetService } from './googleMeetService'
 import { emailService } from './emailService'
 import { calendarSettingsService } from './calendarSettingsService'
@@ -47,25 +48,7 @@ export interface SchedulerResult {
 }
 
 const resolveGoogleIntegrationFlag = (): boolean => {
-  const fromProcess =
-    typeof process !== 'undefined' && process.env
-      ? process.env.VITE_ENABLE_GOOGLE_INTEGRATIONS
-      : undefined
-
-  const fromGlobal =
-    typeof globalThis !== 'undefined' &&
-    (globalThis as Record<string, unknown> | undefined)?.VITE_ENABLE_GOOGLE_INTEGRATIONS
-
-  let fromImportMeta: unknown
-  try {
-    fromImportMeta = new Function(
-      'return typeof import.meta !== "undefined" && import.meta && import.meta.env ? import.meta.env.VITE_ENABLE_GOOGLE_INTEGRATIONS : undefined'
-    )()
-  } catch (error) {
-    fromImportMeta = undefined
-  }
-
-  const candidate = (fromImportMeta ?? fromGlobal ?? fromProcess) as string | undefined
+  const candidate = getEnvValue('VITE_ENABLE_GOOGLE_INTEGRATIONS')
   return String(candidate || '').toLowerCase() === 'true'
 }
 

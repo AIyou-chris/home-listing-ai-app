@@ -77,7 +77,7 @@ const parseConversationMetadata = (metadata: unknown): ConversationMetadata => {
   const record = { ...(metadata as Record<string, unknown>) };
   const durationValue = record.duration;
   if (typeof durationValue === 'string' || durationValue === null) {
-    return { ...record, duration: durationValue };
+    return { ...(record as ConversationMetadata), duration: durationValue as string | null };
   }
 
   delete (record as { duration?: unknown }).duration;

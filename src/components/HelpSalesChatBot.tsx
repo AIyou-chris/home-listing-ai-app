@@ -23,6 +23,8 @@ interface HelpSalesChatBotProps {
   context: ChatBotContext;
   onLeadGenerated?: (leadInfo: LeadPayload) => void;
   onSupportTicket?: (ticketInfo: SupportTicketPayload) => void;
+  onUserMessage?: (message: string) => void;
+  onAssistantMessage?: (message: string) => void;
   className?: string;
   initialMode?: ChatBotMode;
 }
@@ -31,6 +33,8 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
   context,
   onLeadGenerated,
   onSupportTicket,
+  onUserMessage,
+  onAssistantMessage,
   className = '',
   initialMode = 'general'
 }) => {
@@ -86,6 +90,7 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
       text: inputValue,
       timestamp: new Date()
     };
+    onUserMessage?.(inputValue);
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
@@ -103,6 +108,7 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
       setMessages(prev => [...prev, aiMessage]);
       setCurrentMode(response.mode);
       setLastResponse(response);
+      onAssistantMessage?.(response.message);
 
       // Handle callbacks based on response
       if (response.mode === 'sales' && response.priority === 'high') {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase';
 // Firebase removed
 import ShareModal from './ShareModal';
@@ -30,16 +31,6 @@ interface AIQuestion {
 	placeholder?: string;
 }
 
-type SupabaseUser = {
-	uid: string;
-	email?: string;
-};
-
-type ShareContent = {
-	subject: string;
-	body: string;
-};
-
 interface QuestionResponse {
 	success: boolean;
 	questions?: AIQuestion[];
@@ -51,11 +42,11 @@ interface ProposalResponse {
 }
 
 const AIMarketingProposalPage: React.FC = () => {
-	const [user, setUser] = useState<SupabaseUser | null>(null);
+	const [user, setUser] = useState<User | null>(null);
 	const [proposals, setProposals] = useState<MarketingProposal[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [showShareModal, setShowShareModal] = useState(false);
-	const [shareContent, setShareContent] = useState<ShareContent | null>(null);
+	const [shareContent, setShareContent] = useState<ReturnType<typeof ShareService.generateMarketingProposalShareContent> | null>(null);
 
 	// AI Questionnaire State
 	const [currentStep, setCurrentStep] = useState<'intro' | 'questions' | 'generating' | 'complete'>('intro');

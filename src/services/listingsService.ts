@@ -1,6 +1,8 @@
 import { supabase } from './supabase'
 import { Property, AIDescription, AgentProfile } from '../types'
 import { SAMPLE_AGENT } from '../constants'
+import { DEMO_FAT_PROPERTIES } from '../demoConstants'
+import { getAuthenticatedUserId } from './session-utils'
 
 const PROPERTIES_TABLE = 'properties'
 
@@ -200,6 +202,11 @@ const buildRowPayload = (input: Partial<CreatePropertyInput>): Record<string, un
 
 export const listingsService = {
   async listProperties(): Promise<Property[]> {
+    const userId = await getAuthenticatedUserId()
+    if (!userId) {
+      return DEMO_FAT_PROPERTIES.map((property) => ({ ...property }))
+    }
+
     const { data, error } = await supabase
       .from(PROPERTIES_TABLE)
       .select('*')

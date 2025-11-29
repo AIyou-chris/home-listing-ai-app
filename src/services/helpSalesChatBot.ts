@@ -22,6 +22,7 @@ export interface ChatBotContext {
     email?: string;
     phone?: string;
     company?: string;
+    language?: string;
   };
 }
 

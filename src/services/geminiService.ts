@@ -343,37 +343,50 @@ export const generateBlogPost = async (options: {
     urls?: string[];
 }): Promise<AIBlogPost> => {
      try {
-        const result = await generateBlogPostFunction({ options });
-        return result.data as AIBlogPost;
+        const result = await generateBlogPostFunction({
+            topic: options.topic,
+            tone: options.tone,
+            targetAudience: options.audience
+        });
+        const payload = result?.data as { post?: AIBlogPost } | undefined;
+        if (payload?.post) {
+            return payload.post;
+        }
     } catch (error) {
         console.error("Error generating blog post:", error);
-        return {
-            title: `Sample: ${options.topic}`,
-            body: `This is a placeholder blog post for ${options.topic}.`
-        } as AIBlogPost;
     }
+    return {
+        title: `Sample: ${options.topic}`,
+        body: `This is a placeholder blog post for ${options.topic}.`
+    };
 };
 
 export const generateVideoScript = async (property: Property): Promise<string> => {
   try {
-    const serializableProperty = createSerializableProperty(property);
-    const result = await generateVideoScriptFunction({ property: serializableProperty });
-    return (result.data as { text: string }).text;
+    const prompt = `Create a friendly real estate video tour script for a ${property.propertyType} located at ${property.address} with ${property.bedrooms} bedrooms and ${property.bathrooms} bathrooms.`;
+    const result = await generateVideoScriptFunction({ prompt, duration: 90 });
+    const data = result?.data as { script?: string; text?: string } | undefined;
+    if (data?.script) return data.script;
+    if (data?.text) return data.text;
   } catch (error) {
     console.error("Error generating video script:", error);
-    return `Welcome to ${property.address}. This beautiful ${property.propertyType} could be your next home. With ${property.bedrooms} bedrooms and ${property.bathrooms} bathrooms, there's plenty of space to relax. Key features include: ${property.features.slice(0, 3).join(', ')}. Contact us to schedule a tour today!`;
   }
+  return `Welcome to ${property.address}. This beautiful ${property.propertyType} could be your next home. With ${property.bedrooms} bedrooms and ${property.bathrooms} bathrooms, there's plenty of space to relax. Key features include: ${property.features.slice(0, 3).join(', ')}. Contact us to schedule a tour today!`;
 };
 
 export const generateSocialPostText = async (property: Property, platforms: SocialPlatform[]): Promise<string> => {
   try {
-    const serializableProperty = createSerializableProperty(property);
-    const result = await generateSocialPostTextFunction({ property: serializableProperty, platforms });
-    return (result.data as { text: string }).text;
+    const prompt = `Write a social media post highlighting a ${property.propertyType} located at ${property.address} listed for $${property.price.toLocaleString()}. Mention key features: ${property.features.slice(0, 3).join(', ')}.`;
+    const result = await generateSocialPostTextFunction({
+      prompt,
+      platform: platforms[0] ?? 'facebook'
+    });
+    const data = result?.data as { text?: string } | undefined;
+    if (data?.text) return data.text;
   } catch (error) {
     console.error("Error generating social post text:", error);
-    return `Check out this amazing ${property.propertyType} at ${property.address}! Priced at $${property.price.toLocaleString()}, it's a fantastic opportunity. DM for details! #realestate #${property.address.split(',')[1]?.trim().replace(' ', '') || 'listing'}`;
   }
+  return `Check out this amazing ${property.propertyType} at ${property.address}! Priced at $${property.price.toLocaleString()}, it's a fantastic opportunity. DM for details! #realestate #${property.address.split(',')[1]?.trim().replace(' ', '') || 'listing'}`;
 };
 
 export const getLocalInfo = async (address: string, category: string): Promise<LocalInfoData> => {
@@ -381,7 +394,7 @@ export const getLocalInfo = async (address: string, category: string): Promise<L
         throw new Error("Address cannot be empty.");
     }
     try {
-        const result = await getLocalInfoFunction({ address, category });
+        const result = await getLocalInfoFunction({ location: address });
         return result.data;
     } catch (error) {
         console.error(`Error getting local info for ${category}:`, error);

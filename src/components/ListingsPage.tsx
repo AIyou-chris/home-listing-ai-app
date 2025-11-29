@@ -6,11 +6,12 @@ import { createShortLink, ShortLink } from '../services/linkShortenerService';
 
 interface PropertyCardProps {
     property: Property;
-    onSelect: () => void;
+    onOpenBuilder: (id: string) => void;
     onDelete: () => void;
+    onSelect: (id: string) => void;
 }
 
-const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect, onDelete }) => {
+const PropertyCard: React.FC<PropertyCardProps> = ({ property, onOpenBuilder, onDelete, onSelect }) => {
     const [shortLink, setShortLink] = useState<ShortLink | null>(null);
     const [isShortLinkLoading, setIsShortLinkLoading] = useState(false);
     const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -55,8 +56,23 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect, onDelet
         ? property.description.title
         : (property.description || 'View details to learn more.');
 
+    const handleSelect = () => onSelect(property.id);
+
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleSelect();
+        }
+    };
+
     return (
-        <div className="bg-slate-800 rounded-2xl shadow-lg overflow-hidden flex flex-col text-white">
+        <div
+            className="bg-slate-800 rounded-2xl shadow-lg overflow-hidden flex flex-col text-white cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            onClick={handleSelect}
+            onKeyDown={handleKeyDown}
+            role="button"
+            tabIndex={0}
+        >
             <div className="relative">
                 <img className="h-56 w-full object-cover" src={property.imageUrl} alt={property.address} />
                 <div className="absolute top-4 right-4 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
@@ -101,20 +117,13 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect, onDelet
                 </div>
                 
                 <div className="mt-6 pt-6 border-t border-slate-700">
-                    <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="grid grid-cols-1 gap-3 mb-3">
                         <button
-                            onClick={(e) => { e.stopPropagation(); onSelect(); }}
-                            className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-sky-600 rounded-lg shadow-sm hover:bg-sky-700 transition"
+                            onClick={(e) => { e.stopPropagation(); onOpenBuilder(property.id); }}
+                            className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-slate-600 rounded-lg shadow-sm hover:bg-slate-700 transition"
                         >
                             <span className="material-symbols-outlined w-4 h-4">edit</span>
                             <span>Edit</span>
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); alert('Listing Sidekick setup coming soon.'); }}
-                            className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-slate-600 rounded-lg shadow-sm hover:bg-slate-700 transition"
-                        >
-                            <span className="material-symbols-outlined w-4 h-4">smart_toy</span>
-                            <span>Listing Sidekick</span>
                         </button>
                     </div>
                     <div className="mb-3">
@@ -187,9 +196,11 @@ interface ListingsPageProps {
     onAddNew: () => void;
     onDeleteProperty: (id: string) => void;
     onBackToDashboard: () => void;
+    onOpenBuilder: (id: string) => void;
+    onSeedSample?: () => Promise<void> | void;
 }
 
-const ListingsPage: React.FC<ListingsPageProps> = ({ properties, onSelectProperty, onAddNew, onDeleteProperty, onBackToDashboard }) => {
+const ListingsPage: React.FC<ListingsPageProps> = ({ properties, onSelectProperty, onAddNew, onDeleteProperty, onBackToDashboard, onOpenBuilder, onSeedSample }) => {
     const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
 
     return (
@@ -203,13 +214,23 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties, onSelectPropert
                     <h1 className="text-3xl font-bold text-slate-900">AI Listings</h1>
                     <p className="text-slate-500 mt-1">Manage your listings and their Listing Sidekick brains.</p>
                 </div>
-                <button
-                    onClick={onAddNew}
-                    className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105"
-                >
-                    <span className="material-symbols-outlined h-5 w-5">add</span>
-                    <span>Add New Listing</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    {onSeedSample && (
+                        <button
+                            onClick={() => void onSeedSample()}
+                            className="px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+                        >
+                            Seed sample
+                        </button>
+                    )}
+                    <button
+                        onClick={onAddNew}
+                        className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105"
+                    >
+                        <span className="material-symbols-outlined h-5 w-5">add</span>
+                        <span>Add New Listing</span>
+                    </button>
+                </div>
             </header>
 
             <div className="mb-8">
@@ -265,8 +286,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties, onSelectPropert
                             <PropertyCard 
                                 key={prop.id} 
                                 property={prop} 
-                                onSelect={() => onSelectProperty(prop.id)} 
+                                onOpenBuilder={onOpenBuilder} 
                                 onDelete={() => onDeleteProperty(prop.id)}
+                                onSelect={onSelectProperty}
                             />
                         ))}
                     </div>

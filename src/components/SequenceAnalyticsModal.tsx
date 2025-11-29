@@ -1,7 +1,47 @@
 import React, { useMemo, useState } from 'react';
 import Modal from './Modal';
 import { FollowUpSequence, SequenceAnalytics } from '../types';
-import { SequencePerformanceChart, PerformancePoint } from './funnel/SequencePerformanceChart';
+
+interface PerformancePoint {
+    label: string;
+    value: number;
+}
+
+const ACCENT_MAP: Record<string, string> = {
+    blue: 'bg-blue-500',
+    green: 'bg-green-500',
+    purple: 'bg-purple-500',
+    teal: 'bg-teal-500'
+};
+
+const SequencePerformanceChart: React.FC<{ title: string; data: PerformancePoint[]; accent?: string }> = ({ title, data, accent = 'blue' }) => {
+    const accentBar = ACCENT_MAP[accent] ?? 'bg-primary-500';
+    const maxValue = Math.max(...data.map(point => point.value), 1);
+    return (
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-3 flex items-center justify-between">
+                <h5 className="text-sm font-semibold text-slate-700">{title}</h5>
+                <span className="text-xs text-slate-400">Last {data.length} intervals</span>
+            </div>
+            <div className="space-y-2">
+                {data.map(point => (
+                    <div key={point.label}>
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span>{point.label}</span>
+                            <span className="font-medium text-slate-700">{point.value}</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-slate-200">
+                            <div
+                                className={`h-2 rounded-full transition-all ${accentBar}`}
+                                style={{ width: `${Math.min(100, Math.max(0, (point.value / maxValue) * 100))}%` }}
+                            />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 interface SequenceAnalyticsModalProps {
     sequence: FollowUpSequence;

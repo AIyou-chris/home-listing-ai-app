@@ -239,7 +239,11 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
     const [pickerLoading, setPickerLoading] = useState(false);
     const [pickerItems, setPickerItems] = useState<Array<{id: string; title: string; content: string; sidekick: string; created_at: string}>>([]);
     const [pickerQuery, setPickerQuery] = useState('');
-    const [pickerSidekick, setPickerSidekick] = useState<'all' | 'main' | 'sales' | 'marketing' | 'listing' | 'agent' | 'helper' | 'support'>('all');
+    const SIDEKICK_FILTER_OPTIONS = ['all', 'main', 'sales', 'marketing', 'listing', 'agent', 'helper', 'support'] as const;
+    type SidekickFilter = typeof SIDEKICK_FILTER_OPTIONS[number];
+    const isSidekickFilter = (value: string): value is SidekickFilter =>
+        (SIDEKICK_FILTER_OPTIONS as readonly string[]).includes(value);
+    const [pickerSidekick, setPickerSidekick] = useState<SidekickFilter>('all');
     
     const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -278,7 +282,7 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                 localStorage.removeItem('hlai_transcript_draft');
             }
         } catch (error) {
-            console.warn('Failed to restore transcript draft from storage', error);
+            console.warn('[PropertyPage] Failed to read transcript draft', error);
         }
     }, []);
 
@@ -327,7 +331,7 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                             const rows = await listTranscripts(uid, 50);
                             setPickerItems(rows.map(r => ({ id: r.id, title: r.title || r.content.slice(0, 60), content: r.content, sidekick: r.sidekick, created_at: r.created_at })));
                         } catch (error) {
-                            console.warn('Failed to load transcripts for picker', error);
+                            console.error('[PropertyPage] Failed to load transcripts', error);
                         }
                         setPickerLoading(false);
                     }} className="p-2.5 rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-300" title="Browse transcripts">
@@ -338,7 +342,7 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                             const draft = localStorage.getItem('hlai_transcript_draft');
                             if (draft && draft.trim()) setUserInput(draft);
                         } catch (error) {
-                            console.warn('Failed to insert transcript draft', error);
+                            console.warn('[PropertyPage] Unable to load saved transcript draft', error);
                         }
                     }} className="p-2.5 rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-300" title="Insert from transcript">
                         <span className="material-symbols-outlined w-5 h-5">content_paste</span>
@@ -359,7 +363,16 @@ const AIAssistant: React.FC<{ property: Property }> = ({ property }) => {
                         <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
                             <div className="flex items-center gap-2">
                                 <input value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search…" className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-                                <select value={pickerSidekick} onChange={e => setPickerSidekick(e.target.value as typeof pickerSidekick)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                                <select
+                                    value={pickerSidekick}
+                                    onChange={e => {
+                                        const nextValue = e.target.value;
+                                        if (isSidekickFilter(nextValue)) {
+                                            setPickerSidekick(nextValue);
+                                        }
+                                    }}
+                                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                >
                                     {['all','main','sales','marketing','listing','agent','helper','support'].map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>

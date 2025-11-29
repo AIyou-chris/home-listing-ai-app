@@ -403,7 +403,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         ) : (
                             <>
-                                {['Qualified', 'Hot', 'Warm', 'Cold'].map(tier => {
+                                {(['Qualified', 'Hot', 'Warm', 'Cold'] as LeadScore['tier'][]).map((tier) => {
                                     const count = leadScores.filter(s => s.tier === tier).length;
                                     const percentage = leadScores.length > 0 ? Math.round((count / leadScores.length) * 100) : 0;
                                     const tierInfo = getScoreTierInfo(tier);

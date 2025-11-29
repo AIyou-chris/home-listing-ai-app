@@ -25,7 +25,7 @@ export const searchListingKb = async (
   try {
     const scope = listingId === 'agent' ? 'agent' : 'listing'
     const { data, error } = await supabase
-      .from<ListingKbRow>('ai_listing_kb')
+      .from('ai_listing_kb')
       .select('*')
       .eq('user_id', userId)
       .eq('scope', scope)
@@ -56,7 +56,7 @@ export const addListingText = async (
   content: string
 ): Promise<ListingKbRow> => {
   const { data, error } = await supabase
-    .from<ListingKbRow>('ai_listing_kb')
+    .from('ai_listing_kb')
     .insert({ user_id: userId, scope: 'listing', listing_id: listingId, type: 'text', title, content })
     .select('*')
     .single()

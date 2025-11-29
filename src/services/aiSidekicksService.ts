@@ -1,4 +1,5 @@
 import { resolveUserId } from './userId';
+import { getEnvValue } from '../lib/env'
 
 export interface Voice {
   id: string;
@@ -94,11 +95,11 @@ export const personalityPresets: Record<string, PersonalityPreset> = {
 };
 
 const getApiBaseUrl = (): string => {
-  const raw = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_API_BASE_URL;
-  if (typeof raw !== 'string' || raw.trim() === '') {
-    return '';
+  const raw = getEnvValue('VITE_API_BASE_URL');
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    return raw.trim().replace(/\/$/, '');
   }
-  return raw.replace(/\/+$/, '');
+  return 'https://ailisitnghome-43boqi59o-ai-you.vercel.app';
 };
 
 const API_BASE = getApiBaseUrl();
@@ -157,16 +158,22 @@ const normalizeSidekick = (raw: unknown): AISidekick => {
           .filter((entry: string) => entry.trim().length > 0)
       : [];
 
+  const personalityRecord = record?.personality as Partial<AISidekick['personality']> | undefined
+
   const traits =
-    Array.isArray(record?.personality?.traits) && record.personality.traits.length > 0
-      ? record.personality.traits
+    Array.isArray(personalityRecord?.traits) && personalityRecord.traits.length > 0
+      ? personalityRecord.traits
           .map((trait: unknown) =>
             typeof trait === 'string' ? trait.trim() : ''
           )
           .filter((trait: string) => trait.length > 0)
       : [];
 
-  const stats = record?.stats ?? {};
+  const statsRecord = record?.stats as Partial<AISidekick['stats']> | undefined;
+  const metadataRecord =
+    record?.metadata && typeof record.metadata === 'object'
+      ? (record.metadata as Record<string, unknown>)
+      : undefined;
 
   return {
     id: typeof record?.id === 'string' ? record.id : '',
@@ -186,22 +193,25 @@ const normalizeSidekick = (raw: unknown): AISidekick => {
     knowledgeBase,
     personality: {
       description:
-        typeof record?.personality?.description === 'string' &&
-        record.personality.description.trim().length > 0
-          ? record.personality.description.trim()
+        typeof personalityRecord?.description === 'string' &&
+        personalityRecord.description.trim().length > 0
+          ? personalityRecord.description.trim()
           : 'Be a proactive, trustworthy assistant who keeps communication crisp and on-brand.',
       traits,
       preset:
-        typeof record?.personality?.preset === 'string' && record.personality.preset.trim().length > 0
-          ? record.personality.preset.trim()
+        typeof personalityRecord?.preset === 'string' && personalityRecord.preset.trim().length > 0
+          ? personalityRecord.preset.trim()
           : 'custom'
     },
     stats: {
-      totalTraining: Number.isFinite(stats.totalTraining) ? stats.totalTraining : 0,
-      positiveFeedback: Number.isFinite(stats.positiveFeedback) ? stats.positiveFeedback : 0,
-      improvements: Number.isFinite(stats.improvements) ? stats.improvements : 0
+      totalTraining:
+        typeof statsRecord?.totalTraining === 'number' ? statsRecord.totalTraining : 0,
+      positiveFeedback:
+        typeof statsRecord?.positiveFeedback === 'number' ? statsRecord.positiveFeedback : 0,
+      improvements:
+        typeof statsRecord?.improvements === 'number' ? statsRecord.improvements : 0
     },
-    metadata: typeof record?.metadata === 'object' && record.metadata ? record.metadata : undefined
+    metadata: metadataRecord ? { ...metadataRecord } : undefined
   };
 };
 
@@ -505,18 +515,57 @@ export const createSidekick = async (
   payload: CreateSidekickPayload
 ): Promise<AISidekick> => {
   const userId = resolveUserId();
-  const response = await fetch(buildUrl('/api/sidekicks'), {
-    method: 'POST',
-    headers: defaultHeaders,
-    body: JSON.stringify({
-      ...(isUuid(userId) ? { userId } : {}),
-      ...payload
-    })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to create AI sidekick (${response.status})`);
+  try {
+    const response = await fetch(buildUrl('/api/sidekicks'), {
+      method: 'POST',
+      headers: defaultHeaders,
+      body: JSON.stringify({
+        ...(isUuid(userId) ? { userId } : {}),
+        ...payload
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to create AI sidekick (${response.status})`);
+    }
+    return normalizeSidekick(await response.json());
+  } catch (error) {
+    console.warn('aiSidekicksService: falling back to local sidekick create', error);
+    const metadata = payload.metadata && typeof payload.metadata === 'object' ? { ...payload.metadata } : undefined;
+    const fallback: AISidekick = {
+      id: `demo-${Date.now()}`,
+      userId: isUuid(userId) ? userId : 'demo-user',
+      type: typeof metadata?.type === 'string' && metadata.type.trim().length > 0 ? metadata.type : 'agent',
+      name: payload.name,
+      description:
+        payload.description && payload.description.trim().length > 0
+          ? payload.description.trim()
+          : 'AI assistant to support your real estate workflows.',
+      color:
+        typeof metadata?.color === 'string' && metadata.color.trim().length > 0 ? metadata.color : '#6366F1',
+      icon:
+        typeof metadata?.icon === 'string' && metadata.icon.trim().length > 0 ? metadata.icon : '🤖',
+      voiceId: payload.voiceId && payload.voiceId.trim().length > 0 ? payload.voiceId : 'nova',
+      knowledgeBase: [],
+      personality: {
+        description:
+          payload.personality?.description && payload.personality.description.trim().length > 0
+            ? payload.personality.description.trim()
+            : 'Be a proactive, trustworthy assistant who keeps communication crisp and on-brand.',
+        traits: Array.isArray(payload.personality?.traits) ? payload.personality.traits : [],
+        preset:
+          payload.personality?.preset && payload.personality.preset.trim().length > 0
+            ? payload.personality.preset.trim()
+            : 'custom'
+      },
+      stats: {
+        totalTraining: 0,
+        positiveFeedback: 0,
+        improvements: 0
+      },
+      metadata
+    };
+    return upsertLocalSidekick(fallback);
   }
-  return normalizeSidekick(await response.json());
 };
 
 export const updateSidekickPersonality = async (
@@ -624,19 +673,27 @@ export const chatWithSidekick = async (
   };
 };
 
+export interface TrainSidekickPayload {
+  userMessage?: string
+  assistantMessage?: string
+  feedback: 'positive' | 'negative'
+  improvement?: string
+  messageId?: string
+}
+
 export const trainSidekick = async (
   sidekickId: string,
-  userMessage: string,
-  assistantMessage: string,
-  feedback: 'positive' | 'negative'
+  payload: TrainSidekickPayload
 ): Promise<AISidekick | null> => {
   const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/training`), {
     method: 'POST',
     headers: defaultHeaders,
     body: JSON.stringify({
-      userMessage,
-      assistantMessage,
-      feedback
+      userMessage: payload.userMessage,
+      assistantMessage: payload.assistantMessage,
+      feedback: payload.feedback,
+      improvement: payload.improvement,
+      messageId: payload.messageId
     })
   });
   if (!response.ok) {

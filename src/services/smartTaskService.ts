@@ -195,7 +195,12 @@ export class SmartTaskService {
       if (!('lastContactDate' in data) || !data.lastContactDate) {
         return false;
       }
-      const daysSince = Math.floor((Date.now() - new Date(data.lastContactDate).getTime()) / (1000 * 60 * 60 * 24));
+      const lastContactRaw = (data as { lastContactDate: string | Date }).lastContactDate;
+      const lastContactMs = new Date(lastContactRaw).getTime();
+      if (!Number.isFinite(lastContactMs)) {
+        return false;
+      }
+      const daysSince = Math.floor((Date.now() - lastContactMs) / (1000 * 60 * 60 * 24));
       if (daysSince < conditions.daysSinceLastContact) {
         return false;
       }
@@ -216,7 +221,12 @@ export class SmartTaskService {
       if (!('listedDate' in data) || !data.listedDate) {
         return false;
       }
-      const daysListed = Math.floor((Date.now() - new Date(data.listedDate).getTime()) / (1000 * 60 * 60 * 24));
+      const listedDateRaw = (data as { listedDate: string | Date }).listedDate;
+      const listedMs = new Date(listedDateRaw).getTime();
+      if (!Number.isFinite(listedMs)) {
+        return false;
+      }
+      const daysListed = Math.floor((Date.now() - listedMs) / (1000 * 60 * 60 * 24));
       if (daysListed < conditions.propertyAge) {
         return false;
       }

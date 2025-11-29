@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Modal from './Modal';
 import { Lead } from '../types';
 import { leadsService, PhoneLogPayload } from '../services/leadsService';
+import { logLeadContact } from '../services/aiFunnelService';
 
 type FollowUpSequenceSummary = {
     id: string;
@@ -49,6 +50,8 @@ interface ContactLeadModalProps {
     lead: Lead;
     onClose: () => void;
     onSchedule: (lead: Lead) => void;
+    onSendEmail?: (payload: { subject: string; body: string }) => void;
+    onAddNote?: (note: string) => void;
 }
 
 const FormRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -82,7 +85,7 @@ const defaultDateTimeValue = () => {
     return offset.toISOString().slice(0, 16);
 };
 
-const ContactLeadModal: React.FC<ContactLeadModalProps> = ({ lead, onClose, onSchedule }) => {
+const ContactLeadModal: React.FC<ContactLeadModalProps> = ({ lead, onClose, onSchedule, onSendEmail, onAddNote }) => {
     const [activeTab, setActiveTab] = useState<'email' | 'call' | 'note'>('email');
     const [emailSubject, setEmailSubject] = useState(`Re: Your inquiry`);
     const [emailMessage, setEmailMessage] = useState(
@@ -232,6 +235,11 @@ Best regards,`
             if (result?.log) {
                 setCallLogs(prev => [result.log, ...prev]);
             }
+            void logLeadContact(lead, {
+                method: 'call',
+                outcome: callOutcome,
+                notes: callNotes
+            });
             setCallNotes('');
             setCallOutcome('connected');
             setCallStartedAt(defaultDateTimeValue());
@@ -417,7 +425,21 @@ Best regards,`
                         Cancel
                     </button>
                     {activeTab === 'email' && (
-                        <button type="button" onClick={() => { alert('Email sent!'); onClose(); }} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const body = emailMessage.trim();
+                                const subject = emailSubject.trim() || `Message for ${lead.name}`;
+                                if (!body) {
+                                    alert('Please enter a message before sending.');
+                                    return;
+                                }
+                                onSendEmail?.({ subject, body });
+                                alert('Email queued for sending!');
+                                onClose();
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition"
+                        >
                             <span className="material-symbols-outlined w-5 h-5">send</span>
                             <span>Send Email</span>
                         </button>
@@ -430,6 +452,12 @@ Best regards,`
                                 if (activeTab === 'call') {
                                     handleSaveCallLog();
                                 } else {
+                                    const trimmed = noteContent.trim();
+                                    if (!trimmed) {
+                                        alert('Please enter a note before saving.');
+                                        return;
+                                    }
+                                    onAddNote?.(trimmed);
                                     alert('Note saved!');
                                     onClose();
                                 }

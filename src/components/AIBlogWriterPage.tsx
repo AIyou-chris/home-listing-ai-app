@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AIBlogPost } from '../types'
 import { generateBlogPost } from '../services/geminiService'
 
@@ -124,6 +125,7 @@ const AIBlogWriterPage: React.FC = () => {
   const [busy, setBusy] = useState(false)
   const [imagesMode, setImagesMode] = useState<'auto' | 'prompt' | 'none'>('auto')
   const [imagesPrompt, setImagesPrompt] = useState<string>('')
+  const navigate = useNavigate()
 
   const canStart = useMemo(() => !!answers.topic && !!answers.audience && !!answers.tone, [answers])
 
@@ -215,7 +217,7 @@ const AIBlogWriterPage: React.FC = () => {
         console.warn('Failed to sync local blog posts to API', error)
       }
       alert('Saved locally. View it in Blog page.')
-      window.location.hash = '#/blog'
+      navigate('/blog')
     } catch (error) {
       console.warn('Failed to save local blog post', error)
     }

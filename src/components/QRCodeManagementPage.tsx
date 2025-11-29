@@ -79,7 +79,10 @@ const QRCodeManagementPage: React.FC = () => {
     try {
       setIsSaving(true);
       setError(null);
-      await createAICardQRCode(createState.label.trim(), createState.destinationUrl || undefined);
+      await createAICardQRCode({
+        label: createState.label.trim(),
+        destinationUrl: createState.destinationUrl || undefined
+      });
       await loadQRCodes();
       resetCreateModal();
     } catch (err: unknown) {

@@ -28,57 +28,6 @@ export function isAIDescription(description: unknown): description is AIDescript
   return typeof candidate.title === 'string' && Array.isArray(candidate.paragraphs);
 }
 
-// Expanded View union to include additional development/test routes used in the app
-export type View =
-    | 'dashboard'
-    | 'analytics'
-    | 'listings'
-    | 'leads'
-    | 'ai-conversations'
-    | 'ai-card-builder'
-    | 'ai-sidekicks'
-    | 'property'
-    | 'add-listing'
-    | 'edit-listing'
-    | 'inbox'
-    | 'knowledge-base'
-    | 'ai-training'
-    | 'marketing'
-    | 'settings'
-    | 'demo-dashboard'
-    | 'dashboard-blueprint'
-    | 'landing'
-    | 'new-landing'
-    | 'signup'
-    | 'checkout'
-    | 'signin'
-    | 'admin-dashboard'
-    | 'admin-users'
-    | 'admin-leads'
-    | 'admin-contacts'
-    | 'admin-knowledge-base'
-    | 'admin-ai-training'
-    | 'admin-ai-card'
-    | 'admin-ai-personalities'
-    | 'admin-ai-content'
-    | 'admin-marketing'
-    | 'admin-analytics'
-    | 'admin-security'
-    | 'admin-billing'
-    | 'admin-settings'
-    | 'admin-setup'
-    | 'admin-blog-writer'
-    | 'blog'
-    | 'blog-post'
-
-    // App routes used during development and feature flags
-    | 'ai-content'
-    | 'openai-test'
-    | 'demo-listing'
-    | 'vapi-test'
-    | 'test'
-    ;
-
 export interface Property {
   id: string;
   title: string;

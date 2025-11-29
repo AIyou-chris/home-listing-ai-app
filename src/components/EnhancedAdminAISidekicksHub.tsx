@@ -1,11 +1,18 @@
 import React, { useState } from 'react'
-import SidekickAnalyticsDashboard from './SidekickAnalyticsDashboard'
 import SidekickTrainingWorkflows from './SidekickTrainingWorkflows'
 import SidekickMultiLanguage from './SidekickMultiLanguage'
 import SidekickLeadScoring from './SidekickLeadScoring'
 import SidekickAutoAssignment from './SidekickAutoAssignment'
 import AdminKnowledgeBasePage from './AdminKnowledgeBasePage'
 import { AgentProfile } from '../types'
+const AnalyticsPlaceholder = () => (
+	<div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+		<h2 className="text-xl font-semibold text-slate-800">Analytics Dashboard Coming Soon</h2>
+		<p className="mt-3 text-sm text-slate-600">
+			Performance analytics is being rebuilt around the new routing system. Once ready, you&lsquo;ll see live sidekick insights here.
+		</p>
+	</div>
+)
 
 type AdminTabType = 'overview' | 'analytics' | 'training' | 'multilang' | 'leadscoring' | 'autoassign' | 'management'
 
@@ -73,7 +80,7 @@ const EnhancedAdminAISidekicksHub: React.FC<EnhancedAdminAISidekicksHubProps> = 
 			case 'overview':
 				return <AdminKnowledgeBasePage agentProfile={agentProfile} />
 			case 'analytics':
-				return <SidekickAnalyticsDashboard />
+				return <AnalyticsPlaceholder />
 			case 'training':
 				return <SidekickTrainingWorkflows />
 			case 'multilang':

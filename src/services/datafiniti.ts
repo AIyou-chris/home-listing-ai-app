@@ -3,6 +3,8 @@
  * Provides property data lookup and analysis functionality
  */
 
+import { getEnvValue } from '../lib/env'
+
 export interface DatafinitiProperty {
   id: string;
   address: string;
@@ -83,7 +85,7 @@ class DatafinitiService {
   private readonly baseUrl = 'https://api.datafiniti.co/v4';
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_DATAFINITI_API_KEY || '';
+    this.apiKey = getEnvValue('VITE_DATAFINITI_API_KEY') || '';
     console.log('🔧 Datafiniti Service initialized');
     console.log('🔑 API Key status:', this.apiKey ? `Present (${this.apiKey.substring(0, 20)}...)` : 'Missing');
     if (!this.apiKey) {
@@ -356,7 +358,7 @@ class DatafinitiService {
   /**
    * Make HTTP request to Datafiniti API
    */
-  private async makeRequest<TResponse extends Record<string, unknown>>(
+  private async makeRequest<TResponse>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<TResponse> {

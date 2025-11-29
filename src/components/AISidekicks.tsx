@@ -1,41 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  getSidekicks, 
-  updateSidekickPersonality, 
-  updateSidekickVoice, 
-  addKnowledge, 
+import {
+  getSidekicks,
+  updateSidekickPersonality,
+  updateSidekickVoice,
+  addKnowledge,
   removeKnowledge,
   chatWithSidekick,
   trainSidekick,
   createSidekick,
   personalityPresets,
-  type AISidekick, 
+  type AISidekick,
   type Voice,
   type CreateSidekickPayload,
   type ChatHistoryEntry
 } from '../services/aiSidekicksService';
+import { SIDEKICK_TEMPLATES } from '../constants/sidekickTemplates';
 import { continueConversation, generateSpeech } from '../services/openaiService';
 import { normalizeOpenAIVoice } from '../constants/openaiVoices';
 import PageTipBanner from './PageTipBanner';
 
 interface AISidekicksProps {}
-
-type SidekickTemplate = {
-  id: string;
-  label: string;
-  description: string;
-  type: string;
-  icon: string;
-  color: string;
-  defaultName: string;
-  defaultVoice: string;
-  personality: {
-    description: string;
-    traits: string[];
-    preset: string;
-  };
-};
-
 
 const omitKey = <T,>(map: Record<string, T>, key: string): Record<string, T> => {
   const clone = { ...map };
@@ -43,69 +27,6 @@ const omitKey = <T,>(map: Record<string, T>, key: string): Record<string, T> => 
   return clone;
 };
 
-
-const sidekickTemplates: SidekickTemplate[] = [
-  {
-    id: 'agent',
-    label: 'Agent Assistant',
-    description: 'Client communication, scheduling, and deal coordination.',
-    type: 'agent',
-    icon: '👤',
-    color: '#8B5CF6',
-    defaultName: 'Agent Sidekick',
-    defaultVoice: 'nova',
-    personality: {
-      description: 'You are the Agent Sidekick. Proactive, organized, and client-focused. Help manage communication, appointments, and deal workflows with clarity and empathy.',
-      traits: ['proactive', 'organized', 'helpful'],
-      preset: 'professional'
-    }
-  },
-  {
-    id: 'marketing',
-    label: 'Marketing Strategist',
-    description: 'Content creation, campaigns, and social presence.',
-    type: 'marketing',
-    icon: '📈',
-    color: '#F59E0B',
-    defaultName: 'Marketing Sidekick',
-    defaultVoice: 'shimmer',
-    personality: {
-      description: 'You are the Marketing Sidekick. Energetic, creative, and conversion-focused. Craft compelling campaigns, catchy copy, and growth-focused marketing strategies.',
-      traits: ['creative', 'energetic', 'conversion-focused'],
-      preset: 'creative'
-    }
-  },
-  {
-    id: 'listing',
-    label: 'Listing Expert',
-    description: 'Property descriptions, market analysis, and pricing guidance.',
-    type: 'listing',
-    icon: '🏠',
-    color: '#EF4444',
-    defaultName: 'Listing Sidekick',
-    defaultVoice: 'onyx',
-    personality: {
-      description: 'You are the Listing Sidekick. Detail-oriented, analytical, and persuasive. Produce accurate pricing insights and compelling property descriptions that resonate with buyers.',
-      traits: ['detail-oriented', 'analytical', 'persuasive'],
-      preset: 'analytical'
-    }
-  },
-  {
-    id: 'sales',
-    label: 'Sales Coach',
-    description: 'Lead qualification, objection handling, and deal closing.',
-    type: 'sales',
-    icon: '💼',
-    color: '#10B981',
-    defaultName: 'Sales Sidekick',
-    defaultVoice: 'echo',
-    personality: {
-      description: 'You are the Sales Sidekick. Persuasive, confident, and results-driven. Support deal progression, handle objections, and deliver persuasive follow-ups.',
-      traits: ['persuasive', 'confident', 'results-driven'],
-      preset: 'sales'
-    }
-  }
-];
 
 const AISidekicks: React.FC<AISidekicksProps> = () => {
   const [sidekicks, setSidekicks] = useState<AISidekick[]>([]);
@@ -178,7 +99,7 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   const [playingVoiceSample, setPlayingVoiceSample] = useState<string | null>(null);
   const [voiceSampleAudio, setVoiceSampleAudio] = useState<HTMLAudioElement | null>(null);
   const [createForm, setCreateForm] = useState(() => {
-    const template = sidekickTemplates[0];
+    const template = SIDEKICK_TEMPLATES[0];
     return {
       templateId: template?.id ?? '',
       name: template?.defaultName ?? '',
@@ -599,7 +520,7 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   };
 
   const handleOpenCreateModal = () => {
-    const template = sidekickTemplates.find(t => t.id === createForm.templateId) ?? sidekickTemplates[0];
+    const template = SIDEKICK_TEMPLATES.find(t => t.id === createForm.templateId) ?? SIDEKICK_TEMPLATES[0];
     const fallbackVoiceId = template && voices.some(v => v.id === template.defaultVoice)
       ? template.defaultVoice
       : voices[0]?.id ?? template?.defaultVoice ?? createForm.voiceId;
@@ -622,7 +543,7 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
   };
 
   const handleTemplateSelect = (templateId: string) => {
-    const template = sidekickTemplates.find(t => t.id === templateId);
+    const template = SIDEKICK_TEMPLATES.find(t => t.id === templateId);
     if (!template) {
       setCreateForm(prev => ({ ...prev, templateId }));
       return;
@@ -681,7 +602,7 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
       return;
     }
 
-    const template = sidekickTemplates.find(t => t.id === createForm.templateId);
+    const template = SIDEKICK_TEMPLATES.find(t => t.id === createForm.templateId);
     const payload: CreateSidekickPayload = {
       name: createForm.name.trim(),
       description: createForm.description.trim(),
@@ -896,7 +817,11 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
     if (!message || !previousMessage) return;
     
     try {
-      await trainSidekick(selectedSidekick.id, previousMessage.content, message.content, feedback);
+      await trainSidekick(selectedSidekick.id, {
+        userMessage: previousMessage.content,
+        assistantMessage: message.content,
+        feedback
+      });
       // Reload sidekicks to update stats
       loadSidekicks();
     } catch (err) {
@@ -1020,13 +945,6 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
             <p className="text-slate-600 mt-2">Advanced AI assistant management with analytics, training, and automation</p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm"
-            >
-              <span className="material-symbols-outlined text-base">add</span>
-              Create Sidekick
-            </button>
             <div className="flex items-center gap-2 bg-green-50 px-3 py-1 rounded-full">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-green-700 text-sm font-medium">All Systems Active</span>
@@ -1046,15 +964,11 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
               <ul className="space-y-2 text-slate-700">
                 <li className="flex items-start">
                   <span className="mr-2">•</span>
-                  <span><strong>Agent Assistant (👤):</strong> Client communication, scheduling appointments, and deal coordination</span>
+                  <span><strong>God (🧠):</strong> Central AI brain for assignments across the entire platform and main site</span>
                 </li>
                 <li className="flex items-start">
                   <span className="mr-2">•</span>
                   <span><strong>Marketing Strategist (📈):</strong> Campaign creation, social media content, and lead generation copy</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2">•</span>
-                  <span><strong>Listing Expert (🏠):</strong> Property descriptions, market analysis, and pricing guidance</span>
                 </li>
                 <li className="flex items-start">
                   <span className="mr-2">•</span>
@@ -1147,13 +1061,11 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
 
             {/* CTA Button */}
             <button
-              onClick={() => {
-                window.location.hash = '/ai-training';
-              }}
+              onClick={handleOpenCreateModal}
               className="mt-4 w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transform transition hover:scale-105 flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">chat</span>
-              Start Chatting with Your AI
+              Create Your Sidekick
               <span className="ml-2">→</span>
             </button>
           </div>
@@ -1434,7 +1346,7 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Template</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {sidekickTemplates.map((template) => {
+                  {SIDEKICK_TEMPLATES.map((template) => {
                     const isActive = createForm.templateId === template.id;
                     return (
                       <button
@@ -1774,13 +1686,13 @@ const AISidekicks: React.FC<AISidekicksProps> = () => {
                           </button>
                         </>
                       )}
-                      {selectedSidekick.type === 'listing' && (
+                      {selectedSidekick.type === 'agent' && (
                         <>
-                          <button className="block w-full text-left p-3 bg-red-50 rounded-lg text-red-700 hover:bg-red-100">
-                            Write a property description for a family home
+                          <button className="block w-full text-left p-3 bg-purple-50 rounded-lg text-purple-700 hover:bg-purple-100">
+                            Map out how each sidekick should support this week&apos;s goals
                           </button>
-                          <button className="block w-full text-left p-3 bg-red-50 rounded-lg text-red-700 hover:bg-red-100">
-                            Analyze market trends for downtown condos
+                          <button className="block w-full text-left p-3 bg-purple-50 rounded-lg text-purple-700 hover:bg-purple-100">
+                            Summarize the top priorities for the main site experience today
                           </button>
                         </>
                       )}

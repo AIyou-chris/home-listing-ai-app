@@ -4,11 +4,13 @@
  * or the network call fails (e.g. local demo, offline environments).
  */
 
+import { getEnvValue } from '../lib/env'
+
 const API_BASE = 'https://api.rebrandly.com/v1';
-const API_KEY = import.meta.env.VITE_REBRANDLY_API_KEY as string | undefined;
-const WORKSPACE_ID = import.meta.env.VITE_REBRANDLY_WORKSPACE_ID as string | undefined;
+const API_KEY = getEnvValue('VITE_REBRANDLY_API_KEY');
+const WORKSPACE_ID = getEnvValue('VITE_REBRANDLY_WORKSPACE_ID');
 // Accept either domain id or fullName. Prefer a human readable domain name.
-const DOMAIN_FULL_NAME = import.meta.env.VITE_REBRANDLY_DOMAIN as string | undefined;
+const DOMAIN_FULL_NAME = getEnvValue('VITE_REBRANDLY_DOMAIN');
 
 const isConfigured = Boolean(API_KEY);
 
@@ -65,7 +67,9 @@ function createMockShortLink(options: ShortLinkOptions): ShortLink {
     options.slashtag ||
     ['demo', Math.random().toString(36).slice(2, 6), Math.random().toString(36).slice(2, 4)].join('-');
 
-  const shortUrl = `${DOMAIN_FULL_NAME || 'homelisting.ai/demo'}/${slug}`;
+  const domain = DOMAIN_FULL_NAME || 'homelistingai.com';
+  const normalizedDomain = domain.startsWith('http') ? domain.replace(/^https?:\/\//, '') : domain;
+  const shortUrl = `https://${normalizedDomain}/${slug}`;
 
   return {
     id: randomId(),

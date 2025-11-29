@@ -8,20 +8,91 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3002;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Security & parsing middleware
+const jsonLimit = process.env.JSON_BODY_LIMIT || '1mb';
 app.use(helmet());
-
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'your-api-key-here'
+// Capture raw body for webhook verification (e.g., PayPal)
+app.use(express.json({
+  limit: jsonLimit,
+  verify: (req, _res, buf) => {
+    try { req.rawBody = buf.toString('utf8'); } catch { /* noop */ }
+  }
+}));
+// CORS: default allow localhost dev; tighten via CORS_ORIGIN (comma-separated)
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:5174').split(',');
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  }
+}));
+// If behind proxy/CDN
+app.set('trust proxy', 1);
+// Minimal in-memory rate limiter per IP for /api/*
+const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10);
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '120', 10);
+const ipBuckets = new Map();
+app.use('/api', (req, res, next) => {
+  const now = Date.now();
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+  const entry = ipBuckets.get(ip) || { count: 0, windowStart: now };
+  if (now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    entry.count = 0;
+    entry.windowStart = now;
+  }
+  entry.count += 1;
+  ipBuckets.set(ip, entry);
+  if (entry.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+  }
+  next();
 });
 
-// Supabase (uses env when provided; falls back to client values for dev)
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yocchddxdsaldgsibmmc.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvY2NoZGR4ZHNhbGRnc2libW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1ODEwNDgsImV4cCI6MjA3MjE1NzA0OH0.02jE3WPLnb-DDexNqSnfIPfmPZldsby1dPOu5-BlSDw';
+// Initialize OpenAI
+const REQUIRED_ENVS = ['OPENAI_API_KEY', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+const missing = REQUIRED_ENVS.filter(k => !process.env[k] || String(process.env[k]).trim() === '');
+if (missing.length > 0) {
+  // Fail fast to avoid starting with insecure defaults
+  console.error('Missing required environment variables:', missing.join(', '));
+  process.exit(1);
+}
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Supabase (env-only)
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ===== PayPal (Checkout) configuration =====
+const PAYPAL_ENV = (process.env.PAYPAL_ENV || 'sandbox').toLowerCase();
+const PAYPAL_API_BASE = process.env.PAYPAL_API_BASE || (PAYPAL_ENV === 'live'
+  ? 'https://api-m.paypal.com'
+  : 'https://api-m.sandbox.paypal.com');
+const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || '';
+const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || '';
+const PAYPAL_WEBHOOK_ID = process.env.PAYPAL_WEBHOOK_ID || '';
+
+const getPayPalAccessToken = async () => {
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    throw new Error('PayPal credentials not configured');
+  }
+  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
+  const res = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: 'grant_type=client_credentials'
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`PayPal token error: ${res.status} ${text}`);
+  }
+  const data = await res.json();
+  return data.access_token;
+};
 
 // In-memory storage for real data (in production, this would be a database)
 let users = [];
@@ -389,7 +460,10 @@ const calculateUserStats = () => {
 app.post('/api/continue-conversation', async (req, res) => {
   try {
     const { messages, role, personalityId, systemPrompt } = req.body;
-    console.log('Received messages:', messages);
+    // Avoid logging full prompts in production for privacy
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Received messages count:', Array.isArray(messages) ? messages.length : 0);
+    }
     
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
@@ -405,12 +479,14 @@ app.post('/api/continue-conversation', async (req, res) => {
       }))
     ];
     
-    console.log('OpenAI messages:', openaiMessages);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('OpenAI messages prepared:', openaiMessages.length);
+    }
     
     const completion = await openai.chat.completions.create({
-      model: 'gpt-5',
+      model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
       messages: openaiMessages,
-      max_completion_tokens: 1024
+      max_completion_tokens: Math.min(parseInt(process.env.MAX_COMPLETION_TOKENS || '1024', 10), 4096)
     });
     
     const response = completion.choices[0]?.message?.content;
@@ -463,7 +539,7 @@ app.post('/api/generate-speech', async (req, res) => {
     }
     
     const mp3 = await openai.audio.speech.create({
-      model: 'tts-1',
+      model: process.env.OPENAI_TTS_MODEL || 'tts-1',
       voice: voice,
       input: text,
     });
@@ -479,6 +555,130 @@ app.post('/api/generate-speech', async (req, res) => {
   } catch (error) {
     console.error('Speech generation error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== PayPal Checkout API =====
+// Create order
+app.post('/api/paypal/create-order', async (req, res) => {
+  try {
+    const { amount, currency = 'USD', description = 'Subscription', referenceId } = req.body || {};
+    if (!amount) return res.status(400).json({ error: 'amount is required' });
+    const accessToken = await getPayPalAccessToken();
+    const body = {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          reference_id: referenceId || `ref_${Date.now()}`,
+          amount: { currency_code: currency, value: String(amount) },
+          description
+        }
+      ],
+      application_context: {
+        user_action: 'PAY_NOW',
+        shipping_preference: 'NO_SHIPPING'
+      }
+    };
+    const r = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      return res.status(400).json({ error: 'paypal_create_failed', details: data });
+    }
+    res.json({ id: data.id, status: data.status, links: data.links });
+  } catch (e) {
+    console.error('paypal create-order error', e);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Capture order
+app.post('/api/paypal/capture-order', async (req, res) => {
+  try {
+    const { orderId } = req.body || {};
+    if (!orderId) return res.status(400).json({ error: 'orderId is required' });
+    const accessToken = await getPayPalAccessToken();
+    const r = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders/${orderId}/capture`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      return res.status(400).json({ error: 'paypal_capture_failed', details: data });
+    }
+    // Optional: persist purchase record
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: req.headers['x-user-id'] || 'server',
+        action: 'paypal_capture',
+        resource_type: 'billing',
+        severity: 'info',
+        details: { orderId, status: data.status }
+      });
+    } catch {}
+    res.json({ status: data.status, purchase_units: data.purchase_units });
+  } catch (e) {
+    console.error('paypal capture-order error', e);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// PayPal webhook (signature verification)
+app.post('/api/paypal/webhook', async (req, res) => {
+  try {
+    if (!PAYPAL_WEBHOOK_ID) return res.status(500).json({ error: 'webhook_not_configured' });
+    const accessToken = await getPayPalAccessToken();
+    const headers = req.headers || {};
+    const verificationBody = {
+      auth_algo: headers['paypal-auth-algo'],
+      cert_url: headers['paypal-cert-url'],
+      transmission_id: headers['paypal-transmission-id'],
+      transmission_sig: headers['paypal-transmission-sig'],
+      transmission_time: headers['paypal-transmission-time'],
+      webhook_id: PAYPAL_WEBHOOK_ID,
+      webhook_event: req.body // already parsed, raw captured if needed at req.rawBody
+    };
+    const vr = await fetch(`${PAYPAL_API_BASE}/v1/notifications/verify-webhook-signature`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(verificationBody)
+    });
+    const vdata = await vr.json();
+    if (!vr.ok || vdata.verification_status !== 'SUCCESS') {
+      console.warn('paypal webhook verification failed', vdata);
+      return res.status(400).json({ error: 'verification_failed' });
+    }
+    const event = req.body;
+    // Handle a few relevant events
+    if (event && event.event_type) {
+      console.log('PayPal event:', event.event_type);
+      // Example: record in audit logs
+      try {
+        await supabase.from('audit_logs').insert({
+          user_id: 'server',
+          action: 'paypal_webhook',
+          resource_type: 'billing',
+          severity: 'info',
+          details: { type: event.event_type, resource: event.resource?.id || null }
+        });
+      } catch {}
+    }
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error('paypal webhook error', e);
+    res.status(500).json({ error: 'internal_error' });
   }
 });
 

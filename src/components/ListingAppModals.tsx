@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Property, ChatMessage } from '../types';
 import { SAMPLE_SCHOOLS } from '../constants';
 import { answerPropertyQuestion } from '../services/geminiService';
+import ShareModal from './ShareModal';
+import ShareService from '../services/shareService';
 
 // --- Reusable Modal Component ---
 const Modal: React.FC<{ title: React.ReactNode; onClose: () => void; children: React.ReactNode; }> = ({ title, onClose, children }) => (
@@ -123,17 +125,6 @@ export const SaveModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
     </Modal>
 );
 
-export const ShareModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
-    <Modal title="Share this Property" onClose={onClose}>
-        <div className="p-6 grid grid-cols-2 gap-4">
-            <button className="flex items-center gap-2 p-4 bg-slate-100 rounded-lg hover:bg-slate-200"><span className="material-symbols-outlined">mail</span> Email</button>
-            <button className="flex items-center gap-2 p-4 bg-slate-100 rounded-lg hover:bg-slate-200"><span className="material-symbols-outlined">link</span> Copy Link</button>
-            <button className="flex items-center gap-2 p-4 bg-slate-100 rounded-lg hover:bg-slate-200"><span className="material-symbols-outlined">facebook</span> Facebook</button>
-            <button className="flex items-center gap-2 p-4 bg-slate-100 rounded-lg hover:bg-slate-200"><span className="material-symbols-outlined">sms</span> Text Message</button>
-        </div>
-    </Modal>
-);
-
 export const VoiceAssistantModal: React.FC<{ property: Property, onClose: () => void }> = ({ property, onClose }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([
         { sender: 'ai', text: `Hi! I'm the AI assistant for ${property.address}. How can I help you today?` }
@@ -232,7 +223,13 @@ export const ListingAppModals: React.FC<ListingAppModalsProps> = ({ activeModal,
     case 'save':
       return <SaveModal onClose={onClose} />;
     case 'share':
-      return <ShareModal onClose={onClose} />;
+      return (
+        <ShareModal
+          isOpen={true}
+          onClose={onClose}
+          content={ShareService.generatePropertyShareContent(property, 'description')}
+        />
+      );
     case 'voice':
       // Voice chat disabled
       return null;

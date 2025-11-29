@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BlogPost } from '../types';
 
 const BlogPage: React.FC = () => {
@@ -8,6 +9,7 @@ const BlogPage: React.FC = () => {
   const [selectedTag, setSelectedTag] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const navigate = useNavigate();
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -153,7 +155,7 @@ const BlogPage: React.FC = () => {
                       <span>{new Date(post.publishedAt).toLocaleDateString()}</span>
                     </div>
                     <button
-                      onClick={() => window.location.hash = `blog-post/${post.slug}`}
+                      onClick={() => navigate(`/blog/${post.slug}`)}
                       className="mt-4 w-full px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition"
                     >
                       Read More
