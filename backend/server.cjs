@@ -1389,9 +1389,16 @@ const mapAiCardQrCodeFromRow = (row) =>
         updated_at: row.updated_at
       };
 
+const PUBLIC_BASE_URL =
+  process.env.PUBLIC_BASE_URL ||
+  process.env.APP_BASE_URL ||
+  'http://localhost:3002';
+
 const buildAiCardDestinationUrl = (profile, userId, explicitUrl) =>
   explicitUrl ||
   `https://homelistingai.com/card/${profile?.id || userId || 'default'}`;
+
+const buildQrTrackingUrl = (qrId) => `${PUBLIC_BASE_URL.replace(/\/+$/, '')}/qr/${qrId}`;
 
 const buildQrSvgDataUrl = (displayName, destinationUrl) => {
   const name = displayName && displayName.trim().length > 0 ? displayName.trim() : 'Your Agent';
@@ -5259,13 +5266,12 @@ app.post('/api/ai-card/qr-codes', async (req, res) => {
     const profile =
       (await fetchAiCardProfileForUser(targetUserId)) || DEFAULT_AI_CARD_PROFILE;
     const resolvedUrl = buildAiCardDestinationUrl(profile, targetUserId, destinationUrl);
-    const qrSvg = buildQrSvgDataUrl(profile.fullName, resolvedUrl);
 
     const insertPayload = {
       user_id: targetUserId,
       label: label.trim(),
       destination_url: resolvedUrl,
-      qr_svg: qrSvg,
+      qr_svg: null,
       total_scans: 0,
       last_scanned_at: null,
       created_at: new Date().toISOString(),
@@ -5282,8 +5288,22 @@ app.post('/api/ai-card/qr-codes', async (req, res) => {
       throw error;
     }
 
+    const trackingUrl = buildQrTrackingUrl(data.id);
+    const qrSvg = buildQrSvgDataUrl(profile.fullName, trackingUrl);
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('ai_card_qr_codes')
+      .update({ qr_svg: qrSvg, updated_at: new Date().toISOString() })
+      .eq('id', data.id)
+      .select('*')
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
     console.log(`🎴 Created AI Card QR code "${label.trim()}" for ${targetUserId}`);
-    res.status(201).json(mapAiCardQrCodeFromRow(data));
+    res.status(201).json(mapAiCardQrCodeFromRow(updated));
   } catch (error) {
     console.error('Error creating AI Card QR code:', error);
     res.status(500).json({ error: 'Failed to create QR code' });
@@ -5328,7 +5348,8 @@ app.put('/api/ai-card/qr-codes/:qrId', async (req, res) => {
         (await fetchAiCardProfileForUser(existingRow.user_id)) || DEFAULT_AI_CARD_PROFILE;
       const finalUrl = buildAiCardDestinationUrl(profile, existingRow.user_id, resolvedUrl);
       updatePayload.destination_url = finalUrl;
-      updatePayload.qr_svg = buildQrSvgDataUrl(profile.fullName, finalUrl);
+      const trackingUrl = buildQrTrackingUrl(existingRow.id);
+      updatePayload.qr_svg = buildQrSvgDataUrl(profile.fullName, trackingUrl);
     }
 
     const { data: updatedRow, error: updateError } = await supabaseAdmin
@@ -5371,6 +5392,39 @@ app.delete('/api/ai-card/qr-codes/:qrId', async (req, res) => {
   } catch (error) {
     console.error('Error deleting AI Card QR code:', error);
     res.status(500).json({ error: 'Failed to delete QR code' });
+  }
+});
+
+// Track QR scan and redirect to destination
+app.get('/qr/:qrId', async (req, res) => {
+  try {
+    const { qrId } = req.params;
+    const { data: qrRow, error } = await supabaseAdmin
+      .from('ai_card_qr_codes')
+      .select('*')
+      .eq('id', qrId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!qrRow) {
+      return res.status(404).send('QR code not found');
+    }
+
+    const now = new Date().toISOString();
+    await supabaseAdmin
+      .from('ai_card_qr_codes')
+      .update({
+        total_scans: (qrRow.total_scans || 0) + 1,
+        last_scanned_at: now,
+        updated_at: now
+      })
+      .eq('id', qrId);
+
+    const redirectUrl = qrRow.destination_url || 'https://homelistingai.com';
+    return res.redirect(302, redirectUrl);
+  } catch (error) {
+    console.error('Error tracking QR scan:', error);
+    res.status(500).send('QR tracking failed');
   }
 });
 
