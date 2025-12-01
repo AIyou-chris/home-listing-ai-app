@@ -9,6 +9,10 @@ interface ScheduleAppointmentModalProps {
     lead?: Lead | null;
     onClose: () => void;
     onSchedule: (appointmentData: ScheduleAppointmentFormData) => void;
+    initialData?: Partial<ScheduleAppointmentFormData>;
+    title?: string;
+    submitLabel?: string;
+    agentOptions?: Array<{ id: string; name: string }>;
 }
 
 export interface ScheduleAppointmentFormData {
@@ -19,6 +23,8 @@ export interface ScheduleAppointmentFormData {
     time: string;
     message: string;
     kind: AppointmentKind;
+    agentId?: string | null;
+    agentName?: string | null;
     remindAgent: boolean;
     remindClient: boolean;
     agentReminderMinutes: number;
@@ -64,7 +70,15 @@ const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) 
 );
 
 
-const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lead, onClose, onSchedule }) => {
+const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
+    lead,
+    onClose,
+    onSchedule,
+    initialData,
+    title = 'Schedule Appointment',
+    submitLabel = 'Schedule Appointment',
+    agentOptions = []
+}) => {
     const [formData, setFormData] = useState<ScheduleAppointmentFormData>({
         name: '',
         email: '',
@@ -76,19 +90,30 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
         remindAgent: true,
         remindClient: true,
         agentReminderMinutes: 60,
-        clientReminderMinutes: 1440
+        clientReminderMinutes: 1440,
+        agentId: initialData?.agentId ?? null,
+        agentName: initialData?.agentName ?? null
     });
 
     useEffect(() => {
-        if (lead) {
-            setFormData(prev => ({
-                ...prev,
-                name: lead.name || '',
-                email: lead.email || '',
-                phone: lead.phone || '',
-            }));
-        }
-    }, [lead]);
+        setFormData(prev => ({
+            ...prev,
+            ...initialData,
+            name: initialData?.name ?? lead?.name ?? prev.name,
+            email: initialData?.email ?? lead?.email ?? prev.email,
+            phone: initialData?.phone ?? lead?.phone ?? prev.phone,
+            date: initialData?.date ?? prev.date,
+            time: initialData?.time ?? prev.time,
+            message: initialData?.message ?? prev.message,
+            kind: initialData?.kind ?? prev.kind,
+            remindAgent: initialData?.remindAgent ?? prev.remindAgent,
+            remindClient: initialData?.remindClient ?? prev.remindClient,
+            agentReminderMinutes: initialData?.agentReminderMinutes ?? prev.agentReminderMinutes,
+            clientReminderMinutes: initialData?.clientReminderMinutes ?? prev.clientReminderMinutes,
+            agentId: initialData?.agentId ?? prev.agentId,
+            agentName: initialData?.agentName ?? prev.agentName
+        }));
+    }, [lead, initialData]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -110,7 +135,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
     };
 
     return (
-        <Modal title="Schedule Appointment" onClose={onClose}>
+        <Modal title={title} onClose={onClose}>
             <form onSubmit={handleSubmit} className="flex flex-col min-h-full">
                 <div className="flex-1 p-8 pb-6">
                     <FormRow>
@@ -155,6 +180,31 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
                             </Select>
                         </FormRow>
                     </div>
+                    {agentOptions.length > 0 && (
+                        <FormRow>
+                            <Label htmlFor="appt-agent">Assign Agent</Label>
+                            <Select
+                                id="appt-agent"
+                                name="agentId"
+                                value={formData.agentId ?? ''}
+                                onChange={(e) => {
+                                    const selected = agentOptions.find((opt) => opt.id === e.target.value);
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        agentId: e.target.value || null,
+                                        agentName: selected?.name ?? null
+                                    }));
+                                }}
+                            >
+                                <option value="">Unassigned</option>
+                                {agentOptions.map((agent) => (
+                                    <option key={agent.id} value={agent.id}>
+                                        {agent.name}
+                                    </option>
+                                ))}
+                            </Select>
+                        </FormRow>
+                    )}
                      <FormRow>
                         <Label htmlFor="appt-message">Message</Label>
                         <Textarea id="appt-message" name="message" placeholder="Any special requests or notes" value={formData.message} onChange={handleChange} />
@@ -217,7 +267,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({ lea
                             Cancel
                         </button>
                         <button type="submit" className="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition">
-                            Schedule Appointment
+                            {submitLabel}
                         </button>
                     </div>
                 </div>

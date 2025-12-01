@@ -27,16 +27,16 @@ const StatusWidget: React.FC<{
         if (isLoading) {
             return {
                 text: 'Checking...',
-                color: 'text-gray-400',
-                dotClass: 'bg-gray-500 animate-pulse'
+                color: 'text-slate-500',
+                dotClass: 'bg-slate-300 animate-pulse'
             };
         }
 
         if (!healthStatus) {
             return {
                 text: 'Unknown',
-                color: 'text-gray-400',
-                dotClass: 'bg-gray-500'
+                color: 'text-slate-500',
+                dotClass: 'bg-slate-300'
             };
         }
 
@@ -44,26 +44,26 @@ const StatusWidget: React.FC<{
             case 'healthy':
                 return {
                     text: 'Online',
-                    color: 'text-green-400',
-                    dotClass: 'bg-green-500 animate-pulse'
+                    color: 'text-emerald-600',
+                    dotClass: 'bg-emerald-500 animate-pulse'
                 };
             case 'warning':
                 return {
                     text: 'Warning',
-                    color: 'text-yellow-400',
-                    dotClass: 'bg-yellow-500 animate-pulse'
+                    color: 'text-amber-600',
+                    dotClass: 'bg-amber-500 animate-pulse'
                 };
             case 'error':
                 return {
                     text: 'Error',
-                    color: 'text-red-400',
-                    dotClass: 'bg-red-500'
+                    color: 'text-rose-600',
+                    dotClass: 'bg-rose-500'
                 };
             default:
                 return {
                     text: 'Unknown',
-                    color: 'text-gray-400',
-                    dotClass: 'bg-gray-500'
+                    color: 'text-slate-500',
+                    dotClass: 'bg-slate-300'
                 };
         }
     };
@@ -72,21 +72,21 @@ const StatusWidget: React.FC<{
     const responseTime = healthStatus?.responseTime;
 
     return (
-        <div className="bg-slate-800 rounded-lg p-5 border border-slate-700/50">
-            <div className="flex justify-between items-start mb-2">
+        <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex justify-between items-start mb-3">
                 <div>
-                    <p className="text-sm font-medium text-slate-400">{serviceName}</p>
-                    <p className={`text-xl font-bold ${statusInfo.color}`}>{statusInfo.text}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{serviceName}</p>
+                    <p className={`text-lg font-bold ${statusInfo.color}`}>{statusInfo.text}</p>
                 </div>
                 <div className={`w-3 h-3 rounded-full ${statusInfo.dotClass}`}></div>
             </div>
             {responseTime !== undefined && (
-                <div className="text-xs text-slate-500 mt-1">
+                <div className="text-xs text-slate-500">
                     Response: {responseTime.toFixed(0)}ms
                 </div>
             )}
             {healthStatus?.message && healthStatus.status !== 'healthy' && (
-                <div className="text-xs text-slate-400 mt-2 line-clamp-2" title={healthStatus.message}>
+                <div className="text-xs text-amber-600 mt-2 line-clamp-2" title={healthStatus.message}>
                     {healthStatus.message}
                 </div>
             )}
@@ -120,6 +120,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     
     // Use the users and leads directly from props - no local state needed
     const users = propUsers;
+    const leads = _propLeads;
 
     // Load system health status
     useEffect(() => {
@@ -180,46 +181,85 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                    <p className="text-slate-400">Loading admin dashboard...</p>
+            <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="flex items-center gap-3 text-slate-600">
+                        <div className="h-6 w-6 rounded-full border-b-2 border-primary-500 animate-spin" />
+                        <p className="font-semibold">Loading admin dashboard...</p>
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-slate-900 text-white">
-            <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-                        <p className="text-slate-400 mt-1">Monitor and manage your platform</p>
-                        <p className="text-xs text-slate-500 mt-1">
-                            Tracking {contacts.length} contacts and {users.length} users across leads & agents.
+        <div className="space-y-6">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-primary-50 shadow-sm">
+                <div className="absolute -left-16 top-10 h-40 w-40 rounded-full bg-primary-200/60 blur-3xl" />
+                <div className="absolute right-0 bottom-0 h-48 w-48 rounded-full bg-emerald-200/50 blur-3xl" />
+
+                <div className="relative p-6 sm:p-8 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="space-y-3 max-w-3xl">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary-700">
+                            <span className="material-symbols-outlined text-sm">verified_user</span>
+                            Admin Control Center
+                        </div>
+                        <h1 className="text-3xl font-bold text-slate-900">Admin Dashboard</h1>
+                        <p className="text-slate-700">
+                            Monitor platform health, funnels, and AI systems using the blueprint layout while keeping admin logic isolated.
                         </p>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button 
+                                onClick={() => setShowAddContactModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition"
+                            >
+                                <span className="material-symbols-outlined h-5 w-5">person_add</span>
+                                Add Contact
+                            </button>
+                            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
+                                <span className="material-symbols-outlined text-base text-primary-500">database</span>
+                                Tracking {contacts.length} contacts, {users.length} users, {leads.length} leads
+                            </span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => setShowAddContactModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow-sm hover:bg-blue-700 transition"
-                        >
-                            <span className="material-symbols-outlined h-5 w-5">person_add</span>
-                            Add Contact
-                        </button>
+
+                    <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+                        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contacts</p>
+                            <p className="text-2xl font-bold text-slate-900">{contacts.length}</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Users</p>
+                            <p className="text-2xl font-bold text-slate-900">{users.length}</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Leads</p>
+                            <p className="text-2xl font-bold text-slate-900">{leads.length}</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">AI Services</p>
+                            <p className="text-lg font-semibold text-slate-900 capitalize">
+                                {aiHealth?.status ?? 'Unknown'}
+                            </p>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                {/* System Status */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <StatusWidget serviceName="API Server" healthStatus={apiHealth} isLoading={healthLoading} />
-                    <StatusWidget serviceName="Database" healthStatus={dbHealth} isLoading={healthLoading} />
-                    <StatusWidget serviceName="AI Services" healthStatus={aiHealth} isLoading={healthLoading} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <StatusWidget serviceName="API Server" healthStatus={apiHealth} isLoading={healthLoading} />
+                <StatusWidget serviceName="Database" healthStatus={dbHealth} isLoading={healthLoading} />
+                <StatusWidget serviceName="AI Services" healthStatus={aiHealth} isLoading={healthLoading} />
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-semibold text-slate-900">Funnels & Sequences</h2>
+                        <p className="text-sm text-slate-600">Admin-only view with blueprint-style card framing.</p>
+                    </div>
                 </div>
-
-                <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl">
+                <div className="p-2 sm:p-4">
                     <FunnelAnalyticsPanel
                         variant="embedded"
                         hideBackButton
@@ -227,7 +267,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         subtitle="Monitor lead scoring, funnel health, and sequence feedback without leaving the admin cockpit."
                     />
                 </div>
-
             </div>
 
             {/* Centralized Modals - handlers are managed by AdminLayout */}

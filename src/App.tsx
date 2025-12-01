@@ -1,5 +1,4 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
-import { AdminModalProvider } from './context/AdminModalContext';
 import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence, LeadFunnelType } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
@@ -29,16 +28,16 @@ import ConsultationModal from './components/ConsultationModal';
 import { AISidekickProvider } from './context/AISidekickContext';
 import { getProfileForDashboard, subscribeToProfileChanges } from './services/agentProfileService';
 // Lazy load admin components for better performance
-const AdminSidebar = lazy(() => import('./components/AdminSidebar'));
-const AdminLayout = lazy(() => import('./components/AdminLayout'));
 const AdminLogin = lazy(() => import('./components/AdminLogin'));
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
+const AdminDashboardClone = lazy(() => import('./admin-dashboard/AdminDashboard'));
 import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
 import DemoListingPage from './components/DemoListingPage';
 import ChatBotFAB from './components/ChatBotFAB';
 
 const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
+    universal_sales: 'Buyer Lead',
     homebuyer: 'Buyer Lead',
     seller: 'Seller Lead',
     postShowing: 'Property Viewed'
@@ -998,6 +997,36 @@ const App: React.FC = () => {
 
 		if (user || isDemoMode || isLocalAdmin) {
 
+			const mapAdminViewToTab = (adminView: View): View => {
+				switch (adminView) {
+					case 'admin-leads':
+					case 'admin-contacts':
+						return 'leads';
+					case 'admin-ai-card':
+						return 'ai-card';
+					case 'admin-ai-training':
+						return 'ai-training';
+					case 'admin-knowledge-base':
+					case 'admin-ai-personalities':
+						return 'knowledge-base';
+					case 'admin-marketing':
+					case 'admin-analytics':
+						return 'funnel-analytics';
+					case 'admin-settings':
+						return 'settings';
+					default:
+						return 'dashboard';
+				}
+			};
+
+			if (view.startsWith('admin-') && view !== 'admin-setup') {
+				return (
+					<Suspense fallback={<LoadingSpinner />}>
+						<AdminDashboardClone initialTab={mapAdminViewToTab(view)} />
+					</Suspense>
+				);
+			}
+
 			const mainContent = () => {
 				switch(resolvedView) {
 					case 'openai-test':
@@ -1012,21 +1041,6 @@ const App: React.FC = () => {
 								onNavigateToAdmin={handleNavigateToAdmin}
 							/>
 						);
-					case 'admin-dashboard':
-						return <AdminModalProvider><AdminLayout currentView={resolvedView} /></AdminModalProvider>;
-					case 'admin-users':
-					case 'admin-knowledge-base': 
-					case 'admin-ai-training':
-					case 'admin-ai-personalities':
-					case 'admin-marketing': 
-					case 'admin-analytics': 
-					case 'admin-security': 
-					case 'admin-billing': 
-					case 'admin-settings': 
-						return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
-					case 'admin-leads':
-					case 'admin-contacts':
-						return <AdminModalProvider><AdminLayout currentView={view} /></AdminModalProvider>;
 					case 'dashboard':
 						return <Dashboard 
 							agentProfile={userProfile} 
@@ -1126,33 +1140,6 @@ const App: React.FC = () => {
 						/>;
 				}
 			};
-
-			// Admin views get the admin sidebar
-			if (view.startsWith('admin-')) {
-				return (
-					<div className="flex h-screen bg-slate-50">
-						<Suspense fallback={<LoadingSpinner />}>
-							<AdminSidebar activeView={view} setView={handleViewChange} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-						</Suspense>
-						<div className="flex-1 flex flex-col overflow-hidden">
-							<header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
-								<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
-									<span className="material-symbols-outlined text-xl">menu</span>
-								</button>
-								<div className="flex-1 flex justify-center">
-									<LogoWithName />
-								</div>
-								<div className="w-10"></div> {/* Spacer for balance */}
-							</header>
-							<main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
-								<Suspense fallback={<LoadingSpinner />}>
-									{mainContent()}
-								</Suspense>
-							</main>
-						</div>
-					</div>
-				);
-			}
 
 			return (
 				<div className="flex h-screen bg-slate-50">

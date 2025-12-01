@@ -23,7 +23,7 @@ const LEADS_TABLE = 'leads'
 const PHONE_LOGS_TABLE = 'lead_phone_logs'
 
 const VALID_STATUSES: LeadStatus[] = ['New', 'Qualified', 'Contacted', 'Showing', 'Lost']
-const VALID_FUNNEL_TYPES: LeadFunnelType[] = ['homebuyer', 'seller', 'postShowing']
+const VALID_FUNNEL_TYPES: LeadFunnelType[] = ['universal_sales', 'homebuyer', 'seller', 'postShowing']
 
 const getCurrentUserId = async (): Promise<string | null> => {
   const { data, error } = await supabase.auth.getUser()

@@ -17,6 +17,8 @@ interface DashboardProps {
   onTaskUpdate?: (taskId: string, updates: Partial<AgentTask>) => void;
   onTaskAdd?: (task: AgentTask) => void;
   onTaskDelete?: (taskId: string) => void;
+  hideWelcome?: boolean;
+  hideAvatar?: boolean;
 }
 
 const StatCard: React.FC<{ title: string; value: string; icon: string, bgColor: string, iconColor: string }> = ({ title, value, icon, bgColor, iconColor }) => (
@@ -89,7 +91,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   onSelectProperty, 
   onTaskUpdate,
   onTaskAdd,
-  onTaskDelete
+  onTaskDelete,
+  hideWelcome = false,
+  hideAvatar = false
 }) => {
   const { uiProfile } = useAgentBranding();
   const agentProfile = agentProfileOverride ?? uiProfile;
@@ -141,17 +145,23 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
         <div className="flex-1">
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
-            <p className="text-slate-500 mt-1 text-sm sm:text-base">Welcome back, {agentProfile.name}! Here's an overview of your real estate activity.</p>
+            {!hideWelcome && (
+              <p className="text-slate-500 mt-1 text-sm sm:text-base">
+                Welcome back, {agentProfile.name}! Here&apos;s an overview of your real estate activity.
+              </p>
+            )}
       </div>
-      <div className="flex items-center justify-end">
-          {agentProfile.headshotUrl ? (
-              <img src={agentProfile.headshotUrl} alt={agentProfile.name} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-white shadow-sm" />
-          ) : (
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 border-2 border-white shadow-sm">
-                  <span className="material-symbols-outlined text-lg sm:text-xl">person</span>
-              </div>
-          )}
-      </div>
+      {!hideAvatar && (
+        <div className="flex items-center justify-end">
+            {agentProfile.headshotUrl ? (
+                <img src={agentProfile.headshotUrl} alt={agentProfile.name} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-white shadow-sm" />
+            ) : (
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 border-2 border-white shadow-sm">
+                    <span className="material-symbols-outlined text-lg sm:text-xl">person</span>
+                </div>
+            )}
+        </div>
+      )}
       </div>
 
       {/* Help / Pro Tips */}

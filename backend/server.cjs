@@ -2053,6 +2053,42 @@ let systemHealth = {
   issues: []
 };
 
+// Admin funnel analytics store (lightweight mock for admin-only dashboards)
+const adminFunnelAnalytics = {
+  summary: {
+    totalLeads: 0,
+    conversionRate: 0,
+    appointments: 0,
+    avgScore: 0
+  },
+  performance: {
+    topSteps: [
+      { title: 'Curated Matches', replyRate: 48, meetingRate: 19, funnelId: 'universal_sales', stepId: 'universal_sales-1' }
+    ],
+    weakSteps: [
+      { title: 'Follow-Up Touch', replyRate: 18, meetingRate: 5, funnelId: 'universal_sales', stepId: 'universal_sales-2' }
+    ],
+    sequences: [
+      { id: 'universal_sales', title: 'Universal Sales Funnel', replies: 42, opens: 68, meetings: 19, tag: 'Wins: Day 1 Check-In' },
+      { id: 'homebuyer', title: 'Homebuyer Journey', replies: 36, opens: 62, meetings: 27, tag: 'Wins: Curated Matches' },
+      { id: 'post_showing', title: 'After-Showing Follow-Up', replies: 29, opens: 55, meetings: 14, tag: 'Wins: Tour Recap' }
+    ],
+    trendWindow: '14d'
+  },
+  calendar: {
+    days: Array.from({ length: 14 }).map((_, idx) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (13 - idx));
+      return {
+        date: date.toISOString().slice(0, 10),
+        appointments: Math.max(0, Math.round(5 + Math.sin(idx / 3) * 3)),
+        meetings: Math.max(0, Math.round(2 + Math.cos(idx / 4))),
+        calls: Math.max(0, Math.round(3 + Math.sin(idx / 2)))
+      };
+    })
+  }
+};
+
 let adminSettings = {
   maintenanceMode: false,
   featureToggles: {
@@ -2069,6 +2105,92 @@ let adminSettings = {
     apiRateLimit: 100
   }
 };
+
+// Admin command center state (mock/live-ready placeholders)
+const adminCommandCenter = {
+  health: {
+    totalApiCalls: 1423,
+    failedApiCalls: 12,
+    avgResponseTimeMs: 420,
+    uptimePercent: 99.9,
+    lastChecked: new Date().toISOString()
+  },
+  security: {
+    openRisks: ['2 admins without 2FA', '1 API key with broad scope'],
+    lastLogin: { ip: '192.168.1.24', device: 'MacOS · Chrome', at: new Date().toISOString() },
+    anomalies: [{ type: 'login_region_change', detail: 'New region login detected', at: new Date().toISOString() }]
+  },
+  support: {
+    openChats: 3,
+    openTickets: 5,
+    openErrors: 1,
+    items: [
+      { id: 'chat-1', type: 'chat', title: 'Lead waiting on response', severity: 'medium' },
+      { id: 'ticket-1', type: 'ticket', title: 'Calendar sync issue', severity: 'high' },
+      { id: 'error-1', type: 'error', title: 'Upload worker retrying', severity: 'low' }
+    ]
+  },
+  metrics: {
+    leadsToday: 12,
+    leadsThisWeek: 48,
+    appointmentsNext7: 9,
+    messagesSent: 132,
+    leadsSpark: [3, 6, 4, 8, 7, 9, 12],
+    apptSpark: [1, 0, 2, 1, 3, 1, 1],
+    statuses: {
+      aiLatencyMs: 680,
+      emailBounceRate: 1.2,
+      fileQueueStuck: 0
+    },
+    recentLeads: [
+      { id: 'lead-1', name: 'Jamie Carter', status: 'New', source: 'Website', at: new Date().toISOString() },
+      { id: 'lead-2', name: 'Priya Shah', status: 'Qualified', source: 'CSV Import', at: new Date(Date.now() - 3600 * 1000).toISOString() },
+      { id: 'lead-3', name: 'Alex Kim', status: 'Contacted', source: 'Landing Page', at: new Date(Date.now() - 3 * 3600 * 1000).toISOString() }
+    ]
+  }
+};
+
+// Admin settings state (mock; replace with DB persistence as needed)
+let adminBilling = {
+  plan: 'Pro',
+  status: 'active',
+  nextBillingDate: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+  users: [
+    { email: 'owner@homelistingai.app', plan: 'Pro', paymentStatus: 'paid', lastInvoice: 'INV-1023', isLate: false },
+    { email: 'ops@homelistingai.app', plan: 'Pro', paymentStatus: 'late', lastInvoice: 'INV-1022', isLate: true }
+  ],
+  invoices: [
+    { id: 'inv-1023', date: '2024-11-15', amount: '$139.00', status: 'paid', url: '#' },
+    { id: 'inv-1022', date: '2024-10-15', amount: '$139.00', status: 'paid', url: '#' }
+  ]
+};
+
+let adminSecurity = {
+  twoFactorEnabled: false,
+  apiKeys: [
+    { id: 'key-1', label: 'Funnel API', scope: 'funnels', lastUsed: '2h ago' },
+    { id: 'key-2', label: 'Chat API', scope: 'chat', lastUsed: '1d ago' }
+  ],
+  lastLogin: { ip: '192.168.1.24', device: 'MacOS · Chrome', at: new Date().toISOString() },
+  activityLogs: [
+    { id: 'log-1', event: 'Updated system settings', ip: '192.168.1.24', at: new Date().toISOString() },
+    { id: 'log-2', event: 'Regenerated API key', ip: '192.168.1.24', at: new Date(Date.now() - 3600 * 1000).toISOString() },
+    { id: 'log-3', event: 'Toggled 2FA', ip: '192.168.1.25', at: new Date(Date.now() - 2 * 3600 * 1000).toISOString() }
+  ]
+};
+
+let adminConfig = {
+  appName: 'HomeListingAI (Admin)',
+  brandingColor: '#0ea5e9',
+  onboardingEnabled: true,
+  aiLoggingEnabled: true,
+  betaFeaturesEnabled: false,
+  notificationEmail: 'admin@homelistingai.app',
+  notificationPhone: '',
+  logoUrl: null
+};
+
+let adminAlerts = [];
 
 // Real-time system monitoring
 const updateSystemHealth = () => {
@@ -3424,6 +3546,126 @@ app.get('/api/admin/marketing/sequences', async (req, res) => {
     console.error('Get sequences error:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// Admin analytics: funnel summary/performance/calendar (admin-only mock)
+app.get('/api/admin/analytics/funnel-summary', (_req, res) => {
+  res.json(adminFunnelAnalytics.summary);
+});
+
+app.get('/api/admin/analytics/funnel-performance', (_req, res) => {
+  res.json(adminFunnelAnalytics.performance);
+});
+
+app.get('/api/admin/analytics/funnel-calendar', (_req, res) => {
+  res.json(adminFunnelAnalytics.calendar);
+});
+
+// Admin command center endpoints (health, security, support, metrics)
+app.get('/api/admin/system/health', (_req, res) => {
+  const failuresThreshold = 20;
+  const alerts = [];
+  if (adminCommandCenter.health.failedApiCalls > failuresThreshold) {
+    alerts.push({ type: 'api_failures', message: 'High API failure rate detected' });
+  }
+  if (adminCommandCenter.health.avgResponseTimeMs > 1000) {
+    alerts.push({ type: 'latency', message: 'Average response time above 1s' });
+  }
+  res.json({ ...adminCommandCenter.health, alerts });
+});
+
+app.get('/api/admin/security/monitor', (_req, res) => {
+  res.json(adminCommandCenter.security);
+});
+
+app.get('/api/admin/support/summary', (_req, res) => {
+  res.json(adminCommandCenter.support);
+});
+
+app.get('/api/admin/analytics/overview', (_req, res) => {
+  res.json(adminCommandCenter.metrics);
+});
+
+// Admin settings: billing
+app.get('/api/admin/billing', (_req, res) => {
+  res.json({
+    plan: adminBilling.plan,
+    status: adminBilling.status,
+    nextBillingDate: adminBilling.nextBillingDate
+  });
+});
+
+app.get('/api/admin/users/billing', (_req, res) => {
+  res.json(adminBilling.users);
+});
+
+app.get('/api/admin/billing/invoices', (_req, res) => {
+  res.json(adminBilling.invoices);
+});
+
+app.post('/api/admin/billing/cancel-alert', (req, res) => {
+  const { email } = req.body || {};
+  adminAlerts.push({ id: `alert-${Date.now()}`, type: 'cancel', email, at: new Date().toISOString() });
+  res.json({ success: true });
+});
+
+app.post('/api/admin/billing/send-reminder', (req, res) => {
+  const { email } = req.body || {};
+  res.json({ success: true, email, sentAt: new Date().toISOString() });
+});
+
+app.post('/api/admin/billing/update-card', (_req, res) => {
+  res.json({ success: true });
+});
+
+app.post('/api/admin/billing/download-invoice', (req, res) => {
+  const { invoiceId } = req.body || {};
+  const invoice = adminBilling.invoices.find((i) => i.id === invoiceId);
+  if (!invoice) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true, url: invoice.url || '#' });
+});
+
+// Admin settings: security
+app.get('/api/admin/security', (_req, res) => {
+  res.json({
+    twoFactorEnabled: adminSecurity.twoFactorEnabled,
+    apiKeys: adminSecurity.apiKeys,
+    openRisks: ['2 admins without 2FA', '1 API key with broad scope'],
+    lastLogin: adminSecurity.lastLogin,
+    activityLogs: adminSecurity.activityLogs.slice(0, 5)
+  });
+});
+
+app.post('/api/admin/security/password', (_req, res) => {
+  res.json({ success: true });
+});
+
+app.post('/api/admin/security/2fa', (req, res) => {
+  const { enabled } = req.body || {};
+  adminSecurity.twoFactorEnabled = Boolean(enabled);
+  res.json({ success: true, twoFactorEnabled: adminSecurity.twoFactorEnabled });
+});
+
+app.get('/api/admin/security/api-keys', (_req, res) => {
+  res.json({ keys: adminSecurity.apiKeys });
+});
+
+app.post('/api/admin/security/api-keys', (req, res) => {
+  const { scope } = req.body || {};
+  const newKey = { id: `key-${Date.now()}`, label: `${scope || 'api'} key`, scope: scope || 'all', lastUsed: 'new' };
+  adminSecurity.apiKeys = [newKey, ...adminSecurity.apiKeys].slice(0, 5);
+  adminSecurity.activityLogs.unshift({ id: `log-${Date.now()}`, event: `Regenerated API key (${scope || 'all'})`, ip: '127.0.0.1', at: new Date().toISOString() });
+  res.json({ success: true, keys: adminSecurity.apiKeys });
+});
+
+// Admin settings: system config
+app.get('/api/admin/system-settings', (_req, res) => {
+  res.json(adminConfig);
+});
+
+app.put('/api/admin/system-settings', (req, res) => {
+  adminConfig = { ...adminConfig, ...(req.body || {}) };
+  res.json({ success: true, settings: adminConfig });
 });
 
 // Create new follow-up sequence

@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { continueConversation } from '../services/openaiService'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 
 interface TrainingStatsProps {
 	sidekick: string
@@ -40,7 +39,7 @@ const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionS
 			const controller = new AbortController()
 			pendingFetch.current = controller
 			try {
-				const response = await fetch(`/api/training/feedback/${sidekick}`, {
+				const response = await fetch(`/api/admin/ai-sidekicks/${sidekick}/stats`, {
 					signal: controller.signal
 				})
 				if (!response.ok) {
@@ -144,8 +143,47 @@ Your job is to:
 Core objective:
 Deliver a complete, ready-to-train AI system that learns like a real assistant — not just from text, but from behavior, tone, and intent. Detect what we’re missing, make recommendations, and confirm when the AI is truly “trained to perform.”`
 
+const ADMIN_SIDEKICKS: SidekickOption[] = [
+	{
+		id: 'god',
+		name: 'God (Ops Overseer)',
+		icon: 'security',
+		description: 'App-wide overseer for admin intelligence and decisions',
+		systemPrompt:
+			'You are the omniscient admin AI. Calm, precise, and directive. Provide short, actionable guidance with safety in mind. Protect admin data, avoid agent/demo data, and keep responses scoped to admin workflows.',
+		color: 'bg-sky-100 text-sky-800 border-sky-200'
+	},
+	{
+		id: 'sales',
+		name: 'Sales',
+		icon: 'trending_up',
+		description: 'CTA-focused sidekick for lead conversion and bookings',
+		systemPrompt:
+			'You are the Sales AI. Persuasive, concise, and CTA-driven. Qualify fast, handle objections, and drive to calls, tours, or signups. Use admin-owned data only.',
+		color: 'bg-emerald-100 text-emerald-800 border-emerald-200'
+	},
+	{
+		id: 'support',
+		name: 'Support',
+		icon: 'handyman',
+		description: 'Issue resolution, triage, and workflow debugging',
+		systemPrompt:
+			'You are the Support AI. Empathetic, clear, and step-by-step. Triage issues, guide remediation, and keep scope to admin systems only.',
+		color: 'bg-indigo-100 text-indigo-800 border-indigo-200'
+	},
+	{
+		id: 'marketing',
+		name: 'Marketing',
+		icon: 'campaign',
+		description: 'Content, campaigns, and admin-focused promotion',
+		systemPrompt:
+			'You are the Marketing AI. Creative, on-brand, and conversion-focused. Ship concise copy, hooks, and campaigns for the platform.',
+		color: 'bg-amber-100 text-amber-800 border-amber-200'
+	}
+]
+
 const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = false }) => {
-	const [selectedSidekick, setSelectedSidekick] = useState<string>('marketing')
+	const [selectedSidekick, setSelectedSidekick] = useState<string>('god')
 	const [messages, setMessages] = useState<ChatMessage[]>([])
 	const [inputMessage, setInputMessage] = useState('')
 	const [isLoading, setIsLoading] = useState(false)
@@ -156,44 +194,48 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 	const [improvementLoadingId, setImprovementLoadingId] = useState<string | null>(null)
 	const [trainingNotification, setTrainingNotification] = useState<string | null>(null)
 	const [trainingError, setTrainingError] = useState<string | null>(null)
+	const [systemPrompts, setSystemPrompts] = useState<Record<string, string>>(() =>
+		ADMIN_SIDEKICKS.reduce<Record<string, string>>((acc, sk) => {
+			acc[sk.id] = sk.systemPrompt
+			return acc
+		}, {})
+	)
+	const [savingPrompt, setSavingPrompt] = useState(false)
+	const [memoryItems, setMemoryItems] = useState<Record<string, Array<{ id: string; title: string; type: 'file' | 'text' | 'url'; createdAt: string }>>>({})
+	const [memoryLoading, setMemoryLoading] = useState(false)
+	const [memoryError, setMemoryError] = useState<string | null>(null)
+	const [memoryUrl, setMemoryUrl] = useState('')
+	const [memoryNote, setMemoryNote] = useState('')
+	const [trainLoading, setTrainLoading] = useState(false)
 	const messagesEndRef = useRef<HTMLDivElement>(null)
-
-	const sidekicks: SidekickOption[] = [
-		{
-			id: 'marketing',
-			name: 'Marketing Sidekick',
-			icon: 'campaign',
-			description: 'Social media, content creation, marketing campaigns',
-			systemPrompt: 'You are a Marketing Sidekick for a real estate agent. Create engaging, conversion-focused marketing content. Be creative, on-brand, and results-oriented. Help with social media posts, email campaigns, property descriptions, and marketing strategies.',
-			color: 'bg-amber-100 text-amber-800 border-amber-200'
-		},
-		{
-			id: 'agent',
-			name: 'Agent Sidekick',
-			icon: 'person',
-			description: 'Client communication, scheduling, general assistance',
-			systemPrompt: 'You are an Agent Sidekick for a real estate professional. Help with client communication, appointment scheduling, follow-ups, and general real estate tasks. Be professional, helpful, and client-focused.',
-			color: 'bg-blue-100 text-blue-800 border-blue-200'
-		},
-		{
-			id: 'listing',
-			name: 'Listing Sidekick',
-			icon: 'home',
-			description: 'Property descriptions, listing details, market analysis',
-			systemPrompt: 'You are a Listing Sidekick specializing in property descriptions and listing content. Create compelling, accurate property descriptions that highlight key features and benefits. Be detailed, persuasive, and market-aware.',
-			color: 'bg-green-100 text-green-800 border-green-200'
-		},
-		{
-			id: 'sales',
-			name: 'Sales Sidekick',
-			icon: 'trending_up',
-			description: 'Lead qualification, objection handling, closing strategies',
-			systemPrompt: 'You are a Sales Sidekick focused on lead qualification and conversion. Help with objection handling, closing strategies, and sales conversations. Be persuasive, confident, and results-driven.',
-			color: 'bg-red-100 text-red-800 border-red-200'
-		}
-	]
-
+	const sidekicks = ADMIN_SIDEKICKS
 	const currentSidekick = sidekicks.find(s => s.id === selectedSidekick) || sidekicks[0]
+
+	const loadMemory = useCallback(async (sidekickId: string) => {
+		if (demoMode) {
+			setMemoryItems(prev => ({ ...prev, [sidekickId]: prev[sidekickId] || [] }))
+			return
+		}
+		setMemoryLoading(true)
+		setMemoryError(null)
+		try {
+			const res = await fetch(`/api/admin/ai-sidekicks/${sidekickId}/memory`)
+			if (!res.ok) throw new Error(`Status ${res.status}`)
+			const data = await res.json()
+			const list = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
+			setMemoryItems(prev => ({ ...prev, [sidekickId]: list.map((item: Record<string, unknown>) => ({
+				id: (item.id as string) || `${sidekickId}-${Date.now()}`,
+				title: (item.title as string) || (item.name as string) || 'Memory item',
+				type: (item.type === 'url' || item.type === 'file' || item.type === 'text') ? item.type : 'text',
+				createdAt: (item.createdAt as string) || (item.created_at as string) || new Date().toISOString()
+			})) }))
+		} catch (error) {
+			console.warn('Failed to load admin sidekick memory', error)
+			setMemoryError('Unable to load memory right now.')
+		} finally {
+			setMemoryLoading(false)
+		}
+	}, [demoMode])
 
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -208,6 +250,43 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 
 		return () => clearTimeout(timer)
 	}, [trainingNotification, trainingError])
+
+	useEffect(() => {
+		const loadPrompt = async (sidekickId: string) => {
+			if (demoMode) return
+			try {
+				const res = await fetch(`/api/admin/ai-sidekicks/${sidekickId}`)
+				if (!res.ok) return
+				const data = await res.json()
+				if (typeof data?.systemPrompt === 'string') {
+					setSystemPrompts(prev => ({ ...prev, [sidekickId]: data.systemPrompt }))
+				}
+			} catch (error) {
+				console.warn('Failed to load admin system prompt', error)
+			}
+		}
+		void loadPrompt(selectedSidekick)
+		void loadMemory(selectedSidekick)
+	}, [selectedSidekick, loadMemory, demoMode])
+
+	const sendAdminChat = useCallback(async (payload: { message: string; history: Array<{ sender: 'user' | 'assistant'; text: string }> }) => {
+		if (demoMode) {
+			return `(${selectedSidekick} admin sidekick) ${payload.message}`
+		}
+		const res = await fetch('/api/admin/ai-chat', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				sidekickId: selectedSidekick,
+				sidekickType: selectedSidekick,
+				message: payload.message,
+				history: payload.history
+			})
+		})
+		if (!res.ok) throw new Error(`Status ${res.status}`)
+		const data = await res.json()
+		return (data?.response || data?.reply || 'I am still thinking about that.').toString()
+	}, [demoMode, selectedSidekick])
 
 	const handleSendMessage = async () => {
 		if (!inputMessage.trim() || isLoading) return
@@ -229,12 +308,14 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 				text: msg.content
 			}))
 
-			const response = await continueConversation([
-				{ sender: 'system', text: TRAINING_ARCHITECT_PROMPT },
-				{ sender: 'system', text: currentSidekick.systemPrompt },
-				...conversationHistory,
-				{ sender: 'user', text: inputMessage.trim() }
-			], selectedSidekick)
+			const response = await sendAdminChat({
+				message: inputMessage.trim(),
+				history: [
+					{ sender: 'assistant', text: TRAINING_ARCHITECT_PROMPT },
+					{ sender: 'assistant', text: systemPrompts[selectedSidekick] || currentSidekick.systemPrompt },
+					...conversationHistory
+				]
+			})
 
 			const assistantMessage: ChatMessage = {
 				id: `assistant-${Date.now()}`,
@@ -283,12 +364,11 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 			const message = messages.find(m => m.id === messageId)
 			const userMessage = messages[messages.findIndex(m => m.id === messageId) - 1]
 			
-			await fetch('/api/training/feedback', {
+			await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					messageId,
-					sidekick: selectedSidekick,
 					feedback,
 					userMessage: userMessage?.content || '',
 					assistantMessage: message?.content || ''
@@ -335,12 +415,11 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 			const message = messages.find(m => m.id === messageId)
 			const userMessage = messages[messages.findIndex(m => m.id === messageId) - 1]
 			
-			await fetch('/api/training/feedback', {
+			await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					messageId,
-					sidekick: selectedSidekick,
 					feedback: 'thumbs_down', // Already set, but include for context
 					improvement: improvementText.trim(),
 					userMessage: userMessage?.content || '',
@@ -449,6 +528,228 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 						))}
 					</div>
 
+					{/* System prompt editor */}
+					<div className="mt-5 p-4 bg-white rounded-lg border border-slate-200">
+						<div className="flex items-center justify-between mb-2">
+							<h4 className="font-medium text-slate-900 text-sm">System Prompt</h4>
+							<button
+								onClick={async () => {
+									if (savingPrompt) return
+									setSavingPrompt(true)
+									setTrainingNotification(null)
+									setTrainingError(null)
+									try {
+										if (!demoMode) {
+											await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/system-prompt`, {
+												method: 'POST',
+												headers: { 'Content-Type': 'application/json' },
+												body: JSON.stringify({ systemPrompt: systemPrompts[selectedSidekick] || '' })
+											})
+										}
+										setTrainingNotification('System prompt saved.')
+									} catch (error) {
+										console.error('Failed to save system prompt', error)
+										setTrainingError('Could not save system prompt.')
+									} finally {
+										setSavingPrompt(false)
+									}
+								}}
+								className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+								disabled={savingPrompt}
+							>
+								{savingPrompt ? 'Saving...' : 'Save'}
+							</button>
+						</div>
+						<textarea
+							value={systemPrompts[selectedSidekick] || ''}
+							onChange={e => setSystemPrompts(prev => ({ ...prev, [selectedSidekick]: e.target.value }))}
+							className="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm"
+							rows={4}
+						/>
+					</div>
+
+					{/* Memory / uploads */}
+					<div className="mt-4 p-4 bg-white rounded-lg border border-slate-200 space-y-3">
+						<div className="flex items-center justify-between">
+							<h4 className="font-medium text-slate-900 text-sm">Memory</h4>
+							{memoryLoading && <span className="text-xs text-slate-500">Loading…</span>}
+						</div>
+						{memoryError && <p className="text-xs text-rose-600">{memoryError}</p>}
+						<div className="space-y-2">
+							<label className="text-xs text-slate-600">Add URL</label>
+							<div className="flex gap-2">
+								<input
+									value={memoryUrl}
+									onChange={e => setMemoryUrl(e.target.value)}
+									className="flex-1 border border-slate-300 rounded-lg px-2 py-2 text-sm"
+									placeholder="https://example.com"
+								/>
+								<button
+									onClick={async () => {
+										if (!memoryUrl.trim()) return
+										setMemoryLoading(true)
+										setMemoryError(null)
+										try {
+											if (!demoMode) {
+												await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/memory/upload`, {
+													method: 'POST',
+													headers: { 'Content-Type': 'application/json' },
+													body: JSON.stringify({ type: 'url', content: memoryUrl.trim() })
+												})
+											}
+											setMemoryItems(prev => {
+												const list = prev[selectedSidekick] || []
+												return {
+													...prev,
+													[selectedSidekick]: [
+														{ id: `${Date.now()}`, title: memoryUrl.trim(), type: 'url', createdAt: new Date().toISOString() },
+														...list
+													]
+												}
+											})
+											setMemoryUrl('')
+										} catch (error) {
+											console.error('Failed to save URL memory', error)
+											setMemoryError('Could not save URL.')
+										} finally {
+											setMemoryLoading(false)
+										}
+									}}
+									className="px-3 py-2 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
+								>
+									Save
+								</button>
+							</div>
+						</div>
+						<div className="space-y-2">
+							<label className="text-xs text-slate-600">Add Note</label>
+							<textarea
+								value={memoryNote}
+								onChange={e => setMemoryNote(e.target.value)}
+								className="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm"
+								rows={2}
+								placeholder="Paste quick instructions or FAQs"
+							/>
+							<button
+								onClick={async () => {
+									if (!memoryNote.trim()) return
+									setMemoryLoading(true)
+									setMemoryError(null)
+									try {
+										if (!demoMode) {
+											await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/memory/upload`, {
+												method: 'POST',
+												headers: { 'Content-Type': 'application/json' },
+												body: JSON.stringify({ type: 'text', content: memoryNote.trim() })
+											})
+										}
+										setMemoryItems(prev => {
+											const list = prev[selectedSidekick] || []
+											return {
+												...prev,
+												[selectedSidekick]: [
+													{ id: `${Date.now()}`, title: memoryNote.trim().slice(0, 60) || 'Note', type: 'text', createdAt: new Date().toISOString() },
+													...list
+												]
+											}
+										})
+										setMemoryNote('')
+									} catch (error) {
+										console.error('Failed to save note memory', error)
+										setMemoryError('Could not save note.')
+									} finally {
+										setMemoryLoading(false)
+									}
+								}}
+								className="w-full px-3 py-2 text-xs rounded bg-slate-900 text-white hover:bg-slate-800"
+							>
+								Save Note
+							</button>
+						</div>
+						<div className="space-y-2">
+							<label className="text-xs text-slate-600">Upload Files</label>
+							<input
+								type="file"
+								multiple
+								onChange={async e => {
+									const files = Array.from(e.target.files || [])
+									if (!files.length) return
+									setMemoryLoading(true)
+									setMemoryError(null)
+									try {
+										for (const file of files) {
+											if (!demoMode) {
+												const fd = new FormData()
+												fd.append('file', file)
+												await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/memory/upload`, { method: 'POST', body: fd })
+											}
+											setMemoryItems(prev => {
+												const list = prev[selectedSidekick] || []
+												return {
+													...prev,
+													[selectedSidekick]: [
+														{ id: `${Date.now()}-${file.name}`, title: file.name, type: 'file', createdAt: new Date().toISOString() },
+														...list
+													]
+												}
+											})
+										}
+									} catch (error) {
+										console.error('Failed to upload files', error)
+										setMemoryError('Could not upload files.')
+									} finally {
+										setMemoryLoading(false)
+									}
+								}}
+								className="w-full text-sm"
+							/>
+						</div>
+						<div className="pt-2 border-t border-slate-200 space-y-2">
+							<h5 className="text-xs font-semibold text-slate-700">Recent memory</h5>
+							{(memoryItems[selectedSidekick]?.length || 0) === 0 && (
+								<p className="text-xs text-slate-500">No memory added yet.</p>
+							)}
+							<ul className="space-y-1">
+								{(memoryItems[selectedSidekick] || []).slice(0, 4).map(item => (
+									<li key={item.id} className="text-xs text-slate-700 flex items-center justify-between">
+										<span className="truncate">{item.title}</span>
+										<span className="text-[10px] text-slate-400 uppercase">{item.type}</span>
+									</li>
+								))}
+							</ul>
+						</div>
+					</div>
+
+					{/* Train action */}
+					<div className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
+						<div className="flex items-center justify-between mb-2">
+							<h4 className="font-medium text-slate-900 text-sm">Train & Sync</h4>
+							<button
+								onClick={async () => {
+									setTrainLoading(true)
+									setTrainingNotification(null)
+									setTrainingError(null)
+									try {
+										if (!demoMode) {
+											await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/train`, { method: 'POST' })
+										}
+										setTrainingNotification('Training job triggered.')
+									} catch (error) {
+										console.error('Failed to trigger training', error)
+										setTrainingError('Could not start training.')
+									} finally {
+										setTrainLoading(false)
+									}
+								}}
+								className="px-3 py-2 rounded bg-emerald-600 text-white text-xs hover:bg-emerald-700 disabled:opacity-50"
+								disabled={trainLoading}
+							>
+								{trainLoading ? 'Triggering…' : 'Trigger Training'}
+							</button>
+						</div>
+						<p className="text-xs text-slate-600">Sync new memory, prompt updates, and feedback to the admin sidekick.</p>
+					</div>
+
 					{/* Training Stats */}
 					<TrainingStats sidekick={selectedSidekick} currentSessionStats={{
 						conversations: messages.filter(m => m.role === 'user').length,
@@ -509,48 +810,6 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 												))}
 											</div>
 										)}
-										{selectedSidekick === 'listing' && (
-											<div className="space-y-2">
-												{[
-													"Write a description for a 3BR family home",
-													"Create listing highlights for a downtown condo",
-													"Describe the kitchen features in this property",
-													"Write about the neighborhood amenities"
-												].map((prompt, idx) => (
-													<button
-														key={idx}
-														onClick={() => {
-															setInputMessage(prompt)
-															setTimeout(() => handleSendMessage(), 100)
-														}}
-														className="block w-full text-left px-3 py-2 text-sm text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
-													>
-														{prompt}
-													</button>
-												))}
-											</div>
-										)}
-										{selectedSidekick === 'agent' && (
-											<div className="space-y-2">
-												{[
-													"Help me respond to a client asking about mortgage rates",
-													"Draft a follow-up email after a showing",
-													"Write a message to schedule a property viewing",
-													"Help me explain the buying process to first-timers"
-												].map((prompt, idx) => (
-													<button
-														key={idx}
-														onClick={() => {
-															setInputMessage(prompt)
-															setTimeout(() => handleSendMessage(), 100)
-														}}
-														className="block w-full text-left px-3 py-2 text-sm text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
-													>
-														{prompt}
-													</button>
-												))}
-											</div>
-										)}
 										{selectedSidekick === 'sales' && (
 											<div className="space-y-2">
 												{[
@@ -566,6 +825,48 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 															setTimeout(() => handleSendMessage(), 100)
 														}}
 														className="block w-full text-left px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+													>
+														{prompt}
+													</button>
+												))}
+											</div>
+										)}
+										{selectedSidekick === 'support' && (
+											<div className="space-y-2">
+												{[
+													"Help triage an outage affecting admin listing uploads",
+													"Draft a status update for a calendar sync issue",
+													"List steps to debug a failed AI chat response",
+													"Create a checklist to verify permissions for a new admin"
+												].map((prompt, idx) => (
+													<button
+														key={idx}
+														onClick={() => {
+															setInputMessage(prompt)
+															setTimeout(() => handleSendMessage(), 100)
+														}}
+														className="block w-full text-left px-3 py-2 text-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+													>
+														{prompt}
+													</button>
+												))}
+											</div>
+										)}
+										{selectedSidekick === 'god' && (
+											<div className="space-y-2">
+												{[
+													"Summarize today’s admin risk areas across leads, listings, and sidekicks",
+													"Give me the top 3 actions to improve conversion this week",
+													"How should I harden AI chat for admin-only data?",
+													"Outline a rollout plan for a new sidekick prompt update"
+												].map((prompt, idx) => (
+													<button
+														key={idx}
+														onClick={() => {
+															setInputMessage(prompt)
+															setTimeout(() => handleSendMessage(), 100)
+														}}
+														className="block w-full text-left px-3 py-2 text-sm text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors"
 													>
 														{prompt}
 													</button>

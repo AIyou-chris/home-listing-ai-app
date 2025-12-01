@@ -216,7 +216,7 @@ interface SidekickStore {
   voices: Voice[]
 }
 
-const SIDEKICKS_STORAGE_KEY = 'hlai_demo_sidekicks'
+const SIDEKICKS_STORAGE_KEY = 'hlai_admin_sidekicks_v1'
 
 const isBrowser = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 
@@ -235,6 +235,44 @@ const deepCloneSidekick = (sidekick: AISidekick): AISidekick => ({
   stats: { ...sidekick.stats },
   metadata: sidekick.metadata ? { ...sidekick.metadata } : undefined
 })
+
+const updateLocalSidekick = (sidekickId: string, updater: (sidekick: AISidekick) => AISidekick): AISidekick | null => {
+  const current = ensureStore()
+  const match = current.sidekicks.find(sk => sk.id === sidekickId)
+  if (!match) return null
+  const updated = deepCloneSidekick(updater(match))
+  updateStore(store => ({
+    voices: store.voices.map(cloneVoice),
+    sidekicks: store.sidekicks.map(sk => (sk.id === sidekickId ? updated : deepCloneSidekick(sk)))
+  }))
+  return updated
+}
+
+const createLocalSidekick = (payload: CreateSidekickPayload & { id?: string }): AISidekick => {
+  const base: AISidekick = {
+    id: payload.id || `admin-sidekick-${Date.now()}`,
+    userId: resolveUserId() || 'admin',
+    type: (payload.metadata?.type as string) || 'custom',
+    name: payload.name,
+    description: payload.description,
+    color: (payload.metadata?.color as string) || '#0EA5E9',
+    icon: (payload.metadata?.icon as string) || '🤖',
+    voiceId: payload.voiceId,
+    knowledgeBase: [],
+    personality: {
+      description: payload.personality.description,
+      traits: [...payload.personality.traits],
+      preset: payload.personality.preset
+    },
+    stats: { totalTraining: 0, positiveFeedback: 0, improvements: 0 },
+    metadata: payload.metadata
+  }
+  updateStore(store => ({
+    voices: store.voices.map(cloneVoice),
+    sidekicks: [base, ...store.sidekicks.filter(sk => sk.id !== base.id)].map(deepCloneSidekick)
+  }))
+  return base
+}
 
 const DEFAULT_VOICES: Voice[] = [
   {
@@ -269,109 +307,109 @@ const DEFAULT_VOICES: Voice[] = [
 
 const DEFAULT_SIDEKICKS: AISidekick[] = [
   {
-    id: 'demo-agent-sidekick',
-    userId: 'demo-user',
-    type: 'agent',
-    name: 'Agent Concierge',
-    description: 'Handles deal coordination, buyer updates, and daily huddles with your team.',
-    color: '#8B5CF6',
-    icon: '👤',
+    id: 'god',
+    userId: 'admin',
+    type: 'god',
+    name: 'God (Ops Overseer)',
+    description: 'Oversees the entire platform with system-wide awareness for admins.',
+    color: '#0EA5E9',
+    icon: '🧠',
     voiceId: 'nova',
     knowledgeBase: [
-      'Buyer consultation script: discovery, financing, motivation, timeline.',
-      'Weekly update template summarizing showings, offers, and next steps.',
-      '5-step process for coordinating inspections, appraisal, and closing tasks.'
+      'Platform architecture overview and admin-only controls.',
+      'Operational playbooks for incident triage and rollout readiness.',
+      'Admin data governance, roles, and safety guidelines.'
     ],
     personality: {
       description:
-        'You are the agent’s operations chief: proactive, organized, and crystal-clear with communication.',
-      traits: ['proactive', 'organized', 'empathetic'],
+        'You are the omniscient admin AI. Calm, precise, and directive. Provide short, actionable guidance with safety in mind.',
+      traits: ['directive', 'calm', 'system-aware'],
       preset: 'professional'
     },
     stats: {
-      totalTraining: 128,
-      positiveFeedback: 42,
-      improvements: 9
+      totalTraining: 0,
+      positiveFeedback: 0,
+      improvements: 0
     },
-    metadata: { type: 'agent', color: '#8B5CF6', icon: '👤' }
+    metadata: { type: 'god', color: '#0EA5E9', icon: '🧠' }
   },
   {
-    id: 'demo-marketing-sidekick',
-    userId: 'demo-user',
-    type: 'marketing',
-    name: 'Momentum Marketer',
-    description: 'Builds nurture campaigns, listing launches, and social drip content on autopilot.',
-    color: '#F59E0B',
-    icon: '📈',
-    voiceId: 'verse',
-    knowledgeBase: [
-      'Listing launch checklist covering teasers, reels, and email announcements.',
-      '14-day warm nurture sequence for online buyer leads with AI personalization.',
-      'Brand voice pillars: concierge-level, data-backed, optimistic, and tech-forward.'
-    ],
-    personality: {
-      description: 'Energetic strategist obsessed with conversion copy and momentum.',
-      traits: ['creative', 'energetic', 'conversion-focused'],
-      preset: 'creative'
-    },
-    stats: {
-      totalTraining: 94,
-      positiveFeedback: 33,
-      improvements: 7
-    },
-    metadata: { type: 'marketing', color: '#F59E0B', icon: '📈' }
-  },
-  {
-    id: 'demo-listing-sidekick',
-    userId: 'demo-user',
-    type: 'listing',
-    name: 'Listing Strategist',
-    description: 'Produces property descriptions, pricing intel, and open house talking points.',
-    color: '#EF4444',
-    icon: '🏠',
-    voiceId: 'alloy',
-    knowledgeBase: [
-      'Pricing framework: comps ± adjustments for condition, outdoor space, and views.',
-      'Luxury listing adjectives cheat sheet with neighborhood callouts.',
-      'Open house overview script with highlights, lifestyle angles, and CTA.'
-    ],
-    personality: {
-      description: 'Calm, analytical expert who can translate data into persuasive narratives.',
-      traits: ['analytical', 'detail-oriented', 'persuasive'],
-      preset: 'analytical'
-    },
-    stats: {
-      totalTraining: 76,
-      positiveFeedback: 28,
-      improvements: 5
-    },
-    metadata: { type: 'listing', color: '#EF4444', icon: '🏠' }
-  },
-  {
-    id: 'demo-sales-sidekick',
-    userId: 'demo-user',
+    id: 'sales',
+    userId: 'admin',
     type: 'sales',
-    name: 'Pipeline Coach',
-    description: 'Coaches objection handling, follow-up language, and deal progression.',
+    name: 'Sales',
+    description: 'Engages visitors and leads to book appointments and drive conversions.',
     color: '#10B981',
-    icon: '💼',
+    icon: '💰',
     voiceId: 'sol',
     knowledgeBase: [
-      'Objection handler library: pricing, commission, timing, and exclusivity.',
-      'Daily call blitz structure with hot/warm/cold lead rotation.',
-      'Call recap template for CRM notes and next-best-action tracking.'
+      'High-intent CTA scripts for booking calls and tours.',
+      'Lead qualification checklist and objection handlers.',
+      'Follow-up cadence for admin-owned leads.'
     ],
     personality: {
-      description: 'Confident closer who keeps energy high and encourages decisive action.',
-      traits: ['confident', 'results-driven', 'supportive'],
+      description: 'You are the Sales AI. Persuasive, concise, and CTA-driven. Always drive to the next step.',
+      traits: ['persuasive', 'concise', 'cta-driven'],
       preset: 'sales'
     },
     stats: {
-      totalTraining: 54,
-      positiveFeedback: 21,
-      improvements: 6
+      totalTraining: 0,
+      positiveFeedback: 0,
+      improvements: 0
     },
-    metadata: { type: 'sales', color: '#10B981', icon: '💼' }
+    metadata: { type: 'sales', color: '#10B981', icon: '💰' }
+  },
+  {
+    id: 'support',
+    userId: 'admin',
+    type: 'support',
+    name: 'Support',
+    description: 'Handles platform issues, triage, and user help for admins.',
+    color: '#6366F1',
+    icon: '🛠️',
+    voiceId: 'alloy',
+    knowledgeBase: [
+      'Runbook for common admin errors and remediation steps.',
+      'Support macros for platform FAQs and incident comms.',
+      'Checklist for verifying integrations and permissions.'
+    ],
+    personality: {
+      description: 'You are the Support AI. Empathetic, clear, and step-by-step. Resolve issues and guide next actions.',
+      traits: ['empathetic', 'clear', 'solution-oriented'],
+      preset: 'concierge'
+    },
+    stats: {
+      totalTraining: 0,
+      positiveFeedback: 0,
+      improvements: 0
+    },
+    metadata: { type: 'support', color: '#6366F1', icon: '🛠️' }
+  },
+  {
+    id: 'marketing',
+    userId: 'admin',
+    type: 'marketing',
+    name: 'Marketing',
+    description: 'Drives campaigns, social posts, and growth experiments for admins.',
+    color: '#F59E0B',
+    icon: '📣',
+    voiceId: 'verse',
+    knowledgeBase: [
+      'Campaign brief template for admin launches.',
+      'Social + email content blocks for platform news.',
+      'Positioning notes for admin-focused messaging.'
+    ],
+    personality: {
+      description: 'You are the Marketing AI. Creative, on-brand, and conversion-focused. Ship campaigns and copy quickly.',
+      traits: ['creative', 'on-brand', 'conversion-focused'],
+      preset: 'creative'
+    },
+    stats: {
+      totalTraining: 0,
+      positiveFeedback: 0,
+      improvements: 0
+    },
+    metadata: { type: 'marketing', color: '#F59E0B', icon: '📣' }
   }
 ]
 
@@ -482,7 +520,7 @@ export const getSidekicks = async (
   }
 
   const userId = resolveUserId();
-  const url = buildUrl('/api/sidekicks', isUuid(userId) ? { userId } : undefined);
+  const url = buildUrl('/api/admin/sidekicks', isUuid(userId) ? { userId } : undefined);
 
   try {
     const response = await fetch(url);
@@ -521,48 +559,72 @@ export const createSidekick = async (
   payload: CreateSidekickPayload
 ): Promise<AISidekick> => {
   const userId = resolveUserId();
-  const response = await fetch(buildUrl('/api/sidekicks'), {
-    method: 'POST',
-    headers: defaultHeaders,
-    body: JSON.stringify({
-      ...(isUuid(userId) ? { userId } : {}),
-      ...payload
-    })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to create AI sidekick (${response.status})`);
+  try {
+    const response = await fetch(buildUrl('/api/admin/sidekicks'), {
+      method: 'POST',
+      headers: defaultHeaders,
+      body: JSON.stringify({
+        ...(isUuid(userId) ? { userId } : {}),
+        ...payload
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to create AI sidekick (${response.status})`);
+    }
+    return normalizeSidekick(await response.json());
+  } catch (error) {
+    console.warn('createSidekick falling back to local store', error)
+    return createLocalSidekick(payload)
   }
-  return normalizeSidekick(await response.json());
 };
 
 export const updateSidekickPersonality = async (
   sidekickId: string,
   payload: { description: string; traits: string[]; preset: string; summary?: string }
 ): Promise<AISidekick> => {
-  const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/personality`), {
-    method: 'PUT',
-    headers: defaultHeaders,
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to update personality (${response.status})`);
+  try {
+    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}/personality`), {
+      method: 'PUT',
+      headers: defaultHeaders,
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update personality (${response.status})`);
+    }
+    return normalizeSidekick(await response.json());
+  } catch (error) {
+    const local = updateLocalSidekick(sidekickId, sk => ({
+      ...sk,
+      personality: {
+        description: payload.description,
+        traits: [...payload.traits],
+        preset: payload.preset
+      }
+    }))
+    if (local) return local
+    throw error
   }
-  return normalizeSidekick(await response.json());
 };
 
 export const updateSidekickVoice = async (
   sidekickId: string,
   voiceId: string
 ): Promise<AISidekick> => {
-  const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/voice`), {
-    method: 'PUT',
-    headers: defaultHeaders,
-    body: JSON.stringify({ voiceId })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to update voice (${response.status})`);
+  try {
+    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}/voice`), {
+      method: 'PUT',
+      headers: defaultHeaders,
+      body: JSON.stringify({ voiceId })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update voice (${response.status})`);
+    }
+    return normalizeSidekick(await response.json());
+  } catch (error) {
+    const local = updateLocalSidekick(sidekickId, sk => ({ ...sk, voiceId }))
+    if (local) return local
+    throw error
   }
-  return normalizeSidekick(await response.json());
 };
 
 type KnowledgeType = 'text' | 'file' | 'url';
@@ -577,31 +639,49 @@ export const addKnowledge = async (
     type: entry.type
   };
 
-  const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/knowledge`), {
-    method: 'POST',
-    headers: defaultHeaders,
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to add knowledge (${response.status})`);
+  try {
+    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}/knowledge`), {
+      method: 'POST',
+      headers: defaultHeaders,
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to add knowledge (${response.status})`);
+    }
+    return normalizeSidekick(await response.json());
+  } catch (error) {
+    const local = updateLocalSidekick(sidekickId, sk => ({
+      ...sk,
+      knowledgeBase: [payload.content, ...sk.knowledgeBase].slice(0, 50)
+    }))
+    if (local) return local
+    throw error
   }
-  return normalizeSidekick(await response.json());
 };
 
 export const removeKnowledge = async (
   sidekickId: string,
   index: number
 ): Promise<AISidekick> => {
-  const response = await fetch(
-    buildUrl(`/api/sidekicks/${sidekickId}/knowledge/${index}`),
-    {
-      method: 'DELETE'
+  try {
+    const response = await fetch(
+      buildUrl(`/api/admin/sidekicks/${sidekickId}/knowledge/${index}`),
+      {
+        method: 'DELETE'
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to remove knowledge (${response.status})`);
     }
-  );
-  if (!response.ok) {
-    throw new Error(`Failed to remove knowledge (${response.status})`);
+    return normalizeSidekick(await response.json());
+  } catch (error) {
+    const local = updateLocalSidekick(sidekickId, sk => ({
+      ...sk,
+      knowledgeBase: sk.knowledgeBase.filter((_, i) => i !== index)
+    }))
+    if (local) return local
+    throw error
   }
-  return normalizeSidekick(await response.json());
 };
 
 export type ChatHistoryEntry = { role: 'user' | 'assistant'; content: string };
@@ -623,21 +703,35 @@ export const chatWithSidekick = async (
         .map((item) => ({ role: item.role, content: item.content.trim() }))
     : undefined;
 
-  const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/chat`), {
-    method: 'POST',
-    headers: defaultHeaders,
-    body: JSON.stringify({ message, history: formattedHistory })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to chat with sidekick (${response.status})`);
+  // Admin-scoped chat endpoint; falls back to a simple echo if unavailable
+  const adminUrl = buildUrl('/api/admin/ai-chat');
+
+  try {
+    const response = await fetch(adminUrl, {
+      method: 'POST',
+      headers: defaultHeaders,
+      body: JSON.stringify({ sidekickId, sidekickType: sidekickId, message, history: formattedHistory })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to chat with admin sidekick (${response.status})`);
+    }
+
+    const data = await response.json();
+    return {
+      response:
+        typeof data?.response === 'string' && data.response.trim().length > 0
+          ? data.response.trim()
+          : typeof data?.reply === 'string' && data.reply.trim().length > 0
+            ? data.reply.trim()
+            : 'I am still thinking about that. Can you provide more detail?'
+    };
+  } catch (error) {
+    console.warn('chatWithSidekick (admin) fallback', error);
+    return {
+      response: `(${sidekickId} admin sidekick) ${message ? `You asked: ${message}` : 'Ready for your prompt.'}`
+    };
   }
-  const data = await response.json();
-  return {
-    response:
-      typeof data?.response === 'string' && data.response.trim().length > 0
-        ? data.response.trim()
-        : 'I am still thinking about that. Can you provide more detail?'
-  };
 };
 
 export const trainSidekick = async (
@@ -646,32 +740,52 @@ export const trainSidekick = async (
   assistantMessage: string,
   feedback: 'positive' | 'negative'
 ): Promise<AISidekick | null> => {
-  const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/training`), {
-    method: 'POST',
-    headers: defaultHeaders,
-    body: JSON.stringify({
-      userMessage,
-      assistantMessage,
-      feedback
-    })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to record training feedback (${response.status})`);
+  try {
+    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}/training`), {
+      method: 'POST',
+      headers: defaultHeaders,
+      body: JSON.stringify({
+        userMessage,
+        assistantMessage,
+        feedback
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to record training feedback (${response.status})`);
+    }
+    const data = await response.json();
+    if (data?.sidekick) {
+      return normalizeSidekick(data.sidekick);
+    }
+    return null;
+  } catch (error) {
+    const local = updateLocalSidekick(sidekickId, sk => ({
+      ...sk,
+      stats: {
+        ...sk.stats,
+        totalTraining: (sk.stats.totalTraining || 0) + 1,
+        positiveFeedback: sk.stats.positiveFeedback + (feedback === 'positive' ? 1 : 0),
+        improvements: sk.stats.improvements + (feedback === 'negative' ? 1 : 0)
+      }
+    }))
+    return local
   }
-  const data = await response.json();
-  if (data?.sidekick) {
-    return normalizeSidekick(data.sidekick);
-  }
-  return null;
 };
 
 export const deleteSidekick = async (sidekickId: string): Promise<void> => {
-  const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}`), {
-    method: 'DELETE',
-    headers: defaultHeaders
-  });
-  if (!response.ok) {
-    const message = await response.text().catch(() => '');
-    throw new Error(message || `Failed to delete sidekick (${response.status})`);
+  try {
+    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}`), {
+      method: 'DELETE',
+      headers: defaultHeaders
+    });
+    if (!response.ok) {
+      const message = await response.text().catch(() => '');
+      throw new Error(message || `Failed to delete sidekick (${response.status})`);
+    }
+  } catch (error) {
+    updateStore(store => ({
+      voices: store.voices.map(cloneVoice),
+      sidekicks: store.sidekicks.filter(sk => sk.id !== sidekickId).map(deepCloneSidekick)
+    }))
   }
 };

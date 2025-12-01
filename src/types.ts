@@ -172,7 +172,7 @@ export interface BlogPost {
 
 export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost';
 
-export type LeadFunnelType = 'homebuyer' | 'seller' | 'postShowing';
+export type LeadFunnelType = 'universal_sales' | 'homebuyer' | 'seller' | 'postShowing';
 
 export interface Lead {
     id: string;
@@ -212,6 +212,8 @@ export interface Appointment {
     date: string;
     time: string;
     leadId?: string | null;
+    agentId?: string | null;
+    agentName?: string | null;
     propertyId?: string | null;
     notes?: string;
     status?: 'Scheduled' | 'Completed' | 'Cancelled';

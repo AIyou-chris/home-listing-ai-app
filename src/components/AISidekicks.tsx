@@ -41,7 +41,7 @@ type SidekickTemplate = {
 };
 
 
-const CACHE_KEY = 'hlai:sidekick-meta';
+const CACHE_KEY = 'hlai:sidekick-meta-admin-v1';
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 
 const omitKey = <T,>(map: Record<string, T>, key: string): Record<string, T> => {
@@ -53,63 +53,63 @@ const omitKey = <T,>(map: Record<string, T>, key: string): Record<string, T> => 
 
 const sidekickTemplates: SidekickTemplate[] = [
   {
-    id: 'agent',
-    label: 'Agent Assistant',
-    description: 'Client communication, scheduling, and deal coordination.',
-    type: 'agent',
-    icon: '👤',
-    color: '#8B5CF6',
-    defaultName: 'Agent Sidekick',
+    id: 'god',
+    label: 'God (Ops Overseer)',
+    description: 'System-wide admin intelligence and decision support.',
+    type: 'god',
+    icon: '🧠',
+    color: '#0EA5E9',
+    defaultName: 'God',
     defaultVoice: 'nova',
     personality: {
-      description: 'You are the Agent Sidekick. Proactive, organized, and client-focused. Help manage communication, appointments, and deal workflows with clarity and empathy.',
-      traits: ['proactive', 'organized', 'helpful'],
+      description: 'You are the omniscient admin AI. Calm, precise, and directive. Provide short, actionable guidance with safety in mind.',
+      traits: ['directive', 'calm', 'system-aware'],
       preset: 'professional'
     }
   },
   {
-    id: 'marketing',
-    label: 'Marketing Strategist',
-    description: 'Content creation, campaigns, and social presence.',
-    type: 'marketing',
-    icon: '📈',
-    color: '#F59E0B',
-    defaultName: 'Marketing Sidekick',
-    defaultVoice: 'shimmer',
-    personality: {
-      description: 'You are the Marketing Sidekick. Energetic, creative, and conversion-focused. Craft compelling campaigns, catchy copy, and growth-focused marketing strategies.',
-      traits: ['creative', 'energetic', 'conversion-focused'],
-      preset: 'creative'
-    }
-  },
-  {
-    id: 'listing',
-    label: 'Listing Expert',
-    description: 'Property descriptions, market analysis, and pricing guidance.',
-    type: 'listing',
-    icon: '🏠',
-    color: '#EF4444',
-    defaultName: 'Listing Sidekick',
-    defaultVoice: 'onyx',
-    personality: {
-      description: 'You are the Listing Sidekick. Detail-oriented, analytical, and persuasive. Produce accurate pricing insights and compelling property descriptions that resonate with buyers.',
-      traits: ['detail-oriented', 'analytical', 'persuasive'],
-      preset: 'analytical'
-    }
-  },
-  {
     id: 'sales',
-    label: 'Sales Coach',
-    description: 'Lead qualification, objection handling, and deal closing.',
+    label: 'Sales',
+    description: 'Engages leads and drives bookings.',
     type: 'sales',
-    icon: '💼',
+    icon: '💰',
     color: '#10B981',
-    defaultName: 'Sales Sidekick',
-    defaultVoice: 'echo',
+    defaultName: 'Sales',
+    defaultVoice: 'sol',
     personality: {
-      description: 'You are the Sales Sidekick. Persuasive, confident, and results-driven. Support deal progression, handle objections, and deliver persuasive follow-ups.',
-      traits: ['persuasive', 'confident', 'results-driven'],
+      description: 'You are the Sales AI. Persuasive, concise, and CTA-driven. Always drive to the next step.',
+      traits: ['persuasive', 'concise', 'cta-driven'],
       preset: 'sales'
+    }
+  },
+  {
+    id: 'support',
+    label: 'Support',
+    description: 'Handles platform issues, triage, and help requests.',
+    type: 'support',
+    icon: '🛠️',
+    color: '#6366F1',
+    defaultName: 'Support',
+    defaultVoice: 'alloy',
+    personality: {
+      description: 'You are the Support AI. Empathetic, clear, and step-by-step. Resolve issues and guide next actions.',
+      traits: ['empathetic', 'clear', 'solution-oriented'],
+      preset: 'concierge'
+    }
+  },
+  {
+    id: 'marketing',
+    label: 'Marketing',
+    description: 'Campaigns, social content, and growth experiments.',
+    type: 'marketing',
+    icon: '📣',
+    color: '#F59E0B',
+    defaultName: 'Marketing',
+    defaultVoice: 'verse',
+    personality: {
+      description: 'You are the Marketing AI. Creative, on-brand, and conversion-focused. Ship campaigns and copy quickly.',
+      traits: ['creative', 'on-brand', 'conversion-focused'],
+      preset: 'creative'
     }
   }
 ];

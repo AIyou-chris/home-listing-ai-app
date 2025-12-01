@@ -1,20 +1,25 @@
 import React from 'react';
-import { LogoWithName } from './LogoWithName';
+import { LogoWithName } from '../components/LogoWithName';
 import { View } from '../types';
 
-export type AdminNavItem = {
-  view: View;
-  icon: string;
-  label: string;
-  badge?: string;
-};
+type DashboardView =
+  | 'dashboard'
+  | 'leads'
+  | 'ai-card'
+  | 'ai-conversations'
+  | 'listings'
+  | 'knowledge-base'
+  | 'ai-training'
+  | 'funnel-analytics'
+  | 'settings'
+  | 'analytics'
+  | View;
 
-interface AdminSidebarProps {
-  activeView: View;
-  setView: (view: View) => void;
+interface AdminDashboardSidebarProps {
+  activeView: DashboardView;
+  setView: (view: DashboardView) => void;
   isOpen: boolean;
   onClose: () => void;
-  navItems?: AdminNavItem[];
 }
 
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
@@ -22,14 +27,18 @@ const Icon: React.FC<{ name: string; className?: string }> = ({ name, className 
 );
 
 const NavItem: React.FC<{
-  viewName: View;
-  activeView: View;
-  setView: (view: View) => void;
+  viewName: DashboardView;
+  activeView: DashboardView;
+  setView: (view: DashboardView) => void;
   icon: string;
   children: React.ReactNode;
   onClose: () => void;
 }> = ({ viewName, activeView, setView, icon, children, onClose }) => {
-  const isActive = activeView === viewName;
+  const isListingsActive = viewName === 'listings' && (activeView === 'listings' || activeView === 'property' || activeView === 'add-listing');
+  const isLeadsActive = viewName === 'leads' && activeView === 'leads';
+  const isAiCardActive = viewName === 'ai-card' && (activeView === 'ai-card' || activeView === 'inbox');
+
+  const isActive = activeView === viewName || isListingsActive || isLeadsActive || isAiCardActive;
 
   return (
     <button
@@ -38,9 +47,7 @@ const NavItem: React.FC<{
         onClose();
       }}
       className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${
-        isActive
-          ? 'bg-primary-600 font-semibold text-white shadow-sm'
-          : 'font-medium text-slate-600 hover:bg-slate-100'
+        isActive ? 'bg-primary-600 font-semibold text-white shadow-sm' : 'font-medium text-slate-600 hover:bg-slate-100'
       }`}
     >
       <Icon name={icon} className={`transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`} />
@@ -49,26 +56,21 @@ const NavItem: React.FC<{
   );
 };
 
-const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, setView, isOpen, onClose, navItems }) => {
-  const defaultNavItems: AdminNavItem[] = [
-    { view: 'admin-dashboard', icon: 'dashboard', label: 'Overview' },
-    { view: 'admin-contacts', icon: 'groups', label: 'Contacts' },
-    // { view: 'admin-ai-content', icon: 'forum', label: 'AI Content' },
-    { view: 'admin-knowledge-base', icon: 'robot_2', label: 'Enhanced AI Sidekicks' },
-    { view: 'admin-ai-training', icon: 'school', label: 'Train Your AI' },
-    { view: 'admin-ai-card', icon: 'badge', label: 'AI Business Cards' },
-    // Removed: AI Personalities now managed per-knowledge-base
-    { view: 'admin-marketing', icon: 'filter_alt', label: 'AI Funnel' },
-    { view: 'admin-analytics', icon: 'analytics', label: 'Analytics' },
-    { view: 'admin-security', icon: 'security', label: 'Security' },
-    { view: 'admin-billing', icon: 'payments', label: 'Billing' },
-    { view: 'admin-settings', icon: 'settings', label: 'Settings' },
+const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeView, setView, isOpen, onClose }) => {
+  const navItems = [
+    { view: 'dashboard', icon: 'home', label: 'Admin Overview' },
+    { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
+    { view: 'ai-card', icon: 'badge', label: 'AI Card' },
+    { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
+    { view: 'listings', icon: 'storefront', label: 'AI Listings' },
+    { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
+    { view: 'ai-training', icon: 'school', label: 'Train Your AI' },
+    { view: 'funnel-analytics', icon: 'monitoring', label: 'Leads Funnel' },
+    { view: 'settings', icon: 'settings', label: 'Settings' }
   ];
 
-  const items = navItems ?? defaultNavItems;
-  
   const handleLogoClick = () => {
-    setView('admin-dashboard');
+    setView('dashboard');
     onClose();
   };
 
@@ -94,19 +96,15 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, setView, isOpen
                 </button>
                  <button onClick={onClose} className="md:hidden p-1 rounded-full text-slate-500 hover:bg-slate-100">
                     <Icon name="close" />
-                </button>
-            </div>
-
-            <div className="mb-4 px-2">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Admin Panel</div>
+                 </button>
             </div>
 
             <nav className="flex-1">
                 <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm divide-y divide-slate-200">
-                    {items.map((item) => (
+                    {navItems.map((item) => (
                         <NavItem
                             key={item.view}
-                            viewName={item.view as View}
+                            viewName={item.view as DashboardView}
                             activeView={activeView}
                             setView={setView}
                             icon={item.icon}
@@ -121,14 +119,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, setView, isOpen
             <div className="mt-auto flex flex-col space-y-2 border-t border-slate-200 pt-4">
                 <button className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 transition-colors">
                     <Icon name="notifications" className="text-slate-500" />
-                    <span>System Alerts</span>
-                </button>
-                <button 
-                    onClick={() => setView('landing')}
-                    className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 transition-colors"
-                >
-                    <Icon name="arrow_back" className="text-slate-500" />
-                    <span>Back to App</span>
+                    <span>Notifications</span>
                 </button>
             </div>
         </aside>
@@ -136,4 +127,4 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, setView, isOpen
   );
 };
 
-export default AdminSidebar;
+export default AdminDashboardSidebar;

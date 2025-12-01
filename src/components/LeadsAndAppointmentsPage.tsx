@@ -37,32 +37,23 @@ const LeadStatusBadge: React.FC<{ status: LeadStatus }> = ({ status }) => {
 
 const funnelOptions: Array<{ id: LeadFunnelType; label: string; description: string; icon: string; accent: string }> = [
     {
-        id: 'homebuyer',
-        label: 'Homebuyer Journey',
-        description: 'Tours, curated matches, financing boosts.',
-        icon: 'maps_home_work',
+        id: 'universal_sales',
+        label: 'Universal Sales Funnel (5-Touch)',
+        description: 'Auto-applied 5-touch sequence with urgency, benefits, and CTAs.',
+        icon: 'bolt',
         accent: 'text-blue-600 bg-blue-50 border-blue-200'
-    },
-    {
-        id: 'seller',
-        label: 'Seller Funnel',
-        description: 'Story intake, launch campaigns, AI listing tweaks.',
-        icon: 'campaign',
-        accent: 'text-orange-600 bg-orange-50 border-orange-200'
-    },
-    {
-        id: 'postShowing',
-        label: 'Showing Follow-Up',
-        description: 'Surveys, comps, and urgency nudges.',
-        icon: 'event_available',
-        accent: 'text-purple-600 bg-purple-50 border-purple-200'
     }
 ];
 
 const funnelLabelMap = funnelOptions.reduce<Record<LeadFunnelType, string>>((map, option) => {
     map[option.id] = option.label;
     return map;
-}, {} as Record<LeadFunnelType, string>);
+}, {
+    universal_sales: 'Universal Sales Funnel',
+    homebuyer: 'Legacy Homebuyer',
+    seller: 'Legacy Seller',
+    postShowing: 'Legacy Post-Showing'
+} as Record<LeadFunnelType, string>);
 
 const LeadsList: React.FC<{
     leads: Lead[];

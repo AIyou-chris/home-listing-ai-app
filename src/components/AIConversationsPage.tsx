@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   Search,
   Download,
@@ -18,15 +18,12 @@ import {
 import {
   listConversations,
   getMessages,
-  createConversation,
-  appendMessage,
   deleteConversation,
   exportConversationsCSV,
   type ConversationRow,
   type MessageRow
 } from '../services/chatService';
 import { supabase } from '../services/supabase';
-import { DEMO_AI_CONVERSATIONS } from '../constants';
 
 type ConversationType = 'chat' | 'voice' | 'email';
 type ConversationStatus = 'active' | 'archived' | 'important' | 'follow-up';
@@ -195,44 +192,15 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncAgeSeconds, setSyncAgeSeconds] = useState(0);
-  const welcomeSeededRef = useRef(false);
 
   const loadConversations = useCallback(async () => {
     try {
       setLoadingConversations(true);
       setError(null);
       
-      if (isDemoMode) {
-        // Load demo conversations in demo mode
-        const demoConvs = DEMO_AI_CONVERSATIONS.map(conv => ({
-          id: conv.id,
-          contactName: conv.contactName,
-          contactEmail: conv.contactEmail,
-          contactPhone: conv.contactPhone,
-          type: conv.type,
-          lastMessage: conv.lastMessage,
-          timestamp: conv.timestamp,
-          status: conv.status,
-          messageCount: conv.messageCount,
-          property: conv.property,
-          tags: conv.tags,
-          intent: conv.intent,
-          duration: null,
-          language: undefined,
-          voiceTranscript: undefined,
-          followUpTask: undefined
-        }));
-        setConversations(demoConvs);
-        if (demoConvs.length && !selectedConversationId) {
-          setSelectedConversationId(demoConvs[0].id);
-        }
-        setLastSyncedAt(new Date());
-        return;
-      }
-      
       const rows = await listConversations({
         userId: currentUserId ?? undefined,
-        scope: 'agent'
+        scope: 'admin'
       });
       const mapped = rows.map(mapConversationRowToSummary);
       setConversations(mapped);
@@ -246,13 +214,9 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
     } finally {
       setLoadingConversations(false);
     }
-  }, [selectedConversationId, currentUserId, isDemoMode]);
+  }, [selectedConversationId, currentUserId]);
 
   useEffect(() => {
-    if (isDemoMode) {
-      setCurrentUserId('demo-user');
-      return;
-    }
     const fetchUser = async () => {
       try {
         const { data } = await supabase.auth.getUser();
@@ -263,63 +227,11 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
       }
     };
     fetchUser();
-  }, [isDemoMode]);
+  }, []);
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
-
-  useEffect(() => {
-    if (isDemoMode) {
-      // Skip welcome conversation in demo mode - we have demo conversations
-      return;
-    }
-    const ensureWelcomeConversation = async () => {
-      if (welcomeSeededRef.current) return;
-      welcomeSeededRef.current = true;
-      try {
-        const demoConversation = await createConversation({
-          scope: 'agent',
-          type: 'chat',
-          contactName: 'Welcome Walkthrough',
-          contactEmail: 'ai-demo@homelistingai.com',
-          contactPhone: '',
-          title: 'Welcome to AI Conversations',
-          intent: 'Buyer',
-          language: 'English',
-          tags: ['Demo', 'AI Sidekick'],
-          followUpTask: 'Try sending a reply or archiving this conversation.',
-          metadata: { demo: true, duration: '00:45' },
-          userId: currentUserId
-        });
-
-        await appendMessage({
-          conversationId: demoConversation.id,
-          role: 'ai',
-          channel: 'chat',
-          content:
-            '👋 Welcome! This demo conversation shows how AI captures chats, voice notes, and translations. Click around to explore filters, insights, and exports.',
-          userId: currentUserId
-        });
-
-        await appendMessage({
-          conversationId: demoConversation.id,
-          role: 'user',
-          channel: 'chat',
-          content: 'Note: You can delete this sample conversation any time once you get the hang of things.',
-          userId: currentUserId
-        });
-
-        await loadConversations();
-      } catch (err) {
-        console.error('Failed to create welcome conversation:', err);
-      }
-    };
-
-    if (!loadingConversations && conversations.length === 0) {
-      ensureWelcomeConversation();
-    }
-  }, [loadingConversations, conversations.length, loadConversations, currentUserId, isDemoMode]);
 
   useEffect(() => {
     setIsDetailExpanded(false);
@@ -363,24 +275,6 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
     const loadMessagesForConversation = async (conversationId: string) => {
       if (!conversationId) return;
       if (messagesByConversation[conversationId]) return;
-      
-      if (isDemoMode) {
-        // Load demo messages in demo mode
-        const demoConv = DEMO_AI_CONVERSATIONS.find(c => c.id === conversationId);
-        if (demoConv && demoConv.messages) {
-          setMessagesByConversation((prev) => ({
-            ...prev,
-            [conversationId]: demoConv.messages.map((msg, idx) => ({
-              id: `${conversationId}-msg-${idx}`,
-              role: msg.role,
-              content: msg.content,
-              timestamp: new Date(Date.now() - (demoConv.messages.length - idx) * 60000).toISOString(),
-              channel: 'chat' as const
-            }))
-          }));
-        }
-        return;
-      }
       
       try {
         setLoadingMessages(true);
@@ -558,11 +452,9 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
             <div className="mt-3 text-sm text-slate-600 space-y-3">
               <div>
                 <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" /> Demo Conversation
+                  <Sparkles className="w-4 h-4" /> How to use this inbox
                 </h3>
-                <p>
-                  We added a welcome conversation so you can see how AI threads look. Reply, archive, or delete it to test your workflow.
-                </p>
+                <p>All admin AI sidekick chats, lead inquiries, and system follow-ups land here.</p>
               </div>
               <div>
                 <h3 className="font-semibold text-slate-800 flex items-center gap-2">
