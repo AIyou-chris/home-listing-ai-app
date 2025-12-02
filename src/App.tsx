@@ -11,6 +11,7 @@ import CheckoutPage from './components/CheckoutPage';
 import { getRegistrationContext } from './services/agentOnboardingService';
 import Dashboard from './components/Dashboard';
 import AgentDashboardBlueprint from './components/AgentDashboardBlueprint';
+import DemoDashboard from './components/DemoDashboard';
 import Sidebar from './components/Sidebar';
 import PropertyPage from './components/PropertyPage';
 import ListingsPage from './components/ListingsPage';
@@ -26,6 +27,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 import ConsultationModal from './components/ConsultationModal';
 import { AISidekickProvider } from './context/AISidekickContext';
+import { AgentBrandingProvider } from './context/AgentBrandingContext';
 import { getProfileForDashboard, subscribeToProfileChanges } from './services/agentProfileService';
 // Lazy load admin components for better performance
 const AdminLogin = lazy(() => import('./components/AdminLogin'));
@@ -142,6 +144,9 @@ interface BackendListing {
     ctaMediaUrl?: string;
 }
 
+import { ImpersonationProvider } from './context/ImpersonationContext';
+const AdminUsersPage = lazy(() => import('./components/AdminUsersPage'));
+
 const App: React.FC = () => {
     const [user, setUser] = useState<AppUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -153,7 +158,7 @@ const App: React.FC = () => {
     const handleViewChange = useCallback((nextView: View) => {
         setView(nextView);
     }, []);
-    
+
 
     const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
     const [properties, setProperties] = useState<Property[]>([]);
@@ -229,7 +234,7 @@ const App: React.FC = () => {
         smsReminders: true,
         newAppointmentAlerts: true
     });
-    const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid'}] });
+    const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{ id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid' }] });
     // Removed unused state variables
     const [activeAgentSlug, setActiveAgentSlug] = useState<string | null>(null);
 
@@ -280,7 +285,7 @@ const App: React.FC = () => {
                     setView('admin-setup');
                     break;
                 case 'ai-card':
-                    setView('dashboard');
+                    setView('ai-card');
                     break;
                 case 'test':
                     setView('landing');
@@ -299,6 +304,10 @@ const App: React.FC = () => {
                     break;
                 case 'blog-post':
                     setView('blog-post');
+                    break;
+                case 'admin-users':
+                    resetAdminLogin();
+                    setView('admin-users');
                     break;
                 default:
                     if (route && isAdminView(route)) {
@@ -323,22 +332,22 @@ const App: React.FC = () => {
     useEffect(() => {
         // Validate environment on app startup
         EnvValidation.logValidationResults();
-        
+
         // Initialize session tracking
         // SessionService removed
-        
+
         // Initialize performance monitoring
         PerformanceService.initialize();
-        
+
         const initAuth = async () => {
             const { data } = await supabase.auth.getUser();
             const currentUser: AppUser | null = data.user
                 ? {
-                      uid: data.user.id,
-                      id: data.user.id,
-                      email: data.user.email,
-                      displayName: data.user.user_metadata?.name ?? null
-                  }
+                    uid: data.user.id,
+                    id: data.user.id,
+                    email: data.user.email,
+                    displayName: data.user.user_metadata?.name ?? null
+                }
                 : null;
             setIsLoading(true);
             setIsSettingUp(false); // Reset on every auth change
@@ -346,7 +355,7 @@ const App: React.FC = () => {
 
             // Check URL hash/path first - some routes don't require auth
             const { route } = getRouteInfo();
-            
+
             // Allow access to certain routes without auth
             if (route === 'dashboard-blueprint') {
                 setView('dashboard-blueprint');
@@ -364,10 +373,10 @@ const App: React.FC = () => {
 
             if (currentUser) {
                 console.log(`User signed in: ${currentUser.uid}`);
-                
-                // Check if user is the specific admin
-                const isAdmin = currentUser.email === 'us@homelistingai.com';
-                
+
+                // Check if user is an admin via RPC
+                const { data: isAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+
                 if (isAdmin) {
                     console.log("Admin user detected, going to admin dashboard");
                     setUser(currentUser);
@@ -388,7 +397,7 @@ const App: React.FC = () => {
                     setIsLoading(false);
                     return;
                 }
-                
+
                 let propertiesToLoad: Property[] = [];
                 let attempts = 0;
                 const maxAttempts = 5;
@@ -401,9 +410,9 @@ const App: React.FC = () => {
 
                     if (propertiesToLoad.length === 0 && attempts < maxAttempts) {
                         if (attempts === 1) {
-                             // This is likely a new user.
-                             console.log("New user detected, waiting for account setup from backend...");
-                             setIsSettingUp(true); // Show a setup message
+                            // This is likely a new user.
+                            console.log("New user detected, waiting for account setup from backend...");
+                            setIsSettingUp(true); // Show a setup message
                         }
                         await sleep(2000); // Wait and retry
                     }
@@ -481,11 +490,11 @@ const App: React.FC = () => {
         const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
             const currentUser: AppUser | null = session?.user
                 ? {
-                      uid: session.user.id,
-                      id: session.user.id,
-                      email: session.user.email,
-                      displayName: session.user.user_metadata?.name ?? null
-                  }
+                    uid: session.user.id,
+                    id: session.user.id,
+                    email: session.user.email,
+                    displayName: session.user.user_metadata?.name ?? null
+                }
                 : null;
             // Re-run the same flow with new user
             setIsLoading(true);
@@ -507,12 +516,12 @@ const App: React.FC = () => {
     // Load centralized agent profile and set up real-time updates
     useEffect(() => {
         if (user && !isDemoMode) {
-                    // Load centralized agent profile
-        loadAgentProfile();
-        
-        // Load listings from backend
-        loadListingsFromBackend();
-            
+            // Load centralized agent profile
+            loadAgentProfile();
+
+            // Load listings from backend
+            loadListingsFromBackend();
+
             // Subscribe to profile changes for real-time updates
             const unsubscribe = subscribeToProfileChanges((updatedProfile) => {
                 setUserProfile(prev => ({
@@ -526,7 +535,7 @@ const App: React.FC = () => {
                 }));
                 console.log('🔄 Profile updated across app');
             });
-            
+
             return () => {
                 unsubscribe();
             };
@@ -621,7 +630,7 @@ const App: React.FC = () => {
             setProperties(DEMO_FAT_PROPERTIES);
         }
     };
-    
+
     const handleEnterDemoMode = () => {
         setIsDemoMode(true);
         setProperties(DEMO_FAT_PROPERTIES);
@@ -644,9 +653,9 @@ const App: React.FC = () => {
     const handleAdminLogin = async (email: string, password: string) => {
         setIsAdminLoginLoading(true);
         setAdminLoginError(null);
-        
+
         try {
-            const trimmedEmail = email.trim();
+            const trimmedEmail = email.trim().toLowerCase();
             const trimmedPassword = password.trim();
 
             // Try local demo credentials first for immediate access
@@ -659,24 +668,29 @@ const App: React.FC = () => {
             }
 
             // If demo credentials don't match, try Supabase Auth
-            const { error } = await supabase.auth.signInWithPassword({
+            const { data, error } = await supabase.auth.signInWithPassword({
                 email: trimmedEmail,
                 password: trimmedPassword
             });
-            
-            if (error) {
+
+            if (error || !data.user) {
                 setAdminLoginError('Invalid login credentials');
                 return;
             }
-            
-            // Ensure admin metadata
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user?.user_metadata?.role !== 'admin') {
-                await supabase.auth.updateUser({
-                    data: { role: 'admin', name: 'Admin User', plan: 'Admin' }
-                });
+
+            // Check if user has admin role via RPC
+            const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
+
+            if (rpcError || !isAdmin) {
+                console.warn('Login successful but user is not an admin', rpcError);
+                await supabase.auth.signOut();
+                setAdminLoginError('Unauthorized: You do not have admin privileges.');
+                return;
             }
-            
+
+            // Admin role confirmed via RPC
+            // Proceed to dashboard
+
             setIsAdminLoginOpen(false);
             setView('admin-dashboard');
             window.location.hash = 'admin-dashboard';
@@ -705,7 +719,7 @@ const App: React.FC = () => {
 
     // Task management handlers
     const handleTaskUpdate = (taskId: string, updates: Partial<AgentTask>) => {
-        setTasks(prev => prev.map(task => 
+        setTasks(prev => prev.map(task =>
             task.id === taskId ? { ...task, ...updates } : task
         ));
     };
@@ -722,7 +736,7 @@ const App: React.FC = () => {
         setSelectedPropertyId(id);
         setView('property');
     };
-    
+
     const handleSetProperty = (updatedProperty: Property) => {
         setProperties(prev => prev.map(p => p.id === updatedProperty.id ? updatedProperty : p));
     };
@@ -738,7 +752,7 @@ const App: React.FC = () => {
             ...newPropertyData,
             agent: userProfile,
         };
-        
+
         const tempId = `prop-temp-${Date.now()}`;
         const propertyForState: Property = {
             id: tempId,
@@ -746,7 +760,7 @@ const App: React.FC = () => {
             imageUrl: 'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto-format&fit=crop',
             ...propertyWithAgent,
         };
-        
+
         setProperties(prev => [propertyForState, ...prev]);
         setView('listings');
 
@@ -761,7 +775,7 @@ const App: React.FC = () => {
                 const { id: _discardedId, ...dataForPersistence } = propertyForState;
                 void _discardedId;
                 const newDocId = await addProperty(dataForPersistence, user.uid);
-                
+
                 setProperties(prev => prev.map(p => p.id === tempId ? { ...p, id: newDocId } : p));
             } catch (error) {
                 console.error("Failed to save property:", error);
@@ -773,9 +787,9 @@ const App: React.FC = () => {
     };
 
     const handleDeleteProperty = (id: string) => {
-        if(window.confirm('Are you sure you want to delete this listing?')) {
+        if (window.confirm('Are you sure you want to delete this listing?')) {
             setProperties(prev => prev.filter(p => p.id !== id));
-            if(selectedPropertyId === id) {
+            if (selectedPropertyId === id) {
                 setSelectedPropertyId(null);
                 setView('listings');
             }
@@ -806,7 +820,7 @@ const App: React.FC = () => {
         },
         [resolvePropertyForLead, sequences, userProfile]
     );
-    
+
     const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
         const payload: LeadPayload = {
             name: leadData.name,
@@ -837,7 +851,7 @@ const App: React.FC = () => {
             setLeads(prev => [createdLead, ...prev]);
             await triggerLeadSequences(createdLead);
         }
-        setView('leads'); 
+        setView('leads');
     };
 
     const handleLeadFunnelAssigned = useCallback(
@@ -910,59 +924,61 @@ const App: React.FC = () => {
         load();
     }, [user, isDemoMode]);
 
-	// Track which property is currently selected
-	const selectedProperty = properties.find(p => p.id === selectedPropertyId);
-	// Detect local admin mode via persisted flag
-	const isLocalAdmin = Boolean(localStorage.getItem('adminUser'));
+    // Track which property is currently selected
+    const selectedProperty = properties.find(p => p.id === selectedPropertyId);
+    // Detect local admin mode via persisted flag
+    const isLocalAdmin = Boolean(localStorage.getItem('adminUser'));
 
-	if (isLoading) {
-		return (
-			<div className="flex items-center justify-center h-screen bg-slate-50">
-				<LoadingSpinner size="xl" type="dots" text="Loading Application..." />
-			</div>
-		);
-	}
-	
-	if (isSettingUp) {
-		return (
-			<div className="flex flex-col items-center justify-center h-screen bg-slate-50">
-				<LoadingSpinner size="xl" type="pulse" text="Setting up your new account..." />
-			</div>
-		);
-	}
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-slate-50">
+                <LoadingSpinner size="xl" type="dots" text="Loading Application..." />
+            </div>
+        );
+    }
 
-	const renderViewContent = () => {
-		const registrationContext = getRegistrationContext() as { slug?: string } | null;
-		const slugForCheckout = activeAgentSlug || registrationContext?.slug || null;
-		const renderCheckout = () => {
-			if (!slugForCheckout) {
-				return (
-					<div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
-						<div className="max-w-md space-y-4">
-							<h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
-							<p className="text-sm text-slate-600">
-								Your secure checkout link may have expired. Please restart the signup process to generate a new link.
-							</p>
-							<button
-								type="button"
-								onClick={handleNavigateToSignUp}
-								className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
-							>
-								<span className="material-symbols-outlined text-base">person_add</span>
-								Start new signup
-							</button>
-						</div>
-					</div>
-				);
-			}
+    if (isSettingUp) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+                <LoadingSpinner size="xl" type="pulse" text="Setting up your new account..." />
+            </div>
+        );
+    }
 
-			return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
-		};
+    const renderViewContent = () => {
+        const registrationContext = getRegistrationContext() as { slug?: string } | null;
+        const slugForCheckout = activeAgentSlug || registrationContext?.slug || null;
+        const renderCheckout = () => {
+            if (!slugForCheckout) {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
+                        <div className="max-w-md space-y-4">
+                            <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
+                            <p className="text-sm text-slate-600">
+                                Your secure checkout link may have expired. Please restart the signup process to generate a new link.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleNavigateToSignUp}
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
+                            >
+                                <span className="material-symbols-outlined text-base">person_add</span>
+                                Start new signup
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
+        };
 
         const isMarketingLanding = view === 'landing' && !user && !isDemoMode && !isLocalAdmin;
         const resolvedView = (user || isDemoMode || isLocalAdmin) && view === 'landing' ? 'dashboard' : view;
 
-        if (!user && !isDemoMode && !isLocalAdmin && view === 'admin-dashboard') {
+
+
+        if (isMarketingLanding) {
             return (
                 <LandingPage
                     onNavigateToSignUp={handleNavigateToSignUp}
@@ -976,279 +992,295 @@ const App: React.FC = () => {
             );
         }
 
-		if (isMarketingLanding) {
-			return (
-				<LandingPage
-					onNavigateToSignUp={handleNavigateToSignUp}
-					onNavigateToSignIn={handleNavigateToSignIn}
-					onEnterDemoMode={handleEnterDemoMode}
-					scrollToSection={scrollToSection}
-					onScrollComplete={() => setScrollToSection(null)}
-					onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-					onNavigateToAdmin={handleNavigateToAdmin}
-				/>
-			);
-		}
+        // Logged-in, Demo, or Local Admin views
+        if ((user || isDemoMode || isLocalAdmin) && view === 'dashboard-blueprint') {
+            return <AgentDashboardBlueprint />;
+        }
 
-		// Logged-in, Demo, or Local Admin views
-		if ((user || isDemoMode || isLocalAdmin) && view === 'dashboard-blueprint') {
-			return <AgentDashboardBlueprint />;
-		}
+        if (user || isDemoMode || isLocalAdmin) {
 
-		if (user || isDemoMode || isLocalAdmin) {
+            const mapAdminViewToTab = (adminView: View): View => {
+                switch (adminView) {
+                    case 'admin-leads':
+                    case 'admin-contacts':
+                        return 'leads';
+                    case 'admin-ai-card':
+                        return 'ai-card';
+                    case 'admin-ai-training':
+                        return 'ai-training';
+                    case 'admin-knowledge-base':
+                    case 'admin-ai-personalities':
+                        return 'knowledge-base';
+                    case 'admin-marketing':
+                    case 'admin-analytics':
+                        return 'funnel-analytics';
+                    case 'admin-settings':
+                        return 'settings';
+                    default:
+                        return 'dashboard';
+                }
+            };
 
-			const mapAdminViewToTab = (adminView: View): View => {
-				switch (adminView) {
-					case 'admin-leads':
-					case 'admin-contacts':
-						return 'leads';
-					case 'admin-ai-card':
-						return 'ai-card';
-					case 'admin-ai-training':
-						return 'ai-training';
-					case 'admin-knowledge-base':
-					case 'admin-ai-personalities':
-						return 'knowledge-base';
-					case 'admin-marketing':
-					case 'admin-analytics':
-						return 'funnel-analytics';
-					case 'admin-settings':
-						return 'settings';
-					default:
-						return 'dashboard';
-				}
-			};
+            if (view.startsWith('admin-') && view !== 'admin-setup' && view !== 'admin-users') {
+                return (
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <AdminDashboardClone initialTab={mapAdminViewToTab(view) as any} />
+                    </Suspense>
+                );
+            }
 
-			if (view.startsWith('admin-') && view !== 'admin-setup') {
-				return (
-					<Suspense fallback={<LoadingSpinner />}>
-						<AdminDashboardClone initialTab={mapAdminViewToTab(view)} />
-					</Suspense>
-				);
-			}
+            const mainContent = () => {
+                switch (resolvedView) {
+                    case 'demo-dashboard':
+                        if (!isDemoMode) {
+                            localStorage.setItem('isDemoMode', 'true');
+                        }
+                        return <DemoDashboard properties={DEMO_FAT_PROPERTIES} onSelectProperty={() => undefined} />;
+                    case 'dashboard':
+                        if (isDemoMode) {
+                            return <DemoDashboard properties={DEMO_FAT_PROPERTIES} onSelectProperty={() => undefined} />;
+                        }
+                        return <Dashboard
+                            agentProfile={userProfile}
+                            properties={properties}
+                            leads={leads}
+                            appointments={appointments}
+                            tasks={tasks}
+                            onSelectProperty={handleSelectProperty}
+                            onTaskUpdate={handleTaskUpdate}
+                            onTaskAdd={handleTaskAdd}
+                            onTaskDelete={handleTaskDelete}
+                        />;
+                    case 'openai-test':
+                        return (
+                            <LandingPage
+                                onNavigateToSignUp={handleNavigateToSignUp}
+                                onNavigateToSignIn={handleNavigateToSignIn}
+                                onEnterDemoMode={handleEnterDemoMode}
+                                scrollToSection={scrollToSection}
+                                onScrollComplete={() => setScrollToSection(null)}
+                                onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                                onNavigateToAdmin={handleNavigateToAdmin}
+                            />
+                        );
+                    case 'dashboard-blueprint':
+                        return <AgentDashboardBlueprint />;
+                    case 'checkout':
+                        return renderCheckout();
+                    case 'property':
+                        return selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setView('listings')} /> : <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')} />;
+                    case 'listings':
+                        return <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')} />;
+                    case 'add-listing':
+                        return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} />;
+                    case 'leads':
+                        return (
+                            <LeadsAndAppointmentsPage
+                                leads={leads}
+                                appointments={appointments}
+                                onAddNewLead={handleAddNewLead}
+                                onBackToDashboard={() => setView('dashboard')}
+                                resolvePropertyForLead={resolvePropertyForLead}
+                                onNewAppointment={async (appt) => {
+                                    setAppointments((prev) => [appt, ...prev]);
 
-			const mainContent = () => {
-				switch(resolvedView) {
-					case 'openai-test':
-						return (
-							<LandingPage
-								onNavigateToSignUp={handleNavigateToSignUp}
-								onNavigateToSignIn={handleNavigateToSignIn}
-								onEnterDemoMode={handleEnterDemoMode}
-								scrollToSection={scrollToSection}
-								onScrollComplete={() => setScrollToSection(null)}
-								onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-								onNavigateToAdmin={handleNavigateToAdmin}
-							/>
-						);
-					case 'dashboard':
-						return <Dashboard 
-							agentProfile={userProfile} 
-							properties={properties} 
-							leads={leads} 
-							appointments={appointments} 
-							tasks={tasks} 
-							onSelectProperty={handleSelectProperty} 
-							onTaskUpdate={handleTaskUpdate}
-							onTaskAdd={handleTaskAdd}
-							onTaskDelete={handleTaskDelete}
-						/>;
-					case 'dashboard-blueprint':
-						return <AgentDashboardBlueprint />;
-					case 'checkout':
-						return renderCheckout();
-					case 'property': 
-						return selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setView('listings')} /> : <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')} />;
-					case 'listings': 
-						return <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => setView('add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => setView('dashboard')}/>;
-					case 'add-listing': 
-						return <AddListingPage onCancel={() => setView('dashboard')} onSave={handleSaveNewProperty} />;
-					case 'leads': 
-						return (
-							<LeadsAndAppointmentsPage
-								leads={leads}
-								appointments={appointments}
-								onAddNewLead={handleAddNewLead}
-								onBackToDashboard={() => setView('dashboard')}
-								resolvePropertyForLead={resolvePropertyForLead}
-								onNewAppointment={async (appt) => {
-									setAppointments((prev) => [appt, ...prev]);
+                                    const lead = appt.leadId ? leads.find((l) => l.id === appt.leadId) : undefined;
+                                    if (lead) {
+                                        await triggerLeadSequences(
+                                            lead,
+                                            'Appointment Scheduled',
+                                            resolvePropertyForLead(lead)
+                                        );
+                                    }
+                                }}
+                                onAssignFunnel={handleLeadFunnelAssigned}
+                            />
+                        );
+                    case 'inbox':
+                        return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
+                    case 'ai-conversations':
+                        return <AIConversationsPage isDemoMode={isDemoMode} />;
+                    case 'ai-card':
+                        return <AICardPage isDemoMode={isDemoMode} />;
+                    case 'knowledge-base':
+                        return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
+                    case 'ai-training':
+                        return <AIInteractiveTraining demoMode={isDemoMode} />;
+                    case 'funnel-analytics':
+                        return (
+                            <FunnelAnalyticsPanel
+                                onBackToDashboard={() => setView('dashboard')}
+                                title="Leads Funnel"
+                                subtitle="Homebuyer, Seller, and Showing funnels for every lead"
+                                variant="page"
+                            />
+                        );
+                    case 'analytics':
+                        return <AnalyticsDashboard />;
+                    case 'ai-sidekicks':
+                        return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
+                    case 'demo-listing':
+                        return <DemoListingPage />;
+                    case 'settings':
+                        return <SettingsPage
+                            userId={user?.uid ?? 'guest-agent'}
+                            userProfile={userProfile}
+                            onSaveProfile={setUserProfile}
+                            notificationSettings={notificationSettings}
+                            onSaveNotifications={setNotificationSettings}
+                            emailSettings={emailSettings}
+                            onSaveEmailSettings={setEmailSettings}
+                            calendarSettings={calendarSettings}
+                            onSaveCalendarSettings={setCalendarSettings}
+                            billingSettings={billingSettings}
+                            onSaveBillingSettings={setBillingSettings}
+                            onBackToDashboard={() => setView('dashboard')}
+                            onNavigateToAICard={() => setView('ai-card')}
+                        />;
+                    case 'admin-users':
+                        return (
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <AdminUsersPage />
+                            </Suspense>
+                        );
+                    default:
+                        return <Dashboard
+                            agentProfile={userProfile}
+                            properties={properties}
+                            leads={leads}
+                            appointments={appointments}
+                            tasks={tasks}
+                            onSelectProperty={handleSelectProperty}
+                            onTaskUpdate={handleTaskUpdate}
+                            onTaskAdd={handleTaskAdd}
+                            onTaskDelete={handleTaskDelete}
+                        />;
+                }
+            };
 
-									const lead = appt.leadId ? leads.find((l) => l.id === appt.leadId) : undefined;
-									if (lead) {
-										await triggerLeadSequences(
-											lead,
-											'Appointment Scheduled',
-											resolvePropertyForLead(lead)
-										);
-									}
-								}}
-								onAssignFunnel={handleLeadFunnelAssigned}
-							/>
-						);
-					case 'inbox': 
-						return <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => setView('dashboard')} />;
-					case 'ai-conversations':
-						return <AIConversationsPage isDemoMode={isDemoMode} />;
-					case 'ai-card':
-						return <AICardPage isDemoMode={isDemoMode} />;
-					case 'knowledge-base': 
-						return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
-					case 'ai-training':
-						return <AIInteractiveTraining demoMode={isDemoMode} />;
-					case 'funnel-analytics':
-						return (
-							<FunnelAnalyticsPanel
-								onBackToDashboard={() => setView('dashboard')}
-								title="Leads Funnel"
-								subtitle="Homebuyer, Seller, and Showing funnels for every lead"
-								variant="page"
-							/>
-						);
-					case 'analytics': 
-						return <AnalyticsDashboard />;
-					case 'ai-sidekicks':
-						return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
-					case 'demo-listing':
-						return <DemoListingPage />;
-					case 'settings': 
-						return <SettingsPage 
-							userId={user?.uid ?? 'guest-agent'}
-							userProfile={userProfile}
-							onSaveProfile={setUserProfile}
-							notificationSettings={notificationSettings}
-							onSaveNotifications={setNotificationSettings}
-							emailSettings={emailSettings}
-							onSaveEmailSettings={setEmailSettings}
-							calendarSettings={calendarSettings}
-							onSaveCalendarSettings={setCalendarSettings}
-							billingSettings={billingSettings}
-							onSaveBillingSettings={setBillingSettings}
-							onBackToDashboard={() => setView('dashboard')}
-						/>;
-					default:
-						return <Dashboard 
-							agentProfile={userProfile} 
-							properties={properties} 
-							leads={leads} 
-							appointments={appointments} 
-							tasks={tasks} 
-							onSelectProperty={handleSelectProperty} 
-							onTaskUpdate={handleTaskUpdate}
-							onTaskAdd={handleTaskAdd}
-							onTaskDelete={handleTaskDelete}
-						/>;
-				}
-			};
-
-			return (
-				<div className="flex h-screen bg-slate-50">
-					<Sidebar activeView={view} setView={handleViewChange} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-					<div className="flex-1 flex flex-col overflow-hidden">
-						<header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
-							<button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
-								<span className="material-symbols-outlined text-xl">menu</span>
-							</button>
-							<div className="flex-1 flex justify-center">
-								<LogoWithName />
-							</div>
+            return (
+                <div className="flex h-screen bg-slate-50">
+                    <Sidebar activeView={view} setView={handleViewChange} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
+                            <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
+                                <span className="material-symbols-outlined text-xl">menu</span>
+                            </button>
+                            <div className="flex-1 flex justify-center">
+                                <LogoWithName />
+                            </div>
                             <div className="flex items-center space-x-1">
                                 <NotificationSystem userId={user?.uid || ''} />
                             </div>
-						</header>
-						<main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
-							{mainContent()}
-						</main>
-					</div>
-				</div>
-			);
-		}
+                        </header>
+                        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+                            {mainContent()}
+                        </main>
+                    </div>
+                </div>
+            );
+        }
 
-		// Unauthenticated views
-		switch(view) {
-			case 'signup':
-				return <SignUpPage onNavigateToSignIn={handleNavigateToSignIn} onNavigateToLanding={handleNavigateToLanding} onNavigateToSection={handleNavigateToSection} onEnterDemoMode={handleEnterDemoMode} />;
-			case 'signin':
-				return <SignInPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToLanding={handleNavigateToLanding} onNavigateToSection={handleNavigateToSection} onEnterDemoMode={handleEnterDemoMode} />;
-			case 'checkout':
-				return renderCheckout();
-			case 'dashboard-blueprint':
-				return <AgentDashboardBlueprint />;
-			case 'landing':
-				return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
-			case 'new-landing':
-				return <NewLandingPage />;
-			case 'blog':
-				return <BlogPage />;
-			case 'blog-post':
-				return <BlogPostPage />;
-			case 'demo-listing':
-				return <DemoListingPage />;
-			case 'vapi-test':
-				return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
-			case 'admin-setup':
-				if (isAdminLoginOpen) {
-					setIsAdminLoginOpen(false);
-					setAdminLoginError(null);
-				}
-				return (
-					<Suspense fallback={<LoadingSpinner />}>
-						<AdminSetup />
-					</Suspense>
-				);
-			default:
-				return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
-		}
-	};
+        // Unauthenticated views
+        switch (view) {
+            case 'signup':
+                return <SignUpPage onNavigateToSignIn={handleNavigateToSignIn} onNavigateToLanding={handleNavigateToLanding} onNavigateToSection={handleNavigateToSection} onEnterDemoMode={handleEnterDemoMode} />;
+            case 'signin':
+                return <SignInPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToLanding={handleNavigateToLanding} onNavigateToSection={handleNavigateToSection} onEnterDemoMode={handleEnterDemoMode} />;
+            case 'checkout':
+                return renderCheckout();
+            case 'dashboard-blueprint':
+                return <AgentDashboardBlueprint />;
+            case 'landing':
+                return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
+            case 'new-landing':
+                return <NewLandingPage />;
+            case 'blog':
+                return <BlogPage />;
+            case 'blog-post':
+                return <BlogPostPage />;
+            case 'demo-listing':
+                return <DemoListingPage />;
+            case 'vapi-test':
+                return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
+            case 'admin-setup':
+                if (isAdminLoginOpen) {
+                    setIsAdminLoginOpen(false);
+                    setAdminLoginError(null);
+                }
+                return (
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <AdminSetup />
+                    </Suspense>
+                );
+            case 'admin-dashboard':
+                return (
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <AdminLogin
+                            onLogin={handleAdminLogin}
+                            onBack={() => setView('landing')}
+                            isLoading={isAdminLoginLoading}
+                            error={adminLoginError || undefined}
+                        />
+                    </Suspense>
+                );
+            default:
+                return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
+        }
+    };
 
-	// DEBUG: Log current state before render
-	console.log('🎨 RENDERING with view=', view, 'hash=', window.location.hash);
+    // DEBUG: Log current state before render
+    console.log('🎨 RENDERING with view=', view, 'hash=', window.location.hash);
 
-	// OVERRIDE: Check hash directly at render time
-	const currentHash = window.location.hash.substring(1);
-	const [hashPath] = currentHash.split('?');
-	const hashRoute = hashPath.split('/').filter(Boolean)[0] || '';
-	
-	if (hashRoute === 'dashboard-blueprint') {
-		console.log('🚀 FORCING dashboard-blueprint render from hash');
-		return (
-			<ErrorBoundary>
-				<AISidekickProvider>
-					<AgentDashboardBlueprint />
-				</AISidekickProvider>
-			</ErrorBoundary>
-		);
-	}
+    // OVERRIDE: Check hash directly at render time
+    const currentHash = window.location.hash.substring(1);
+    const [hashPath] = currentHash.split('?');
+    const hashRoute = hashPath.split('/').filter(Boolean)[0] || '';
 
-	return (
-		<ErrorBoundary>
-			<AISidekickProvider>
-				{renderViewContent()}
-			</AISidekickProvider>
-			{isConsultationModalOpen && (
-				<ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
-			)}
-			{isAdminLoginOpen && view !== 'admin-setup' && (
-				<Suspense fallback={<LoadingSpinner />}>
-					<AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
-				</Suspense>
-			)}
-			{view !== 'landing' && view !== 'new-landing' && (
-				<ChatBotFAB
-					context={{
-						userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
-						currentPage: view,
-						previousInteractions: user ? 1 : 0,
-						userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
-					}}
-					onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
-					onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
-					position="bottom-right"
-					showWelcomeMessage={false}
-				/>
-			)}
-		</ErrorBoundary>
-	);
+    if (hashRoute === 'dashboard-blueprint') {
+        console.log('🚀 FORCING dashboard-blueprint render from hash');
+        return (
+            <ErrorBoundary>
+                <AISidekickProvider>
+                    <AgentDashboardBlueprint />
+                </AISidekickProvider>
+            </ErrorBoundary>
+        );
+    }
+
+    return (
+        <ImpersonationProvider>
+            <AgentBrandingProvider>
+                <AISidekickProvider>
+                    <ErrorBoundary>
+                        {renderViewContent()}
+                        {isConsultationModalOpen && (
+                            <ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
+                        )}
+                        {isAdminLoginOpen && view !== 'admin-setup' && (
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
+                            </Suspense>
+                        )}
+                        {view !== 'landing' && view !== 'new-landing' && (
+                            <ChatBotFAB
+                                context={{
+                                    userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
+                                    currentPage: view,
+                                    previousInteractions: user ? 1 : 0,
+                                    userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
+                                }}
+                                onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
+                                onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
+                                position="bottom-right"
+                                showWelcomeMessage={false}
+                            />
+                        )}
+                    </ErrorBoundary>
+                </AISidekickProvider>
+            </AgentBrandingProvider>
+        </ImpersonationProvider>
+    );
 };
 
 export default App;

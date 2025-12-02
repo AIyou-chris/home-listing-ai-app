@@ -22,6 +22,24 @@ const DEFAULT_BRAND_COLOR = '#0ea5e9';
 
 type SocialPlatform = keyof CentralAgentProfile['socialMedia'];
 
+export interface AgentProfile {
+  name: string;
+  title: string;
+  company: string;
+  email: string;
+  phone: string;
+  headshotUrl?: string;
+  logoUrl?: string;
+  bio?: string;
+  socialLinks?: {
+    facebook?: string;
+    instagram?: string;
+    linkedin?: string;
+    twitter?: string;
+    website?: string;
+  };
+}
+
 interface ContactInfo {
   name: string;
   title: string;
@@ -64,48 +82,58 @@ const SOCIAL_KEY_MAP: Record<string, UiAgentProfile['socials'][number]['platform
 const buildUiProfile = (profile?: CentralAgentProfile | null, agentData?: AgentData | null): UiAgentProfile => {
   if (!profile && !agentData) return SAMPLE_AGENT;
 
-  // Merge agent data from agents table (higher priority) with AI Card profile
-  const name = agentData 
-    ? `${agentData.first_name} ${agentData.last_name}`.trim()
-    : profile?.name || SAMPLE_AGENT.name;
+  // 1. Basic Info - Prioritize AI Card (profile) over legacy agentData
+  const name = profile?.name || (agentData ? `${agentData.first_name} ${agentData.last_name}` : '');
+  const email = profile?.email || agentData?.email || '';
+  const phone = profile?.phone || agentData?.phone || '';
+  const company = profile?.company || agentData?.company || '';
+  const title = profile?.title || agentData?.title || '';
+  const bio = profile?.bio || agentData?.bio || '';
+  const website = profile?.website || agentData?.website || '';
+  const headshot = profile?.headshotUrl || agentData?.headshot_url || null;
 
-  const headshotUrl = agentData?.headshot_url || profile?.headshotUrl || SAMPLE_AGENT.headshotUrl;
-  const email = agentData?.email || profile?.email || SAMPLE_AGENT.email;
-  const phone = agentData?.phone || profile?.phone || SAMPLE_AGENT.phone;
-  const company = agentData?.company || profile?.company || SAMPLE_AGENT.company;
-  const title = agentData?.title || profile?.title || SAMPLE_AGENT.title;
-  const bio = agentData?.bio || profile?.bio || SAMPLE_AGENT.bio;
-  const website = agentData?.website || profile?.website || SAMPLE_AGENT.website;
-  const slug = agentData?.slug || profile?.id || SAMPLE_AGENT.slug;
+  // 2. Social Media - Prioritize AI Card
+  const socialMedia = profile?.socialMedia || {
+    facebook: '',
+    instagram: '',
+    twitter: '',
+    linkedin: '',
+    youtube: ''
+  };
 
-  const socials =
-    profile?.socialMedia && typeof profile.socialMedia === 'object'
-      ? Object.entries(profile.socialMedia)
-          .filter(([, url]) => typeof url === 'string' && url.trim().length > 0)
-          .map(([platform, url]) => ({
-            platform: (SOCIAL_KEY_MAP[platform] ??
-              SAMPLE_AGENT.socials[0]?.platform ??
-              'Instagram') as UiAgentProfile['socials'][number]['platform'],
-            url: url as string
-          }))
-      : [];
+  // 3. Branding - Prioritize AI Card
+  const brandColor = profile?.brandColor || '#0ea5e9'; // Default blue
+  const logo = profile?.logoUrl || null;
+
+  // Transform socialMedia object into the array format expected by UiAgentProfile
+  const socials = Object.entries(socialMedia)
+    .filter(([, url]) => typeof url === 'string' && url.trim().length > 0)
+    .map(([platform, url]) => ({
+      platform: (SOCIAL_KEY_MAP[platform] ??
+        SAMPLE_AGENT.socials[0]?.platform ??
+        'Instagram') as UiAgentProfile['socials'][number]['platform'],
+      url: url as string
+    }));
 
   return {
     name,
-    slug,
-    title,
-    company,
-    phone,
     email,
-    headshotUrl,
-    socials: socials.length > 0 ? socials : SAMPLE_AGENT.socials,
-    brandColor: profile?.brandColor || SAMPLE_AGENT.brandColor,
-    logoUrl: profile?.logoUrl || SAMPLE_AGENT.logoUrl,
-    website,
+    phone,
+    company,
+    title,
     bio,
+    website,
+    headshotUrl: headshot || '',
+    logoUrl: logo || undefined,
+    brandColor,
+    socials: socials.length > 0 ? socials : SAMPLE_AGENT.socials,
+    slug: agentData?.slug,
     language: profile?.language || SAMPLE_AGENT.language
   };
 };
+
+import { useImpersonation } from './ImpersonationContext';
+import { getAgentData } from '../services/agentDataService';
 
 export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [profile, setProfile] = useState<CentralAgentProfile | null>(() => getAgentProfileSnapshot() ?? null);
@@ -113,6 +141,9 @@ export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({
   const [agentData, setAgentData] = useState<AgentData | null>(null);
   const [loading, setLoading] = useState(() => !profile);
   const [error, setError] = useState<Error | null>(null);
+
+  const { impersonatedUserId } = useImpersonation();
+
   const uiProfile = useMemo(() => buildUiProfile(profile, agentData), [profile, agentData]);
 
   useEffect(() => {
@@ -130,18 +161,23 @@ export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
       try {
         // Load both AI Card profile and agent data in parallel
+        // If impersonating, use the impersonated user ID
+        const targetUserId = impersonatedUserId || undefined;
+
         const [aiProfile, agentInfo] = await Promise.all([
-          getAgentProfile().catch(() => null),
-          getAuthenticatedAgentData().catch(() => null)
+          getAgentProfile(targetUserId).catch(() => null),
+          targetUserId
+            ? getAgentData(targetUserId).catch(() => null)
+            : getAuthenticatedAgentData().catch(() => null)
         ]);
-        
+
         if (!isMounted) return;
-        
+
         setProfile(aiProfile);
         setAgentData(agentInfo);
         setAiCardProfile(getAICardProfileSnapshot() ?? null);
         setError(null);
-        
+
         if (agentInfo) {
           console.log('✅ Loaded agent data:', {
             name: `${agentInfo.first_name} ${agentInfo.last_name}`,
@@ -165,21 +201,21 @@ export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({
       isMounted = false;
       unsubscribe();
     };
-  }, []);
+  }, [impersonatedUserId]);
 
-const refresh = useCallback(async () => {
-  setLoading(true);
-  try {
-    const [data, agentInfo] = await Promise.all([
-      refreshAgentProfile().catch(() => null),
-      getAuthenticatedAgentData().catch(() => null)
-    ]);
-    
-    setProfile(data);
-    setAgentData(agentInfo);
-    setAiCardProfile(getAICardProfileSnapshot() ?? null);
-    setError(null);
-    return data;
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [data, agentInfo] = await Promise.all([
+        refreshAgentProfile().catch(() => null),
+        getAuthenticatedAgentData().catch(() => null)
+      ]);
+
+      setProfile(data);
+      setAgentData(agentInfo);
+      setAiCardProfile(getAICardProfileSnapshot() ?? null);
+      setError(null);
+      return data;
     } catch (err) {
       const normalized = normalizeError(err);
       setError(normalized);

@@ -7,12 +7,12 @@ import AddListingPage from './AddListingPage';
 import PropertyPage from './PropertyPage';
 import InteractionHubPage from './InteractionHubPage';
 import AIConversationsPage from './AIConversationsPage';
-import EnhancedAISidekicksHub from './EnhancedAISidekicksHub';
-import AIInteractiveTraining from './AIInteractiveTraining';
+import AgentAISidekicksPage from './AgentAISidekicksPage';
 import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardPage from './AICardPage';
-import { LogoWithName } from './LogoWithName';
+
+
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
 import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
@@ -45,9 +45,9 @@ const cloneDemoProperty = (property: Property, index: number): Property => {
     typeof property.description === 'string'
       ? property.description
       : {
-          ...property.description,
-          paragraphs: [...property.description.paragraphs]
-        };
+        ...property.description,
+        paragraphs: [...property.description.paragraphs]
+      };
 
   return {
     ...property,
@@ -61,10 +61,13 @@ const cloneDemoProperty = (property: Property, index: number): Property => {
   };
 };
 
+import { useImpersonation } from '../context/ImpersonationContext';
+
 const AgentDashboardBlueprint: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDemoMode] = useState(false);
+  const { isImpersonating, stopImpersonating } = useImpersonation();
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = useState(true);
@@ -125,13 +128,13 @@ const AgentDashboardBlueprint: React.FC = () => {
   const [billingSettings, setBillingSettings] = useState<BillingSettings>({
     planName: 'Complete AI Solution',
     planStatus: 'active',
-    amount: 139,
+    amount: 89,
     currency: 'USD',
     managedBy: 'paypal',
     renewalDate: null,
     cancellationRequestedAt: null,
     history: [
-      { id: 'inv-123', date: '2024-07-15', amount: 139, status: 'Paid', description: 'Complete AI Solution - Monthly' }
+      { id: 'inv-123', date: '2024-07-15', amount: 89, status: 'Paid', description: 'Complete AI Solution - Monthly' }
     ]
   });
 
@@ -363,6 +366,54 @@ const AgentDashboardBlueprint: React.FC = () => {
     setTasks((prev) => prev.filter((task) => task.id !== taskId));
   };
 
+  const blueprintSidekickTemplates = [
+    {
+      id: 'agent',
+      label: 'Agent Sidekick',
+      description: 'Represents the agent voice, tone, and lead interaction style.',
+      type: 'agent',
+      icon: '👤',
+      color: '#3B82F6',
+      defaultName: 'Agent Sidekick',
+      defaultVoice: 'nova',
+      personality: {
+        description: 'You are the agent’s primary sidekick. Use the agent profile, voice, and preferences. Summarize lead notes, appointment outcomes, and funnel status. Keep tone on-brand and concise.',
+        traits: ['agent-voice', 'summary', 'on-brand'],
+        preset: 'professional'
+      }
+    },
+    {
+      id: 'sales_marketing',
+      label: 'Sales & Marketing Sidekick',
+      description: 'Writes emails, posts, SMS replies, and conversion CTAs.',
+      type: 'sales_marketing',
+      icon: '💼',
+      color: '#10B981',
+      defaultName: 'Sales & Marketing',
+      defaultVoice: 'sol',
+      personality: {
+        description: 'You are a skilled marketer for the agent. Write email templates, social posts, SMS replies. Promote lead conversion, personalization, and engagement. Offer CTA ideas and exportable content.',
+        traits: ['conversion', 'copy', 'cta'],
+        preset: 'sales'
+      }
+    },
+    {
+      id: 'listing_agent',
+      label: 'Listing Agent Sidekick',
+      description: 'Listing-focused: pricing strategy, listing copy, Q&A.',
+      type: 'listing_agent',
+      icon: '🏡',
+      color: '#F59E0B',
+      defaultName: 'Listing Agent',
+      defaultVoice: 'alloy',
+      personality: {
+        description: 'You are a listing-focused sidekick. Understand listings, pricing strategy, and home feature matching. Answer buyer/seller questions and refine listing descriptions.',
+        traits: ['listing', 'pricing', 'copy'],
+        preset: 'analytical'
+      }
+    }
+  ]
+
   const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string }) => {
     const payload: LeadPayload = {
       name: leadData.name,
@@ -383,14 +434,14 @@ const AgentDashboardBlueprint: React.FC = () => {
         lastMessage: leadData.message
       };
       setLeads((prev) => [fallbackLead, ...prev]);
-    void logLeadCaptured(fallbackLead);
+      void logLeadCaptured(fallbackLead);
       return;
     }
 
     try {
       const createdLead = await leadsService.create(payload);
       setLeads((prev) => [createdLead, ...prev]);
-    void logLeadCaptured(createdLead);
+      void logLeadCaptured(createdLead);
     } catch (error) {
       notifyApiError({
         title: 'Could not save lead',
@@ -407,7 +458,7 @@ const AgentDashboardBlueprint: React.FC = () => {
         lastMessage: leadData.message
       };
       setLeads((prev) => [fallbackLead, ...prev]);
-    void logLeadCaptured(fallbackLead);
+      void logLeadCaptured(fallbackLead);
     }
   };
 
@@ -519,9 +570,7 @@ const AgentDashboardBlueprint: React.FC = () => {
           />
         );
       case 'knowledge-base':
-        return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
-      case 'ai-training':
-        return <AIInteractiveTraining demoMode={isDemoMode} />;
+        return <AgentAISidekicksPage sidekickTemplatesOverride={blueprintSidekickTemplates} isDemoMode={isDemoMode} />;
       case 'funnel-analytics':
         return <FunnelAnalyticsPanel onBackToDashboard={resetToDashboard} />;
       case 'settings':
@@ -539,6 +588,7 @@ const AgentDashboardBlueprint: React.FC = () => {
             billingSettings={billingSettings}
             onSaveBillingSettings={setBillingSettings}
             onBackToDashboard={resetToDashboard}
+            onNavigateToAICard={() => setActiveView('ai-card')}
           />
         );
       case 'analytics':
@@ -553,6 +603,7 @@ const AgentDashboardBlueprint: React.FC = () => {
             onBackToDashboard={resetToDashboard}
           />
         );
+
       default:
         return (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8">
@@ -564,36 +615,35 @@ const AgentDashboardBlueprint: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      <Sidebar activeView={activeView} setView={setActiveView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
-            <span className="material-symbols-outlined text-xl">menu</span>
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {isImpersonating && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-white px-4 py-2 text-center font-bold shadow-md flex items-center justify-center gap-4">
+          <span>👀 Viewing as {uiProfile.name} ({uiProfile.email})</span>
+          <button
+            onClick={() => {
+              stopImpersonating();
+              window.location.hash = '#/admin';
+            }}
+            className="bg-white text-amber-600 px-3 py-1 rounded-full text-sm hover:bg-amber-50 transition-colors"
+          >
+            Stop Impersonating
           </button>
-          <div className="flex-1 flex justify-center">
-            <LogoWithName />
-          </div>
-          <div className="flex items-center space-x-3 pr-1">
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-sm bg-slate-200">
-              {agentProfile.headshotUrl ? (
-                <img
-                  src={agentProfile.headshotUrl}
-                  alt={agentProfile.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-500">
-                  <span className="material-symbols-outlined text-xl">person</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
-          <div className="min-h-full space-y-6 p-6">{renderMainContent()}</div>
-        </main>
+        </div>
+      )}
+      <div className={`flex-shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} ${isImpersonating ? 'mt-10' : ''}`}>
+        <Sidebar
+          activeView={activeView}
+          setView={setActiveView}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
       </div>
+
+      <main className={`flex-1 overflow-y-auto transition-all duration-300 p-8 ${isImpersonating ? 'mt-10' : ''}`}>
+        <div className="max-w-7xl mx-auto space-y-8">
+          {renderMainContent()}
+        </div>
+      </main>
     </div>
   );
 };

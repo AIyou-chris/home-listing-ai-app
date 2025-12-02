@@ -1,31 +1,31 @@
 export interface AgentProfile {
-  name: string;
-  slug?: string;
-  title: string;
-  company: string;
-  phone: string;
-  email: string;
-  headshotUrl: string;
-  socials: { platform: 'Twitter' | 'Pinterest' | 'LinkedIn' | 'YouTube' | 'Facebook' | 'Instagram'; url: string }[];
-  brandColor?: string;
-  logoUrl?: string;
-  website?: string;
-  bio?: string;
-  language?: string;
+    name: string;
+    slug?: string;
+    title: string;
+    company: string;
+    phone: string;
+    email: string;
+    headshotUrl: string;
+    socials: { platform: 'Twitter' | 'Pinterest' | 'LinkedIn' | 'YouTube' | 'Facebook' | 'Instagram'; url: string }[];
+    brandColor?: string;
+    logoUrl?: string;
+    website?: string;
+    bio?: string;
+    language?: string;
 }
 
 export interface AIDescription {
-  title: string;
-  paragraphs: string[];
+    title: string;
+    paragraphs: string[];
 }
 
 export function isAIDescription(description: unknown): description is AIDescription {
-  if (!description || typeof description !== 'object') {
-    return false;
-  }
+    if (!description || typeof description !== 'object') {
+        return false;
+    }
 
-  const candidate = description as { title?: unknown; paragraphs?: unknown };
-  return typeof candidate.title === 'string' && Array.isArray(candidate.paragraphs);
+    const candidate = description as { title?: unknown; paragraphs?: unknown };
+    return typeof candidate.title === 'string' && Array.isArray(candidate.paragraphs);
 }
 
 // Expanded View union to include additional development/test routes used in the app
@@ -71,6 +71,7 @@ export type View =
     | 'admin-blog-writer'
     | 'blog'
     | 'blog-post'
+    | 'marketing-reports'
 
     // App routes used during development and feature flags
     | 'ai-content'
@@ -81,39 +82,39 @@ export type View =
     ;
 
 export interface Property {
-  id: string;
-  title: string;
-  address: string;
-  price: number;
-  bedrooms: number;
-  bathrooms: number;
-  squareFeet: number;
-  status?: 'Active' | 'Pending' | 'Sold';
-  listedDate?: string;
-  description: string | AIDescription;
-  heroPhotos: (string | File)[];
-  galleryPhotos?: (string | File)[];
-  appFeatures: { [key: string]: boolean };
-  agent: AgentProfile;
-  propertyType: string;
-  features: string[];
-  imageUrl: string;
-  ctaListingUrl?: string;
-  ctaMediaUrl?: string;
+    id: string;
+    title: string;
+    address: string;
+    price: number;
+    bedrooms: number;
+    bathrooms: number;
+    squareFeet: number;
+    status?: 'Active' | 'Pending' | 'Sold';
+    listedDate?: string;
+    description: string | AIDescription;
+    heroPhotos: (string | File)[];
+    galleryPhotos?: (string | File)[];
+    appFeatures: { [key: string]: boolean };
+    agent: AgentProfile;
+    propertyType: string;
+    features: string[];
+    imageUrl: string;
+    ctaListingUrl?: string;
+    ctaMediaUrl?: string;
 }
 
 export interface ChatMessage {
-  sender: 'user' | 'ai' | 'assistant';
-  text: string;
-  timestamp?: Date;
+    sender: 'user' | 'ai' | 'assistant';
+    text: string;
+    timestamp?: Date;
 }
 
 export interface School {
-  name: string;
-  type: 'Public' | 'Private' | 'Charter';
-  grades: string;
-  rating: number;
-  distance: number;
+    name: string;
+    type: 'Public' | 'Private' | 'Charter';
+    grades: string;
+    rating: number;
+    distance: number;
 }
 
 export interface MarketData {
@@ -364,9 +365,9 @@ export interface SmartTrigger {
     cooldownPeriod: number; // hours before trigger can fire again for same lead
 }
 
-export type TriggerEventType = 
+export type TriggerEventType =
     | 'website_visit'
-    | 'email_open' 
+    | 'email_open'
     | 'email_click'
     | 'property_view'
     | 'form_submission'

@@ -1,6 +1,4 @@
-// Admin authentication service
-// This is a simple admin authentication system
-// In production, you'd want to use Firebase Auth with custom claims or a separate admin table
+import { supabase } from './supabase';
 
 export interface AdminUser {
   email: string;
@@ -9,36 +7,13 @@ export interface AdminUser {
   permissions: string[];
 }
 
-// Hardcoded admin credentials for demo purposes
-// In production, these should be stored securely in Firebase or a separate admin database
-const ADMIN_CREDENTIALS: Array<{ email: string; password: string; user: AdminUser }> = [
-  {
-    email: 'us@homelistingai.com',
-    password: 'Jake@2024', // In production, use hashed passwords
-    user: {
-      email: 'us@homelistingai.com',
-      name: 'System Administrator',
-      role: 'super-admin' as const,
-      permissions: ['users', 'billing', 'analytics', 'system', 'support']
-    }
-  }
-];
-
 class AdminAuthService {
   private static instance: AdminAuthService;
   private currentAdmin: AdminUser | null = null;
 
   private constructor() {
-    // Check if admin is already logged in from localStorage
-    const savedAdmin = localStorage.getItem('adminUser');
-    if (savedAdmin) {
-      try {
-        this.currentAdmin = JSON.parse(savedAdmin);
-      } catch (error) {
-        console.error('Error parsing saved admin user:', error);
-        localStorage.removeItem('adminUser');
-      }
-    }
+    // Check if session exists
+    this.recoverSession();
   }
 
   static getInstance(): AdminAuthService {
@@ -48,28 +23,69 @@ class AdminAuthService {
     return AdminAuthService.instance;
   }
 
+  private async recoverSession() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      // Check if user has admin role via RPC
+      const { data: isAdmin } = await supabase.rpc('is_user_admin', { uid: session.user.id });
+
+      if (isAdmin) {
+        this.currentAdmin = {
+          email: session.user.email || '',
+          name: session.user.user_metadata?.full_name || 'Admin User',
+          role: 'super-admin', // Temporary: assume all logged-in users are super-admins for now
+          permissions: ['users', 'billing', 'analytics', 'system', 'support']
+        };
+      } else {
+        // If session exists but not admin, clear it from this service's perspective
+        this.currentAdmin = null;
+      }
+    }
+  }
+
   async login(email: string, password: string): Promise<{ success: boolean; user?: AdminUser; error?: string }> {
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password
+      });
 
-      const adminCredential = ADMIN_CREDENTIALS.find(
-        cred => cred.email.toLowerCase() === email.toLowerCase() && cred.password === password
-      );
-
-      if (!adminCredential) {
+      if (error) {
         return {
           success: false,
-          error: 'Invalid email or password'
+          error: error.message
         };
       }
 
-      this.currentAdmin = adminCredential.user;
-      localStorage.setItem('adminUser', JSON.stringify(adminCredential.user));
+      if (data.user) {
+        // Check if user has admin role via RPC
+        const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
+
+        if (rpcError || !isAdmin) {
+          console.warn('Login successful but user is not an admin', rpcError);
+          await supabase.auth.signOut();
+          return {
+            success: false,
+            error: 'Unauthorized: You do not have admin privileges.'
+          };
+        }
+
+        this.currentAdmin = {
+          email: data.user.email || '',
+          name: data.user.user_metadata?.full_name || 'Admin User',
+          role: 'super-admin',
+          permissions: ['users', 'billing', 'analytics', 'system', 'support']
+        };
+
+        return {
+          success: true,
+          user: this.currentAdmin
+        };
+      }
 
       return {
-        success: true,
-        user: adminCredential.user
+        success: false,
+        error: 'Login failed'
       };
     } catch (error) {
       console.error('Admin login error:', error);
@@ -81,8 +97,9 @@ class AdminAuthService {
   }
 
   async logout(): Promise<void> {
+    await supabase.auth.signOut();
     this.currentAdmin = null;
-    localStorage.removeItem('adminUser');
+    localStorage.removeItem('adminUser'); // Clean up old local storage if it exists
   }
 
   getCurrentAdmin(): AdminUser | null {
@@ -96,11 +113,6 @@ class AdminAuthService {
   hasPermission(permission: string): boolean {
     if (!this.currentAdmin) return false;
     return this.currentAdmin.permissions.includes(permission);
-  }
-
-  // Method to add new admin credentials (for development)
-  addAdminCredential(email: string, password: string, user: AdminUser): void {
-    ADMIN_CREDENTIALS.push({ email, password, user });
   }
 }
 

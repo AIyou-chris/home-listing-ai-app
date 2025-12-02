@@ -31,7 +31,7 @@ export const getAuthenticatedAgentData = async (): Promise<AgentData | null> => 
   try {
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError) {
       console.error('Error getting authenticated user:', authError);
       return null;
@@ -42,11 +42,23 @@ export const getAuthenticatedAgentData = async (): Promise<AgentData | null> => 
       return null;
     }
 
+    return getAgentData(user.id);
+  } catch (error) {
+    console.error('Exception in getAuthenticatedAgentData:', error);
+    return null;
+  }
+};
+
+/**
+ * Get agent data by user ID
+ */
+export const getAgentData = async (userId: string): Promise<AgentData | null> => {
+  try {
     // Query agents table by auth_user_id
     const { data, error } = await supabase
       .from('agents')
       .select('*')
-      .eq('auth_user_id', user.id)
+      .eq('auth_user_id', userId)
       .maybeSingle();
 
     if (error) {
@@ -55,19 +67,19 @@ export const getAuthenticatedAgentData = async (): Promise<AgentData | null> => 
     }
 
     if (!data) {
-      console.log('No agent record found for user:', user.id);
+      console.log('No agent record found for user:', userId);
       return null;
     }
 
-    console.log('✅ Retrieved agent data:', { 
+    console.log('✅ Retrieved agent data:', {
       name: `${data.first_name} ${data.last_name}`,
       slug: data.slug,
-      status: data.status 
+      status: data.status
     });
 
     return data as AgentData;
   } catch (error) {
-    console.error('Exception in getAuthenticatedAgentData:', error);
+    console.error('Exception in getAgentData:', error);
     return null;
   }
 };
@@ -101,7 +113,7 @@ export const getAgentDataBySlug = async (slug: string): Promise<AgentData | null
 export const updateAgentHeadshot = async (headshotUrl: string): Promise<boolean> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       console.error('Error getting authenticated user for headshot update');
       return false;
@@ -138,7 +150,7 @@ export const updateAgentProfile = async (updates: {
 }): Promise<boolean> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       console.error('Error getting authenticated user for profile update');
       return false;

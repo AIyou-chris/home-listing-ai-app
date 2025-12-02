@@ -52,7 +52,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
             const registration = await agentOnboardingService.registerAgent({
                 firstName,
                 lastName,
-                email
+                email: email.trim().toLowerCase()
             });
             window.location.hash = `checkout/${registration.slug}`;
         } catch (error) {
@@ -61,11 +61,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
             if (message.toLowerCase().includes('duplicate') || message.toLowerCase().includes('already')) {
                 setError(
                     <span>
-                        This email is already registered.{' '}
-                        <button type="button" onClick={onNavigateToSignIn} className="font-semibold text-primary-600 hover:underline focus:outline-none">
-                            Sign in
-                        </button>{' '}
-                        or use a different email.
+                        Account already exists. <button type="button" onClick={onNavigateToSignIn} className="font-semibold text-primary-600 hover:underline focus:outline-none">Sign in</button> or reset your password.
                     </span>
                 );
             } else {
@@ -78,7 +74,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans">
-            <AuthHeader onNavigateToSignUp={() => {}} onNavigateToSignIn={onNavigateToSignIn} onNavigateToLanding={onNavigateToLanding} onNavigateToSection={onNavigateToSection} onEnterDemoMode={onEnterDemoMode} />
+            <AuthHeader onNavigateToSignUp={() => { }} onNavigateToSignIn={onNavigateToSignIn} onNavigateToLanding={onNavigateToLanding} onNavigateToSection={onNavigateToSection} onEnterDemoMode={onEnterDemoMode} />
             <main className="py-12 sm:py-20">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="grid lg:grid-cols-2 gap-10 lg:gap-16">
@@ -103,14 +99,14 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="grid sm:grid-cols-2 gap-5">
                                 <FeatureHighlight icon="group" title="Generate Real Leads">See actual prospects contact you within days</FeatureHighlight>
                                 <FeatureHighlight icon="schedule" title="24/7 Lead Capture">AI works while you sleep - never miss a lead</FeatureHighlight>
                                 <FeatureHighlight icon="trending_up" title="Higher Conversion">Turn 3x more visitors into qualified leads</FeatureHighlight>
                                 <FeatureHighlight icon="payments" title="Instant ROI">One sale pays for years of service</FeatureHighlight>
                             </div>
-                            
+
                             <div className="flex justify-around text-sm text-slate-500 font-medium pt-5 border-t border-slate-200">
                                 <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Secure Stripe & PayPal checkout</div>
                                 <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Cancel anytime</div>
@@ -144,7 +140,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                         {error}
                                     </div>
                                 )}
-                                
+
                                 <div className="p-4 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg">
                                     <div className="flex items-start gap-3">
                                         <span className="material-symbols-outlined w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5">info</span>
@@ -171,7 +167,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                     </button>
                                 </div>
                             </form>
-                            
+
                             <p className="text-center text-sm text-slate-600 mt-8">
                                 Already have an account?{' '}
                                 <button onClick={onNavigateToSignIn} className="font-semibold text-primary-600 hover:text-primary-500">

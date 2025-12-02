@@ -1,6 +1,5 @@
 import React from 'react';
 import { LogoWithName } from '../components/LogoWithName';
-import { View } from '../types';
 
 type DashboardView =
   | 'dashboard'
@@ -9,11 +8,13 @@ type DashboardView =
   | 'ai-conversations'
   | 'listings'
   | 'knowledge-base'
-  | 'ai-training'
   | 'funnel-analytics'
   | 'settings'
   | 'analytics'
-  | View;
+  | 'inbox'
+  | 'property'
+  | 'add-listing'
+  | 'ai-card-builder';
 
 interface AdminDashboardSidebarProps {
   activeView: DashboardView;
@@ -46,9 +47,8 @@ const NavItem: React.FC<{
         setView(viewName);
         onClose();
       }}
-      className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${
-        isActive ? 'bg-primary-600 font-semibold text-white shadow-sm' : 'font-medium text-slate-600 hover:bg-slate-100'
-      }`}
+      className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${isActive ? 'bg-primary-600 font-semibold text-white shadow-sm' : 'font-medium text-slate-600 hover:bg-slate-100'
+        }`}
     >
       <Icon name={icon} className={`transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`} />
       <span>{children}</span>
@@ -64,7 +64,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
     { view: 'listings', icon: 'storefront', label: 'AI Listings' },
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
-    { view: 'ai-training', icon: 'school', label: 'Train Your AI' },
+
     { view: 'funnel-analytics', icon: 'monitoring', label: 'Leads Funnel' },
     { view: 'settings', icon: 'settings', label: 'Settings' }
   ];
@@ -76,53 +76,53 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
 
   return (
     <>
-        <div
-            className={`fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-            onClick={onClose}
-            aria-hidden="true"
-        />
-        <aside className={`
+      <div
+        className={`fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside className={`
             fixed inset-y-0 left-0 z-40 h-full w-64 flex-col border-r border-slate-200 bg-white px-4 py-6
             transform transition-transform duration-300 ease-in-out
             md:static md:flex md:translate-x-0
             ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}>
-            <div className="flex justify-between items-center px-2 mb-6">
-                 <button
-                    onClick={handleLogoClick}
-                    className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg"
-                >
-                    <LogoWithName />
-                </button>
-                 <button onClick={onClose} className="md:hidden p-1 rounded-full text-slate-500 hover:bg-slate-100">
-                    <Icon name="close" />
-                 </button>
-            </div>
+        <div className="flex justify-between items-center px-2 mb-6">
+          <button
+            onClick={handleLogoClick}
+            className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg"
+          >
+            <LogoWithName />
+          </button>
+          <button onClick={onClose} className="md:hidden p-1 rounded-full text-slate-500 hover:bg-slate-100">
+            <Icon name="close" />
+          </button>
+        </div>
 
-            <nav className="flex-1">
-                <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm divide-y divide-slate-200">
-                    {navItems.map((item) => (
-                        <NavItem
-                            key={item.view}
-                            viewName={item.view as DashboardView}
-                            activeView={activeView}
-                            setView={setView}
-                            icon={item.icon}
-                            onClose={onClose}
-                        >
-                            {item.label}
-                        </NavItem>
-                    ))}
-                </div>
-            </nav>
+        <nav className="flex-1">
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm divide-y divide-slate-200">
+            {navItems.map((item) => (
+              <NavItem
+                key={item.view}
+                viewName={item.view as DashboardView}
+                activeView={activeView}
+                setView={setView}
+                icon={item.icon}
+                onClose={onClose}
+              >
+                {item.label}
+              </NavItem>
+            ))}
+          </div>
+        </nav>
 
-            <div className="mt-auto flex flex-col space-y-2 border-t border-slate-200 pt-4">
-                <button className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 transition-colors">
-                    <Icon name="notifications" className="text-slate-500" />
-                    <span>Notifications</span>
-                </button>
-            </div>
-        </aside>
+        <div className="mt-auto flex flex-col space-y-2 border-t border-slate-200 pt-4">
+          <button className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 transition-colors">
+            <Icon name="notifications" className="text-slate-500" />
+            <span>Notifications</span>
+          </button>
+        </div>
+      </aside>
     </>
   );
 };

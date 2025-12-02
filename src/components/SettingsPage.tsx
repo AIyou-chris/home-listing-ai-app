@@ -7,10 +7,7 @@ import { supabase } from '../services/supabase';
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import { useAgentBranding } from '../hooks/useAgentBranding';
-import {
-    updateAgentProfile,
-    type AgentProfile as CentralAgentProfile
-} from '../services/agentProfileService';
+
 import { getBooleanEnv, getEnvVar } from '../lib/env';
 
 type EmailConnection = {
@@ -39,30 +36,10 @@ interface SettingsPageProps {
     billingSettings: BillingSettings;
     onSaveBillingSettings: (settings: BillingSettings) => void;
     onBackToDashboard: () => void;
+    onNavigateToAICard?: () => void;
 }
 
-const FALLBACK_BRAND_COLOR = '#0ea5e9';
 
-const DEFAULT_SOCIAL_MEDIA_MAP: CentralAgentProfile['socialMedia'] = {
-    facebook: '',
-    instagram: '',
-    twitter: '',
-    linkedin: '',
-    youtube: ''
-};
-
-const normalizeSocialsToMap = (socials?: AgentProfile['socials']): CentralAgentProfile['socialMedia'] => {
-    const base = { ...DEFAULT_SOCIAL_MEDIA_MAP };
-    if (!Array.isArray(socials)) return base;
-    socials.forEach((entry) => {
-        if (!entry?.platform || !entry?.url) return;
-        const key = entry.platform.toLowerCase();
-        if (key in base) {
-            (base as Record<string, string>)[key] = entry.url;
-        }
-    });
-    return base;
-};
 
 const TabButton: React.FC<{
     isActive: boolean;
@@ -73,11 +50,10 @@ const TabButton: React.FC<{
     return (
         <button
             onClick={onClick}
-            className={`flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                isActive
-                    ? 'bg-primary-50 text-primary-600'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-            }`}
+            className={`flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 ${isActive
+                ? 'bg-primary-50 text-primary-600'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                }`}
         >
             <span className="material-symbols-outlined w-5 h-5">{icon}</span>
             <span>{children}</span>
@@ -115,19 +91,17 @@ const ToggleSwitch: React.FC<{
                     onChange(!enabled);
                 }
             }}
-            className={`relative inline-flex flex-shrink-0 items-center h-6 rounded-full w-11 cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
-                disabled
-                    ? 'bg-slate-200 cursor-not-allowed opacity-60'
-                    : enabled
-                        ? 'bg-primary-600'
-                        : 'bg-slate-300'
-            }`}
+            className={`relative inline-flex flex-shrink-0 items-center h-6 rounded-full w-11 cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${disabled
+                ? 'bg-slate-200 cursor-not-allowed opacity-60'
+                : enabled
+                    ? 'bg-primary-600'
+                    : 'bg-slate-300'
+                }`}
         >
             <span
                 aria-hidden='true'
-                className={`inline-block w-4 h-4 transform bg-white rounded-full shadow-lg ring-0 transition-transform duration-200 ease-in-out ${
-                    enabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
+                className={`inline-block w-4 h-4 transform bg-white rounded-full shadow-lg ring-0 transition-transform duration-200 ease-in-out ${enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
             />
         </button>
     )
@@ -153,19 +127,16 @@ const IntegrationCard: React.FC<{
         <button
             type="button"
             onClick={onClick}
-            className={`p-4 sm:p-5 text-left rounded-xl border-2 transition-all w-full h-full flex flex-col min-h-[140px] sm:min-h-[160px] ${
-                isSelected 
-                    ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200' 
-                    : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-md hover:bg-slate-50 active:bg-slate-100'
-            }`}
+            className={`p-4 sm:p-5 text-left rounded-xl border-2 transition-all w-full h-full flex flex-col min-h-[140px] sm:min-h-[160px] ${isSelected
+                ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
+                : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-md hover:bg-slate-50 active:bg-slate-100'
+                }`}
         >
             <div className="flex items-center gap-3 sm:gap-4 mb-3">
-                <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center ${
-                    isSelected ? 'bg-blue-500' : 'bg-slate-100'
-                }`}>
-                    <span className={`material-symbols-outlined w-5 h-5 sm:w-6 sm:h-6 ${
-                        isSelected ? 'text-white' : 'text-slate-600'
-                    }`}>{icon}</span>
+                <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center ${isSelected ? 'bg-blue-500' : 'bg-slate-100'
+                    }`}>
+                    <span className={`material-symbols-outlined w-5 h-5 sm:w-6 sm:h-6 ${isSelected ? 'text-white' : 'text-slate-600'
+                        }`}>{icon}</span>
                 </div>
                 <h4 className="text-base sm:text-lg font-bold text-slate-800">{title}</h4>
             </div>
@@ -214,120 +185,118 @@ const NOTIFICATION_GROUPS: Array<{
     icon: string;
     items: Array<{ key: NotificationSettingKey; label: string; description: string }>;
 }> = [
-    {
-        title: 'Real-time Alerts',
-        icon: 'notifications_active',
-        items: [
-            {
-                key: 'newLead',
-                label: 'New lead arrives',
-                description: 'Get pinged the moment a new lead hits your dashboard.'
-            },
-            {
-                key: 'appointmentScheduled',
-                label: 'Appointment scheduled',
-                description: 'Receive confirmations when clients book time on your calendar.'
-            },
-            {
-                key: 'aiInteraction',
-                label: 'AI interaction updates',
-                description: 'Alerts when your AI concierge jumps into a live conversation.'
-            },
-            {
-                key: 'propertyInquiries',
-                label: 'Property inquiries',
-                description: 'Know instantly when a buyer requests info on your listings.'
-            },
-            {
-                key: 'showingConfirmations',
-                label: 'Showing confirmations',
-                description: 'Confirmations and reminders when tours are booked or rescheduled.'
-            }
-        ]
-    },
-    {
-        title: 'Follow-up Support',
-        icon: 'event_available',
-        items: [
-            {
-                key: 'appointmentReminders',
-                label: 'Appointment reminders',
-                description: 'We\'ll nudge you ahead of every booked consultation.'
-            },
-            {
-                key: 'taskReminders',
-                label: 'Task reminders',
-                description: 'Stay on top of follow-ups with AI-generated tasks.'
-            },
-            {
-                key: 'hotLeads',
-                label: 'Hot lead alerts',
-                description: 'Instant alerts when a lead hits "ready to tour" status.'
-            },
-            {
-                key: 'priceChanges',
-                label: 'Price change updates',
-                description: 'Know right away when your active listings adjust pricing.'
-            },
-            {
-                key: 'contractMilestones',
-                label: 'Contract milestones',
-                description: 'Stay informed as deals move from offer to close.'
-            }
-        ]
-    },
-    {
-        title: 'Marketing & Insights',
-        icon: 'insights',
-        items: [
-            {
-                key: 'marketingUpdates',
-                label: 'Marketing updates',
-                description: 'Pipeline prompts when nurture sequences need attention.'
-            },
-            {
-                key: 'weeklySummary',
-                label: 'Weekly performance summary',
-                description: 'Digest of lead activity, funnel performance, and AI wins.'
-            },
-            {
-                key: 'weeklyReport',
-                label: 'Weekly report email',
-                description: 'Snapshot of traffic, conversions, and AI engagement.'
-            },
-            {
-                key: 'monthlyInsights',
-                label: 'Monthly insights',
-                description: 'Deep-dive analytics delivered at month end.'
-            }
-        ]
-    },
-    {
-        title: 'General Preferences',
-        icon: 'tune',
-        items: [
-            {
-                key: 'browserNotifications',
-                label: 'Browser notifications',
-                description: 'Enable in-browser alerts for urgent updates.'
-            },
-            {
-                key: 'weekendNotifications',
-                label: 'Weekend notifications',
-                description: 'Mute non-critical alerts on weekends to stay focused.'
-            }
-        ]
-    }
-];
+        {
+            title: 'Real-time Alerts',
+            icon: 'notifications_active',
+            items: [
+                {
+                    key: 'newLead',
+                    label: 'New lead arrives',
+                    description: 'Get pinged the moment a new lead hits your dashboard.'
+                },
+                {
+                    key: 'appointmentScheduled',
+                    label: 'Appointment scheduled',
+                    description: 'Receive confirmations when clients book time on your calendar.'
+                },
+                {
+                    key: 'aiInteraction',
+                    label: 'AI interaction updates',
+                    description: 'Alerts when your AI concierge jumps into a live conversation.'
+                },
+                {
+                    key: 'propertyInquiries',
+                    label: 'Property inquiries',
+                    description: 'Know instantly when a buyer requests info on your listings.'
+                },
+                {
+                    key: 'showingConfirmations',
+                    label: 'Showing confirmations',
+                    description: 'Confirmations and reminders when tours are booked or rescheduled.'
+                }
+            ]
+        },
+        {
+            title: 'Follow-up Support',
+            icon: 'event_available',
+            items: [
+                {
+                    key: 'appointmentReminders',
+                    label: 'Appointment reminders',
+                    description: 'We\'ll nudge you ahead of every booked consultation.'
+                },
+                {
+                    key: 'taskReminders',
+                    label: 'Task reminders',
+                    description: 'Stay on top of follow-ups with AI-generated tasks.'
+                },
+                {
+                    key: 'hotLeads',
+                    label: 'Hot lead alerts',
+                    description: 'Instant alerts when a lead hits "ready to tour" status.'
+                },
+                {
+                    key: 'priceChanges',
+                    label: 'Price change updates',
+                    description: 'Know right away when your active listings adjust pricing.'
+                },
+                {
+                    key: 'contractMilestones',
+                    label: 'Contract milestones',
+                    description: 'Stay informed as deals move from offer to close.'
+                }
+            ]
+        },
+        {
+            title: 'Marketing & Insights',
+            icon: 'insights',
+            items: [
+                {
+                    key: 'marketingUpdates',
+                    label: 'Marketing updates',
+                    description: 'Pipeline prompts when nurture sequences need attention.'
+                },
+                {
+                    key: 'weeklySummary',
+                    label: 'Weekly performance summary',
+                    description: 'Digest of lead activity, funnel performance, and AI wins.'
+                },
+                {
+                    key: 'weeklyReport',
+                    label: 'Weekly report email',
+                    description: 'Snapshot of traffic, conversions, and AI engagement.'
+                },
+                {
+                    key: 'monthlyInsights',
+                    label: 'Monthly insights',
+                    description: 'Deep-dive analytics delivered at month end.'
+                }
+            ]
+        },
+        {
+            title: 'General Preferences',
+            icon: 'tune',
+            items: [
+                {
+                    key: 'browserNotifications',
+                    label: 'Browser notifications',
+                    description: 'Enable in-browser alerts for urgent updates.'
+                },
+                {
+                    key: 'weekendNotifications',
+                    label: 'Weekend notifications',
+                    description: 'Mute non-critical alerts on weekends to stay focused.'
+                }
+            ]
+        }
+    ];
 
-const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard }) => {
+const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard, onNavigateToAICard }) => {
     const notifyApiError = useApiErrorNotifier();
     const { uiProfile, refresh: refreshBranding, aiCardProfile } = useAgentBranding();
     const agentProfile = userProfile ?? uiProfile;
-    const [profileFormData, setProfileFormData] = useState<AgentProfile>(agentProfile);
-    const [isProfileSaving, setIsProfileSaving] = useState(false);
-    const [profileSaveMessage, setProfileSaveMessage] = useState<string | null>(null);
-    const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+
+
     const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('profile');
     const [emailFormData, setEmailFormData] = useState<EmailSettings>(emailSettings);
     const [calendarFormData, setCalendarFormData] = useState<CalendarSettings>(calendarSettings);
@@ -384,9 +353,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
         return () => window.removeEventListener('hashchange', handle);
     }, []);
 
-    useEffect(() => {
-        setProfileFormData(agentProfile);
-    }, [agentProfile]);
+
 
     const extractPlanInfo = useCallback((profile: typeof aiCardProfile) => {
         if (!profile) return null;
@@ -428,58 +395,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
         void loadPlan();
     }, [activeTab, aiCardProfile, extractPlanInfo, refreshBranding, notifyApiError]);
 
-    const handleProfileInputChange = (
-        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-    ) => {
-        const { name, value } = e.target;
-        setProfileFormData((prev) => ({ ...prev, [name]: value }));
-    };
 
-    const handleSocialChange = (
-        index: number,
-        field: 'platform' | 'url',
-        value: string
-    ) => {
-        setProfileFormData((prev) => {
-            const socials = Array.isArray(prev.socials) ? [...prev.socials] : [];
-            const existing = socials[index] ?? { platform: 'LinkedIn', url: '' };
-            socials[index] = { ...existing, [field]: value };
-            return { ...prev, socials };
-        });
-    };
 
-    const handleProfileSave = async (event: React.FormEvent) => {
-        event.preventDefault();
-        setIsProfileSaving(true);
-        setProfileSaveError(null);
-        setProfileSaveMessage(null);
-
-        try {
-            const sanitizedSocials = (profileFormData.socials || []).filter(
-                (entry) => entry?.platform && entry?.url
-            );
-            const sanitizedForm: AgentProfile = { ...profileFormData, socials: sanitizedSocials };
-            const payload = buildCentralProfilePayload(sanitizedForm);
-
-            const updated = await updateAgentProfile(payload);
-            const updatedUiProfile = mapCentralToUiProfile(updated);
-            setProfileFormData(updatedUiProfile);
-            _onSaveProfile(updatedUiProfile);
-            setProfileSaveMessage('Profile updated successfully.');
-        } catch (error) {
-            const message =
-                error instanceof Error ? error.message : 'Failed to save profile.';
-            setProfileSaveError(message);
-        } finally {
-            setIsProfileSaving(false);
-        }
-    };
     const [passwords, setPasswords] = useState({
         currentPassword: '',
         newPassword: '',
         confirmNewPassword: '',
     });
-    
+
     // Email connection state
     const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([]);
     const [isConnecting, setIsConnecting] = useState<string | null>(null);
@@ -491,58 +414,22 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     const [isCalendarSettingsSaving, setIsCalendarSettingsSaving] = useState<boolean>(false);
     const [calendarSettingsError, setCalendarSettingsError] = useState<string | null>(null);
     const [calendarSettingsMessage, setCalendarSettingsMessage] = useState<string | null>(null);
-const [isSecuritySaving, setIsSecuritySaving] = useState<boolean>(false);
-const [securityError, setSecurityError] = useState<string | null>(null);
-const [securityMessage, setSecurityMessage] = useState<string | null>(null);
-const emailDefaultsRef = useRef<EmailSettings>(emailSettings);
-const emailConnectionsRef = useRef<EmailConnection[]>([]);
-const forwardingAddress = useMemo(() => {
-    const baseEmail = emailFormData.fromEmail || agentProfile.email || 'agent@homelistingai.com';
+    const [isSecuritySaving, setIsSecuritySaving] = useState<boolean>(false);
+    const [securityError, setSecurityError] = useState<string | null>(null);
+    const [securityMessage, setSecurityMessage] = useState<string | null>(null);
+    const emailDefaultsRef = useRef<EmailSettings>(emailSettings);
+    const emailConnectionsRef = useRef<EmailConnection[]>([]);
+    const forwardingAddress = useMemo(() => {
+        const baseEmail = emailFormData.fromEmail || agentProfile.email || 'agent@homelistingai.com';
         const localPart = (baseEmail.split('@')[0] || 'agent').toLowerCase();
         const safeLocalPart = localPart.replace(/[^a-z0-9]/g, '') || 'agent';
         return `agent-${safeLocalPart}@homelistingai.com`;
     }, [emailFormData.fromEmail, agentProfile.email]);
     const oauthPopupRef = useRef<Window | null>(null);
 
-const buildCentralProfilePayload = (form: AgentProfile): Partial<CentralAgentProfile> => ({
-    name: form.name,
-    title: form.title,
-    company: form.company,
-    phone: form.phone,
-    email: form.email,
-    website: form.website ?? '',
-    bio: form.bio ?? '',
-    headshotUrl: form.headshotUrl ?? null,
-    logoUrl: form.logoUrl ?? null,
-    brandColor: form.brandColor ?? FALLBACK_BRAND_COLOR,
-    language: form.language ?? 'en',
-    socialMedia: normalizeSocialsToMap(form.socials)
-});
 
-const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
-    const socials: AgentProfile['socials'] = [
-        { platform: 'Twitter', url: profile.socialMedia.twitter || '' },
-        { platform: 'LinkedIn', url: profile.socialMedia.linkedin || '' },
-        { platform: 'Instagram', url: profile.socialMedia.instagram || '' },
-        { platform: 'Facebook', url: profile.socialMedia.facebook || '' },
-        { platform: 'YouTube', url: profile.socialMedia.youtube || '' }
-    ];
-    return {
-        name: profile.name,
-        slug: profile.id,
-        title: profile.title,
-        company: profile.company,
-        phone: profile.phone,
-        email: profile.email,
-        headshotUrl: profile.headshotUrl,
-        socials,
-        brandColor: profile.brandColor,
-        language: profile.language,
-        logoUrl: profile.logoUrl,
-        website: profile.website,
-        bio: profile.bio
-    };
-};
+
+
     const calendarDefaultsRef = useRef<CalendarSettings>(calendarSettings);
     const isMountedRef = useRef(true);
 
@@ -673,10 +560,10 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
         },
         [_onSaveCalendarSettings, userId, notifyApiError]
     );
-    
+
     // Calendar connection state
     const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
-    
+
     // Security settings state
     const [securitySettings, setSecuritySettings] = useState<SecuritySettingsState>({
         loginNotifications: true,
@@ -689,7 +576,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
         sessionTimeout: 24,
         analyticsEnabled: true
     });
-    
+
     useEffect(() => {
         let isActive = true;
 
@@ -925,11 +812,11 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
             _onSaveEmailSettings(nextSettings);
             setEmailSaveMessage('Email connection removed.');
         } catch (error) {
-        notifyApiError({
-            title: 'Could not disconnect email account',
-            description: 'Please try again. Your connection is still active.',
-            error
-        });
+            notifyApiError({
+                title: 'Could not disconnect email account',
+                description: 'Please try again. Your connection is still active.',
+                error
+            });
             setEmailSettingsError('Failed to disconnect email provider. Please try again.');
         } finally {
             setIsConnecting(null);
@@ -956,11 +843,11 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                 setCalendarSettingsError('Failed to connect Google Calendar. Please try again.');
             }
         } catch (error) {
-        notifyApiError({
-            title: 'Google Calendar connection failed',
-            description: 'We could not finish the connection. Please try again shortly.',
-            error
-        });
+            notifyApiError({
+                title: 'Google Calendar connection failed',
+                description: 'We could not finish the connection. Please try again shortly.',
+                error
+            });
             setIsGoogleCalendarConnected(false);
             setCalendarSettingsError('Failed to connect Google Calendar. Please try again.');
         } finally {
@@ -1036,11 +923,11 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
             setIsGoogleCalendarConnected(Boolean(payload?.connection && payload.connection.status === 'active'));
             setCalendarSettingsMessage('Calendar settings saved successfully.');
         } catch (error) {
-        notifyApiError({
-            title: 'Could not save calendar settings',
-            description: 'Please review your changes and try again.',
-            error
-        });
+            notifyApiError({
+                title: 'Could not save calendar settings',
+                description: 'Please review your changes and try again.',
+                error
+            });
             setCalendarSettingsError('Failed to save calendar settings. Please try again.');
         } finally {
             setIsCalendarSettingsSaving(false);
@@ -1323,7 +1210,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
     const trimmedNewPassword = passwords.newPassword.trim();
     const trimmedConfirmPassword = passwords.confirmNewPassword.trim();
 
-    const isPasswordValid = 
+    const isPasswordValid =
         trimmedNewPassword.length >= 8 &&
         /[A-Z]/.test(trimmedNewPassword) &&
         /[0-9]/.test(trimmedNewPassword) &&
@@ -1406,11 +1293,11 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                 setBillingError('Checkout session did not return a redirect URL.');
             }
         } catch (error) {
-        notifyApiError({
-            title: 'Could not start billing checkout',
-            description: 'Please try again or contact support if the problem continues.',
-            error
-        });
+            notifyApiError({
+                title: 'Could not start billing checkout',
+                description: 'Please try again or contact support if the problem continues.',
+                error
+            });
             setBillingError(error instanceof Error ? error.message : 'Unable to start checkout. Please try again.');
         } finally {
             setIsBillingCheckoutLoading(false);
@@ -1580,7 +1467,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
         setPasswords(prev => ({ ...prev, [name]: value }));
     };
 
-    
+
     const tabs = [
         { id: 'profile', label: 'Profile', icon: 'account_circle' },
         { id: 'notifications', label: 'Notifications', icon: 'notifications' },
@@ -1681,7 +1568,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
 
     return (
         <div className="py-10 px-4 sm:px-6 lg:px-0">
-             <button onClick={_onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
+            <button onClick={_onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
                 <span className="material-symbols-outlined w-5 h-5">chevron_left</span>
                 <span>Back to Dashboard</span>
             </button>
@@ -1689,7 +1576,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                 <div className="flex flex-col md:flex-row">
                     {/* Sidebar Navigation */}
                     <aside className="md:w-64 p-6 border-b md:border-b-0 md:border-r border-slate-200/80">
-                         <h2 className="text-lg font-bold text-slate-800 mb-4">Settings</h2>
+                        <h2 className="text-lg font-bold text-slate-800 mb-4">Settings</h2>
                         <nav className="flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-x-visible -mx-3 px-3 md:mx-0 md:px-0">
                             {tabs.map(tab => (
                                 <TabButton
@@ -1707,224 +1594,37 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                     {/* Main Content */}
                     <main className="flex-1">
                         {activeTab === 'profile' && (
-                            <form onSubmit={handleProfileSave} className="p-8 space-y-8">
+                            <div className="p-8 space-y-8">
                                 <div>
                                     <h2 className="text-2xl font-bold text-slate-900">👤 Profile & Branding</h2>
                                     <p className="text-slate-500 mt-1">
-                                        Update your public-facing details—changes sync to every AI feature instantly.
+                                        Manage your agent profile and branding settings.
                                     </p>
                                 </div>
 
-                                {profileSaveError && (
-                                    <div className="px-4 py-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-sm">
-                                        {profileSaveError}
+                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-8 text-center">
+                                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <span className="material-symbols-outlined text-3xl">badge</span>
                                     </div>
-                                )}
-                                {profileSaveMessage && (
-                                    <div className="px-4 py-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm">
-                                        {profileSaveMessage}
-                                    </div>
-                                )}
-
-                                <FeatureSection title="Basic Information" icon="person">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormInput
-                                            label="Full Name"
-                                            id="profile-name"
-                                            name="name"
-                                            required
-                                            value={profileFormData.name}
-                                            onChange={handleProfileInputChange}
-                                        />
-                                        <FormInput
-                                            label="Professional Title"
-                                            id="profile-title"
-                                            name="title"
-                                            required
-                                            value={profileFormData.title}
-                                            onChange={handleProfileInputChange}
-                                        />
-                                        <FormInput
-                                            label="Company"
-                                            id="profile-company"
-                                            name="company"
-                                            required
-                                            value={profileFormData.company}
-                                            onChange={handleProfileInputChange}
-                                        />
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                Brand Color
-                                            </label>
-                                            <div className="flex items-center gap-3">
-                                                <input
-                                                    type="color"
-                                                    name="brandColor"
-                                                    value={profileFormData.brandColor || '#0ea5e9'}
-                                                    onChange={handleProfileInputChange}
-                                                    className="w-12 h-12 border border-slate-300 rounded-lg cursor-pointer"
-                                                />
-                                                <input
-                                                    type="text"
-                                                    name="brandColor"
-                                                    value={profileFormData.brandColor || '#0ea5e9'}
-                                                    onChange={handleProfileInputChange}
-                                                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </FeatureSection>
-
-                                <FeatureSection title="Contact Information" icon="contact_phone">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormInput
-                                            label="Phone Number"
-                                            id="profile-phone"
-                                            name="phone"
-                                            required
-                                            value={profileFormData.phone}
-                                            onChange={handleProfileInputChange}
-                                        />
-                                        <FormInput
-                                            label="Email Address"
-                                            id="profile-email"
-                                            name="email"
-                                            required
-                                            type="email"
-                                            value={profileFormData.email}
-                                            onChange={handleProfileInputChange}
-                                        />
-                                        <FormInput
-                                            label="Website"
-                                            id="profile-website"
-                                            name="website"
-                                            type="url"
-                                            value={profileFormData.website ?? ''}
-                                            onChange={handleProfileInputChange}
-                                        />
-                                    </div>
-                                    <div className="mt-6">
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Bio / About You
-                                        </label>
-                                        <textarea
-                                            name="bio"
-                                            value={profileFormData.bio ?? ''}
-                                            onChange={handleProfileInputChange}
-                                            rows={4}
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                                            placeholder="Tell your AI assistants how to represent you."
-                                        />
-                                    </div>
-                                </FeatureSection>
-
-                                <FeatureSection title="Brand Assets" icon="image">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormInput
-                                            label="Headshot URL"
-                                            id="profile-headshot"
-                                            name="headshotUrl"
-                                            type="url"
-                                            value={profileFormData.headshotUrl ?? ''}
-                                            onChange={handleProfileInputChange}
-                                        />
-                                        <FormInput
-                                            label="Logo URL"
-                                            id="profile-logo"
-                                            name="logoUrl"
-                                            type="url"
-                                            value={profileFormData.logoUrl ?? ''}
-                                            onChange={handleProfileInputChange}
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {profileFormData.headshotUrl && (
-                                            <div className="flex flex-col items-start">
-                                                <span className="text-sm text-slate-500 mb-2">Headshot preview</span>
-                                                <img
-                                                    src={profileFormData.headshotUrl}
-                                                    alt="Headshot preview"
-                                                    className="w-20 h-20 rounded-full object-cover border-2 border-slate-200"
-                                                />
-                                            </div>
-                                        )}
-                                        {profileFormData.logoUrl && (
-                                            <div className="flex flex-col items-start">
-                                                <span className="text-sm text-slate-500 mb-2">Logo preview</span>
-                                                <img
-                                                    src={profileFormData.logoUrl}
-                                                    alt="Logo preview"
-                                                    className="h-12 w-auto object-contain border border-slate-200 rounded bg-white p-2"
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                </FeatureSection>
-
-                                <FeatureSection title="Social Links" icon="share">
-                                    <div className="space-y-4">
-                                        {[0, 1, 2, 3].map((index) => {
-                                            const social = profileFormData.socials?.[index] ?? { platform: 'LinkedIn', url: '' };
-                                            return (
-                                                <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                            Platform {index + 1}
-                                                        </label>
-                                                        <select
-                                                            value={social.platform}
-                                                            onChange={(e) =>
-                                                                handleSocialChange(
-                                                                    index,
-                                                                    'platform',
-                                                                    e.target.value as AgentProfile['socials'][number]['platform']
-                                                                )
-                                                            }
-                                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                                                        >
-                                                            <option value="LinkedIn">LinkedIn</option>
-                                                            <option value="Facebook">Facebook</option>
-                                                            <option value="Instagram">Instagram</option>
-                                                            <option value="Twitter">Twitter</option>
-                                                            <option value="YouTube">YouTube</option>
-                                                            <option value="Pinterest">Pinterest</option>
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                            URL
-                                                        </label>
-                                                        <input
-                                                            type="url"
-                                                            value={social.url}
-                                                            onChange={(e) => handleSocialChange(index, 'url', e.target.value)}
-                                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                                                            placeholder="https://"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </FeatureSection>
-
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <p className="text-sm text-slate-500">
-                                        This info powers AI listings, emails, proposals, QR codes, and more.
+                                    <h3 className="text-xl font-bold text-slate-900 mb-2">Your AI Card is your Profile</h3>
+                                    <p className="text-slate-600 max-w-lg mx-auto mb-8">
+                                        We've centralized your profile management. Your AI Card now serves as the single source of truth for your agent details, branding, and contact info across the entire platform.
                                     </p>
-                                    <button
-                                        type="submit"
-                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary-600 text-white font-semibold hover:bg-primary-700 disabled:bg-primary-300"
-                                        disabled={isProfileSaving}
+                                    <a
+                                        href="#/ai-card"
+                                        onClick={(e) => {
+                                            if (onNavigateToAICard) {
+                                                e.preventDefault();
+                                                onNavigateToAICard();
+                                            }
+                                        }}
+                                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
                                     >
-                                        <span className="material-symbols-outlined text-base">
-                                            {isProfileSaving ? 'hourglass_empty' : 'save'}
-                                        </span>
-                                        {isProfileSaving ? 'Saving…' : 'Save Profile'}
-                                    </button>
+                                        <span className="material-symbols-outlined">edit_square</span>
+                                        Edit AI Card Profile
+                                    </a>
                                 </div>
-                            </form>
+                            </div>
                         )}
                         {activeTab === 'notifications' && (
                             <div className="p-8 space-y-8">
@@ -1969,11 +1669,11 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
 
                                 {isNotificationsLoading ? (
                                     <div className="px-5 py-12 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-sm text-slate-500">
-                                                <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-3">
                                             <div className="w-4 h-4 border-2 border-slate-300 border-t-primary-500 rounded-full animate-spin" />
                                             Loading your preferences…
-                                                    </div>
-                                                </div>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <>
                                         {notificationSaveError && (
@@ -1985,7 +1685,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                             <div className="px-5 py-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-700 flex items-center gap-2">
                                                 <div className="w-3 h-3 border-2 border-primary-300 border-t-primary-700 rounded-full animate-spin" />
                                                 Saving your changes…
-                                    </div>
+                                            </div>
                                         )}
 
                                         {NOTIFICATION_GROUPS.map((group) => (
@@ -2001,18 +1701,18 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                             disabled={isNotificationsSaving}
                                                         />
                                                     ))}
-                                    </div>
-                                </FeatureSection>
+                                                </div>
+                                            </FeatureSection>
                                         ))}
                                     </>
                                 )}
                             </div>
                         )}
                         {activeTab === 'email' && (
-                           <form onSubmit={handleEmailSettingsSave} className="p-8 space-y-8">
+                            <form onSubmit={handleEmailSettingsSave} className="p-8 space-y-8">
                                 <div>
-                                   <h2 className="text-2xl font-bold text-slate-900">📧 Email Settings</h2>
-                                   <p className="text-slate-500 mt-1">Connect your email accounts and configure your email preferences for automated sequences.</p>
+                                    <h2 className="text-2xl font-bold text-slate-900">📧 Email Settings</h2>
+                                    <p className="text-slate-500 mt-1">Connect your email accounts and configure your email preferences for automated sequences.</p>
                                 </div>
                                 <div className="bg-white border border-primary-100 rounded-xl shadow-sm">
                                     <button
@@ -2069,76 +1769,76 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                             </div>
                                         )}
 
-                                {/* Email Service Setup */}
-                                <div className="bg-white rounded-lg border border-slate-200 p-6">
-                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">📬 Email Service</h3>
-                                    <p className="text-sm text-slate-600 mb-4">
-                                        Your platform uses Mailgun for sending automated emails and follow-up sequences.
-                                    </p>
-                                    
-                                    <div className="space-y-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                                <h4 className="text-sm font-semibold text-blue-800 mb-2">🔐 Direct Connection (Recommended)</h4>
-                                                <div className="text-xs text-blue-700 space-y-1">
-                                                    <p>• Works with Gmail (Outlook coming soon)</p>
-                                                    <p>• 100% authentic emails (no "via" tags)</p>
-                                                    <p>• Best deliverability & reputation</p>
-                                                    <p>• One-click setup with OAuth</p>
-                                                </div>
-                                            </div>
-                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                                <h4 className="text-sm font-semibold text-green-800 mb-2">📧 Email Forwarding (Any Provider)</h4>
-                                                <div className="text-xs text-green-700 space-y-1">
-                                                    <p>• Works with ANY email provider</p>
-                                                    <p>• Yahoo, AOL, custom domains, etc.</p>
-                                                    <p>• Simple forwarding rule setup</p>
-                                                    <p>• All replies come to your inbox</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
-                                            <h4 className="text-sm font-semibold text-slate-700 mb-2">📬 Your Unique Forwarding Address</h4>
-                                            <div className="flex items-center gap-3">
-                                                <input
-                                                    type="text"
-                                                    readOnly
-                                                            value={forwardingAddress}
-                                                    className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded text-sm font-mono"
-                                                />
-                                                <button
-                                                    type="button"
-                                                            onClick={() => navigator.clipboard?.writeText(forwardingAddress)}
-                                                    className="px-3 py-2 bg-slate-600 text-white text-xs rounded hover:bg-slate-700 transition"
-                                                >
-                                                    Copy
-                                                </button>
-                                            </div>
-                                            <p className="text-xs text-slate-600 mt-2">
-                                                Set up a forwarding rule in your email client to forward leads to this address. 
-                                                <a href="#" className="text-blue-600 hover:underline ml-1">View setup guide →</a>
+                                        {/* Email Service Setup */}
+                                        <div className="bg-white rounded-lg border border-slate-200 p-6">
+                                            <h3 className="text-lg font-semibold text-slate-800 mb-4">📬 Email Service</h3>
+                                            <p className="text-sm text-slate-600 mb-4">
+                                                Your platform uses Mailgun for sending automated emails and follow-up sequences.
                                             </p>
-                                        </div>
 
-                                        <div className="space-y-4">
-                                            {emailConnections.length > 0 && (
-                                                <div className="space-y-2">
-                                                    <h4 className="text-sm font-medium text-slate-700">Connected Accounts</h4>
+                                            <div className="space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                                        <h4 className="text-sm font-semibold text-blue-800 mb-2">🔐 Direct Connection (Recommended)</h4>
+                                                        <div className="text-xs text-blue-700 space-y-1">
+                                                            <p>• Works with Gmail (Outlook coming soon)</p>
+                                                            <p>• 100% authentic emails (no "via" tags)</p>
+                                                            <p>• Best deliverability & reputation</p>
+                                                            <p>• One-click setup with OAuth</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                                        <h4 className="text-sm font-semibold text-green-800 mb-2">📧 Email Forwarding (Any Provider)</h4>
+                                                        <div className="text-xs text-green-700 space-y-1">
+                                                            <p>• Works with ANY email provider</p>
+                                                            <p>• Yahoo, AOL, custom domains, etc.</p>
+                                                            <p>• Simple forwarding rule setup</p>
+                                                            <p>• All replies come to your inbox</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
+                                                    <h4 className="text-sm font-semibold text-slate-700 mb-2">📬 Your Unique Forwarding Address</h4>
+                                                    <div className="flex items-center gap-3">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            value={forwardingAddress}
+                                                            className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded text-sm font-mono"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => navigator.clipboard?.writeText(forwardingAddress)}
+                                                            className="px-3 py-2 bg-slate-600 text-white text-xs rounded hover:bg-slate-700 transition"
+                                                        >
+                                                            Copy
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-slate-600 mt-2">
+                                                        Set up a forwarding rule in your email client to forward leads to this address.
+                                                        <a href="#" className="text-blue-600 hover:underline ml-1">View setup guide →</a>
+                                                    </p>
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    {emailConnections.length > 0 && (
+                                                        <div className="space-y-2">
+                                                            <h4 className="text-sm font-medium text-slate-700">Connected Accounts</h4>
                                                             {emailConnections.map((connection) => (
-                                                        <div key={connection.provider} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="text-lg">
-                                                                    {connection.provider === 'gmail' ? '📧' : '📬'}
-                                                                </span>
-                                                                <div>
-                                                                    <p className="font-medium text-green-800">{connection.email}</p>
-                                                                    <p className="text-xs text-green-600">Connected {new Date(connection.connectedAt).toLocaleDateString()}</p>
-                                                                </div>
-                                                            </div>
-                                                            <button
+                                                                <div key={connection.provider} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="text-lg">
+                                                                            {connection.provider === 'gmail' ? '📧' : '📬'}
+                                                                        </span>
+                                                                        <div>
+                                                                            <p className="font-medium text-green-800">{connection.email}</p>
+                                                                            <p className="text-xs text-green-600">Connected {new Date(connection.connectedAt).toLocaleDateString()}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
                                                                         type="button"
-                                                                onClick={() => handleEmailDisconnect(connection.provider)}
+                                                                        onClick={() => handleEmailDisconnect(connection.provider)}
                                                                         disabled={isConnecting === connection.provider || isEmailSettingsSaving}
                                                                         className="text-xs px-3 py-1 text-red-600 hover:bg-red-100 rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                                                     >
@@ -2150,79 +1850,79 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                                         ) : (
                                                                             'Disconnect'
                                                                         )}
-                                                 </button>
+                                                                    </button>
+                                                                </div>
+                                                            ))}
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                                    )}
 
-                                            <div className="flex flex-col sm:flex-row gap-3">
-                                                {!emailConnections.find((c) => c.provider === 'gmail') && (
-                                                    isGoogleIntegrationAvailable ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleGmailConnect}
-                                                            disabled={isConnecting === 'gmail' || isEmailSettingsSaving}
-                                                            className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 transition"
-                                                        >
-                                                            {isConnecting === 'gmail' ? (
-                                                                <>
-                                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                                    <span className="font-semibold">Connecting...</span>
-                                                                </>
+                                                    <div className="flex flex-col sm:flex-row gap-3">
+                                                        {!emailConnections.find((c) => c.provider === 'gmail') && (
+                                                            isGoogleIntegrationAvailable ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleGmailConnect}
+                                                                    disabled={isConnecting === 'gmail' || isEmailSettingsSaving}
+                                                                    className="flex-1 flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 transition"
+                                                                >
+                                                                    {isConnecting === 'gmail' ? (
+                                                                        <>
+                                                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                            <span className="font-semibold">Connecting...</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <span className="font-semibold">📧 Connect Gmail</span>
+                                                                    )}
+                                                                </button>
                                                             ) : (
-                                                                <span className="font-semibold">📧 Connect Gmail</span>
-                                                            )}
-                                                        </button>
-                                                    ) : (
-                                                        <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                                            <div className="font-semibold text-slate-700 mb-1">Gmail OAuth disabled</div>
-                                                            Add Google OAuth credentials (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, and set `VITE_ENABLE_GOOGLE_INTEGRATIONS=true`) then restart the dev server to enable one-click Gmail connections. Until then, use the forwarding address above.
-                                                        </div>
-                                                    )
-                                                )}
-                                            </div>
-
-                                            <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-3">
-                                                <p className="font-medium text-slate-700 mb-1">📬 Other providers</p>
-                                                <p>Direct Outlook OAuth is coming soon. Until then, use the forwarding address above so Outlook or any other email service still routes replies back to your inbox.</p>
-                                            </div>
-
-                                            {emailConnections.length === 0 && (
-                                                <div className="space-y-3">
-                                                    <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded p-3">
-                                                        <p className="font-medium text-blue-800 mb-1">🔐 OAuth Connection</p>
-                                                        <p>Secure authentication. Your password is never stored or seen by our app.</p>
+                                                                <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                                                    <div className="font-semibold text-slate-700 mb-1">Gmail OAuth disabled</div>
+                                                                    Add Google OAuth credentials (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, and set `VITE_ENABLE_GOOGLE_INTEGRATIONS=true`) then restart the dev server to enable one-click Gmail connections. Until then, use the forwarding address above.
+                                                                </div>
+                                                            )
+                                                        )}
                                                     </div>
-                                                    <div className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded p-3">
-                                                        <p className="font-medium text-amber-800 mb-1">💡 Don't have Gmail?</p>
-                                                        <p>No problem! Use the forwarding address above with any email provider (Outlook, Yahoo, AOL, custom domains, etc.). Just set up email forwarding in your current email client.</p>
-                                        </div>
-                                    </div>
-                                )}
-                                        </div>
-                                    </div>
-                                </div>
 
-                                {/* Email Preferences */}
-                                <div className="bg-white rounded-lg border border-slate-200 p-6">
-                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">✉️ Email Preferences</h3>
-                                    
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label htmlFor="fromName" className="block text-sm font-medium text-slate-700 mb-1">
-                                                Display Name
-                                            </label>
-                                            <input
-                                                type="text"
-                                                id="fromName"
-                                                name="fromName"
-                                                value={emailFormData.fromName || ''}
-                                                onChange={(e) => handleEmailSettingsChange('fromName', e.target.value)}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="Your Name"
-                                            />
+                                                    <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-3">
+                                                        <p className="font-medium text-slate-700 mb-1">📬 Other providers</p>
+                                                        <p>Direct Outlook OAuth is coming soon. Until then, use the forwarding address above so Outlook or any other email service still routes replies back to your inbox.</p>
+                                                    </div>
+
+                                                    {emailConnections.length === 0 && (
+                                                        <div className="space-y-3">
+                                                            <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded p-3">
+                                                                <p className="font-medium text-blue-800 mb-1">🔐 OAuth Connection</p>
+                                                                <p>Secure authentication. Your password is never stored or seen by our app.</p>
+                                                            </div>
+                                                            <div className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded p-3">
+                                                                <p className="font-medium text-amber-800 mb-1">💡 Don't have Gmail?</p>
+                                                                <p>No problem! Use the forwarding address above with any email provider (Outlook, Yahoo, AOL, custom domains, etc.). Just set up email forwarding in your current email client.</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
+
+                                        {/* Email Preferences */}
+                                        <div className="bg-white rounded-lg border border-slate-200 p-6">
+                                            <h3 className="text-lg font-semibold text-slate-800 mb-4">✉️ Email Preferences</h3>
+
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label htmlFor="fromName" className="block text-sm font-medium text-slate-700 mb-1">
+                                                        Display Name
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        id="fromName"
+                                                        name="fromName"
+                                                        value={emailFormData.fromName || ''}
+                                                        onChange={(e) => handleEmailSettingsChange('fromName', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="Your Name"
+                                                    />
+                                                </div>
 
                                                 <div>
                                                     <label htmlFor="fromEmail" className="block text-sm font-medium text-slate-700 mb-1">
@@ -2236,57 +1936,57 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                         onChange={(e) => handleEmailSettingsChange('fromEmail', e.target.value)}
                                                         className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                         placeholder="you@yourdomain.com"
-                                            />
-                                        </div>
+                                                    />
+                                                </div>
 
-                                        <div>
-                                            <label htmlFor="signature" className="block text-sm font-medium text-slate-700 mb-1">
-                                                Email Signature
-                                            </label>
-                                            <textarea
-                                                id="signature"
-                                                name="signature"
-                                                value={emailFormData.signature || ''}
-                                                onChange={(e) => handleEmailSettingsChange('signature', e.target.value)}
-                                                rows={4}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                <div>
+                                                    <label htmlFor="signature" className="block text-sm font-medium text-slate-700 mb-1">
+                                                        Email Signature
+                                                    </label>
+                                                    <textarea
+                                                        id="signature"
+                                                        name="signature"
+                                                        value={emailFormData.signature || ''}
+                                                        onChange={(e) => handleEmailSettingsChange('signature', e.target.value)}
+                                                        rows={4}
+                                                        className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                         placeholder="Best regards,\nYour Name\nReal Estate Agent\nPhone: (555) 123-4567"
-                                            />
+                                                    />
+                                                </div>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="autoReply"
+                                                        name="autoReply"
+                                                        checked={emailFormData.autoReply || false}
+                                                        onChange={(e) => handleEmailSettingsChange('autoReply', e.target.checked)}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+                                                    />
+                                                    <label htmlFor="autoReply" className="ml-2 block text-sm text-slate-700">
+                                                        Enable auto-reply for new leads
+                                                    </label>
+                                                </div>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="trackOpens"
+                                                        name="trackOpens"
+                                                        checked={emailFormData.trackOpens || false}
+                                                        onChange={(e) => handleEmailSettingsChange('trackOpens', e.target.checked)}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+                                                    />
+                                                    <label htmlFor="trackOpens" className="ml-2 block text-sm text-slate-700">
+                                                        Track email opens and clicks
+                                                    </label>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div className="flex items-center">
-                                            <input
-                                                type="checkbox"
-                                                id="autoReply"
-                                                name="autoReply"
-                                                checked={emailFormData.autoReply || false}
-                                                onChange={(e) => handleEmailSettingsChange('autoReply', e.target.checked)}
-                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
-                                            />
-                                            <label htmlFor="autoReply" className="ml-2 block text-sm text-slate-700">
-                                                Enable auto-reply for new leads
-                                            </label>
-                                        </div>
-
-                                        <div className="flex items-center">
-                                            <input
-                                                type="checkbox"
-                                                id="trackOpens"
-                                                name="trackOpens"
-                                                checked={emailFormData.trackOpens || false}
-                                                onChange={(e) => handleEmailSettingsChange('trackOpens', e.target.checked)}
-                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
-                                            />
-                                            <label htmlFor="trackOpens" className="ml-2 block text-sm text-slate-700">
-                                                Track email opens and clicks
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-end">
-                                    <button
-                                        type="submit"
+                                        <div className="flex justify-end">
+                                            <button
+                                                type="submit"
                                                 disabled={isEmailSettingsSaving}
                                                 className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
@@ -2298,14 +1998,14 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                 ) : (
                                                     'Save Email Settings'
                                                 )}
-                                    </button>
-                                </div>
+                                            </button>
+                                        </div>
                                     </>
                                 )}
                             </form>
                         )}
                         {activeTab === 'security' && (
-                           <div className="p-8">
+                            <div className="p-8">
                                 <h2 className="text-2xl font-bold text-slate-900">Security Settings</h2>
                                 <p className="text-slate-500 mt-1">Manage your account security and privacy settings</p>
 
@@ -2331,47 +2031,47 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                 <div className="mt-8 pt-8 border-t border-slate-200">
                                     <h3 className="text-lg font-bold text-slate-800">Change Password</h3>
                                     <form onSubmit={handlePasswordSave} className="mt-4 space-y-4 max-w-md">
-                                        <FormInput 
-                                            label="Current Password" 
-                                            id="currentPassword" 
+                                        <FormInput
+                                            label="Current Password"
+                                            id="currentPassword"
                                             name="currentPassword"
-                                            type="password" 
+                                            type="password"
                                             autoComplete="current-password"
-                                            value={passwords.currentPassword} 
+                                            value={passwords.currentPassword}
                                             onChange={handlePasswordChange}
                                         />
-                                        <FormInput 
-                                            label="New Password" 
-                                            id="newPassword" 
+                                        <FormInput
+                                            label="New Password"
+                                            id="newPassword"
                                             name="newPassword"
-                                            type="password" 
+                                            type="password"
                                             autoComplete="new-password"
-                                            value={passwords.newPassword} 
+                                            value={passwords.newPassword}
                                             onChange={handlePasswordChange}
                                         />
-                                        <FormInput 
-                                            label="Confirm New Password" 
-                                            id="confirmNewPassword" 
+                                        <FormInput
+                                            label="Confirm New Password"
+                                            id="confirmNewPassword"
                                             name="confirmNewPassword"
-                                            type="password" 
+                                            type="password"
                                             autoComplete="new-password"
-                                            value={passwords.confirmNewPassword} 
+                                            value={passwords.confirmNewPassword}
                                             onChange={handlePasswordChange}
                                         />
-                                            <div>
-                                                <button
-                                                    type="submit"
+                                        <div>
+                                            <button
+                                                type="submit"
                                                 disabled={isSecuritySaving || !isPasswordValid}
-                                                    className="px-5 py-2 font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition disabled:cursor-not-allowed disabled:opacity-60"
-                                                >
+                                                className="px-5 py-2 font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
                                                 {isSecuritySaving ? 'Updating…' : 'Update Password'}
                                             </button>
                                         </div>
                                     </form>
                                 </div>
-                           </div>
+                            </div>
                         )}
-                        
+
                         {activeTab === 'calendar' && (
                             <form onSubmit={handleCalendarSettingsSave} className="p-8 space-y-8">
                                 {calendarSettingsError && (
@@ -2421,7 +2121,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                 <div>
                                     <h2 className="text-2xl font-bold text-slate-900">📅 Calendar Integration</h2>
                                     <p className="text-slate-500 mt-1">Connect your Google Calendar to automatically schedule consultations and manage appointments.</p>
-                                 </div>
+                                </div>
 
                                 <div className="mt-6 bg-white border border-slate-200 rounded-xl">
                                     <div className="p-6">
@@ -2495,7 +2195,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                                 <p>• ✅ Appointment reminders & notifications</p>
                                                                 <p>• ✅ Sync with your existing calendar</p>
                                                             </div>
-                                                            
+
                                                             <div className="flex items-center gap-4">
                                                                 <button
                                                                     type="button"
@@ -2506,7 +2206,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                                     <span className="material-symbols-outlined w-4 h-4">link</span>
                                                                     {isConnecting === 'google' ? 'Connecting...' : 'Connect Google Calendar'}
                                                                 </button>
-                                                                
+
                                                                 {isGoogleCalendarConnected && (
                                                                     <div className="flex items-center gap-2 text-green-700">
                                                                         <span className="material-symbols-outlined w-4 h-4">check_circle</span>
@@ -2517,7 +2217,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                
+
                                                 {isGoogleCalendarConnected && (
                                                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                                                         <div className="flex items-center gap-3">
@@ -2698,7 +2398,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                 </div>
                             </form>
                         )}
-                        
+
                         {activeTab === 'security' && (
                             <form onSubmit={handlePasswordSave} className="p-8 space-y-8">
                                 <div>
@@ -2727,7 +2427,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                 <input
                                                     type="password"
                                                     name="currentPassword"
-                                                autoComplete="current-password"
+                                                    autoComplete="current-password"
                                                     value={passwords.currentPassword}
                                                     onChange={handlePasswordChange}
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -2740,7 +2440,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                 <input
                                                     type="password"
                                                     name="newPassword"
-                                                autoComplete="new-password"
+                                                    autoComplete="new-password"
                                                     value={passwords.newPassword}
                                                     onChange={handlePasswordChange}
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -2773,7 +2473,7 @@ const mapCentralToUiProfile = (profile: CentralAgentProfile): AgentProfile => {
                                                 <input
                                                     type="password"
                                                     name="confirmNewPassword"
-                                                autoComplete="new-password"
+                                                    autoComplete="new-password"
                                                     value={passwords.confirmNewPassword}
                                                     onChange={handlePasswordChange}
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"

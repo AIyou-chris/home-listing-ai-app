@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Property } from '../types';
 import { DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
 import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
@@ -48,11 +48,21 @@ const DemoDashboard: React.FC<DemoDashboardProps> = ({ properties, onSelectPrope
     const appointments = DEMO_FAT_APPOINTMENTS;
     const newLeadsCount = leads.filter(l => l.status === 'New').length;
 
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
+
     return (
         <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-10">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900">Demo Dashboard</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold text-slate-900">Demo Dashboard</h1>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
+                            <span className="material-symbols-outlined text-sm">workspace_premium</span>
+                            Demo Mode
+                        </span>
+                    </div>
                     <p className="text-slate-500 mt-1">Here's a sample of a busy agent's dashboard.</p>
                 </div>
             </div>

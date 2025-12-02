@@ -106,5 +106,30 @@ rules:
         ### Final Sign-Off
         Do not mark fixed until all checkboxes are ✅ and smooth real-time typing is demonstrated (recording or logs).
 
+  - id: user-interaction-preferences
+    description: Critical rules for user communication and task execution.
+    tags: [UserPreferences, Communication, SQL, Supabase]
+    trigger:
+      on: always
+    action:
+      type: prepend_to_prompt
+      content: |
+        ## 🚨 USER INTERACTION RULES (CRITICAL)
+
+        ### 1. "Explain Like I'm 10" (ELI10)
+        - **When asking the USER to do something** (especially SQL/Supabase):
+          - Instructions must be **extremely precise, step-by-step, and very clear**.
+          - Assume NO prior knowledge.
+          - Use simple language.
+
+        ### 2. Agent Actions First
+        - **If YOU (the Agent) can do it, DO IT.**
+        - Only ask the user to run code/commands if it is impossible for you to do so.
+
+        ### 3. Concise Explanations
+        - **Do not explain "how" a fix works** unless asked.
+        - Just say "It's fixed" or "I did X".
+        - Keep technical jargon to a minimum.
+
 
 

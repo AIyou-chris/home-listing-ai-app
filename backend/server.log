@@ -1,0 +1,104 @@
+[dotenv@17.2.3] injecting env (0) from ../.env.local -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (46) from ../.env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from .env.local -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[server] has service role? true
+[Server] Registering AI Sidekick routes
+🚀 AI Server running on http://0.0.0.0:3002
+📝 Available endpoints:
+   POST /api/continue-conversation
+   POST /api/generate-speech
+   POST /api/realtime/offer
+   GET  /api/admin/dashboard-metrics
+   GET  /api/admin/users
+   POST /api/admin/users
+   PUT  /api/admin/users/:userId
+   DELETE /api/admin/users/:userId
+   POST /api/admin/broadcast
+   GET  /api/admin/broadcast-history
+   GET  /api/admin/performance
+   GET  /api/admin/settings
+   POST /api/admin/settings
+   GET  /api/admin/alerts
+   POST /api/admin/alerts/:alertId/acknowledge
+   POST /api/training/feedback
+   GET  /api/training/feedback/:sidekick
+   GET  /api/training/insights/:sidekick
+   POST /api/admin/maintenance
+   GET  /api/admin/ai-model
+   POST /api/admin/ai-model
+   GET  /api/admin/leads
+   POST /api/admin/leads
+   PUT  /api/admin/leads/:leadId
+   DELETE /api/admin/leads/:leadId
+   GET  /api/admin/leads/stats
+   GET  /api/admin/marketing/sequences
+   POST /api/admin/marketing/sequences
+   PUT  /api/admin/marketing/sequences/:sequenceId
+   DELETE /api/admin/marketing/sequences/:sequenceId
+   GET  /api/admin/marketing/active-followups
+   GET  /api/admin/marketing/qr-codes
+   POST /api/admin/marketing/qr-codes
+   PUT  /api/admin/marketing/qr-codes/:qrCodeId
+   DELETE /api/admin/marketing/qr-codes/:qrCodeId
+   GET  /api/blog
+   GET  /api/blog/:slug
+   POST /api/blog
+   🎯 LEAD SCORING ENDPOINTS:
+   POST /api/leads/:leadId/score
+   GET  /api/leads/:leadId/score
+   POST /api/leads/score-all
+   GET  /api/leads/scoring-rules
+   💬 CONVERSATION ENDPOINTS:
+   POST /api/conversations
+   GET  /api/conversations
+   GET  /api/conversations/:conversationId/messages
+   POST /api/conversations/:conversationId/messages
+   PUT  /api/conversations/:conversationId
+   GET  /api/conversations/export/csv
+   🎴 AI CARD ENDPOINTS:
+   GET  /api/ai-card/profile
+   POST /api/ai-card/profile
+   PUT  /api/ai-card/profile
+   POST /api/ai-card/generate-qr
+   POST /api/ai-card/share
+   GET  /api/ai-card/qr-codes
+   POST /api/ai-card/qr-codes
+   PUT  /api/ai-card/qr-codes/:qrId
+   DELETE /api/ai-card/qr-codes/:qrId
+   DELETE /api/conversations/:conversationId
+   📅 APPOINTMENT ENDPOINTS:
+   GET  /api/appointments
+   POST /api/appointments
+   PUT  /api/appointments/:appointmentId
+   DELETE /api/appointments/:appointmentId
+   🏠 LISTING ENDPOINTS:
+   GET  /api/listings
+   POST /api/listings
+   PUT  /api/listings/:listingId
+   DELETE /api/listings/:listingId
+   GET  /api/listings/:listingId/marketing
+   👮 ADMIN LISTINGS ENDPOINTS:
+   GET  /api/admin/listings
+   POST /api/admin/listings
+   DELETE /api/admin/listings/:id
+[Leads] Cache primed with 1 record(s).
+[AI Card] Failed to load profile from Supabase: invalid input syntax for type uuid: "test-user-mock"
+--- Chat Debug ---
+Agent ID: test-user-mock
+Context Prompt Length: 312
+Final Messages: [
+  {
+    "role": "system",
+    "content": "You are the agent’s primary sidekick. Use the agent profile, voice, and preferences. Summarize lead notes, appointment outcomes, and funnel status. Keep tone on-brand and concise."
+  },
+  {
+    "role": "system",
+    "content": "\nYou are working for the following real estate agent:\nName: Sherlock Holmes\nTitle: Consulting Detective\nCompany: 221B Baker St\nBio: I solve crimes.\nPhone: 555-0199\nEmail: sherlock@holmes.com\nWebsite: www.sherlock.com\n\nPlease represent this agent in your responses. Use their tone and branding where appropriate.\n"
+  },
+  {
+    "role": "user",
+    "content": "Who are you working for?"
+  }
+]
+------------------

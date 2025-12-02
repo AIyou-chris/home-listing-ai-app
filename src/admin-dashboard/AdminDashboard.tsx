@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import AdminAICardClone from './components/AdminAICardClone';
 import AIConversationsPage from '../components/AIConversationsPage';
-import AIInteractiveTraining from '../components/AIInteractiveTraining';
+
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import AdminCommandCenter from './components/AdminCommandCenter';
-import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub';
+import AdminAISidekicksPage from './components/AdminAISidekicksPage';
+// import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub'; // Kept for reference if needed, but unused in new flow
 import AdminFunnelAnalyticsPanel from '../components/AdminFunnelAnalyticsPanel';
 import InteractionHubPage from '../components/InteractionHubPage';
 import AddListingPage from '../components/AddListingPage';
@@ -13,6 +14,7 @@ import AdminListingsPage from './AdminListingsPage';
 import PropertyPage from '../components/PropertyPage';
 import AdminSettingsPage from './components/AdminSettingsPage';
 import { LogoWithName } from '../components/LogoWithName';
+import ListingsPage from '../components/ListingsPage';
 import AdminDashboardSidebar from './AdminDashboardSidebar';
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from '../constants';
@@ -34,22 +36,22 @@ type DashboardView =
   | 'ai-conversations'
   | 'listings'
   | 'knowledge-base'
-  | 'ai-training'
   | 'funnel-analytics'
   | 'settings'
   | 'analytics'
   | 'inbox'
   | 'property'
-  | 'add-listing';
+  | 'add-listing'
+  | 'ai-card-builder';
 
 const cloneDemoProperty = (property: Property, index: number): Property => {
   const description =
     typeof property.description === 'string'
       ? property.description
       : {
-          ...property.description,
-          paragraphs: [...property.description.paragraphs]
-        };
+        ...property.description,
+        paragraphs: [...property.description.paragraphs]
+      };
 
   return {
     ...property,
@@ -63,7 +65,7 @@ const cloneDemoProperty = (property: Property, index: number): Property => {
   };
 };
 
-const normalizeAppointment = (appt: Partial<Appointment> & Record<string, unknown>): Appointment => ({
+const normalizeAppointment = (appt: any): Appointment => ({
   id: (appt.id as string) ?? `appt-${Date.now()}`,
   type: (appt.type as Appointment['type']) ?? (appt as { kind?: Appointment['type'] }).kind ?? 'Showing',
   date: (appt.date as string) ?? (appt.startIso as string)?.slice(0, 10) ?? '',
@@ -100,7 +102,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   const agentOptions = [{ id: 'admin-agent', name: 'Admin Team' }, { id: 'system-admin', name: 'System Admin' }];
   const [activeView, setActiveView] = useState<DashboardView>(initialTab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDemoMode] = useState(true);
+  const [isDemoMode] = useState(false);
 
   const [properties, setProperties] = useState<Property[]>(() =>
     DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index))
@@ -192,8 +194,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   ): Promise<Appointment | null> => {
     const payload = {
       leadId: lead?.id ?? null,
-      assignedAgentId: payload?.agentId ?? agentOptions[0]?.id ?? null,
-      assignedAgentName: payload?.agentName ?? (agentOptions[0]?.name ?? null),
+      assignedAgentId: apptData.agentId ?? agentOptions[0]?.id ?? null,
+      assignedAgentName: apptData.agentName ?? (agentOptions[0]?.name ?? null),
       propertyId: null,
       propertyAddress: undefined,
       kind: apptData.kind,
@@ -338,9 +340,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
           />
         );
       case 'knowledge-base':
-        return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
-      case 'ai-training':
-        return <AIInteractiveTraining demoMode={isDemoMode} />;
+        return <AdminAISidekicksPage initialTab="overview" />;
+
       case 'funnel-analytics':
         return <AdminFunnelAnalyticsPanel onBackToDashboard={resetToDashboard} />;
       case 'settings':

@@ -8,6 +8,8 @@ import { SchedulerProvider } from './context/SchedulerContext'
 import AgentDashboardBlueprint from './components/AgentDashboardBlueprint'
 import { AgentBrandingProvider } from './context/AgentBrandingContext'
 
+import { ImpersonationProvider } from './context/ImpersonationContext'
+
 const rootElement = document.getElementById('root')!
 const root = createRoot(rootElement)
 
@@ -29,9 +31,11 @@ const blueprintTree = (
     <HashRouter>
       <ErrorBoundary>
         <SchedulerProvider>
-          <AgentBrandingProvider>
-            <AgentDashboardBlueprint />
-          </AgentBrandingProvider>
+          <ImpersonationProvider>
+            <AgentBrandingProvider>
+              <AgentDashboardBlueprint />
+            </AgentBrandingProvider>
+          </ImpersonationProvider>
         </SchedulerProvider>
       </ErrorBoundary>
     </HashRouter>
@@ -43,9 +47,7 @@ const appTree = (
     <HashRouter>
       <ErrorBoundary>
         <SchedulerProvider>
-          <AgentBrandingProvider>
-            <App />
-          </AgentBrandingProvider>
+          <App />
         </SchedulerProvider>
       </ErrorBoundary>
     </HashRouter>

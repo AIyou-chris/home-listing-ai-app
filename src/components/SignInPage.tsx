@@ -23,7 +23,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
         setError('');
         try {
             const { error } = await supabase.auth.signInWithPassword({
-                email,
+                email: email.trim().toLowerCase(),
                 password
             });
             if (error) throw error;
@@ -36,7 +36,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
-            <AuthHeader onNavigateToSignUp={onNavigateToSignUp} onNavigateToSignIn={() => {}} onNavigateToLanding={onNavigateToLanding} onNavigateToSection={onNavigateToSection} onEnterDemoMode={onEnterDemoMode} />
+            <AuthHeader onNavigateToSignUp={onNavigateToSignUp} onNavigateToSignIn={() => { }} onNavigateToLanding={onNavigateToLanding} onNavigateToSection={onNavigateToSection} onEnterDemoMode={onEnterDemoMode} />
             <main className="flex-grow flex items-center justify-center py-12">
                 <div className="w-full max-w-md px-4 sm:px-0">
                     <div className="bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-200/70">
@@ -56,7 +56,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                             </div>
                             <div>
                                 <div className="flex justify-between items-baseline">
-                                    <label htmlFor="password"  className="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
+                                    <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
                                     <a href="#" className="text-sm font-semibold text-primary-600 hover:text-primary-500">Forgot password?</a>
                                 </div>
                                 <div className="relative">

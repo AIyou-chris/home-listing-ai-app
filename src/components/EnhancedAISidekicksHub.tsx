@@ -3,9 +3,20 @@ import AISidekicks from './AISidekicks'
 
 interface EnhancedAISidekicksHubProps {
   isDemoMode?: boolean
+  sidekickTemplatesOverride?: {
+    id: string
+    label: string
+    description: string
+    type: string
+    icon: string
+    color: string
+    defaultName: string
+    defaultVoice: string
+    personality: { description: string; traits: string[]; preset: string }
+  }[]
 }
 
-const EnhancedAISidekicksHub: React.FC<EnhancedAISidekicksHubProps> = ({ isDemoMode = false }) => {
+const EnhancedAISidekicksHub: React.FC<EnhancedAISidekicksHubProps> = ({ isDemoMode = false, sidekickTemplatesOverride }) => {
   const [isHelpOpen, setIsHelpOpen] = useState(false)
 
   return (
@@ -74,7 +85,7 @@ const EnhancedAISidekicksHub: React.FC<EnhancedAISidekicksHubProps> = ({ isDemoM
 
       {/* Content Area */}
       <div className="flex-1">
-        <AISidekicks isDemoMode={isDemoMode} />
+        <AISidekicks isDemoMode={isDemoMode} sidekickTemplatesOverride={sidekickTemplatesOverride} />
       </div>
 
     </div>

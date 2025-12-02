@@ -1,23 +1,204 @@
-import React, { useEffect, useMemo, useState } from 'react';
-
-import type { AdminListingModel } from '../services/adminListingsService';
-import { adminListingsService } from '../services/adminListingsService';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Copy, Check, ArrowLeft, RefreshCcw } from 'lucide-react';
+import { Property, isAIDescription } from '../types';
+import { adminListingsService, AdminListingModel } from '../services/adminListingsService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { RefreshCcw, Sparkles, Trash2, Search, ArrowLeft } from 'lucide-react';
+import { SAMPLE_AGENT } from '../constants';
+
+// --- PropertyCard Component (Copied from Blueprint) ---
+interface PropertyCardProps {
+  property: Property;
+  onSelect: () => void;
+  onDelete: () => void;
+  onOpenMarketing?: () => void;
+  onOpenBuilder?: () => void;
+}
+
+const PropertyCard: React.FC<PropertyCardProps> = ({
+  property,
+  onSelect,
+  onDelete,
+  onOpenMarketing,
+  onOpenBuilder
+}) => {
+  const handleCardClick = () => {
+    onSelect();
+  };
+
+  const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onSelect();
+    }
+  };
+
+  const handleEditClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (onOpenBuilder) {
+      onOpenBuilder();
+      return;
+    }
+    onSelect();
+  };
+
+  const handleSidekickClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (onOpenMarketing) {
+      onOpenMarketing();
+      return;
+    }
+    alert('Listing Sidekick setup coming soon.');
+  };
+
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const shareUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/demo/listings/${encodeURIComponent(property.id)}`
+      : `https://demo.homelisting.ai/listings/${property.id}`;
+
+  const descriptionText = isAIDescription(property.description)
+    ? property.description.title
+    : (property.description || 'View details to learn more.');
+
+  return (
+    <div
+      className="bg-slate-800 rounded-2xl shadow-lg overflow-hidden flex flex-col text-white cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="relative">
+        <img className="h-56 w-full object-cover" src={property.imageUrl} alt={property.address} />
+        <div className="absolute top-4 right-4 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+          {property.status || 'Active'}
+        </div>
+      </div>
+      <div className="p-6 flex flex-col flex-grow">
+        <div className="flex-grow">
+          <h3 className="text-xl font-bold text-white">{property.title}</h3>
+          <p className="mt-1 flex items-center gap-2 text-sky-300 text-sm">
+            <span className="material-symbols-outlined text-base">location_on</span>
+            {property.address}
+          </p>
+
+          <div className="mt-4 flex justify-between items-center">
+            <div className="flex items-center gap-2 text-2xl font-bold text-white">
+              <span className="material-symbols-outlined text-sky-400">payments</span>
+              <span>${property.price.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center gap-2 text-lg font-semibold text-sky-300">
+              <span className="material-symbols-outlined text-sky-400">fullscreen</span>
+              <span>{property.squareFeet?.toLocaleString() ?? '-'} sqft</span>
+            </div>
+          </div>
+
+          <div className="mt-2 flex items-center divide-x divide-slate-600 text-sm text-slate-300">
+            <div className="flex items-center gap-2 pr-3">
+              <span className="material-symbols-outlined text-base text-slate-400">bed</span>
+              <span>{property.bedrooms ?? '-'} bds</span>
+            </div>
+            <div className="flex items-center gap-2 px-3">
+              <span className="material-symbols-outlined text-base text-slate-400">bathtub</span>
+              <span>{property.bathrooms ?? '-'} ba</span>
+            </div>
+            <div className="flex items-center gap-2 pl-3">
+              <span className="material-symbols-outlined text-base text-slate-400">straighten</span>
+              <span>{property.squareFeet?.toLocaleString() ?? '-'} sqft</span>
+            </div>
+          </div>
+
+          <p className="mt-4 text-sm text-slate-400 leading-relaxed line-clamp-3">{descriptionText}</p>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-slate-700">
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <button
+              type="button"
+              onClick={handleEditClick}
+              className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-sky-600 rounded-lg shadow-sm hover:bg-sky-700 transition"
+            >
+              <span className="material-symbols-outlined w-4 h-4">edit</span>
+              <span>Edit</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSidekickClick}
+              className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-slate-600 rounded-lg shadow-sm hover:bg-slate-700 transition"
+            >
+              <span className="material-symbols-outlined w-4 h-4">smart_toy</span>
+              <span>Listing Sidekick</span>
+            </button>
+          </div>
+          <div className="mb-3">
+            <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
+              <span className="text-xs text-slate-400">Link shortening disabled; share the listing URL below:</span>
+              <span className="truncate text-slate-100">{shareUrl}</span>
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(shareUrl);
+                    setCopyState('copied');
+                    setTimeout(() => setCopyState('idle'), 2000);
+                  } catch (error) {
+                    console.error('Copy failed', error);
+                    setCopyState('error');
+                    setTimeout(() => setCopyState('idle'), 2000);
+                  }
+                }}
+                className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-sky-300 hover:text-sky-200 transition"
+              >
+                {copyState === 'copied' ? (
+                  <>
+                    <Check className="w-3 h-3" />
+                    Copied
+                  </>
+                ) : copyState === 'error' ? (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    Retry
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-rose-900 rounded-lg shadow-sm hover:bg-rose-800 transition"
+          >
+            <span className="material-symbols-outlined w-4 h-4">delete</span>
+            <span>Delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Main AdminListingsPage Component ---
 
 const AdminListingsPage: React.FC = () => {
   const [listings, setListings] = useState<AdminListingModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
   const [createForm, setCreateForm] = useState<{ address: string; price: string; status: string; property_type: string }>({
     address: '',
     price: '',
-    status: 'draft',
+    status: 'Active',
     property_type: ''
   });
-  const [search, setSearch] = useState('');
 
   const refreshListings = async () => {
     setIsLoading(true);
@@ -33,6 +214,10 @@ const AdminListingsPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    void refreshListings();
+  }, []);
+
   const handleCreate = async () => {
     setError(null);
     try {
@@ -44,15 +229,11 @@ const AdminListingsPage: React.FC = () => {
       });
       setListings((prev) => [created, ...prev]);
       setIsCreateOpen(false);
-      setCreateForm({ address: '', price: '', status: 'draft', property_type: '' });
+      setCreateForm({ address: '', price: '', status: 'Active', property_type: '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create listing');
     }
   };
-
-  useEffect(() => {
-    void refreshListings();
-  }, []);
 
   const handleDelete = async (listingId: string) => {
     const confirmed = window.confirm('Delete this listing from admin inventory?');
@@ -65,177 +246,144 @@ const AdminListingsPage: React.FC = () => {
     }
   };
 
-  const handleGenerate = async (listingId: string) => {
-    setIsGenerating(listingId);
-    try {
-      const summary = await adminListingsService.generateAiSummary(listingId);
-      setListings((prev) =>
-        prev.map((l) =>
-          l.listing_id === listingId ? { ...l, ai_summary: summary ?? l.ai_summary } : l
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate AI summary');
-    } finally {
-      setIsGenerating(null);
-    }
-  };
-
-  const stats = useMemo(() => {
-    const total = listings.length;
-    const active = listings.filter((l) => (l.status || '').toLowerCase() === 'active').length;
-    const draft = listings.filter((l) => (l.status || '').toLowerCase() === 'draft').length;
-    return { total, active, draft };
+  // Map AdminListingModel to Property for UI
+  const mappedProperties: Property[] = useMemo(() => {
+    return listings.map(l => ({
+      id: l.listing_id,
+      title: l.address || 'Untitled Listing',
+      address: l.address || '',
+      price: l.price || 0,
+      bedrooms: l.bedrooms || 0,
+      bathrooms: l.bathrooms || 0,
+      squareFeet: l.square_feet || 0,
+      status: (l.status as 'Active' | 'Pending' | 'Sold') || 'Active',
+      description: l.ai_summary || '',
+      heroPhotos: l.hero_image ? [l.hero_image] : [],
+      imageUrl: l.hero_image || '',
+      propertyType: l.property_type || 'Single Family',
+      features: [],
+      appFeatures: {},
+      agent: SAMPLE_AGENT,
+    }));
   }, [listings]);
 
-  const filteredListings = useMemo(() => {
+  const filteredProperties = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return listings;
-    return listings.filter((l) => {
+    if (!q) return mappedProperties;
+    return mappedProperties.filter((p) => {
       return (
-        (l.address || '').toLowerCase().includes(q) ||
-        (l.property_type || '').toLowerCase().includes(q) ||
-        (l.status || '').toLowerCase().includes(q)
+        (p.address || '').toLowerCase().includes(q) ||
+        (p.title || '').toLowerCase().includes(q)
       );
     });
-  }, [listings, search]);
+  }, [mappedProperties, search]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <button
-            className="inline-flex items-center gap-1 text-sm font-semibold text-primary-600 hover:text-primary-700"
-            onClick={() => window.history.back()}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">AI Listings</h1>
-            <p className="text-slate-600">Manage admin listings and Listing Sidekick brains (admin-only data).</p>
-          </div>
+    <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+      <button onClick={() => window.history.back()} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
+        <ArrowLeft className="w-5 h-5" />
+        <span>Back to Dashboard</span>
+      </button>
+      <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">AI Listings</h1>
+          <p className="text-slate-500 mt-1">Manage your listings and their Listing Sidekick brains.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
+            onClick={() => void refreshListings()}
+            className="flex items-center space-x-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-sm hover:bg-slate-50 transition-all"
           >
-            <Sparkles className="w-4 h-4" />
-            Add New Listing
+            <RefreshCcw className="h-4 w-4" />
+            <span>Refresh</span>
           </button>
           <button
-            onClick={() => void refreshListings()}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            disabled={isLoading}
+            onClick={() => setIsCreateOpen(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105"
           >
-            <RefreshCcw className="w-4 h-4" />
-            Refresh
+            <span className="material-symbols-outlined h-5 w-5">add</span>
+            <span>Add New Listing</span>
           </button>
         </div>
       </header>
 
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <p className="text-sm text-slate-500">Total Listings</p>
-          <p className="text-3xl font-bold text-slate-900">{stats.total}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <p className="text-sm text-slate-500">Active</p>
-          <p className="text-3xl font-bold text-slate-900">{stats.active}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <p className="text-sm text-slate-500">Draft</p>
-          <p className="text-3xl font-bold text-slate-900">{stats.draft}</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
-        <Search className="w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search listings by title, address, or city..."
-          className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400"
-        />
-      </div>
-
-      {isLoading ? (
-        <div className="py-12 flex justify-center"><LoadingSpinner /></div>
-      ) : filteredListings.length === 0 ? (
-        <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-500">
-          No admin listings yet. Import or create one to get started.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredListings.map((listing) => (
-            <div key={listing.listing_id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-              {listing.hero_image ? (
-                <img src={listing.hero_image} alt={listing.address} className="h-44 w-full object-cover" />
-              ) : (
-                <div className="h-44 w-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm">No image</div>
-              )}
-              <div className="p-4 space-y-2 flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-900 truncate">{listing.address || 'Untitled Listing'}</h3>
-                  {listing.status && (
-                    <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 capitalize">
-                      {listing.status}
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-slate-600">
-                  {listing.property_type ? `${listing.property_type} • ` : ''}{listing.price ? `$${listing.price.toLocaleString()}` : 'Price TBD'}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {listing.bedrooms ?? '-'} bd • {listing.bathrooms ?? '-'} ba • {listing.square_feet ?? '-'} sqft
-                </p>
-                <div className="border rounded-lg p-3 bg-slate-50">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-700">AI Summary</span>
-                    <button
-                      onClick={() => void handleGenerate(listing.listing_id)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-primary-700"
-                      disabled={isGenerating === listing.listing_id}
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      {isGenerating === listing.listing_id ? 'Generating…' : 'Generate'}
-                    </button>
-                  </div>
-                  <p className="text-sm text-slate-600 mt-2 line-clamp-3">
-                    {listing.ai_summary || 'No AI summary yet.'}
-                  </p>
-                </div>
-              </div>
-              <div className="bg-slate-900 text-slate-100 px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-semibold">{listing.price ? `$${listing.price.toLocaleString()}` : 'Price TBD'}</span>
-                </div>
-              </div>
-              <div className="bg-slate-800 px-4 py-3 grid grid-cols-2 gap-2">
-                <button className="inline-flex items-center justify-center gap-1 text-sm font-semibold text-white bg-primary-600 rounded-md py-2 hover:bg-primary-700">
-                  <span className="material-symbols-outlined text-base">edit</span>
-                  Edit
-                </button>
-                <button className="inline-flex items-center justify-center gap-1 text-sm font-semibold text-white bg-slate-700 rounded-md py-2 hover:bg-slate-600">
-                  <span className="material-symbols-outlined text-base">smart_toy</span>
-                  Listing Sidekick
-                </button>
-                <button
-                  onClick={() => void handleDelete(listing.listing_id)}
-                  className="col-span-2 inline-flex items-center justify-center gap-1 text-xs font-semibold text-red-200 bg-red-700/70 rounded-md py-2 hover:bg-red-700"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </button>
-              </div>
+      <div className="mb-8">
+        <button
+          type="button"
+          onClick={() => setIsHelpPanelOpen(prev => !prev)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
+          aria-expanded={isHelpPanelOpen}
+        >
+          <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
+          {isHelpPanelOpen ? 'Hide AI Listings Tips' : 'Show AI Listings Tips'}
+          <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
+        </button>
+        {isHelpPanelOpen && (
+          <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
+            <div>
+              <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                <span className="material-symbols-outlined text-lg">home_work</span>
+                Listing Playbook
+              </h2>
+              <ul className="space-y-1.5 list-disc list-inside">
+                <li><strong>Keep data synced:</strong> Update price, status, and hero photos here—your AI site and AI Card stay in lockstep.</li>
+                <li><strong>Listing Sidekick:</strong> Launch the Sidekick from each tile to train property-specific talking points and FAQs.</li>
+                <li><strong>Media assets:</strong> Use the edit view to upload flyers, 3D tours, and feature sheets for instant sharing.</li>
+              </ul>
             </div>
-          ))}
+            <div>
+              <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
+                <span className="material-symbols-outlined text-lg">qr_code</span>
+                QR & Marketing Assets
+              </h2>
+              <ul className="space-y-1.5 list-disc list-inside">
+                <li><strong>Generate QR codes:</strong> Each listing gets a unique QR link for yard signs, open houses, and print materials.</li>
+                <li><strong>Campaign tracking:</strong> Clone the listing and adjust tracking tags to compare performance by channel.</li>
+                <li><strong>Pro tip:</strong> Drop the listing QR into the AI Conversations hub so follow-ups automatically reference the right property.</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200/60 mb-8">
+        <div className="relative flex-grow">
+          <span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2">search</span>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search listings by title, address, or city..."
+            className="w-full bg-white border border-slate-300 rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+          />
         </div>
-      )}
+      </div>
+
+      <main>
+        {isLoading ? (
+          <div className="py-12 flex justify-center"><LoadingSpinner /></div>
+        ) : filteredProperties.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {filteredProperties.map(prop => (
+              <PropertyCard
+                key={prop.id}
+                property={prop}
+                onSelect={() => { }}
+                onDelete={() => handleDelete(prop.id)}
+                onOpenMarketing={() => { }}
+                onOpenBuilder={() => { }}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-16 bg-white rounded-lg shadow-md border border-slate-200/60">
+            <h2 className="text-xl font-semibold text-slate-700">No listings yet</h2>
+            <p className="text-slate-500 mt-2">Click "Add New Listing" to get started.</p>
+          </div>
+        )}
+      </main>
 
       {isCreateOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -275,9 +423,9 @@ const AdminListingsPage: React.FC = () => {
                     value={createForm.status}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, status: e.target.value }))}
                   >
-                    <option value="draft">Draft</option>
-                    <option value="active">Active</option>
-                    <option value="archived">Archived</option>
+                    <option value="Active">Active</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Sold">Sold</option>
                   </select>
                 </div>
               </div>

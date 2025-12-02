@@ -8,6 +8,7 @@ interface TrainingStatsProps {
 		improvementCount: number
 	}
 	demoMode?: boolean
+	blueprintMode?: boolean
 }
 
 interface TrainingStatsResponse {
@@ -16,7 +17,7 @@ interface TrainingStatsResponse {
 	improvementCount?: number
 }
 
-const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionStats, demoMode = false }) => {
+const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionStats, demoMode = false, blueprintMode = false }) => {
 	const [backendStats, setBackendStats] = useState<TrainingStatsResponse | null>(null)
 	const [isLoading, setIsLoading] = useState(false)
 	const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -39,7 +40,8 @@ const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionS
 			const controller = new AbortController()
 			pendingFetch.current = controller
 			try {
-				const response = await fetch(`/api/admin/ai-sidekicks/${sidekick}/stats`, {
+				const base = blueprintMode ? '/api/blueprint/ai-sidekicks' : '/api/admin/ai-sidekicks'
+				const response = await fetch(`${base}/${sidekick}/stats`, {
 					signal: controller.signal
 				})
 				if (!response.ok) {
@@ -65,7 +67,7 @@ const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionS
 			}
 			pendingFetch.current?.abort()
 		}
-	}, [sidekick, demoMode])
+	}, [sidekick, demoMode, blueprintMode])
 
 	return (
 		<div className="mt-6 p-4 bg-white rounded-lg border border-slate-200">
@@ -114,7 +116,7 @@ const TrainingStats: React.FC<TrainingStatsProps> = ({ sidekick, currentSessionS
 	)
 }
 
-interface ChatMessage {
+export interface ChatMessage {
 	id: string
 	role: 'user' | 'assistant'
 	content: string
@@ -123,7 +125,7 @@ interface ChatMessage {
 	improvement?: string
 }
 
-interface SidekickOption {
+export interface SidekickOption {
 	id: string
 	name: string
 	icon: string
@@ -132,7 +134,7 @@ interface SidekickOption {
 	color: string
 }
 
-const TRAINING_ARCHITECT_PROMPT = `You are the AI Trainer and System Architect for our project.
+export const TRAINING_ARCHITECT_PROMPT = `You are the AI Trainer and System Architect for our project.
 Your job is to:
 1. Audit the current training setup. Check for missing data, context, tone, or instructions that might limit the AI’s understanding of our brand, services, or client interactions.
 2. Identify improvement opportunities. Recommend what data, examples, or structured prompts should be added to improve personalization, accuracy, and context retention.
@@ -143,7 +145,7 @@ Your job is to:
 Core objective:
 Deliver a complete, ready-to-train AI system that learns like a real assistant — not just from text, but from behavior, tone, and intent. Detect what we’re missing, make recommendations, and confirm when the AI is truly “trained to perform.”`
 
-const ADMIN_SIDEKICKS: SidekickOption[] = [
+export const ADMIN_SIDEKICKS: SidekickOption[] = [
 	{
 		id: 'god',
 		name: 'God (Ops Overseer)',
@@ -182,8 +184,16 @@ const ADMIN_SIDEKICKS: SidekickOption[] = [
 	}
 ]
 
-const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = false }) => {
-	const [selectedSidekick, setSelectedSidekick] = useState<string>('god')
+interface TrainingProps {
+	demoMode?: boolean;
+	blueprintMode?: boolean;
+	sidekickTemplatesOverride?: Array<{ id: string; name: string; icon: string; description: string; systemPrompt: string }>;
+}
+
+const AIInteractiveTraining: React.FC<TrainingProps> = ({ demoMode = false, blueprintMode = false, sidekickTemplatesOverride }) => {
+	const defaultSidekickId =
+		(sidekickTemplatesOverride && sidekickTemplatesOverride[0]?.id) || ADMIN_SIDEKICKS[0].id
+	const [selectedSidekick, setSelectedSidekick] = useState<string>(defaultSidekickId)
 	const [messages, setMessages] = useState<ChatMessage[]>([])
 	const [inputMessage, setInputMessage] = useState('')
 	const [isLoading, setIsLoading] = useState(false)
@@ -194,12 +204,16 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 	const [improvementLoadingId, setImprovementLoadingId] = useState<string | null>(null)
 	const [trainingNotification, setTrainingNotification] = useState<string | null>(null)
 	const [trainingError, setTrainingError] = useState<string | null>(null)
-	const [systemPrompts, setSystemPrompts] = useState<Record<string, string>>(() =>
-		ADMIN_SIDEKICKS.reduce<Record<string, string>>((acc, sk) => {
+	const initialPrompts = sidekickTemplatesOverride && sidekickTemplatesOverride.length
+		? sidekickTemplatesOverride.reduce<Record<string, string>>((acc, sk) => {
 			acc[sk.id] = sk.systemPrompt
 			return acc
 		}, {})
-	)
+		: ADMIN_SIDEKICKS.reduce<Record<string, string>>((acc, sk) => {
+			acc[sk.id] = sk.systemPrompt
+			return acc
+		}, {})
+	const [systemPrompts, setSystemPrompts] = useState<Record<string, string>>(initialPrompts)
 	const [savingPrompt, setSavingPrompt] = useState(false)
 	const [memoryItems, setMemoryItems] = useState<Record<string, Array<{ id: string; title: string; type: 'file' | 'text' | 'url'; createdAt: string }>>>({})
 	const [memoryLoading, setMemoryLoading] = useState(false)
@@ -208,8 +222,20 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 	const [memoryNote, setMemoryNote] = useState('')
 	const [trainLoading, setTrainLoading] = useState(false)
 	const messagesEndRef = useRef<HTMLDivElement>(null)
-	const sidekicks = ADMIN_SIDEKICKS
-	const currentSidekick = sidekicks.find(s => s.id === selectedSidekick) || sidekicks[0]
+	const effectiveSidekicks = sidekickTemplatesOverride && sidekickTemplatesOverride.length
+		? sidekickTemplatesOverride.map(s => ({
+			id: s.id,
+			name: s.label || s.name || s.defaultName || s.id,
+			icon: s.icon || 'psychology',
+			description: s.description || s.personality?.description || 'AI sidekick',
+			systemPrompt: s.systemPrompt || s.personality?.description || '',
+			color: 'bg-blue-100 text-blue-800 border-blue-200'
+		}))
+		: ADMIN_SIDEKICKS
+	const sidekicks = effectiveSidekicks
+	const currentSidekick = effectiveSidekicks.find(s => s.id === selectedSidekick) || effectiveSidekicks[0] || ADMIN_SIDEKICKS[0]
+	const currentSidekickColor = currentSidekick?.color || 'bg-slate-100 text-slate-800 border-slate-200'
+	const currentSidekickName = currentSidekick?.name || 'Sidekick'
 
 	const loadMemory = useCallback(async (sidekickId: string) => {
 		if (demoMode) {
@@ -219,23 +245,26 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 		setMemoryLoading(true)
 		setMemoryError(null)
 		try {
-			const res = await fetch(`/api/admin/ai-sidekicks/${sidekickId}/memory`)
-			if (!res.ok) throw new Error(`Status ${res.status}`)
+			const base = blueprintMode ? '/api/blueprint/ai-sidekicks' : '/api/admin/ai-sidekicks'
+			const res = await fetch(`${base} /${sidekickId}/memory`)
+			if (!res.ok) throw new Error(`Status ${res.status} `)
 			const data = await res.json()
 			const list = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
-			setMemoryItems(prev => ({ ...prev, [sidekickId]: list.map((item: Record<string, unknown>) => ({
-				id: (item.id as string) || `${sidekickId}-${Date.now()}`,
-				title: (item.title as string) || (item.name as string) || 'Memory item',
-				type: (item.type === 'url' || item.type === 'file' || item.type === 'text') ? item.type : 'text',
-				createdAt: (item.createdAt as string) || (item.created_at as string) || new Date().toISOString()
-			})) }))
+			setMemoryItems(prev => ({
+				...prev, [sidekickId]: list.map((item: Record<string, unknown>) => ({
+					id: (item.id as string) || `${sidekickId} -${Date.now()} `,
+					title: (item.title as string) || (item.name as string) || 'Memory item',
+					type: (item.type === 'url' || item.type === 'file' || item.type === 'text') ? item.type : 'text',
+					createdAt: (item.createdAt as string) || (item.created_at as string) || new Date().toISOString()
+				}))
+			}))
 		} catch (error) {
 			console.warn('Failed to load admin sidekick memory', error)
 			setMemoryError('Unable to load memory right now.')
 		} finally {
 			setMemoryLoading(false)
 		}
-	}, [demoMode])
+	}, [demoMode, blueprintMode])
 
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -255,23 +284,36 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 		const loadPrompt = async (sidekickId: string) => {
 			if (demoMode) return
 			try {
-				const res = await fetch(`/api/admin/ai-sidekicks/${sidekickId}`)
+				const base = blueprintMode ? '/api/blueprint/ai-sidekicks' : '/api/admin/ai-sidekicks'
+				const res = await fetch(`${base}/${sidekickId}`)
 				if (!res.ok) return
 				const data = await res.json()
 				if (typeof data?.systemPrompt === 'string') {
 					setSystemPrompts(prev => ({ ...prev, [sidekickId]: data.systemPrompt }))
 				}
 			} catch (error) {
-				console.warn('Failed to load admin system prompt', error)
+				console.warn('Failed to load system prompt', error)
 			}
 		}
 		void loadPrompt(selectedSidekick)
 		void loadMemory(selectedSidekick)
-	}, [selectedSidekick, loadMemory, demoMode])
+	}, [selectedSidekick, loadMemory, demoMode, blueprintMode])
 
-	const sendAdminChat = useCallback(async (payload: { message: string; history: Array<{ sender: 'user' | 'assistant'; text: string }> }) => {
+	const sendChat = useCallback(async (payload: { message: string; history: Array<{ sender: 'user' | 'assistant'; text: string }> }) => {
 		if (demoMode) {
-			return `(${selectedSidekick} admin sidekick) ${payload.message}`
+			return `(${selectedSidekick} sidekick) ${payload.message}`
+		}
+		if (blueprintMode) {
+			const res = await fetch(`/api/blueprint/ai-sidekicks/${selectedSidekick}/chat`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ message: payload.message, history: payload.history })
+			}).catch(() => null)
+			if (res && res.ok) {
+				const data = await res.json()
+				return (data?.response || 'I am still thinking about that.').toString()
+			}
+			return 'I am ready.'
 		}
 		const res = await fetch('/api/admin/ai-chat', {
 			method: 'POST',
@@ -286,7 +328,7 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 		if (!res.ok) throw new Error(`Status ${res.status}`)
 		const data = await res.json()
 		return (data?.response || data?.reply || 'I am still thinking about that.').toString()
-	}, [demoMode, selectedSidekick])
+	}, [demoMode, blueprintMode, selectedSidekick])
 
 	const handleSendMessage = async () => {
 		if (!inputMessage.trim() || isLoading) return
@@ -308,7 +350,7 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 				text: msg.content
 			}))
 
-			const response = await sendAdminChat({
+			const response = await sendChat({
 				message: inputMessage.trim(),
 				history: [
 					{ sender: 'assistant', text: TRAINING_ARCHITECT_PROMPT },
@@ -342,7 +384,7 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 	}
 
 	const handleFeedback = async (messageId: string, feedback: 'thumbs_up' | 'thumbs_down') => {
-		setMessages(prev => prev.map(msg => 
+		setMessages(prev => prev.map(msg =>
 			msg.id === messageId ? { ...msg, feedback } : msg
 		))
 
@@ -363,20 +405,24 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 		try {
 			const message = messages.find(m => m.id === messageId)
 			const userMessage = messages[messages.findIndex(m => m.id === messageId) - 1]
-			
-			await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					messageId,
-					feedback,
-					userMessage: userMessage?.content || '',
-					assistantMessage: message?.content || ''
+
+			if (!blueprintMode) {
+				await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						messageId,
+						feedback,
+						userMessage: userMessage?.content || '',
+						assistantMessage: message?.content || ''
+					})
 				})
-			})
-			
-			console.log('✅ Training feedback sent:', { messageId, feedback, sidekick: selectedSidekick })
-			setTrainingNotification('Training feedback saved.')
+
+				console.log('✅ Training feedback sent:', { messageId, feedback, sidekick: selectedSidekick })
+				setTrainingNotification('Training feedback saved.')
+			} else {
+				setTrainingNotification('Feedback saved (blueprint).')
+			}
 		} catch (error) {
 			console.error('❌ Failed to send training feedback:', error)
 			setTrainingError('Unable to send training feedback. Please try again.')
@@ -406,7 +452,7 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 			return
 		}
 
-		setMessages(prev => prev.map(msg => 
+		setMessages(prev => prev.map(msg =>
 			msg.id === messageId ? { ...msg, improvement: improvementText.trim() } : msg
 		))
 
@@ -414,25 +460,29 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 		try {
 			const message = messages.find(m => m.id === messageId)
 			const userMessage = messages[messages.findIndex(m => m.id === messageId) - 1]
-			
-			await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					messageId,
-					feedback: 'thumbs_down', // Already set, but include for context
-					improvement: improvementText.trim(),
-					userMessage: userMessage?.content || '',
-					assistantMessage: message?.content || ''
+
+			if (!blueprintMode) {
+				await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						messageId,
+						feedback: 'thumbs_down', // Already set, but include for context
+						improvement: improvementText.trim(),
+						userMessage: userMessage?.content || '',
+						assistantMessage: message?.content || ''
+					})
 				})
-			})
-			
-			console.log('✅ Training improvement sent:', { 
-				messageId, 
-				improvement: improvementText.trim(), 
-				sidekick: selectedSidekick 
-			})
-			setTrainingNotification('Improvement saved.')
+
+				console.log('✅ Training improvement sent:', {
+					messageId,
+					improvement: improvementText.trim(),
+					sidekick: selectedSidekick
+				})
+				setTrainingNotification('Improvement saved.')
+			} else {
+				setTrainingNotification('Improvement saved (blueprint).')
+			}
 		} catch (error) {
 			console.error('❌ Failed to send training improvement:', error)
 			setTrainingError('Unable to save improvement. Please try again.')
@@ -473,7 +523,7 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 					{isHelpPanelOpen ? 'Hide Training Tips' : 'Show Training Tips'}
 					<span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
 				</button>
-							{isHelpPanelOpen && (
+				{isHelpPanelOpen && (
 					<div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
 						<div>
 							<h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
@@ -513,11 +563,10 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 									setSelectedSidekick(sidekick.id)
 									clearChat()
 								}}
-								className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-									selectedSidekick === sidekick.id
-										? `${sidekick.color} border-current shadow-md`
-										: 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
-								}`}
+								className={`w-full p-4 rounded-lg border-2 text-left transition-all ${selectedSidekick === sidekick.id
+									? `${sidekick.color} border-current shadow-md`
+									: 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
+									}`}
 							>
 								<div className="flex items-center gap-3 mb-2">
 									<span className="material-symbols-outlined">{sidekick.icon}</span>
@@ -539,8 +588,9 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 									setTrainingNotification(null)
 									setTrainingError(null)
 									try {
+										const base = blueprintMode ? '/api/blueprint/ai-sidekicks' : '/api/admin/ai-sidekicks'
 										if (!demoMode) {
-											await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/system-prompt`, {
+											await fetch(`${base}/${selectedSidekick}/system-prompt`, {
 												method: 'POST',
 												headers: { 'Content-Type': 'application/json' },
 												body: JSON.stringify({ systemPrompt: systemPrompts[selectedSidekick] || '' })
@@ -590,8 +640,9 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 										setMemoryLoading(true)
 										setMemoryError(null)
 										try {
+											const base = blueprintMode ? '/api/blueprint/ai-sidekicks' : '/api/admin/ai-sidekicks'
 											if (!demoMode) {
-												await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/memory/upload`, {
+												await fetch(`${base}/${selectedSidekick}/memory/upload`, {
 													method: 'POST',
 													headers: { 'Content-Type': 'application/json' },
 													body: JSON.stringify({ type: 'url', content: memoryUrl.trim() })
@@ -636,8 +687,9 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 									setMemoryLoading(true)
 									setMemoryError(null)
 									try {
+										const base = blueprintMode ? '/api/blueprint/ai-sidekicks' : '/api/admin/ai-sidekicks'
 										if (!demoMode) {
-											await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/memory/upload`, {
+											await fetch(`${base}/${selectedSidekick}/memory/upload`, {
 												method: 'POST',
 												headers: { 'Content-Type': 'application/json' },
 												body: JSON.stringify({ type: 'text', content: memoryNote.trim() })
@@ -677,11 +729,12 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 									setMemoryLoading(true)
 									setMemoryError(null)
 									try {
+										const base = blueprintMode ? '/api/blueprint/ai-sidekicks' : '/api/admin/ai-sidekicks'
 										for (const file of files) {
 											if (!demoMode) {
 												const fd = new FormData()
 												fd.append('file', file)
-												await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/memory/upload`, { method: 'POST', body: fd })
+												await fetch(`${base}/${selectedSidekick}/memory/upload`, { method: 'POST', body: fd })
 											}
 											setMemoryItems(prev => {
 												const list = prev[selectedSidekick] || []
@@ -730,8 +783,9 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 									setTrainingNotification(null)
 									setTrainingError(null)
 									try {
+										const base = blueprintMode ? '/api/blueprint/ai-sidekicks' : '/api/admin/ai-sidekicks'
 										if (!demoMode) {
-											await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/train`, { method: 'POST' })
+											await fetch(`${base}/${selectedSidekick}/train`, { method: 'POST' })
 										}
 										setTrainingNotification('Training job triggered.')
 									} catch (error) {
@@ -755,19 +809,19 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 						conversations: messages.filter(m => m.role === 'user').length,
 						positiveCount: messages.filter(m => m.feedback === 'thumbs_up').length,
 						improvementCount: messages.filter(m => m.improvement).length
-					}} demoMode={demoMode} />
+					}} demoMode={demoMode} blueprintMode={blueprintMode} />
 				</div>
 
 				{/* Chat Interface */}
 				<div className="lg:col-span-3">
 					<div className="bg-white rounded-lg border border-slate-200 h-[600px] flex flex-col">
 						{/* Chat Header */}
-						<div className={`p-4 border-b border-slate-200 ${currentSidekick.color} rounded-t-lg`}>
+						<div className={`p-4 border-b border-slate-200 ${currentSidekickColor} rounded-t-lg`}>
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-3">
 									<span className="material-symbols-outlined text-2xl">{currentSidekick.icon}</span>
 									<div>
-										<h3 className="font-semibold">{currentSidekick.name}</h3>
+										<h3 className="font-semibold">{currentSidekickName}</h3>
 										<p className="text-sm opacity-75">Ready to help and learn</p>
 									</div>
 								</div>
@@ -786,14 +840,14 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 								<div className="text-center py-12">
 									<span className="material-symbols-outlined text-4xl text-slate-400 mb-4">chat</span>
 									<h3 className="text-lg font-medium text-slate-900 mb-2">Start Training Conversation</h3>
-									<p className="text-slate-600">Ask your {currentSidekick.name.toLowerCase()} for help with something specific</p>
+									<p className="text-slate-600">Ask your {currentSidekickName.toLowerCase()} for help with something specific</p>
 									<div className="mt-4 space-y-3">
 										<p className="text-sm text-slate-500">Try these examples:</p>
 										{selectedSidekick === 'marketing' && (
 											<div className="space-y-2">
 												{[
 													"Create a social media post for a luxury condo",
-													"Write an email campaign for first-time buyers", 
+													"Write an email campaign for first-time buyers",
 													"Make an Instagram story for an open house",
 													"Draft a Facebook ad for a family home"
 												].map((prompt, idx) => (
@@ -810,7 +864,7 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 												))}
 											</div>
 										)}
-										{selectedSidekick === 'sales' && (
+										{(selectedSidekick === 'sales' || selectedSidekick === 'sales_marketing') && (
 											<div className="space-y-2">
 												{[
 													"Help me handle a price objection from a buyer",
@@ -873,6 +927,69 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 												))}
 											</div>
 										)}
+										{selectedSidekick === 'agent' && (
+											<div className="space-y-2">
+												{[
+													"Summarize today’s lead notes and suggest next steps",
+													"Draft a reply that matches my brand voice for a new buyer inquiry",
+													"Summarize yesterday’s appointments into bullet points",
+													"Give me a quick status on hot leads vs nurture leads"
+												].map((prompt, idx) => (
+													<button
+														key={idx}
+														onClick={() => {
+															setInputMessage(prompt)
+															setTimeout(() => handleSendMessage(), 100)
+														}}
+														className="block w-full text-left px-3 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+													>
+														{prompt}
+													</button>
+												))}
+											</div>
+										)}
+										{selectedSidekick === 'sales_marketing' && (
+											<div className="space-y-2">
+												{[
+													"Write a follow-up email that drives a tour booking",
+													"Create a 3-text drip to re-engage cold leads",
+													"Draft a social post for a new listing launch",
+													"Give me CTA ideas to boost conversions this week"
+												].map((prompt, idx) => (
+													<button
+														key={idx}
+														onClick={() => {
+															setInputMessage(prompt)
+															setTimeout(() => handleSendMessage(), 100)
+														}}
+														className="block w-full text-left px-3 py-2 text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+													>
+														{prompt}
+													</button>
+												))}
+											</div>
+										)}
+										{selectedSidekick === 'listing_agent' && (
+											<div className="space-y-2">
+												{[
+													"Write a listing description for a 3 bed / 2 bath craftsman",
+													"Suggest pricing strategy for a new listing in a cooling market",
+													"Answer a buyer question about HOA fees clearly and concisely",
+													"Draft an open-house follow-up message for interested buyers"
+												].map((prompt, idx) => (
+													<button
+														key={idx}
+														onClick={() => {
+															setInputMessage(prompt)
+															setTimeout(() => handleSendMessage(), 100)
+														}}
+														className="block w-full text-left px-3 py-2 text-sm text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors"
+													>
+														{prompt}
+													</button>
+												))}
+											</div>
+										)}
 									</div>
 								</div>
 							)}
@@ -889,33 +1006,30 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 
 							{messages.map(message => (
 								<div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-									<div className={`max-w-[80%] ${
-										message.role === 'user' 
-											? 'bg-blue-600 text-white' 
-											: 'bg-slate-100 text-slate-900'
-									} rounded-lg p-3`}>
+									<div className={`max-w-[80%] ${message.role === 'user'
+										? 'bg-blue-600 text-white'
+										: 'bg-slate-100 text-slate-900'
+										} rounded-lg p-3`}>
 										<p className="whitespace-pre-wrap">{message.content}</p>
-										
+
 										{/* Feedback buttons for assistant messages */}
 										{message.role === 'assistant' && (
 											<div className="mt-3 pt-3 border-t border-slate-200 flex items-center gap-2">
 												<button
 													onClick={() => handleFeedback(message.id, 'thumbs_up')}
-													className={`p-1 rounded hover:bg-slate-200 transition-colors ${
-														message.feedback === 'thumbs_up' ? 'bg-green-100 text-green-600' : 'text-slate-500'
-													}`}
+													className={`p-1 rounded hover:bg-slate-200 transition-colors ${message.feedback === 'thumbs_up' ? 'bg-green-100 text-green-600' : 'text-slate-500'
+														}`}
 												>
 													<span className="material-symbols-outlined text-sm">thumb_up</span>
 												</button>
 												<button
 													onClick={() => handleFeedback(message.id, 'thumbs_down')}
-													className={`p-1 rounded hover:bg-slate-200 transition-colors ${
-														message.feedback === 'thumbs_down' ? 'bg-red-100 text-red-600' : 'text-slate-500'
-													}`}
+													className={`p-1 rounded hover:bg-slate-200 transition-colors ${message.feedback === 'thumbs_down' ? 'bg-red-100 text-red-600' : 'text-slate-500'
+														}`}
 												>
 													<span className="material-symbols-outlined text-sm">thumb_down</span>
 												</button>
-												
+
 												{message.feedback && (
 													<span className="text-xs text-slate-500 ml-2">
 														{message.feedback === 'thumbs_up' ? 'Marked as good' : 'Needs improvement'}
@@ -934,14 +1048,14 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 													rows={2}
 													className="w-full px-2 py-1 text-sm border border-slate-300 rounded text-slate-900"
 												/>
-													<div className="flex gap-2 mt-2">
-														<button
-															onClick={() => handleImprovement(message.id)}
-															disabled={!improvementText.trim() || improvementLoadingId === message.id}
-															className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
-														>
-															{improvementLoadingId === message.id ? 'Saving...' : 'Save Improvement'}
-														</button>
+												<div className="flex gap-2 mt-2">
+													<button
+														onClick={() => handleImprovement(message.id)}
+														disabled={!improvementText.trim() || improvementLoadingId === message.id}
+														className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+													>
+														{improvementLoadingId === message.id ? 'Saving...' : 'Save Improvement'}
+													</button>
 													<button
 														onClick={() => {
 															setShowImprovementInput(null)
@@ -989,7 +1103,7 @@ const AIInteractiveTraining: React.FC<{ demoMode?: boolean }> = ({ demoMode = fa
 									value={inputMessage}
 									onChange={(e) => setInputMessage(e.target.value)}
 									onKeyPress={handleKeyPress}
-									placeholder={`Ask your ${currentSidekick.name.toLowerCase()} for help...`}
+									placeholder={`Ask your ${currentSidekickName.toLowerCase()} for help...`}
 									rows={2}
 									className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
 								/>
