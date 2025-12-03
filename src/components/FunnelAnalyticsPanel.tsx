@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import AnalyticsPage from './AnalyticsPage';
 import QuickEmailModal from './QuickEmailModal';
 import SequenceFeedbackPanel from './SequenceFeedbackPanel';
+import { funnelService } from '../services/funnelService';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -44,7 +45,7 @@ const highlightCards = [
     }
 ] as const;
 
-type EditableStep = {
+export type EditableStep = {
     id: string;
     title: string;
     description: string;
@@ -304,11 +305,6 @@ If you’re still interested, I can prep numbers + offer strategy anytime.`
     }
 ];
 
-const WELCOME_STORAGE_KEY = 'hlai:funnels:welcome-drip';
-const BUYER_STORAGE_KEY = 'hlai:funnels:buyer-journey';
-const LISTING_STORAGE_KEY = 'hlai:funnels:listing-launch';
-const POST_SHOWING_STORAGE_KEY = 'hlai:funnels:post-showing';
-
 const initPanelState = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
         return {
@@ -352,38 +348,29 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     useEffect(() => {
-        if (typeof window === 'undefined') return;
-        try {
-            const welcomeRaw = window.localStorage.getItem(WELCOME_STORAGE_KEY);
-            if (welcomeRaw) {
-                const parsed = JSON.parse(welcomeRaw);
-                if (Array.isArray(parsed)) setWelcomeSteps(parsed);
+        const loadFunnels = async () => {
+            try {
+                // Use a default user ID if none provided (e.g. 'demo-blueprint')
+                // In a real app, this would come from auth context
+                const currentUserId = 'demo-blueprint';
+                const funnels = await funnelService.fetchFunnels(currentUserId);
+
+                if (funnels.welcome && funnels.welcome.length > 0) setWelcomeSteps(funnels.welcome);
+                if (funnels.buyer && funnels.buyer.length > 0) setHomeBuyerSteps(funnels.buyer);
+                if (funnels.listing && funnels.listing.length > 0) setListingSteps(funnels.listing);
+                if (funnels['post-showing'] && funnels['post-showing'].length > 0) setPostShowingSteps(funnels['post-showing']);
+            } catch (error) {
+                console.error('Failed to load funnels:', error);
             }
-            const buyerRaw = window.localStorage.getItem(BUYER_STORAGE_KEY);
-            if (buyerRaw) {
-                const parsedBuyer = JSON.parse(buyerRaw);
-                if (Array.isArray(parsedBuyer)) setHomeBuyerSteps(parsedBuyer);
-            }
-            const listingRaw = window.localStorage.getItem(LISTING_STORAGE_KEY);
-            if (listingRaw) {
-                const parsedListing = JSON.parse(listingRaw);
-                if (Array.isArray(parsedListing)) setListingSteps(parsedListing);
-            }
-            const postRaw = window.localStorage.getItem(POST_SHOWING_STORAGE_KEY);
-            if (postRaw) {
-                const parsedPost = JSON.parse(postRaw);
-                if (Array.isArray(parsedPost)) setPostShowingSteps(parsedPost);
-            }
-        } catch (error) {
-            console.warn('Failed to load saved funnel data', error);
-        }
-        }, []);
+        };
+        loadFunnels();
+    }, []);
 
     const togglePanel = (panel: keyof typeof panelExpanded) => {
         setPanelExpanded((prev) => ({ ...prev, [panel]: !prev[panel] }));
     };
 
-const sampleMergeData = useMemo<MergeBuckets>(
+    const sampleMergeData = useMemo<MergeBuckets>(
         () => ({
             lead: {
                 name: 'Jamie Carter',
@@ -450,14 +437,14 @@ const sampleMergeData = useMemo<MergeBuckets>(
         );
     };
 
-    const handleSaveWelcomeSteps = () => {
-        if (typeof window === 'undefined') return;
+    const handleSaveWelcomeSteps = async () => {
         try {
-            window.localStorage.setItem(WELCOME_STORAGE_KEY, JSON.stringify(welcomeSteps));
-            alert('Welcome drip saved for this browser.');
+            const success = await funnelService.saveFunnelStep('demo-blueprint', 'welcome', welcomeSteps);
+            if (success) alert('Welcome drip saved to cloud.');
+            else alert('Failed to save. Please try again.');
         } catch (error) {
-            console.warn('Failed to save welcome funnel', error);
-            alert('Unable to save right now. Please try again.');
+            console.error('Failed to save welcome funnel', error);
+            alert('Unable to save right now.');
         }
     };
 
@@ -492,14 +479,14 @@ const sampleMergeData = useMemo<MergeBuckets>(
         );
     };
 
-    const handleSaveBuyerSteps = () => {
-        if (typeof window === 'undefined') return;
+    const handleSaveBuyerSteps = async () => {
         try {
-            window.localStorage.setItem(BUYER_STORAGE_KEY, JSON.stringify(homeBuyerSteps));
-            alert('Homebuyer journey saved for this browser.');
+            const success = await funnelService.saveFunnelStep('demo-blueprint', 'buyer', homeBuyerSteps);
+            if (success) alert('Homebuyer journey saved to cloud.');
+            else alert('Failed to save.');
         } catch (error) {
-            console.warn('Failed to save homebuyer funnel', error);
-            alert('Unable to save right now. Please try again.');
+            console.error('Failed to save homebuyer funnel', error);
+            alert('Unable to save right now.');
         }
     };
 
@@ -534,14 +521,14 @@ const sampleMergeData = useMemo<MergeBuckets>(
         );
     };
 
-    const handleSaveListingSteps = () => {
-        if (typeof window === 'undefined') return;
+    const handleSaveListingSteps = async () => {
         try {
-            window.localStorage.setItem(LISTING_STORAGE_KEY, JSON.stringify(listingSteps));
-            alert('Listing funnel saved for this browser.');
+            const success = await funnelService.saveFunnelStep('demo-blueprint', 'listing', listingSteps);
+            if (success) alert('Listing funnel saved to cloud.');
+            else alert('Failed to save.');
         } catch (error) {
-            console.warn('Failed to save listing funnel', error);
-            alert('Unable to save right now. Please try again.');
+            console.error('Failed to save listing funnel', error);
+            alert('Unable to save right now.');
         }
     };
 
@@ -576,14 +563,14 @@ const sampleMergeData = useMemo<MergeBuckets>(
         );
     };
 
-    const handleSavePostSteps = () => {
-        if (typeof window === 'undefined') return;
+    const handleSavePostSteps = async () => {
         try {
-            window.localStorage.setItem(POST_SHOWING_STORAGE_KEY, JSON.stringify(postShowingSteps));
-            alert('Post-showing follow-up saved for this browser.');
+            const success = await funnelService.saveFunnelStep('demo-blueprint', 'post-showing', postShowingSteps);
+            if (success) alert('Post-showing follow-up saved to cloud.');
+            else alert('Failed to save.');
         } catch (error) {
-            console.warn('Failed to save post-showing funnel', error);
-            alert('Unable to save right now. Please try again.');
+            console.error('Failed to save post-showing funnel', error);
+            alert('Unable to save right now.');
         }
     };
 
@@ -853,9 +840,8 @@ const sampleMergeData = useMemo<MergeBuckets>(
                                 key={card.title}
                                 type="button"
                                 onClick={() => setActiveSection(card.targetSection)}
-                                className={`flex items-start gap-3 rounded-2xl border px-4 py-4 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-                                    card.bgClass
-                                } ${card.borderClass} ${isActive ? 'ring-2 ring-offset-1 ring-blue-200' : 'hover:border-blue-200'} `}
+                                className={`flex items-start gap-3 rounded-2xl border px-4 py-4 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${card.bgClass
+                                    } ${card.borderClass} ${isActive ? 'ring-2 ring-offset-1 ring-blue-200' : 'hover:border-blue-200'} `}
                             >
                                 <div className={`rounded-full p-2 shadow-sm ${card.iconClass}`}>
                                     <span className="material-symbols-outlined text-xl">{card.icon}</span>

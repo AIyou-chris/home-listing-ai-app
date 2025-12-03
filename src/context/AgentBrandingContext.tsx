@@ -30,6 +30,7 @@ export interface AgentProfile {
   phone: string;
   headshotUrl?: string;
   logoUrl?: string;
+  brandColor?: string;
   bio?: string;
   socialLinks?: {
     facebook?: string;

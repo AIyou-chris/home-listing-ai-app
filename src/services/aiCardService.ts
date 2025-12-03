@@ -63,20 +63,10 @@ const resolveUserId = async (explicit?: string | null) => {
 
 const createSignedAssetUrl = async (path?: string | null) => {
   if (!path) return null;
-  try {
-    const { data, error } = await supabase.storage
-      .from('ai-card-assets')
-      .createSignedUrl(path, 60 * 60 * 24 * 30); // 30 days
-    if (error) {
-      console.warn('[AI Card] Failed to create signed URL, attempting public URL fallback:', error);
-      const { data: publicData } = supabase.storage.from('ai-card-assets').getPublicUrl(path);
-      return publicData?.publicUrl || null;
-    }
-    return data?.signedUrl || null;
-  } catch (error) {
-    console.error('[AI Card] Error generating asset URL:', error);
-    return null;
-  }
+  // Since the bucket is public, we use public URLs directly.
+  // This avoids RLS issues with signing URLs for anonymous/demo users.
+  const { data } = supabase.storage.from('ai-card-assets').getPublicUrl(path);
+  return data?.publicUrl || null;
 };
 
 const withAssetUrls = async (profile: AICardProfile): Promise<AICardProfile> => {
@@ -97,7 +87,14 @@ export const uploadAiCardAsset = async (
   userId?: string
 ): Promise<{ path: string; url: string | null }> => {
   const resolvedUserId = await resolveUserId(userId);
+  // Relaxed check: If no user ID, we might be in demo/fallback mode.
+  // The backend will handle the fallback logic (or fail if strictly required).
+  // We proceed to attempt upload. If direct storage upload fails due to RLS,
+  // the component catches it and tries the backend fallback.
+
   if (!resolvedUserId) {
+    console.warn('[AI Card] No authenticated user found for upload. Triggering fallback.');
+    // Throwing this specific error message triggers the fallback logic in AICardPage.tsx
     throw new Error('User authentication required to upload AI Card assets.');
   }
 
@@ -128,11 +125,11 @@ export const getAICardProfile = async (userId?: string, signal?: AbortSignal): P
     const response = await fetch(`/api/ai-card/profile${queryParams}`, {
       signal
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const profile = await withAssetUrls(await response.json());
 
     console.log('✅ Retrieved AI Card profile');
@@ -157,11 +154,11 @@ export const createAICardProfile = async (profileData: Omit<AICardProfile, 'id' 
         ...profileData
       }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const profile = await withAssetUrls(await response.json());
     console.log('✅ Created AI Card profile');
     return profile;
@@ -185,11 +182,11 @@ export const updateAICardProfile = async (profileData: Partial<AICardProfile>, u
         ...profileData
       }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const profile = await withAssetUrls(await response.json());
     console.log('✅ Updated AI Card profile');
     return profile;
@@ -213,11 +210,11 @@ export const generateQRCode = async (userId?: string, cardUrl?: string): Promise
         cardUrl
       }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const qrData = await response.json();
     console.log('✅ Generated QR code for AI Card');
     return qrData;
@@ -250,11 +247,11 @@ export const shareAICard = async (method: string, userId?: string, recipient?: s
         recipient
       }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const shareData = await response.json();
     console.log('✅ Shared AI Card');
     return shareData;
@@ -323,19 +320,19 @@ export const downloadAICard = async (elementId: string, filename?: string): Prom
   try {
     // Dynamic import to avoid bundling html2canvas if not needed
     const html2canvas = (await import('html2canvas')).default;
-    
+
     const element = document.getElementById(elementId);
     if (!element) {
       throw new Error('AI Card element not found');
     }
-    
+
     const canvas = await html2canvas(element, {
       backgroundColor: '#ffffff',
       scale: 2, // Higher quality
       useCORS: true,
       allowTaint: true
     });
-    
+
     // Convert to blob and download
     canvas.toBlob((blob) => {
       if (blob) {

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const OpenAI = require('openai');
 const helmet = require('helmet');
+const QRCode = require('qrcode');
 const { createClient } = require('@supabase/supabase-js');
 const { google } = require('googleapis');
 const crypto = require('crypto');
@@ -59,6 +60,111 @@ app.use(cors());
 app.use(express.json({ limit: '16mb' }));
 app.use(express.urlencoded({ extended: true, limit: '16mb' }));
 app.use(helmet());
+
+// DEBUG: Funnel Routes moved to top
+app.get('/api/funnels/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const normalizedUserId = userId; // simplify for debug
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.json({ success: true, funnels: {} });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('funnel_steps')
+      .select('funnel_type, steps')
+      .eq('user_id', normalizedUserId);
+
+    if (error) {
+      console.warn('[Funnels] Failed to load funnel steps:', error);
+      return res.status(500).json({ success: false, error: 'Failed to load funnels' });
+    }
+
+    const funnels = (data || []).reduce((acc, item) => {
+      acc[item.funnel_type] = item.steps;
+      return acc;
+    }, {});
+
+    res.json({ success: true, funnels });
+  } catch (error) {
+    console.error('[Funnels] Error fetching funnels:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
+  try {
+    const { userId, funnelType } = req.params;
+    const { steps } = req.body;
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.json({ success: true, saved: false });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('funnel_steps')
+      .upsert({
+        user_id: userId,
+        funnel_type: funnelType,
+        steps: steps,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id, funnel_type' });
+
+    if (error) {
+      console.error('[Funnels] Failed to save funnel steps:', error);
+      return res.status(500).json({ success: false, error: 'Failed to save funnel' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Funnels] Error saving funnel:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Feedback Analytics Endpoints
+app.get('/api/analytics/feedback/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const normalizedUserId = userId; // simplify for debug (or use normalizeUserId if available in scope)
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.json({ success: true, analytics: {} });
+    }
+
+    const { data: events, error } = await supabaseAdmin
+      .from('email_events')
+      .select('campaign_id, event_type, message_id')
+      .eq('user_id', normalizedUserId);
+
+    if (error) {
+      console.warn('[Analytics] Failed to load email events:', error);
+      return res.status(500).json({ success: false, error: 'Failed to load analytics' });
+    }
+
+    const analytics = (events || []).reduce((acc, event) => {
+      const campaign = event.campaign_id || 'unknown';
+      if (!acc[campaign]) {
+        acc[campaign] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
+      }
+
+      if (event.event_type === 'delivered' || event.event_type === 'accepted') acc[campaign].sent++;
+      if (event.event_type === 'opened') acc[campaign].opened++;
+      if (event.event_type === 'clicked') acc[campaign].clicked++;
+      if (event.event_type === 'bounced') acc[campaign].bounced++;
+
+      return acc;
+    }, {});
+
+    res.json({ success: true, analytics });
+  } catch (error) {
+    console.error('[Analytics] Error fetching feedback:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+
 
 // PayPal REST helpers (for Smart Buttons + webhooks)
 const PAYPAL_ENV = (process.env.PAYPAL_ENV || 'sandbox').toLowerCase();
@@ -426,6 +532,15 @@ const sendMailgunEmail = async ({
     body.append('h:Reply-To', String(replyTo).trim());
   }
 
+  // Custom variables for tracking
+  if (options.userId) body.append('v:user_id', options.userId);
+  if (options.campaignId) body.append('v:campaign_id', options.campaignId);
+
+  // Enable tracking
+  body.append('o:tracking', 'yes');
+  body.append('o:tracking-clicks', 'yes');
+  body.append('o:tracking-opens', 'yes');
+
   const response = await fetch(`https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`, {
     method: 'POST',
     headers: {
@@ -496,9 +611,62 @@ const createMailgunHandler = (contextLabel) => async (req, res) => {
     }
 
     console.error(`Error sending email via Mailgun (${contextLabel}):`, error);
-    return res.status(500).json({ error: 'Unexpected error sending email.' });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      code: error.code || 'MAILGUN_ERROR'
+    });
   }
 };
+
+// Verify Mailgun Webhook Signature
+const verifyMailgunSignature = (signingKey, timestamp, token, signature) => {
+  const encodedToken = crypto
+    .createHmac('sha256', signingKey)
+    .update(timestamp.concat(token))
+    .digest('hex');
+  return encodedToken === signature;
+};
+
+// Mailgun Webhook Endpoint
+app.post('/api/webhooks/mailgun', async (req, res) => {
+  try {
+    const { signature } = req.body;
+
+    if (!signature || !verifyMailgunSignature(MAILGUN_API_KEY, signature.timestamp, signature.token, signature.signature)) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    const eventData = req.body['event-data'];
+    if (!eventData) {
+      return res.status(400).json({ error: 'No event data' });
+    }
+
+    const { event, message, recipient, timestamp, user_variables } = eventData;
+    const messageId = message?.headers?.['message-id'];
+    const userId = user_variables?.user_id;
+    const campaignId = user_variables?.campaign_id;
+
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      await supabaseAdmin.from('email_events').insert({
+        message_id: messageId,
+        event_type: event,
+        recipient: recipient,
+        timestamp: new Date(timestamp * 1000).toISOString(),
+        user_id: userId,
+        campaign_id: campaignId,
+        metadata: eventData
+      });
+    } else {
+      console.log('[Mailgun Webhook] Received event (no DB):', event, recipient);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Mailgun Webhook] Error processing event:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // In-memory storage for real data (in production, this would be a database)
 let users = [];
@@ -1401,21 +1569,23 @@ const buildAiCardDestinationUrl = (profile, userId, explicitUrl) =>
 
 const buildQrTrackingUrl = (qrId) => `${PUBLIC_BASE_URL.replace(/\/+$/, '')}/qr/${qrId}`;
 
-const buildQrSvgDataUrl = (displayName, destinationUrl) => {
-  const name = displayName && displayName.trim().length > 0 ? displayName.trim() : 'Your Agent';
+const buildQrSvgDataUrl = async (displayName, destinationUrl) => {
   const url = destinationUrl || 'https://homelistingai.com';
-  const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
-          <rect width="200" height="200" fill="white"/>
-          <text x="100" y="100" text-anchor="middle" font-family="Arial" font-size="12" fill="black">
-              QR Code for ${name}
-          </text>
-          <text x="100" y="120" text-anchor="middle" font-family="Arial" font-size="8" fill="gray">
-              ${url}
-          </text>
-      </svg>
-    `;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+  try {
+    // Generate a high-quality QR code as a Data URL (PNG)
+    const dataUrl = await QRCode.toDataURL(url, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#0000' // Transparent background
+      }
+    });
+    return dataUrl;
+  } catch (err) {
+    console.error('QR Code generation failed:', err);
+    return null;
+  }
 };
 
 const decorateAppointmentWithAgent = (appointment, agentProfile) => {
@@ -5928,7 +6098,8 @@ app.post('/api/paypal/webhook', async (req, res) => {
 app.post('/api/ai-card/profile', async (req, res) => {
   try {
     const { userId, ...profileData } = req.body || {};
-    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+    const validUserId = (userId && userId !== 'null') ? userId : null;
+    const targetUserId = validUserId || DEFAULT_LEAD_USER_ID;
 
     if (!targetUserId) {
       return res.status(400).json({ error: 'userId is required to create AI Card profile' });
@@ -5950,7 +6121,8 @@ app.post('/api/ai-card/profile', async (req, res) => {
 app.put('/api/ai-card/profile', async (req, res) => {
   try {
     const { userId, ...profileData } = req.body || {};
-    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+    const validUserId = (userId && userId !== 'null') ? userId : null;
+    const targetUserId = validUserId || DEFAULT_LEAD_USER_ID;
 
     if (!targetUserId) {
       return res.status(400).json({ error: 'userId is required to update AI Card profile' });
@@ -5981,7 +6153,7 @@ app.post('/api/ai-card/generate-qr', async (req, res) => {
       DEFAULT_AI_CARD_PROFILE;
 
     const resolvedUrl = buildAiCardDestinationUrl(profile, targetUserId, cardUrl);
-    const qrCodeData = buildQrSvgDataUrl(profile.fullName, resolvedUrl);
+    const qrCodeData = await buildQrSvgDataUrl(profile.fullName, resolvedUrl);
 
     console.log(`🎴 Generated QR code for AI Card: ${targetUserId || 'default'}`);
     res.json({
@@ -7109,14 +7281,10 @@ app.post('/api/properties', async (req, res) => {
       reason: insertError?.message || String(insertError),
       stack: insertError?.stack
     }, 'error', requestId)
-    await raisePropertyAlert(
-      `Exception during property creation: ${insertError?.message || String(insertError)}`,
-      requestId,
-      'critical'
-    )
     return res.status(500).json({ error: 'Unable to create property', requestId })
   }
 })
+
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`🚀 AI Server running on http://0.0.0.0:${port}`);

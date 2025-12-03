@@ -20,20 +20,20 @@ const createEmptySocialLinks = (): AgentProfile['socialMedia'] => ({
 });
 
 const createDefaultProfile = (): AgentProfile => ({
-    id: 'default',
-    fullName: '',
-    professionalTitle: '',
-    company: '',
-    phone: '',
-    email: '',
-    website: '',
-    bio: '',
-    brandColor: '#0ea5e9',
-    language: 'en',
-    socialMedia: createEmptySocialLinks(),
-    headshot: null,
-    logo: null
-  });
+  id: 'default',
+  fullName: '',
+  professionalTitle: '',
+  company: '',
+  phone: '',
+  email: '',
+  website: '',
+  bio: '',
+  brandColor: '#0ea5e9',
+  language: 'en',
+  socialMedia: createEmptySocialLinks(),
+  headshot: null,
+  logo: null
+});
 
 const mapToCentralProfile = (profile: AgentProfile) => ({
   id: profile.id,
@@ -345,14 +345,6 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
         event.target.value = ''
       }
     }
-
-    if (uploadSucceeded && uploadedValue) {
-      setForm(prev => ({
-        ...prev,
-        [type]: uploadedValue
-      }))
-      setHasUnsavedChanges(false)
-    }
   }
 
   const handleRemoveAsset = async (type: 'headshot' | 'logo') => {
@@ -392,15 +384,15 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
     try {
       setIsLoading(true);
       const qrData = await generateQRCode(form.id);
-      
+
       // Download the QR code
       const link = document.createElement('a');
       link.href = qrData.qrCode;
-      link.download = `ai-card-qr-${form.fullName.replace(/\s+/g, '-').toLowerCase()}.svg`;
+      link.download = `ai-card-qr-${form.fullName.replace(/\s+/g, '-').toLowerCase()}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       console.log('✅ QR Code generated and downloaded');
     } catch (error) {
       console.error('Failed to generate QR code:', error);
@@ -426,7 +418,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
     try {
       setIsLoading(true);
       const shareData = await shareAICard(method, form.id);
-      
+
       if (method === 'copy') {
         setShareUrl(shareData.url);
         setShowShareModal(true);
@@ -448,7 +440,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
     children: React.ReactNode;
   }> = ({ title, sectionKey, children }) => {
     const isCollapsed = collapsedSections[sectionKey];
-    
+
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <button
@@ -474,29 +466,29 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
   const AICardPreview = () => (
     <div className="relative">
       {/* AI Card Container */}
-      <div 
+      <div
         id="ai-card-preview"
         className="relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-2xl overflow-hidden border border-gray-200"
-        style={{ 
-          width: '400px', 
+        style={{
+          width: '400px',
           height: '700px',
           background: `linear-gradient(135deg, ${form.brandColor}10 0%, white 50%, ${form.brandColor}05 100%)`
         }}
       >
         {/* Header with brand color accent */}
-        <div 
+        <div
           className="h-3 w-full"
           style={{ backgroundColor: form.brandColor }}
         />
-        
+
         {/* Main Content */}
         <div className="p-8 h-full flex flex-col">
           {/* Logo Section */}
           {form.logo && (
             <div className="flex justify-center mb-6">
-              <img 
-                src={form.logo} 
-                alt="Company Logo" 
+              <img
+                src={form.logo}
+                alt="Company Logo"
                 className="h-12 w-auto object-contain"
               />
             </div>
@@ -507,14 +499,14 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
             {/* Headshot */}
             <div className="relative mb-4">
               {form.headshot ? (
-                <img 
-                  src={form.headshot} 
+                <img
+                  src={form.headshot}
                   alt={form.fullName}
                   className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
                   style={{ borderColor: form.brandColor }}
                 />
               ) : (
-                <div 
+                <div
                   className="w-24 h-24 rounded-full border-4 border-white shadow-lg flex items-center justify-center text-2xl font-bold text-white"
                   style={{ backgroundColor: form.brandColor }}
                 >
@@ -557,7 +549,6 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
           {/* How Can I Help Button */}
           <div className="mb-8">
             <button
-              onClick={() => setShowAISidekick(true)}
               className="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 hover:scale-105 shadow-lg text-base"
               style={{ backgroundColor: form.brandColor }}
             >
@@ -586,12 +577,12 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
 
           {/* Share Button */}
           <div className="flex justify-center">
-            <button 
+            <button
               onClick={() => handleShare('copy')}
               disabled={isLoading}
               className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50"
-              style={{ 
-                backgroundColor: form.brandColor, 
+              style={{
+                backgroundColor: form.brandColor,
                 color: 'white',
                 marginBottom: '50px'
               }}
@@ -619,40 +610,37 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               {isLoading && <span className="text-blue-600 ml-2">• Loading...</span>}
             </p>
           </div>
-          
+
           {/* Controls Section */}
           <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4">
             {/* Tab Toggle */}
             <div className="flex bg-gray-100 rounded-lg p-1 mx-auto sm:mx-0">
               <button
                 onClick={() => setActiveTab('edit')}
-                className={`flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none ${
-                  activeTab === 'edit' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                className={`flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none ${activeTab === 'edit'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+                  }`}
               >
                 <Palette className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>Edit</span>
               </button>
               <button
                 onClick={() => setActiveTab('preview')}
-                className={`flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none ${
-                  activeTab === 'preview' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                className={`flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none ${activeTab === 'preview'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+                  }`}
               >
                 <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>Preview</span>
               </button>
               <button
                 onClick={() => setActiveTab('qr-codes')}
-                className={`flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none ${
-                  activeTab === 'qr-codes' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                className={`flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none ${activeTab === 'qr-codes'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+                  }`}
               >
                 <QrCode className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>QR Codes</span>
@@ -678,7 +666,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                 <span className="hidden xs:inline">{isLoading ? 'Generating...' : 'Generate QR'}</span>
                 <span className="xs:hidden">QR</span>
               </button>
-              
+
               <button
                 onClick={handleDownloadCard}
                 disabled={isLoading}
@@ -708,11 +696,10 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
             </button>
             {isDemoMode && (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                showDemoNotice 
-                  ? 'bg-blue-500 text-white shadow-md' 
-                  : 'bg-blue-50 text-blue-700 border border-blue-100'
-              }`}>
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${showDemoNotice
+                ? 'bg-blue-500 text-white shadow-md'
+                : 'bg-blue-50 text-blue-700 border border-blue-100'
+                }`}>
                 <span className="material-symbols-outlined text-sm">info</span>
                 <span>Demo Mode: Changes not saved</span>
               </div>
@@ -772,7 +759,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="ai-card-professional-title" className="block text-sm font-medium text-gray-700 mb-2">
                       Professional Title*
@@ -785,7 +772,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="ai-card-company" className="block text-sm font-medium text-gray-700 mb-2">
                       Company*
@@ -798,7 +785,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Brand Color
@@ -839,7 +826,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="ai-card-email" className="block text-sm font-medium text-gray-700 mb-2">
                       Email Address*
@@ -852,7 +839,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div className="md:col-span-2">
                     <label htmlFor="ai-card-website" className="block text-sm font-medium text-gray-700 mb-2">
                       Website URL
@@ -870,21 +857,21 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
 
               {/* Images */}
               <CollapsibleSection title="🖼️ Images" sectionKey="images">
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Headshot */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Professional Headshot
                     </label>
-                    <div 
+                    <div
                       onClick={() => headshotInputRef.current?.click()}
                       className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
                     >
                       {form.headshot ? (
-                        <img 
-                          src={form.headshot} 
-                          alt="Headshot" 
+                        <img
+                          src={form.headshot}
+                          alt="Headshot"
                           className="w-24 h-24 rounded-full mx-auto object-cover mb-2"
                         />
                       ) : (
@@ -920,14 +907,14 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Company Logo
                     </label>
-                    <div 
+                    <div
                       onClick={() => logoInputRef.current?.click()}
                       className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
                     >
                       {form.logo ? (
-                        <img 
-                          src={form.logo} 
-                          alt="Logo" 
+                        <img
+                          src={form.logo}
+                          alt="Logo"
                           className="w-24 h-16 mx-auto object-contain mb-2"
                         />
                       ) : (
@@ -980,7 +967,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
 
               {/* Social Media Links */}
               <CollapsibleSection title="🔗 Social Media Links" sectionKey="social">
-                
+
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
                     <Facebook className="w-5 h-5 text-blue-600" />
@@ -992,7 +979,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Instagram className="w-5 h-5 text-pink-500" />
                     <input
@@ -1003,7 +990,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Twitter className="w-5 h-5 text-blue-400" />
                     <input
@@ -1014,7 +1001,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Linkedin className="w-5 h-5 text-blue-700" />
                     <input
@@ -1025,7 +1012,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Youtube className="w-5 h-5 text-red-600" />
                     <input
@@ -1081,8 +1068,8 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
 
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <div className="flex items-center space-x-2">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={shareUrl}
                   readOnly
                   className="flex-1 bg-transparent text-sm text-gray-700 outline-none"

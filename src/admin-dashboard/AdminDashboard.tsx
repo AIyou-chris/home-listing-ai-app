@@ -29,7 +29,7 @@ import AdminLeadsPage from './AdminLeadsPage';
 import { adminAppointmentsService } from '../services/adminAppointmentsService';
 import type { ScheduleAppointmentFormData } from '../components/ScheduleAppointmentModal';
 
-type DashboardView =
+export type DashboardView =
   | 'dashboard'
   | 'leads'
   | 'ai-card'
@@ -65,6 +65,7 @@ const cloneDemoProperty = (property: Property, index: number): Property => {
   };
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const normalizeAppointment = (appt: any): Appointment => ({
   id: (appt.id as string) ?? `appt-${Date.now()}`,
   type: (appt.type as Appointment['type']) ?? (appt as { kind?: Appointment['type'] }).kind ?? 'Showing',

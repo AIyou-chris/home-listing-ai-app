@@ -13,9 +13,10 @@ export interface ReportInputData {
 interface ReportInputFormProps {
     onSubmit: (data: ReportInputData) => void;
     isLoading: boolean;
+    onBack?: () => void;
 }
 
-const ReportInputForm: React.FC<ReportInputFormProps> = ({ onSubmit, isLoading }) => {
+const ReportInputForm: React.FC<ReportInputFormProps> = ({ onSubmit, isLoading, onBack }) => {
     const [formData, setFormData] = useState<ReportInputData>({
         address: '',
         price: '',
@@ -38,6 +39,12 @@ const ReportInputForm: React.FC<ReportInputFormProps> = ({ onSubmit, isLoading }
 
     return (
         <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            {onBack && (
+                <button onClick={onBack} className="text-slate-500 hover:text-slate-800 flex items-center gap-2 text-sm font-medium mb-4">
+                    <span className="material-symbols-outlined text-lg">arrow_back</span>
+                    Back
+                </button>
+            )}
             <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary-600">edit_document</span>
                 Property Details

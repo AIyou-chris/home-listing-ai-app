@@ -110,7 +110,6 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                             <div className="flex justify-around text-sm text-slate-500 font-medium pt-5 border-t border-slate-200">
                                 <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Secure Stripe & PayPal checkout</div>
                                 <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Cancel anytime</div>
-                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Auto-delete trial data after 7 days</div>
                             </div>
                         </div>
 
@@ -146,7 +145,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                         <span className="material-symbols-outlined w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5">info</span>
                                         <div>
                                             <h4 className="font-semibold">How onboarding works</h4>
-                                            <p className="text-xs mt-1">After checkout we instantly generate your dashboard, email you a secure temporary password, preload your AI funnels, and auto-delete all trial data after 7 days.</p>
+                                            <p className="text-xs mt-1">After checkout we instantly generate your dashboard, email you a secure temporary password, and preload your AI funnels. We offer a 60-day money-back guarantee because we want you to use the app in your marketing risk-free. If it doesn't work out, we'll refund you—no questions asked.</p>
                                         </div>
                                     </div>
                                 </div>

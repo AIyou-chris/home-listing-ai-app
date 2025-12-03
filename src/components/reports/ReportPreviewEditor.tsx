@@ -5,7 +5,10 @@ import { generatePdf } from './PdfGenerator';
 export interface ReportContent {
     title: string;
     subtitle: string;
-    themeColor?: 'blue' | 'slate' | 'emerald' | 'purple' | 'amber';
+    themeColor?: 'blue' | 'slate' | 'emerald' | 'purple' | 'amber' | 'brand';
+    layout?: 'modern' | 'classic' | 'minimal';
+    backgroundStyle?: 'solid' | 'gradient' | 'image';
+    customImageUrl?: string;
     coverImage?: string;
     sections: {
         title: string;
@@ -24,6 +27,15 @@ interface ReportPreviewEditorProps {
     onBack: () => void;
 }
 
+const THEMES = [
+    { id: 'brand', hex: '' },
+    { id: 'blue', hex: '#1e3a8a' },
+    { id: 'slate', hex: '#0f172a' },
+    { id: 'emerald', hex: '#064e3b' },
+    { id: 'purple', hex: '#581c87' },
+    { id: 'amber', hex: '#78350f' },
+] as const;
+
 const ReportPreviewEditor: React.FC<ReportPreviewEditorProps> = ({ content: initialContent, agentProfile, onBack }) => {
     const [content, setContent] = useState<ReportContent>(initialContent);
     const [isExporting, setIsExporting] = useState(false);
@@ -34,6 +46,30 @@ const ReportPreviewEditor: React.FC<ReportPreviewEditorProps> = ({ content: init
     useEffect(() => {
         setContent(initialContent);
     }, [initialContent]);
+
+    const getBaseColor = () => {
+        if (content.themeColor === 'brand') return agentProfile.brandColor || '#1e293b';
+        const theme = THEMES.find(t => t.id === content.themeColor);
+        return theme?.hex || '#0f172a';
+    };
+
+    const getCoverStyle = () => {
+        const baseColor = getBaseColor();
+
+        if (content.backgroundStyle === 'image') {
+            return {
+                backgroundImage: `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('${content.customImageUrl || 'https://images.unsplash.com/photo-1600596542815-2495db98dada?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80'}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+            };
+        }
+
+        if (content.backgroundStyle === 'gradient') {
+            return { background: `linear-gradient(135deg, ${baseColor} 0%, #0f172a 100%)` };
+        }
+
+        return { backgroundColor: baseColor };
+    };
 
     const handleSectionChange = (index: number, newText: string) => {
         const newSections = [...content.sections];
@@ -65,11 +101,13 @@ const ReportPreviewEditor: React.FC<ReportPreviewEditorProps> = ({ content: init
         setRewritingSection(null);
     };
 
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
     const handleExport = async () => {
-        if (!reportRef.current) return;
         setIsExporting(true);
         try {
-            await generatePdf('report-preview-container', `${content.title.replace(/\s+/g, '-').toLowerCase()}.pdf`);
+            // Pass both IDs to generatePdf to create a multi-page PDF
+            await generatePdf(['report-cover-page', 'report-content-page'], `${content.title.replace(/\s+/g, '-').toLowerCase()}.pdf`);
         } catch (error) {
             console.error('Failed to export PDF:', error);
             alert('Failed to generate PDF. Please try again.');
@@ -115,76 +153,194 @@ const ReportPreviewEditor: React.FC<ReportPreviewEditorProps> = ({ content: init
             </div>
 
             {/* Preview Area - Scrollable */}
-            <div className="flex-1 overflow-y-auto bg-slate-100 p-8 flex justify-center">
+            <div
+                ref={scrollContainerRef}
+                className="flex-1 overflow-y-auto bg-slate-100 p-8 flex justify-center"
+            >
                 <div
                     id="report-preview-container"
+                    ref={reportRef}
                     className="bg-white shadow-xl w-[210mm] min-h-[297mm] flex flex-col relative"
                     style={{ transform: 'scale(1)', transformOrigin: 'top center' }}
                 >
                     {/* COVER PAGE */}
-                    <div className="h-[297mm] flex flex-col p-[20mm] bg-slate-900 text-white relative overflow-hidden">
-                        {/* Decorative Background Elements */}
-                        <div className="absolute top-0 right-0 w-96 h-96 bg-primary-600 rounded-full blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2"></div>
-                        <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-600 rounded-full blur-3xl opacity-20 translate-y-1/2 -translate-x-1/2"></div>
+                    <div
+                        id="report-cover-page"
+                        className="h-[297mm] flex flex-col p-[20mm] relative overflow-hidden text-white"
+                        style={getCoverStyle()}
+                    >
+                        {/* Decorative Background Elements (Only for non-image backgrounds) */}
+                        {content.backgroundStyle !== 'image' && (
+                            <>
+                                <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl opacity-30 -translate-y-1/2 translate-x-1/2"></div>
+                                <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl opacity-30 translate-y-1/2 -translate-x-1/2"></div>
+                            </>
+                        )}
 
-                        {/* Agent Branding */}
-                        <div className="relative z-10 flex flex-col items-center mt-20">
-                            {agentProfile.headshotUrl && (
-                                <img
-                                    src={agentProfile.headshotUrl}
-                                    alt={agentProfile.name}
-                                    className="w-48 h-48 rounded-full object-cover border-4 border-white shadow-2xl mb-8"
-                                />
-                            )}
-                            {agentProfile.logoUrl && (
-                                <img src={agentProfile.logoUrl} alt="Company Logo" className="h-16 object-contain mb-8 brightness-0 invert opacity-80" />
-                            )}
-                        </div>
+                        {/* MODERN LAYOUT (Default) */}
+                        {(!content.layout || content.layout === 'modern') && (
+                            <>
+                                <div className="relative z-10 flex flex-col items-center mt-20">
+                                    {agentProfile.headshotUrl && (
+                                        <div className="relative">
+                                            <div className="absolute inset-0 bg-white/20 rounded-full blur-md transform scale-110"></div>
+                                            <img
+                                                src={agentProfile.headshotUrl}
+                                                alt={agentProfile.name}
+                                                className="w-48 h-48 rounded-full object-cover border-4 border-white/90 shadow-2xl mb-8 relative z-10"
+                                            />
+                                        </div>
+                                    )}
+                                    {agentProfile.logoUrl && (
+                                        <img src={agentProfile.logoUrl} alt="Company Logo" className="h-16 object-contain mb-8 opacity-90" />
+                                    )}
+                                </div>
 
-                        {/* Title Section */}
-                        <div className="relative z-10 text-center mt-auto mb-32">
-                            <h1
-                                className="text-5xl font-bold mb-6 leading-tight outline-none border border-transparent hover:border-white/20 rounded p-2 transition-colors"
-                                contentEditable
-                                suppressContentEditableWarning
-                                onBlur={(e) => setContent({ ...content, title: e.currentTarget.textContent || '' })}
-                            >
-                                {content.title}
-                            </h1>
-                            <p
-                                className="text-2xl text-primary-200 font-light outline-none border border-transparent hover:border-white/20 rounded p-2 transition-colors"
-                                contentEditable
-                                suppressContentEditableWarning
-                                onBlur={(e) => setContent({ ...content, subtitle: e.currentTarget.textContent || '' })}
-                            >
-                                {content.subtitle}
-                            </p>
-                        </div>
+                                <div className="relative z-10 text-center mt-auto mb-32 px-12">
+                                    <div className="w-24 h-1 bg-white/30 mx-auto mb-8 rounded-full"></div>
+                                    <h1
+                                        className="text-5xl font-bold mb-6 leading-tight tracking-tight drop-shadow-sm outline-none border border-transparent hover:border-white/20 rounded p-2 transition-colors"
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onBlur={(e) => setContent({ ...content, title: e.currentTarget.textContent || '' })}
+                                    >
+                                        {content.title}
+                                    </h1>
+                                    <p
+                                        className="text-2xl opacity-90 font-light tracking-wide outline-none border border-transparent hover:border-white/20 rounded p-2 transition-colors"
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onBlur={(e) => setContent({ ...content, subtitle: e.currentTarget.textContent || '' })}
+                                    >
+                                        {content.subtitle}
+                                    </p>
+                                </div>
+                            </>
+                        )}
 
-                        {/* Footer */}
-                        <div className="relative z-10 text-center border-t border-white/10 pt-8">
-                            <p className="text-lg font-semibold">{agentProfile.name}</p>
-                            <p className="text-slate-400">{agentProfile.title} | {agentProfile.company}</p>
-                            <p className="text-slate-400 text-sm mt-2">{agentProfile.email} • {agentProfile.phone}</p>
-                        </div>
+                        {/* CLASSIC LAYOUT */}
+                        {content.layout === 'classic' && (
+                            <div className="h-full border-[12px] border-white/10 m-4 flex flex-col p-12 absolute inset-0">
+                                <div className="text-center mt-20 relative z-10">
+                                    <h1
+                                        className="text-6xl font-serif font-bold mb-6 leading-tight outline-none border border-transparent hover:border-white/20 rounded p-2 transition-colors"
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onBlur={(e) => setContent({ ...content, title: e.currentTarget.textContent || '' })}
+                                    >
+                                        {content.title}
+                                    </h1>
+                                    <div className="w-full h-px bg-white/40 my-10"></div>
+                                    <p
+                                        className="text-3xl font-serif italic opacity-90 outline-none border border-transparent hover:border-white/20 rounded p-2 transition-colors"
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onBlur={(e) => setContent({ ...content, subtitle: e.currentTarget.textContent || '' })}
+                                    >
+                                        {content.subtitle}
+                                    </p>
+                                </div>
+
+                                <div className="mt-auto flex flex-col items-center relative z-10 mb-20">
+                                    {agentProfile.headshotUrl && (
+                                        <img
+                                            src={agentProfile.headshotUrl}
+                                            alt={agentProfile.name}
+                                            className="w-40 h-40 rounded-full object-cover border-2 border-white shadow-lg mb-6"
+                                        />
+                                    )}
+                                    <p className="text-xl font-bold uppercase tracking-widest">{agentProfile.name}</p>
+                                    <p className="opacity-80 text-lg">{agentProfile.company}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* MINIMAL LAYOUT */}
+                        {content.layout === 'minimal' && (
+                            <div className="h-full flex flex-col p-16 text-left relative z-10">
+                                <div className="mt-20">
+                                    {agentProfile.logoUrl && (
+                                        <img src={agentProfile.logoUrl} alt="Company Logo" className="h-16 object-contain mb-16 brightness-0 invert opacity-100" />
+                                    )}
+                                    <h1
+                                        className="text-7xl font-bold mb-8 leading-none tracking-tighter outline-none border border-transparent hover:border-white/20 rounded p-2 transition-colors"
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onBlur={(e) => setContent({ ...content, title: e.currentTarget.textContent || '' })}
+                                    >
+                                        {content.title}
+                                    </h1>
+                                    <p
+                                        className="text-3xl opacity-80 font-light border-l-4 border-white/30 pl-8 outline-none border-r border-y border-transparent hover:border-white/20 rounded p-2 transition-colors"
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onBlur={(e) => setContent({ ...content, subtitle: e.currentTarget.textContent || '' })}
+                                    >
+                                        {content.subtitle}
+                                    </p>
+                                </div>
+
+                                <div className="mt-auto mb-20">
+                                    <div className="flex items-center gap-6">
+                                        {agentProfile.headshotUrl && (
+                                            <img
+                                                src={agentProfile.headshotUrl}
+                                                alt={agentProfile.name}
+                                                className="w-20 h-20 rounded-full object-cover border border-white/50"
+                                            />
+                                        )}
+                                        <div>
+                                            <p className="font-bold text-2xl">{agentProfile.name}</p>
+                                            <p className="opacity-70 text-lg">{agentProfile.email}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Footer (Common) */}
+                        {content.layout !== 'minimal' && (
+                            <div className="relative z-10 text-center border-t border-white/10 pt-8">
+                                <p className="text-lg font-semibold">{agentProfile.name}</p>
+                                <p className="text-slate-400">{agentProfile.title} | {agentProfile.company}</p>
+                                <p className="text-slate-400 text-sm mt-2">{agentProfile.email} • {agentProfile.phone}</p>
+                            </div>
+                        )}
                     </div>
 
                     {/* CONTENT PAGES */}
-                    <div className="min-h-[297mm] p-[20mm] bg-white text-slate-900">
+                    <div id="report-content-page" className="min-h-[297mm] p-[20mm] bg-white text-slate-900">
                         {/* Header for Content Pages */}
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-6 mb-10">
-                            <div className="flex items-center gap-3">
+                        <div
+                            className="relative flex justify-between items-center px-6 h-16 -mx-[20mm] -mt-[20mm] mb-6 text-white overflow-hidden"
+                            style={{ backgroundColor: getBaseColor() }}
+                        >
+                            <div className="flex items-center gap-3 pl-[20mm] relative z-10">
                                 {agentProfile.headshotUrl && (
-                                    <img src={agentProfile.headshotUrl} className="w-10 h-10 rounded-full object-cover" />
+                                    <img
+                                        src={agentProfile.headshotUrl}
+                                        className="w-10 h-10 rounded-full object-cover border-2 border-white/50 shadow-md"
+                                    />
                                 )}
                                 <div>
-                                    <p className="font-bold text-sm">{agentProfile.name}</p>
-                                    <p className="text-xs text-slate-500">{agentProfile.company}</p>
+                                    <p className="font-bold text-sm leading-tight">{agentProfile.name}</p>
+                                    <p className="text-[10px] opacity-90 font-medium mb-0.5">{agentProfile.company}</p>
+                                    <div className="flex items-center gap-3 text-[9px] opacity-90 font-medium">
+                                        <span className="flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[10px]">phone</span>
+                                            {agentProfile.phone}
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[10px]">mail</span>
+                                            {agentProfile.email}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <p className="text-xs text-slate-400 uppercase tracking-wider">Prepared For</p>
-                                <p className="font-medium text-sm text-primary-600">{content.subtitle}</p>
+
+                            <div className="text-right pr-[20mm] relative z-10">
+                                <p className="text-[9px] font-bold opacity-70 uppercase tracking-widest mb-0.5">Prepared For</p>
+                                <p className="font-semibold text-xs">{content.subtitle}</p>
                             </div>
                         </div>
 
@@ -221,7 +377,10 @@ const ReportPreviewEditor: React.FC<ReportPreviewEditorProps> = ({ content: init
                             {content.sections.map((section, index) => (
                                 <div key={index} className="group/section relative">
                                     <div className="flex items-center justify-between mb-3">
-                                        <h3 className="text-lg font-bold text-slate-900 border-l-4 border-primary-500 pl-3">
+                                        <h3
+                                            className="text-lg font-bold text-slate-900 border-l-4 pl-3"
+                                            style={{ borderColor: getBaseColor() }}
+                                        >
                                             {section.title}
                                         </h3>
 

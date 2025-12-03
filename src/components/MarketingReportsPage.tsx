@@ -1,13 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAgentBranding } from '../hooks/useAgentBranding';
 import ReportInputForm, { ReportInputData } from './reports/ReportInputForm';
 import ReportPreviewEditor, { ReportContent } from './reports/ReportPreviewEditor';
 import CoverPageBuilder, { CoverConfig } from './reports/CoverPageBuilder';
 
+import { DEMO_AI_CARD_PROFILE } from '../constants';
+import { AgentProfile } from '../types';
+
 type ReportType = 'seller-guide' | 'listing-proposal' | 'buyer-guide';
 
-const MarketingReportsPage: React.FC = () => {
-    const { uiProfile } = useAgentBranding();
+interface MarketingReportsPageProps {
+    isDemoMode?: boolean;
+}
+
+const MarketingReportsPage: React.FC<MarketingReportsPageProps> = ({ isDemoMode = false }) => {
+    const { uiProfile: realUiProfile } = useAgentBranding();
+
+    // Robust check for demo mode
+    const effectiveIsDemoMode = isDemoMode || window.location.hash.includes('demo-dashboard');
+
+    const uiProfile = React.useMemo(() => {
+        if (effectiveIsDemoMode) {
+            console.log('MarketingReportsPage: Using DEMO profile (Sarah Johnson)');
+            return {
+                name: DEMO_AI_CARD_PROFILE.fullName,
+                slug: 'demo-agent',
+                title: DEMO_AI_CARD_PROFILE.professionalTitle,
+                company: DEMO_AI_CARD_PROFILE.company,
+                phone: DEMO_AI_CARD_PROFILE.phone,
+                email: DEMO_AI_CARD_PROFILE.email,
+                headshotUrl: `/demo-headshot.png?v=${Date.now()}`, // Force the uploaded image with cache busting
+                logoUrl: `/demo-logo.png?v=${Date.now()}`, // Force the uploaded logo with cache busting
+                brandColor: DEMO_AI_CARD_PROFILE.brandColor,
+                bio: DEMO_AI_CARD_PROFILE.bio,
+                website: DEMO_AI_CARD_PROFILE.website,
+                socials: [
+                    { platform: 'Facebook', url: DEMO_AI_CARD_PROFILE.socialMedia.facebook },
+                    { platform: 'Instagram', url: DEMO_AI_CARD_PROFILE.socialMedia.instagram },
+                    { platform: 'Twitter', url: DEMO_AI_CARD_PROFILE.socialMedia.twitter },
+                    { platform: 'LinkedIn', url: DEMO_AI_CARD_PROFILE.socialMedia.linkedin },
+                    { platform: 'YouTube', url: DEMO_AI_CARD_PROFILE.socialMedia.youtube },
+                ].filter(s => s.url) as AgentProfile['socials'],
+                language: DEMO_AI_CARD_PROFILE.language
+            } as AgentProfile;
+        }
+        return realUiProfile;
+    }, [effectiveIsDemoMode, realUiProfile]);
+
+    useEffect(() => {
+        console.log('MarketingReportsPage mounted. Mode:', effectiveIsDemoMode ? 'DEMO' : 'REAL');
+        console.log('Current Profile Name:', uiProfile.name);
+    }, [effectiveIsDemoMode, uiProfile]);
     const [activeStep, setActiveStep] = useState<'select' | 'input' | 'cover-builder' | 'preview'>('select');
     const [selectedType, setSelectedType] = useState<ReportType | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -18,7 +61,9 @@ const MarketingReportsPage: React.FC = () => {
     const [coverConfig, setCoverConfig] = useState<CoverConfig>({
         title: '',
         subtitle: '',
-        themeColor: 'slate'
+        themeColor: 'slate',
+        layout: 'modern',
+        backgroundStyle: 'solid'
     });
 
     const handleTypeSelect = (type: ReportType) => {
@@ -29,14 +74,18 @@ const MarketingReportsPage: React.FC = () => {
             setCoverConfig({
                 title: 'Why List With Me',
                 subtitle: 'A Strategic Approach to Selling Your Home',
-                themeColor: 'blue'
+                themeColor: 'blue',
+                layout: 'modern',
+                backgroundStyle: 'solid'
             });
             setActiveStep('cover-builder');
         } else if (type === 'buyer-guide') {
             setCoverConfig({
                 title: 'Home Buying Guide',
                 subtitle: 'Your Roadmap to Homeownership',
-                themeColor: 'emerald'
+                themeColor: 'emerald',
+                layout: 'modern',
+                backgroundStyle: 'solid'
             });
             setActiveStep('cover-builder');
         } else {
@@ -50,7 +99,9 @@ const MarketingReportsPage: React.FC = () => {
         setCoverConfig({
             title: 'Strategic Listing Proposal',
             subtitle: `Prepared for ${data.address}`,
-            themeColor: 'purple'
+            themeColor: 'purple',
+            layout: 'modern',
+            backgroundStyle: 'solid'
         });
 
         // Store input data temporarily if needed, or just pass to generation
@@ -188,7 +239,10 @@ const MarketingReportsPage: React.FC = () => {
             ...reportContent,
             title: coverConfig.title,
             subtitle: coverConfig.subtitle,
-            themeColor: coverConfig.themeColor
+            themeColor: coverConfig.themeColor,
+            layout: coverConfig.layout,
+            backgroundStyle: coverConfig.backgroundStyle,
+            customImageUrl: coverConfig.customImageUrl
         };
 
         return (
@@ -200,14 +254,6 @@ const MarketingReportsPage: React.FC = () => {
         );
     }
 
-    if (activeStep === 'input') {
-        return (
-            <ReportInputForm
-                onSubmit={handleProposalSubmit}
-                onBack={() => setActiveStep('select')}
-            />
-        );
-    }
 
     return (
         <div className="max-w-5xl mx-auto py-10 px-6">
@@ -334,16 +380,11 @@ const MarketingReportsPage: React.FC = () => {
             )}
 
             {activeStep === 'input' && (
-                <div>
-                    <button
-                        onClick={() => setActiveStep('select')}
-                        className="mb-6 text-slate-500 hover:text-slate-800 flex items-center gap-1 text-sm font-medium"
-                    >
-                        <span className="material-symbols-outlined text-lg">arrow_back</span>
-                        Back to Selection
-                    </button>
-                    <ReportInputForm onSubmit={handleProposalSubmit} isLoading={isGenerating} />
-                </div>
+                <ReportInputForm
+                    onSubmit={handleProposalSubmit}
+                    isLoading={isGenerating}
+                    onBack={() => setActiveStep('select')}
+                />
             )}
         </div>
     );

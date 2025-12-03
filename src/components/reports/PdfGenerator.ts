@@ -1,45 +1,82 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-export const generatePdf = async (elementId: string, fileName: string) => {
-    const element = document.getElementById(elementId);
-    if (!element) {
-        throw new Error(`Element with id ${elementId} not found`);
-    }
+export const generatePdf = async (elementIds: string | string[], fileName: string) => {
+    const ids = Array.isArray(elementIds) ? elementIds : [elementIds];
+    const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+    });
+
+    const pageWidth = 210; // A4 width in mm
+    const pageHeight = 297; // A4 height in mm
 
     try {
-        // Create canvas from the element
-        const canvas = await html2canvas(element, {
-            scale: 2, // Higher scale for better quality
-            useCORS: true, // Enable cross-origin images
-            logging: false,
-            backgroundColor: '#ffffff'
-        });
+        for (let i = 0; i < ids.length; i++) {
+            const element = document.getElementById(ids[i]);
+            if (!element) {
+                console.warn(`Element with id ${ids[i]} not found, skipping`);
+                continue;
+            }
 
-        // Calculate PDF dimensions
-        const imgData = canvas.toDataURL('image/jpeg', 1.0);
-        const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-        });
+            // Clone the element to ensure it's captured correctly without scroll issues
+            const clone = element.cloneNode(true) as HTMLElement;
 
-        const imgWidth = 210; // A4 width in mm
-        const pageHeight = 297; // A4 height in mm
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        let heightLeft = imgHeight;
-        let position = 0;
+            // Style the clone to ensure it renders correctly
+            clone.style.position = 'fixed';
+            clone.style.top = '0';
+            clone.style.left = '0';
+            clone.style.width = '210mm'; // Force A4 width
+            clone.style.height = '297mm'; // Force A4 height
+            clone.style.zIndex = '-9999'; // Hide behind everything
+            clone.style.margin = '0';
+            clone.style.transform = 'none'; // Reset any transforms
 
-        // Add first page
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+            // Append to body
+            document.body.appendChild(clone);
 
-        // Add subsequent pages if content overflows
-        while (heightLeft >= 0) {
-            position = heightLeft - imgHeight;
-            pdf.addPage();
-            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+            // Create canvas from the clone
+            const canvas = await html2canvas(clone, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                windowWidth: document.documentElement.offsetWidth,
+                windowHeight: document.documentElement.offsetHeight
+            });
+
+            // Remove clone
+            document.body.removeChild(clone);
+
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
+            const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+            // If it's not the first element, add a new page
+            if (i > 0) {
+                pdf.addPage();
+            }
+
+            // If the element itself is taller than one page (like the content section),
+            // we still need to handle the slicing for that specific element.
+            let heightLeft = imgHeight;
+            const position = 0;
+
+            // Add first part of this element
+            pdf.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
             heightLeft -= pageHeight;
+
+            // Add subsequent pages for this element if it overflows
+            let pageIndex = 1;
+            // Add a small tolerance (e.g. 5mm) to avoid creating a new page for negligible overflow
+            while (heightLeft > 5) {
+                pdf.addPage();
+                // Shift the image up by the page height * index
+                const yPosition = -(pageHeight * pageIndex);
+                pdf.addImage(imgData, 'JPEG', 0, yPosition, pageWidth, imgHeight);
+                heightLeft -= pageHeight;
+                pageIndex++;
+            }
         }
 
         pdf.save(fileName);

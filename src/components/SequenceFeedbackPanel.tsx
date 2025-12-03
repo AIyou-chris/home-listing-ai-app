@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { feedbackService } from '../services/feedbackService';
 
 type SequenceSnapshot = {
     id: string;
@@ -22,15 +23,15 @@ type StepInsight = {
     tags: string[];
 };
 
-const sequenceSnapshots: SequenceSnapshot[] = [
+const INITIAL_SNAPSHOTS: SequenceSnapshot[] = [
     {
         id: 'welcome',
         name: 'Universal Welcome Drip',
         goal: 'Capture intent in first 48h',
-        replyRate: 42,
-        openRate: 68,
-        meetings: 19,
-        trend: 'up',
+        replyRate: 0,
+        openRate: 0,
+        meetings: 0,
+        trend: 'flat',
         lastAdjust: '2 days ago',
         bestStep: 'Day 1 Check-In'
     },
@@ -38,9 +39,9 @@ const sequenceSnapshots: SequenceSnapshot[] = [
         id: 'buyer',
         name: 'Homebuyer Journey',
         goal: 'Move buyers to tour requests',
-        replyRate: 36,
-        openRate: 62,
-        meetings: 27,
+        replyRate: 0,
+        openRate: 0,
+        meetings: 0,
         trend: 'flat',
         lastAdjust: '5 days ago',
         bestStep: 'Curated Matches'
@@ -49,10 +50,10 @@ const sequenceSnapshots: SequenceSnapshot[] = [
         id: 'listing',
         name: 'AI-Powered Seller Funnel',
         goal: 'Convert CMAs to listings',
-        replyRate: 31,
-        openRate: 55,
-        meetings: 11,
-        trend: 'up',
+        replyRate: 0,
+        openRate: 0,
+        meetings: 0,
+        trend: 'flat',
         lastAdjust: 'Yesterday',
         bestStep: 'Interactive Listing Draft'
     },
@@ -60,10 +61,10 @@ const sequenceSnapshots: SequenceSnapshot[] = [
         id: 'post',
         name: 'After-Showing Follow-Up',
         goal: 'Secure second tours',
-        replyRate: 24,
-        openRate: 51,
-        meetings: 14,
-        trend: 'down',
+        replyRate: 0,
+        openRate: 0,
+        meetings: 0,
+        trend: 'flat',
         lastAdjust: '9 days ago',
         bestStep: 'Comparables Drop'
     }
@@ -120,6 +121,35 @@ const TrendIcon: React.FC<{ trend: SequenceSnapshot['trend'] }> = ({ trend }) =>
 };
 
 const SequenceFeedbackPanel: React.FC = () => {
+    const [snapshots, setSnapshots] = useState<SequenceSnapshot[]>(INITIAL_SNAPSHOTS);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        loadAnalytics();
+    }, []);
+
+    const loadAnalytics = async () => {
+        setLoading(true);
+        const data = await feedbackService.fetchAnalytics('demo-blueprint');
+
+        const updatedSnapshots = INITIAL_SNAPSHOTS.map(snap => {
+            const stats = data[snap.id] || { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
+            const openRate = stats.sent > 0 ? Math.round((stats.opened / stats.sent) * 100) : 0;
+            // Using clicks as a proxy for engagement/replies for now since we don't track inbound replies yet
+            const replyRate = stats.sent > 0 ? Math.round((stats.clicked / stats.sent) * 100) : 0;
+
+            return {
+                ...snap,
+                openRate,
+                replyRate,
+                meetings: 0 // Placeholder
+            };
+        });
+
+        setSnapshots(updatedSnapshots);
+        setLoading(false);
+    };
+
     return (
         <div className="space-y-8">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -157,10 +187,15 @@ const SequenceFeedbackPanel: React.FC = () => {
                         <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Sequence Overview</p>
                         <h3 className="text-2xl font-bold text-slate-900">Health & Reply Rates</h3>
                     </div>
-                    <span className="text-xs font-semibold text-slate-500">Rolling 14 day window</span>
+                    <div className="flex items-center gap-4">
+                        <span className="text-xs font-semibold text-slate-500">Real-time Data</span>
+                        <button onClick={loadAnalytics} className="text-slate-400 hover:text-blue-600">
+                            <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>refresh</span>
+                        </button>
+                    </div>
                 </div>
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    {sequenceSnapshots.map((sequence) => (
+                    {snapshots.map((sequence) => (
                         <article key={sequence.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
@@ -171,7 +206,7 @@ const SequenceFeedbackPanel: React.FC = () => {
                             </div>
                             <dl className="mt-4 grid grid-cols-3 gap-3 text-center">
                                 <div className="rounded-lg bg-white p-3 shadow-sm">
-                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Replies</dt>
+                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Replies (Clicks)</dt>
                                     <dd className="text-lg font-bold text-slate-900">{sequence.replyRate}%</dd>
                                 </div>
                                 <div className="rounded-lg bg-white p-3 shadow-sm">

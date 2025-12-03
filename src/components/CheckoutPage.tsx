@@ -204,6 +204,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                       <p className="text-xs text-slate-500 mt-3 text-center">
                         Secure payment processing by PayPal
                       </p>
+                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+                        <span className="material-symbols-outlined text-green-600 text-xl mt-0.5">verified_user</span>
+                        <div>
+                          <p className="text-xs font-bold text-green-800">60-Day Money-Back Guarantee</p>
+                          <p className="text-xs text-green-700 mt-0.5">
+                            Try HomeListingAI risk-free. If you're not completely satisfied within 60 days, we'll refund your payment in full.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

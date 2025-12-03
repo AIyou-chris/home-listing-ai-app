@@ -16,6 +16,7 @@ import MarketingReportsPage from './MarketingReportsPage';
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
 import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
+import { listAppointments } from '../services/appointmentsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
@@ -63,10 +64,14 @@ const cloneDemoProperty = (property: Property, index: number): Property => {
 
 import { useImpersonation } from '../context/ImpersonationContext';
 
-const AgentDashboardBlueprint: React.FC = () => {
+interface AgentDashboardBlueprintProps {
+  isDemoMode?: boolean;
+}
+
+const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDemoMode: initialDemoMode = false }) => {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDemoMode] = useState(false);
+  const [isDemoMode] = useState(initialDemoMode);
   const { isImpersonating, stopImpersonating } = useImpersonation();
 
   const [properties, setProperties] = useState<Property[]>([]);
@@ -139,8 +144,31 @@ const AgentDashboardBlueprint: React.FC = () => {
   });
 
   useEffect(() => {
-    setAgentProfile(uiProfile);
-  }, [uiProfile]);
+    if (isDemoMode) {
+      // Use Sarah Johnson demo profile with local assets
+      setAgentProfile({
+        name: 'Sarah Johnson',
+        slug: 'demo-agent',
+        title: 'Luxury Real Estate Specialist',
+        company: 'Prestige Properties',
+        phone: '(305) 555-1234',
+        email: 'sarah.j@prestigeprop.com',
+        headshotUrl: `/demo-headshot.png?v=${Date.now()}`,
+        logoUrl: `/demo-logo.png?v=${Date.now()}`,
+        brandColor: '#0ea5e9',
+        bio: 'With over 15 years of experience in the luxury market, Sarah Johnson combines deep market knowledge with a passion for client success.',
+        website: 'https://prestigeprop.com',
+        socials: [
+          { platform: 'Facebook', url: 'https://facebook.com' },
+          { platform: 'Instagram', url: 'https://instagram.com' },
+          { platform: 'LinkedIn', url: 'https://linkedin.com' }
+        ],
+        language: 'en'
+      } as AgentProfile);
+    } else {
+      setAgentProfile(uiProfile);
+    }
+  }, [uiProfile, isDemoMode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -157,7 +185,7 @@ const AgentDashboardBlueprint: React.FC = () => {
         if (list.length > 0) {
           setProperties(list);
         } else {
-          setProperties(DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index)));
+          setProperties([]);
         }
       } catch (error) {
         notifyApiError({
@@ -166,7 +194,7 @@ const AgentDashboardBlueprint: React.FC = () => {
           error
         });
         if (isMounted) {
-          setProperties(DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index)));
+          setProperties([]);
         }
       } finally {
         if (isMounted) setIsLoadingProperties(false);
@@ -235,6 +263,49 @@ const AgentDashboardBlueprint: React.FC = () => {
       leadsMountedRef.current = false;
     };
   }, [refreshLeads]);
+
+  const refreshAppointments = useCallback(async () => {
+    try {
+      const list = await listAppointments();
+      if (leadsMountedRef.current) {
+        // Map AppointmentRow to Appointment type if needed, or ensure types match
+        // The service returns AppointmentRow, but state expects Appointment.
+        // I might need to map it. Let's check the types.
+        // AppointmentRow has snake_case, Appointment has camelCase.
+        const mapped: Appointment[] = list.map(row => ({
+          id: row.id,
+          type: row.kind, // Map kind to type
+          leadId: row.lead_id,
+          propertyId: row.property_id,
+          propertyAddress: row.property_address || undefined,
+          kind: row.kind,
+          name: row.name,
+          email: row.email || '',
+          phone: row.phone || '',
+          date: row.date,
+          time: row.time_label,
+          startIso: row.start_iso,
+          endIso: row.end_iso,
+          meetLink: row.meet_link || undefined,
+          notes: row.notes || '',
+          status: row.status,
+          remindAgent: row.remind_agent,
+          remindClient: row.remind_client,
+          agentReminderMinutes: row.agent_reminder_minutes_before,
+          clientReminderMinutes: row.client_reminder_minutes_before,
+          leadName: row.name // Fallback if lead lookup not done here
+        }));
+        setAppointments(mapped);
+      }
+    } catch (error) {
+      console.warn('Failed to load appointments', error);
+      // notifyApiError({ title: 'Could not load appointments', error });
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshAppointments();
+  }, [refreshAppointments]);
 
   useEffect(() => {
     let isMounted = true;
@@ -604,7 +675,7 @@ const AgentDashboardBlueprint: React.FC = () => {
           />
         );
       case 'marketing-reports':
-        return <MarketingReportsPage />;
+        return <MarketingReportsPage isDemoMode={isDemoMode} />;
 
       default:
         return (
@@ -632,20 +703,70 @@ const AgentDashboardBlueprint: React.FC = () => {
           </button>
         </div>
       )}
-      <div className={`flex-shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} ${isImpersonating ? 'mt-10' : ''}`}>
-        <Sidebar
-          activeView={activeView}
-          setView={setActiveView}
-          isOpen={isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-        />
-      </div>
 
-      <main className={`flex-1 overflow-y-auto transition-all duration-300 p-8 ${isImpersonating ? 'mt-10' : ''}`}>
-        <div className="max-w-7xl mx-auto space-y-8">
-          {renderMainContent()}
-        </div>
-      </main>
+      <Sidebar
+        activeView={activeView}
+        setView={setActiveView}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(!isSidebarOpen)}
+      />
+
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isImpersonating ? 'mt-10' : ''}`}>
+        {/* Header */}
+        <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 -ml-2 text-slate-500 hover:text-slate-700 lg:hidden"
+            >
+              <span className="material-symbols-outlined">menu</span>
+            </button>
+            <h1 className="text-2xl font-bold text-slate-800">
+              {activeView === 'dashboard' ? 'Overview' :
+                activeView === 'leads' ? 'Leads & Appointments' :
+                  activeView === 'listings' ? 'Listings' :
+                    activeView === 'add-listing' ? 'Add Listing' :
+                      activeView === 'ai-conversations' ? 'AI Conversations' :
+                        activeView === 'ai-sidekicks' ? 'AI Sidekicks' :
+                          activeView === 'marketing-reports' ? 'Marketing Reports' :
+                            activeView === 'settings' ? 'Settings' :
+                              activeView === 'ai-card' ? 'AI Business Card' :
+                                'Dashboard'}
+            </h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <button className="p-2 text-slate-400 hover:text-slate-600 relative">
+              <span className="material-symbols-outlined">notifications</span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            </button>
+            <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-medium text-slate-900">{agentProfile.name}</p>
+                <p className="text-xs text-slate-500">{agentProfile.title}</p>
+              </div>
+              {agentProfile.headshotUrl ? (
+                <img
+                  src={agentProfile.headshotUrl}
+                  alt={agentProfile.name}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 border-2 border-white shadow-sm">
+                  <span className="material-symbols-outlined">person</span>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-8">
+          <div className="max-w-7xl mx-auto">
+            {renderMainContent()}
+          </div>
+        </main>
+      </div>
     </div>
   );
 };

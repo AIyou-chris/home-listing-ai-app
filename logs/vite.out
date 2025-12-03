@@ -14775,3 +14775,125 @@ AggregateError [ECONNREFUSED]:
 AggregateError [ECONNREFUSED]: 
     at internalConnectMultiple (node:net:1134:18)
     at afterConnectMultiple (node:net:1715:7)
+
+  VITE v7.2.2  ready in 936 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+
+  VITE v7.2.2  ready in 676 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+
+  VITE v7.2.2  ready in 617 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+
+  VITE v7.2.2  ready in 977 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+
+  VITE v7.2.2  ready in 251 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+
+  VITE v7.2.2  ready in 947 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+6:33:49 PM [vite] (client) hmr update /src/index.css, /src/components/AICardPage.tsx, /src/App.tsx, /src/context/AgentBrandingContext.tsx, /src/components/PropertyPage.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx, /src/components/QRCodeManagementPage.tsx
+6:33:49 PM [vite] (client) hmr update /src/index.css, /src/components/AICardPage.tsx, /src/App.tsx, /src/context/AgentBrandingContext.tsx, /src/components/PropertyPage.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx, /src/components/QRCodeManagementPage.tsx
+7:03:15 PM [vite] (client) hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+7:03:15 PM [vite] (client) hmr update /src/components/AgentDashboardBlueprint.tsx, /src/index.css
+7:07:59 PM [vite] (client) hmr update /src/index.css, /src/components/AICardPage.tsx, /src/App.tsx, /src/context/AgentBrandingContext.tsx, /src/components/PropertyPage.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx, /src/components/QRCodeManagementPage.tsx
+7:07:59 PM [vite] (client) hmr update /src/index.css, /src/components/AICardPage.tsx, /src/App.tsx, /src/context/AgentBrandingContext.tsx, /src/components/PropertyPage.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx, /src/components/QRCodeManagementPage.tsx
+
+  VITE v7.2.2  ready in 1255 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+7:48:18 AM [vite] http proxy error: /api/admin/system/health
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+7:48:18 AM [vite] http proxy error: /api/admin/security/monitor
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+7:48:18 AM [vite] http proxy error: /api/admin/support/summary
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+7:48:18 AM [vite] http proxy error: /api/admin/analytics/overview
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+7:48:18 AM [vite] http proxy error: /api/admin/system/health
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+7:48:18 AM [vite] http proxy error: /api/admin/security/monitor
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+7:48:18 AM [vite] http proxy error: /api/admin/support/summary
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+7:48:18 AM [vite] http proxy error: /api/admin/analytics/overview
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+7:55:54 AM [vite] (client) hmr update /src/index.css, /src/components/AICardPage.tsx, /src/App.tsx, /src/context/AgentBrandingContext.tsx, /src/components/PropertyPage.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx, /src/components/QRCodeManagementPage.tsx
+7:55:54 AM [vite] (client) hmr update /src/index.css, /src/components/AICardPage.tsx, /src/App.tsx, /src/context/AgentBrandingContext.tsx, /src/components/PropertyPage.tsx, /src/components/ListingSidekickWidget.tsx, /src/components/AISidekicks.tsx, /src/components/HelpSalesChatBot.tsx, /src/components/QRCodeManagementPage.tsx
+8:22:32 AM [vite] (client) hmr update /src/components/AICardPage.tsx, /src/index.css
+8:22:33 AM [vite] (client) hmr update /src/components/AICardPage.tsx, /src/index.css
+8:24:45 AM [vite] (client) Re-optimizing dependencies because lockfile has changed
+
+  VITE v7.2.2  ready in 1253 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+8:44:19 AM [vite] (client) hmr update /src/index.css, /src/components/reports/CoverPageBuilder.tsx
+8:44:20 AM [vite] (client) hmr update /src/index.css, /src/components/reports/CoverPageBuilder.tsx
+8:44:39 AM [vite] (client) hmr update /src/context/AgentBrandingContext.tsx, /src/index.css
+8:44:39 AM [vite] (client) hmr update /src/context/AgentBrandingContext.tsx, /src/index.css
+8:44:57 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:44:58 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:45:19 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+8:45:20 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+8:45:28 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:45:29 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:45:48 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:45:48 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:45:58 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:45:58 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:46:17 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportInputForm.tsx
+8:46:18 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportInputForm.tsx
+8:46:31 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportInputForm.tsx
+8:46:32 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportInputForm.tsx
+8:46:59 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:46:59 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:47:09 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:47:10 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:47:48 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+8:47:48 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+8:50:54 AM [vite] (client) hmr update /src/index.css, /src/components/reports/CoverPageBuilder.tsx
+8:50:54 AM [vite] (client) hmr update /src/index.css, /src/components/reports/CoverPageBuilder.tsx
+8:51:45 AM [vite] (client) hmr update /src/index.css, /src/components/reports/CoverPageBuilder.tsx
+8:52:46 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+8:52:57 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:52:57 AM [vite] (client) hmr update /src/components/MarketingReportsPage.tsx, /src/index.css
+8:57:36 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+8:57:36 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+8:57:49 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+8:57:50 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+9:01:03 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+9:36:23 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+9:36:24 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+9:38:19 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx
+9:38:20 AM [vite] (client) hmr update /src/index.css, /src/components/reports/ReportPreviewEditor.tsx

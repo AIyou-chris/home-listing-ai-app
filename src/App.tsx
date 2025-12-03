@@ -20,6 +20,7 @@ import LeadsAndAppointmentsPage from './components/LeadsAndAppointmentsPage';
 import InteractionHubPage from './components/InteractionHubPage';
 import AIConversationsPage from './components/AIConversationsPage';
 import AICardPage from './components/AICardPage';
+import MarketingReportsPage from './components/MarketingReportsPage';
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
 import SettingsPage from './components/SettingsPage';
@@ -33,6 +34,7 @@ import { getProfileForDashboard, subscribeToProfileChanges } from './services/ag
 const AdminLogin = lazy(() => import('./components/AdminLogin'));
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
 const AdminDashboardClone = lazy(() => import('./admin-dashboard/AdminDashboard'));
+import type { DashboardView } from './admin-dashboard/AdminDashboard';
 import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
 import DemoListingPage from './components/DemoListingPage';
@@ -363,6 +365,18 @@ const App: React.FC = () => {
                 return;
             }
 
+            if (route === 'checkout') {
+                setView('checkout');
+                setIsLoading(false);
+                return;
+            }
+
+            if (route === 'landing' || route === 'demo-dashboard' || route === 'demo-listing') {
+                setView(route);
+                setIsLoading(false);
+                return;
+            }
+
             // Force signup mode - bypass auth check
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('force') === 'signup') {
@@ -641,7 +655,8 @@ const App: React.FC = () => {
         setConversations(SAMPLE_CONVERSATIONS);
         setSequences(DEMO_SEQUENCES);
         setUserProfile(SAMPLE_AGENT);
-        setView('dashboard');
+        setView('demo-dashboard');
+        window.location.hash = 'demo-dashboard';
     };
 
     const handleNavigateToAdmin = () => {
@@ -1024,7 +1039,7 @@ const App: React.FC = () => {
             if (view.startsWith('admin-') && view !== 'admin-setup' && view !== 'admin-users') {
                 return (
                     <Suspense fallback={<LoadingSpinner />}>
-                        <AdminDashboardClone initialTab={mapAdminViewToTab(view) as any} />
+                        <AdminDashboardClone initialTab={mapAdminViewToTab(view) as DashboardView} />
                     </Suspense>
                 );
             }
@@ -1035,7 +1050,7 @@ const App: React.FC = () => {
                         if (!isDemoMode) {
                             localStorage.setItem('isDemoMode', 'true');
                         }
-                        return <DemoDashboard properties={DEMO_FAT_PROPERTIES} onSelectProperty={() => undefined} />;
+                        return <AgentDashboardBlueprint isDemoMode={true} />;
                     case 'dashboard':
                         if (isDemoMode) {
                             return <DemoDashboard properties={DEMO_FAT_PROPERTIES} onSelectProperty={() => undefined} />;
@@ -1119,6 +1134,8 @@ const App: React.FC = () => {
                         return <AnalyticsDashboard />;
                     case 'ai-sidekicks':
                         return <EnhancedAISidekicksHub isDemoMode={isDemoMode} />;
+                    case 'marketing-reports':
+                        return <MarketingReportsPage />;
                     case 'demo-listing':
                         return <DemoListingPage />;
                     case 'settings':
@@ -1158,6 +1175,11 @@ const App: React.FC = () => {
                 }
             };
 
+            // If we are using the Blueprint Dashboard (which has its own layout), return it directly
+            if (resolvedView === 'demo-dashboard' || resolvedView === 'dashboard-blueprint') {
+                return mainContent();
+            }
+
             return (
                 <div className="flex h-screen bg-slate-50">
                     <Sidebar activeView={view} setView={handleViewChange} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
@@ -1194,7 +1216,7 @@ const App: React.FC = () => {
             case 'landing':
                 return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
             case 'new-landing':
-                return <NewLandingPage />;
+                return <NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />;
             case 'blog':
                 return <BlogPage />;
             case 'blog-post':

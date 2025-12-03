@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
 import { AI_PERSONALITIES, DEFAULT_AI_ASSIGNMENTS } from '../constants';
 
-const NewLandingPage: React.FC = () => {
+interface NewLandingPageProps {
+    onNavigateToSignUp: () => void;
+    onNavigateToSignIn: () => void;
+    onEnterDemoMode: () => void;
+}
+
+const NewLandingPage: React.FC<NewLandingPageProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
     type DemoId = 'analytics' | 'personality' | 'comparison' | 'notifications' | 'multilingual';
 
     const [activeDemo, setActiveDemo] = useState<DemoId>('analytics');
     const [testQuestion, setTestQuestion] = useState('What makes this property a good investment?');
-    const [personalityResponses, setPersonalityResponses] = useState<{[key: string]: string}>({});
+    const [personalityResponses, setPersonalityResponses] = useState<{ [key: string]: string }>({});
 
     const handleTestPersonality = () => {
-        const responses: {[key: string]: string} = {};
+        const responses: { [key: string]: string } = {};
         AI_PERSONALITIES.forEach(personality => {
             const response = personality.sampleResponses[0]?.response || 'I would respond based on my personality traits.';
             responses[personality.id] = response;
@@ -27,7 +33,7 @@ const NewLandingPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
 
-            
+
             {/* Hero Section */}
             <div className="relative overflow-hidden">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
@@ -46,10 +52,10 @@ const NewLandingPage: React.FC = () => {
                             Transform your property business with AI-powered insights, real-time analytics, intelligent automation, and three specialized AI sidekicks—now fluent in 12 languages with automatic detection for every conversation.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-                            <button className="bg-primary-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-primary-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                            <button onClick={onNavigateToSignUp} className="bg-primary-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-primary-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
                                 Start Free Trial
                             </button>
-                            <button className="border-2 border-slate-300 text-slate-700 px-8 py-4 rounded-lg font-semibold text-lg hover:border-primary-600 hover:text-primary-600 transition-all duration-300">
+                            <button onClick={onEnterDemoMode} className="border-2 border-slate-300 text-slate-700 px-8 py-4 rounded-lg font-semibold text-lg hover:border-primary-600 hover:text-primary-600 transition-all duration-300">
                                 Watch Demo
                             </button>
                         </div>
@@ -81,11 +87,10 @@ const NewLandingPage: React.FC = () => {
                             <button
                                 key={feature.id}
                                 onClick={() => setActiveDemo(feature.id as DemoId)}
-                                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
-                                    activeDemo === feature.id
-                                        ? 'bg-primary-600 text-white shadow-lg'
-                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                }`}
+                                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${activeDemo === feature.id
+                                    ? 'bg-primary-600 text-white shadow-lg'
+                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                    }`}
                             >
                                 <span>{feature.icon}</span>
                                 <span>{feature.label}</span>
@@ -164,16 +169,14 @@ const NewLandingPage: React.FC = () => {
                                         {DEFAULT_AI_ASSIGNMENTS.map((sidekick) => (
                                             <div key={sidekick.id} className="bg-white p-4 rounded-lg border border-slate-200">
                                                 <div className="flex items-center gap-3 mb-2">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                                        sidekick.type === 'listing' ? 'bg-green-100' :
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sidekick.type === 'listing' ? 'bg-green-100' :
                                                         sidekick.type === 'agent' ? 'bg-blue-100' : 'bg-purple-100'
-                                                    }`}>
-                                                        <span className={`text-sm ${
-                                                            sidekick.type === 'listing' ? 'text-green-600' :
-                                                            sidekick.type === 'agent' ? 'text-blue-600' : 'text-purple-600'
                                                         }`}>
+                                                        <span className={`text-sm ${sidekick.type === 'listing' ? 'text-green-600' :
+                                                            sidekick.type === 'agent' ? 'text-blue-600' : 'text-purple-600'
+                                                            }`}>
                                                             {sidekick.type === 'listing' ? '🏠' :
-                                                             sidekick.type === 'agent' ? '👤' : '🤖'}
+                                                                sidekick.type === 'agent' ? '👤' : '🤖'}
                                                         </span>
                                                     </div>
                                                     <h5 className="font-semibold text-slate-900">{sidekick.name}</h5>
@@ -203,7 +206,7 @@ const NewLandingPage: React.FC = () => {
                                         >
                                             Test All Personalities
                                         </button>
-                                        
+
                                         {Object.keys(personalityResponses).length > 0 && (
                                             <div className="space-y-3 mt-4">
                                                 {AI_PERSONALITIES.slice(0, 3).map(personality => (
@@ -297,22 +300,20 @@ const NewLandingPage: React.FC = () => {
                                             { type: 'warning', title: 'Market Update', message: 'Property values increased 3.2% this month', time: '1 hour ago' },
                                             { type: 'error', title: 'Lead Lost', message: 'Sarah Smith chose another property', time: '2 hours ago' }
                                         ].map((notification, index) => (
-                                            <div key={index} className={`p-4 rounded-lg border ${
-                                                notification.type === 'success' ? 'bg-green-50 border-green-200' :
+                                            <div key={index} className={`p-4 rounded-lg border ${notification.type === 'success' ? 'bg-green-50 border-green-200' :
                                                 notification.type === 'info' ? 'bg-blue-50 border-blue-200' :
-                                                notification.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
-                                                'bg-red-50 border-red-200'
-                                            }`}>
+                                                    notification.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                                                        'bg-red-50 border-red-200'
+                                                }`}>
                                                 <div className="flex items-start gap-3">
-                                                    <span className={`text-lg ${
-                                                        notification.type === 'success' ? 'text-green-600' :
+                                                    <span className={`text-lg ${notification.type === 'success' ? 'text-green-600' :
                                                         notification.type === 'info' ? 'text-blue-600' :
-                                                        notification.type === 'warning' ? 'text-yellow-600' :
-                                                        'text-red-600'
-                                                    }`}>
+                                                            notification.type === 'warning' ? 'text-yellow-600' :
+                                                                'text-red-600'
+                                                        }`}>
                                                         {notification.type === 'success' ? '✅' :
-                                                         notification.type === 'info' ? 'ℹ️' :
-                                                         notification.type === 'warning' ? '⚠️' : '❌'}
+                                                            notification.type === 'info' ? 'ℹ️' :
+                                                                notification.type === 'warning' ? '⚠️' : '❌'}
                                                     </span>
                                                     <div className="flex-1">
                                                         <h5 className="font-semibold text-slate-900">{notification.title}</h5>
