@@ -1077,65 +1077,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
           </div>
         </div>
 
-        {/* Enhanced Interactive Training Card - FEATURED */}
-        <div className="md:col-span-2 relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-xl opacity-60 group-hover:opacity-100 blur animate-pulse"></div>
 
-          <div className="relative bg-gradient-to-br from-[#f5f3ff] via-[#eef2ff] to-[#fce7ff] rounded-xl p-8 border border-purple-200 shadow-[0_30px_60px_rgba(88,28,135,0.15)]">
-            {/* Badge */}
-            <div className="absolute top-4 right-4 flex gap-2">
-              <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1 rounded-full animate-bounce">
-                ✨ YOUR AI
-              </span>
-              <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                ONLINE
-              </span>
-            </div>
-
-            {/* Content */}
-            <div className="flex items-start gap-4">
-              <div className="text-5xl animate-bounce">🤖</div>
-              <div className="flex-1">
-                <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
-                  Your Personal AI Assistant
-                </h3>
-                <p className="text-slate-700 font-medium mb-1">Your business data. Your writing style. Your AI.</p>
-                <p className="text-slate-600 text-sm mb-4">
-                  Like ChatGPT, but trained specifically on YOUR real estate business
-                </p>
-
-                {/* Use Cases */}
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-700">
-                    <span>✍️</span>
-                    <span className="font-medium">Write Listings</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-700">
-                    <span>📧</span>
-                    <span className="font-medium">Marketing Copy</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-700">
-                    <span>📊</span>
-                    <span className="font-medium">Market Insights</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-700">
-                    <span>🎯</span>
-                    <span className="font-medium">Strategy Help</span>
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div className="flex items-center gap-4 text-xs text-purple-700 bg-white/70 rounded-full px-4 py-2">
-                  <span>🔥 <strong>500+</strong> listings written by agents</span>
-                  <span>⚡ <strong>85%</strong> trained on your style</span>
-                </div>
-              </div>
-            </div>
-
-
-          </div>
-        </div>
       </div>
 
       {/* AI Agent Library */}
