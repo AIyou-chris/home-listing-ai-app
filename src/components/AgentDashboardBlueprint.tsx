@@ -11,7 +11,7 @@ import AgentAISidekicksPage from './AgentAISidekicksPage';
 import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardPage from './AICardPage';
-
+import MarketingReportsPage from './MarketingReportsPage';
 
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
 import { listingsService } from '../services/listingsService';
@@ -603,6 +603,8 @@ const AgentDashboardBlueprint: React.FC = () => {
             onBackToDashboard={resetToDashboard}
           />
         );
+      case 'marketing-reports':
+        return <MarketingReportsPage />;
 
       default:
         return (
