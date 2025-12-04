@@ -13,7 +13,7 @@ import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardPage from './AICardPage';
 import MarketingReportsPage from './MarketingReportsPage';
 
-import { DEMO_FAT_PROPERTIES } from '../demoConstants';
+import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
 import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
 import { listAppointments } from '../services/appointmentsService';
@@ -237,6 +237,11 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
   const leadsMountedRef = useRef(true);
 
   const refreshLeads = useCallback(async () => {
+    if (isDemoMode) {
+      setLeads(DEMO_FAT_LEADS);
+      setIsLeadsLoading(false);
+      return;
+    }
     try {
       setIsLeadsLoading(true);
       const payload = await leadsService.list();
@@ -254,7 +259,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         setIsLeadsLoading(false);
       }
     }
-  }, [notifyApiError]);
+  }, [notifyApiError, isDemoMode]);
 
   useEffect(() => {
     leadsMountedRef.current = true;
@@ -265,6 +270,10 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
   }, [refreshLeads]);
 
   const refreshAppointments = useCallback(async () => {
+    if (isDemoMode) {
+      setAppointments(DEMO_FAT_APPOINTMENTS);
+      return;
+    }
     try {
       const list = await listAppointments();
       if (leadsMountedRef.current) {
@@ -301,7 +310,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
       console.warn('Failed to load appointments', error);
       // notifyApiError({ title: 'Could not load appointments', error });
     }
-  }, []);
+  }, [isDemoMode]);
 
   useEffect(() => {
     refreshAppointments();
