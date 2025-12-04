@@ -24,6 +24,7 @@ import {
   type MessageRow
 } from '../services/chatService';
 import { supabase } from '../services/supabase';
+import { DEMO_CONVERSATIONS, DEMO_MESSAGES } from '../demoConstants';
 
 type ConversationType = 'chat' | 'voice' | 'email';
 type ConversationStatus = 'active' | 'archived' | 'important' | 'follow-up';
@@ -194,10 +195,20 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
   const [syncAgeSeconds, setSyncAgeSeconds] = useState(0);
 
   const loadConversations = useCallback(async () => {
+    if (isDemoMode) {
+      setConversations(DEMO_CONVERSATIONS as unknown as ConversationSummary[]);
+      if (DEMO_CONVERSATIONS.length && !selectedConversationId) {
+        setSelectedConversationId(DEMO_CONVERSATIONS[0].id);
+      }
+      setLastSyncedAt(new Date());
+      setLoadingConversations(false);
+      return;
+    }
+
     try {
       setLoadingConversations(true);
       setError(null);
-      
+
       const rows = await listConversations({
         userId: currentUserId ?? undefined,
         scope: 'admin'
@@ -214,7 +225,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
     } finally {
       setLoadingConversations(false);
     }
-  }, [selectedConversationId, currentUserId]);
+  }, [selectedConversationId, currentUserId, isDemoMode]);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -275,7 +286,16 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
     const loadMessagesForConversation = async (conversationId: string) => {
       if (!conversationId) return;
       if (messagesByConversation[conversationId]) return;
-      
+
+      if (isDemoMode) {
+        const demoMsgs = DEMO_MESSAGES[conversationId as keyof typeof DEMO_MESSAGES] || [];
+        setMessagesByConversation((prev) => ({
+          ...prev,
+          [conversationId]: demoMsgs as unknown as ConversationMessage[]
+        }));
+        return;
+      }
+
       try {
         setLoadingMessages(true);
         const rows = await getMessages(conversationId);
@@ -574,11 +594,10 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                 <button
                   key={conversation.id}
                   onClick={() => setSelectedConversationId(conversation.id)}
-                  className={`w-full text-left bg-white border rounded-xl shadow-sm p-4 hover:border-primary-500 transition-colors ${
-                    selectedConversationId === conversation.id
+                  className={`w-full text-left bg-white border rounded-xl shadow-sm p-4 hover:border-primary-500 transition-colors ${selectedConversationId === conversation.id
                       ? 'border-primary-500 ring-2 ring-primary-100'
                       : 'border-slate-200'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>

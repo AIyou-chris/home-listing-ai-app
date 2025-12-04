@@ -27,7 +27,7 @@ export const DEMO_FAT_PROPERTIES: Property[] = [
     propertyType: 'Single Family',
     features: [
       'Swimming Pool',
-      'City Views', 
+      'City Views',
       'Hardwood Floors',
       'Updated Kitchen',
       'Mid-Century Architecture',
@@ -68,7 +68,7 @@ export const DEMO_FAT_PROPERTIES: Property[] = [
       'Open Floor Plan',
       'Chef\'s Kitchen',
       'Master Suite',
-      'Covered Patio', 
+      'Covered Patio',
       'Mature Trees',
       'Great Schools'
     ],
@@ -225,7 +225,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     clientReminderMinutes: 1440
   },
   {
-    id: 'appt-demo-2', 
+    id: 'appt-demo-2',
     leadId: 'lead-demo-1',
     leadName: 'Emily Rodriguez',
     propertyId: 'demo-1',
@@ -359,7 +359,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     date: '2025-11-27',
     time: '14:00',
     type: 'Showing',
-    status: 'Confirmed',
+    status: 'Scheduled',
     notes: 'Follow-up showing - clients want to bring their parents to see the property.',
     email: 'thompson.family@gmail.com',
     phone: '(555) 234-8901',
@@ -376,7 +376,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     propertyAddress: '156 Maple Grove Lane, Austin, TX',
     date: '2025-11-29',
     time: '09:30',
-    type: 'Closing',
+    type: 'Consultation',
     status: 'Scheduled',
     notes: 'Final walkthrough before closing next week. Bring inspection checklist.',
     email: 'd.park@investco.com',
@@ -391,19 +391,19 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
 export const DEMO_FAT_INTERACTIONS: Interaction[] = [];
 
 export const DEMO_SEQUENCES: FollowUpSequence[] = [
-    {
-        id: 'welcome-new-leads',
-        name: 'Welcome New Leads',
-        description: 'Instant welcome + AI concierge hand-off for every brand-new inquiry.',
-        triggerType: 'Lead Capture',
-        isActive: true,
-        steps: [
-            {
-                id: 'welcome-email-1',
-                type: 'email',
-                delay: { value: 2, unit: 'minutes' },
-                subject: 'Welcome! Meet Your AI Concierge ✨',
-                content: `Hi {{lead.name}},
+  {
+    id: 'welcome-new-leads',
+    name: 'Welcome New Leads',
+    description: 'Instant welcome + AI concierge hand-off for every brand-new inquiry.',
+    triggerType: 'Lead Capture',
+    isActive: true,
+    steps: [
+      {
+        id: 'welcome-email-1',
+        type: 'email',
+        delay: { value: 2, unit: 'minutes' },
+        subject: 'Welcome! Meet Your AI Concierge ✨',
+        content: `Hi {{lead.name}},
 
 Great to meet you! I built a personalized AI concierge that answers questions 24/7 and highlights my services.
 
@@ -418,13 +418,13 @@ Let me know the best time to connect live—I’m ready when you are!
 
 {{agent.name}}
 {{agent.phone}}`
-            },
-            {
-                id: 'welcome-email-2',
-                type: 'email',
-                delay: { value: 1, unit: 'days' },
-                subject: 'Tour Your AI Card & Quick Next Steps',
-                content: `Hi {{lead.name}},
+      },
+      {
+        id: 'welcome-email-2',
+        type: 'email',
+        delay: { value: 1, unit: 'days' },
+        subject: 'Tour Your AI Card & Quick Next Steps',
+        content: `Hi {{lead.name}},
 
 Just checking in after you received the AI card yesterday. The concierge has quick links to:
 • Schedule a property tour or consult
@@ -435,28 +435,28 @@ If you'd prefer I walk you through it over a quick call, reply with a good time.
 
 Talk soon,
 {{agent.name}}`
-            },
-            {
-                id: 'welcome-task-call',
-                type: 'task',
-                delay: { value: 2, unit: 'days' },
-                content: 'Call {{lead.name}} to confirm their goals and highlight key AI card features they should explore.'
-            }
-        ]
-    },
-    {
-        id: 'new-homebuyer-sprint',
-        name: 'New Homebuyer Sprint',
-        description: 'Four-touch buyer nurture that moves prospects from wishlist to scheduled tours.',
-        triggerType: 'Buyer Lead',
-        isActive: true,
-        steps: [
-            {
-                id: 'buyer-email-1',
-                type: 'email',
-                delay: { value: 1, unit: 'days' },
-                subject: 'Let’s Lock In Your Wishlist 🔑',
-                content: `Hi {{lead.name}},
+      },
+      {
+        id: 'welcome-task-call',
+        type: 'task',
+        delay: { value: 2, unit: 'days' },
+        content: 'Call {{lead.name}} to confirm their goals and highlight key AI card features they should explore.'
+      }
+    ]
+  },
+  {
+    id: 'new-homebuyer-sprint',
+    name: 'New Homebuyer Sprint',
+    description: 'Four-touch buyer nurture that moves prospects from wishlist to scheduled tours.',
+    triggerType: 'Buyer Lead',
+    isActive: true,
+    steps: [
+      {
+        id: 'buyer-email-1',
+        type: 'email',
+        delay: { value: 1, unit: 'days' },
+        subject: 'Let’s Lock In Your Wishlist 🔑',
+        content: `Hi {{lead.name}},
 
 Thanks for reaching out about {{property.address}}. I built a short checklist so I can curate the best options for you:
 
@@ -467,13 +467,13 @@ Thanks for reaching out about {{property.address}}. I built a short checklist so
 Reply with those details and I’ll match homes you’ll love. I can also set you up with instant alerts the moment something new hits the market.
 
 {{agent.name}}`
-            },
-            {
-                id: 'buyer-email-2',
-                type: 'email',
-                delay: { value: 3, unit: 'days' },
-                subject: 'Fresh Matches You Should See',
-                content: `Hi {{lead.name}},
+      },
+      {
+        id: 'buyer-email-2',
+        type: 'email',
+        delay: { value: 3, unit: 'days' },
+        subject: 'Fresh Matches You Should See',
+        content: `Hi {{lead.name}},
 
 I hand-picked a few properties that match your wishlist:
 
@@ -482,19 +482,19 @@ I hand-picked a few properties that match your wishlist:
 Ready for a preview tour? I can arrange back-to-back showings this week. Let me know which ones excite you the most!
 
 {{agent.name}}`
-            },
-            {
-                id: 'buyer-task-checkin',
-                type: 'task',
-                delay: { value: 5, unit: 'days' },
-                content: 'Call or text {{lead.name}} to confirm interest level and schedule tours based on shared matches.'
-            },
-            {
-                id: 'buyer-email-3',
-                type: 'email',
-                delay: { value: 10, unit: 'days' },
-                subject: 'Market Watch: Opportunities Not to Miss',
-                content: `Hi {{lead.name}},
+      },
+      {
+        id: 'buyer-task-checkin',
+        type: 'task',
+        delay: { value: 5, unit: 'days' },
+        content: 'Call or text {{lead.name}} to confirm interest level and schedule tours based on shared matches.'
+      },
+      {
+        id: 'buyer-email-3',
+        type: 'email',
+        delay: { value: 10, unit: 'days' },
+        subject: 'Market Watch: Opportunities Not to Miss',
+        content: `Hi {{lead.name}},
 
 The market shifted this week—here’s what matters:
 • Average list-to-sale price in {{market.area}} is now {{market.listToSale}}%
@@ -504,22 +504,22 @@ The market shifted this week—here’s what matters:
 I’d love to keep you ahead of the curve. Want me to set real-time alerts or line up a weekend tour?
 
 {{agent.name}}`
-            }
-        ]
-    },
-    {
-        id: 'listing-prospecting',
-        name: 'Listing Prospecting Push',
-        description: 'Seller-focused drip that tees up a pricing review and listing consultation.',
-        triggerType: 'Seller Lead',
-        isActive: true,
-        steps: [
-            {
-                id: 'seller-email-1',
-                type: 'email',
-                delay: { value: 30, unit: 'minutes' },
-                subject: 'Your Selling Game Plan Starts Here',
-                content: `Hi {{lead.name}},
+      }
+    ]
+  },
+  {
+    id: 'listing-prospecting',
+    name: 'Listing Prospecting Push',
+    description: 'Seller-focused drip that tees up a pricing review and listing consultation.',
+    triggerType: 'Seller Lead',
+    isActive: true,
+    steps: [
+      {
+        id: 'seller-email-1',
+        type: 'email',
+        delay: { value: 30, unit: 'minutes' },
+        subject: 'Your Selling Game Plan Starts Here',
+        content: `Hi {{lead.name}},
 
 Thanks for reaching out about {{property.address}}. I’m preparing a quick value snapshot for you. In the meantime, here are the three levers that help my clients sell above asking:
 1. Strategic pricing based on micro-neighborhood data
@@ -530,13 +530,13 @@ Let’s book a 15-minute consultation so I can tailor the plan to your goals. Wh
 
 {{agent.name}}
 {{agent.phone}}`
-            },
-            {
-                id: 'seller-email-2',
-                type: 'email',
-                delay: { value: 3, unit: 'days' },
-                subject: 'See What Homes Like Yours Are Selling For',
-                content: `Hi {{lead.name}},
+      },
+      {
+        id: 'seller-email-2',
+        type: 'email',
+        delay: { value: 3, unit: 'days' },
+        subject: 'See What Homes Like Yours Are Selling For',
+        content: `Hi {{lead.name}},
 
 Here are three recent sales near {{property.address}} that show the momentum in your neighborhood:
 {{market.comparables}}
@@ -544,19 +544,19 @@ Here are three recent sales near {{property.address}} that show the momentum in 
 I’ll bring a full pricing model to our consultation, including recommended upgrades (if any) and projected net proceeds. Ready to review it together?
 
 {{agent.name}}`
-            },
-            {
-                id: 'seller-task-appointment',
-                type: 'task',
-                delay: { value: 5, unit: 'days' },
-                content: 'Call {{lead.name}} to confirm CMA delivery and schedule an in-person or virtual listing consultation.'
-            },
-            {
-                id: 'seller-email-3',
-                type: 'email',
-                delay: { value: 8, unit: 'days' },
-                subject: 'Marketing Preview: How We Spotlight Your Home',
-                content: `Hi {{lead.name}},
+      },
+      {
+        id: 'seller-task-appointment',
+        type: 'task',
+        delay: { value: 5, unit: 'days' },
+        content: 'Call {{lead.name}} to confirm CMA delivery and schedule an in-person or virtual listing consultation.'
+      },
+      {
+        id: 'seller-email-3',
+        type: 'email',
+        delay: { value: 8, unit: 'days' },
+        subject: 'Marketing Preview: How We Spotlight Your Home',
+        content: `Hi {{lead.name}},
 
 I wanted to share how your home will shine when we go to market:
 • Custom landing page with AI concierge and QR codes
@@ -566,22 +566,22 @@ I wanted to share how your home will shine when we go to market:
 Let me know if you’d like to review the full launch checklist—I’m excited to help you capture top dollar.
 
 {{agent.name}}`
-            }
-        ]
-    },
-    {
-        id: 'post-showing-follow-up',
-        name: 'Post-Showing Follow Up',
-        description: 'High-touch follow up once a lead has toured a home so nothing falls through the cracks.',
-        triggerType: 'Property Viewed',
-        isActive: true,
-        steps: [
-            {
-                id: 'postshowing-email-1',
-                type: 'email',
-                delay: { value: 1, unit: 'hours' },
-                subject: 'Thank You for Touring {{property.address}}',
-                content: `Hi {{lead.name}},
+      }
+    ]
+  },
+  {
+    id: 'post-showing-follow-up',
+    name: 'Post-Showing Follow Up',
+    description: 'High-touch follow up once a lead has toured a home so nothing falls through the cracks.',
+    triggerType: 'Property Viewed',
+    isActive: true,
+    steps: [
+      {
+        id: 'postshowing-email-1',
+        type: 'email',
+        delay: { value: 1, unit: 'hours' },
+        subject: 'Thank You for Touring {{property.address}}',
+        content: `Hi {{lead.name}},
 
 Loved walking through {{property.address}} with you today. Here’s a quick recap plus anything you asked me to pull:
 • Standout features you reacted to
@@ -591,27 +591,27 @@ Loved walking through {{property.address}} with you today. Here’s a quick reca
 If another property jumped out while we were chatting, drop it here and I’ll get it on the calendar.
 
 {{agent.name}}`
-            },
-            {
-                id: 'postshowing-reminder',
-                type: 'reminder',
-                delay: { value: 1, unit: 'days' },
-                content: 'Reminder: text {{lead.name}} with the highlight reel from {{property.address}} plus financing or comps they asked about.'
-            },
-            {
-                id: 'postshowing-email-2',
-                type: 'email',
-                delay: { value: 2, unit: 'days' },
-                subject: 'Next Showing Ideas + Offer Timeline',
-                content: `Hi {{lead.name}},
+      },
+      {
+        id: 'postshowing-reminder',
+        type: 'reminder',
+        delay: { value: 1, unit: 'days' },
+        content: 'Reminder: text {{lead.name}} with the highlight reel from {{property.address}} plus financing or comps they asked about.'
+      },
+      {
+        id: 'postshowing-email-2',
+        type: 'email',
+        delay: { value: 2, unit: 'days' },
+        subject: 'Next Showing Ideas + Offer Timeline',
+        content: `Hi {{lead.name}},
 
 Based on what stood out at {{property.address}}, I queued up a few alternates that check the same boxes. Want me to line up a second tour or walk you through offer strategy? I can prep numbers anytime.
 
 Talk soon,
 {{agent.name}}`
-            }
-        ]
-    }
+      }
+    ]
+  }
 ];
 
 export const DEMO_ACTIVE_FOLLOWUPS: ActiveLeadFollowUp[] = [];
@@ -635,4 +635,136 @@ export const DEMO_ANALYTICS_DATA: AnalyticsData = {
     { sourceName: 'Social Media', icon: 'facebook', leadCount: 5, conversionRate: 20 },
     { sourceName: 'Manual Entry', icon: 'manual', leadCount: 3, conversionRate: 15 }
   ],
+};
+
+export const DEMO_CONVERSATIONS = [
+  {
+    id: 'conv-demo-1',
+    contactName: 'Marcus Chen',
+    contactEmail: 'marcus.chen@techcorp.com',
+    contactPhone: '(555) 987-6543',
+    type: 'voice',
+    lastMessage: 'Discussed school ratings and commute times to downtown Austin.',
+    timestamp: '2025-11-23T16:30:00Z',
+    duration: '12:45',
+    status: 'active',
+    messageCount: 1,
+    property: '156 Maple Grove Lane',
+    tags: ['High Intent', 'Relocation', 'Cash Buyer'],
+    intent: 'Schedule Viewing',
+    language: 'English',
+    voiceTranscript: "Agent: Hi Marcus, thanks for calling about the Maple Grove property. How can I help you today?\nMarcus: Hi, I'm moving from SF and looking for a place with good schools and an easy commute to downtown.\nAgent: Great! Maple Grove is in the top-rated Barton Hills school district and just a 15-minute drive to downtown. It also has a fantastic backyard.\nMarcus: That sounds perfect. I'm a cash buyer and need to move quickly. Can we set up a viewing?\nAgent: Absolutely. I can get you in tomorrow at 10 AM. Does that work?\nMarcus: Yes, 10 AM works. See you then.",
+    followUpTask: 'Send school district report'
+  },
+  {
+    id: 'conv-demo-2',
+    contactName: 'Emily Rodriguez',
+    contactEmail: 'emily.r@email.com',
+    contactPhone: '(555) 123-4567',
+    type: 'chat',
+    lastMessage: 'Inquired about pool maintenance and neighborhood safety.',
+    timestamp: '2025-11-24T09:15:00Z',
+    duration: null,
+    status: 'active',
+    messageCount: 5,
+    property: '2847 Sunset Boulevard',
+    tags: ['First-time Buyer', 'Pool'],
+    intent: 'Property Inquiry',
+    language: 'Spanish',
+    followUpTask: 'Send pool maintenance guide'
+  },
+  {
+    id: 'conv-demo-3',
+    contactName: 'Sarah Thompson',
+    contactEmail: 'thompson.family@gmail.com',
+    contactPhone: '(555) 234-8901',
+    type: 'email',
+    lastMessage: 'Sent information on top-rated schools and community amenities.',
+    timestamp: '2025-11-23T10:00:00Z',
+    duration: null,
+    status: 'follow-up',
+    messageCount: 3,
+    property: '156 Maple Grove Lane',
+    tags: ['Family', 'Schools'],
+    intent: 'Information Request',
+    language: 'English',
+    followUpTask: 'Check if they received the email'
+  }
+];
+
+export const DEMO_MESSAGES = {
+  'conv-demo-1': [
+    {
+      id: 'msg-1',
+      sender: 'lead',
+      channel: 'voice',
+      timestamp: '2025-11-23T16:30:00Z',
+      text: 'Voice call transcript available in details.'
+    }
+  ],
+  'conv-demo-2': [
+    {
+      id: 'msg-2-1',
+      sender: 'lead',
+      channel: 'chat',
+      timestamp: '2025-11-24T09:10:00Z',
+      text: 'Hola, me encanta esta casa. ¿El mantenimiento de la piscina es costoso?',
+      translation: { language: 'English', text: 'Hi, I love this house. Is the pool maintenance expensive?' }
+    },
+    {
+      id: 'msg-2-2',
+      sender: 'ai',
+      channel: 'chat',
+      timestamp: '2025-11-24T09:10:30Z',
+      text: 'Hola Emily! Gracias por tu interés. El mantenimiento de la piscina es bastante estándar, alrededor de $150 al mes. La casa tiene un sistema de filtración nuevo que ayuda a reducir costos. ¿Te gustaría verla en persona?',
+      translation: { language: 'English', text: 'Hi Emily! Thanks for your interest. Pool maintenance is pretty standard, around $150 a month. The house has a new filtration system that helps reduce costs. Would you like to see it in person?' }
+    },
+    {
+      id: 'msg-2-3',
+      sender: 'lead',
+      channel: 'chat',
+      timestamp: '2025-11-24T09:12:00Z',
+      text: 'Eso suena bien. ¿Y qué tal es el vecindario? ¿Es seguro?',
+      translation: { language: 'English', text: 'That sounds good. How is the neighborhood? Is it safe?' }
+    },
+    {
+      id: 'msg-2-4',
+      sender: 'ai',
+      channel: 'chat',
+      timestamp: '2025-11-24T09:12:45Z',
+      text: 'Silver Lake es una zona muy deseada y tranquila. Esta calle en particular es muy segura y tiene poco tráfico. Muchos vecinos caminan por las tardes.',
+      translation: { language: 'English', text: 'Silver Lake is a very desirable and quiet area. This street in particular is very safe and has little traffic. Many neighbors walk in the evenings.' }
+    },
+    {
+      id: 'msg-2-5',
+      sender: 'lead',
+      channel: 'chat',
+      timestamp: '2025-11-24T09:15:00Z',
+      text: 'Perfecto, gracias por la información.',
+      translation: { language: 'English', text: 'Perfect, thanks for the info.' }
+    }
+  ],
+  'conv-demo-3': [
+    {
+      id: 'msg-3-1',
+      sender: 'lead',
+      channel: 'email',
+      timestamp: '2025-11-22T15:20:00Z',
+      text: 'Hi, we are moving from out of state and have two kids. Can you tell us more about the schools near the Maple Grove property?'
+    },
+    {
+      id: 'msg-3-2',
+      sender: 'ai',
+      channel: 'email',
+      timestamp: '2025-11-22T15:25:00Z',
+      text: 'Hi Sarah, welcome to Austin! The Maple Grove home is in the Barton Hills Elementary district, which is rated 9/10. It feeds into O. Henry Middle School and Austin High. I can send you a detailed report on the schools and nearby parks if you like.'
+    },
+    {
+      id: 'msg-3-3',
+      sender: 'agent',
+      channel: 'email',
+      timestamp: '2025-11-23T10:00:00Z',
+      text: 'Hi Sarah, following up on the AI\'s message. I\'ve attached a PDF with detailed school ratings, extracurriculars, and a map of family-friendly amenities in South Austin. Let me know if you have any other questions!'
+    }
+  ]
 };
