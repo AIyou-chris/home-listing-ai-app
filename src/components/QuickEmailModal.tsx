@@ -6,6 +6,7 @@ import { useAgentBranding } from '../hooks/useAgentBranding';
 
 interface QuickEmailModalProps {
     onClose: () => void;
+    isDemoMode?: boolean;
 }
 
 type StatusMessage = {
@@ -13,7 +14,7 @@ type StatusMessage = {
     message: string;
 };
 
-const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose }) => {
+const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose, isDemoMode = false }) => {
     const [recipientName, setRecipientName] = useState('');
     const [recipientEmail, setRecipientEmail] = useState('');
     const [fromEmail, setFromEmail] = useState('');
@@ -58,6 +59,18 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose }) => {
         setStatus(null);
 
         try {
+            if (isDemoMode) {
+                // Simulate network delay
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                setStatus({
+                    type: 'success',
+                    message: 'Demo mode: Email simulated! No actual email was sent.',
+                });
+                resetForm();
+                setIsSending(false);
+                return;
+            }
+
             const response = await fetch('/api/admin/email/quick-send', {
                 method: 'POST',
                 headers: {
@@ -123,11 +136,10 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose }) => {
 
                     {status && (
                         <div
-                            className={`rounded-lg border px-4 py-3 text-sm ${
-                                status.type === 'success'
+                            className={`rounded-lg border px-4 py-3 text-sm ${status.type === 'success'
                                     ? 'border-green-200 bg-green-50 text-green-700'
                                     : 'border-red-200 bg-red-50 text-red-700'
-                            }`}
+                                }`}
                         >
                             {status.message}
                         </div>

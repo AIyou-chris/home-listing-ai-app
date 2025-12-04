@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { feedbackService } from '../services/feedbackService';
 
 type SequenceSnapshot = {
@@ -120,16 +120,25 @@ const TrendIcon: React.FC<{ trend: SequenceSnapshot['trend'] }> = ({ trend }) =>
     );
 };
 
-const SequenceFeedbackPanel: React.FC = () => {
+import { DEMO_SEQUENCE_SNAPSHOTS } from '../demoConstants';
+
+const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) => {
     const [snapshots, setSnapshots] = useState<SequenceSnapshot[]>(INITIAL_SNAPSHOTS);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        loadAnalytics();
-    }, []);
-
-    const loadAnalytics = async () => {
+    const loadAnalytics = useCallback(async () => {
         setLoading(true);
+
+        if (isDemoMode) {
+            // Simulate network delay
+            await new Promise(resolve => setTimeout(resolve, 800));
+            // Cast to any to avoid strict type checking against the local type if needed, 
+            // but the shape should match.
+            setSnapshots(DEMO_SEQUENCE_SNAPSHOTS as unknown as SequenceSnapshot[]);
+            setLoading(false);
+            return;
+        }
+
         const data = await feedbackService.fetchAnalytics('demo-blueprint');
 
         const updatedSnapshots = INITIAL_SNAPSHOTS.map(snap => {
@@ -148,7 +157,11 @@ const SequenceFeedbackPanel: React.FC = () => {
 
         setSnapshots(updatedSnapshots);
         setLoading(false);
-    };
+    }, [isDemoMode]);
+
+    useEffect(() => {
+        loadAnalytics();
+    }, [loadAnalytics]);
 
     return (
         <div className="space-y-8">

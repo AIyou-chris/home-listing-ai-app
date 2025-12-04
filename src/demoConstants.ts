@@ -768,3 +768,142 @@ export const DEMO_MESSAGES = {
     }
   ]
 };
+
+import { LeadStatsResponse } from './state/useLeadAnalyticsStore';
+
+export const DEMO_ANALYTICS_STATS: LeadStatsResponse = {
+  total: 42,
+  new: 5,
+  qualified: 12,
+  contacted: 28,
+  showing: 8,
+  lost: 4,
+  conversionRate: 19.1,
+  scoreStats: {
+    averageScore: 68.5,
+    qualified: 12,
+    hot: 8,
+    warm: 15,
+    cold: 7,
+    highestScore: 115
+  }
+};
+
+export const DEMO_LEAD_SOURCES = [
+  { sourceName: 'Zillow', leadCount: 18, conversionRate: 22.5, hotCount: 4 },
+  { sourceName: 'Website Chat', leadCount: 12, conversionRate: 33.3, hotCount: 4 },
+  { sourceName: 'Facebook Ads', leadCount: 8, conversionRate: 12.5, hotCount: 1 },
+  { sourceName: 'Manual Entry', leadCount: 4, conversionRate: 50.0, hotCount: 2 }
+];
+
+export const DEMO_SCORE_TIERS = [
+  {
+    id: 'Hot',
+    min: 90,
+    max: 120,
+    description: 'Ready for fast-track follow up; has timeline, budget, and a scheduled touchpoint.'
+  },
+  {
+    id: 'Qualified',
+    min: 70,
+    max: 89,
+    description: 'Shared key buying signals and engaged with AI concierge at least twice.'
+  },
+  {
+    id: 'Warm',
+    min: 40,
+    max: 69,
+    description: 'Provided preferences but still needs nurturing automation to progress.'
+  },
+  {
+    id: 'Cold',
+    min: 0,
+    max: 39,
+    description: 'Minimal activity captured. Keep inside the long-term nurture sequence.'
+  }
+];
+
+export const DEMO_SCORING_RULES = [
+  {
+    id: 'intake-form',
+    name: 'Completed AI Intake Form',
+    description: 'Lead filled out the AI concierge questionnaire with move timeline + budget.',
+    points: 25,
+    category: 'Intent Signals'
+  },
+  {
+    id: 'home-save',
+    name: 'Saved A Property',
+    description: 'Lead favorited or shared at least one listing inside the AI card.',
+    points: 15,
+    category: 'Engagement'
+  },
+  {
+    id: 'tour-request',
+    name: 'Requested A Tour',
+    description: 'Lead tapped “Book A Tour” or proposed times for an in-person/virtual walkthrough.',
+    points: 30,
+    category: 'Transaction Ready'
+  },
+  {
+    id: 'funds-verified',
+    name: 'Uploaded Pre-Approval Or Proof Of Funds',
+    description: 'Lead confirmed buying power via lender letter or cash verification.',
+    points: 35,
+    category: 'Qualification'
+  },
+  {
+    id: 'agent-call',
+    name: 'Agent Logged Live Call',
+    description: 'Team member logged a voice conversation with detailed notes.',
+    points: 20,
+    category: 'Manual Touch'
+  }
+];
+
+export const DEMO_SEQUENCE_SNAPSHOTS = [
+  {
+    id: 'welcome',
+    name: 'Universal Welcome Drip',
+    goal: 'Capture intent in first 48h',
+    replyRate: 32,
+    openRate: 68,
+    meetings: 5,
+    trend: 'up',
+    lastAdjust: '2 days ago',
+    bestStep: 'Day 1 Check-In'
+  },
+  {
+    id: 'buyer',
+    name: 'Homebuyer Journey',
+    goal: 'Move buyers to tour requests',
+    replyRate: 24,
+    openRate: 45,
+    meetings: 3,
+    trend: 'flat',
+    lastAdjust: '5 days ago',
+    bestStep: 'Curated Matches'
+  },
+  {
+    id: 'listing',
+    name: 'AI-Powered Seller Funnel',
+    goal: 'Convert CMAs to listings',
+    replyRate: 18,
+    openRate: 52,
+    meetings: 2,
+    trend: 'down',
+    lastAdjust: 'Yesterday',
+    bestStep: 'Interactive Listing Draft'
+  },
+  {
+    id: 'post',
+    name: 'After-Showing Follow-Up',
+    goal: 'Secure second tours',
+    replyRate: 41,
+    openRate: 73,
+    meetings: 8,
+    trend: 'up',
+    lastAdjust: '9 days ago',
+    bestStep: 'Comparables Drop'
+  }
+];

@@ -66,12 +66,12 @@ import { useImpersonation } from '../context/ImpersonationContext';
 
 interface AgentDashboardBlueprintProps {
   isDemoMode?: boolean;
+  demoListingCount?: number;
 }
 
-const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDemoMode: initialDemoMode = false }) => {
+const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDemoMode = false, demoListingCount = 2 }) => {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDemoMode] = useState(initialDemoMode);
   const { isImpersonating, stopImpersonating } = useImpersonation();
 
   const [properties, setProperties] = useState<Property[]>([]);
@@ -176,8 +176,11 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
     const loadProperties = async () => {
       setIsLoadingProperties(true);
       try {
+        console.log('DEBUG: loadProperties', { isDemoMode, demoListingCount, demoPropsLength: DEMO_FAT_PROPERTIES.length });
         if (isDemoMode) {
-          setProperties(DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index)));
+          const sliced = DEMO_FAT_PROPERTIES.slice(0, demoListingCount);
+          console.log('DEBUG: sliced properties', sliced.length);
+          setProperties(sliced.map((property, index) => cloneDemoProperty(property, index)));
           return;
         }
         const list = await listingsService.listProperties();
@@ -206,7 +209,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
     return () => {
       isMounted = false;
     };
-  }, [isDemoMode, notifyApiError]);
+  }, [isDemoMode, notifyApiError, demoListingCount]);
 
   useEffect(() => {
     let isMounted = true;
@@ -652,7 +655,15 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
       case 'knowledge-base':
         return <AgentAISidekicksPage sidekickTemplatesOverride={blueprintSidekickTemplates} isDemoMode={isDemoMode} />;
       case 'funnel-analytics':
-        return <FunnelAnalyticsPanel onBackToDashboard={resetToDashboard} />;
+        return (
+          <FunnelAnalyticsPanel
+            onBackToDashboard={resetToDashboard}
+            title="Leads Funnel"
+            subtitle="Homebuyer, Seller, and Showing funnels for every lead"
+            variant="page"
+            isDemoMode={isDemoMode}
+          />
+        );
       case 'settings':
         return (
           <SettingsPage
@@ -669,6 +680,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
             onSaveBillingSettings={setBillingSettings}
             onBackToDashboard={resetToDashboard}
             onNavigateToAICard={() => setActiveView('ai-card')}
+            isDemoMode={isDemoMode}
           />
         );
       case 'analytics':

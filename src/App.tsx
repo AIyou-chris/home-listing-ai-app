@@ -1050,7 +1050,7 @@ const App: React.FC = () => {
                         if (!isDemoMode) {
                             localStorage.setItem('isDemoMode', 'true');
                         }
-                        return <AgentDashboardBlueprint isDemoMode={true} />;
+                        return <AgentDashboardBlueprint isDemoMode={true} demoListingCount={2} />;
                     case 'dashboard':
                         if (isDemoMode) {
                             return <DemoDashboard properties={DEMO_FAT_PROPERTIES} onSelectProperty={() => undefined} />;
@@ -1079,7 +1079,7 @@ const App: React.FC = () => {
                             />
                         );
                     case 'dashboard-blueprint':
-                        return <AgentDashboardBlueprint />;
+                        return <AgentDashboardBlueprint isDemoMode={true} demoListingCount={1} />;
                     case 'checkout':
                         return renderCheckout();
                     case 'property':
@@ -1212,7 +1212,7 @@ const App: React.FC = () => {
             case 'checkout':
                 return renderCheckout();
             case 'dashboard-blueprint':
-                return <AgentDashboardBlueprint />;
+                return <AgentDashboardBlueprint isDemoMode={true} demoListingCount={1} />;
             case 'landing':
                 return <LandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} scrollToSection={scrollToSection} onScrollComplete={() => setScrollToSection(null)} onOpenConsultationModal={() => setIsConsultationModalOpen(true)} onNavigateToAdmin={handleNavigateToAdmin} />;
             case 'new-landing':

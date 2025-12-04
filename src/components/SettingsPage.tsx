@@ -291,7 +291,7 @@ const NOTIFICATION_GROUPS: Array<{
         }
     ];
 
-const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard, onNavigateToAICard }) => {
+const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ userId, userProfile, onSaveProfile: _onSaveProfile, notificationSettings, onSaveNotifications: _onSaveNotifications, emailSettings, onSaveEmailSettings: _onSaveEmailSettings, calendarSettings, onSaveCalendarSettings: _onSaveCalendarSettings, billingSettings: _billingSettings, onSaveBillingSettings: _onSaveBillingSettings, onBackToDashboard: _onBackToDashboard, onNavigateToAICard, isDemoMode = false }) => {
     const notifyApiError = useApiErrorNotifier();
     const { uiProfile, refresh: refreshBranding, aiCardProfile } = useAgentBranding();
     const agentProfile = userProfile ?? uiProfile;
@@ -723,6 +723,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
     // Email connection handlers
     const handleGmailConnect = async () => {
+        if (isDemoMode) {
+            alert('Settings are read-only in demo mode.');
+            return;
+        }
         if (!isGoogleIntegrationAvailable) {
             const message = 'Google OAuth is not configured for this environment. Add your Google client ID, secret, and redirect URI to enable direct Gmail connections.';
             setEmailSettingsError(message);
@@ -791,6 +795,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     };
 
     const handleEmailDisconnect = async (provider: 'gmail' | 'outlook') => {
+        if (isDemoMode) {
+            alert('Settings are read-only in demo mode.');
+            return;
+        }
         setIsConnecting(provider);
         setEmailSettingsError(null);
         setEmailSaveMessage(null);
@@ -825,6 +833,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
     // Calendar connection handlers
     const handleGoogleCalendarConnect = async () => {
+        if (isDemoMode) {
+            alert('Settings are read-only in demo mode.');
+            return;
+        }
         setIsConnecting('google');
         try {
             if (!isGoogleIntegrationAvailable) {
@@ -906,6 +918,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
     const handleCalendarSettingsSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isDemoMode) {
+            alert('Settings are read-only in demo mode.');
+            return;
+        }
         if (isCalendarSettingsSaving) {
             return;
         }
@@ -1066,6 +1082,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     // Security handlers
     const handlePasswordSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isDemoMode) {
+            alert('Settings are read-only in demo mode.');
+            return;
+        }
         setSecurityError(null);
         setSecurityMessage(null);
 
@@ -1159,6 +1179,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     };
 
     const handleSecuritySettingsSave = async () => {
+        if (isDemoMode) {
+            alert('Settings are read-only in demo mode.');
+            return;
+        }
         if (!userId || isSecuritySaving || isSecuritySettingsLoading) {
             return;
         }
@@ -1269,6 +1293,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     };
 
     const launchBillingCheckout = async (provider: 'stripe' | 'paypal') => {
+        if (isDemoMode) {
+            alert('Settings are read-only in demo mode.');
+            return;
+        }
         if (!userId) {
             setBillingError('Missing account identifier. Please refresh and try again.');
             return;
@@ -1327,6 +1355,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
     };
 
     const handleCancelMembership = async () => {
+        if (isDemoMode) {
+            alert('Settings are read-only in demo mode.');
+            return;
+        }
         if (!userId) {
             setBillingError('Missing account identifier. Please refresh and try again.');
             return;
@@ -1369,6 +1401,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
 
     const handleNotificationToggle = useCallback(
         async (key: keyof NotificationSettings, value: boolean) => {
+            if (isDemoMode) {
+                alert('Settings are read-only in demo mode.');
+                return;
+            }
             const previousValue = currentNotifications[key];
             const optimistic = { ...currentNotifications, [key]: value };
 
@@ -1409,7 +1445,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ userId, userProfile, onSave
                 setIsNotificationsSaving(false);
             }
         },
-        [currentNotifications, notifyApiError, userId, _onSaveNotifications]
+        [currentNotifications, notifyApiError, userId, _onSaveNotifications, isDemoMode]
     );
 
     const handleEmailSettingsChange = <K extends keyof EmailSettings>(field: K, value: EmailSettings[K]) => {

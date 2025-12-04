@@ -10,6 +10,7 @@ interface FunnelAnalyticsPanelProps {
     title?: string;
     subtitle?: string;
     hideBackButton?: boolean;
+    isDemoMode?: boolean;
 }
 
 const highlightCards = [
@@ -325,9 +326,10 @@ const initPanelState = () => {
 const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     onBackToDashboard,
     variant = 'page',
-    title = 'Lead Scoring & Leads Funnel',
-    subtitle = 'Peek at conversion flow, channel attribution, and the scoring logic that powers every sidekick decision.',
-    hideBackButton = false
+    title = 'Leads Funnel',
+    subtitle = 'Homebuyer, Seller, and Showing funnels for every lead',
+    hideBackButton = false,
+    isDemoMode = false
 }) => {
     const isEmbedded = variant === 'embedded';
     const [welcomeSteps, setWelcomeSteps] = useState<EditableStep[]>(initialWelcomeSteps);
@@ -438,6 +440,10 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSaveWelcomeSteps = async () => {
+        if (isDemoMode) {
+            alert('Saving is disabled in demo mode.');
+            return;
+        }
         try {
             const success = await funnelService.saveFunnelStep('demo-blueprint', 'welcome', welcomeSteps);
             if (success) alert('Welcome drip saved to cloud.');
@@ -480,6 +486,10 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSaveBuyerSteps = async () => {
+        if (isDemoMode) {
+            alert('Saving is disabled in demo mode.');
+            return;
+        }
         try {
             const success = await funnelService.saveFunnelStep('demo-blueprint', 'buyer', homeBuyerSteps);
             if (success) alert('Homebuyer journey saved to cloud.');
@@ -522,6 +532,10 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSaveListingSteps = async () => {
+        if (isDemoMode) {
+            alert('Saving is disabled in demo mode.');
+            return;
+        }
         try {
             const success = await funnelService.saveFunnelStep('demo-blueprint', 'listing', listingSteps);
             if (success) alert('Listing funnel saved to cloud.');
@@ -564,6 +578,10 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSavePostSteps = async () => {
+        if (isDemoMode) {
+            alert('Saving is disabled in demo mode.');
+            return;
+        }
         try {
             const success = await funnelService.saveFunnelStep('demo-blueprint', 'post-showing', postShowingSteps);
             if (success) alert('Post-showing follow-up saved to cloud.');
@@ -942,7 +960,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                 See the rules, tiers, and point gains that determine which prospects graduate to Hot or stay in nurture.
                             </p>
                         </div>
-                        <AnalyticsPage />
+                        <AnalyticsPage isDemoMode={isDemoMode} />
                     </div>
                 )}
 
@@ -958,11 +976,11 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                 Compare reply rates, openings, and meeting bookings for every drip so you know where to iterate next.
                             </p>
                         </div>
-                        <SequenceFeedbackPanel />
+                        <SequenceFeedbackPanel isDemoMode={isDemoMode} />
                     </div>
                 )}
             </div>
-            {isQuickEmailOpen && <QuickEmailModal onClose={() => setIsQuickEmailOpen(false)} />}
+            {isQuickEmailOpen && <QuickEmailModal onClose={() => setIsQuickEmailOpen(false)} isDemoMode={isDemoMode} />}
         </div>
     );
 };

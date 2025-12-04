@@ -160,6 +160,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
   const [agentId, setAgentId] = useState<string | null>(null);
   const trainingAnalyticsKey = agentId ? `hlai:training-analytics:${agentId}` : null;
   const [deletingSidekickId, setDeletingSidekickId] = useState<string | null>(null);
+  const [deactivatedIds, setDeactivatedIds] = useState<Set<string>>(new Set());
 
   // Modal states
   const [showPersonalityEditor, setShowPersonalityEditor] = useState(false);
@@ -845,6 +846,16 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
   };
 
   const handleDeleteSidekick = async (sidekickId: string) => {
+    if (isDemoMode) {
+      if (!window.confirm('Deactivate this AI sidekick? You can reactivate it later.')) return;
+      setDeactivatedIds(prev => new Set(prev).add(sidekickId));
+      setNotification({ type: 'success', message: 'AI sidekick deactivated.' });
+      if (selectedSidekick?.id === sidekickId) {
+        setSelectedSidekick(null);
+      }
+      return;
+    }
+
     if (!window.confirm('Delete this AI sidekick? This cannot be undone.')) return;
     setDeletingSidekickId(sidekickId);
     try {
@@ -856,6 +867,19 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
       setNotification({ type: 'error', message: 'Unable to delete sidekick. Try again.' });
     } finally {
       setDeletingSidekickId(null);
+    }
+  };
+
+  const handleReactivateSidekick = (sidekickId: string) => {
+    setDeactivatedIds(prev => {
+      const next = new Set(prev);
+      next.delete(sidekickId);
+      return next;
+    });
+    setNotification({ type: 'success', message: 'AI sidekick reactivated.' });
+    const sidekick = sidekicks.find(s => s.id === sidekickId);
+    if (sidekick) {
+      setSelectedSidekick(sidekick);
     }
   };
 
@@ -1088,7 +1112,13 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {effectiveTemplates.map((template) => {
             // Check if this agent is already active
-            const activeSidekick = sidekicks.find(s => s.type === template.type || (s.metadata && s.metadata.type === template.type));
+            let activeSidekick = sidekicks.find(s => s.type === template.type || (s.metadata && s.metadata.type === template.type));
+
+            // In demo mode, if deactivated, treat as inactive
+            if (isDemoMode && activeSidekick && deactivatedIds.has(activeSidekick.id)) {
+              activeSidekick = undefined;
+            }
+
             const isToolsExpanded = activeSidekick ? (expandedTools[activeSidekick.id] ?? false) : false;
 
             if (activeSidekick) {
@@ -1284,17 +1314,20 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
 
                     <div className="pt-4 border-t border-slate-100 flex justify-end">
                       <button
-                        onClick={() => handleDeleteSidekick(activeSidekick.id)}
-                        className="text-xs text-rose-500 hover:text-rose-700 hover:underline"
-                        disabled={deletingSidekickId === activeSidekick.id}
+                        onClick={() => handleDeleteSidekick(activeSidekick!.id)}
+                        className={`text-xs hover:underline ${isDemoMode ? 'text-slate-500 hover:text-slate-700' : 'text-rose-500 hover:text-rose-700'}`}
+                        disabled={deletingSidekickId === activeSidekick!.id}
                       >
-                        {deletingSidekickId === activeSidekick.id ? 'Deleting…' : 'Deactivate / Delete'}
+                        {deletingSidekickId === activeSidekick!.id ? (isDemoMode ? 'Deactivating…' : 'Deleting…') : (isDemoMode ? 'Deactivate' : 'Deactivate / Delete')}
                       </button>
                     </div>
                   </div>
                 </div>
               );
             } else {
+              // Check if it was deactivated (for Reactivate UI)
+              const deactivatedSidekick = isDemoMode ? sidekicks.find(s => (s.type === template.type || (s.metadata && s.metadata.type === template.type)) && deactivatedIds.has(s.id)) : null;
+
               // RENDER INACTIVE TEMPLATE CARD (New "Activate" UI)
               return (
                 <div key={template.id} className="bg-slate-50 rounded-xl border border-slate-200 p-6 h-full flex flex-col opacity-80 hover:opacity-100 transition-opacity">
@@ -1322,510 +1355,39 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                         </span>
                       ))}
                     </div>
+                    <div className="mt-auto">
+                      {deactivatedSidekick ? (
+                        <button
+                          onClick={() => handleReactivateSidekick(deactivatedSidekick.id)}
+                          className="w-full py-2 px-4 bg-white border-2 border-slate-200 text-slate-700 rounded-lg font-medium hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <span className="material-symbols-outlined">refresh</span>
+                          Reactivate Sidekick
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleActivateSidekick(template)}
+                          disabled={isCreatingSidekick}
+                          className="w-full py-2 px-4 bg-white border-2 border-slate-200 text-slate-700 rounded-lg font-medium hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2 group"
+                        >
+                          {isCreatingSidekick ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                          ) : (
+                            <>
+                              <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
+                              Activate Sidekick
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
-
-                  <button
-                    onClick={() => handleActivateSidekick(template)}
-                    disabled={isCreatingSidekick}
-                    className="w-full py-3 bg-white border-2 border-dashed border-slate-300 text-slate-600 rounded-xl font-semibold hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
-                  >
-                    {isCreatingSidekick ? (
-                      <span className="material-symbols-outlined animate-spin">progress_activity</span>
-                    ) : (
-                      <span className="material-symbols-outlined">add_circle</span>
-                    )}
-                    Activate {template.label}
-                  </button>
                 </div>
               );
             }
           })}
         </div>
       </div>
-
-      {/* Personality Editor Modal */}
-      {showPersonalityEditor && selectedSidekick && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-blue-600">psychology</span>
-                  AI Personality Editor
-                </h3>
-                <button
-                  onClick={() => setShowPersonalityEditor(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <span className="material-symbols-outlined">close</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6">
-              {/* Who You Are */}
-              <div className="mb-6">
-                <h4 className="font-medium text-slate-900 mb-3">Who You Are</h4>
-
-                {/* Preset Selection */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Choose a preset or keep Custom
-                  </label>
-                  <select
-                    value={personalityForm.preset}
-                    onChange={(e) => handlePresetChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  >
-                    {Object.entries(personalityPresets).map(([key, preset]) => (
-                      <option key={key} value={key}>
-                        {preset.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Presets pre-fill the description and traits. You can still edit everything below.
-                  </p>
-                </div>
-
-                {/* Personality Description */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Personality Description
-                  </label>
-                  <textarea
-                    value={personalityForm.description}
-                    onChange={(e) => setPersonalityForm(prev => ({ ...prev, description: e.target.value }))}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                    placeholder="Describe the AI's personality, role, and approach..."
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Be specific about role, expertise, and approach. Keep it concise.
-                  </p>
-                </div>
-
-                {/* Additional Personality Traits */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Additional Personality Traits
-                  </label>
-                  <div className="flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={newTrait}
-                      onChange={(e) => setNewTrait(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && addTrait()}
-                      placeholder="Add a personality trait (e.g., 'patient', 'creative')"
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    />
-                    <button
-                      onClick={addTrait}
-                      className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {personalityForm.traits.map((trait) => (
-                      <span
-                        key={trait}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm"
-                      >
-                        {trait}
-                        <button
-                          onClick={() => removeTrait(trait)}
-                          className="text-slate-400 hover:text-slate-600"
-                        >
-                          <span className="material-symbols-outlined text-sm">close</span>
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Preview */}
-                <div className="mb-6">
-                  <h4 className="font-medium text-slate-900 mb-2">Preview</h4>
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <p className="text-slate-700">{personalityForm.description}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowPersonalityEditor(false)}
-                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSavePersonality}
-                  className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800"
-                >
-                  Save Personality
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Training Chat Modal */}
-      {showTrainingChat && selectedSidekick && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 h-[80vh] flex flex-col">
-            <div className="p-6 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-purple-600">chat</span>
-                  Interactive AI Training - {selectedSidekick.name}
-                </h3>
-                <button
-                  onClick={() => setShowTrainingChat(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <span className="material-symbols-outlined">close</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {chatMessages.length === 0 ? (
-                <div className="text-center text-slate-500 mt-8">
-                  <span className="material-symbols-outlined text-4xl mb-4 block">chat</span>
-                  <p>Start Training Conversation</p>
-                  <p className="text-sm">Ask your {selectedSidekick.name.toLowerCase()} for help with something specific</p>
-
-                  <div className="mt-6">
-                    <p className="font-medium mb-2">Try these examples:</p>
-                    <div className="space-y-2">
-                      {selectedSidekick.type === 'marketing' && (
-                        <>
-                          <button className="block w-full text-left p-3 bg-blue-50 rounded-lg text-blue-700 hover:bg-blue-100">
-                            Create a social media post for a luxury condo
-                          </button>
-                          <button className="block w-full text-left p-3 bg-blue-50 rounded-lg text-blue-700 hover:bg-blue-100">
-                            Write an email campaign for first-time buyers
-                          </button>
-                        </>
-                      )}
-                      {selectedSidekick.type === 'listing' && (
-                        <>
-                          <button className="block w-full text-left p-3 bg-red-50 rounded-lg text-red-700 hover:bg-red-100">
-                            Write a property description for a family home
-                          </button>
-                          <button className="block w-full text-left p-3 bg-red-50 rounded-lg text-red-700 hover:bg-red-100">
-                            Analyze market trends for downtown condos
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {chatMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.type === 'user'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 text-slate-900'
-                          }`}
-                      >
-                        <p>{message.content}</p>
-                        {message.type === 'assistant' && (
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              onClick={() => handlePlayAudio(message.id, message.content, message.voiceId)}
-                              className={`${playingMessageId === message.id ? 'text-blue-600' : 'text-slate-600'} hover:text-blue-800`}
-                              title={playingMessageId === message.id ? 'Stop audio' : 'Play audio'}
-                            >
-                              <span className="material-symbols-outlined text-sm">
-                                {playingMessageId === message.id ? 'stop_circle' : 'volume_up'}
-                              </span>
-                            </button>
-                            <button
-                              onClick={() => handleTrainingFeedback(message.id, 'positive')}
-                              className="text-green-600 hover:text-green-800"
-                              title="Good response"
-                            >
-                              <span className="material-symbols-outlined text-sm">thumb_up</span>
-                            </button>
-                            <button
-                              onClick={() => handleTrainingFeedback(message.id, 'negative')}
-                              className="text-red-600 hover:text-red-800"
-                              title="Needs improvement"
-                            >
-                              <span className="material-symbols-outlined text-sm">thumb_down</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {isTyping && (
-                    <div className="flex justify-start">
-                      <div className="bg-slate-100 text-slate-900 px-4 py-2 rounded-lg">
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Message Input */}
-            <div className="p-6 border-t border-slate-200">
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={currentMessage}
-                  onChange={(e) => setCurrentMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder={`Ask your ${selectedSidekick.name.toLowerCase()} for help...`}
-                  className="flex-1 px-4 py-2 border border-slate-300 rounded-lg"
-                  disabled={isTyping}
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!currentMessage.trim() || isTyping}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined">send</span>
-                  Send
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Enhanced Knowledge Editor Modal */}
-      {showKnowledgeEditor && selectedSidekick && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h3 className="text-xl font-semibold text-slate-900">Agent Knowledge Base - {selectedSidekick.name}</h3>
-              <button
-                onClick={resetKnowledgeEditor}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Description */}
-              <p className="text-slate-600">
-                Upload documents, scripts, and materials that will help your AI understand your expertise and approach.
-              </p>
-
-              {/* File Upload Section */}
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
-                <div
-                  className={`transition-colors ${dragActive ? 'border-blue-400 bg-blue-50' : ''}`}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  <span className="material-symbols-outlined text-4xl text-slate-400 mb-4 block">upload</span>
-                  <h4 className="text-lg font-medium text-slate-900 mb-2">Upload Agent Files</h4>
-                  <p className="text-slate-600 mb-4">Drag and drop files here, or click to browse</p>
-
-                  <input
-                    type="file"
-                    multiple
-                    onChange={handleFileInputChange}
-                    className="hidden"
-                    id="file-upload"
-                    accept=".pdf,.doc,.docx,.txt,.md"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined mr-2">upload</span>
-                    Choose Files
-                  </label>
-
-                  <p className="text-xs text-slate-500 mt-2">
-                    Supported formats: PDF, DOC, DOCX, TXT, MD (Max 10MB each)
-                  </p>
-
-                  {isUploading && (
-                    <div className="mt-4 flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                      <span className="ml-2 text-blue-600">Uploading files...</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Two Column Layout for Text Knowledge and URL Scraper */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Add Text Knowledge Section */}
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-orange-600">edit_note</span>
-                    <h4 className="text-lg font-semibold text-orange-900">Add Text Knowledge</h4>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-orange-800 mb-2">
-                        Knowledge Title
-                      </label>
-                      <input
-                        type="text"
-                        value={knowledgeTitle}
-                        onChange={(e) => setKnowledgeTitle(e.target.value)}
-                        placeholder="e.g., Pricing Strategy, Client Communication..."
-                        className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-orange-800 mb-2">
-                        Knowledge Content
-                      </label>
-                      <textarea
-                        value={knowledgeContent}
-                        onChange={(e) => setKnowledgeContent(e.target.value)}
-                        rows={4}
-                        placeholder="Enter detailed knowledge, procedures, or information..."
-                        className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleAddTextKnowledge}
-                      disabled={!knowledgeTitle.trim() || !knowledgeContent.trim() || isAddingKnowledge}
-                      className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                    >
-                      {isAddingKnowledge ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Adding...
-                        </>
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined mr-2">add</span>
-                          Add Knowledge
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* URL Scraper Section */}
-                <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-green-600">language</span>
-                    <h4 className="text-lg font-semibold text-green-900">URL Scraper</h4>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-green-800 mb-2">
-                        Website URL
-                      </label>
-                      <input
-                        type="url"
-                        value={websiteUrl}
-                        onChange={(e) => setWebsiteUrl(e.target.value)}
-                        placeholder="https://example.com"
-                        className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-green-800 mb-2">
-                        Scraping Frequency
-                      </label>
-                      <select
-                        value={scrapingFrequency}
-                        onChange={(e) => setScrapingFrequency(e.target.value)}
-                        className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      >
-                        <option value="once">Once</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </div>
-
-                    <button
-                      onClick={handleUrlScraping}
-                      disabled={!websiteUrl.trim() || isScraping}
-                      className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                    >
-                      {isScraping ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Scraping...
-                        </>
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined mr-2">download</span>
-                          Scrape Website
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Saved Knowledge Section */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="material-symbols-outlined text-slate-600">library_books</span>
-                  <h4 className="text-lg font-semibold text-slate-900">Saved Knowledge</h4>
-                  <span className="bg-slate-200 text-slate-700 px-2 py-1 rounded-full text-sm font-medium">
-                    {selectedSidekick.knowledgeBase.length} items
-                  </span>
-                </div>
-
-                {selectedSidekick.knowledgeBase.length === 0 ? (
-                  <div className="text-center py-8">
-                    <span className="material-symbols-outlined text-4xl text-slate-400 mb-2 block">library_books</span>
-                    <p className="text-slate-500">No knowledge added yet</p>
-                    <p className="text-sm text-slate-400">Upload files, add text knowledge, or scrape websites to get started</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-60 overflow-y-auto">
-                    {selectedSidekick.knowledgeBase.map((knowledge, index) => (
-                      <div key={index} className="flex items-start gap-3 p-4 bg-white border border-slate-200 rounded-lg">
-                        <span className="material-symbols-outlined text-slate-400 mt-0.5">article</span>
-                        <p className="flex-1 text-slate-700 text-sm leading-relaxed">{knowledge}</p>
-                        <button
-                          onClick={() => handleRemoveKnowledge(index)}
-                          className="text-red-400 hover:text-red-600 p-1"
-                          title="Remove knowledge"
-                        >
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Personality Editor Modal */}
       {
@@ -1951,6 +1513,503 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                     className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800"
                   >
                     Save Personality
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Training Chat Modal */}
+      {
+        showTrainingChat && selectedSidekick && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 h-[80vh] flex flex-col">
+              <div className="p-6 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-purple-600">chat</span>
+                    Interactive AI Training - {selectedSidekick.name}
+                  </h3>
+                  <button
+                    onClick={() => setShowTrainingChat(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {chatMessages.length === 0 ? (
+                  <div className="text-center text-slate-500 mt-8">
+                    <span className="material-symbols-outlined text-4xl mb-4 block">chat</span>
+                    <p>Start Training Conversation</p>
+                    <p className="text-sm">Ask your {selectedSidekick.name.toLowerCase()} for help with something specific</p>
+
+                    <div className="mt-6">
+                      <p className="font-medium mb-2">Try these examples:</p>
+                      <div className="space-y-2">
+                        {selectedSidekick.type === 'marketing' && (
+                          <>
+                            <button className="block w-full text-left p-3 bg-blue-50 rounded-lg text-blue-700 hover:bg-blue-100">
+                              Create a social media post for a luxury condo
+                            </button>
+                            <button className="block w-full text-left p-3 bg-blue-50 rounded-lg text-blue-700 hover:bg-blue-100">
+                              Write an email campaign for first-time buyers
+                            </button>
+                          </>
+                        )}
+                        {selectedSidekick.type === 'listing' && (
+                          <>
+                            <button className="block w-full text-left p-3 bg-red-50 rounded-lg text-red-700 hover:bg-red-100">
+                              Write a property description for a family home
+                            </button>
+                            <button className="block w-full text-left p-3 bg-red-50 rounded-lg text-red-700 hover:bg-red-100">
+                              Analyze market trends for downtown condos
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {chatMessages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.type === 'user'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 text-slate-900'
+                            }`}
+                        >
+                          <p>{message.content}</p>
+                          {message.type === 'assistant' && (
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => handlePlayAudio(message.id, message.content, message.voiceId)}
+                                className={`${playingMessageId === message.id ? 'text-blue-600' : 'text-slate-600'} hover:text-blue-800`}
+                                title={playingMessageId === message.id ? 'Stop audio' : 'Play audio'}
+                              >
+                                <span className="material-symbols-outlined text-sm">
+                                  {playingMessageId === message.id ? 'stop_circle' : 'volume_up'}
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => handleTrainingFeedback(message.id, 'positive')}
+                                className="text-green-600 hover:text-green-800"
+                                title="Good response"
+                              >
+                                <span className="material-symbols-outlined text-sm">thumb_up</span>
+                              </button>
+                              <button
+                                onClick={() => handleTrainingFeedback(message.id, 'negative')}
+                                className="text-red-600 hover:text-red-800"
+                                title="Needs improvement"
+                              >
+                                <span className="material-symbols-outlined text-sm">thumb_down</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {isTyping && (
+                      <div className="flex justify-start">
+                        <div className="bg-slate-100 text-slate-900 px-4 py-2 rounded-lg">
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Message Input */}
+              <div className="p-6 border-t border-slate-200">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={currentMessage}
+                    onChange={(e) => setCurrentMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder={`Ask your ${selectedSidekick.name.toLowerCase()} for help...`}
+                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg"
+                    disabled={isTyping}
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!currentMessage.trim() || isTyping}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined">send</span>
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Enhanced Knowledge Editor Modal */}
+      {
+        showKnowledgeEditor && selectedSidekick && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-slate-200">
+                <h3 className="text-xl font-semibold text-slate-900">Agent Knowledge Base - {selectedSidekick.name}</h3>
+                <button
+                  onClick={resetKnowledgeEditor}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Description */}
+                <p className="text-slate-600">
+                  Upload documents, scripts, and materials that will help your AI understand your expertise and approach.
+                </p>
+
+                {/* File Upload Section */}
+                <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
+                  <div
+                    className={`transition-colors ${dragActive ? 'border-blue-400 bg-blue-50' : ''}`}
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDrop}
+                  >
+                    <span className="material-symbols-outlined text-4xl text-slate-400 mb-4 block">upload</span>
+                    <h4 className="text-lg font-medium text-slate-900 mb-2">Upload Agent Files</h4>
+                    <p className="text-slate-600 mb-4">Drag and drop files here, or click to browse</p>
+
+                    <input
+                      type="file"
+                      multiple
+                      onChange={handleFileInputChange}
+                      className="hidden"
+                      id="file-upload"
+                      accept=".pdf,.doc,.docx,.txt,.md"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className={`inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer ${isDemoMode ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      onClick={(e) => {
+                        if (isDemoMode) {
+                          e.preventDefault();
+                          alert('File uploads are disabled in demo mode.');
+                        }
+                      }}
+                    >
+                      <span className="material-symbols-outlined mr-2">upload</span>
+                      Choose Files
+                    </label>
+
+                    <p className="text-xs text-slate-500 mt-2">
+                      Supported formats: PDF, DOC, DOCX, TXT, MD (Max 10MB each)
+                    </p>
+
+                    {isUploading && (
+                      <div className="mt-4 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span className="ml-2 text-blue-600">Uploading files...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Two Column Layout for Text Knowledge and URL Scraper */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Add Text Knowledge Section */}
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="material-symbols-outlined text-orange-600">edit_note</span>
+                      <h4 className="text-lg font-semibold text-orange-900">Add Text Knowledge</h4>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-orange-800 mb-2">
+                          Knowledge Title
+                        </label>
+                        <input
+                          type="text"
+                          value={knowledgeTitle}
+                          onChange={(e) => setKnowledgeTitle(e.target.value)}
+                          placeholder="e.g., Pricing Strategy, Client Communication..."
+                          className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-orange-800 mb-2">
+                          Knowledge Content
+                        </label>
+                        <textarea
+                          value={knowledgeContent}
+                          onChange={(e) => setKnowledgeContent(e.target.value)}
+                          rows={4}
+                          placeholder="Enter detailed knowledge, procedures, or information..."
+                          className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        />
+                      </div>
+
+                      <button
+                        onClick={handleAddTextKnowledge}
+                        disabled={!knowledgeTitle.trim() || !knowledgeContent.trim() || isAddingKnowledge || isDemoMode}
+                        className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      >
+                        {isAddingKnowledge ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Adding...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined mr-2">add</span>
+                            {isDemoMode ? 'Add Knowledge (Disabled in Demo)' : 'Add Knowledge'}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* URL Scraper Section */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="material-symbols-outlined text-green-600">language</span>
+                      <h4 className="text-lg font-semibold text-green-900">URL Scraper</h4>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-green-800 mb-2">
+                          Website URL
+                        </label>
+                        <input
+                          type="url"
+                          value={websiteUrl}
+                          onChange={(e) => setWebsiteUrl(e.target.value)}
+                          placeholder="https://example.com"
+                          className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-green-800 mb-2">
+                          Scraping Frequency
+                        </label>
+                        <select
+                          value={scrapingFrequency}
+                          onChange={(e) => setScrapingFrequency(e.target.value)}
+                          className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        >
+                          <option value="once">Once</option>
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+
+                      <button
+                        onClick={handleUrlScraping}
+                        disabled={!websiteUrl.trim() || isScraping || isDemoMode}
+                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      >
+                        {isScraping ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Scraping...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined mr-2">download</span>
+                            {isDemoMode ? 'Scrape Website (Disabled in Demo)' : 'Scrape Website'}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Saved Knowledge Section */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-slate-600">library_books</span>
+                    <h4 className="text-lg font-semibold text-slate-900">Saved Knowledge</h4>
+                    <span className="bg-slate-200 text-slate-700 px-2 py-1 rounded-full text-sm font-medium">
+                      {selectedSidekick.knowledgeBase.length} items
+                    </span>
+                  </div>
+
+                  {selectedSidekick.knowledgeBase.length === 0 ? (
+                    <div className="text-center py-8">
+                      <span className="material-symbols-outlined text-4xl text-slate-400 mb-2 block">library_books</span>
+                      <p className="text-slate-500">No knowledge added yet</p>
+                      <p className="text-sm text-slate-400">Upload files, add text knowledge, or scrape websites to get started</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-60 overflow-y-auto">
+                      {selectedSidekick.knowledgeBase.map((knowledge, index) => (
+                        <div key={index} className="flex items-start gap-3 p-4 bg-white border border-slate-200 rounded-lg">
+                          <span className="material-symbols-outlined text-slate-400 mt-0.5">article</span>
+                          <p className="flex-1 text-slate-700 text-sm leading-relaxed">{knowledge}</p>
+                          <button
+                            onClick={() => handleRemoveKnowledge(index)}
+                            className="text-red-400 hover:text-red-600 p-1"
+                            title="Remove knowledge"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Personality Editor Modal */}
+      {
+        showPersonalityEditor && selectedSidekick && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-blue-600">psychology</span>
+                    AI Personality Editor
+                  </h3>
+                  <button
+                    onClick={() => setShowPersonalityEditor(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {/* Who You Are */}
+                <div className="mb-6">
+                  <h4 className="font-medium text-slate-900 mb-3">Who You Are</h4>
+
+                  {/* Preset Selection */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Choose a preset or keep Custom
+                    </label>
+                    <select
+                      value={personalityForm.preset}
+                      onChange={(e) => handlePresetChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    >
+                      {Object.entries(personalityPresets).map(([key, preset]) => (
+                        <option key={key} value={key}>
+                          {preset.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Presets pre-fill the description and traits. You can still edit everything below.
+                    </p>
+                  </div>
+
+                  {/* Personality Description */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Personality Description
+                    </label>
+                    <textarea
+                      value={personalityForm.description}
+                      onChange={(e) => setPersonalityForm(prev => ({ ...prev, description: e.target.value }))}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      placeholder="Describe the AI's personality, role, and approach..."
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Be specific about role, expertise, and approach. Keep it concise.
+                    </p>
+                  </div>
+
+                  {/* Additional Personality Traits */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Additional Personality Traits
+                    </label>
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={newTrait}
+                        onChange={(e) => setNewTrait(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && addTrait()}
+                        placeholder="Add a personality trait (e.g., 'patient', 'creative')"
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                      />
+                      <button
+                        onClick={addTrait}
+                        className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {personalityForm.traits.map((trait) => (
+                        <span
+                          key={trait}
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm"
+                        >
+                          {trait}
+                          <button
+                            onClick={() => removeTrait(trait)}
+                            className="text-slate-400 hover:text-slate-600"
+                          >
+                            <span className="material-symbols-outlined text-sm">close</span>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Preview */}
+                  <div className="mb-6">
+                    <h4 className="font-medium text-slate-900 mb-2">Preview</h4>
+                    <div className="bg-slate-50 rounded-lg p-4">
+                      <p className="text-slate-700">{personalityForm.description}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPersonalityEditor(false)}
+                    className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSavePersonality}
+                    disabled={isDemoMode}
+                    className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isDemoMode ? 'Save (Disabled in Demo)' : 'Save Personality'}
                   </button>
                 </div>
               </div>

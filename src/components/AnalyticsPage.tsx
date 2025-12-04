@@ -198,12 +198,12 @@ const LeadSourceBreakdown: React.FC<{ data: LeadSourceBreakdownItem[] }> = ({ da
                   const iconKey = source.sourceName.toLowerCase().includes('facebook')
                     ? 'facebook'
                     : source.sourceName.toLowerCase().includes('zillow')
-                    ? 'zillow'
-                    : source.sourceName.toLowerCase().includes('manual')
-                    ? 'manual'
-                    : source.sourceName.toLowerCase().includes('app')
-                    ? 'app'
-                    : 'unknown'
+                      ? 'zillow'
+                      : source.sourceName.toLowerCase().includes('manual')
+                        ? 'manual'
+                        : source.sourceName.toLowerCase().includes('app')
+                          ? 'app'
+                          : 'unknown'
 
                   return (
                     <tr key={source.sourceName} className="border-b border-slate-100 hover:bg-white">
@@ -280,17 +280,24 @@ const ScoringRulesPanel: React.FC<{ rules: ScoringRuleResponse[]; tiers: ScoreTi
   )
 }
 
-const AnalyticsPage: React.FC = () => {
+import { DEMO_ANALYTICS_STATS, DEMO_LEAD_SOURCES, DEMO_SCORING_RULES, DEMO_SCORE_TIERS } from '../demoConstants'
+
+const AnalyticsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) => {
   const { stats, leadSources, scoringRules, scoreTiers, isLoading, error, hasHydrated, refresh } = useLeadAnalyticsStore()
   const [showTips, setShowTips] = useState(true)
 
   useEffect(() => {
-    if (!hasHydrated) {
+    if (!hasHydrated && !isDemoMode) {
       refresh()
     }
-  }, [hasHydrated, refresh])
+  }, [hasHydrated, refresh, isDemoMode])
 
-  if (isLoading && !hasHydrated) {
+  const displayStats = isDemoMode ? DEMO_ANALYTICS_STATS : stats
+  const displayLeadSources = isDemoMode ? DEMO_LEAD_SOURCES : leadSources
+  const displayScoringRules = isDemoMode ? DEMO_SCORING_RULES : scoringRules
+  const displayScoreTiers = isDemoMode ? DEMO_SCORE_TIERS : scoreTiers
+
+  if (isLoading && !hasHydrated && !isDemoMode) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-10 text-center text-slate-500">
         Loading lead scoring analytics…
@@ -298,7 +305,7 @@ const AnalyticsPage: React.FC = () => {
     )
   }
 
-  if (error && !hasHydrated) {
+  if (error && !hasHydrated && !isDemoMode) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
         <h3 className="text-lg font-semibold text-red-700 mb-2">Unable to load lead scoring data</h3>
@@ -355,9 +362,9 @@ const AnalyticsPage: React.FC = () => {
         )}
       </div>
 
-      <PerformanceOverview stats={stats} />
-      <LeadSourceBreakdown data={leadSources} />
-      <ScoringRulesPanel rules={scoringRules} tiers={scoreTiers} />
+      <PerformanceOverview stats={displayStats} />
+      <LeadSourceBreakdown data={displayLeadSources} />
+      <ScoringRulesPanel rules={displayScoringRules} tiers={displayScoreTiers} />
     </div>
   )
 }

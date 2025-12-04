@@ -19,7 +19,9 @@ interface UnifiedTrainingStudioProps {
 // Extend Window interface for Web Speech API
 declare global {
     interface Window {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         webkitSpeechRecognition: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         SpeechRecognition: any;
     }
 }
@@ -40,6 +42,7 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
 
     // Voice Input State
     const [isListening, setIsListening] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognitionRef = useRef<any>(null);
 
     // Feedback State
@@ -104,10 +107,12 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
 
         recognition.onstart = () => setIsListening(true);
         recognition.onend = () => setIsListening(false);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         recognition.onerror = (event: any) => {
             console.error('Speech recognition error', event.error);
             setIsListening(false);
         };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
             setInputMessage(prev => (prev ? `${prev} ${transcript}` : transcript));
@@ -471,17 +476,18 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
                             <label className="text-sm font-medium text-slate-700">System Prompt</label>
                             <button
                                 onClick={handleSavePrompt}
-                                disabled={savingPrompt}
+                                disabled={savingPrompt || demoMode}
                                 className="text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-50"
                             >
-                                {savingPrompt ? 'Saving...' : 'Save'}
+                                {savingPrompt ? 'Saving...' : (demoMode ? 'Save (Disabled)' : 'Save')}
                             </button>
                         </div>
                         <textarea
                             value={systemPrompts[selectedSidekick] || currentSidekick.systemPrompt}
                             onChange={e => setSystemPrompts(prev => ({ ...prev, [selectedSidekick]: e.target.value }))}
-                            className="w-full h-64 text-sm border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none resize-none"
+                            className="w-full h-64 text-sm border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none resize-none disabled:bg-slate-50 disabled:text-slate-500"
                             placeholder="Enter system prompt..."
+                            disabled={demoMode}
                         />
                         {trainingNotification && (
                             <p className="mt-2 text-xs text-green-600 flex items-center gap-1">

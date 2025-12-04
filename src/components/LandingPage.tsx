@@ -89,7 +89,7 @@ const RevolutionaryAIFeaturesSection: React.FC = () => {
     );
 
     return (
-        <section className="py-20 bg-white relative overflow-hidden">
+        <section className="hidden md:block py-20 bg-white relative overflow-hidden">
             {/* Background Elements */}
             <div className="absolute inset-0 pointer-events-none">
                 {/* Floating Charts */}
@@ -556,15 +556,15 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void; onNaviga
                     ))}
                 </div>
 
-                <div className="mt-12 animate-fade-in-up animation-delay-800 flex justify-center gap-4">
-                    <button onClick={onNavigateToSignUp} className="px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg shadow-lg hover:bg-blue-700 transition-all text-lg transform hover:scale-105 btn-animate">
-                        <span className="flex items-center gap-2">
+                <div className="mt-12 animate-fade-in-up animation-delay-800 flex flex-col lg:flex-row justify-center gap-4 items-center px-4 lg:px-0">
+                    <button onClick={onNavigateToSignUp} className="w-full lg:w-auto px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg shadow-lg hover:bg-blue-700 transition-all text-lg transform hover:scale-105 btn-animate">
+                        <span className="flex items-center justify-center gap-2">
                             <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
                             Get Started Now
                         </span>
                     </button>
-                    <button onClick={onEnterDemoMode} className="px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg transform hover:scale-105 btn-animate">
-                        <span className="flex items-center gap-2">
+                    <button onClick={onEnterDemoMode} className="w-full lg:w-auto px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg transform hover:scale-105 btn-animate">
+                        <span className="flex items-center justify-center gap-2">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
                         </span>
@@ -1542,12 +1542,12 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     <p className="mt-6 max-w-lg mx-auto lg:mx-0 text-lg text-slate-600 animate-fade-in-up animation-delay-200">
                         It never sleeps, always follows up, and sounds just like you... <a href="#what-you-get" className="font-semibold text-primary-600 hover:underline">and so much more</a>.
                     </p>
-                    <div className="mt-8 flex justify-center lg:justify-start gap-4 animate-fade-in-up animation-delay-400">
-                        <button onClick={onNavigateToSignUp} className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all transform hover:scale-105 btn-animate">
+                    <div className="mt-8 flex flex-col lg:flex-row justify-center lg:justify-start items-center gap-4 animate-fade-in-up animation-delay-400 px-4 lg:px-0">
+                        <button onClick={onNavigateToSignUp} className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
                             Get Started Now
                         </button>
-                        <button onClick={onEnterDemoMode} className="flex items-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
+                        <button onClick={onEnterDemoMode} className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                             Explore the Live Dashboard
                         </button>
