@@ -637,7 +637,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         );
       case 'property':
         return selectedProperty ? (
-          <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setActiveView('listings')} />
+          <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setActiveView('listings')} isDemoMode={isDemoMode} />
         ) : (
           <ListingsPage
             properties={properties}
