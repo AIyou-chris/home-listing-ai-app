@@ -7,6 +7,7 @@ interface SidebarProps {
   setView: (view: View) => void;
   isOpen: boolean;
   onClose: () => void;
+  isDemoMode?: boolean;
 }
 
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
@@ -45,7 +46,7 @@ const NavItem: React.FC<{
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose, isDemoMode = false }) => {
   const navItems = [
     { view: 'dashboard', icon: 'home', label: 'Overview' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
@@ -89,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
         </div>
 
 
-        <nav className="flex-1">
+        <nav className="flex-1 flex flex-col">
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm divide-y divide-slate-200">
             {navItems.map((item) => (
               <NavItem
@@ -104,14 +105,33 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose 
               </NavItem>
             ))}
           </div>
-        </nav>
 
-        <div className="mt-auto flex flex-col space-y-2 border-t border-slate-200 pt-4">
-          <button className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 transition-colors">
-            <Icon name="notifications" className="text-slate-500" />
-            <span>Notifications</span>
-          </button>
-        </div>
+          {isDemoMode && (
+            <div className="mt-auto pt-6 space-y-3">
+              <div className="px-2">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                  <p className="text-xs font-medium text-slate-500 mb-3 uppercase tracking-wider">Demo Mode</p>
+                  <div className="space-y-2">
+                    <a
+                      href="/"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">arrow_back</span>
+                      Back to Home
+                    </a>
+                    <a
+                      href="/#signup"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">rocket_launch</span>
+                      Start Your App
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </nav>
       </aside>
     </>
   );

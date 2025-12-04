@@ -709,6 +709,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         setView={setActiveView}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(!isSidebarOpen)}
+        isDemoMode={isDemoMode}
       />
 
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isImpersonating ? 'mt-10' : ''}`}>
