@@ -53,7 +53,7 @@ const NewLandingPage: React.FC<NewLandingPageProps> = ({ onNavigateToSignUp, onE
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
                             <button onClick={onNavigateToSignUp} className="bg-primary-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-primary-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
-                                Start Free Trial
+                                Start Your App
                             </button>
                             <button onClick={onEnterDemoMode} className="border-2 border-slate-300 text-slate-700 px-8 py-4 rounded-lg font-semibold text-lg hover:border-primary-600 hover:text-primary-600 transition-all duration-300">
                                 Watch Demo
@@ -429,7 +429,7 @@ const NewLandingPage: React.FC<NewLandingPageProps> = ({ onNavigateToSignUp, onE
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <button className="bg-white text-primary-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-slate-100 transition-all duration-300 transform hover:scale-105">
-                            Start Your Free Trial
+                            Start Your App
                         </button>
                         <button className="border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-primary-600 transition-all duration-300">
                             Schedule Demo

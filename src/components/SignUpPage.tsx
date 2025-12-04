@@ -85,7 +85,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                     <Logo className="w-10 h-10" />
                                 </button>
                                 <div>
-                                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Start Your Free Trial</h1>
+                                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Start Your App</h1>
                                     <p className="text-slate-500 font-semibold">No commitment • No data stored</p>
                                 </div>
                             </div>
@@ -115,7 +115,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
 
                         {/* Right Column */}
                         <div className="bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-200/70">
-                            <h2 className="text-xl font-bold text-slate-800">Create Your Trial Account</h2>
+                            <h2 className="text-xl font-bold text-slate-800">Create Your Account</h2>
                             <p className="text-sm text-slate-500 mt-1">Get started in less than 30 seconds</p>
 
                             <form className="mt-8 space-y-6" onSubmit={handleSignUp}>

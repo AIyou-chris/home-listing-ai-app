@@ -76,7 +76,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                         <p className="text-center text-sm text-slate-600 mt-8">
                             Don't have an account?{' '}
                             <button onClick={onNavigateToSignUp} className="font-semibold text-primary-600 hover:text-primary-500">
-                                Sign up for a free trial
+                                Sign up for an account
                             </button>
                         </p>
                     </div>

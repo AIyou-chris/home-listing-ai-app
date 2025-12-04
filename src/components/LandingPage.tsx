@@ -182,8 +182,8 @@ const RevolutionaryAIFeaturesSection: React.FC = () => {
                             key={feature.id}
                             onClick={() => setActiveDemo(feature.id)}
                             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 ${activeDemo === feature.id
-                                    ? 'bg-primary-600 text-white shadow-lg'
-                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                ? 'bg-primary-600 text-white shadow-lg'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                                 }`}
                         >
                             <span className="animate-bounce">{feature.icon}</span>
@@ -287,10 +287,10 @@ const RevolutionaryAIFeaturesSection: React.FC = () => {
                                             style={{ animationDelay: `${index * 200}ms` }}>
                                             <div className="flex items-center gap-3 mb-2">
                                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center animate-pulse ${sidekick.type === 'listing' ? 'bg-green-100' :
-                                                        sidekick.type === 'agent' ? 'bg-blue-100' : 'bg-purple-100'
+                                                    sidekick.type === 'agent' ? 'bg-blue-100' : 'bg-purple-100'
                                                     }`}>
                                                     <span className={`text-sm ${sidekick.type === 'listing' ? 'text-green-600' :
-                                                            sidekick.type === 'agent' ? 'text-blue-600' : 'text-purple-600'
+                                                        sidekick.type === 'agent' ? 'text-blue-600' : 'text-purple-600'
                                                         }`}>
                                                         {sidekick.type === 'listing' ? '🏠' :
                                                             sidekick.type === 'agent' ? '👤' : '🤖'}
@@ -430,15 +430,15 @@ const RevolutionaryAIFeaturesSection: React.FC = () => {
                                         { type: 'error', title: 'Lead Lost', message: 'Sarah Smith chose another property', time: '2 hours ago' }
                                     ].map((notification, index) => (
                                         <div key={index} className={`p-4 rounded-lg border transform hover:scale-105 transition-all duration-300 animate-fade-in-up ${notification.type === 'success' ? 'bg-green-50 border-green-200' :
-                                                notification.type === 'info' ? 'bg-blue-50 border-blue-200' :
-                                                    notification.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
-                                                        'bg-red-50 border-red-200'
+                                            notification.type === 'info' ? 'bg-blue-50 border-blue-200' :
+                                                notification.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                                                    'bg-red-50 border-red-200'
                                             }`} style={{ animationDelay: `${index * 150}ms` }}>
                                             <div className="flex items-start gap-3">
                                                 <span className={`text-lg animate-pulse ${notification.type === 'success' ? 'text-green-600' :
-                                                        notification.type === 'info' ? 'text-blue-600' :
-                                                            notification.type === 'warning' ? 'text-yellow-600' :
-                                                                'text-red-600'
+                                                    notification.type === 'info' ? 'text-blue-600' :
+                                                        notification.type === 'warning' ? 'text-yellow-600' :
+                                                            'text-red-600'
                                                     }`}>
                                                     {notification.type === 'success' ? '✅' :
                                                         notification.type === 'info' ? 'ℹ️' :
@@ -957,7 +957,7 @@ const WhiteLabelSection: React.FC<{ onOpenConsultationModal: () => void; }> = ({
                             className="inline-flex items-center gap-2 px-6 py-3 text-base font-bold text-white bg-gradient-to-r from-green-400 to-primary-500 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 btn-animate"
                         >
                             <span className="material-symbols-outlined animate-pulse">calendar_today</span>
-                            Set Up a Free Consultation
+                            Set Up a Consultation
                         </button>
                         <p className="mt-4 text-sm text-slate-500 animate-fade-in-up animation-delay-800">
                             No obligation. See how we can help your business grow.
@@ -1416,7 +1416,7 @@ const FinalCtaNew: React.FC<{ onNavigateToSignUp: () => void; onEnterDemoMode: (
                     className="flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-yellow-400 via-orange-400 to-purple-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all text-lg transform hover:scale-105 btn-animate"
                 >
                     <span className="material-symbols-outlined animate-pulse">bolt</span>
-                    Start Your Three Day Free Trial
+                    Start Your App Today
                 </button>
                 <button
                     onClick={onEnterDemoMode}
