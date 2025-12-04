@@ -78,14 +78,14 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
                         <span className="material-symbols-outlined text-base">location_on</span>
                         {property.address}
                     </p>
-                    
+
                     <div className="mt-4 flex justify-between items-center">
                         <div className="flex items-center gap-2 text-2xl font-bold text-white">
                             <span className="material-symbols-outlined text-sky-400">payments</span>
                             <span>${property.price.toLocaleString()}</span>
                         </div>
                         <div className="flex items-center gap-2 text-lg font-semibold text-sky-300">
-                             <span className="material-symbols-outlined text-sky-400">fullscreen</span>
+                            <span className="material-symbols-outlined text-sky-400">fullscreen</span>
                             <span>{property.squareFeet.toLocaleString()} squareFeet</span>
                         </div>
                     </div>
@@ -96,18 +96,18 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
                             <span>{property.bedrooms} bds</span>
                         </div>
                         <div className="flex items-center gap-2 px-3">
-                             <span className="material-symbols-outlined text-base text-slate-400">bathtub</span>
+                            <span className="material-symbols-outlined text-base text-slate-400">bathtub</span>
                             <span>{property.bathrooms} ba</span>
                         </div>
                         <div className="flex items-center gap-2 pl-3">
-                           <span className="material-symbols-outlined text-base text-slate-400">straighten</span>
+                            <span className="material-symbols-outlined text-base text-slate-400">straighten</span>
                             <span>{property.squareFeet.toLocaleString()} squareFeet</span>
                         </div>
                     </div>
-                    
+
                     <p className="mt-4 text-sm text-slate-400 leading-relaxed">{descriptionText}</p>
                 </div>
-                
+
                 <div className="mt-6 pt-6 border-t border-slate-700">
                     <div className="grid grid-cols-2 gap-3 mb-3">
                         <button
@@ -124,7 +124,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
                             className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-slate-600 rounded-lg shadow-sm hover:bg-slate-700 transition"
                         >
                             <span className="material-symbols-outlined w-4 h-4">smart_toy</span>
-                            <span>Listing Sidekick</span>
+                            <span>Marketing Listing</span>
                         </button>
                     </div>
                     <div className="mb-3">
@@ -204,7 +204,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({
 
     return (
         <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-             <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
+            <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
                 <span className="material-symbols-outlined w-5 h-5">chevron_left</span>
                 <span>Back to Dashboard</span>
             </button>
@@ -267,15 +267,15 @@ const ListingsPage: React.FC<ListingsPageProps> = ({
                     <input type="text" placeholder="Search listings by title, address, or city..." className="w-full bg-white border border-slate-300 rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none" />
                 </div>
             </div>
-            
+
             <main>
                 {properties.length > 0 ? (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         {properties.map(prop => (
-                            <PropertyCard 
-                                key={prop.id} 
-                                property={prop} 
-                                onSelect={() => onSelectProperty(prop.id)} 
+                            <PropertyCard
+                                key={prop.id}
+                                property={prop}
+                                onSelect={() => onSelectProperty(prop.id)}
                                 onDelete={() => onDeleteProperty(prop.id)}
                                 onOpenMarketing={() => onOpenMarketing?.(prop.id)}
                                 onOpenBuilder={() => onOpenBuilder?.(prop.id)}
