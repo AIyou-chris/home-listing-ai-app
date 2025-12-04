@@ -118,18 +118,20 @@ export const agentOnboardingService = {
   async createCheckoutSession({
     slug,
     provider,
-    amountCents
+    amountCents,
+    promoCode
   }: {
     slug: string;
     provider?: 'stripe' | 'paypal';
     amountCents?: number;
+    promoCode?: string;
   }): Promise<CheckoutSessionResponse> {
     const response = await fetch(`${getApiBase()}/api/payments/checkout-session`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ slug, provider, amountCents })
+      body: JSON.stringify({ slug, provider, amountCents, promoCode })
     });
     const data = await handleResponse<{ session: CheckoutSessionResponse }>(response);
     return data.session;

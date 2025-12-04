@@ -36,6 +36,28 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
   const [activationState, setActivationState] = useState<ActivationState>('pending');
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState('');
+
+  const handleApplyPromo = async () => {
+    setError(null);
+    setIsCreatingSession(true);
+    try {
+      const session = await agentOnboardingService.createCheckoutSession({
+        slug,
+        promoCode: promoCode.trim().toUpperCase()
+      });
+      if (session?.url) {
+        window.location.href = session.url;
+      } else {
+        setError('Promo code applied but no redirect URL returned.');
+      }
+    } catch (err: unknown) {
+      console.error('[CheckoutPage] Failed to apply promo code', err);
+      setError(extractErrorMessage(err, 'Invalid promo code or system error.'));
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
 
   const dashboardBaseUrl =
     (import.meta.env.VITE_DASHBOARD_BASE_URL as string | undefined) ||
@@ -212,6 +234,31 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                             Try HomeListingAI risk-free. If you're not completely satisfied within 60 days, we'll refund your payment in full.
                           </p>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Promo Code Section */}
+                    <div className="mt-6 pt-6 border-t border-slate-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="material-symbols-outlined text-slate-400 text-sm">sell</span>
+                        <span className="text-sm font-medium text-slate-700">Have a promo code?</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Enter code"
+                          className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none uppercase"
+                          value={promoCode}
+                          onChange={(e) => setPromoCode(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleApplyPromo}
+                          disabled={isCreatingSession || !promoCode.trim()}
+                          className="px-4 py-2 text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Apply
+                        </button>
                       </div>
                     </div>
                   </div>

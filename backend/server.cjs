@@ -7564,7 +7564,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
       return res.status(503).json({ success: false, error: 'Payment processing is not configured.' })
     }
 
-    const { slug, provider, amountCents } = req.body || {}
+    const { slug, provider, amountCents, promoCode } = req.body || {}
     if (!slug || typeof slug !== 'string') {
       return res.status(400).json({ success: false, error: 'Agent slug is required.' })
     }
@@ -7582,6 +7582,34 @@ app.post('/api/payments/checkout-session', async (req, res) => {
 
     if (!agent) {
       return res.status(404).json({ success: false, error: 'Agent not found.' })
+    }
+
+    // Promo Code Logic
+    if (promoCode === 'FRIENDS30' || promoCode === 'LIFETIME') {
+      const paymentStatus = promoCode === 'FRIENDS30' ? 'trial_30_days' : 'lifetime_free';
+
+      const { error: updateError } = await supabaseAdmin
+        .from('agents')
+        .update({
+          status: 'active',
+          payment_status: paymentStatus,
+          activated_at: new Date().toISOString()
+        })
+        .eq('slug', slug);
+
+      if (updateError) {
+        console.error('Error applying promo code:', updateError);
+        return res.status(500).json({ success: false, error: 'Failed to apply promo code.' });
+      }
+
+      const appBaseUrl = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'http://localhost:5173';
+
+      return res.json({
+        success: true,
+        session: {
+          url: `${appBaseUrl}/checkout/${slug}?status=success`
+        }
+      });
     }
 
     const session = await paymentService.createCheckoutSession({
