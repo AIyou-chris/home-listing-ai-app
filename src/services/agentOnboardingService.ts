@@ -23,7 +23,7 @@ export interface AgentRegistrationResponse {
 }
 
 export interface CheckoutSessionResponse {
-  provider: 'stripe' | 'paypal';
+  provider: 'paypal';
   url: string;
   id: string;
   amount?: number | null;
@@ -122,7 +122,7 @@ export const agentOnboardingService = {
     promoCode
   }: {
     slug: string;
-    provider?: 'stripe' | 'paypal';
+    provider?: 'paypal';
     amountCents?: number;
     promoCode?: string;
   }): Promise<CheckoutSessionResponse> {

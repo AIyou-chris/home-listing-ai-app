@@ -432,11 +432,7 @@ const resolveMarketingOwnerId = (req) => {
 };
 
 const paymentService = createPaymentService({
-  stripeSecretKey: process.env.STRIPE_SECRET_KEY,
-  stripePriceId: process.env.STRIPE_PRICE_ID,
-  stripeProductName: process.env.STRIPE_PRODUCT_NAME,
-  stripeCurrency: process.env.STRIPE_CURRENCY,
-  stripeDefaultAmountCents: process.env.STRIPE_DEFAULT_AMOUNT_CENTS
+  defaultAmountCents: process.env.STRIPE_DEFAULT_AMOUNT_CENTS
     ? Number(process.env.STRIPE_DEFAULT_AMOUNT_CENTS)
     : undefined,
   paypalClientId: process.env.PAYPAL_CLIENT_ID,

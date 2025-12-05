@@ -116,7 +116,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
       .finally(() => setIsPolling(false));
   };
 
-  const handleCheckout = async (provider?: 'stripe' | 'paypal') => {
+  const handleCheckout = async (provider: 'paypal' = 'paypal') => {
     setError(null);
     setIsCreatingSession(true);
     try {

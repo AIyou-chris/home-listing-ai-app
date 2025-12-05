@@ -11,21 +11,14 @@ const safeRequire = (moduleId) => {
 };
 
 module.exports = ({
-  stripeSecretKey,
-  stripePriceId,
-  stripeProductName = 'AI You Agent Subscription',
-  stripeCurrency = 'usd',
-  stripeDefaultAmountCents = 4900,
+  defaultAmountCents = 4900,
   paypalClientId,
   paypalClientSecret,
   paypalEnv = 'sandbox',
   paypalCurrency = 'USD',
   baseAppUrl = 'https://aiyouagent.com'
 }) => {
-  const Stripe = safeRequire('stripe');
   const paypalSdk = safeRequire('@paypal/checkout-server-sdk');
-
-  const stripeClient = stripeSecretKey && Stripe ? new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' }) : null;
 
   let paypalClient = null;
   if (paypalClientId && paypalClientSecret && paypalSdk) {
@@ -37,11 +30,10 @@ module.exports = ({
     paypalClient = new paypalSdk.core.PayPalHttpClient(paypalEnvironment);
   }
 
-  const isConfigured = () => Boolean(stripeClient || paypalClient);
+  const isConfigured = () => Boolean(paypalClient);
 
   const listProviders = () => {
     const providers = [];
-    if (stripeClient) providers.push('stripe');
     if (paypalClient) providers.push('paypal');
     return providers;
   };
@@ -51,52 +43,6 @@ module.exports = ({
     return {
       success: `${normalizedBase}/#/checkout/${slug}?status=success`,
       cancel: `${normalizedBase}/#/checkout/${slug}?status=cancelled`
-    };
-  };
-
-  const createStripeSession = async ({ slug, email, amountCents }) => {
-    if (!stripeClient) {
-      throw new Error('Stripe is not configured');
-    }
-
-    const urls = buildReturnUrls(slug);
-    const lineItems = stripePriceId
-      ? [
-        {
-          price: stripePriceId,
-          quantity: 1
-        }
-      ]
-      : [
-        {
-          price_data: {
-            currency: stripeCurrency,
-            product_data: {
-              name: stripeProductName
-            },
-            unit_amount: amountCents || stripeDefaultAmountCents
-          },
-          quantity: 1
-        }
-      ];
-
-    const session = await stripeClient.checkout.sessions.create({
-      mode: stripePriceId ? 'subscription' : 'payment',
-      success_url: urls.success,
-      cancel_url: urls.cancel,
-      customer_email: email,
-      line_items: lineItems,
-      metadata: {
-        slug
-      }
-    });
-
-    return {
-      provider: 'stripe',
-      url: session.url,
-      id: session.id,
-      amount: stripePriceId ? null : amountCents || stripeDefaultAmountCents,
-      currency: stripeCurrency
     };
   };
 
@@ -116,7 +62,7 @@ module.exports = ({
           custom_id: slug,
           amount: {
             currency_code: paypalCurrency,
-            value: centsToCurrency(amountCents || stripeDefaultAmountCents)
+            value: centsToCurrency(amountCents || defaultAmountCents)
           }
         }
       ],
@@ -136,26 +82,29 @@ module.exports = ({
       provider: 'paypal',
       url: approvalLink?.href,
       id: order?.result?.id,
-      amount: amountCents || stripeDefaultAmountCents,
+      amount: amountCents || defaultAmountCents,
       currency: paypalCurrency
     };
   };
 
-  const createCheckoutSession = async ({ slug, email, provider, amountCents }) => {
-    const preferred = provider || listProviders()[0];
-    if (!preferred) {
-      throw new Error('No payment provider configured');
-    }
+  const createCheckoutSession = async ({ slug, provider, amountCents }) => {
+    // Force PayPal or auto-select
+    const preferred = provider || 'paypal';
 
     if (preferred === 'stripe') {
-      return createStripeSession({ slug, email, amountCents });
+      throw new Error('Stripe is no longer supported. Please use PayPal.');
     }
 
     if (preferred === 'paypal') {
       return createPaypalOrder({ slug, amountCents });
     }
 
-    throw new Error(`Unsupported payment provider: ${preferred}`);
+    // Default fallback
+    if (listProviders().includes('paypal')) {
+      return createPaypalOrder({ slug, amountCents });
+    }
+
+    throw new Error(`Unsupported or unconfigured payment provider: ${preferred}`);
   };
 
   return {
