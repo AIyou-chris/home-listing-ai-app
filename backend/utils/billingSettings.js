@@ -7,7 +7,7 @@ const STORE_FILE = path.join(DATA_DIR, 'billing-settings.json')
 const DEFAULT_BILLING_SETTINGS = {
   planName: 'Complete AI Solution',
   planStatus: 'active',
-  amount: 139,
+  amount: 49,
   currency: 'USD',
   managedBy: 'paypal',
   renewalDate: null,
@@ -16,7 +16,7 @@ const DEFAULT_BILLING_SETTINGS = {
     {
       id: 'inv-0001',
       date: '2024-07-15',
-      amount: 139,
+      amount: 49,
       status: 'Paid',
       description: 'Complete AI Solution - Monthly',
       invoiceUrl: null

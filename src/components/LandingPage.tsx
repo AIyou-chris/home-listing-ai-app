@@ -805,7 +805,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                                 </p>
                                 <div className="mt-6 pt-6 border-t-2 border-dashed border-slate-300">
                                     <p className="text-slate-800 font-semibold text-xl" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
-                                        👉 Normally $199/month, but right now, you can get it for just <span className="text-primary-700">$89/month</span>.
+                                        👉 Normally $129/month, but right now, you can get it for just <span className="text-primary-700">$49/month</span>.
                                     </p>
                                 </div>
                                 <p className="text-slate-800 font-medium mt-8" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
@@ -825,10 +825,10 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                             <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
                             <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
                             <p className="mt-6">
-                                <span className="text-5xl font-extrabold text-white">$89</span>
+                                <span className="text-5xl font-extrabold text-white">$49</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
-                            <p className="mt-2 text-slate-300 line-through text-sm">Regular price: $199/mo</p>
+                            <p className="mt-2 text-slate-300 line-through text-sm">Regular price: $129/mo</p>
                             <ul className="mt-8 space-y-4">
                                 <PlanFeature dark>Unlimited AI interactions per month</PlanFeature>
                                 <PlanFeature dark>Up to 3 active listings</PlanFeature>

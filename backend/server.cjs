@@ -5990,7 +5990,7 @@ app.post('/api/paypal/create-order', async (req, res) => {
       purchase_units: [
         {
           reference_id: referenceId || slug || `ref_${Date.now()}`,
-          amount: { currency_code: currency, value: String(amount || (process.env.STRIPE_DEFAULT_AMOUNT_CENTS ? (Number(process.env.STRIPE_DEFAULT_AMOUNT_CENTS) / 100).toFixed(2) : '59.00')) },
+          amount: { currency_code: currency, value: String(amount || (process.env.STRIPE_DEFAULT_AMOUNT_CENTS ? (Number(process.env.STRIPE_DEFAULT_AMOUNT_CENTS) / 100).toFixed(2) : '49.00')) },
           description
         }
       ],

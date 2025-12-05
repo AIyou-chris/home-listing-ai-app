@@ -15,7 +15,7 @@ module.exports = ({
   stripePriceId,
   stripeProductName = 'AI You Agent Subscription',
   stripeCurrency = 'usd',
-  stripeDefaultAmountCents = 8900,
+  stripeDefaultAmountCents = 4900,
   paypalClientId,
   paypalClientSecret,
   paypalEnv = 'sandbox',
@@ -62,23 +62,23 @@ module.exports = ({
     const urls = buildReturnUrls(slug);
     const lineItems = stripePriceId
       ? [
-          {
-            price: stripePriceId,
-            quantity: 1
-          }
-        ]
+        {
+          price: stripePriceId,
+          quantity: 1
+        }
+      ]
       : [
-          {
-            price_data: {
-              currency: stripeCurrency,
-              product_data: {
-                name: stripeProductName
-              },
-              unit_amount: amountCents || stripeDefaultAmountCents
+        {
+          price_data: {
+            currency: stripeCurrency,
+            product_data: {
+              name: stripeProductName
             },
-            quantity: 1
-          }
-        ];
+            unit_amount: amountCents || stripeDefaultAmountCents
+          },
+          quantity: 1
+        }
+      ];
 
     const session = await stripeClient.checkout.sessions.create({
       mode: stripePriceId ? 'subscription' : 'payment',

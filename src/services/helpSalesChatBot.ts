@@ -68,7 +68,7 @@ TRAINING EXAMPLES - Model these successful sales conversations:
 
 Example 1 - Pricing:
 User: "How much does this cost?"
-You: "Great question! We offer a special launch price of just $89/month (normally $199). This includes 3 active listings, 300 emails per month, AI-powered lead qualification, and 24/7 automated follow-ups in 12 languages. You can handle the workload of 3 agents for less than the cost of a single VA. Would you like to see how it works with your current pipeline?"
+You: "Great question! We offer a special launch price of just $49/month (normally $129). This includes 3 active listings, 300 emails per month, AI-powered lead qualification, and 24/7 automated follow-ups in 12 languages. You can handle the workload of 3 agents for less than the cost of a single VA. Would you like to see how it works with your current pipeline?"
 
 Example 2 - Differentiation:
 User: "What makes you different from other CRMs?"
@@ -76,7 +76,7 @@ You: "Traditional CRMs just store data - we actively WORK your leads for you. Ou
 
 Example 3 - Trial/Demo:
 User: "Can I try it first?"
-You: "Absolutely! We make it risk-free. Sign up for $89/month, and we'll help you set up your first AI-powered listing. If you're not getting more qualified leads within 30 days, we'll refund every penny. No questions asked. Most agents see their first booked showing within 48 hours. Ready to get started?"
+You: "Absolutely! We make it risk-free. Sign up for $49/month, and we'll help you set up your first AI-powered listing. If you're not getting more qualified leads within 30 days, we'll refund every penny. No questions asked. Most agents see their first booked showing within 48 hours. Ready to get started?"
 
 Example 4 - Competitor:
 User: "I'm already using [competitor]"
@@ -84,10 +84,10 @@ You: "That's great - many of our happiest customers came from [competitor]! The 
 
 Example 5 - Free Trial:
 User: "Do you have a free trial?"
-You: "We do something better than a free trial - a risk-free guarantee. Why? Because free trials don't let you see real results with real leads. Instead, you get the full platform for $89/month, and if you're not getting more qualified showings within 30 days, we refund 100%. Plus, I'll personally help you set up your first listing so you see results fast. Sound fair?"
+You: "We do something better than a free trial - a risk-free guarantee. Why? Because free trials don't let you see real results with real leads. Instead, you get the full platform for $49/month, and if you're not getting more qualified showings within 30 days, we refund 100%. Plus, I'll personally help you set up your first listing so you see results fast. Sound fair?"
 
 SALES GUIDELINES:
-- Always emphasize the $89/month price point as limited-time (normally $199)
+- Always emphasize the $49/month price point as limited-time (normally $129)
 - Focus on ROI: "workload of 3 agents", "10x more qualified leads", "24/7 automation"
 - Use the "3-3-300" formula: 3 listings, 3 agents' worth of work, 300 emails
 - Create urgency but stay consultative - never pushy
@@ -98,7 +98,7 @@ SALES GUIDELINES:
 - Use agent language: "qualified showings", "pipeline", "SDR team"
 
 OBJECTION HANDLERS:
-- Price concern: "When you break it down, $89/month is less than $3/day to handle 3x the leads. Most agents make that back on their first qualified showing."
+- Price concern: "When you break it down, $49/month is less than $2/day to handle 3x the leads. Most agents make that back on their first qualified showing."
 - Too busy: "That's exactly why we built this - our AI does the work while you focus on showings. 10 minutes to set up, then it runs on autopilot."
 - Need to think: "I totally understand. What specific questions do you have? I want to make sure you have everything you need to make the right decision."
 - Current system: "Perfect - keep what works. Our AI plugs in alongside your current system to handle the 24/7 lead nurturing that's impossible to do manually."
@@ -168,10 +168,10 @@ export class HelpSalesChatBot {
 
     // Get appropriate system prompt
     const systemPrompt = this.getSystemPrompt(detectedMode);
-    
+
     // Build context-aware prompt
     const contextPrompt = this.buildContextPrompt(userMessage);
-    
+
     // Prepare messages for AI
     const messages = [
       { sender: 'system', text: systemPrompt },
@@ -184,7 +184,7 @@ export class HelpSalesChatBot {
 
     try {
       const aiResponse = await continueConversation(messages);
-      
+
       // Add AI response to history
       this.conversationHistory.push({
         sender: 'assistant',
@@ -208,7 +208,7 @@ export class HelpSalesChatBot {
       console.error('Error in help/sales chat bot:', error);
       console.error('User message was:', userMessage);
       console.error('Detected mode:', detectedMode);
-      
+
       // Fallback response
       return {
         message: "I apologize, but I'm having trouble processing your request right now. Please try again in a moment, or feel free to contact our support team directly for immediate assistance.",
@@ -224,14 +224,14 @@ export class HelpSalesChatBot {
 
   private detectIntent(message: string): ChatBotMode {
     const lowerMessage = message.toLowerCase();
-    
+
     // Sales intent keywords
     const salesKeywords = [
       'price', 'pricing', 'cost', 'buy', 'purchase', 'demo', 'trial',
       'features', 'benefits', 'roi', 'value', 'compare', 'competition',
       'sales', 'interested', 'business', 'company', 'team', 'upgrade'
     ];
-    
+
     // Help intent keywords
     const helpKeywords = [
       'help', 'support', 'problem', 'issue', 'error', 'bug', 'broken',
@@ -315,25 +315,25 @@ IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text
 
       // Clean the response to extract JSON if there's extra text
       let cleanedResponse = analysisResponse.trim();
-      
+
       // Remove any potential prefix text (like "Echo:" or other unwanted text)
       if (cleanedResponse.includes('{')) {
         cleanedResponse = cleanedResponse.substring(cleanedResponse.indexOf('{'));
       }
-      
+
       // Try to find the complete JSON object
       const jsonMatch = cleanedResponse.match(/\{[\s\S]*?\}/);
       if (jsonMatch) {
         cleanedResponse = jsonMatch[0];
       }
-      
+
       // If still no valid JSON structure, throw an error to use fallback
       if (!cleanedResponse.startsWith('{') || !cleanedResponse.endsWith('}')) {
         throw new Error('Response does not contain valid JSON structure');
       }
 
       const analysis = JSON.parse(cleanedResponse);
-      
+
       // Validate the parsed JSON has required fields
       return {
         suggestedActions: Array.isArray(analysis.suggestedActions) ? analysis.suggestedActions : [],
@@ -346,7 +346,7 @@ IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text
       console.error('Error analyzing response:', error);
       console.error('User message was:', userMessage);
       console.error('AI response was:', aiResponse);
-      
+
       // Fallback analysis based on simple heuristics
       const fallbackAnalysis = this.createFallbackAnalysis(userMessage, aiResponse);
       return fallbackAnalysis;
@@ -362,7 +362,7 @@ IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text
   } {
     const lowerUserMessage = userMessage.toLowerCase();
     const lowerAiResponse = aiResponse.toLowerCase();
-    
+
     // Determine category based on keywords
     let category = 'general_question';
     if (lowerUserMessage.includes('price') || lowerUserMessage.includes('cost') || lowerUserMessage.includes('demo')) {
@@ -372,7 +372,7 @@ IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text
     } else if (lowerUserMessage.includes('billing') || lowerUserMessage.includes('account') || lowerUserMessage.includes('payment')) {
       category = 'billing';
     }
-    
+
     // Determine priority
     let priority: 'low' | 'medium' | 'high' = 'medium';
     if (lowerUserMessage.includes('urgent') || lowerUserMessage.includes('asap') || lowerUserMessage.includes('immediately')) {
@@ -380,13 +380,13 @@ IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text
     } else if (lowerUserMessage.includes('when you can') || lowerUserMessage.includes('no rush')) {
       priority = 'low';
     }
-    
+
     // Determine if human handoff is needed
-    const needsHumanHandoff = lowerUserMessage.includes('speak to human') || 
-                             lowerUserMessage.includes('talk to person') ||
-                             lowerAiResponse.includes('contact support') ||
-                             lowerAiResponse.includes('escalate');
-    
+    const needsHumanHandoff = lowerUserMessage.includes('speak to human') ||
+      lowerUserMessage.includes('talk to person') ||
+      lowerAiResponse.includes('contact support') ||
+      lowerAiResponse.includes('escalate');
+
     return {
       suggestedActions: this.getFallbackActions(),
       needsHumanHandoff,
