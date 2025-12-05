@@ -16,7 +16,7 @@ const root = createRoot(rootElement)
 
 const rawHash = window.location.hash.replace(/^#/, '')
 const hashPath = rawHash.split('?')[0]
-const isBlueprintOnlyRoute = hashPath === '/dashboard-blueprint' || hashPath === 'dashboard-blueprint'
+const isBlueprintOnlyRoute = hashPath === '/dashboard-blueprint' || hashPath === 'dashboard-blueprint' || hashPath === '/blueprint' || hashPath === 'blueprint'
 
 if (import.meta.env.DEV) {
   console.debug('[main] hash routing', {
