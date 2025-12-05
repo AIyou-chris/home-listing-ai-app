@@ -57,13 +57,16 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
 
   const getWelcomeMessage = (ctx: ChatBotContext, mode: ChatBotMode): ChatMessage => {
     let text = '';
-    
+
     switch (mode) {
       case 'sales':
         text = "Hi! I'm here to help you learn about our real estate AI platform. What would you like to know about our features and how they can benefit your business?";
         break;
       case 'help':
         text = "Hello! I'm your support assistant. I'm here to help you with any questions or issues you might have. How can I assist you today?";
+        break;
+      case 'agent':
+        text = `Hi! I'm ${ctx.agentProfile?.name || 'the agent'}'s AI assistant. I can help you with listings, market info, or scheduling. How can I help you today?`;
         break;
       default:
         text = "Hi there! I'm here to help with any questions about our real estate AI platform. Whether you need support, want to learn about our features, or are interested in a demo, I'm here to assist. How can I help you today?";
@@ -95,7 +98,7 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
 
     try {
       const response: ChatBotResponse = await chatBot.processMessage(inputValue, currentMode);
-      
+
       const aiMessage: ChatMessage = {
         sender: 'assistant',
         text: response.message,
@@ -157,7 +160,7 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
   const handleModeSwitch = (newMode: ChatBotMode) => {
     setCurrentMode(newMode);
     chatBot.setMode(newMode);
-    
+
     const modeMessage: ChatMessage = {
       sender: 'assistant',
       text: `I've switched to ${newMode} mode. ${getModeDescription(newMode)}`,
@@ -172,6 +175,8 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
         return "I'm now focused on helping you understand our platform's value and how it can benefit your business.";
       case 'help':
         return "I'm now focused on providing technical support and helping you resolve any issues.";
+      case 'agent':
+        return "I'm connecting you with the agent's AI assistant.";
       default:
         return "I can help with both sales questions and technical support.";
     }
@@ -181,6 +186,7 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
     switch (mode) {
       case 'sales': return 'bg-green-100 text-green-800';
       case 'help': return 'bg-blue-100 text-blue-800';
+      case 'agent': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -204,30 +210,27 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
             {currentMode.charAt(0).toUpperCase() + currentMode.slice(1)} Mode
           </span>
         </div>
-        
+
         {/* Mode switcher */}
         <div className="flex space-x-1">
           <button
             onClick={() => handleModeSwitch('help')}
-            className={`text-xs px-2 py-1 rounded ${
-              currentMode === 'help' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-            }`}
+            className={`text-xs px-2 py-1 rounded ${currentMode === 'help' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+              }`}
           >
             Help
           </button>
           <button
             onClick={() => handleModeSwitch('sales')}
-            className={`text-xs px-2 py-1 rounded ${
-              currentMode === 'sales' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-            }`}
+            className={`text-xs px-2 py-1 rounded ${currentMode === 'sales' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+              }`}
           >
             Sales
           </button>
           <button
             onClick={() => handleModeSwitch('general')}
-            className={`text-xs px-2 py-1 rounded ${
-              currentMode === 'general' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-            }`}
+            className={`text-xs px-2 py-1 rounded ${currentMode === 'general' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+              }`}
           >
             General
           </button>
@@ -242,11 +245,10 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
             className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                message.sender === 'user'
+              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.sender === 'user'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-800'
-              }`}
+                }`}
             >
               <p className="text-sm whitespace-pre-wrap">{message.text}</p>
               <p className="text-xs mt-1 opacity-70">
@@ -255,7 +257,7 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
             </div>
           </div>
         ))}
-        
+
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg">

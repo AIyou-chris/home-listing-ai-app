@@ -437,6 +437,20 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       }
     } catch (error) {
       console.error('Failed to share AI Card:', error);
+
+      // Fallback for copy method if backend logging fails
+      if (method === 'copy') {
+        try {
+          await navigator.clipboard.writeText(shareUrl || window.location.href);
+          setShareUrl(shareUrl || window.location.href);
+          setShowShareModal(true);
+          return;
+        } catch (fallbackError) {
+          alert('Failed to copy link. Please copy the URL from your browser address bar.');
+          return;
+        }
+      }
+
       alert('Failed to share AI Card. Please try again or copy the link manually.');
     } finally {
       setIsLoading(false);
@@ -1126,12 +1140,20 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       <ChatBotFAB
         isOpen={isChatOpen}
         onToggle={() => setIsChatOpen(prev => !prev)}
+        initialMode="agent"
         context={{
           userType: 'prospect',
           userInfo: {
             name: 'Visitor'
           },
-          currentPage: 'AI Card Preview'
+          currentPage: 'AI Card Preview',
+          agentProfile: {
+            name: form.fullName,
+            title: form.professionalTitle,
+            company: form.company,
+            bio: form.bio,
+            tone: 'Professional and helpful'
+          }
         }}
         showWelcomeMessage={false}
       />

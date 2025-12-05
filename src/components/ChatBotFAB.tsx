@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import HelpSalesChatBotComponent, { type LeadPayload, type SupportTicketPayload } from './HelpSalesChatBot';
 import { VoiceBubble } from './voice/VoiceBubble';
-import { ChatBotContext } from '../services/helpSalesChatBot';
+import { ChatBotContext, ChatBotMode } from '../services/helpSalesChatBot';
 
 interface ChatBotFABProps {
   context: ChatBotContext;
@@ -13,6 +13,7 @@ interface ChatBotFABProps {
   initialOpen?: boolean;
   isOpen?: boolean;
   onToggle?: () => void;
+  initialMode?: ChatBotMode;
 }
 
 export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
@@ -24,7 +25,8 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   showWelcomeMessage = true,
   initialOpen = false,
   isOpen: controlledIsOpen,
-  onToggle
+  onToggle,
+  initialMode
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState(initialOpen);
 
@@ -157,6 +159,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
                       onSupportTicket={handleSupportTicket}
                       onToggleVoice={() => setIsVoiceView((prev) => !prev)}
                       className="h-full rounded-none border-none shadow-none"
+                      initialMode={initialMode}
                     />
                   </div>
                   <div

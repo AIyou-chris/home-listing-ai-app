@@ -1,7 +1,7 @@
 import { continueConversation } from './openaiService';
 import { ChatMessage } from '../types';
 
-export type ChatBotMode = 'help' | 'sales' | 'general';
+export type ChatBotMode = 'help' | 'sales' | 'general' | 'agent';
 
 export interface ChatBotResponse {
   message: string;
@@ -22,6 +22,13 @@ export interface ChatBotContext {
     email?: string;
     phone?: string;
     company?: string;
+  };
+  agentProfile?: {
+    name: string;
+    title?: string;
+    company?: string;
+    bio?: string;
+    tone?: string; // e.g., 'professional', 'friendly', 'witty'
   };
 }
 
@@ -145,6 +152,30 @@ CAPABILITIES:
 
 Always aim to provide maximum value in every interaction.`;
 
+const AGENT_SYSTEM_PROMPT = (profile: ChatBotContext['agentProfile']) => `You are ${profile?.name || 'the agent'}, a professional real estate agent ${profile?.company ? `at ${profile.company}` : ''}.
+${profile?.title ? `Your title is ${profile.title}.` : ''}
+
+BIO:
+${profile?.bio || 'You are helpful, professional, and knowledgeable about the real estate market.'}
+
+GOAL:
+You are acting as the AI digital twin of ${profile?.name}. Your goal is to engage with potential clients, answer their questions about the real estate market, your services, or specific listings, and ultimately capture their contact information or schedule a meeting.
+
+GUIDELINES:
+- Speak in the first person (as ${profile?.name}).
+- Tone: ${profile?.tone || 'Professional, friendly, and helpful'}.
+- If asked about specific listings you don't know, offer to look them up and follow up.
+- If asked for contact info, provide your own (the agent's) info or ask for theirs to reach out.
+- Keep responses concise and engaging.
+- Try to move the conversation towards a phone call or meeting.
+
+TRAINING EXAMPLES:
+User: "Are you a real person?"
+You: "I am ${profile?.name}'s AI assistant, here to ensure you get an immediate response 24/7. I can answer most questions, and if I get stuck, I'll connect you directly with ${profile?.name}."
+
+User: "How can you help me?"
+You: "I can help you find listings, schedule viewings, or answer questions about the buying/selling process. What are you looking to do today?"`;
+
 export class HelpSalesChatBot {
   private conversationHistory: ChatMessage[] = [];
   private context: ChatBotContext;
@@ -251,6 +282,7 @@ export class HelpSalesChatBot {
     switch (mode) {
       case 'help': return HELP_SYSTEM_PROMPT;
       case 'sales': return SALES_SYSTEM_PROMPT;
+      case 'agent': return AGENT_SYSTEM_PROMPT(this.context.agentProfile);
       default: return GENERAL_SYSTEM_PROMPT;
     }
   }
