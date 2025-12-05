@@ -11,6 +11,8 @@ interface ChatBotFABProps {
   className?: string;
   showWelcomeMessage?: boolean;
   initialOpen?: boolean;
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
 export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
@@ -20,21 +22,27 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   position = 'bottom-right',
   className = '',
   showWelcomeMessage = true,
-  initialOpen = false
+  initialOpen = false,
+  isOpen: controlledIsOpen,
+  onToggle
 }) => {
-  const [isOpen, setIsOpen] = useState(initialOpen);
+  const [internalIsOpen, setInternalIsOpen] = useState(initialOpen);
+
+  const isControlled = controlledIsOpen !== undefined;
+  const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
+
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isVoiceView, setIsVoiceView] = useState(context.userType === 'visitor');
 
-  // Update isOpen when initialOpen changes
+  // Sync internal state if initialOpen changes (only if uncontrolled)
   useEffect(() => {
-    if (initialOpen) {
-      setIsOpen(true);
+    if (!isControlled && initialOpen) {
+      setInternalIsOpen(true);
       setHasNewMessage(false);
       setUnreadCount(0);
     }
-  }, [initialOpen]);
+  }, [initialOpen, isControlled]);
 
   // Auto-show welcome message after a delay for new visitors
   useEffect(() => {
@@ -52,14 +60,25 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
     if (isOpen) {
       setIsVoiceView(false);
     }
-    setIsOpen((prev) => {
-      const next = !prev;
-      if (next) {
-        setHasNewMessage(false);
-        setUnreadCount(0);
-      }
-      return next;
-    });
+
+    if (isControlled && onToggle) {
+      onToggle();
+    } else {
+      setInternalIsOpen((prev) => {
+        const next = !prev;
+        if (next) {
+          setHasNewMessage(false);
+          setUnreadCount(0);
+        }
+        return next;
+      });
+    }
+
+    if (!isOpen) {
+      // We are opening it (conceptually, though state update is async)
+      setHasNewMessage(false);
+      setUnreadCount(0);
+    }
   };
 
   const handleLeadGenerated = (leadInfo: LeadPayload) => {
@@ -165,9 +184,8 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
       <div className={`fixed ${positionClasses[position]} z-40`}>
         <button
           onClick={handleToggleChat}
-          className={`relative bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${
-            isOpen ? 'scale-0' : 'scale-100'
-          }`}
+          className={`relative bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${isOpen ? 'scale-0' : 'scale-100'
+            }`}
         >
           {/* Chat Icon */}
           <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">

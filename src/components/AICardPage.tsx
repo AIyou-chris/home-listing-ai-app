@@ -4,6 +4,7 @@ import QRCodeManagementPage from './QRCodeManagementPage';
 import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
 import { setPreferredLanguage } from '../services/languagePreferenceService';
 import { notifyProfileChange } from '../services/agentProfileService';
+import ChatBotFAB from './ChatBotFAB';
 import { DEMO_AI_CARD_PROFILE } from '../constants';
 
 type EditableElement = HTMLInputElement | HTMLTextAreaElement;
@@ -77,6 +78,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
   const headshotInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const hasUnsavedChangesRef = useRef(false);
@@ -422,13 +424,20 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       if (method === 'copy') {
         setShareUrl(shareData.url);
         setShowShareModal(true);
-        await navigator.clipboard.writeText(shareData.url);
-        console.log('✅ AI Card URL copied to clipboard');
+        try {
+          await navigator.clipboard.writeText(shareData.url);
+          console.log('✅ AI Card URL copied to clipboard');
+        } catch (clipboardError) {
+          console.warn('Clipboard write failed (expected in non-secure context):', clipboardError);
+          // Fallback handled by user seeing the modal and copying manually
+        }
       } else {
         console.log(`✅ AI Card shared via ${method}`);
+        alert(`AI Card shared successfully via ${method}!`);
       }
     } catch (error) {
       console.error('Failed to share AI Card:', error);
+      alert('Failed to share AI Card. Please try again or copy the link manually.');
     } finally {
       setIsLoading(false);
     }
@@ -463,7 +472,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
     );
   };
 
-  const AICardPreview = () => (
+  const AICardPreview: React.FC<{ onChatClick?: () => void }> = ({ onChatClick }) => (
     <div className="relative">
       {/* AI Card Container */}
       <div
@@ -549,6 +558,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
           {/* How Can I Help Button */}
           <div className="mb-8">
             <button
+              onClick={onChatClick}
               className="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 hover:scale-105 shadow-lg text-base"
               style={{ backgroundColor: form.brandColor }}
             >
@@ -1035,7 +1045,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                 </h2>
                 <div className="flex justify-center">
                   <div className="transform scale-75 sm:scale-90 lg:scale-100 origin-top">
-                    <AICardPreview />
+                    <AICardPreview onChatClick={() => setIsChatOpen(true)} />
                   </div>
                 </div>
               </div>
@@ -1044,7 +1054,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
         ) : activeTab === 'preview' ? (
           // Full Screen Preview
           <div className="flex justify-center items-center min-h-full">
-            <AICardPreview />
+            <AICardPreview onChatClick={() => setIsChatOpen(true)} />
           </div>
         ) : (
           // QR Codes Management
@@ -1111,6 +1121,20 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
           </div>
         </div>
       )}
+
+      {/* Chat Bot Integration */}
+      <ChatBotFAB
+        isOpen={isChatOpen}
+        onToggle={() => setIsChatOpen(prev => !prev)}
+        context={{
+          userType: 'prospect',
+          userInfo: {
+            name: 'Visitor'
+          },
+          currentPage: 'AI Card Preview'
+        }}
+        showWelcomeMessage={false}
+      />
     </div>
   );
 };
