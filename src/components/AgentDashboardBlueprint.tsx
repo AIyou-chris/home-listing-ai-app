@@ -565,6 +565,113 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
       case 'dashboard':
         return (
           <div className="space-y-6">
+            {/* Welcome Setup Widget */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-lg mb-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 opacity-10 pointer-events-none">
+                <svg width="300" height="300" viewBox="0 0 100 100" fill="white">
+                  <circle cx="80" cy="20" r="40" />
+                  <circle cx="10" cy="90" r="30" />
+                </svg>
+              </div>
+
+              <div className="relative z-10">
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2">Welcome to your AI Command Center, {agentProfile.name.split(' ')[0]}! 🚀</h2>
+                    <p className="text-indigo-100 max-w-2xl">
+                      Let's get your AI Agent fully trained and operational. Complete these 5 steps to unlock your "AI-Ready" badge.
+                    </p>
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/30">
+                    <span className="text-sm font-semibold">Setup Progress</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="w-32 h-2 bg-black/20 rounded-full overflow-hidden">
+                        <div className="h-full bg-white rounded-full" style={{ width: '20%' }}></div>
+                      </div>
+                      <span className="text-xs font-bold">1/5</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {/* Step 1: AI Card */}
+                  <button
+                    onClick={() => setActiveView('ai-card')}
+                    className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-8 h-8 rounded-full bg-green-400 flex items-center justify-center text-green-900 font-bold text-sm">
+                        <span className="material-symbols-outlined text-base">check</span>
+                      </div>
+                      <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">5 min</span>
+                    </div>
+                    <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">1. AI Business Card</h3>
+                    <p className="text-xs text-indigo-100 leading-relaxed">Fill out your bio & upload your headshot so your AI knows who you are.</p>
+                  </button>
+
+                  {/* Step 2: Train Brain */}
+                  <button
+                    onClick={() => setActiveView('knowledge-base')}
+                    className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                        2
+                      </div>
+                      <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">15 min</span>
+                    </div>
+                    <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">2. Train Your Brain</h3>
+                    <p className="text-xs text-indigo-100 leading-relaxed">Upload PDFs or add text to train your "Personal GPT" on your business.</p>
+                  </button>
+
+                  {/* Step 3: Connect Email */}
+                  <button
+                    onClick={() => setActiveView('settings')}
+                    className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                        3
+                      </div>
+                      <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">2 min</span>
+                    </div>
+                    <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">3. Connect Email</h3>
+                    <p className="text-xs text-indigo-100 leading-relaxed">Sync your Gmail so your AI can draft replies and book meetings.</p>
+                  </button>
+
+                  {/* Step 4: First Listing */}
+                  <button
+                    onClick={() => setActiveView('add-listing')}
+                    className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                        4
+                      </div>
+                      <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">10 min</span>
+                    </div>
+                    <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">4. Add Listing</h3>
+                    <p className="text-xs text-indigo-100 leading-relaxed">Create your first AI-powered property listing to see the magic.</p>
+                  </button>
+
+                  {/* Step 5: Funnels */}
+                  <button
+                    onClick={() => setActiveView('funnel-analytics')}
+                    className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                        5
+                      </div>
+                      <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">5 min</span>
+                    </div>
+                    <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">5. Review Funnels</h3>
+                    <p className="text-xs text-indigo-100 leading-relaxed">Check your automated follow-up sequences and customize them.</p>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {isLoadingProperties && properties.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
                 Loading listings…
