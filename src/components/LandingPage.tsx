@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LogoWithName } from './LogoWithName';
 import ChatBotFAB from './ChatBotFAB';
+import { SEO } from './SEO';
 
 // --- New Components for the Redesigned Page ---
 
@@ -1618,8 +1619,31 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
         setIsChatOpen(true);
     };
 
+
+
+    // ... (existing imports)
+
+    // ... (inside LandingPage component)
+
     return (
         <div className="bg-white font-sans">
+            <SEO
+                title="HomeListingAI - AI Real Estate Assistant"
+                description="Automate your real estate business with 24/7 AI agents. Lead qualification, scheduling, and marketing automation for modern realtors."
+                structuredData={{
+                    "@context": "https://schema.org",
+                    "@type": "SoftwareApplication",
+                    "name": "HomeListingAI",
+                    "applicationCategory": "BusinessApplication",
+                    "operatingSystem": "Web",
+                    "offers": {
+                        "@type": "Offer",
+                        "price": "89.00",
+                        "priceCurrency": "USD"
+                    },
+                    "description": "AI-powered real estate assistant for lead generation and management."
+                }}
+            />
             <Header
                 onNavigateToSignUp={onNavigateToSignUp}
                 onNavigateToSignIn={onNavigateToSignIn}

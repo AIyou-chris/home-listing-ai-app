@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
+import { HelmetProvider } from 'react-helmet-async'
 import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -28,29 +29,33 @@ if (import.meta.env.DEV) {
 
 const blueprintTree = (
   <StrictMode>
-    <HashRouter>
-      <ErrorBoundary>
-        <SchedulerProvider>
-          <ImpersonationProvider>
-            <AgentBrandingProvider>
-              <AgentDashboardBlueprint />
-            </AgentBrandingProvider>
-          </ImpersonationProvider>
-        </SchedulerProvider>
-      </ErrorBoundary>
-    </HashRouter>
+    <HelmetProvider>
+      <HashRouter>
+        <ErrorBoundary>
+          <SchedulerProvider>
+            <ImpersonationProvider>
+              <AgentBrandingProvider>
+                <AgentDashboardBlueprint />
+              </AgentBrandingProvider>
+            </ImpersonationProvider>
+          </SchedulerProvider>
+        </ErrorBoundary>
+      </HashRouter>
+    </HelmetProvider>
   </StrictMode>
 )
 
 const appTree = (
   <StrictMode>
-    <HashRouter>
-      <ErrorBoundary>
-        <SchedulerProvider>
-          <App />
-        </SchedulerProvider>
-      </ErrorBoundary>
-    </HashRouter>
+    <HelmetProvider>
+      <HashRouter>
+        <ErrorBoundary>
+          <SchedulerProvider>
+            <App />
+          </SchedulerProvider>
+        </ErrorBoundary>
+      </HashRouter>
+    </HelmetProvider>
   </StrictMode>
 )
 
