@@ -856,7 +856,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
             </button>
             <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-slate-900">{agentProfile.name}</p>
+                <p className="text-sm font-medium text-slate-900">{agentProfile.name || 'Agent'}</p>
                 <p className="text-xs text-slate-500">{agentProfile.title}</p>
               </div>
               {agentProfile.headshotUrl ? (

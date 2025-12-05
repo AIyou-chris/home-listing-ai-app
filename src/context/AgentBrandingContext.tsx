@@ -15,7 +15,7 @@ import {
 } from '../services/agentProfileService';
 import { getAuthenticatedAgentData, type AgentData } from '../services/agentDataService';
 import type { AgentProfile as UiAgentProfile } from '../types';
-import { SAMPLE_AGENT } from '../constants';
+import { EMPTY_AGENT } from '../constants';
 import { AgentBrandingContext } from './AgentBrandingContextInstance';
 
 const DEFAULT_BRAND_COLOR = '#0ea5e9';
@@ -81,7 +81,7 @@ const SOCIAL_KEY_MAP: Record<string, UiAgentProfile['socials'][number]['platform
 };
 
 const buildUiProfile = (profile?: CentralAgentProfile | null, agentData?: AgentData | null): UiAgentProfile => {
-  if (!profile && !agentData) return SAMPLE_AGENT;
+  if (!profile && !agentData) return EMPTY_AGENT;
 
   // 1. Basic Info - Prioritize AI Card (profile) over legacy agentData
   const name = profile?.name || (agentData ? `${agentData.first_name} ${agentData.last_name}` : '');
@@ -111,7 +111,7 @@ const buildUiProfile = (profile?: CentralAgentProfile | null, agentData?: AgentD
     .filter(([, url]) => typeof url === 'string' && url.trim().length > 0)
     .map(([platform, url]) => ({
       platform: (SOCIAL_KEY_MAP[platform] ??
-        SAMPLE_AGENT.socials[0]?.platform ??
+        EMPTY_AGENT.socials[0]?.platform ??
         'Instagram') as UiAgentProfile['socials'][number]['platform'],
       url: url as string
     }));
@@ -127,9 +127,9 @@ const buildUiProfile = (profile?: CentralAgentProfile | null, agentData?: AgentD
     headshotUrl: headshot || '',
     logoUrl: logo || undefined,
     brandColor,
-    socials: socials.length > 0 ? socials : SAMPLE_AGENT.socials,
+    socials: socials.length > 0 ? socials : EMPTY_AGENT.socials,
     slug: agentData?.slug,
-    language: profile?.language || SAMPLE_AGENT.language
+    language: profile?.language || EMPTY_AGENT.language
   };
 };
 
@@ -240,7 +240,7 @@ export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({
       if (profile?.socialMedia && profile.socialMedia[platform]) {
         return profile.socialMedia[platform] ?? '';
       }
-      const fallback = SAMPLE_AGENT.socials.find(
+      const fallback = EMPTY_AGENT.socials.find(
         (social) => social.platform.toLowerCase() === platform.toLowerCase()
       );
       return fallback?.url ?? '';
