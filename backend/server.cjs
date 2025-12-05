@@ -34,6 +34,8 @@ const {
   saveCalendarConnection
 } = require('./utils/calendarSettings');
 const createPaymentService = require('./services/paymentService');
+const createEmailService = require('./services/emailService');
+const createAgentOnboardingService = require('./services/agentOnboardingService');
 const dotenv = require('dotenv');
 
 // Load environment variables from root-level .env files first so the backend picks up shared config
@@ -212,6 +214,13 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   }
 });
 console.log('[server] has service role?', Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY));
+
+const emailService = createEmailService(supabaseAdmin);
+const agentOnboardingService = createAgentOnboardingService({
+  supabaseAdmin,
+  emailService,
+  dashboardBaseUrl: process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com'
+});
 
 const FOLLOW_UP_SEQUENCES_TABLE = 'follow_up_sequences_store';
 const FOLLOW_UP_ACTIVE_TABLE = 'follow_up_active_store';
@@ -7588,29 +7597,37 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     if (promoCode === 'FRIENDS30' || promoCode === 'LIFETIME') {
       const paymentStatus = promoCode === 'FRIENDS30' ? 'trial_30_days' : 'lifetime_free';
 
-      const { error: updateError } = await supabaseAdmin
-        .from('agents')
-        .update({
-          status: 'active',
-          payment_status: paymentStatus,
-          activated_at: new Date().toISOString()
-        })
-        .eq('slug', slug);
+      try {
+        // Use the onboarding service to handle everything (status update, dashboard creation, emails)
+        await agentOnboardingService.handlePaymentSuccess({
+          slug,
+          paymentProvider: 'promo_code',
+          paymentReference: promoCode,
+          amount: 0,
+          currency: 'usd',
+          isAdminBypass: false
+        });
 
-      if (updateError) {
-        console.error('Error applying promo code:', updateError);
+        // Override payment status to specific promo type
+        await supabaseAdmin
+          .from('agents')
+          .update({ payment_status: paymentStatus })
+          .eq('slug', slug);
+
+        const appBaseUrl = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'http://localhost:5173';
+
+        return res.json({
+          success: true,
+          session: {
+            url: `${appBaseUrl}/checkout/${slug}?status=success`
+          }
+        });
+      } catch (err) {
+        console.error('Error applying promo code via onboarding service:', err);
         return res.status(500).json({ success: false, error: 'Failed to apply promo code.' });
       }
-
-      const appBaseUrl = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'http://localhost:5173';
-
-      return res.json({
-        success: true,
-        session: {
-          url: `${appBaseUrl}/checkout/${slug}?status=success`
-        }
-      });
     }
+
 
     const session = await paymentService.createCheckoutSession({
       slug,
