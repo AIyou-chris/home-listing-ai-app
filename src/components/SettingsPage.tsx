@@ -1292,7 +1292,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         }
     };
 
-    const launchBillingCheckout = async (provider: 'stripe' | 'paypal') => {
+    const launchBillingCheckout = async (provider: 'paypal') => {
         if (isDemoMode) {
             alert('Settings are read-only in demo mode.');
             return;
@@ -2891,16 +2891,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
                             </div>
                         )}
 
-                        {activeTab !== 'notifications' &&
-                            activeTab !== 'email' &&
-                            activeTab !== 'calendar' &&
-                            activeTab !== 'security' &&
-                            activeTab !== 'billing' && (
-                                <div className="text-center py-20 p-8">
-                                    <h2 className="text-xl font-semibold text-slate-700">Coming Soon</h2>
-                                    <p className="text-slate-500 mt-2">This settings page is under construction.</p>
-                                </div>
-                            )}
+
                     </main>
                 </div>
             </div>
