@@ -1196,7 +1196,7 @@ const FaqSection: React.FC = () => {
         { q: "How quickly can I get started?", a: "You can build your first AI-powered listing app in under 10 minutes. Our guided system makes it incredibly simple—no technical skills required." },
         { q: "What makes this different from other lead tools?", a: "Instead of just being a contact form, we create an interactive experience for each listing. This engages buyers more deeply, pre-qualifies them, and delivers a much higher quality lead directly to you. You get the full conversation transcript, giving you valuable context to start a meaningful conversation." },
         { q: "How is pricing structured?", a: "We have a simple, per-listing monthly fee. Our limited-time launch pricing offers incredible value. There are no hidden fees, and you can cancel anytime." },
-        { q: "Is there really a 30-day money-back guarantee?", a: "Yes! We are so confident you'll love the results that we offer a no-questions-asked, 30-day money-back guarantee. If you don't get value, you don't pay." },
+        { q: "Is there really a 60-day money-back guarantee?", a: "Yes! We are so confident you'll love the results that we offer a no-questions-asked, 60-day money-back guarantee. If you don't get value, you don't pay." },
         { q: "Is my and my client's data secure?", a: "Yes, security is our top priority. All data is encrypted in transit and at rest using enterprise-grade security protocols. We are compliant with data privacy regulations, and you retain full ownership of your data. For trial accounts, all data is automatically purged after 7 days for your peace of mind." },
         { q: "What kind of support do you offer if I get stuck?", a: "We offer comprehensive support to all our users. This includes a detailed knowledge base, email support for all plans, and priority support for our Pro Team subscribers. We're here to ensure you get the most out of the platform." },
         { q: "Does this integrate with my existing CRM?", a: "We are constantly expanding our integrations. Currently, we offer robust integration options through tools like Zapier, which allows you to connect HomeListingAI to hundreds of popular CRMs and marketing platforms. Direct integrations with major CRMs are on our roadmap." },
@@ -1429,7 +1429,7 @@ const FinalCtaNew: React.FC<{ onNavigateToSignUp: () => void; onEnterDemoMode: (
             </div>
             <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-slate-300 animate-fade-in-up animation-delay-600">
                 <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>Setup in under 10 minutes</span>
-                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>30-day money-back guarantee</span>
+                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>60-day money-back guarantee</span>
                 <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>Cancel anytime</span>
             </div>
         </div>

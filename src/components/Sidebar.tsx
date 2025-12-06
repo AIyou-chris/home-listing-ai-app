@@ -59,8 +59,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
     { view: 'settings', icon: 'settings', label: 'Settings' },
   ];
 
-  const handleLogoClick = () => {
-    setView('dashboard');
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setView('landing');
+    window.location.hash = 'landing';
     onClose();
   };
 
@@ -78,12 +80,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
             ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}>
         <div className="flex justify-between items-center px-2 mb-6">
-          <button
+          <a
+            href="/"
             onClick={handleLogoClick}
             className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg"
           >
             <LogoWithName />
-          </button>
+          </a>
           <button onClick={onClose} className="md:hidden p-1 rounded-full text-slate-500 hover:bg-slate-100">
             <Icon name="close" />
           </button>

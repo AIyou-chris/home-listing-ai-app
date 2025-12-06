@@ -87,7 +87,7 @@ Upgrade now and get:
 ✅ Unlimited property listings
 ✅ Advanced AI features
 ✅ Priority support
-✅ 30-day money-back guarantee
+✅ 60-day money-back guarantee
 
 Ready to transform your business?
 

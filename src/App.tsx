@@ -989,9 +989,7 @@ const App: React.FC = () => {
         };
 
         const isMarketingLanding = view === 'landing' && !user && !isDemoMode && !isLocalAdmin;
-        const resolvedView = (user || isDemoMode || isLocalAdmin) && view === 'landing' ? 'dashboard' : view;
-
-
+        const resolvedView = view;
 
         if (isMarketingLanding) {
             return (
@@ -1046,6 +1044,18 @@ const App: React.FC = () => {
 
             const mainContent = () => {
                 switch (resolvedView) {
+                    case 'landing':
+                        return (
+                            <LandingPage
+                                onNavigateToSignUp={handleNavigateToSignUp}
+                                onNavigateToSignIn={handleNavigateToSignIn}
+                                onEnterDemoMode={handleEnterDemoMode}
+                                scrollToSection={scrollToSection}
+                                onScrollComplete={() => setScrollToSection(null)}
+                                onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                                onNavigateToAdmin={handleNavigateToAdmin}
+                            />
+                        );
                     case 'demo-dashboard':
                         if (!isDemoMode) {
                             localStorage.setItem('isDemoMode', 'true');
@@ -1177,6 +1187,11 @@ const App: React.FC = () => {
 
             // If we are using the Blueprint Dashboard (which has its own layout), return it directly
             if (resolvedView === 'demo-dashboard' || resolvedView === 'dashboard-blueprint') {
+                return mainContent();
+            }
+
+            // If we are on landing page, return it directly (layout is handled by component)
+            if (resolvedView === 'landing') {
                 return mainContent();
             }
 
