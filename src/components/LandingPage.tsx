@@ -1468,10 +1468,10 @@ const FooterNew: React.FC<{ onNavigateToAdmin: () => void; }> = ({ onNavigateToA
                 <div>
                     <h3 className="text-sm font-semibold text-white mb-3">Legal</h3>
                     <ul className="space-y-2 text-sm">
-                        <li><a href="/terms-of-service.html" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Terms of Service</a></li>
-                        <li><a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                        <li><a href="#" className="hover:text-white transition-colors">Compliance Policy</a></li>
-                        <li><a href="#" className="hover:text-white transition-colors">DMCA Policy</a></li>
+                        <li><a href="/terms-of-service.html" target="_blank" className="hover:text-white transition-colors">Terms of Service</a></li>
+                        <li><a href="/privacy-policy.html" target="_blank" className="hover:text-white transition-colors">Privacy Policy</a></li>
+                        <li><span className="text-slate-500 cursor-not-allowed">Compliance Policy</span></li>
+                        <li><span className="text-slate-500 cursor-not-allowed">DMCA Policy</span></li>
                     </ul>
                 </div>
 
