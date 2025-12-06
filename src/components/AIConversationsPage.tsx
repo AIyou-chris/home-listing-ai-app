@@ -77,7 +77,7 @@ const parseConversationMetadata = (metadata: unknown): ConversationMetadata => {
   const record = { ...(metadata as Record<string, unknown>) };
   const durationValue = record.duration;
   if (typeof durationValue === 'string' || durationValue === null) {
-    return { ...record, duration: durationValue };
+    return { ...record, duration: durationValue as string | null };
   }
 
   delete (record as { duration?: unknown }).duration;
@@ -211,7 +211,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
 
       const rows = await listConversations({
         userId: currentUserId ?? undefined,
-        scope: 'admin'
+        scope: 'agent'
       });
       const mapped = rows.map(mapConversationRowToSummary);
       setConversations(mapped);
@@ -595,8 +595,8 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                   key={conversation.id}
                   onClick={() => setSelectedConversationId(conversation.id)}
                   className={`w-full text-left bg-white border rounded-xl shadow-sm p-4 hover:border-primary-500 transition-colors ${selectedConversationId === conversation.id
-                      ? 'border-primary-500 ring-2 ring-primary-100'
-                      : 'border-slate-200'
+                    ? 'border-primary-500 ring-2 ring-primary-100'
+                    : 'border-slate-200'
                     }`}
                 >
                   <div className="flex items-start justify-between">
@@ -694,6 +694,18 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                         onClick={async () => {
                           if (!selectedConversationSummary) return;
                           if (!window.confirm('Delete this conversation? This cannot be undone.')) return;
+
+                          if (isDemoMode) {
+                            setConversations((prev) => prev.filter((c) => c.id !== selectedConversationSummary.id));
+                            setMessagesByConversation((prev) => {
+                              const next = { ...prev };
+                              delete next[selectedConversationSummary.id];
+                              return next;
+                            });
+                            setSelectedConversationId(null);
+                            return;
+                          }
+
                           try {
                             await deleteConversation(selectedConversationSummary.id);
                             setMessagesByConversation((prev) => {

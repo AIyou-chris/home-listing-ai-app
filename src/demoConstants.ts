@@ -639,6 +639,23 @@ export const DEMO_ANALYTICS_DATA: AnalyticsData = {
 
 export const DEMO_CONVERSATIONS = [
   {
+    id: 'conv-demo-welcome',
+    contactName: 'AI Concierge',
+    contactEmail: 'concierge@homelisting.ai',
+    contactPhone: '',
+    type: 'chat',
+    lastMessage: 'Welcome! I am here to help you manage your conversations.',
+    timestamp: new Date().toISOString(),
+    duration: null,
+    status: 'active',
+    messageCount: 1,
+    property: 'Dashboard',
+    tags: ['Welcome', 'System'],
+    intent: 'Onboarding',
+    language: 'English',
+    followUpTask: null
+  },
+  {
     id: 'conv-demo-1',
     contactName: 'Marcus Chen',
     contactEmail: 'marcus.chen@techcorp.com',
@@ -693,6 +710,15 @@ export const DEMO_CONVERSATIONS = [
 ];
 
 export const DEMO_MESSAGES = {
+  'conv-demo-welcome': [
+    {
+      id: 'msg-welcome-1',
+      sender: 'ai',
+      channel: 'chat',
+      timestamp: new Date().toISOString(),
+      text: 'Welcome to your AI Conversations Inbox! 🚀\n\nHere you can see how I interact with your leads, handle objections, and schedule appointments.\n\nTry exporting a CSV, filtering by "Voice", or check the "Deep Dive" panel to see transcripts and translations.\n\nYou can delete this message when you are ready to start!'
+    }
+  ],
   'conv-demo-1': [
     {
       id: 'msg-1',
