@@ -11,15 +11,15 @@ import CalendarView from './CalendarView';
 import ExportModal from './ExportModal';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: string, iconBgColor: string }> = ({ title, value, icon, iconBgColor }) => (
-  <div className="bg-white rounded-lg shadow-sm p-5 flex items-center space-x-4">
-    <div className={`rounded-full p-3 ${iconBgColor}`}>
-        <span className="material-symbols-outlined w-6 h-6">{icon}</span>
+    <div className="bg-white rounded-lg shadow-sm p-5 flex items-center space-x-4">
+        <div className={`rounded-full p-3 ${iconBgColor}`}>
+            <span className="material-symbols-outlined w-6 h-6">{icon}</span>
+        </div>
+        <div>
+            <p className="text-3xl font-bold text-slate-800">{value}</p>
+            <p className="text-sm font-medium text-slate-500">{title}</p>
+        </div>
     </div>
-    <div>
-        <p className="text-3xl font-bold text-slate-800">{value}</p>
-        <p className="text-sm font-medium text-slate-500">{title}</p>
-    </div>
-  </div>
 );
 
 const LeadStatusBadge: React.FC<{ status: LeadStatus }> = ({ status }) => {
@@ -186,11 +186,10 @@ const LeadsList: React.FC<{
                                                     key={option.id}
                                                     type="button"
                                                     onClick={() => handleAssign(lead, option.id)}
-                                                    className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
-                                                        isActive
+                                                    className={`rounded-2xl border px-4 py-3 text-left transition-colors ${isActive
                                                             ? `${option.accent} shadow-sm`
                                                             : 'border-slate-200 text-slate-600 hover:border-primary-200 hover:bg-primary-50/50'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     <div className="flex items-center gap-2 text-sm font-semibold">
                                                         <span className="material-symbols-outlined text-base">{option.icon}</span>
@@ -452,7 +451,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
         setContactingLead(lead);
         setIsContactModalOpen(true);
     };
-    
+
     const handleCloseContactModal = () => {
         setIsContactModalOpen(false);
         setContactingLead(null);
@@ -471,7 +470,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     return (
         <>
             <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-                 <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
+                <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
                     <span className="material-symbols-outlined w-5 h-5">arrow_back</span>
                     <span>Back to Dashboard</span>
                 </button>
@@ -484,21 +483,21 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                         )}
                     </div>
                     <div className="flex items-center gap-2">
-                        <button 
+                        <button
                             onClick={() => setIsAddLeadModalOpen(true)}
                             className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition"
                         >
                             <span className="material-symbols-outlined w-5 h-5">add</span>
                             <span>Add New Lead</span>
                         </button>
-                        <button 
+                        <button
                             onClick={() => handleOpenScheduleModal()}
                             className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold shadow-sm hover:bg-green-600 transition"
                         >
                             <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
                             <span>Schedule Appointment</span>
                         </button>
-                        <button 
+                        <button
                             onClick={handleOpenExportModal}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg font-semibold shadow-sm hover:bg-slate-700 transition"
                         >
@@ -550,14 +549,14 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                 <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <StatCard title="Total Leads" value={leads.length} icon="group" iconBgColor="bg-blue-100" />
                     <StatCard title="Appointments" value={appointments.length} icon="calendar_today" iconBgColor="bg-green-100" />
-                    <StatCard title="Converted" value={1} icon="check" iconBgColor="bg-purple-100" />
+                    <StatCard title="Converted" value={0} icon="check" iconBgColor="bg-purple-100" />
                     <StatCard title="Pending" value={0} icon="schedule" iconBgColor="bg-orange-100" />
                 </section>
-                
+
                 <main>
                     <div className="border-b border-slate-200 mb-6">
                         <nav className="flex space-x-2">
-                            <TabButton 
+                            <TabButton
                                 isActive={activeTab === 'leads'}
                                 onClick={() => setActiveTab('leads')}
                                 icon="group"
@@ -565,7 +564,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                             >
                                 Leads
                             </TabButton>
-                             <TabButton 
+                            <TabButton
                                 isActive={activeTab === 'appointments'}
                                 onClick={() => setActiveTab('appointments')}
                                 icon="calendar_today"
@@ -575,7 +574,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                             </TabButton>
                         </nav>
                     </div>
-                    
+
                     {activeTab === 'leads' &&
                         <div className="bg-white rounded-lg shadow-sm border border-slate-200/80 p-4 mb-6">
                             <div className="flex items-center justify-between">
@@ -627,7 +626,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                 </main>
             </div>
             {isAddLeadModalOpen && (
-                <AddLeadModal 
+                <AddLeadModal
                     onClose={() => setIsAddLeadModalOpen(false)}
                     onAddLead={(leadData) => {
                         onAddNewLead(leadData);
@@ -635,8 +634,8 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     }}
                 />
             )}
-             {isScheduleModalOpen && (
-                <ScheduleAppointmentModal 
+            {isScheduleModalOpen && (
+                <ScheduleAppointmentModal
                     lead={schedulingLead}
                     onClose={handleCloseScheduleModal}
                     onSchedule={async (apptData: ScheduleAppointmentFormData) => {
@@ -694,42 +693,41 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     }}
                 />
             )}
-              {isContactModalOpen && contactingLead && (
-                 <ContactLeadModal
-                     lead={contactingLead}
-                     onClose={handleCloseContactModal}
-                     onSchedule={() => handleSwitchToSchedule(contactingLead)}
-                 />
-             )}
-             {isExportModalOpen && (
-                 <ExportModal
-                     isOpen={isExportModalOpen}
-                     onClose={() => setIsExportModalOpen(false)}
-                     leads={leads}
-                     appointments={appointments}
-                 />
-             )}
-         </>
-     );
- }
- 
- const TabButton: React.FC<{ isActive: boolean; onClick: () => void; icon: string; count: number; children: React.ReactNode }> = ({ isActive, onClick, icon, count, children }) => {
-     return (
-         <button
-             onClick={onClick}
-             className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
-                 isActive
-                     ? 'border-b-2 border-primary-600 text-primary-600'
-                     : 'text-slate-500 hover:text-slate-800'
-             }`}
-         >
-             <span className="material-symbols-outlined w-5 h-5">{icon}</span>
-             <span>{children}</span>
-             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'}`}>
-                 {count}
-             </span>
-         </button>
-     );
- };
- 
- export default LeadsAndAppointmentsPage;
+            {isContactModalOpen && contactingLead && (
+                <ContactLeadModal
+                    lead={contactingLead}
+                    onClose={handleCloseContactModal}
+                    onSchedule={() => handleSwitchToSchedule(contactingLead)}
+                />
+            )}
+            {isExportModalOpen && (
+                <ExportModal
+                    isOpen={isExportModalOpen}
+                    onClose={() => setIsExportModalOpen(false)}
+                    leads={leads}
+                    appointments={appointments}
+                />
+            )}
+        </>
+    );
+}
+
+const TabButton: React.FC<{ isActive: boolean; onClick: () => void; icon: string; count: number; children: React.ReactNode }> = ({ isActive, onClick, icon, count, children }) => {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${isActive
+                    ? 'border-b-2 border-primary-600 text-primary-600'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+        >
+            <span className="material-symbols-outlined w-5 h-5">{icon}</span>
+            <span>{children}</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'}`}>
+                {count}
+            </span>
+        </button>
+    );
+};
+
+export default LeadsAndAppointmentsPage;
