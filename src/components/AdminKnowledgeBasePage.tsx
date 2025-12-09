@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AgentProfile } from '../types';
 import { generateText } from '../services/geminiService';
+import { supabase } from '../services/supabase';
+import { listKb, uploadFileKb, deleteKb, addTextKb, addUrlKb, type KbEntry, type SidekickId } from '../services/supabaseKb';
+import { scrapeWebsite } from '../services/scraperService';
 
 interface AdminKnowledgeBasePageProps {
     agentProfile: AgentProfile;
@@ -10,9 +13,20 @@ type TabId = 'agent' | 'listing' | 'personalities' | 'conversations' | 'marketin
 
 const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentProfile: _agentProfile }) => {
     const [activeTab, setActiveTab] = useState<TabId>('agent');
-    const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+    const [uploadedFiles, setUploadedFiles] = useState<KbEntry[]>([]);
     const [isDragging, setIsDragging] = useState(false);
-    
+    const [isUploading, setIsUploading] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
+
+    // Knowledge Base Input State
+    const [knowledgeTitle, setKnowledgeTitle] = useState('');
+    const [knowledgeContent, setKnowledgeContent] = useState('');
+    const [websiteUrl, setWebsiteUrl] = useState('');
+    const [scrapingFrequency, setScrapingFrequency] = useState('once');
+    const [isAddingKnowledge, setIsAddingKnowledge] = useState(false);
+    const [isScraping, setIsScraping] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+
     // AI Personalities State
     const [aiSidekicks, setAiSidekicks] = useState({
         listing: { personality: 'professional', voice: 'female-1' },
@@ -20,8 +34,68 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
         helper: { personality: 'enthusiastic', voice: 'female-2' }
     });
     const [testInput, setTestInput] = useState('');
-    const [testResults, setTestResults] = useState<{[key: string]: string}>({});
+    const [testResults, setTestResults] = useState<{ [key: string]: string }>({});
     const [isTesting, setIsTesting] = useState(false);
+
+    useEffect(() => {
+        supabase.auth.getUser().then(({ data }) => {
+            if (data?.user?.id) {
+                setUserId(data.user.id);
+                loadKb(data.user.id);
+            }
+        });
+    }, []);
+
+    const loadKb = async (uid: string) => {
+        try {
+            // Load all knowledge base entries for the user
+            const entries = await listKb(uid);
+            setUploadedFiles(entries);
+        } catch (error) {
+            console.error('Error loading knowledge base:', error);
+        }
+    };
+
+    const getSidekickIdForTab = (tab: TabId): SidekickId => {
+        switch (tab) {
+            case 'agent': return 'agent';
+            case 'listing': return 'listing';
+            case 'marketing': return 'marketing';
+            default: return 'main';
+        }
+    };
+
+    const handleFileUpload = async (files: File[]) => {
+        if (!userId) {
+            alert('Please sign in to upload files.');
+            return;
+        }
+
+        setIsUploading(true);
+        const sidekickId = getSidekickIdForTab(activeTab);
+
+        try {
+            for (const file of files) {
+                await uploadFileKb(userId, sidekickId, file);
+            }
+            await loadKb(userId);
+        } catch (error) {
+            console.error('Upload failed:', error);
+            alert('Failed to upload file. Please try again.');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleDeleteFile = async (entry: KbEntry) => {
+        try {
+            await deleteKb(entry);
+            setUploadedFiles(prev => prev.filter(f => f.id !== entry.id));
+        } catch (error) {
+            console.error('Delete failed:', error);
+            alert('Failed to delete file.');
+        }
+    };
 
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
@@ -40,45 +114,139 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
         e.stopPropagation();
     };
 
-    const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(false);
-        
+
         const files = Array.from(e.dataTransfer.files);
-        const fileNames = files.map(file => file.name);
-        setUploadedFiles(prev => [...prev, ...fileNames]);
+        await handleFileUpload(files);
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleAddTextKnowledge = async () => {
+        if (!userId || !knowledgeTitle.trim() || !knowledgeContent.trim()) return;
+
+        setIsAddingKnowledge(true);
+        const sidekickId = getSidekickIdForTab(activeTab);
+
+        try {
+            await addTextKb(userId, sidekickId, knowledgeTitle.trim(), knowledgeContent.trim());
+            await loadKb(userId);
+            setKnowledgeTitle('');
+            setKnowledgeContent('');
+        } catch (error) {
+            console.error('Failed to add text knowledge:', error);
+            alert('Failed to add knowledge.');
+        } finally {
+            setIsAddingKnowledge(false);
+        }
+    };
+
+    const handleUrlScraping = async () => {
+        if (!userId || !websiteUrl.trim()) return;
+
+        setIsScraping(true);
+        const sidekickId = getSidekickIdForTab(activeTab);
+
+        try {
+            const trimmedUrl = websiteUrl.trim();
+            let title = trimmedUrl;
+            let content = "";
+
+            try {
+                const scrapedData = await scrapeWebsite(trimmedUrl);
+                title = scrapedData.title;
+                content = scrapedData.content;
+            } catch (scrapeError) {
+                console.warn("Scraping failed, falling back to storing URL only", scrapeError);
+                // We'll proceed with empty content, so it just stores the URL reference
+            }
+
+            await addUrlKb(userId, sidekickId, title, trimmedUrl, content);
+            await loadKb(userId);
+            setWebsiteUrl('');
+        } catch (error) {
+            console.error('Failed to add URL:', error);
+            alert('Failed to save URL.');
+        } finally {
+            setIsScraping(false);
+        }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const files = Array.from(e.target.files);
-            const fileNames = files.map(file => file.name);
-            setUploadedFiles(prev => [...prev, ...fileNames]);
+            await handleFileUpload(files);
         }
     };
 
     const handlePersonalityTest = async () => {
         if (!testInput.trim()) return;
-        
+
         setIsTesting(true);
-        const results: {[key: string]: string} = {};
-        
+        const results: { [key: string]: string } = {};
+
         // Simulate AI responses for each personality
         const personalities = {
             listing: aiSidekicks.listing.personality,
             agent: aiSidekicks.agent.personality,
             helper: aiSidekicks.helper.personality
         };
-        
+
         for (const [sidekick, personality] of Object.entries(personalities)) {
-            const response = await generateText(`Respond to: "${testInput}" with a ${personality} personality. Keep it brief and natural.`);
+            // Map generic sidekick keys to specific knowledge base sidekick IDs if needed
+            // 'helper' could map to 'marketing' or 'support' depending on your setup.
+            // For now we check for direct matches or fallback to 'marketing' for helper.
+            const kbSidekickId = sidekick === 'helper' ? 'marketing' : sidekick;
+
+            const relevantEntries = uploadedFiles.filter(f => f.sidekick === kbSidekickId);
+
+            let context = "";
+            if (relevantEntries.length > 0) {
+                const summaries = relevantEntries.map(e => {
+                    if (e.type === 'file') return `Document: ${e.title}`;
+                    // Truncate content to avoid huge prompts
+                    const contentPreview = e.content ? e.content.substring(0, 300) + (e.content.length > 300 ? '...' : '') : '';
+                    if (e.type === 'url') return `Webpage: ${e.title}\nContent: ${contentPreview}`;
+                    if (e.type === 'text') return `Note: ${e.title}\nContent: ${contentPreview}`;
+                    return `Entry: ${e.title}`;
+                });
+                context = `[Knowledge Base Context:\n${summaries.join('\n\n')}\n] `;
+            }
+
+            const response = await generateText(`Respond to: "${testInput}" with a ${personality} personality. ${context}Keep it brief and natural.`);
             results[sidekick] = response;
         }
-        
+
         setTestResults(results);
         setIsTesting(false);
     };
+
+    const filterFiles = (sidekickId: SidekickId) => {
+        return uploadedFiles.filter(f =>
+            f.sidekick === sidekickId &&
+            (searchTerm === '' ||
+                f.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (f.content && f.content.toLowerCase().includes(searchTerm.toLowerCase())))
+        );
+    };
+
+
+
+    const SearchBar = () => (
+        <div className="mb-4">
+            <div className="relative">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                <input
+                    type="text"
+                    placeholder="Search knowledge base..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+            </div>
+        </div>
+    );
 
     const tabs: Array<{ id: TabId; label: string; icon: string }> = [
         { id: 'agent', label: 'Admin Agent Knowledge Base', icon: 'person' },
@@ -104,11 +272,10 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${
-                                        activeTab === tab.id
-                                            ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
-                                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                                    }`}
+                                    className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab.id
+                                        ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                        }`}
                                 >
                                     <span className="material-symbols-outlined w-5 h-5">{tab.icon}</span>
                                     {tab.label}
@@ -133,41 +300,136 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
                                 onDragLeave={handleDragLeave}
                                 onDragOver={handleDragOver}
                                 onDrop={handleDrop}
-                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                                    isDragging ? 'border-primary-500 bg-primary-50' : 'border-slate-300'
-                                }`}
+                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging ? 'border-primary-500 bg-primary-50' : 'border-slate-300'
+                                    }`}
                             >
                                 <span className="material-symbols-outlined text-4xl text-slate-400 mb-4">cloud_upload</span>
                                 <h3 className="text-lg font-semibold text-slate-900 mb-2">Upload Files</h3>
                                 <p className="text-slate-600 mb-4">Drag and drop files here or click to browse</p>
-                                <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg cursor-pointer hover:bg-primary-700 transition-colors">
-                                    <span className="material-symbols-outlined">upload</span>
-                                    Choose Files
+                                <label className={`inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg cursor-pointer hover:bg-primary-700 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <span className="material-symbols-outlined max-w-[24px]">upload</span>
+                                    {isUploading ? 'Uploading...' : 'Choose Files'}
                                     <input
                                         type="file"
                                         multiple
                                         className="hidden"
                                         onChange={handleFileChange}
+                                        disabled={isUploading}
                                     />
                                 </label>
                             </div>
 
+                            {/* Two Column Layout for Text and URL */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                                {/* Add Text Knowledge */}
+                                <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="material-symbols-outlined text-orange-600">edit_note</span>
+                                        <h4 className="text-lg font-semibold text-orange-900">Add Text Knowledge</h4>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-orange-800 mb-2">Title</label>
+                                            <input
+                                                type="text"
+                                                value={knowledgeTitle}
+                                                onChange={(e) => setKnowledgeTitle(e.target.value)}
+                                                placeholder="e.g., Sales Script, FAQ..."
+                                                className="w-full px-3 py-2 border border-orange-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-orange-800 mb-2">Content</label>
+                                            <textarea
+                                                value={knowledgeContent}
+                                                onChange={(e) => setKnowledgeContent(e.target.value)}
+                                                placeholder="Enter knowledge content..."
+                                                rows={4}
+                                                className="w-full px-3 py-2 border border-orange-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={handleAddTextKnowledge}
+                                            disabled={isAddingKnowledge || !knowledgeTitle.trim() || !knowledgeContent.trim()}
+                                            className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                                        >
+                                            {isAddingKnowledge ? 'Adding...' : 'Add Knowledge'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* URL Scraper */}
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="material-symbols-outlined text-green-600">language</span>
+                                        <h4 className="text-lg font-semibold text-green-900">URL Scraper</h4>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-green-800 mb-2">Website URL</label>
+                                            <input
+                                                type="url"
+                                                value={websiteUrl}
+                                                onChange={(e) => setWebsiteUrl(e.target.value)}
+                                                placeholder="https://example.com"
+                                                className="w-full px-3 py-2 border border-green-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-green-800 mb-2">Frequency</label>
+                                            <select
+                                                value={scrapingFrequency}
+                                                onChange={(e) => setScrapingFrequency(e.target.value)}
+                                                className="w-full px-3 py-2 border border-green-300 rounded-lg"
+                                            >
+                                                <option value="once">Once</option>
+                                                <option value="daily">Daily</option>
+                                                <option value="weekly">Weekly</option>
+                                            </select>
+                                        </div>
+                                        <button
+                                            onClick={handleUrlScraping}
+                                            disabled={isScraping || !websiteUrl.trim()}
+                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                        >
+                                            {isScraping ? 'Scraping...' : 'Scrape Website'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Uploaded Files */}
-                            {uploadedFiles.length > 0 && (
+                            {uploadedFiles.some(f => f.sidekick === 'agent') && (
                                 <div className="mt-8">
                                     <h3 className="text-lg font-semibold text-slate-900 mb-4">Uploaded Files</h3>
+                                    <SearchBar />
                                     <div className="space-y-2">
-                                        {uploadedFiles.map((fileName, index) => (
-                                            <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                                                <span className="text-slate-700">{fileName}</span>
+                                        {filterFiles('agent').map((file) => (
+                                            <div key={file.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="material-symbols-outlined text-slate-400">
+                                                        {file.type === 'file' ? 'description' : file.type === 'url' ? 'link' : 'article'}
+                                                    </span>
+                                                    <div>
+                                                        <span className="text-slate-700 font-medium block">{file.title}</span>
+                                                        {file.type !== 'file' && file.content && (
+                                                            <span className="text-slate-500 text-xs block truncate max-w-xs">{file.content}</span>
+                                                        )}
+                                                        <span className="text-slate-400 text-xs">{new Date(file.created_at).toLocaleDateString()} • {file.type.toUpperCase()}</span>
+                                                    </div>
+                                                </div>
                                                 <button
-                                                    onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
+                                                    onClick={() => handleDeleteFile(file)}
                                                     className="text-red-500 hover:text-red-700"
+                                                    title="Delete"
                                                 >
                                                     <span className="material-symbols-outlined">delete</span>
                                                 </button>
                                             </div>
                                         ))}
+                                        {filterFiles('agent').length === 0 && (
+                                            <p className="text-slate-500 text-center py-4">No matching knowledge found.</p>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -187,24 +449,139 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
                                 onDragLeave={handleDragLeave}
                                 onDragOver={handleDragOver}
                                 onDrop={handleDrop}
-                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                                    isDragging ? 'border-primary-500 bg-primary-50' : 'border-slate-300'
-                                }`}
+                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging ? 'border-primary-500 bg-primary-50' : 'border-slate-300'
+                                    }`}
                             >
                                 <span className="material-symbols-outlined text-4xl text-slate-400 mb-4">home</span>
                                 <h3 className="text-lg font-semibold text-slate-900 mb-2">Upload Listing Files</h3>
                                 <p className="text-slate-600 mb-4">Drag and drop property documents here or click to browse</p>
-                                <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg cursor-pointer hover:bg-primary-700 transition-colors">
-                                    <span className="material-symbols-outlined">upload</span>
-                                    Choose Files
+                                <label className={`inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg cursor-pointer hover:bg-primary-700 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <span className="material-symbols-outlined max-w-[24px]">upload</span>
+                                    {isUploading ? 'Uploading...' : 'Choose Files'}
                                     <input
                                         type="file"
                                         multiple
                                         className="hidden"
                                         onChange={handleFileChange}
+                                        disabled={isUploading}
                                     />
                                 </label>
                             </div>
+
+                            {/* Two Column Layout for Text and URL */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                                {/* Add Text Knowledge */}
+                                <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="material-symbols-outlined text-orange-600">edit_note</span>
+                                        <h4 className="text-lg font-semibold text-orange-900">Add Text Knowledge</h4>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-orange-800 mb-2">Title</label>
+                                            <input
+                                                type="text"
+                                                value={knowledgeTitle}
+                                                onChange={(e) => setKnowledgeTitle(e.target.value)}
+                                                placeholder="e.g., Sales Script, FAQ..."
+                                                className="w-full px-3 py-2 border border-orange-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-orange-800 mb-2">Content</label>
+                                            <textarea
+                                                value={knowledgeContent}
+                                                onChange={(e) => setKnowledgeContent(e.target.value)}
+                                                placeholder="Enter knowledge content..."
+                                                rows={4}
+                                                className="w-full px-3 py-2 border border-orange-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={handleAddTextKnowledge}
+                                            disabled={isAddingKnowledge || !knowledgeTitle.trim() || !knowledgeContent.trim()}
+                                            className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                                        >
+                                            {isAddingKnowledge ? 'Adding...' : 'Add Knowledge'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* URL Scraper */}
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="material-symbols-outlined text-green-600">language</span>
+                                        <h4 className="text-lg font-semibold text-green-900">URL Scraper</h4>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-green-800 mb-2">Website URL</label>
+                                            <input
+                                                type="url"
+                                                value={websiteUrl}
+                                                onChange={(e) => setWebsiteUrl(e.target.value)}
+                                                placeholder="https://example.com"
+                                                className="w-full px-3 py-2 border border-green-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-green-800 mb-2">Frequency</label>
+                                            <select
+                                                value={scrapingFrequency}
+                                                onChange={(e) => setScrapingFrequency(e.target.value)}
+                                                className="w-full px-3 py-2 border border-green-300 rounded-lg"
+                                            >
+                                                <option value="once">Once</option>
+                                                <option value="daily">Daily</option>
+                                                <option value="weekly">Weekly</option>
+                                            </select>
+                                        </div>
+                                        <button
+                                            onClick={handleUrlScraping}
+                                            disabled={isScraping || !websiteUrl.trim()}
+                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                        >
+                                            {isScraping ? 'Scraping...' : 'Scrape Website'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Uploaded Files */}
+                            {uploadedFiles.some(f => f.sidekick === 'listing') && (
+                                <div className="mt-8">
+                                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Uploaded Files</h3>
+                                    <SearchBar />
+                                    <div className="space-y-2">
+                                        {filterFiles('listing').map((file) => (
+                                            <div key={file.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="material-symbols-outlined text-slate-400">
+                                                        {file.type === 'file' ? 'description' : file.type === 'url' ? 'link' : 'article'}
+                                                    </span>
+                                                    <div>
+                                                        <span className="text-slate-700 font-medium block">{file.title}</span>
+                                                        {file.type !== 'file' && file.content && (
+                                                            <span className="text-slate-500 text-xs block truncate max-w-xs">{file.content}</span>
+                                                        )}
+                                                        <span className="text-slate-400 text-xs">{new Date(file.created_at).toLocaleDateString()} • {file.type.toUpperCase()}</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeleteFile(file)}
+                                                    className="text-red-500 hover:text-red-700"
+                                                    title="Delete"
+                                                >
+                                                    <span className="material-symbols-outlined">delete</span>
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {filterFiles('listing').length === 0 && (
+                                            <p className="text-slate-500 text-center py-4">No matching knowledge found.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -408,24 +785,139 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
                                 onDragLeave={handleDragLeave}
                                 onDragOver={handleDragOver}
                                 onDrop={handleDrop}
-                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                                    isDragging ? 'border-primary-500 bg-primary-50' : 'border-slate-300'
-                                }`}
+                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging ? 'border-primary-500 bg-primary-50' : 'border-slate-300'
+                                    }`}
                             >
                                 <span className="material-symbols-outlined text-4xl text-slate-400 mb-4">campaign</span>
                                 <h3 className="text-lg font-semibold text-slate-900 mb-2">Upload Marketing Files</h3>
                                 <p className="text-slate-600 mb-4">Drag and drop marketing materials here or click to browse</p>
-                                <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg cursor-pointer hover:bg-primary-700 transition-colors">
-                                    <span className="material-symbols-outlined">upload</span>
-                                    Choose Files
+                                <label className={`inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg cursor-pointer hover:bg-primary-700 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <span className="material-symbols-outlined max-w-[24px]">upload</span>
+                                    {isUploading ? 'Uploading...' : 'Choose Files'}
                                     <input
                                         type="file"
                                         multiple
                                         className="hidden"
                                         onChange={handleFileChange}
+                                        disabled={isUploading}
                                     />
                                 </label>
                             </div>
+
+                            {/* Two Column Layout for Text and URL */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                                {/* Add Text Knowledge */}
+                                <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="material-symbols-outlined text-orange-600">edit_note</span>
+                                        <h4 className="text-lg font-semibold text-orange-900">Add Text Knowledge</h4>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-orange-800 mb-2">Title</label>
+                                            <input
+                                                type="text"
+                                                value={knowledgeTitle}
+                                                onChange={(e) => setKnowledgeTitle(e.target.value)}
+                                                placeholder="e.g., Sales Script, FAQ..."
+                                                className="w-full px-3 py-2 border border-orange-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-orange-800 mb-2">Content</label>
+                                            <textarea
+                                                value={knowledgeContent}
+                                                onChange={(e) => setKnowledgeContent(e.target.value)}
+                                                placeholder="Enter knowledge content..."
+                                                rows={4}
+                                                className="w-full px-3 py-2 border border-orange-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={handleAddTextKnowledge}
+                                            disabled={isAddingKnowledge || !knowledgeTitle.trim() || !knowledgeContent.trim()}
+                                            className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                                        >
+                                            {isAddingKnowledge ? 'Adding...' : 'Add Knowledge'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* URL Scraper */}
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="material-symbols-outlined text-green-600">language</span>
+                                        <h4 className="text-lg font-semibold text-green-900">URL Scraper</h4>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-green-800 mb-2">Website URL</label>
+                                            <input
+                                                type="url"
+                                                value={websiteUrl}
+                                                onChange={(e) => setWebsiteUrl(e.target.value)}
+                                                placeholder="https://example.com"
+                                                className="w-full px-3 py-2 border border-green-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-green-800 mb-2">Frequency</label>
+                                            <select
+                                                value={scrapingFrequency}
+                                                onChange={(e) => setScrapingFrequency(e.target.value)}
+                                                className="w-full px-3 py-2 border border-green-300 rounded-lg"
+                                            >
+                                                <option value="once">Once</option>
+                                                <option value="daily">Daily</option>
+                                                <option value="weekly">Weekly</option>
+                                            </select>
+                                        </div>
+                                        <button
+                                            onClick={handleUrlScraping}
+                                            disabled={isScraping || !websiteUrl.trim()}
+                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                        >
+                                            {isScraping ? 'Scraping...' : 'Scrape Website'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Uploaded Files */}
+                            {uploadedFiles.some(f => f.sidekick === 'marketing') && (
+                                <div className="mt-8">
+                                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Uploaded Files</h3>
+                                    <SearchBar />
+                                    <div className="space-y-2">
+                                        {filterFiles('marketing').map((file) => (
+                                            <div key={file.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="material-symbols-outlined text-slate-400">
+                                                        {file.type === 'file' ? 'description' : file.type === 'url' ? 'link' : 'article'}
+                                                    </span>
+                                                    <div>
+                                                        <span className="text-slate-700 font-medium block">{file.title}</span>
+                                                        {file.type !== 'file' && file.content && (
+                                                            <span className="text-slate-500 text-xs block truncate max-w-xs">{file.content}</span>
+                                                        )}
+                                                        <span className="text-slate-400 text-xs">{new Date(file.created_at).toLocaleDateString()} • {file.type.toUpperCase()}</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeleteFile(file)}
+                                                    className="text-red-500 hover:text-red-700"
+                                                    title="Delete"
+                                                >
+                                                    <span className="material-symbols-outlined">delete</span>
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {filterFiles('marketing').length === 0 && (
+                                            <p className="text-slate-500 text-center py-4">No matching knowledge found.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

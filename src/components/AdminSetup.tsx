@@ -13,8 +13,8 @@ const AdminSetup: React.FC = () => {
         setMessage(null);
 
         try {
-            // Use HTTP function to avoid CORS issues
-            const response = await fetch('https://us-central1-home-listing-ai.cloudfunctions.net/setupInitialAdminHttp', {
+            // Use local endpoint
+            const response = await fetch('/api/admin/setup', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -24,7 +24,7 @@ const AdminSetup: React.FC = () => {
 
             const result = await response.json();
             console.log('Setup result:', result);
-            
+
             if (response.ok) {
                 setMessage({
                     type: 'success',
@@ -59,7 +59,7 @@ const AdminSetup: React.FC = () => {
                         Create the initial admin user
                     </p>
                 </div>
-                
+
                 <form className="mt-8 space-y-6" onSubmit={handleSetup}>
                     <div className="rounded-md shadow-sm -space-y-px">
                         <div>

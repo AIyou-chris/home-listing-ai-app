@@ -122,7 +122,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
     try {
       const session = await agentOnboardingService.createCheckoutSession({
         slug,
-        provider
+        provider,
+        promoCode: promoCode.trim().toUpperCase() || undefined
       });
       if (session?.url) {
         window.location.href = session.url;

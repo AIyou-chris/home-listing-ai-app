@@ -45,6 +45,17 @@ type SystemSettings = {
   notificationPhone: string
 }
 
+type Coupon = {
+  id: string
+  code: string
+  discount_type: 'percent' | 'fixed'
+  amount: number
+  duration: 'once' | 'repeating' | 'forever'
+  usage_limit: number | null
+  usage_count: number
+  expires_at: string | null
+}
+
 const Section: React.FC<{ title: string; subtitle?: string; children: React.ReactNode }> = ({ title, subtitle, children }) => (
   <section className='rounded-2xl border border-slate-200 bg-white shadow-sm p-5 space-y-4'>
     <div>
@@ -91,6 +102,14 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   })
   const [cancellingEmail, setCancellingEmail] = useState('')
   const [reminderEmail, setReminderEmail] = useState('')
+  const [coupons, setCoupons] = useState<Coupon[]>([])
+  const [newCoupon, setNewCoupon] = useState<{
+    code: string
+    discount_type: 'percent' | 'fixed'
+    amount: string
+    duration: 'once' | 'repeating' | 'forever'
+    usage_limit: string
+  }>({ code: '', discount_type: 'percent', amount: '', duration: 'once', usage_limit: '' })
 
   const apiBase = useMemo(() => {
     const base = (import.meta as unknown as { env?: Record<string, string> })?.env?.VITE_API_BASE_URL || ''
@@ -115,6 +134,8 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         if (securityRes?.ok) setSecurity(await securityRes.json())
         if (analyticsRes?.ok) setAnalytics(await analyticsRes.json())
         if (systemRes?.ok) setSystemSettings(await systemRes.json())
+        const couponsRes = await fetch(`${apiBase}/api/admin/coupons`).catch(() => null)
+        if (couponsRes?.ok) setCoupons(await couponsRes.json())
       } catch (error) {
         console.warn('Failed to load admin settings', error)
       }
@@ -170,6 +191,37 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setCancellingEmail('')
   }
 
+  const handleCreateCoupon = async () => {
+    if (!newCoupon.code || !newCoupon.amount) return
+    try {
+      const res = await fetch(`${apiBase}/api/admin/coupons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newCoupon,
+          amount: Number(newCoupon.amount),
+          usage_limit: newCoupon.usage_limit ? Number(newCoupon.usage_limit) : null
+        })
+      })
+      if (res.ok) {
+        const created = await res.json()
+        setCoupons(prev => [created, ...prev])
+        setNewCoupon({ code: '', discount_type: 'percent', amount: '', duration: 'once', usage_limit: '' })
+      }
+    } catch (error) {
+      console.error('Failed to create coupon', error)
+    }
+  }
+
+  const handleDeleteCoupon = async (id: string) => {
+    try {
+      await fetch(`${apiBase}/api/admin/coupons/${id}`, { method: 'DELETE' })
+      setCoupons(prev => prev.filter(c => c.id !== id))
+    } catch (error) {
+      console.error('Failed to delete coupon', error)
+    }
+  }
+
   return (
     <div className='min-h-screen bg-slate-50'>
       <div className='max-w-6xl mx-auto px-4 py-8 space-y-6'>
@@ -198,11 +250,10 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border ${
-                activeTab === tab.id
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border ${activeTab === tab.id
                   ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                   : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-              }`}
+                }`}
             >
               <span className='material-symbols-outlined text-base'>{tab.icon}</span>
               {tab.label}
@@ -216,13 +267,12 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               <div className='grid grid-cols-1 sm:grid-cols-3 gap-4'>
                 <Row label='Plan'>{billingSummary.plan}</Row>
                 <Row label='Status'>
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                    billingSummary.status === 'active'
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${billingSummary.status === 'active'
                       ? 'bg-emerald-100 text-emerald-700'
                       : billingSummary.status === 'past_due'
                         ? 'bg-rose-100 text-rose-700'
                         : 'bg-amber-100 text-amber-700'
-                  }`}>
+                    }`}>
                     {billingSummary.status}
                   </span>
                 </Row>
@@ -332,6 +382,125 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   </div>
                 ))}
                 {invoices.length === 0 && <p className='text-sm text-slate-500'>No invoices found.</p>}
+              </div>
+            </Section>
+
+            <Section title='Coupons & Discounts' subtitle='Manage promo codes'>
+              <div className='flex items-end gap-2 p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4'>
+                <div className='flex-1'>
+                  <label className='text-xs font-semibold text-slate-500 uppercase'>Code</label>
+                  <input
+                    value={newCoupon.code}
+                    onChange={e => setNewCoupon(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                    placeholder='SUMMER25'
+                    className='w-full mt-1 rounded-lg border border-slate-300 px-3 py-2 text-sm'
+                  />
+                </div>
+                <div className='w-28'>
+                  <label className='text-xs font-semibold text-slate-500 uppercase'>Type</label>
+                  <select
+                    value={newCoupon.discount_type}
+                    onChange={e => setNewCoupon(prev => ({ ...prev, discount_type: e.target.value as 'percent' | 'fixed' }))}
+                    className='w-full mt-1 rounded-lg border border-slate-300 px-3 py-2 text-sm'
+                  >
+                    <option value='percent'>Percent (%)</option>
+                    <option value='fixed'>Fixed ($)</option>
+                  </select>
+                </div>
+                <div className='w-28'>
+                  <label className='text-xs font-semibold text-slate-500 uppercase'>Duration</label>
+                  <select
+                    value={newCoupon.duration}
+                    onChange={e => setNewCoupon(prev => ({ ...prev, duration: e.target.value as 'once' | 'repeating' | 'forever' }))}
+                    className='w-full mt-1 rounded-lg border border-slate-300 px-3 py-2 text-sm'
+                  >
+                    <option value='once'>One Time</option>
+                    <option value='repeating'>Monthly</option>
+                    <option value='forever'>Lifetime</option>
+                  </select>
+                </div>
+                <div className='w-24'>
+                  <label className='text-xs font-semibold text-slate-500 uppercase'>Amount</label>
+                  <input
+                    type='number'
+                    value={newCoupon.amount}
+                    onChange={e => setNewCoupon(prev => ({ ...prev, amount: e.target.value }))}
+                    placeholder='20'
+                    className='w-full mt-1 rounded-lg border border-slate-300 px-3 py-2 text-sm'
+                  />
+                </div>
+                <div className='w-20'>
+                  <label className='text-xs font-semibold text-slate-500 uppercase'>Limit</label>
+                  <input
+                    type='number'
+                    value={newCoupon.usage_limit}
+                    onChange={e => setNewCoupon(prev => ({ ...prev, usage_limit: e.target.value }))}
+                    placeholder='∞'
+                    className='w-full mt-1 rounded-lg border border-slate-300 px-3 py-2 text-sm'
+                  />
+                </div>
+                <button
+                  onClick={handleCreateCoupon}
+                  disabled={!newCoupon.code || !newCoupon.amount}
+                  className='inline-flex items-center gap-1 rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed h-[38px]'
+                >
+                  <span className='material-symbols-outlined text-sm'>add</span>
+                  Add
+                </button>
+              </div>
+
+              <div className='overflow-auto'>
+                <table className='min-w-full text-sm'>
+                  <thead className='text-left text-slate-500 bg-slate-50'>
+                    <tr>
+                      <th className='py-2 px-3 rounded-l-lg'>Code</th>
+                      <th className='py-2 px-3'>Discount</th>
+                      <th className='py-2 px-3'>Duration</th>
+                      <th className='py-2 px-3'>Usage</th>
+                      <th className='py-2 px-3 rounded-r-lg text-right'>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coupons.map(c => (
+                      <tr key={c.id} className='border-b border-slate-50 last:border-0 hover:bg-slate-50'>
+                        <td className='py-3 px-3 font-mono font-medium text-slate-800'>{c.code}</td>
+                        <td className='py-3 px-3'>
+                          {c.discount_type === 'percent' ? `${c.amount}% off` : `$${c.amount} off`}
+                        </td>
+                        <td className='py-3 px-3'>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${c.duration === 'forever' ? 'bg-indigo-100 text-indigo-700' :
+                              c.duration === 'repeating' ? 'bg-blue-100 text-blue-700' :
+                                'bg-slate-100 text-slate-700'
+                            }`}>
+                            {c.duration === 'forever' ? 'Lifetime' : c.duration === 'repeating' ? 'Monthly' : 'One Time'}
+                          </span>
+                        </td>
+                        <td className='py-3 px-3'>
+                          <span className='inline-flex items-center gap-1'>
+                            <span className='font-semibold'>{c.usage_count}</span>
+                            <span className='text-slate-400'>/</span>
+                            <span>{c.usage_limit ?? '∞'}</span>
+                          </span>
+                        </td>
+                        <td className='py-3 px-3 text-right'>
+                          <button
+                            onClick={() => handleDeleteCoupon(c.id)}
+                            className='text-slate-400 hover:text-rose-600 transition-colors'
+                          >
+                            <span className='material-symbols-outlined text-lg'>delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {coupons.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className='py-4 text-center text-slate-500 italic'>
+                          No active coupons. Create one above.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </Section>
           </div>

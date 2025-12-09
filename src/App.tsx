@@ -486,6 +486,10 @@ const App: React.FC = () => {
                     setView('dashboard-blueprint');
                 } else if (signedOutRoute === 'admin-setup') {
                     setView('admin-setup');
+                } else if (isAdminView(signedOutRoute) || signedOutRoute === 'admin-dashboard') {
+                    // If trying to access any admin route while logged out, show admin login
+                    console.log('🔒 Protected admin route accessed while logged out, showing login');
+                    setView('admin-dashboard');
                 } else if (signedOutRoute === 'signup') {
                     setView('signup');
                 } else if (signedOutRoute === 'signin') {

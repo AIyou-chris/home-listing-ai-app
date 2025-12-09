@@ -112,17 +112,17 @@ const isUuid = (value: unknown): value is string =>
 const buildUrl = (path: string, params?: Record<string, unknown>) => {
   const query = params
     ? Object.entries(params)
-        .filter(
-          ([, value]) =>
-            value !== undefined &&
-            value !== null &&
-            !(typeof value === 'string' && value.length === 0)
-        )
-        .map(
-          ([key, value]) =>
-            `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
-        )
-        .join('&')
+      .filter(
+        ([, value]) =>
+          value !== undefined &&
+          value !== null &&
+          !(typeof value === 'string' && value.length === 0)
+      )
+      .map(
+        ([key, value]) =>
+          `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
+      )
+      .join('&')
     : '';
   const base = API_BASE || '';
   return `${base}${path}${query ? `?${query}` : ''}`;
@@ -152,18 +152,18 @@ const normalizeSidekick = (raw: unknown): AISidekick => {
   const knowledgeBase =
     Array.isArray(record.knowledgeBase) && record.knowledgeBase.length > 0
       ? record.knowledgeBase
-          .map((entry: unknown) =>
-            typeof entry === 'string' ? entry : JSON.stringify(entry)
-          )
-          .filter((entry: string) => entry.trim().length > 0)
+        .map((entry: unknown) =>
+          typeof entry === 'string' ? entry : JSON.stringify(entry)
+        )
+        .filter((entry: string) => entry.trim().length > 0)
       : [];
 
   const personalitySource = (record.personality ?? {}) as Partial<AISidekick['personality']>;
   const traits =
     Array.isArray(personalitySource.traits) && personalitySource.traits.length > 0
       ? personalitySource.traits
-          .map((trait: unknown) => (typeof trait === 'string' ? trait.trim() : ''))
-          .filter((trait: string) => trait.length > 0)
+        .map((trait: unknown) => (typeof trait === 'string' ? trait.trim() : ''))
+        .filter((trait: string) => trait.length > 0)
       : [];
 
   const statsSource = (record.stats ?? {}) as Partial<AISidekick['stats']>;
@@ -187,7 +187,7 @@ const normalizeSidekick = (raw: unknown): AISidekick => {
     personality: {
       description:
         typeof personalitySource.description === 'string' &&
-        personalitySource.description.trim().length > 0
+          personalitySource.description.trim().length > 0
           ? personalitySource.description.trim()
           : 'Be a proactive, trustworthy assistant who keeps communication crisp and on-brand.',
       traits,
@@ -520,7 +520,7 @@ export const getSidekicks = async (
   }
 
   const userId = resolveUserId();
-  const url = buildUrl('/api/admin/sidekicks', isUuid(userId) ? { userId } : undefined);
+  const url = buildUrl('/api/sidekicks', isUuid(userId) ? { userId } : undefined);
 
   try {
     const response = await fetch(url);
@@ -560,7 +560,7 @@ export const createSidekick = async (
 ): Promise<AISidekick> => {
   const userId = resolveUserId();
   try {
-    const response = await fetch(buildUrl('/api/admin/sidekicks'), {
+    const response = await fetch(buildUrl('/api/sidekicks'), {
       method: 'POST',
       headers: defaultHeaders,
       body: JSON.stringify({
@@ -583,7 +583,7 @@ export const updateSidekickPersonality = async (
   payload: { description: string; traits: string[]; preset: string; summary?: string }
 ): Promise<AISidekick> => {
   try {
-    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}/personality`), {
+    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/personality`), {
       method: 'PUT',
       headers: defaultHeaders,
       body: JSON.stringify(payload)
@@ -611,7 +611,7 @@ export const updateSidekickVoice = async (
   voiceId: string
 ): Promise<AISidekick> => {
   try {
-    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}/voice`), {
+    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/voice`), {
       method: 'PUT',
       headers: defaultHeaders,
       body: JSON.stringify({ voiceId })
@@ -640,7 +640,7 @@ export const addKnowledge = async (
   };
 
   try {
-    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}/knowledge`), {
+    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/knowledge`), {
       method: 'POST',
       headers: defaultHeaders,
       body: JSON.stringify(payload)
@@ -665,7 +665,7 @@ export const removeKnowledge = async (
 ): Promise<AISidekick> => {
   try {
     const response = await fetch(
-      buildUrl(`/api/admin/sidekicks/${sidekickId}/knowledge/${index}`),
+      buildUrl(`/api/sidekicks/${sidekickId}/knowledge/${index}`),
       {
         method: 'DELETE'
       }
@@ -693,24 +693,30 @@ export const chatWithSidekick = async (
 ): Promise<{ response: string }> => {
   const formattedHistory = Array.isArray(history)
     ? history
-        .filter(
-          (item): item is ChatHistoryEntry =>
-            !!item &&
-            (item.role === 'user' || item.role === 'assistant') &&
-            typeof item.content === 'string' &&
-            item.content.trim().length > 0
-        )
-        .map((item) => ({ role: item.role, content: item.content.trim() }))
+      .filter(
+        (item): item is ChatHistoryEntry =>
+          !!item &&
+          (item.role === 'user' || item.role === 'assistant') &&
+          typeof item.content === 'string' &&
+          item.content.trim().length > 0
+      )
+      .map((item) => ({ role: item.role, content: item.content.trim() }))
     : undefined;
 
-  // Admin-scoped chat endpoint; falls back to a simple echo if unavailable
-  const adminUrl = buildUrl('/api/admin/ai-chat');
+  // Sidekick chat endpoint
+  const adminUrl = buildUrl(`/api/sidekicks/${sidekickId}/chat`);
 
   try {
     const response = await fetch(adminUrl, {
       method: 'POST',
       headers: defaultHeaders,
-      body: JSON.stringify({ sidekickId, sidekickType: sidekickId, message, history: formattedHistory })
+      body: JSON.stringify({
+        userId: resolveUserId(),
+        sidekickId,
+        sidekickType: sidekickId,
+        message,
+        history: formattedHistory
+      })
     });
 
     if (!response.ok) {
@@ -741,7 +747,7 @@ export const trainSidekick = async (
   feedback: 'positive' | 'negative'
 ): Promise<AISidekick | null> => {
   try {
-    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}/training`), {
+    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/training`), {
       method: 'POST',
       headers: defaultHeaders,
       body: JSON.stringify({
@@ -774,7 +780,7 @@ export const trainSidekick = async (
 
 export const deleteSidekick = async (sidekickId: string): Promise<void> => {
   try {
-    const response = await fetch(buildUrl(`/api/admin/sidekicks/${sidekickId}`), {
+    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}`), {
       method: 'DELETE',
       headers: defaultHeaders
     });

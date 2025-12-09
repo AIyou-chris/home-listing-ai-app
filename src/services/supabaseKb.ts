@@ -46,13 +46,14 @@ export const addTextKb = async (userId: string, sidekick: SidekickId, title: str
 	return data as unknown as KbEntry
 }
 
-export const addUrlKb = async (userId: string, sidekick: SidekickId, title: string, url: string): Promise<KbEntry> => {
+export const addUrlKb = async (userId: string, sidekick: SidekickId, title: string, url: string, scrapedContent?: string): Promise<KbEntry> => {
+	const content = scrapedContent ? `Source: ${url}\n\n${scrapedContent}` : url;
 	const { data, error } = await supabase.from('ai_kb').insert({
 		user_id: userId,
 		sidekick,
 		title,
 		type: 'url',
-		content: url
+		content
 	}).select('*').single()
 	if (error) throw error
 	return data as unknown as KbEntry

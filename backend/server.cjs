@@ -36,6 +36,7 @@ const {
 const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
+const { scrapeUrl } = require('./services/scraperService');
 const dotenv = require('dotenv');
 
 // Load environment variables from root-level .env files first so the backend picks up shared config
@@ -62,6 +63,22 @@ app.use(cors());
 app.use(express.json({ limit: '16mb' }));
 app.use(express.urlencoded({ extended: true, limit: '16mb' }));
 app.use(helmet());
+
+// Scraper Endpoint
+app.post('/api/scrape', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ success: false, error: 'URL is required' });
+    }
+
+    const result = await scrapeUrl(url);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Scraping endpoint error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // DEBUG: Funnel Routes moved to top
 app.get('/api/funnels/:userId', async (req, res) => {
@@ -225,13 +242,15 @@ const agentOnboardingService = createAgentOnboardingService({
 const FOLLOW_UP_SEQUENCES_TABLE = 'follow_up_sequences_store';
 const FOLLOW_UP_ACTIVE_TABLE = 'follow_up_active_store';
 
-const useLocalAiCardStore = !Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
-const localAiCardStore = new Map();
+// FORCE DATABASE USAGE
+// We are deprecating in-memory fallback to ensure data persistence.
+const useLocalAiCardStore = false;
+// const localAiCardStore = new Map(); // Deprecated
 const normalizeAiCardUserId = (userId) => (userId ? userId.trim().toLowerCase() : 'default');
 
-const useLocalConversationStore = useLocalAiCardStore;
-const localConversationStore = new Map();
-const localConversationMessages = new Map();
+const useLocalConversationStore = false;
+// const localConversationStore = new Map(); // Deprecated
+// const localConversationMessages = new Map(); // Deprecated
 const normalizeConversationUserId = (userId) => normalizeAiCardUserId(userId);
 const DEMO_CONVERSATIONS = [
   {
@@ -261,6 +280,8 @@ const DEMO_CONVERSATIONS = [
   }
 ];
 
+// DEPRECATED - Local/Memory Persistence
+/*
 const ensureLocalConversations = (userId) => {
   const key = normalizeConversationUserId(userId);
   if (!localConversationStore.has(key)) {
@@ -306,6 +327,7 @@ const respondWithLocalMessage = (conversationId, res, message) => {
   messages.push(message);
   return res.json(message);
 };
+*/
 
 const marketingStore = {
   async loadSequences(ownerId) {
@@ -446,183 +468,7 @@ const paymentService = createPaymentService({
 });
 
 // Mailgun configuration
-const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY || '';
-const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || '';
-const MAILGUN_FROM_EMAIL =
-  process.env.MAILGUN_FROM_EMAIL ||
-  (MAILGUN_DOMAIN ? `HomeListingAI <postmaster@${MAILGUN_DOMAIN}>` : '');
-const isProduction = process.env.NODE_ENV === 'production';
-const missingMailgunVars = ['MAILGUN_API_KEY', 'MAILGUN_DOMAIN'].filter(
-  (key) => !process.env[key]
-);
 
-if (missingMailgunVars.length > 0) {
-  const message = `[Mailgun] Missing configuration: ${missingMailgunVars.join(', ')}`;
-  if (isProduction) {
-    console.error(message);
-    throw new Error(message);
-  } else {
-    console.warn(`${message}. Email sending will be disabled until configured.`);
-  }
-} else if (!MAILGUN_FROM_EMAIL) {
-  console.warn('[Mailgun] MAILGUN_FROM_EMAIL not set. Defaulting to Mailgun postmaster address.');
-}
-
-const toArray = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.filter(Boolean).map((item) => String(item).trim());
-  return String(value)
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-};
-
-const resolveMailgunFrom = (customFrom) => {
-  const trimmed = customFrom ? String(customFrom).trim() : '';
-  if (trimmed) return trimmed;
-  if (MAILGUN_FROM_EMAIL) return MAILGUN_FROM_EMAIL;
-  if (MAILGUN_DOMAIN) {
-    return `HomeListingAI <postmaster@${MAILGUN_DOMAIN}>`;
-  }
-  return '';
-};
-
-const sendMailgunEmail = async ({
-  to,
-  subject,
-  html,
-  text,
-  from,
-  cc,
-  bcc,
-  replyTo
-}) => {
-  if (!MAILGUN_API_KEY || !MAILGUN_DOMAIN) {
-    const error = new Error('Mailgun configuration missing');
-    error.code = 'MAILGUN_CONFIG_MISSING';
-    throw error;
-  }
-
-  const recipients = toArray(to);
-  if (recipients.length === 0) {
-    const error = new Error('At least one recipient is required');
-    error.code = 'MAILGUN_RECIPIENT_REQUIRED';
-    throw error;
-  }
-
-  if (!subject) {
-    const error = new Error('Email subject is required');
-    error.code = 'MAILGUN_SUBJECT_REQUIRED';
-    throw error;
-  }
-
-  if (!html && !text) {
-    const error = new Error('HTML or text content is required');
-    error.code = 'MAILGUN_CONTENT_REQUIRED';
-    throw error;
-  }
-
-  const body = new URLSearchParams();
-  body.append('from', resolveMailgunFrom(from));
-  recipients.forEach((recipient) => body.append('to', recipient));
-  body.append('subject', String(subject));
-
-  if (html) body.append('html', String(html));
-  if (text) body.append('text', String(text));
-
-  toArray(cc).forEach((recipient) => body.append('cc', recipient));
-  toArray(bcc).forEach((recipient) => body.append('bcc', recipient));
-
-  if (replyTo) {
-    body.append('h:Reply-To', String(replyTo).trim());
-  }
-
-  // Custom variables for tracking
-  if (options.userId) body.append('v:user_id', options.userId);
-  if (options.campaignId) body.append('v:campaign_id', options.campaignId);
-
-  // Enable tracking
-  body.append('o:tracking', 'yes');
-  body.append('o:tracking-clicks', 'yes');
-  body.append('o:tracking-opens', 'yes');
-
-  const response = await fetch(`https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${Buffer.from(`api:${MAILGUN_API_KEY}`).toString('base64')}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error');
-    const error = new Error('Mailgun request failed');
-    error.code = 'MAILGUN_SEND_FAILED';
-    error.details = errorText;
-    error.status = response.status;
-    throw error;
-  }
-
-  try {
-    return await response.json();
-  } catch (error) {
-    return {};
-  }
-};
-
-const createMailgunHandler = (contextLabel) => async (req, res) => {
-  try {
-    const { to, subject, html, text, from, cc, bcc, replyTo, preference } = req.body || {};
-
-    if (preference?.userId && preference?.channel && preference?.event) {
-      const allowed = shouldSendNotification(
-        preference.userId,
-        preference.channel,
-        preference.event
-      );
-
-      if (!allowed) {
-        return res.json({
-          success: false,
-          skipped: true,
-          reason: 'preference_disabled',
-          context: contextLabel
-        });
-      }
-    }
-
-    if (!to || !subject || (!html && !text)) {
-      return res.status(400).json({
-        error: 'Recipient, subject, and either HTML or text content are required.'
-      });
-    }
-
-    const result = await sendMailgunEmail({ to, subject, html, text, from, cc, bcc, replyTo });
-
-    return res.json({
-      success: true,
-      id: result?.id || null,
-      message: result?.message || 'Queued',
-      context: contextLabel
-    });
-  } catch (error) {
-    if (error.code === 'MAILGUN_CONFIG_MISSING') {
-      return res.status(503).json({ error: 'Email service is not configured.' });
-    }
-
-    if (error.code === 'MAILGUN_SEND_FAILED') {
-      return res.status(502).json({ error: 'Failed to send email.', details: error.details });
-    }
-
-    console.error(`Error sending email via Mailgun (${contextLabel}):`, error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      code: error.code || 'MAILGUN_ERROR'
-    });
-  }
-};
 
 // Verify Mailgun Webhook Signature
 const verifyMailgunSignature = (signingKey, timestamp, token, signature) => {
@@ -2731,12 +2577,50 @@ app.post('/api/continue-conversation', async (req, res) => {
 
     // POST /api/admin/ai-chat
     app.post('/api/admin/ai-chat', async (req, res) => {
-      const { message, history, systemPrompt } = req.body;
+      const { message, history, systemPrompt, sidekickId } = req.body;
+
+      // SECURITY: Prefer header-based authentication
+      // If x-user-id header is present, use it. Otherwise fall back to body (for legacy dev compatibility)
+      // In production, we should strictly require the header.
+      const userId = req.headers['x-user-id'] || req.body.userId;
 
       try {
+        let systemContent = systemPrompt || 'You are a helpful assistant.';
+
+        // Inject Knowledge Base context
+        if (userId && sidekickId) {
+          try {
+            // Map 'helper' to 'marketing' legacy logic if needed, but sidekickId usually matches directly 
+            // or we trust the frontend mapping.
+            // Note: The frontend AISidekicks maps custom IDs to standardized ones for KB actions,
+            // but explicitly passes sidekickId here.
+            // Let's check 'ai_kb' directly.
+            const { data: kbEntries, error: kbError } = await supabaseAdmin
+              .from('ai_kb')
+              .select('title, type, content')
+              .eq('user_id', userId)
+              .eq('sidekick', sidekickId)
+              .limit(20); // reasonable context limit
+
+            if (!kbError && kbEntries && kbEntries.length > 0) {
+              const builtContext = kbEntries.map(e => {
+                const preview = e.content ? e.content.slice(0, 1500) : '(File/No Content)';
+                return `[${e.type.toUpperCase()} - ${e.title}]:\n${preview}`;
+              }).join('\n\n');
+
+              systemContent += `\n\n[CONFIDENTIAL KNOWLEDGE BASE]\nThe following documents and references are available to you. Use them to answer questions accurately:\n\n${builtContext}\n\n[END KNOWLEDGE BASE]`;
+            }
+          } catch (err) {
+            console.warn('Failed to fetch KB for chat context:', err);
+          }
+        }
+
+        // Limit history to last 20 messages to prevent token limits
+        const truncatedHistory = (history || []).slice(-20);
+
         const messages = [
-          { role: 'system', content: systemPrompt || 'You are a helpful assistant.' },
-          ...(history || []).map(h => ({ role: h.sender === 'user' ? 'user' : 'assistant', content: h.text })),
+          { role: 'system', content: systemContent },
+          ...truncatedHistory.map(h => ({ role: h.sender === 'user' ? 'user' : 'assistant', content: h.text })),
           { role: 'user', content: message }
         ];
 
@@ -2764,9 +2648,14 @@ app.post('/api/continue-conversation', async (req, res) => {
       }
     }
 
+    // SLIDING WINDOW FOR CONTINUE-CONVERSATION
+    // Ensure we don't send thousands of messages
+    const MAX_CONTEXT_MESSAGES = 20;
+    const recentMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
+
     const openaiMessages = [
       { role: 'system', content: system },
-      ...messages.map(msg => ({
+      ...recentMessages.map(msg => ({
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.text
       }))
@@ -3659,6 +3548,84 @@ app.get('/api/admin/leads', async (req, res) => {
   }
 });
 
+// Webhook for external lead sources
+app.post('/api/webhooks/incoming-lead', async (req, res) => {
+  try {
+    console.log('🪝 Received webhook lead:', req.body);
+    const payload = req.body || {};
+
+    // Attempt to parse fields from typical webhook payloads
+    // Supports: standard specific fields, or flat JSON
+    const name = payload.name || payload.fullName || payload.full_name || `${payload.firstName || payload.first_name || ''} ${payload.lastName || payload.last_name || ''}`.trim() || 'Unknown Lead';
+    const email = payload.email || payload.emailAddress || payload.email_address;
+    const phone = payload.phone || payload.phoneNumber || payload.phone_number;
+    const notes = payload.notes || payload.message || payload.comments || payload.description;
+    const source = payload.source || 'External Webhook';
+    const propertyInterest = payload.propertyInterest || payload.property_interest || payload.listingId || payload.address;
+
+    if (!email && !phone) {
+      // We generally need at least one contact method, but maybe just name is okay? 
+      // Let's enforce at least name for now, but usually email is key for keying.
+      // If no email, we'll auto-generate a placeholder to allow the insert if we have phone/name.
+      if (!name || name === 'Unknown Lead') {
+        return res.status(400).json({ success: false, error: 'Lead must have at least a name and contact info (email or phone).' });
+      }
+    }
+
+    // Default to a system user or specific admin if not provided
+    // In a real multi-tenant app, we might need an API key to map to a user.
+    // For now, we use the default lead user ID if available, or just the first user.
+    const assignedUserId = payload.userId || payload.user_id || DEFAULT_LEAD_USER_ID;
+
+    // Insert into Supabase
+    const now = new Date().toISOString();
+    const insertPayload = {
+      user_id: assignedUserId, // This might fail if null and column is not nullable. 
+      name,
+      email: email || `no-email-${Date.now()}@placeholder.com`, // Fallback to avoid constraint violation if email is unique/required
+      phone: phone || null,
+      status: 'New',
+      source,
+      property_interest: propertyInterest || null,
+      notes: notes || null,
+      created_at: now,
+      updated_at: now
+    };
+
+    const { data, error } = await supabaseAdmin.from('leads').insert(insertPayload).select('*').single();
+
+    if (error) {
+      console.error('Webhook insert error:', error);
+      return res.status(500).json({ success: false, error: 'Database insert failed' });
+    }
+
+    // Auto-score the new lead
+    const mappedLead = mapLeadFromRow(data);
+    await autoScoreLead(mappedLead); // This updates the object by ref, need to persist it
+
+    // Update with score
+    await supabaseAdmin
+      .from('leads')
+      .update({
+        score: mappedLead.score || 0,
+        score_tier: mappedLead.scoreTier || 'Cold',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', mappedLead.id);
+
+    console.log(`✅ Webhook lead processed: ${mappedLead.name} (${mappedLead.email})`);
+
+    // Trigger notification logic if needed (optional)
+    // await sendNewLeadNotification(mappedLead); 
+
+    res.json({ success: true, leadId: mappedLead.id });
+
+  } catch (err) {
+    console.error('Webhook endpoint error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Create new lead
 app.post('/api/admin/leads', async (req, res) => {
   try {
@@ -3711,10 +3678,81 @@ app.post('/api/admin/leads', async (req, res) => {
       `✅ New lead created and scored: ${mappedLead.name} (Score: ${mappedLead.score}, Tier: ${mappedLead.scoreTier})`
     );
 
+    // Funnel Trigger Logic (Immediate Email for Mass Mailing)
+    const { funnelId } = req.body;
+    if (funnelId) {
+      try {
+        // Load sequences for this user to get the latest funnel definition
+        const sequences = await marketingStore.loadSequences(assignedUserId);
+        // Fallback to global if not found (though global might be stale or default)
+        const funnel = (sequences && sequences.find(s => s.id === funnelId)) || followUpSequences.find(s => s.id === funnelId);
+
+        if (funnel && funnel.steps && funnel.steps.length > 0) {
+          const firstStep = funnel.steps[0];
+          // Check urgency/delay
+          let isImmediate = false;
+          const delay = firstStep.delay;
+          if (typeof delay === 'string') {
+            // Matches "Immediate", "Immediate (Day 0)", "0", etc.
+            isImmediate = delay.toLowerCase().includes('immediate') || delay === '0';
+          } else if (typeof delay === 'object') {
+            isImmediate = delay.value === 0;
+          } else if (firstStep.delayDays === 0) {
+            isImmediate = true;
+          }
+
+          if (isImmediate && (firstStep.type === 'Email' || firstStep.type === 'email')) {
+            // Trigger Email
+            const agentProfile = await fetchAiCardProfileForUser(assignedUserId);
+
+            let subject = firstStep.subject || '';
+            let content = firstStep.content || firstStep.emailBody || firstStep.body || '';
+
+            // Token Replacement
+            const safeName = name || '';
+            const safeFirstName = safeName.split(' ')[0] || '';
+            const agentName = agentProfile?.fullName || 'Your Agent';
+            const agentPhone = agentProfile?.phone || '';
+            const agentEmail = agentProfile?.email || process.env.MAILGUN_FROM_EMAIL || 'noreply@homelistingai.app';
+            const agentWebsite = agentProfile?.website || '';
+
+            const replaceTokens = (str) => {
+              return str
+                .replace(/{{lead.name}}/g, safeName)
+                .replace(/{{lead.first_name}}/g, safeFirstName)
+                .replace(/{{agent.name}}/g, agentName)
+                .replace(/{{agent.phone}}/g, agentPhone)
+                .replace(/{{agent.email}}/g, agentEmail)
+                .replace(/{{agent.website}}/g, agentWebsite)
+                .replace(/{{agent_first_name}}/g, agentName.split(' ')[0]) // Legacy token support
+                .replace(/{{client_first_name}}/g, safeFirstName); // Legacy token support
+            };
+
+            subject = replaceTokens(subject);
+            content = replaceTokens(content);
+
+            console.log(`[Funnel] Triggering immediate email to ${email} for funnel ${funnelId}`);
+
+            // Send (Fire & Forget to avoid blocking import loop)
+            emailService.sendEmail({
+              to: email,
+              subject,
+              text: content,
+              html: content.replace(/\n/g, '<br/>'),
+              from: agentEmail,
+              tags: ['funnel-trigger', funnelId, 'step-1']
+            }).catch(err => console.error(`[Funnel] Failed to send email to ${email}`, err));
+          }
+        }
+      } catch (err) {
+        console.warn('[Funnel] Error triggering funnel step 1', err);
+      }
+    }
+
     res.status(201).json({
       success: true,
       lead: mappedLead,
-      message: 'Lead created and scored successfully'
+      message: 'Lead created and funnel triggered successfully'
     });
   } catch (error) {
     console.error('Create lead error:', error);
@@ -4259,6 +4297,53 @@ app.post('/api/admin/billing/download-invoice', (req, res) => {
   res.json({ success: true, url: invoice.url || '#' });
 });
 
+
+// Admin settings: coupons
+app.get('/api/admin/coupons', async (_req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin.from('coupons').select('*').order('created_at', { ascending: false });
+    if (error) {
+      if (error.code === '42P01') return res.json([]);
+      throw error;
+    }
+    res.json(data || []);
+  } catch (error) {
+    console.error('Failed to list coupons:', error);
+    res.status(500).json({ error: 'Failed to list coupons' });
+  }
+});
+
+app.post('/api/admin/coupons', async (req, res) => {
+  try {
+    const { code, discount_type, amount, duration, usage_limit, expires_at } = req.body;
+    const { data, error } = await supabaseAdmin.from('coupons').insert({
+      code,
+      discount_type,
+      amount,
+      duration: duration || 'once',
+      usage_limit,
+      expires_at
+    }).select('*').single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    console.error('Failed to create coupon:', error);
+    res.status(500).json({ error: 'Failed to create coupon' });
+  }
+});
+
+app.delete('/api/admin/coupons/:id', async (req, res) => {
+  try {
+    const { error } = await supabaseAdmin.from('coupons').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete coupon:', error);
+    res.status(500).json({ error: 'Failed to delete coupon' });
+  }
+});
+
 // Admin settings: security
 app.get('/api/admin/security', (_req, res) => {
   res.json({
@@ -4440,10 +4525,49 @@ app.post('/api/admin/marketing/sequences', async (req, res) => {
 });
 
 // Email sending (Mailgun)
-app.post('/api/email/send', createMailgunHandler('app/email/send'));
+// Email sending (Unified Service)
+app.post('/api/email/send', async (req, res) => {
+  try {
+    const { to, subject, html, text, from, cc, bcc, replyTo, tags } = req.body;
+    const result = await emailService.sendEmail({
+      to,
+      subject,
+      html,
+      text,
+      from,
+      cc,
+      bcc,
+      replyTo,
+      tags: tags || ['api-send']
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Email send error:', err);
+    res.status(500).json({ error: 'Failed to send email', details: err.message });
+  }
+});
 
-// Quick email sending via Mailgun
-app.post('/api/admin/email/quick-send', createMailgunHandler('admin/email/quick-send'));
+// Quick email sending (Unified Service)
+app.post('/api/admin/email/quick-send', async (req, res) => {
+  try {
+    const { to, subject, html, text, from } = req.body;
+    // Basic validation
+    if (!to || !subject) return res.status(400).json({ error: 'Missing to or subject' });
+
+    const result = await emailService.sendEmail({
+      to,
+      subject,
+      html: html || text, // Fallback
+      text,
+      from,
+      tags: ['admin-quick-send']
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Quick send error:', err);
+    res.status(500).json({ error: 'Failed to send email', details: err.message });
+  }
+});
 
 // Notification preferences
 app.get('/api/notifications/preferences/:userId', (req, res) => {
@@ -5979,20 +6103,54 @@ app.get('/api/ai-card/profile', async (req, res) => {
 // ===== PayPal Smart Buttons endpoints (create & capture) =====
 app.post('/api/paypal/create-order', async (req, res) => {
   try {
-    const { slug, amount, currency = process.env.PAYPAL_CURRENCY || 'USD', description = 'Subscription', referenceId } = req.body || {};
+    const { slug, amount, currency = 'USD', description, referenceId, plan, discountCode } = req.body || {};
     const accessToken = await getPayPalAccessToken();
+
+    // Determine base value: use provided amount or default to plan price
+    let value = amount ? String(amount) : ((plan === 'Solo Agent' || plan === 'solo_agent') ? '39.00' : '99.00');
+
+    // Apply Coupon Logic
+    if (discountCode) {
+      try {
+        const { data: coupon } = await supabaseAdmin.from('coupons').select('*').eq('code', discountCode).single();
+        if (coupon) {
+          const now = new Date();
+          const expires = coupon.expires_at ? new Date(coupon.expires_at) : null;
+          const limit = coupon.usage_limit;
+          const count = coupon.usage_count || 0;
+
+          if ((!expires || expires > now) && (!limit || count < limit)) {
+            let originalValue = parseFloat(value);
+            let discountAmount = 0;
+            if (coupon.discount_type === 'percent') {
+              discountAmount = originalValue * (Number(coupon.amount) / 100);
+            } else {
+              discountAmount = Number(coupon.amount);
+            }
+            let finalValue = Math.max(0, originalValue - discountAmount);
+            value = finalValue.toFixed(2);
+
+            // Increment usage count tentatively (or do it on capture for strictness, but for now simple)
+            await supabaseAdmin.from('coupons').update({ usage_count: count + 1 }).eq('id', coupon.id);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to apply coupon', err);
+      }
+    }
+
     const body = {
       intent: 'CAPTURE',
-      purchase_units: [
-        {
-          reference_id: referenceId || slug || `ref_${Date.now()}`,
-          amount: { currency_code: currency, value: String(amount || (process.env.STRIPE_DEFAULT_AMOUNT_CENTS ? (Number(process.env.STRIPE_DEFAULT_AMOUNT_CENTS) / 100).toFixed(2) : '49.00')) },
-          description
-        }
-      ],
+      purchase_units: [{
+        reference_id: slug || `plan_${plan}_${Date.now()}`,
+        amount: { currency_code: 'USD', value: value }
+      }],
       application_context: {
+        brand_name: 'HomeListingAI',
+        landing_page: 'NO_PREFERENCE',
         user_action: 'PAY_NOW',
-        shipping_preference: 'NO_SHIPPING'
+        return_url: `${APP_URL}/dashboard?checkout=success`,
+        cancel_url: `${APP_URL}/dashboard?checkout=cancel`
       }
     };
     const r = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
@@ -6007,7 +6165,7 @@ app.post('/api/paypal/create-order', async (req, res) => {
     if (!r.ok) {
       return res.status(400).json({ error: 'paypal_create_failed', details: data });
     }
-    res.json({ id: data.id, status: data.status, links: data.links });
+    res.json({ id: data.id, status: data.status, links: data.links, discountedAmount: value });
   } catch (e) {
     console.error('paypal create-order error', e);
     res.status(500).json({ error: 'internal_error' });
@@ -7290,6 +7448,105 @@ app.post('/api/properties', async (req, res) => {
   }
 })
 
+// Admin Setup Endpoint (Local Replacement for Cloud Function)
+app.post('/api/admin/setup', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    if (!supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(503).json({ error: 'Server not configured for admin operations (missing key)' });
+    }
+
+    // 1. Create the user in Supabase Auth
+    const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name: 'Admin User' }
+    });
+
+    if (createError) {
+      console.error('Error creating admin user:', createError);
+      return res.status(400).json({ error: createError.message });
+    }
+
+    const userId = userData.user.id;
+    console.log(`Admin user created: ${userId}`);
+
+    // 2. Grant Admin Privileges
+    // Attempt 1: Add to app_metadata (often used by RLS policies)
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      { app_metadata: { admin: true, role: 'admin' } }
+    );
+
+    if (updateError) {
+      console.warn('Failed to update app_metadata:', updateError);
+    }
+
+    // Attempt 2: Insert into a public.admin_users table (if it exists)
+    // We try/catch this because we don't know for sure if the table exists in the schema
+    try {
+      const { error: tableError } = await supabaseAdmin
+        .from('admin_users')
+        .insert([{ id: userId, email, role: 'super-admin', created_at: new Date() }]);
+
+      if (tableError) {
+        console.log('Could not insert into admin_users table (table might not exist or user exists):', tableError.message);
+      } else {
+        console.log('Inserted into admin_users table');
+      }
+    } catch (err) {
+      console.log('admin_users table operation skipped/failed');
+    }
+
+    // Attempt 3: Insert into public.users table just in case it's required for foreign keys
+    try {
+      await supabaseAdmin
+        .from('users')
+        .upsert([{ id: userId, email, display_name: 'Admin User', role: 'admin' }], { onConflict: 'id' });
+    } catch (err) {
+      // Ignore
+    }
+
+    // Attempt 4: Assign Admin Role in RBAC Tables (Crucial for is_user_admin check)
+    try {
+      // Ensure 'admin' role exists
+      const { data: roleData, error: roleError } = await supabaseAdmin
+        .from('roles')
+        .upsert({ name: 'admin' }, { onConflict: 'name' })
+        .select('id')
+        .single();
+
+      if (roleError && !roleData) {
+        // Fallback: convert error if it was actually a conflict finding existing role
+        const { data: existingRole } = await supabaseAdmin.from('roles').select('id').eq('name', 'admin').single();
+        if (existingRole) {
+          await supabaseAdmin.from('user_roles').upsert({ user_id: userId, role_id: existingRole.id }, { onConflict: 'user_id, role_id' });
+          console.log('Assigned admin role via RBAC (existing role)');
+        } else {
+          console.error('Failed to find or create admin role:', roleError);
+        }
+      } else if (roleData) {
+        await supabaseAdmin.from('user_roles').upsert({ user_id: userId, role_id: roleData.id }, { onConflict: 'user_id, role_id' });
+        console.log('Assigned admin role via RBAC (new/upserted role)');
+      }
+
+    } catch (err) {
+      console.error('RBAC role assignment failed:', err);
+    }
+
+    res.json({ success: true, userId });
+
+  } catch (error) {
+    console.error('Admin setup error:', error);
+    res.status(500).json({ error: 'Internal server error during setup' });
+  }
+});
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`🚀 AI Server running on http://0.0.0.0:${port}`);
@@ -7623,12 +7880,39 @@ app.post('/api/payments/checkout-session', async (req, res) => {
       }
     }
 
+    // Generic Coupon Logic (DB)
+    let finalAmountCents = amountCents;
+    if (promoCode && promoCode !== 'FRIENDS30' && promoCode !== 'LIFETIME') {
+      try {
+        const { data: coupon } = await supabaseAdmin.from('coupons').select('*').eq('code', promoCode).single();
+        if (coupon) {
+          const now = new Date();
+          const expires = coupon.expires_at ? new Date(coupon.expires_at) : null;
+          const limit = coupon.usage_limit;
+          const count = coupon.usage_count || 0;
+
+          if ((!expires || expires > now) && (!limit || count < limit)) {
+            const base = typeof amountCents === 'number' ? amountCents : 4900; // Default $49.00
+            let discount = 0;
+            if (coupon.discount_type === 'percent') {
+              discount = Math.round(base * (Number(coupon.amount) / 100));
+            } else {
+              discount = Math.round(Number(coupon.amount) * 100); // fixed amount in dollars to cents
+            }
+            finalAmountCents = Math.max(0, base - discount);
+            console.log(`Applying coupon ${promoCode}: Base ${base} -> ${finalAmountCents}`);
+          }
+        }
+      } catch (err) {
+        console.warn('Coupon lookup failed', err);
+      }
+    }
 
     const session = await paymentService.createCheckoutSession({
       slug,
       email: agent.email,
       provider,
-      amountCents: typeof amountCents === 'number' ? amountCents : undefined
+      amountCents: finalAmountCents
     })
 
     if (!session?.url) {

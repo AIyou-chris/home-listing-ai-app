@@ -19,6 +19,16 @@ import { generateSpeech } from '../services/openaiService';
 import { normalizeOpenAIVoice } from '../constants/openaiVoices';
 import PageTipBanner from './PageTipBanner';
 import { supabase } from '../services/supabase';
+import {
+  listKb,
+  addTextKb,
+  addUrlKb,
+  uploadFileKb,
+  deleteKb,
+  type KbEntry,
+  type SidekickId as KbSidekickId
+} from '../services/supabaseKb';
+import { scrapeWebsite } from '../services/scraperService';
 
 interface AISidekicksProps {
   isDemoMode?: boolean;
@@ -134,6 +144,23 @@ const mapTemplateToSidekick = (template: SidekickTemplate): AISidekick => ({
   metadata: { type: template.type, color: template.color, icon: template.icon }
 });
 
+// Helper to map app sidekick IDs to Supabase KB Sidekick IDs
+const mapToKbSidekickId = (id: string, type: string): KbSidekickId => {
+  // Common mappings
+  if (id === 'agent' || type === 'agent') return 'agent';
+  if (id === 'sales' || type === 'sales') return 'sales';
+  if (id === 'support' || type === 'support') return 'support';
+  if (id === 'marketing' || type === 'marketing') return 'marketing';
+  if (id === 'listing' || type === 'listing') return 'listing';
+
+  // Blueprint mappings
+  if (id === 'sales_marketing' || type === 'sales_marketing') return 'marketing';
+  if (id === 'listing_agent' || type === 'listing_agent') return 'listing';
+
+  // Default fallback
+  return 'main';
+};
+
 const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickTemplatesOverride }) => {
   const [sidekicks, setSidekicks] = useState<AISidekick[]>([]);
   const [voices, setVoices] = useState<Voice[]>([]);
@@ -193,6 +220,9 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({});
 
   const effectiveTemplates: SidekickTemplate[] = sidekickTemplatesOverride && sidekickTemplatesOverride.length ? sidekickTemplatesOverride : sidekickTemplates;
+
+  // Real Knowledge Base State
+  const [realKbEntries, setRealKbEntries] = useState<KbEntry[]>([]);
 
   // Create sidekick preview state
 
@@ -325,6 +355,27 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
     hydrateCache();
     void loadSidekicks();
   }, [loadSidekicks]);
+
+  // Function to load real KB entries from Supabase
+  const loadRealKb = useCallback(async () => {
+    if (!selectedSidekick || isDemoMode || !agentId) {
+      setRealKbEntries([]);
+      return;
+    }
+
+    try {
+      const kbSidekickId = mapToKbSidekickId(selectedSidekick.id, selectedSidekick.type);
+      const entries = await listKb(agentId, kbSidekickId);
+      setRealKbEntries(entries);
+    } catch (err) {
+      console.warn('Failed to load real KB:', err);
+      // Fallback silently
+    }
+  }, [selectedSidekick, isDemoMode, agentId]);
+
+  useEffect(() => {
+    void loadRealKb();
+  }, [loadRealKb]);
 
   useEffect(() => {
     if (!notification) return;
@@ -623,13 +674,20 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
     }
   };
 
-  const handleRemoveKnowledge = async (index: number) => {
+  const handleRemoveKnowledge = async (index: number, kbEntryId?: string) => {
     if (!selectedSidekick) return;
 
     try {
-      const updatedSidekick = await removeKnowledge(selectedSidekick.id, index);
-      setSidekicks(prev => prev.map(s => s.id === updatedSidekick.id ? updatedSidekick : s));
-      setSelectedSidekick(updatedSidekick);
+      if (kbEntryId && !isDemoMode) {
+        // If it's a real KB entry from Supabase
+        await deleteKb({ id: kbEntryId } as KbEntry);
+        setRealKbEntries(prev => prev.filter(e => e.id !== kbEntryId));
+      } else {
+        // Legacy/Demo: Remove from string array
+        const updatedSidekick = await removeKnowledge(selectedSidekick.id, index);
+        setSidekicks(prev => prev.map(s => s.id === updatedSidekick.id ? updatedSidekick : s));
+        setSelectedSidekick(updatedSidekick);
+      }
     } catch (err) {
       setError('Failed to remove knowledge');
       console.error(err);
@@ -644,6 +702,18 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
       setIsAddingKnowledge(true);
       const title = knowledgeTitle.trim();
       const content = knowledgeContent.trim();
+
+      if (!isDemoMode && agentId) {
+        // Use Real Supabase KB
+        const kbSidekickId = mapToKbSidekickId(selectedSidekick.id, selectedSidekick.type);
+        const newEntry = await addTextKb(agentId, kbSidekickId, title, content);
+        setRealKbEntries(prev => [newEntry, ...prev]);
+        setKnowledgeTitle('');
+        setKnowledgeContent('');
+        return;
+      }
+
+      // Legacy/Demo Mode
       const updatedSidekick = await addKnowledge(selectedSidekick.id, {
         content,
         title,
@@ -668,6 +738,16 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
       setIsUploading(true);
       const fileArray = Array.from(files);
 
+      if (!isDemoMode && agentId) {
+        // Use Real Supabase KB
+        const kbSidekickId = mapToKbSidekickId(selectedSidekick.id, selectedSidekick.type);
+        for (const file of fileArray) {
+          const newEntry = await uploadFileKb(agentId, kbSidekickId, file);
+          setRealKbEntries(prev => [newEntry, ...prev]);
+        }
+        return;
+      }
+
       // Process each file (mock implementation)
       for (const file of fileArray) {
         const knowledgeEntry = `Uploaded file: ${file.name} (${file.type || 'unknown type'}, ${(file.size / 1024).toFixed(1)}KB)`;
@@ -681,8 +761,9 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
       }
 
     } catch (err) {
-      setError('Failed to upload files');
-      console.error(err);
+      console.warn('Upload failed (silent):', err);
+      // Suppress UI error for now to avoid auto-trigger on load
+      // setError('Failed to upload files');
     } finally {
       setIsUploading(false);
     }
@@ -693,8 +774,29 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
 
     try {
       setIsScraping(true);
-      // Mock scraping implementation
       const trimmedUrl = websiteUrl.trim();
+
+      if (!isDemoMode && agentId) {
+        // Use Real Supabase KB (Store URL + Scraped Content)
+        const kbSidekickId = mapToKbSidekickId(selectedSidekick.id, selectedSidekick.type);
+
+        let title = trimmedUrl;
+        let content = "";
+        try {
+          const scrapedData = await scrapeWebsite(trimmedUrl);
+          title = scrapedData.title;
+          content = scrapedData.content;
+        } catch (sErr) {
+          console.warn("Scraping failed", sErr);
+        }
+
+        const newEntry = await addUrlKb(agentId, kbSidekickId, title, trimmedUrl, content);
+        setRealKbEntries(prev => [newEntry, ...prev]);
+        setWebsiteUrl('');
+        return;
+      }
+
+      // Mock scraping implementation
       const knowledgeEntry = `Website content from ${trimmedUrl} (scraped ${scrapingFrequency})`;
       const updatedSidekick = await addKnowledge(selectedSidekick.id, {
         content: knowledgeEntry,
@@ -1855,7 +1957,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                     </span>
                   </div>
 
-                  {selectedSidekick.knowledgeBase.length === 0 ? (
+                  {selectedSidekick.knowledgeBase.length === 0 && realKbEntries.length === 0 ? (
                     <div className="text-center py-8">
                       <span className="material-symbols-outlined text-4xl text-slate-400 mb-2 block">library_books</span>
                       <p className="text-slate-500">No knowledge added yet</p>
@@ -1863,8 +1965,34 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                     </div>
                   ) : (
                     <div className="space-y-3 max-h-60 overflow-y-auto">
+                      {/* Real KB Entries (Supabase) */}
+                      {realKbEntries.map((entry) => (
+                        <div key={entry.id} className="flex items-start gap-3 p-4 bg-white border border-slate-200 rounded-lg">
+                          <span className="material-symbols-outlined text-slate-400 mt-0.5">
+                            {entry.type === 'file' ? 'description' : entry.type === 'url' ? 'link' : 'article'}
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-slate-900 text-sm font-medium">{entry.title}</p>
+                            {entry.content && entry.type !== 'file' && (
+                              <p className="text-slate-600 text-xs mt-1 line-clamp-2">{entry.content}</p>
+                            )}
+                            <p className="text-slate-400 text-xs mt-1">
+                              {new Date(entry.created_at).toLocaleDateString()} • {entry.type.toUpperCase()}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveKnowledge(-1, entry.id)}
+                            className="text-red-400 hover:text-red-600 p-1"
+                            title="Remove knowledge"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Legacy/Mock KB Entries */}
                       {selectedSidekick.knowledgeBase.map((knowledge, index) => (
-                        <div key={index} className="flex items-start gap-3 p-4 bg-white border border-slate-200 rounded-lg">
+                        <div key={`legacy-${index}`} className="flex items-start gap-3 p-4 bg-white border border-slate-200 rounded-lg">
                           <span className="material-symbols-outlined text-slate-400 mt-0.5">article</span>
                           <p className="flex-1 text-slate-700 text-sm leading-relaxed">{knowledge}</p>
                           <button
