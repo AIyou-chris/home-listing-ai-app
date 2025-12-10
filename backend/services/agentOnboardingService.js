@@ -484,7 +484,7 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
 
     const statusUpdate = {
       status: isAdminBypass ? 'admin_test' : 'active',
-      payment_status: isAdminBypass ? 'bypassed' : 'paid',
+      payment_status: isAdminBypass ? 'bypassed' : 'awaiting_payment',
       activated_at: new Date().toISOString(),
       last_payment_provider: paymentProvider || null,
       last_payment_reference: paymentReference || null,

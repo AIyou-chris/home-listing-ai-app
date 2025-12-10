@@ -8104,7 +8104,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     // Promo Code Logic
     const normalizedPromoCode = (promoCode || '').toString().trim().toUpperCase();
     if (normalizedPromoCode === 'FRIENDS30' || normalizedPromoCode === 'LIFETIME') {
-      const paymentStatus = normalizedPromoCode === 'FRIENDS30' ? 'trial_30_days' : 'paid';
+      const paymentStatus = 'awaiting_payment';
 
       try {
         // Use the onboarding service to handle everything (status update, dashboard creation, emails)
