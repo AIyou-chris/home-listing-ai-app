@@ -8132,8 +8132,8 @@ app.post('/api/payments/checkout-session', async (req, res) => {
           }
         });
       } catch (err) {
-        console.error('Error applying promo code via onboarding service:', err);
-        return res.status(500).json({ success: false, error: 'Failed to apply promo code.' });
+        console.error('Promo code error:', err);
+        return res.status(500).json({ success: false, error: `Failed to apply promo code: ${err.message}` });
       }
     }
 
