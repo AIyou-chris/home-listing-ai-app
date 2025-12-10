@@ -133,13 +133,13 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
   const [billingSettings, setBillingSettings] = useState<BillingSettings>({
     planName: 'Complete AI Solution',
     planStatus: 'active',
-    amount: 89,
+    amount: 49,
     currency: 'USD',
     managedBy: 'paypal',
     renewalDate: null,
     cancellationRequestedAt: null,
     history: [
-      { id: 'inv-123', date: '2024-07-15', amount: 89, status: 'Paid', description: 'Complete AI Solution - Monthly' }
+      { id: 'inv-123', date: '2024-07-15', amount: 49, status: 'Paid', description: 'Complete AI Solution - Monthly' }
     ]
   });
 
