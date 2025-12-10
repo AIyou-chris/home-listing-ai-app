@@ -64,6 +64,28 @@ app.use(express.json({ limit: '16mb' }));
 app.use(express.urlencoded({ extended: true, limit: '16mb' }));
 app.use(helmet());
 
+// Request Tracking Middleware
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    adminCommandCenter.health.totalApiCalls++;
+    const start = Date.now();
+
+    // Capture response for timing and failures
+    const originalSend = res.send;
+    res.send = function (...args) {
+      const duration = Date.now() - start;
+      adminCommandCenter.health.totalResponseTimeMs += duration;
+
+      if (res.statusCode >= 400 && res.statusCode !== 404) {
+        adminCommandCenter.health.failedApiCalls++;
+      }
+
+      return originalSend.apply(this, args);
+    };
+  }
+  next();
+});
+
 // Scraper Endpoint
 app.post('/api/scrape', async (req, res) => {
   try {
@@ -2128,46 +2150,39 @@ let adminSettings = {
 };
 
 // Admin command center state (mock/live-ready placeholders)
+// Admin command center state
 const adminCommandCenter = {
   health: {
-    totalApiCalls: 1423,
-    failedApiCalls: 12,
-    avgResponseTimeMs: 420,
-    uptimePercent: 99.9,
+    totalApiCalls: 0,
+    failedApiCalls: 0,
+    totalResponseTimeMs: 0,
+    startTime: Date.now(),
     lastChecked: new Date().toISOString()
   },
   security: {
-    openRisks: ['2 admins without 2FA', '1 API key with broad scope'],
-    lastLogin: { ip: '192.168.1.24', device: 'MacOS · Chrome', at: new Date().toISOString() },
-    anomalies: [{ type: 'login_region_change', detail: 'New region login detected', at: new Date().toISOString() }]
+    openRisks: [],
+    lastLogin: null,
+    anomalies: []
   },
   support: {
-    openChats: 3,
-    openTickets: 5,
-    openErrors: 1,
-    items: [
-      { id: 'chat-1', type: 'chat', title: 'Lead waiting on response', severity: 'medium' },
-      { id: 'ticket-1', type: 'ticket', title: 'Calendar sync issue', severity: 'high' },
-      { id: 'error-1', type: 'error', title: 'Upload worker retrying', severity: 'low' }
-    ]
+    openChats: 0,
+    openTickets: 0,
+    openErrors: 0,
+    items: []
   },
   metrics: {
-    leadsToday: 12,
-    leadsThisWeek: 48,
-    appointmentsNext7: 9,
-    messagesSent: 132,
-    leadsSpark: [3, 6, 4, 8, 7, 9, 12],
-    apptSpark: [1, 0, 2, 1, 3, 1, 1],
+    leadsToday: 0,
+    leadsThisWeek: 0,
+    appointmentsNext7: 0,
+    messagesSent: 0,
+    leadsSpark: [],
+    apptSpark: [],
     statuses: {
-      aiLatencyMs: 680,
-      emailBounceRate: 1.2,
+      aiLatencyMs: 0,
+      emailBounceRate: 0,
       fileQueueStuck: 0
     },
-    recentLeads: [
-      { id: 'lead-1', name: 'Jamie Carter', status: 'New', source: 'Website', at: new Date().toISOString() },
-      { id: 'lead-2', name: 'Priya Shah', status: 'Qualified', source: 'CSV Import', at: new Date(Date.now() - 3600 * 1000).toISOString() },
-      { id: 'lead-3', name: 'Alex Kim', status: 'Contacted', source: 'Landing Page', at: new Date(Date.now() - 3 * 3600 * 1000).toISOString() }
-    ]
+    recentLeads: []
   }
 };
 
@@ -4235,27 +4250,199 @@ app.get('/api/admin/analytics/funnel-calendar', (_req, res) => {
 
 // Admin command center endpoints (health, security, support, metrics)
 app.get('/api/admin/system/health', (_req, res) => {
-  const failuresThreshold = 20;
+  const { totalApiCalls, failedApiCalls, totalResponseTimeMs, startTime } = adminCommandCenter.health;
+  const avgResponseTimeMs = totalApiCalls > 0 ? Math.round(totalResponseTimeMs / totalApiCalls) : 0;
+  const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000); // Process uptime
+
   const alerts = [];
-  if (adminCommandCenter.health.failedApiCalls > failuresThreshold) {
-    alerts.push({ type: 'api_failures', message: 'High API failure rate detected' });
+  if (failedApiCalls / (totalApiCalls || 1) > 0.05) {
+    alerts.push({ type: 'api_failures', message: 'High API failure rate (>5%)' });
   }
-  if (adminCommandCenter.health.avgResponseTimeMs > 1000) {
-    alerts.push({ type: 'latency', message: 'Average response time above 1s' });
+  if (avgResponseTimeMs > 1000) {
+    alerts.push({ type: 'latency', message: 'Avg response time > 1s' });
   }
-  res.json({ ...adminCommandCenter.health, alerts });
+
+  res.json({
+    totalApiCalls,
+    failedApiCalls,
+    avgResponseTimeMs,
+    uptimePercent: 100, // Always 100% since we are running
+    lastChecked: new Date().toISOString(),
+    alerts
+  });
 });
 
-app.get('/api/admin/security/monitor', (_req, res) => {
-  res.json(adminCommandCenter.security);
+app.get('/api/admin/security/monitor', async (_req, res) => {
+  // Mock Real Security Check (since we can't easily query auth audit logs purely from SQL)
+  // We can check for users with potentially weak access
+  const openRisks = [];
+
+  // Example check: Unverified emails (if we had access)
+  // For now, return safe state
+  res.json({
+    openRisks,
+    lastLogin: adminCommandCenter.security.lastLogin || { ip: '127.0.0.1', device: 'Server', at: new Date().toISOString() },
+    anomalies: []
+  });
 });
 
-app.get('/api/admin/support/summary', (_req, res) => {
-  res.json(adminCommandCenter.support);
+app.get('/api/admin/support/summary', async (_req, res) => {
+  try {
+    // Count "New" leads as a proxy for attention needed
+    const { count: newLeadsCount } = await supabaseAdmin
+      .from('leads')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'New');
+
+    res.json({
+      openChats: 0, // Placeholder until chat system is fully SQL-backed
+      openTickets: newLeadsCount || 0, // Treat new leads as "tickets" for agent attention
+      openErrors: adminCommandCenter.health.failedApiCalls,
+      items: [
+        ...(newLeadsCount > 0 ? [{ id: 'leads-new', type: 'lead', title: `${newLeadsCount} new leads`, severity: 'medium' }] : []),
+        ...(adminCommandCenter.health.failedApiCalls > 0 ? [{ id: 'err-api', type: 'error', title: 'API Failures detected', severity: 'low' }] : [])
+      ]
+    });
+  } catch (err) {
+    console.error('Support summary error:', err);
+    res.json(adminCommandCenter.support); // Fallback
+  }
 });
 
-app.get('/api/admin/analytics/overview', (_req, res) => {
-  res.json(adminCommandCenter.metrics);
+app.get('/api/admin/analytics/overview', async (_req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // 1. Leads Today
+    const { count: leadsToday } = await supabaseAdmin
+      .from('leads')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', today.toISOString());
+
+    // 2. Leads This Week
+    const { count: leadsWeek } = await supabaseAdmin
+      .from('leads')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', weekAgo.toISOString());
+
+    // 3. Appointments Next 7 Days
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const { count: apptsNext7 } = await supabaseAdmin
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .gte('start_iso', new Date().toISOString())
+      .lte('start_iso', nextWeek.toISOString());
+
+    // 4. Messages Sent (Mock for now, or count email_events)
+    // Let's count delivered emails
+    const { count: msgs } = await supabaseAdmin
+      .from('email_events')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', weekAgo.toISOString());
+
+    // 5. Recent Leads
+    const { data: recentLeads } = await supabaseAdmin
+      .from('leads')
+      .select('id, name, status, source, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const formattedLeads = (recentLeads || []).map(l => ({
+      id: l.id,
+      name: l.name,
+      status: l.status,
+      source: l.source,
+      at: l.created_at
+    }));
+
+    res.json({
+      leadsToday: leadsToday || 0,
+      leadsThisWeek: leadsWeek || 0,
+      appointmentsNext7: apptsNext7 || 0,
+      messagesSent: msgs || 0,
+      leadsSpark: [], // Keep empty or calculate daily histo
+      apptSpark: [],
+      statuses: {
+        aiLatencyMs: 0,
+        emailBounceRate: 0,
+        fileQueueStuck: 0
+      },
+      recentLeads: formattedLeads
+    });
+
+  } catch (error) {
+    console.error('Analytics overview error:', error);
+    res.status(500).json({ error: 'Failed to load metrics' });
+  }
+});
+
+// AI Property Chat Endpoint
+app.post('/api/ai/property-chat', async (req, res) => {
+  const { property, question, history } = req.body;
+
+  if (!property || !question) {
+    return res.status(400).json({ success: false, error: 'Property and question are required' });
+  }
+
+  try {
+    // 1. Fetch Knowledge Base for this property
+    const { data: kbEntries } = await supabaseAdmin
+      .from('ai_kb')
+      .select('type, title, content, file_path')
+      .eq('property_id', property.id);
+
+    let kbContext = '';
+    if (kbEntries && kbEntries.length > 0) {
+      kbContext = `\n\nADDITIONAL KNOWLEDGE BASE FOR THIS PROPERTY:\n`;
+      kbEntries.forEach(entry => {
+        kbContext += `\n[${entry.type.toUpperCase()}: ${entry.title}]\n${entry.content || '(Content not indexed - file upload)'}\n`;
+      });
+    }
+
+    // 2. Build System Prompt
+    const systemPrompt = `You are an expert real estate assistant helping a potential buyer or agent with questions about a specific property.
+    
+PROPERTY DETAILS:
+Address: ${property.address}
+Price: $${property.price?.toLocaleString()}
+Beds: ${property.bedrooms} | Baths: ${property.bathrooms} | SqFt: ${property.squareFeet?.toLocaleString()}
+Description: ${typeof property.description === 'string' ? property.description : property.description?.paragraphs?.join('\n')}
+Features: ${property.features?.join(', ')}
+
+${kbContext}
+
+INSTRUCTIONS:
+- Answer the user's question accurately based on the property details and the additional knowledge base.
+- If the knowledge base conflicts with the basic details, prioritize the knowledge base as it contains specific uploads.
+- Be professional, enthusiastic, and helpful.
+- If the answer isn't in the data, suggest scheduling a viewing or contacting the agent.
+- Keep answers concise but informative.
+`;
+
+    // 3. Call OpenAI
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...(history || []).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text })),
+      { role: 'user', content: question }
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 500
+    });
+
+    const answer = completion.choices[0].message.content;
+
+    res.json({ success: true, text: answer });
+
+  } catch (error) {
+    console.error('[AI Chat] Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to generate answer' });
+  }
 });
 
 // Admin settings: billing
@@ -4641,6 +4828,26 @@ app.patch('/api/notifications/preferences/:userId', (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to update preferences' })
   }
 })
+
+// Get single follow-up sequence
+app.get('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
+  try {
+    const ownerId = resolveMarketingOwnerId(req);
+    const { sequenceId } = req.params;
+
+    const sequences = await marketingStore.loadSequences(ownerId);
+    const sequence = sequences.find(seq => seq.id === sequenceId);
+
+    if (!sequence) {
+      return res.status(404).json({ error: 'Sequence not found' });
+    }
+
+    res.json(sequence);
+  } catch (error) {
+    console.error('Get sequence error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Update follow-up sequence
 app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {

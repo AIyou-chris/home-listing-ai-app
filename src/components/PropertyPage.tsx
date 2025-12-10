@@ -4,6 +4,7 @@ import { listTranscripts, deleteTranscript } from '../services/aiTranscriptsServ
 import { resolveUserId } from '../services/userId';
 import { Property, ChatMessage, isAIDescription } from '../types';
 import { generatePropertyDescription, answerPropertyQuestion } from '../services/geminiService';
+import { PropertyKnowledgeHub } from './PropertyKnowledgeHub';
 
 interface PropertyPageProps {
   property: Property;
@@ -478,6 +479,7 @@ const PropertyPage: React.FC<PropertyPageProps> = ({ property, setProperty, onBa
         <div className="lg:col-span-2 space-y-6">
           <QuickQRGenerator property={property} />
           <PropertyMapWidget property={property} />
+          <PropertyKnowledgeHub propertyId={property.id} isDemoMode={isDemoMode} />
           <AIAssistant property={property} isDemoMode={isDemoMode} />
         </div>
       </div>

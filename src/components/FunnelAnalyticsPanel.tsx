@@ -3,6 +3,7 @@ import AnalyticsPage from './AnalyticsPage';
 import QuickEmailModal from './QuickEmailModal';
 import SequenceFeedbackPanel from './SequenceFeedbackPanel';
 import { funnelService } from '../services/funnelService';
+import { supabase } from '../services/supabase';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -343,6 +344,49 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [expandedPostStepIds, setExpandedPostStepIds] = useState<string[]>([]);
     const [panelExpanded, setPanelExpanded] = useState(initPanelState);
     const [activeSection, setActiveSection] = useState<'funnels' | 'scoring' | 'feedback'>('funnels');
+    const [sendingTestId, setSendingTestId] = useState<string | null>(null);
+
+    const handleSendTestEmail = async (step: EditableStep) => {
+        if (sendingTestId) return;
+        setSendingTestId(step.id);
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user || !user.email) {
+                alert('Could not find your email address to send the test to.');
+                return;
+            }
+
+            const subject = mergeTokens(step.subject);
+            // Replace newlines with <br/> for HTML email body
+            const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
+
+            const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+            const response = await fetch(`${apiUrl}/api/admin/email/quick-send`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    to: user.email,
+                    subject: `[TEST] ${subject}`,
+                    html: body,
+                    text: mergeTokens(step.content)
+                })
+            });
+
+            if (response.ok) {
+                alert(`Test email sent to ${user.email}`);
+            } else {
+                throw new Error('Failed to send test email');
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Failed to send test email. Check console for details.');
+        } finally {
+            setSendingTestId(null);
+        }
+    };
 
     type MergeBuckets = {
         lead: Record<string, string>;
@@ -608,7 +652,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             onRemoveStep,
             onAddStep,
             onSave,
-            saveLabel
+            saveLabel,
+            onSendTest
         }: {
             badgeIcon: string;
             badgeClassName: string;
@@ -624,6 +669,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             onAddStep: () => void;
             onSave: () => void;
             saveLabel: string;
+            onSendTest: (step: EditableStep) => void;
         }
     ) => {
         const isOpen = panelExpanded[panelKey];
@@ -770,6 +816,16 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                         </ul>
                                                     </div>
                                                 </div>
+                                                <div className="flex justify-end">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onSendTest(step)}
+                                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
+                                                    >
+                                                        <span className="material-symbols-outlined text-base">send</span>
+                                                        Send Test to Me
+                                                    </button>
+                                                </div>
                                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                                     <button
                                                         type="button"
@@ -890,7 +946,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             onRemoveStep: handleRemoveWelcomeStep,
                             onAddStep: handleAddWelcomeStep,
                             onSave: handleSaveWelcomeSteps,
-                            saveLabel: 'Save Welcome Drip'
+                            saveLabel: 'Save Welcome Drip',
+                            onSendTest: handleSendTestEmail
                         })}
 
                         {renderFunnelPanel('buyer', {
@@ -908,7 +965,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             onRemoveStep: handleRemoveBuyerStep,
                             onAddStep: handleAddBuyerStep,
                             onSave: handleSaveBuyerSteps,
-                            saveLabel: 'Save Buyer Journey'
+                            saveLabel: 'Save Buyer Journey',
+                            onSendTest: handleSendTestEmail
                         })}
 
                         {renderFunnelPanel('listing', {
@@ -926,7 +984,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             onRemoveStep: handleRemoveListingStep,
                             onAddStep: handleAddListingStep,
                             onSave: handleSaveListingSteps,
-                            saveLabel: 'Save Seller Funnel'
+                            saveLabel: 'Save Seller Funnel',
+                            onSendTest: handleSendTestEmail
                         })}
 
                         {renderFunnelPanel('post', {
@@ -943,7 +1002,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             onRemoveStep: handleRemovePostStep,
                             onAddStep: handleAddPostStep,
                             onSave: handleSavePostSteps,
-                            saveLabel: 'Save Follow-Up'
+                            saveLabel: 'Save Follow-Up',
+                            onSendTest: handleSendTestEmail
                         })}
                     </div>
                 )}

@@ -734,12 +734,7 @@ const AIAppShowcaseSection: React.FC = () => {
 
 
 const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultationModal: () => void }> = ({ onNavigateToSignUp, onOpenConsultationModal }) => {
-    const PlanFeature: React.FC<{ children: React.ReactNode, dark?: boolean }> = ({ children, dark }) => (
-        <li className="flex items-start gap-3">
-            <span className={`material-symbols-outlined w-6 h-6 ${dark ? 'text-green-400' : 'text-green-500'} flex-shrink-0 mt-0.5`}>check_circle</span>
-            <span className={dark ? 'text-slate-300' : 'text-slate-600'}>{children}</span>
-        </li>
-    );
+
 
     return (
         <section id="pricing" className="py-20 bg-slate-50 relative overflow-hidden">
@@ -823,28 +818,79 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                     <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform hover:scale-105 transition-all duration-300 animate-fade-in-up glow max-w-md">
                         <div className="flex-grow">
                             <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
-                            <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
+                            <p className="mt-2 text-slate-300">Everything you need to dominate your market, impress clients, and close more deals — automatically.</p>
                             <p className="mt-6">
                                 <span className="text-5xl font-extrabold text-white">$49</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
                             <p className="mt-2 text-slate-300 line-through text-sm">Regular price: $129/mo</p>
                             <ul className="mt-8 space-y-4">
-                                <PlanFeature dark>Unlimited AI interactions per month</PlanFeature>
-                                <PlanFeature dark>Up to 3 active listings</PlanFeature>
-                                <PlanFeature dark>300 emails per month</PlanFeature>
-                                <PlanFeature dark>Advanced analytics dashboard</PlanFeature>
-                                <PlanFeature dark>Your own trained GPT</PlanFeature>
-                                <PlanFeature dark>Automated follow-up sequences</PlanFeature>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined text-white text-xl mt-0.5">check_circle</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-slate-100">AI conversations auto-detect & respond in 12 languages</span>
-                                        <span className="material-symbols-outlined text-yellow-300 text-lg">language</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <div>
+                                        <span className="text-slate-300 font-semibold">Unlimited AI conversations</span>
+                                        <p className="text-xs text-slate-400 mt-0.5">Your leads can ask anything, anytime — your AI responds instantly.</p>
                                     </div>
                                 </li>
-                                <PlanFeature dark>Auto leads to closing</PlanFeature>
-                                <PlanFeature dark>Need more? We do custom programs</PlanFeature>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <div>
+                                        <span className="text-slate-300 font-semibold">Up to 3 active AI-powered listings</span>
+                                        <p className="text-xs text-slate-400 mt-0.5">Every listing becomes its own interactive mobile app with a trained AI sidekick.</p>
+                                    </div>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <div>
+                                        <span className="text-slate-300 font-semibold">300 automated emails per month</span>
+                                        <p className="text-xs text-slate-400 mt-0.5">Smart follow-up sequences that nurture leads without lifting a finger.</p>
+                                    </div>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <div>
+                                        <span className="text-slate-300 font-semibold">Advanced analytics dashboard</span>
+                                        <p className="text-xs text-slate-400 mt-0.5">Track conversations, engagement, and lead intent ratings in real time.</p>
+                                    </div>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <div>
+                                        <span className="text-slate-300 font-semibold">Your own trained GPT</span>
+                                        <p className="text-xs text-slate-400 mt-0.5">Fully customized to your tone, branding, and communication style.</p>
+                                    </div>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <div>
+                                        <span className="text-slate-300 font-semibold">Automated follow-up funnels</span>
+                                        <p className="text-xs text-slate-400 mt-0.5">Includes welcome sequence, reminders, and lead scoring.</p>
+                                    </div>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-slate-300 font-semibold">12-language auto-detect AI</span>
+                                            <span className="material-symbols-outlined text-yellow-300 text-lg">language</span>
+                                        </div>
+                                        <p className="text-xs text-slate-400 mt-0.5">Your AI instantly responds in your lead’s preferred language — no settings needed.</p>
+                                    </div>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <div>
+                                        <span className="text-slate-300 font-semibold">Tools built to close deals</span>
+                                        <p className="text-xs text-slate-400 mt-0.5">Scheduling, instant notifications, transcripts, and warm lead routing.</p>
+                                    </div>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <div>
+                                        <span className="text-slate-300 font-semibold">Need even more?</span>
+                                        <p className="text-xs text-slate-400 mt-0.5">We offer custom programs designed for teams & high-volume agents.</p>
+                                    </div>
+                                </li>
                             </ul>
                         </div>
                         <button
@@ -854,7 +900,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                             Lock In This Price Now
                         </button>
                         <p className="text-center text-xs text-slate-300 mt-3 opacity-90">
-                            Price may increase at any time. Secure your rate today.
+                            Price may increase at any time. Secure your lifetime rate today.
                         </p>
                         <div className="mt-4 pt-4 border-t border-white/20 text-center">
                             <p className="text-sm font-bold text-white flex items-center justify-center gap-2">
@@ -1283,7 +1329,7 @@ const AboutUsSection: React.FC = () => (
                 <div className="animate-fade-in-left">
                     <div className="bg-slate-50 rounded-2xl p-8 shadow-lg border border-slate-200/60">
                         <p className="text-lg text-slate-700 leading-relaxed mb-6">
-                            Founded by seasoned real estate and mortgage pros with over <span className="font-bold text-primary-600">15 years</span> of hands-on experience, we've seen the industry evolve—and helped shape it. From launching our first website in 1997 (yeah, we were there before Google), to pioneering our first mobile app in 2005, we've always stayed two steps ahead of the curve.
+                            Founded by seasoned real estate and mortgage pros with over <span className="font-bold text-primary-600">25 years</span> of hands-on experience, we've seen the industry evolve—and helped shape it. From launching our first website in 1997 (yeah, we were there before Google), to pioneering our first mobile app in 2005, we've always stayed two steps ahead of the curve.
                         </p>
                         <p className="text-lg text-slate-700 leading-relaxed mb-6">
                             Today, we proudly serve over <span className="font-bold text-primary-600">500 loyal clients</span>, blending cutting-edge technology with old-school hustle. And let's not forget our two 100-pound Labrador companions, our unofficial <span className="font-bold text-green-600">Chief Happiness Officers</span>, who remind us daily that loyalty and presence are everything.
@@ -1303,7 +1349,7 @@ const AboutUsSection: React.FC = () => (
                             {[
                                 { number: '30', label: 'Years in Business', icon: '🏢' },
                                 { number: '500+', label: 'Clients Served', icon: '👥' },
-                                { number: '15+', label: 'Years Experience', icon: '⚡' },
+                                { number: '25+', label: 'Years Experience', icon: '⚡' },
                                 { number: '2', label: 'Labrador Officers', icon: '🐕' }
                             ].map((stat, index) => (
                                 <div key={index} className="text-center group hover:scale-105 transition-transform duration-300">

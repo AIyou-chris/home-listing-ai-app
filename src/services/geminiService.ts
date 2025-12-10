@@ -7,17 +7,17 @@ import {
 } from './languagePreferenceService'
 
 interface GeminiResponse<T> {
-    data: T;
+  data: T;
 }
 
 const createErrorStub = <Params, Result>(): ((params: Params) => Promise<GeminiResponse<Result>>) => {
-    return async () => {
-        throw new Error('Service unavailable');
-    };
+  return async () => {
+    throw new Error('Service unavailable');
+  };
 };
 
 const generatePropertyDescriptionFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty> }, AIDescription>();
-const answerPropertyQuestionFunction = createErrorStub<{ property: ReturnType<typeof createSerializableProperty>; question: string }, { text: string }>();
+
 const continueConversationFunction = createErrorStub<{ messages: Array<{ sender: string; text: string }> }, { text: string }>();
 
 const getMarketAnalysisFunction = createErrorStub<{ address: string }, MarketData>();
@@ -29,19 +29,19 @@ const generatePromptTextFunction = createErrorStub<{ prompt: string; platform: S
 const getLocalInfoFunction = createErrorStub<{ address: string; category: string }, LocalInfoData>();
 
 interface GenerateReportOptions {
-    marketAnalysis: boolean;
-    comparableProperties: boolean;
-    neighborhoodInfo: boolean;
-    realPropertyData?: {
-        estimatedValue?: number;
-        rentEstimate?: number;
-        walkScore?: number;
-        crimeScore?: number;
-        schoolDistrict?: string;
-        neighborhood?: string;
-        yearBuilt?: number;
-        lotSize?: number;
-    };
+  marketAnalysis: boolean;
+  comparableProperties: boolean;
+  neighborhoodInfo: boolean;
+  realPropertyData?: {
+    estimatedValue?: number;
+    rentEstimate?: number;
+    walkScore?: number;
+    crimeScore?: number;
+    schoolDistrict?: string;
+    neighborhood?: string;
+    yearBuilt?: number;
+    lotSize?: number;
+  };
 }
 
 /**
@@ -50,50 +50,50 @@ interface GenerateReportOptions {
  * @returns A new object that is safe to send to Firebase Cloud Functions.
  */
 const createSerializableProperty = (property: Property) => {
-    // Sanitize photo arrays to ensure they don't contain non-serializable File objects.
-    const sanitizedHeroPhotos = (property.heroPhotos || []).map((p: string | File) =>
-        typeof p === 'string' ? p : p.name
-    );
-    const sanitizedGalleryPhotos = (property.galleryPhotos || []).map((p: string | File) =>
-        typeof p === 'string' ? p : p.name
-    );
+  // Sanitize photo arrays to ensure they don't contain non-serializable File objects.
+  const sanitizedHeroPhotos = (property.heroPhotos || []).map((p: string | File) =>
+    typeof p === 'string' ? p : p.name
+  );
+  const sanitizedGalleryPhotos = (property.galleryPhotos || []).map((p: string | File) =>
+    typeof p === 'string' ? p : p.name
+  );
 
-    // Defensively rebuild the agent object to ensure it is plain and serializable.
-    const { name, title, company, phone, email, headshotUrl, socials, brandColor, logoUrl, website, bio } = property.agent;
-    const sanitizedAgent = { name, title, company, phone, email, headshotUrl, socials, brandColor, logoUrl, website, bio };
+  // Defensively rebuild the agent object to ensure it is plain and serializable.
+  const { name, title, company, phone, email, headshotUrl, socials, brandColor, logoUrl, website, bio } = property.agent;
+  const sanitizedAgent = { name, title, company, phone, email, headshotUrl, socials, brandColor, logoUrl, website, bio };
 
-    // Defensively rebuild the description object.
-    const sanitizedDescription = isAIDescription(property.description)
-        ? { title: property.description.title, paragraphs: property.description.paragraphs }
-        : property.description;
+  // Defensively rebuild the description object.
+  const sanitizedDescription = isAIDescription(property.description)
+    ? { title: property.description.title, paragraphs: property.description.paragraphs }
+    : property.description;
 
-    return {
-        id: property.id,
-        title: property.title,
-        address: property.address,
-        price: property.price,
-        bedrooms: property.bedrooms,
-        bathrooms: property.bathrooms,
-        squareFeet: property.squareFeet,
-        description: sanitizedDescription,
-        heroPhotos: sanitizedHeroPhotos,
-        galleryPhotos: sanitizedGalleryPhotos,
-        appFeatures: property.appFeatures,
-        agent: sanitizedAgent,
-        propertyType: property.propertyType,
-        features: property.features,
-        imageUrl: property.imageUrl,
-    };
+  return {
+    id: property.id,
+    title: property.title,
+    address: property.address,
+    price: property.price,
+    bedrooms: property.bedrooms,
+    bathrooms: property.bathrooms,
+    squareFeet: property.squareFeet,
+    description: sanitizedDescription,
+    heroPhotos: sanitizedHeroPhotos,
+    galleryPhotos: sanitizedGalleryPhotos,
+    appFeatures: property.appFeatures,
+    agent: sanitizedAgent,
+    propertyType: property.propertyType,
+    features: property.features,
+    imageUrl: property.imageUrl,
+  };
 };
 
 
 export const generatePropertyDescription = async (property: Property): Promise<AIDescription | string> => {
   try {
     const serializableProperty = createSerializableProperty(property);
-        const result = await generatePropertyDescriptionFunction({ property: serializableProperty });
-        const description = result.data;
-        if (isAIDescription(description)) {
-            return description;
+    const result = await generatePropertyDescriptionFunction({ property: serializableProperty });
+    const description = result.data;
+    if (isAIDescription(description)) {
+      return description;
     }
     return "Failed to generate a valid description structure.";
   } catch (error) {
@@ -102,14 +102,37 @@ export const generatePropertyDescription = async (property: Property): Promise<A
   }
 };
 
-export const answerPropertyQuestion = async (property: Property, question: string): Promise<string> => {
+export const answerPropertyQuestion = async (property: Property, question: string, history?: ChatMessage[]): Promise<string> => {
   if (!question.trim()) {
     return "Please ask a question.";
   }
   try {
     const serializableProperty = createSerializableProperty(property);
-    const result = await answerPropertyQuestionFunction({ property: serializableProperty, question });
-    return result.data.text;
+
+    // Retrieve API Base URL if defined, otherwise assume relative (via proxy)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const apiBase = (import.meta as any).env?.VITE_API_BASE_URL || '';
+    const url = `${apiBase.replace(/\/$/, '')}/api/ai/property-chat`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        property: serializableProperty,
+        question,
+        history: history || []
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.success) {
+      return data.text;
+    }
+    throw new Error(data.error || 'Unknown error');
   } catch (error) {
     console.error("Error answering property question:", error);
     return "I'm having trouble connecting right now. Please try again in a moment.";
@@ -122,14 +145,14 @@ export const continueConversation = async (messages: ChatMessage[]): Promise<str
     if (!messages || messages.length === 0) {
       throw new Error("No messages provided for conversation");
     }
-    
+
     // Add a timeout to the Firebase function call
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error("Request timed out")), 45000); // 45 seconds timeout (increased from 30)
     });
-    
+
     console.log("Calling continueConversation function with", messages.length, "messages");
-    
+
     // Prepare the messages for the API
     // Make sure each message has the required properties
     let overrideLanguage: string | null = null
@@ -149,15 +172,15 @@ export const continueConversation = async (messages: ChatMessage[]): Promise<str
     const finalMessages = languageInstruction
       ? [{ sender: 'system', text: languageInstruction }, ...validatedMessages]
       : validatedMessages
-    
+
     // Race between the actual function call and the timeout
     const result = await Promise.race([
       continueConversationFunction({ messages: finalMessages }),
       timeoutPromise
     ]);
-    
+
     console.log("Received response from continueConversation function");
-    
+
     // Check if we have a valid response
     if (result && result.data && typeof result.data.text === 'string') {
       const responseText = result.data.text;
@@ -169,11 +192,11 @@ export const continueConversation = async (messages: ChatMessage[]): Promise<str
     }
   } catch (error) {
     console.error("Error continuing conversation:", error);
-    
+
     // Check for specific error types and provide appropriate messages
     if (error instanceof Error) {
       const errorMsg = error.message;
-      
+
       if (errorMsg.includes("timed out")) {
         throw new Error("The request took too long to process. Please try again with a shorter message.");
       } else if (errorMsg.includes("network") || errorMsg.includes("connection")) {
@@ -190,7 +213,7 @@ export const continueConversation = async (messages: ChatMessage[]): Promise<str
         throw new Error("The AI model is currently unavailable. Please try again later or contact support.");
       }
     }
-    
+
     // Provide a generic error message if we can't determine the specific issue
     throw new Error("Unable to get a response from the AI assistant. Please try again later.");
   }
@@ -198,53 +221,53 @@ export const continueConversation = async (messages: ChatMessage[]): Promise<str
 
 
 export const getMarketAnalysis = async (address: string): Promise<MarketData> => {
-    if (!address.trim()) {
-        throw new Error("Address cannot be empty.");
-    }
-    try {
-        const result = await getMarketAnalysisFunction({ address });
-        return result.data as MarketData;
-    } catch (error) {
-        console.error("Error getting market analysis:", error);
-        throw new Error("Failed to retrieve market data. Please try again.");
-    }
+  if (!address.trim()) {
+    throw new Error("Address cannot be empty.");
+  }
+  try {
+    const result = await getMarketAnalysisFunction({ address });
+    return result.data as MarketData;
+  } catch (error) {
+    console.error("Error getting market analysis:", error);
+    throw new Error("Failed to retrieve market data. Please try again.");
+  }
 };
 
 export const generatePropertyReport = async (
-    property: Property,
-    options: GenerateReportOptions
+  property: Property,
+  options: GenerateReportOptions
 ): Promise<string> => {
-    try {
-        console.log('🔧 geminiService: Starting property report generation...');
-        const serializableProperty = createSerializableProperty(property);
-        console.log('🏠 geminiService: Serialized property:', serializableProperty.address);
-        console.log('📊 geminiService: Report options:', options);
-        
-        console.log('☁️ geminiService: Attempting cloud function call...');
-        const result = await generatePropertyReportFunction({ property: serializableProperty, options });
-        const reportText = result.data.text;
-        
-        console.log('✅ geminiService: Cloud function succeeded, length:', reportText.length);
-        return reportText;
-    } catch (error) {
-        console.warn("⚠️ geminiService: Cloud function failed, using fallback:", error);
-        
-        // Generate a mock report as fallback
-        console.log('🔄 geminiService: Generating mock report...');
-        const mockReport = generateMockPropertyReport(property, options);
-        console.log('✅ geminiService: Mock report generated, length:', mockReport.length);
-        return mockReport;
-    }
+  try {
+    console.log('🔧 geminiService: Starting property report generation...');
+    const serializableProperty = createSerializableProperty(property);
+    console.log('🏠 geminiService: Serialized property:', serializableProperty.address);
+    console.log('📊 geminiService: Report options:', options);
+
+    console.log('☁️ geminiService: Attempting cloud function call...');
+    const result = await generatePropertyReportFunction({ property: serializableProperty, options });
+    const reportText = result.data.text;
+
+    console.log('✅ geminiService: Cloud function succeeded, length:', reportText.length);
+    return reportText;
+  } catch (error) {
+    console.warn("⚠️ geminiService: Cloud function failed, using fallback:", error);
+
+    // Generate a mock report as fallback
+    console.log('🔄 geminiService: Generating mock report...');
+    const mockReport = generateMockPropertyReport(property, options);
+    console.log('✅ geminiService: Mock report generated, length:', mockReport.length);
+    return mockReport;
+  }
 };
 
 // Fallback mock report generator for when cloud functions aren't available
 const generateMockPropertyReport = (
-    property: Property,
-    options: GenerateReportOptions
+  property: Property,
+  options: GenerateReportOptions
 ): string => {
-    const realData = options.realPropertyData;
-    
-    let report = `# Professional Property Analysis Report
+  const realData = options.realPropertyData;
+
+  let report = `# Professional Property Analysis Report
 
 ## Property Overview
 **Address:** ${property.address}  
@@ -254,8 +277,8 @@ const generateMockPropertyReport = (
 **Listed Price:** $${property.price?.toLocaleString()}  
 `;
 
-    if (realData) {
-        report += `
+  if (realData) {
+    report += `
 **Market Data Enhanced with Datafiniti API:**
 - **Estimated Value:** $${realData.estimatedValue?.toLocaleString() || 'N/A'}
 - **Rental Estimate:** $${realData.rentEstimate?.toLocaleString() || 'N/A'}/month
@@ -265,10 +288,10 @@ const generateMockPropertyReport = (
 - **Neighborhood:** ${realData.neighborhood || 'N/A'}
 - **Year Built:** ${realData.yearBuilt || 'N/A'}
 `;
-    }
+  }
 
-    if (options.marketAnalysis) {
-        report += `
+  if (options.marketAnalysis) {
+    report += `
 ## Market Analysis
 This property is positioned competitively in the current market. Based on recent sales data and market trends, properties in this area have shown steady appreciation. The current listing price of $${property.price?.toLocaleString()} aligns well with comparable properties of similar size and features.
 
@@ -278,10 +301,10 @@ This property is positioned competitively in the current market. Based on recent
 - Days on market average: 35-45 days
 - Buyer demand: Moderate to strong
 `;
-    }
+  }
 
-    if (options.comparableProperties) {
-        report += `
+  if (options.comparableProperties) {
+    report += `
 ## Comparable Properties
 Recent sales analysis shows similar properties in the area have sold for:
 - **3BR/2BA, 1,750 sq ft:** $${((property.price || 400000) * 0.95).toLocaleString()} (sold 2 weeks ago)
@@ -290,10 +313,10 @@ Recent sales analysis shows similar properties in the area have sold for:
 
 This property is priced competitively within the comparable range, offering excellent value for buyers.
 `;
-    }
+  }
 
-    if (options.neighborhoodInfo) {
-        report += `
+  if (options.neighborhoodInfo) {
+    report += `
 ## Neighborhood Highlights
 This property is located in a desirable ${realData?.neighborhood || 'residential'} neighborhood with excellent amenities:
 
@@ -312,9 +335,9 @@ This property is located in a desirable ${realData?.neighborhood || 'residential
 - Community features and local attractions
 - Low crime rate: ${realData?.crimeScore || '85'}/100 safety score
 `;
-    }
+  }
 
-    report += `
+  report += `
 ## Investment Summary
 This property represents an excellent investment opportunity with strong fundamentals:
 
@@ -331,28 +354,28 @@ This property offers strong value proposition for both homeowners and investors.
 *Report generated on ${new Date().toLocaleDateString()} using advanced AI analysis and real market data.*
 `;
 
-    return report;
+  return report;
 };
 
 export const generateBlogPost = async (options: {
-    topic: string;
-    keywords: string;
-    tone: string;
-    style: string;
-    audience: string;
-    cta: string;
-    urls?: string[];
+  topic: string;
+  keywords: string;
+  tone: string;
+  style: string;
+  audience: string;
+  cta: string;
+  urls?: string[];
 }): Promise<AIBlogPost> => {
-     try {
-        const result = await generateBlogPostFunction({ options });
-        return result.data.post;
-    } catch (error) {
-        console.error("Error generating blog post:", error);
-        return {
-            title: `Sample: ${options.topic}`,
-            body: `This is a placeholder blog post for ${options.topic}.`
-        } as AIBlogPost;
-    }
+  try {
+    const result = await generateBlogPostFunction({ options });
+    return result.data.post;
+  } catch (error) {
+    console.error("Error generating blog post:", error);
+    return {
+      title: `Sample: ${options.topic}`,
+      body: `This is a placeholder blog post for ${options.topic}.`
+    } as AIBlogPost;
+  }
 };
 
 export const generateVideoScript = async (property: Property): Promise<string> => {
@@ -378,27 +401,27 @@ export const generateSocialPostText = async (property: Property, platforms: Soci
 };
 
 export const getLocalInfo = async (address: string, category: string): Promise<LocalInfoData> => {
-    if (!address.trim()) {
-        throw new Error("Address cannot be empty.");
-    }
-    try {
-        const result = await getLocalInfoFunction({ address, category });
-        return result.data;
-    } catch (error) {
-        console.error(`Error getting local info for ${category}:`, error);
-        throw new Error(`Failed to retrieve local data for ${category}. Please try again.`);
-    }
+  if (!address.trim()) {
+    throw new Error("Address cannot be empty.");
+  }
+  try {
+    const result = await getLocalInfoFunction({ address, category });
+    return result.data;
+  } catch (error) {
+    console.error(`Error getting local info for ${category}:`, error);
+    throw new Error(`Failed to retrieve local data for ${category}. Please try again.`);
+  }
 };
 
 // Simple text generation function for knowledge base
 export const generateText = async (prompt: string): Promise<string> => {
-    try {
-        const res = await generatePromptTextFunction({
-            prompt,
-            platform: 'linkedin'
-        });
-        return res.data.text;
-    } catch (error) {
-        return `AI: ${prompt.slice(0, 120)}...`;
-    }
+  try {
+    const res = await generatePromptTextFunction({
+      prompt,
+      platform: 'linkedin'
+    });
+    return res.data.text;
+  } catch (error) {
+    return `AI: ${prompt.slice(0, 120)}...`;
+  }
 };

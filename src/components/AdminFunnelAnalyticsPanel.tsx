@@ -161,6 +161,49 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [topSteps, setTopSteps] = useState<Array<{ title: string; replyRate: number; meetingRate: number }>>([]);
     const [weakSteps, setWeakSteps] = useState<Array<{ title: string; replyRate: number; meetingRate: number }>>([]);
     const [activeTab, setActiveTab] = useState<'funnel' | 'automation'>('funnel');
+    const [sendingTestId, setSendingTestId] = useState<string | null>(null);
+
+    const handleSendTestEmail = async (step: EditableStep) => {
+        if (sendingTestId) return;
+        setSendingTestId(step.id);
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user || !user.email) {
+                alert('Could not find your email address to send the test to.');
+                return;
+            }
+
+            const subject = mergeTokens(step.subject);
+            // Replace newlines with <br/> for HTML email body
+            const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
+
+            const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+            const response = await fetch(`${apiUrl}/api/admin/email/quick-send`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    to: user.email,
+                    subject: `[TEST] ${subject}`,
+                    html: body,
+                    text: mergeTokens(step.content)
+                })
+            });
+
+            if (response.ok) {
+                alert(`Test email sent to ${user.email}`);
+            } else {
+                throw new Error('Failed to send test email');
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Failed to send test email. Check console for details.');
+        } finally {
+            setSendingTestId(null);
+        }
+    };
 
     type MergeBuckets = {
         lead: Record<string, string>;
@@ -171,7 +214,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         const fetchFunnel = async () => {
             setIsLoading(true);
             setError(null);
-            
+
             try {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) {
@@ -193,7 +236,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 }
 
                 const data = await response.json();
-                
+
                 // Transform API data to match component structure
                 const transformedSteps = (data.sequence?.steps || data.steps || []).map(
                     (step: { id: string; subject?: string; delayDays?: number; delayHours?: number; delay?: string; emailBody?: string; body?: string; type?: string; attachments?: Array<{ id: string; name: string; url?: string }> }, index: number) => ({
@@ -212,7 +255,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         attachments: Array.isArray(step.attachments) ? step.attachments : []
                     })
                 );
-                
+
                 setProgramSteps(transformedSteps.length ? transformedSteps : buildDefaultSteps());
 
             } catch (err) {
@@ -234,7 +277,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     useEffect(() => {
         const loadAnalytics = async () => {
-            setStatsLoading(true);
+            setIsLoading(true);
             try {
                 const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
                 const summaryRes = await fetch(`${apiUrl}/api/admin/analytics/funnel-summary`);
@@ -258,7 +301,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             } catch (err) {
                 console.warn('Failed to load admin funnel analytics', err);
             } finally {
-                setStatsLoading(false);
+                setIsLoading(false);
             }
         };
         loadAnalytics();
@@ -400,7 +443,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             if (!response.ok) {
                 throw new Error(`Failed to save funnel: ${response.statusText}`);
             }
-            
+
             alert('Universal Sales Funnel saved successfully!');
 
         } catch (err) {
@@ -459,7 +502,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             onSave,
             onMoveStep,
             onAttachFile,
-            saveLabel
+            saveLabel,
+            onSendTest
         }: {
             badgeIcon: string;
             badgeClassName: string;
@@ -477,6 +521,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             onMoveStep: (id: string, direction: 'up' | 'down') => void;
             onAttachFile: (id: string, files: FileList | null) => void;
             saveLabel: string;
+            onSendTest: (step: EditableStep) => void;
         }
     ) => {
         const isOpen = panelExpanded[panelKey];
@@ -627,6 +672,16 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                         </ul>
                                                     </div>
                                                 </div>
+                                                <div className="flex justify-end">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onSendTest(step)}
+                                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
+                                                    >
+                                                        <span className="material-symbols-outlined text-base">send</span>
+                                                        Send Test to Me
+                                                    </button>
+                                                </div>
                                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                                     <button
                                                         type="button"
@@ -678,7 +733,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                     </label>
                                                 </div>
                                             </div>
-                                        )}
+                                        )
+                                        }
                                     </article>
                                 );
                             })}
@@ -703,8 +759,9 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             </button>
                         </div>
                     </>
-                )}
-            </section>
+                )
+                }
+            </section >
         );
     };
 
@@ -783,11 +840,10 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     <button
                         type="button"
                         onClick={() => setActiveTab('funnel')}
-                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border ${
-                            activeTab === 'funnel'
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border ${activeTab === 'funnel'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
                     >
                         <span className="material-symbols-outlined text-base">rocket_launch</span>
                         Universal Funnel
@@ -795,11 +851,10 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     <button
                         type="button"
                         onClick={() => setActiveTab('automation')}
-                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border ${
-                            activeTab === 'automation'
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border ${activeTab === 'automation'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
                     >
                         <span className="material-symbols-outlined text-base">insights</span>
                         Automation Performance
@@ -807,65 +862,65 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 </div>
 
                 {activeTab === 'funnel' && (
-                <section className="mb-8 space-y-4">
-                    <div className="flex flex-col gap-3">
-                        <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                            <span className="material-symbols-outlined text-base">insights</span>
-                            Lead Scoring Engine
+                    <section className="mb-8 space-y-4">
+                        <div className="flex flex-col gap-3">
+                            <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                                <span className="material-symbols-outlined text-base">insights</span>
+                                Lead Scoring Engine
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <h2 className="text-2xl font-bold text-slate-900">Scoring Rules &amp; Tiers</h2>
+                                <p className="text-sm text-slate-500">
+                                    See the rules, tiers, and point gains that determine which prospects graduate to Hot or stay in nurture.
+                                </p>
+                                <button
+                                    type="button"
+                                    className="inline-flex items-center gap-2 self-start rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                    <span className="material-symbols-outlined text-base">tips_and_updates</span>
+                                    Show Scoring Tips
+                                    <span className="material-symbols-outlined text-sm">expand_more</span>
+                                </button>
+                            </div>
                         </div>
-                        <div className="flex flex-col gap-2">
-                            <h2 className="text-2xl font-bold text-slate-900">Scoring Rules &amp; Tiers</h2>
-                            <p className="text-sm text-slate-500">
-                                See the rules, tiers, and point gains that determine which prospects graduate to Hot or stay in nurture.
-                            </p>
-                            <button
-                                type="button"
-                                className="inline-flex items-center gap-2 self-start rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                            >
-                                <span className="material-symbols-outlined text-base">tips_and_updates</span>
-                                Show Scoring Tips
-                                <span className="material-symbols-outlined text-sm">expand_more</span>
-                            </button>
-                        </div>
-                    </div>
 
-                    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 sm:p-5">
-                        <div className="flex items-center justify-between text-xs text-slate-500 mb-4">
-                            <span className="uppercase tracking-wide font-semibold text-slate-600">Performance Overview</span>
-                            <span>Stats refresh when leads update</span>
+                        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 sm:p-5">
+                            <div className="flex items-center justify-between text-xs text-slate-500 mb-4">
+                                <span className="uppercase tracking-wide font-semibold text-slate-600">Performance Overview</span>
+                                <span>Stats refresh when leads update</span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
+                                    <div className="rounded-full bg-blue-100 text-blue-700 p-2"><span className="material-symbols-outlined">groups</span></div>
+                                    <div>
+                                        <div className="text-xs text-slate-500">Total Leads</div>
+                                        <div className="text-xl font-semibold text-slate-900">{scoringSummary.totalLeads}</div>
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
+                                    <div className="rounded-full bg-green-100 text-green-700 p-2"><span className="material-symbols-outlined">trending_up</span></div>
+                                    <div>
+                                        <div className="text-xs text-slate-500">Conversion Rate</div>
+                                        <div className="text-xl font-semibold text-slate-900">{scoringSummary.conversionRate.toFixed(1)}%</div>
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
+                                    <div className="rounded-full bg-purple-100 text-purple-700 p-2"><span className="material-symbols-outlined">event_available</span></div>
+                                    <div>
+                                        <div className="text-xs text-slate-500">Appointments Set</div>
+                                        <div className="text-xl font-semibold text-slate-900">{scoringSummary.appointments}</div>
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
+                                    <div className="rounded-full bg-amber-100 text-amber-700 p-2"><span className="material-symbols-outlined">stars</span></div>
+                                    <div>
+                                        <div className="text-xs text-slate-500">Average Score</div>
+                                        <div className="text-xl font-semibold text-slate-900">{scoringSummary.averageScore.toFixed(1)}</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
-                                <div className="rounded-full bg-blue-100 text-blue-700 p-2"><span className="material-symbols-outlined">groups</span></div>
-                                <div>
-                                    <div className="text-xs text-slate-500">Total Leads</div>
-                                    <div className="text-xl font-semibold text-slate-900">{scoringSummary.totalLeads}</div>
-                                </div>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
-                                <div className="rounded-full bg-green-100 text-green-700 p-2"><span className="material-symbols-outlined">trending_up</span></div>
-                                <div>
-                                    <div className="text-xs text-slate-500">Conversion Rate</div>
-                                    <div className="text-xl font-semibold text-slate-900">{scoringSummary.conversionRate.toFixed(1)}%</div>
-                                </div>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
-                                <div className="rounded-full bg-purple-100 text-purple-700 p-2"><span className="material-symbols-outlined">event_available</span></div>
-                                <div>
-                                    <div className="text-xs text-slate-500">Appointments Set</div>
-                                    <div className="text-xl font-semibold text-slate-900">{scoringSummary.appointments}</div>
-                                </div>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
-                                <div className="rounded-full bg-amber-100 text-amber-700 p-2"><span className="material-symbols-outlined">stars</span></div>
-                                <div>
-                                    <div className="text-xs text-slate-500">Average Score</div>
-                                    <div className="text-xl font-semibold text-slate-900">{scoringSummary.averageScore.toFixed(1)}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                    </section>
                 )}
 
                 {activeTab === 'funnel' && renderFunnelPanel('universal', {
@@ -885,7 +940,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     onMoveStep: handleMoveProgramStep,
                     onAttachFile: handleAttachFile,
                     onSave: handleSaveProgramSteps,
-                    saveLabel: 'Save Program Funnel'
+                    saveLabel: 'Save Program Funnel',
+                    onSendTest: handleSendTestEmail
                 })}
 
                 {activeTab === 'automation' && (

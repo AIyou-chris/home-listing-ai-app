@@ -88,12 +88,13 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
             ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}>
         <div className="flex justify-between items-center px-2 mb-6">
-          <button
-            onClick={handleLogoClick}
+          <a
+            href="/"
+            onClick={(e) => { e.preventDefault(); handleLogoClick(); }}
             className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg"
           >
             <LogoWithName />
-          </button>
+          </a>
           <button onClick={onClose} className="md:hidden p-1 rounded-full text-slate-500 hover:bg-slate-100">
             <Icon name="close" />
           </button>

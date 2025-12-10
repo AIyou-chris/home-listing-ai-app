@@ -6,7 +6,7 @@
   "description": "An AI-powered platform for real estate agents to generate stunning property listings with interactive features like an AI assistant.",
   "scripts": {
     "start": "node server.cjs",
-    "dev": "node server.cjs"
+    "dev": "node --watch server.cjs"
   },
   "dependencies": {
     "@google/genai": "^0.14.0",
@@ -20,6 +20,7 @@
     "googleapis": "^131.0.0",
     "helmet": "^8.1.0",
     "openai": "^5.12.2",
+    "qrcode": "^1.5.4",
     "stripe": "^14.25.0"
   }
 }

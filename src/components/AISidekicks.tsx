@@ -1537,6 +1537,32 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                     </p>
                   </div>
 
+                  {/* Voice Selection */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Voice
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'].map(v => (
+                        <button
+                          key={v}
+                          onClick={() => setPersonalityForm(prev => ({ ...prev, voice: v }))}
+                          className={`px-3 py-2 border rounded-lg text-sm capitalize transition-colors ${(personalityForm as any).voice === v
+                              ? 'bg-slate-900 text-white border-slate-900'
+                              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                            }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-base">
+                              {(personalityForm as any).voice === v ? 'volume_up' : 'volume_mute'}
+                            </span>
+                            {v}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Personality Description */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-slate-700 mb-2">

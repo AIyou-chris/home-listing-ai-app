@@ -101,6 +101,13 @@ export interface Property {
     imageUrl: string;
     ctaListingUrl?: string;
     ctaMediaUrl?: string;
+    aiConfig?: {
+        voice?: string;
+        personalityId?: string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        personality?: any;
+        instructions?: string;
+    };
 }
 
 export interface ChatMessage {

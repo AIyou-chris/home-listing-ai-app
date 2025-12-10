@@ -11,13 +11,23 @@ export interface KbEntry {
 	content?: string
 	file_path?: string
 	created_at: string
+	property_id?: string
 }
 
 const bucket = 'ai-kb'
 
-export const listKb = async (userId: string, sidekick?: SidekickId): Promise<KbEntry[]> => {
-	const q = supabase.from('ai_kb').select('*').eq('user_id', userId).order('created_at', { ascending: false })
-	const { data, error } = sidekick ? await q.eq('sidekick', sidekick) : await q
+export const listKb = async (userId: string, sidekick?: SidekickId, propertyId?: string): Promise<KbEntry[]> => {
+	let q = supabase.from('ai_kb').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+
+	if (sidekick) {
+		q = q.eq('sidekick', sidekick)
+	}
+
+	if (propertyId) {
+		q = q.eq('property_id', propertyId)
+	}
+
+	const { data, error } = await q
 	if (error) throw error
 	return (data || []) as unknown as KbEntry[]
 }
@@ -34,32 +44,34 @@ export const getPublicUrl = (path?: string | null): string | null => {
 	return data?.publicUrl || null
 }
 
-export const addTextKb = async (userId: string, sidekick: SidekickId, title: string, content: string): Promise<KbEntry> => {
+export const addTextKb = async (userId: string, sidekick: SidekickId, title: string, content: string, propertyId?: string): Promise<KbEntry> => {
 	const { data, error } = await supabase.from('ai_kb').insert({
-		user_id: userId, // TEXT type in DB
+		user_id: userId,
 		sidekick,
 		title,
 		type: 'text',
-		content
+		content,
+		property_id: propertyId
 	}).select('*').single()
 	if (error) throw error
 	return data as unknown as KbEntry
 }
 
-export const addUrlKb = async (userId: string, sidekick: SidekickId, title: string, url: string, scrapedContent?: string): Promise<KbEntry> => {
+export const addUrlKb = async (userId: string, sidekick: SidekickId, title: string, url: string, scrapedContent?: string, propertyId?: string): Promise<KbEntry> => {
 	const content = scrapedContent ? `Source: ${url}\n\n${scrapedContent}` : url;
 	const { data, error } = await supabase.from('ai_kb').insert({
 		user_id: userId,
 		sidekick,
 		title,
 		type: 'url',
-		content
+		content,
+		property_id: propertyId
 	}).select('*').single()
 	if (error) throw error
 	return data as unknown as KbEntry
 }
 
-export const uploadFileKb = async (userId: string, sidekick: SidekickId, file: File): Promise<KbEntry> => {
+export const uploadFileKb = async (userId: string, sidekick: SidekickId, file: File, propertyId?: string): Promise<KbEntry> => {
 	const path = `${userId}/${Date.now()}-${file.name}`
 	const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, { upsert: false })
 	if (upErr) throw upErr
@@ -68,7 +80,8 @@ export const uploadFileKb = async (userId: string, sidekick: SidekickId, file: F
 		sidekick,
 		title: file.name,
 		type: 'file',
-		file_path: path
+		file_path: path,
+		property_id: propertyId
 	}).select('*').single()
 	if (error) throw error
 	return data as unknown as KbEntry

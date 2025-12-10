@@ -40,6 +40,7 @@ export const ImpersonationProvider: React.FC<{ children: ReactNode }> = ({ child
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useImpersonation = () => {
     const context = useContext(ImpersonationContext);
     if (context === undefined) {
