@@ -257,6 +257,10 @@ const App: React.FC = () => {
                     setActiveAgentSlug(null);
                     setIsDemoMode(false);
                     setView('landing');
+                    // If we arrived via #landing, clean it up
+                    if (window.location.hash === '#landing') {
+                        window.history.replaceState(null, '', '/');
+                    }
                     break;
                 case 'signup':
                     setActiveAgentSlug(null);
@@ -571,7 +575,7 @@ const App: React.FC = () => {
     const handleNavigateToLanding = () => {
         setIsDemoMode(false);
         setView('landing');
-        window.location.hash = 'landing';
+        window.history.pushState(null, '', '/');
     };
 
     // Load centralized agent profile
