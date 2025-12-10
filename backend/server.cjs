@@ -258,7 +258,7 @@ const emailService = createEmailService(supabaseAdmin);
 const agentOnboardingService = createAgentOnboardingService({
   supabaseAdmin,
   emailService,
-  dashboardBaseUrl: process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com'
+  dashboardBaseUrl: process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com/#'
 });
 
 // Agent Onboarding Endpoints

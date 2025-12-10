@@ -514,7 +514,7 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
         Object.assign(updatedAgent, agentWithAuth[0]);
       }
     }
-    const dashboardUrl = `${dashboardBaseUrl || 'https://aiyouagent.com'}${dashboard.dashboard_url}`;
+    const dashboardUrl = `${dashboardBaseUrl || 'https://homelistingai.com/#'}${dashboard.dashboard_url}`;
 
     await emailService.sendWelcomeEmail({
       to: updatedAgent.email,
