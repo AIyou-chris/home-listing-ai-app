@@ -234,7 +234,7 @@ const buildSlugBase = (firstName, lastName) => {
 };
 
 const createTempPassword = () =>
-  crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+  crypto.randomBytes(16).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
 
 const getExistingAgentBySlug = async (client, slug) => {
   const { data, error } = await client.from('agents').select('*').eq('slug', slug).limit(1);
@@ -377,7 +377,16 @@ const ensureAuthUser = async (adminClient, agent) => {
     }
   });
 
-  if (error) throw error;
+  if (error) {
+    if (error.message?.toLowerCase().includes('already') || error.status === 422) {
+      console.warn(`[Onboarding] User ${agent.email} already exists during creation. Fetching existing.`);
+      const { data: retry } = await adminClient.auth.admin.getUserByEmail(agent.email);
+      if (retry && retry.user) {
+        return { isNew: false, userId: retry.user.id, email: agent.email };
+      }
+    }
+    throw error;
+  }
 
   return {
     isNew: true,

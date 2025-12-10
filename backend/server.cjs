@@ -8078,15 +8078,16 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     }
 
     // Promo Code Logic
-    if (promoCode === 'FRIENDS30' || promoCode === 'LIFETIME') {
-      const paymentStatus = promoCode === 'FRIENDS30' ? 'trial_30_days' : 'lifetime_free';
+    const normalizedPromoCode = (promoCode || '').toString().trim().toUpperCase();
+    if (normalizedPromoCode === 'FRIENDS30' || normalizedPromoCode === 'LIFETIME') {
+      const paymentStatus = normalizedPromoCode === 'FRIENDS30' ? 'trial_30_days' : 'lifetime_free';
 
       try {
         // Use the onboarding service to handle everything (status update, dashboard creation, emails)
         await agentOnboardingService.handlePaymentSuccess({
           slug,
           paymentProvider: 'promo_code',
-          paymentReference: promoCode,
+          paymentReference: normalizedPromoCode,
           amount: 0,
           currency: 'usd',
           isAdminBypass: false
