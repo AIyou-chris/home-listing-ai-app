@@ -261,6 +261,31 @@ const agentOnboardingService = createAgentOnboardingService({
   dashboardBaseUrl: process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com'
 });
 
+// Agent Onboarding Endpoints
+app.post('/api/agents/register', async (req, res) => {
+  try {
+    const { firstName, lastName, email } = req.body;
+    const result = await agentOnboardingService.registerAgent({ firstName, lastName, email });
+    res.json(result);
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get('/api/agents/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const agent = await agentOnboardingService.getAgentBySlug(slug);
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+    res.json({ agent });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const FOLLOW_UP_SEQUENCES_TABLE = 'follow_up_sequences_store';
 const FOLLOW_UP_ACTIVE_TABLE = 'follow_up_active_store';
 

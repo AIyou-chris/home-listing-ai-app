@@ -1,5 +1,13 @@
 import { Lead } from '../types';
 
+const getApiBase = () => {
+    const base = import.meta.env.VITE_API_BASE_URL;
+    if (!base || base.length < 10 || !base.startsWith('http')) {
+        return 'https://home-listing-ai-backend.onrender.com';
+    }
+    return base.endsWith('/') ? base.slice(0, -1) : base;
+};
+
 interface LeadWarningDetail {
     leadId?: string;
     leadName?: string;
@@ -149,7 +157,7 @@ export const LEAD_SCORING_RULES: ScoringRule[] = [
     },
     {
         id: 'referral_source',
-        name: 'Referral Lead', 
+        name: 'Referral Lead',
         description: 'Lead came from referral',
         condition: (lead) => lead.source?.toLowerCase().includes('referral') || false,
         points: 30,
@@ -396,7 +404,7 @@ export class LeadScoringService {
         let payload: LeadScoreResponsePayload | null = null;
 
         try {
-            response = await fetch(`/api/leads/${lead.id}/score`, {
+            response = await fetch(`${getApiBase()}/api/leads/${lead.id}/score`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -449,7 +457,7 @@ export class LeadScoringService {
             if (rule.condition(lead)) {
                 const appliedCount = 1;
                 const points = rule.points * appliedCount;
-                
+
                 totalScore += points;
                 breakdown.push({
                     ruleId: rule.id,
@@ -487,7 +495,7 @@ export class LeadScoringService {
         }
 
         try {
-            const response = await fetch('/api/leads/score-all', {
+            const response = await fetch(`${getApiBase()}/api/leads/score-all`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -525,7 +533,7 @@ export class LeadScoringService {
                 }
             });
 
-            const leadsResponse = await fetch('/api/admin/leads');
+            const leadsResponse = await fetch(`${getApiBase()}/api/admin/leads`);
             let leadsPayload: LeadsPayload | null = null;
             try {
                 leadsPayload = await leadsResponse.json() as LeadsPayload;
@@ -576,7 +584,7 @@ export class LeadScoringService {
         }
 
         try {
-            const response = await fetch(`/api/leads/${normalizedLeadId}/score`);
+            const response = await fetch(`${getApiBase()}/api/leads/${normalizedLeadId}/score`);
             let payload: LeadScoreResponsePayload | null = null;
             try {
                 payload = await response.json() as LeadScoreResponsePayload;
@@ -640,7 +648,7 @@ export class LeadScoringService {
 
         // Check which rules didn't apply and suggest actions
         const appliedRuleIds = score.breakdown.map(b => b.ruleId);
-        
+
         LEAD_SCORING_RULES.forEach(rule => {
             if (!appliedRuleIds.includes(rule.id)) {
                 switch (rule.id) {

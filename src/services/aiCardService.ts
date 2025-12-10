@@ -1,5 +1,13 @@
 import { supabase } from './supabase'
 
+const getApiBase = () => {
+  const base = import.meta.env.VITE_API_BASE_URL;
+  if (!base || base.length < 10 || !base.startsWith('http')) {
+    return 'https://home-listing-ai-backend.onrender.com';
+  }
+  return base.endsWith('/') ? base.slice(0, -1) : base;
+};
+
 interface AICardProfile {
   id: string;
   fullName: string;
@@ -122,7 +130,7 @@ export const getAICardProfile = async (userId?: string, signal?: AbortSignal): P
   try {
     const resolvedUserId = await resolveUserId(userId);
     const queryParams = resolvedUserId ? `?userId=${resolvedUserId}` : '';
-    const response = await fetch(`/api/ai-card/profile${queryParams}`, {
+    const response = await fetch(`${getApiBase()}/api/ai-card/profile${queryParams}`, {
       signal
     });
 
@@ -144,7 +152,7 @@ export const getAICardProfile = async (userId?: string, signal?: AbortSignal): P
 export const createAICardProfile = async (profileData: Omit<AICardProfile, 'id' | 'created_at' | 'updated_at'>, userId?: string): Promise<AICardProfile> => {
   try {
     const resolvedUserId = await resolveUserId(userId);
-    const response = await fetch('/api/ai-card/profile', {
+    const response = await fetch(`${getApiBase()}/api/ai-card/profile`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -172,7 +180,7 @@ export const createAICardProfile = async (profileData: Omit<AICardProfile, 'id' 
 export const updateAICardProfile = async (profileData: Partial<AICardProfile>, userId?: string): Promise<AICardProfile> => {
   try {
     const resolvedUserId = await resolveUserId(userId);
-    const response = await fetch('/api/ai-card/profile', {
+    const response = await fetch(`${getApiBase()}/api/ai-card/profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -200,7 +208,7 @@ export const updateAICardProfile = async (profileData: Partial<AICardProfile>, u
 export const generateQRCode = async (userId?: string, cardUrl?: string): Promise<QRCodeResponse> => {
   try {
     const resolvedUserId = await resolveUserId(userId);
-    const response = await fetch('/api/ai-card/generate-qr', {
+    const response = await fetch(`${getApiBase()}/api/ai-card/generate-qr`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -236,7 +244,7 @@ export const generateQRCode = async (userId?: string, cardUrl?: string): Promise
 export const shareAICard = async (method: string, userId?: string, recipient?: string): Promise<ShareResponse> => {
   try {
     const resolvedUserId = await resolveUserId(userId);
-    const response = await fetch('/api/ai-card/share', {
+    const response = await fetch(`${getApiBase()}/api/ai-card/share`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -264,7 +272,7 @@ export const shareAICard = async (method: string, userId?: string, recipient?: s
 export const listAICardQRCodes = async (userId?: string): Promise<AICardQRCode[]> => {
   const resolvedUserId = await resolveUserId(userId);
   const queryParams = resolvedUserId ? `?userId=${resolvedUserId}` : '';
-  const response = await fetch(`/api/ai-card/qr-codes${queryParams}`);
+  const response = await fetch(`${getApiBase()}/api/ai-card/qr-codes${queryParams}`);
   if (!response.ok) {
     throw new Error(`Failed to load QR codes: ${response.status}`);
   }
@@ -278,7 +286,7 @@ export const createAICardQRCode = async (
   userId?: string
 ): Promise<AICardQRCode> => {
   const resolvedUserId = await resolveUserId(userId);
-  const response = await fetch('/api/ai-card/qr-codes', {
+  const response = await fetch(`${getApiBase()}/api/ai-card/qr-codes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -297,7 +305,7 @@ export const updateAICardQRCode = async (
   qrId: string,
   updates: { label?: string; destinationUrl?: string }
 ): Promise<AICardQRCode> => {
-  const response = await fetch(`/api/ai-card/qr-codes/${qrId}`, {
+  const response = await fetch(`${getApiBase()}/api/ai-card/qr-codes/${qrId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates)
@@ -309,7 +317,7 @@ export const updateAICardQRCode = async (
 };
 
 export const deleteAICardQRCode = async (qrId: string): Promise<void> => {
-  const response = await fetch(`/api/ai-card/qr-codes/${qrId}`, { method: 'DELETE' });
+  const response = await fetch(`${getApiBase()}/api/ai-card/qr-codes/${qrId}`, { method: 'DELETE' });
   if (!response.ok) {
     throw new Error((await response.text()) || 'Failed to delete QR code');
   }

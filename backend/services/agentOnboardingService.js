@@ -558,6 +558,7 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
 
   return {
     registerAgent,
+    getAgentBySlug,
     handlePaymentSuccess,
     handleAgentDeletion
   };

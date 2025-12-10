@@ -34,10 +34,11 @@ const REGISTRATION_STORAGE_KEY = 'aiyouagent:agent-registration';
 
 const getApiBase = () => {
   const base = import.meta.env.VITE_API_BASE_URL;
-  if (base) {
-    return base.endsWith('/') ? base.slice(0, -1) : base;
+  // If base seems invalid (too short, truncated) or missing, use production URL
+  if (!base || base.length < 10 || !base.startsWith('http')) {
+    return 'https://home-listing-ai-backend.onrender.com';
   }
-  return '';
+  return base.endsWith('/') ? base.slice(0, -1) : base;
 };
 
 const handleResponse = async <T>(response: Response): Promise<T> => {
