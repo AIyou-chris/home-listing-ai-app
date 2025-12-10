@@ -3130,6 +3130,30 @@ app.delete('/api/admin/users/:userId', async (req, res) => {
   }
 });
 
+// SPECIAL CLEANUP ENDPOINT FOR ORPHANED AGENTS
+app.delete('/api/setup/reset-agent/:identifier', async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    console.log(`[Reset] Attempting to reset agent: ${identifier}`);
+
+    // Delete from agents where slug matches OR email matches
+    const { error } = await supabaseAdmin
+      .from('agents')
+      .delete()
+      .or(`slug.eq.${identifier},email.eq.${identifier}`);
+
+    if (error) {
+      console.error('[Reset] Failed to delete agent:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({ success: true, message: `Agent ${identifier} deleted from database.` });
+  } catch (err) {
+    console.error('[Reset] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Broadcast message endpoint - REAL DATA
 app.post('/api/admin/broadcast', async (req, res) => {
   try {
