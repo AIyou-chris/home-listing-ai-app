@@ -355,15 +355,7 @@ const ensureFunnels = async (client, agentId, funnels = DEFAULT_FUNNELS) => {
 };
 
 const ensureAuthUser = async (adminClient, agent) => {
-  const { data: existing, error: getErr } = await adminClient.auth.admin.getUserByEmail(agent.email);
-  if (getErr && getErr.message && !getErr.message.includes('User not found')) {
-    throw getErr;
-  }
-
-  if (existing && existing.user) {
-    return { isNew: false, userId: existing.user.id, email: agent.email };
-  }
-
+  // Attempt to create the user directly.
   const password = createTempPassword();
   const { data, error } = await adminClient.auth.admin.createUser({
     email: agent.email,
@@ -378,12 +370,19 @@ const ensureAuthUser = async (adminClient, agent) => {
   });
 
   if (error) {
+    // If user already exists, we must find their ID to link them
     if (error.message?.toLowerCase().includes('already') || error.status === 422) {
-      console.warn(`[Onboarding] User ${agent.email} already exists during creation. Fetching existing.`);
-      const { data: retry } = await adminClient.auth.admin.getUserByEmail(agent.email);
-      if (retry && retry.user) {
-        return { isNew: false, userId: retry.user.id, email: agent.email };
+      console.warn(`[Onboarding] User ${agent.email} already exists. Searching via listUsers.`);
+
+      // Fallback: List users to find by email (since getUserByEmail is deprecated/removed in v2)
+      const { data: listData, error: listErr } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      if (listErr) throw listErr;
+
+      const existingUser = listData.users.find(u => u.email?.toLowerCase() === agent.email.toLowerCase());
+      if (existingUser) {
+        return { isNew: false, userId: existingUser.id, email: agent.email };
       }
+      throw new Error(`User ${agent.email} exists but could not be found in user list.`);
     }
     throw error;
   }
