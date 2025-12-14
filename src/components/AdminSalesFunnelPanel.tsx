@@ -652,7 +652,13 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                         // Try a simple GET to the health check or root
                                         const res = await fetch(`${API_BASE}/`, { method: 'GET' });
                                         const text = await res.text();
-                                        setDebugMsg(`✅ Connection OK! Status: ${res.status}. Response: ${text.slice(0, 50)}`);
+
+                                        const isFrontend = text.toLowerCase().includes('<!doctype html') || text.includes('div id="root"');
+                                        if (isFrontend) {
+                                            setDebugMsg(`⚠️ ERROR: The URL ${API_BASE} seems to be a Frontend (Web App), not a Backend API. It returned HTML. Please check your API URL.`);
+                                        } else {
+                                            setDebugMsg(`✅ Connection OK! Status: ${res.status}. Response: ${text.slice(0, 50)}`);
+                                        }
                                     } catch (err: any) {
                                         setDebugMsg(`❌ Connection Failed: ${err.message}`);
                                     }
