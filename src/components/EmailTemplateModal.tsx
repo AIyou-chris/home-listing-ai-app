@@ -6,6 +6,7 @@ import { EMAIL_TEMPLATES, EMAIL_TEMPLATE_CATEGORIES, EmailTemplate } from '../co
 interface EmailTemplateModalProps {
     onClose: () => void;
     onSelectTemplate: (template: EmailTemplate) => void;
+    templates?: EmailTemplate[];
 }
 
 interface FilledTemplate {
@@ -13,26 +14,26 @@ interface FilledTemplate {
     content: string;
 }
 
-const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSelectTemplate }) => {
+const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSelectTemplate, templates = EMAIL_TEMPLATES }) => {
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
     const [showVariableForm, setShowVariableForm] = useState<EmailTemplate | null>(null);
 
-    const filteredTemplates = EMAIL_TEMPLATES.filter(template => {
+    const filteredTemplates = templates.filter(template => {
         const matchesCategory = selectedCategory === 'all' || template.category === selectedCategory;
-        const matchesSearch = searchTerm === '' || 
+        const matchesSearch = searchTerm === '' ||
             template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             template.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
             template.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-        
+
         return matchesCategory && matchesSearch;
     });
 
     const handleSelectTemplate = (template: EmailTemplate) => {
         // Check if template has variables
         const hasVariables = /\{\{[^}]+\}\}/.test(template.subject + template.content);
-        
+
         if (hasVariables) {
             setShowVariableForm(template);
         } else {
@@ -82,7 +83,7 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                                     />
                                 </div>
                             </div>
-                            
+
                             {/* Category Filter */}
                             <div className="sm:w-48">
                                 <select
@@ -118,9 +119,9 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                                                 {category?.name}
                                             </span>
                                         </div>
-                                        
+
                                         <p className="text-xs text-slate-600 mb-3">{template.description}</p>
-                                        
+
                                         <div className="flex items-center justify-between">
                                             <div className="flex flex-wrap gap-1">
                                                 {template.tags.slice(0, 3).map(tag => (
@@ -143,7 +144,7 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                                 );
                             })}
                         </div>
-                        
+
                         {filteredTemplates.length === 0 && (
                             <div className="text-center py-12">
                                 <span className="material-symbols-outlined w-12 h-12 text-slate-300 mx-auto mb-4 block">mail</span>
@@ -167,7 +168,7 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                                 </button>
                             </div>
                         </div>
-                        
+
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
                             {/* Subject Preview */}
                             <div>
@@ -176,7 +177,7 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                                     {previewTemplate.subject}
                                 </div>
                             </div>
-                            
+
                             {/* Content Preview */}
                             <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">Email Content</label>
@@ -184,13 +185,13 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                                     {previewTemplate.content}
                                 </div>
                             </div>
-                            
+
                             {/* Use Case */}
                             <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">Best Used For</label>
                                 <p className="text-sm text-slate-700">{previewTemplate.useCase}</p>
                             </div>
-                            
+
                             {/* Variables Info */}
                             <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">Template Variables</label>
@@ -202,7 +203,7 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="p-4 border-t border-slate-200 bg-white">
                             <button
                                 onClick={() => handleSelectTemplate(previewTemplate)}
@@ -214,7 +215,7 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                     </div>
                 )}
             </div>
-            
+
             {/* Template Variable Form */}
             {showVariableForm && (
                 <TemplateVariableForm

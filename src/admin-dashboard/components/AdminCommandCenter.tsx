@@ -106,7 +106,7 @@ const AdminCommandCenter: React.FC = () => {
             <span className='material-symbols-outlined text-base'>dashboard</span>
             Admin Command Center
           </p>
-          <h1 className='text-3xl font-bold text-slate-900 mt-2'>System Overview</h1>
+          <h1 className='text-3xl font-bold text-slate-900 mt-2'>Admin System Overview</h1>
           <p className='text-sm text-slate-500'>Live health, security, support, and operations for admins.</p>
         </div>
         <button

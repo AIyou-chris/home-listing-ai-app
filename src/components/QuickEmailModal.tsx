@@ -7,6 +7,7 @@ import { useAgentBranding } from '../hooks/useAgentBranding';
 interface QuickEmailModalProps {
     onClose: () => void;
     isDemoMode?: boolean;
+    templates?: EmailTemplate[];
 }
 
 type StatusMessage = {
@@ -14,7 +15,7 @@ type StatusMessage = {
     message: string;
 };
 
-const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose, isDemoMode = false }) => {
+const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose, isDemoMode = false, templates }) => {
     const [recipientName, setRecipientName] = useState('');
     const [recipientEmail, setRecipientEmail] = useState('');
     const [fromEmail, setFromEmail] = useState('');
@@ -137,8 +138,8 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose, isDemoMode =
                     {status && (
                         <div
                             className={`rounded-lg border px-4 py-3 text-sm ${status.type === 'success'
-                                    ? 'border-green-200 bg-green-50 text-green-700'
-                                    : 'border-red-200 bg-red-50 text-red-700'
+                                ? 'border-green-200 bg-green-50 text-green-700'
+                                : 'border-red-200 bg-red-50 text-red-700'
                                 }`}
                         >
                             {status.message}
@@ -254,6 +255,7 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose, isDemoMode =
                         handleTemplateSelect(template);
                         setIsTemplateModalOpen(false);
                     }}
+                    templates={templates}
                 />
             )}
         </Modal>

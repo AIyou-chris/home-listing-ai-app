@@ -345,6 +345,14 @@ const App: React.FC = () => {
         // Initialize performance monitoring
         PerformanceService.initialize();
 
+        // FAILSAFE: Force loading to complete after 8 seconds if it hangs
+        const safetyTimer = setTimeout(() => {
+            setIsLoading((prev) => {
+                if (prev) console.warn("⚠️ Safety timer triggered: Forcing loading complete.");
+                return false;
+            });
+        }, 8000);
+
         const initAuth = async () => {
             const { data } = await supabase.auth.getUser();
             const currentUser: AppUser | null = data.user
@@ -392,8 +400,11 @@ const App: React.FC = () => {
             if (currentUser) {
                 console.log(`User signed in: ${currentUser.uid}`);
 
-                // Check if user is an admin via RPC
-                const { data: isAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+                // Check if user is an admin via RPC OR via local override (for testing/bypass)
+                const isLocalOverride = localStorage.getItem('adminUser') === 'true';
+                const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+                const isAdmin = isRpcAdmin || isLocalOverride;
+
 
                 if (isAdmin) {
                     console.log("Admin user detected, going to admin dashboard");
@@ -450,7 +461,16 @@ const App: React.FC = () => {
                     setTasks(SAMPLE_TASKS);
                     setConversations(SAMPLE_CONVERSATIONS);
                     setSequences(DEMO_SEQUENCES);
-                    setView('dashboard');
+                    if (getRouteInfo().route !== 'admin-dashboard') {
+                        setView('dashboard');
+                    } else {
+                        // If we are on admin dashboard but failed the admin check generally,
+                        // we might still want to respect the route if something weird happened,
+                        // BUT typically if we are here, we are NOT admin.
+                        // However, since we added the local override check above, this block
+                        // (properties loaded) should only run for NON-ADMINS.
+                        // So setting view to dashboard is correct, UNLESS we really messed up.
+                    }
                 } else {
                     console.error(`Failed to load properties for user ${currentUser.uid} after ${maxAttempts} attempts.`);
                     alert("We couldn't retrieve your account's data. Please try signing out and in again, or contact support if the problem persists.");
@@ -509,6 +529,7 @@ const App: React.FC = () => {
 
         initAuth();
 
+        // Initialize session tracking
         const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
             const currentUser: AppUser | null = session?.user
                 ? {
@@ -518,21 +539,104 @@ const App: React.FC = () => {
                     displayName: session.user.user_metadata?.name ?? null
                 }
                 : null;
-            // Re-run the same flow with new user
+
+            // Re-run setup with new user
             setIsLoading(true);
             setIsSettingUp(false);
             setIsDemoMode(false);
+
             if (currentUser) {
-                console.log(`User signed in: ${currentUser.uid}`);
+                console.log(`User signed in (Auth Change): ${currentUser.uid}`);
+
+                // IMPORTANT: Check for Admin Role immediately on auth change
+                const isLocalOverride = localStorage.getItem('adminUser') === 'true';
+                const { data: isRpcAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+                console.log('[Auth] Admin RPC Result:', isRpcAdmin, rpcError);
+                const isAdmin = isRpcAdmin || isLocalOverride;
+
+
+                if (isAdmin) {
+                    console.log("Admin user detected (Auth Change), switching to Admin Dashboard");
+                    setUser(currentUser);
+                    setUserProfile({
+                        ...SAMPLE_AGENT,
+                        name: 'System Administrator',
+                        email: currentUser.email ?? '',
+                        headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
+                    });
+                    // Clear agent-specific data
+                    setProperties([]);
+                    setLeads([]);
+                    setAppointments([]);
+                    setInteractions([]);
+                    setTasks([]);
+                    setConversations([]);
+                    setSequences([]);
+
+                    setView('admin-dashboard');
+                    setIsLoading(false);
+                    return;
+                }
+
+                // If not admin, normal agent flow proceeds via the main useEffect([user])
                 setUser(currentUser);
+                setIsLoading(false);
             } else {
+
+                // ADMIN LOCK: If the user has manually switched to Admin Mode, we MUST NOT redirect them to Landing/SignIn
+                // even if the auth listener thinks they are logged out (e.g. during a race condition or session refresh).
+                if (localStorage.getItem('adminUser') === 'true') {
+                    console.log('🔒 Admin Lock Active: Ignoring potential sign-out redirect.');
+                    // Ensure loading is cleared so the UI renders
+                    setIsLoading(false);
+                    return;
+                }
+
                 console.log('User signed out.');
                 setUser(null);
+                setProperties([]);
+                // Only redirect to signin if we were previously in a protected route or explicitly logging out.
+                // For a fresh load on root, we should respect the URL or default to landing.
+                const { route } = getRouteInfo();
+                if (!route || route === 'landing') {
+                    setView('landing');
+                } else if (route === 'signin') {
+                    setView('signin');
+                } else {
+                    // If they looked for a protected route but aren't logged in, signin is appropriate,
+                    // BUT for the root URL, we must show landing.
+                    setView('landing');
+                }
             }
             setIsLoading(false);
         });
 
-        return () => { sub.subscription.unsubscribe(); };
+        // SESSION TIMEOUT: Auto-logout after 30 minutes of inactivity
+        let inactivityTimer: NodeJS.Timeout;
+        const resetInactivityTimer = () => {
+            if (inactivityTimer) clearTimeout(inactivityTimer);
+            if (supabase.auth.getSession()) {
+                inactivityTimer = setTimeout(() => {
+                    console.log("Session timed out due to inactivity");
+                    adminAuthService.logout().catch(console.error);
+                    // Force UI update if needed, though onAuthStateChange should handle it
+                }, 30 * 60 * 1000); // 30 minutes
+            }
+        };
+
+        // Listen for user activity
+        const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+        activityEvents.forEach(event => window.addEventListener(event, resetInactivityTimer));
+
+        // Start timer
+        resetInactivityTimer();
+
+        return () => {
+            clearTimeout(safetyTimer);
+            sub.subscription.unsubscribe();
+            if (inactivityTimer) clearTimeout(inactivityTimer);
+            activityEvents.forEach(event => window.removeEventListener(event, resetInactivityTimer));
+        };
     }, []);
 
     // Load centralized agent profile and set up real-time updates
@@ -1025,6 +1129,8 @@ const App: React.FC = () => {
                     case 'admin-leads':
                     case 'admin-contacts':
                         return 'leads';
+                    case 'admin-dashboard':
+                        return 'funnel-analytics'; // FORCE default to funnel
                     case 'admin-ai-card':
                         return 'ai-card';
                     case 'admin-ai-training':

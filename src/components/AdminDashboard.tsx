@@ -4,22 +4,22 @@ import AddContactModal from './AddContactModal';
 import { supabase } from '../services/supabase';
 import { SystemMonitoringService, HealthStatus } from '../services/systemMonitoringService';
 import { User, Lead } from '../types';
-import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
+import AdminSalesFunnelPanel from './AdminSalesFunnelPanel';
 
 interface ContactRecord {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string | null;
-  role: 'lead' | 'client' | 'agent';
-  stage?: string | null;
-  pipeline_note?: string | null;
-  created_at?: string;
+    id: string;
+    name: string;
+    email: string;
+    phone?: string | null;
+    role: 'lead' | 'client' | 'agent';
+    stage?: string | null;
+    pipeline_note?: string | null;
+    created_at?: string;
 }
 
 // Enhanced status widget with real-time monitoring
-const StatusWidget: React.FC<{ 
-    serviceName: string; 
+const StatusWidget: React.FC<{
+    serviceName: string;
     healthStatus: HealthStatus | null;
     isLoading?: boolean;
 }> = ({ serviceName, healthStatus, isLoading = false }) => {
@@ -96,28 +96,28 @@ const StatusWidget: React.FC<{
 
 // Main AdminDashboard component
 interface AdminDashboardProps {
-  users?: User[];
-  leads?: Lead[];
-  onDeleteUser?: (userId: string) => void;
-  onDeleteLead?: (leadId: string) => void;
+    users?: User[];
+    leads?: Lead[];
+    onDeleteUser?: (userId: string) => void;
+    onDeleteLead?: (leadId: string) => void;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-    users: propUsers = [], 
-    leads: _propLeads = [], 
+const AdminDashboard: React.FC<AdminDashboardProps> = ({
+    users: propUsers = [],
+    leads: _propLeads = [],
     onDeleteUser: _onDeleteUser,
-    onDeleteLead: _onDeleteLead 
+    onDeleteLead: _onDeleteLead
 }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [showAddContactModal, setShowAddContactModal] = useState(false);
     const [contacts, setContacts] = useState<ContactRecord[]>([]);
-    
+
     // System monitoring states
     const [apiHealth, setApiHealth] = useState<HealthStatus | null>(null);
     const [dbHealth, setDbHealth] = useState<HealthStatus | null>(null);
     const [aiHealth, setAiHealth] = useState<HealthStatus | null>(null);
     const [healthLoading, setHealthLoading] = useState(true);
-    
+
     // Use the users and leads directly from props - no local state needed
     const users = propUsers;
     const leads = _propLeads;
@@ -127,15 +127,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const loadHealthStatus = async () => {
             try {
                 const monitoring = SystemMonitoringService.getInstance();
-                
+
                 // Check API health
                 const apiStatus = await monitoring.checkSystemHealth();
                 setApiHealth(apiStatus);
-                
+
                 // Check database health
                 const dbStatus = await monitoring.checkDatabaseHealth();
                 setDbHealth(dbStatus);
-                
+
                 // Check AI services health
                 const aiStatus = await monitoring.checkAIServicesHealth();
                 setAiHealth(aiStatus);
@@ -147,7 +147,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         };
 
         loadHealthStatus();
-        
+
         // Refresh health status every 30 seconds
         const interval = setInterval(loadHealthStatus, 30000);
         return () => clearInterval(interval);
@@ -162,7 +162,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         .from<ContactRecord>('contacts')
                         .select('*')
                         .eq('user_id', user.id);
-                    
+
                     if (error) {
                         console.error('Error loading contacts:', error);
                     } else {
@@ -172,7 +172,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             } catch (error) {
                 console.error('Error loading contacts:', error);
             }
-            
+
             setIsLoading(false);
         };
 
@@ -209,7 +209,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             Monitor platform health, funnels, and AI systems using the blueprint layout while keeping admin logic isolated.
                         </p>
                         <div className="flex flex-wrap items-center gap-3">
-                            <button 
+                            <button
                                 onClick={() => setShowAddContactModal(true)}
                                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition"
                             >
@@ -260,11 +260,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                 </div>
                 <div className="p-2 sm:p-4">
-                    <FunnelAnalyticsPanel
+                    <AdminSalesFunnelPanel
                         variant="embedded"
                         hideBackButton
-                        title="Leads Funnel Control Center"
-                        subtitle="Monitor lead scoring, funnel health, and sequence feedback without leaving the admin cockpit."
+                        title="Admin Sales Funnel"
+                        subtitle="5-touch sales sequence to convert agents to the HomeListingAI platform."
                     />
                 </div>
             </div>
@@ -276,7 +276,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 onAddLead={async () => { console.log('Add lead handled by AdminLayout') }}
                 onEditLead={async () => { console.log('Edit lead handled by AdminLayout') }}
             />
-            
+
             {/* Add Contact Modal */}
             <AddContactModal
                 isOpen={showAddContactModal}
@@ -285,12 +285,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     // Refresh contacts data
                     try {
                         const { data: { user } } = await supabase.auth.getUser();
-                    if (user) {
+                        if (user) {
                             const { data, error } = await supabase
                                 .from<ContactRecord>('contacts')
                                 .select('*')
                                 .eq('user_id', user.id);
-                            
+
                             if (!error) {
                                 setContacts(data ?? []);
                             }

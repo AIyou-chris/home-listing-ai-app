@@ -558,16 +558,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
                         Let's get your AI Agent fully trained and operational. Complete these 5 steps to unlock your "AI-Ready" badge.
                       </p>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/30">
-                        <span className="text-sm font-semibold">Setup Progress</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="w-32 h-2 bg-black/20 rounded-full overflow-hidden">
-                            <div className="h-full bg-white rounded-full" style={{ width: '20%' }}></div>
-                          </div>
-                          <span className="text-xs font-bold">1/5</span>
-                        </div>
-                      </div>
+                    <div className="absolute top-6 right-6">
                       <button
                         onClick={() => setIsSetupDismissed(true)}
                         className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
@@ -585,8 +576,8 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
                       className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <div className="w-8 h-8 rounded-full bg-green-400 flex items-center justify-center text-green-900 font-bold text-sm">
-                          <span className="material-symbols-outlined text-base">check</span>
+                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                          1
                         </div>
                         <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">5 min</span>
                       </div>

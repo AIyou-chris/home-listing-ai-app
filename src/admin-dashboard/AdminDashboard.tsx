@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-import AdminAICardClone from './components/AdminAICardClone';
+import AICardPage from '../components/AICardPage';
 import AIConversationsPage from '../components/AIConversationsPage';
 
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import AdminCommandCenter from './components/AdminCommandCenter';
 import AdminAISidekicksPage from './components/AdminAISidekicksPage';
 // import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub'; // Kept for reference if needed, but unused in new flow
-import AdminFunnelAnalyticsPanel from '../components/AdminFunnelAnalyticsPanel';
+import AdminSalesFunnelPanel from '../components/AdminSalesFunnelPanel';
 import InteractionHubPage from '../components/InteractionHubPage';
 import AddListingPage from '../components/AddListingPage';
 import AdminListingsPage from './AdminListingsPage';
@@ -305,7 +305,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
           />
         );
       case 'ai-card':
-        return <AdminAICardClone />;
+        return <AICardPage isDemoMode={isDemoMode} />;
       case 'ai-conversations':
         return <AIConversationsPage isDemoMode={isDemoMode} />;
       case 'listings':
@@ -344,7 +344,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         return <AdminAISidekicksPage initialTab="overview" />;
 
       case 'funnel-analytics':
-        return <AdminFunnelAnalyticsPanel onBackToDashboard={resetToDashboard} />;
+        return <AdminSalesFunnelPanel onBackToDashboard={resetToDashboard} />;
       case 'settings':
         return (
           <AdminSettingsPage

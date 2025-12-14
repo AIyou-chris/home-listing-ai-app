@@ -1,5 +1,6 @@
 import React from 'react';
 import { LogoWithName } from '../components/LogoWithName';
+import { adminAuthService } from '../services/adminAuthService';
 
 type DashboardView =
   | 'dashboard'
@@ -65,7 +66,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     { view: 'listings', icon: 'storefront', label: 'AI Listings' },
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
 
-    { view: 'funnel-analytics', icon: 'monitoring', label: 'Leads Funnel' },
+    { view: 'funnel-analytics', icon: 'monitoring', label: 'Funnel' },
     { view: 'settings', icon: 'settings', label: 'Settings' }
   ];
 
@@ -121,6 +122,14 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
           <button className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 transition-colors">
             <Icon name="notifications" className="text-slate-500" />
             <span>Notifications</span>
+          </button>
+
+          <button
+            onClick={() => adminAuthService.logout()}
+            className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors"
+          >
+            <Icon name="logout" className="text-rose-500" />
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>

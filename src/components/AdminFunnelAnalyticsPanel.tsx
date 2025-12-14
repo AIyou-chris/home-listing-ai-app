@@ -3,8 +3,9 @@ import QuickEmailModal from './QuickEmailModal';
 import { adminLeadsService, type CreateLeadPayload } from '../services/adminLeadsService';
 import { supabase } from '../services/supabase';
 
-// Note: The blueprint for the funnel now lives on the backend server.
-// The server will automatically "seed" the database with the default funnel if it doesn't exist for a user.
+// CONSTANTS & TYPES
+
+const UNIVERSAL_FUNNEL_ID = 'universal_sales';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -13,6 +14,7 @@ interface FunnelAnalyticsPanelProps {
     subtitle?: string;
     hideBackButton?: boolean;
 }
+
 type EditableStep = {
     id: string;
     title: string;
@@ -30,8 +32,6 @@ const splitCsvLine = (line: string): string[] => {
     if (!matches) return [];
     return matches.map((value) => value.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
 };
-
-const UNIVERSAL_FUNNEL_ID = 'universal_sales';
 
 const buildDefaultSteps = (): EditableStep[] => ([
     {
@@ -132,11 +132,11 @@ const initPanelState = () => {
     };
 };
 
-const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
+const AdminFunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     onBackToDashboard,
     variant = 'page',
-    title = 'Lead Scoring & Universal Sales Funnel',
-    subtitle = 'Single 5-touch universal funnel for every admin lead with urgency, benefits, and strong CTAs.',
+    title = 'Admin Sales Funnel',
+    subtitle = '5-touch sales sequence to convert agents to the HomeListingAI platform.',
     hideBackButton = false
 }) => {
     const isEmbedded = variant === 'embedded';
@@ -151,200 +151,114 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [scoringSummary, setScoringSummary] = useState({
-        totalLeads: 0,
-        conversionRate: 0,
-        appointments: 0,
-        averageScore: 0
-    });
-    const [sequenceCards, setSequenceCards] = useState<Array<{ id: string; title: string; replies: number; opens: number; meetings: number; tag: string }>>([]);
-    const [topSteps, setTopSteps] = useState<Array<{ title: string; replyRate: number; meetingRate: number }>>([]);
-    const [weakSteps, setWeakSteps] = useState<Array<{ title: string; replyRate: number; meetingRate: number }>>([]);
-    const [activeTab, setActiveTab] = useState<'funnel' | 'automation'>('funnel');
+    // const [scoringSummary, setScoringSummary] = useState({
+    //     totalLeads: 0,
+    //     conversionRate: 0,
+    //     appointments: 0,
+    //     averageScore: 0
+    // });
+    // const [activeTab, setActiveTab] = useState<'funnel' | 'automation'>('funnel');
     const [sendingTestId, setSendingTestId] = useState<string | null>(null);
 
-    const handleSendTestEmail = async (step: EditableStep) => {
-        if (sendingTestId) return;
-        setSendingTestId(step.id);
+    // ANALYTICS & STATE
 
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user || !user.email) {
-                alert('Could not find your email address to send the test to.');
-                return;
-            }
-
-            const subject = mergeTokens(step.subject);
-            // Replace newlines with <br/> for HTML email body
-            const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
-
-            const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
-            const response = await fetch(`${apiUrl}/api/admin/email/quick-send`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    to: user.email,
-                    subject: `[TEST] ${subject}`,
-                    html: body,
-                    text: mergeTokens(step.content)
-                })
-            });
-
-            if (response.ok) {
-                alert(`Test email sent to ${user.email}`);
-            } else {
-                throw new Error('Failed to send test email');
-            }
-        } catch (error) {
-            console.error(error);
-            alert('Failed to send test email. Check console for details.');
-        } finally {
-            setSendingTestId(null);
+    const sampleMergeData = useMemo(() => ({
+        lead: {
+            name: 'Jamie Carter',
+            firstName: 'Jamie',
+            company: 'Keller Williams'
+        },
+        agent: {
+            name: 'Admin Team',
+            company: 'HomeListingAI'
         }
-    };
+    }), []);
 
-    type MergeBuckets = {
-        lead: Record<string, string>;
-        agent: Record<string, string>;
-    };
 
-    useEffect(() => {
-        const fetchFunnel = async () => {
-            setIsLoading(true);
-            setError(null);
-
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) {
-                    throw new Error("You must be logged in to view funnels.");
-                }
-
-                const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
-                const response = await fetch(`${apiUrl}/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
-                    headers: { 'x-user-id': user.id }
-                });
-
-                if (!response.ok) {
-                    if (response.status === 404) {
-                        console.warn('⚠️ Funnel not found, using default universal funnel');
-                        setProgramSteps(buildDefaultSteps());
-                        return;
-                    }
-                    throw new Error(`Failed to fetch funnel: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-
-                // Transform API data to match component structure
-                const transformedSteps = (data.sequence?.steps || data.steps || []).map(
-                    (step: { id: string; subject?: string; delayDays?: number; delayHours?: number; delay?: string; emailBody?: string; body?: string; type?: string; attachments?: Array<{ id: string; name: string; url?: string }> }, index: number) => ({
-                        id: step.id || `${UNIVERSAL_FUNNEL_ID}-${index + 1}`,
-                        title: step.subject || `Touch ${index + 1}`,
-                        description: step.body?.slice(0, 80) || step.emailBody?.slice(0, 80) || `Step ${index + 1}`,
-                        icon: index === 0 ? 'bolt' : 'forward_to_inbox',
-                        delay: step.delay
-                            ? step.delay
-                            : (step.delayDays ?? 0) > 0
-                                ? `+${step.delayDays} day${(step.delayDays ?? 0) > 1 ? 's' : ''}`
-                                : 'Immediate',
-                        type: (step.type as EditableStep['type']) || 'Email',
-                        subject: step.subject || `Touch ${index + 1}`,
-                        content: step.body || step.emailBody || '',
-                        attachments: Array.isArray(step.attachments) ? step.attachments : []
-                    })
-                );
-
-                setProgramSteps(transformedSteps.length ? transformedSteps : buildDefaultSteps());
-
-            } catch (err) {
-                const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-                // Don't set error state for 404s, just log a warning
-                if (!errorMessage.includes('404') && !errorMessage.includes('Not Found')) {
-                    setError(errorMessage);
-                    console.error(err);
-                } else {
-                    console.warn('⚠️ Funnel endpoint not available:', errorMessage);
-                }
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchFunnel();
-    }, []);
-
-    useEffect(() => {
-        const loadAnalytics = async () => {
-            setIsLoading(true);
-            try {
-                const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
-                const summaryRes = await fetch(`${apiUrl}/api/admin/analytics/funnel-summary`);
-                const perfRes = await fetch(`${apiUrl}/api/admin/analytics/funnel-performance`);
-                const summary = summaryRes.ok ? await summaryRes.json() : null;
-                const perf = perfRes.ok ? await perfRes.json() : null;
-
-                if (summary) {
-                    setScoringSummary({
-                        totalLeads: summary.totalLeads ?? 0,
-                        conversionRate: summary.conversionRate ?? 0,
-                        appointments: summary.appointments ?? 0,
-                        averageScore: summary.avgScore ?? 0
-                    });
-                }
-                if (perf) {
-                    setTopSteps(Array.isArray(perf.topSteps) ? perf.topSteps : []);
-                    setWeakSteps(Array.isArray(perf.weakSteps) ? perf.weakSteps : []);
-                    setSequenceCards(Array.isArray(perf.sequences) ? perf.sequences : []);
-                }
-            } catch (err) {
-                console.warn('Failed to load admin funnel analytics', err);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        loadAnalytics();
-    }, []);
-
-    const togglePanel = (panel: keyof typeof panelExpanded) => {
-        setPanelExpanded((prev) => ({ ...prev, [panel]: !prev[panel] }));
-    };
-
-    const sampleMergeData = useMemo<MergeBuckets>(
-        () => ({
-            lead: {
-                name: 'Jamie Carter',
-                interestAddress: '123 Palm Ave',
-                timeline: '45 days',
-                matchOne: 'Palm Oasis · $890k · Pool + ADU',
-                matchTwo: 'Vista Row · $815k · Walkable lifestyle',
-                matchThree: 'Sierra Modern · $925k · Canyon views',
-                questionOne: 'Does the solar system transfer?',
-                questionTwo: 'Can we convert the loft into a 4th bedroom?'
-            },
-            agent: {
-                name: 'Jordan Lee',
-                phone: '(555) 987-6543',
-                website: 'https://homelistingai.app/jordan',
-                aiCardUrl: 'https://homelistingai.app/card/jordan'
-            }
-        }),
-        []
-    );
-    const COMMON_TOKEN_HINTS = ['{{lead.name}}', '{{lead.interestAddress}}', '{{agent.name}}', '{{agent.phone}}', '{{agent.aiCardUrl}}'];
 
     const mergeTokens = (template: string) => {
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
             const [bucket, key] = path.split('.');
             if (!bucket || !key) return '';
-            if (!(bucket in sampleMergeData)) return '';
-            const bucketData = sampleMergeData[bucket as keyof MergeBuckets];
-            if (key in bucketData) {
-                return bucketData[key as keyof typeof bucketData] ?? '';
-            }
-            return '';
+            return (sampleMergeData as any)[bucket]?.[key] ?? '';
         });
+    };
+
+    const handleSendTestEmail = async (step: EditableStep) => {
+        if (sendingTestId) return;
+        setSendingTestId(step.id);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user || !user.email) {
+                alert('Could not find your email address.');
+                return;
+            }
+            const subject = mergeTokens(step.subject);
+            const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
+            const response = await fetch('/api/admin/email/quick-send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: user.email,
+                    subject: `[TEST] ${subject}`,
+                    html: body
+                })
+            });
+            if (response.ok) alert(`Test email sent to ${user.email}`);
+            else throw new Error('Failed to send test email');
+        } catch (error) {
+            console.error(error);
+            alert('Failed to send test email.');
+        } finally {
+            setSendingTestId(null);
+        }
+    };
+
+    useEffect(() => {
+        const fetchFunnel = async () => {
+            setIsLoading(true);
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) throw new Error("Not logged in");
+
+                const response = await fetch(`/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
+                    headers: { 'x-user-id': user.id }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        setProgramSteps(buildDefaultSteps());
+                        return;
+                    }
+                    throw new Error("Failed to fetch funnel");
+                }
+
+                const data = await response.json();
+                const steps = (data.sequence?.steps || data.steps || []).map((s: any, i: number) => ({
+                    id: s.id || `${UNIVERSAL_FUNNEL_ID}-${i}`,
+                    title: s.subject || `Touch ${i + 1}`,
+                    description: s.body?.slice(0, 50) || 'Step content',
+                    icon: i === 0 ? 'bolt' : 'email',
+                    delay: s.delay || '+2 days',
+                    type: s.type || 'Email',
+                    subject: s.subject || '',
+                    content: s.body || s.emailBody || '',
+                    attachments: s.attachments || []
+                }));
+
+                if (steps.length) setProgramSteps(steps);
+                else setProgramSteps(buildDefaultSteps());
+            } catch (err) {
+                console.warn(err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchFunnel();
+    }, []);
+
+    const togglePanel = (panel: keyof typeof panelExpanded) => {
+        setPanelExpanded((prev) => ({ ...prev, [panel]: !prev[panel] }));
     };
 
     const toggleProgramStep = (id: string) => {
@@ -362,94 +276,48 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const handleAddProgramStep = () => {
         const newStep: EditableStep = {
             id: `${UNIVERSAL_FUNNEL_ID}-${Date.now()}`,
-            title: 'New Step',
-            description: 'Describe the next universal touchpoint.',
-            icon: 'auto_fix_high',
-            delay: '+1 day',
-            type: 'Custom',
-            subject: 'Subject line',
-            content: 'Message body with {{lead.name}} tokens describing the benefit + CTA.'
+            title: 'New Touch',
+            description: 'Next step in potential client journey',
+            icon: 'forward_to_inbox',
+            delay: '+2 days',
+            type: 'Email',
+            subject: 'New Message',
+            content: 'Hi {{lead.firstName}}, ...'
         };
         setProgramSteps((prev) => [...prev, newStep]);
     };
 
     const handleRemoveProgramStep = (id: string) => {
         setProgramSteps((prev) => prev.filter((step) => step.id !== id));
-        setExpandedProgramStepIds((prev) => prev.filter((stepId) => stepId !== id));
     };
 
     const handleMoveProgramStep = (id: string, direction: 'up' | 'down') => {
         setProgramSteps((prev) => {
-            const index = prev.findIndex(step => step.id === id);
+            const index = prev.findIndex(s => s.id === id);
             if (index === -1) return prev;
-            const targetIndex = direction === 'up' ? index - 1 : index + 1;
-            if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+            const target = direction === 'up' ? index - 1 : index + 1;
+            if (target < 0 || target >= prev.length) return prev;
             const next = [...prev];
-            const [removed] = next.splice(index, 1);
-            next.splice(targetIndex, 0, removed);
+            const [item] = next.splice(index, 1);
+            next.splice(target, 0, item);
             return next;
         });
     };
 
-    const handleAttachFile = async (stepId: string, files: FileList | null) => {
-        if (!files || files.length === 0) return;
-        try {
-            const file = files[0];
-            const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('stepId', stepId);
-            const { data: { user } } = await supabase.auth.getUser();
-            const headers: HeadersInit | undefined = user ? { 'x-user-id': user.id } : undefined;
-            const response = await fetch(`${apiUrl}/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}/attachments`, {
-                method: 'POST',
-                body: formData,
-                headers
-            });
-            const data = response.ok ? await response.json().catch(() => ({})) : null;
-            const attachment = {
-                id: data?.id || `${stepId}-file-${Date.now()}`,
-                name: data?.name || file.name,
-                url: data?.url
-            };
-            setProgramSteps(prev => prev.map(step => step.id === stepId
-                ? { ...step, attachments: [...(step.attachments || []), attachment] }
-                : step));
-        } catch (error) {
-            console.error('Failed to upload attachment', error);
-            alert('Could not upload attachment. Please try again.');
-        }
-    };
-
     const handleSaveProgramSteps = async () => {
         setIsSaving(true);
-        setError(null);
         try {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                throw new Error("You must be logged in to save funnels.");
-            }
-
-            const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
-            const response = await fetch(`${apiUrl}/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
+            if (!user) return;
+            await fetch(`/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-user-id': user.id
-                },
+                headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
                 body: JSON.stringify({ steps: programSteps })
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to save funnel: ${response.statusText}`);
-            }
-
-            alert('Universal Sales Funnel saved successfully!');
-
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-            setError(errorMessage);
-            alert(`Error saving: ${errorMessage}`);
+            alert('Funnel saved!');
+        } catch (e) {
+            console.error(e);
+            alert('Save failed');
         } finally {
             setIsSaving(false);
         }
@@ -458,324 +326,20 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-        setImportStatus(null);
+        setImportStatus('Processing...');
         try {
             const text = await file.text();
             const parsed = parseCsvContent(text);
-            if (!parsed.length) {
-                setImportStatus('No valid rows were found in that CSV.');
-                return;
+            for (const p of parsed) {
+                await adminLeadsService.create({ ...p, funnelId: UNIVERSAL_FUNNEL_ID, funnelType: UNIVERSAL_FUNNEL_ID });
             }
-            setIsImportingCsv(true);
-            for (const payload of parsed) {
-                await adminLeadsService.create({ ...payload, funnelId: UNIVERSAL_FUNNEL_ID, funnelType: UNIVERSAL_FUNNEL_ID });
-            }
-            setImportStatus(`Imported ${parsed.length} leads into the universal funnel.`);
-        } catch (error) {
-            console.error('CSV import failed', error);
-            setImportStatus('There was an error processing that CSV. Try again?');
+            setImportStatus(`Imported ${parsed.length} leads.`);
+        } catch (e) {
+            setImportStatus('Error importing CSV.');
         } finally {
-            setIsImportingCsv(false);
             event.target.value = '';
         }
     };
-
-    const triggerCsvUpload = () => {
-        fileInputRef.current?.click();
-    };
-
-    const renderFunnelPanel = (
-        panelKey: keyof typeof panelExpanded,
-        {
-            badgeIcon,
-            badgeClassName,
-            badgeLabel,
-            title,
-            description,
-            iconColorClass,
-            steps,
-            expandedIds,
-            onToggleStep,
-            onUpdateStep,
-            onRemoveStep,
-            onAddStep,
-            onSave,
-            onMoveStep,
-            onAttachFile,
-            saveLabel,
-            onSendTest
-        }: {
-            badgeIcon: string;
-            badgeClassName: string;
-            badgeLabel: string;
-            title: string;
-            description: string;
-            iconColorClass: string;
-            steps: EditableStep[];
-            expandedIds: string[];
-            onToggleStep: (id: string) => void;
-            onUpdateStep: (id: string, field: keyof EditableStep, value: string) => void;
-            onRemoveStep: (id: string) => void;
-            onAddStep: () => void;
-            onSave: () => void;
-            onMoveStep: (id: string, direction: 'up' | 'down') => void;
-            onAttachFile: (id: string, files: FileList | null) => void;
-            saveLabel: string;
-            onSendTest: (step: EditableStep) => void;
-        }
-    ) => {
-        const isOpen = panelExpanded[panelKey];
-        return (
-            <section key={`panel-${panelKey}`} className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
-                        <p className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${badgeClassName}`}>
-                            <span className="material-symbols-outlined text-base">{badgeIcon}</span>
-                            {badgeLabel}
-                        </p>
-                        <div className="space-y-1">
-                            <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
-                            <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => togglePanel(panelKey)}
-                        className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:bg-slate-50"
-                    >
-                        <span className="material-symbols-outlined text-base">
-                            {isOpen ? 'expand_less' : 'expand_more'}
-                        </span>
-                        {isOpen ? 'Collapse' : 'Expand'}
-                    </button>
-                </div>
-                {isOpen && (
-                    <>
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-500">
-                            <span className="font-semibold text-slate-600">Tokens:</span>
-                            {COMMON_TOKEN_HINTS.map((token) => (
-                                <span
-                                    key={`${panelKey}-${token}`}
-                                    className="rounded-full bg-slate-100 px-2 py-1 text-slate-600"
-                                >
-                                    {token}
-                                </span>
-                            ))}
-                        </div>
-                        <div className="space-y-4">
-                            {steps.map((step, index) => {
-                                const stepIsOpen = expandedIds.includes(step.id);
-                                const previewSubject = mergeTokens(step.subject);
-                                const previewBody = mergeTokens(step.content);
-                                return (
-                                    <article key={step.id} className="rounded-2xl border border-slate-200 bg-slate-50">
-                                        <button
-                                            type="button"
-                                            onClick={() => onToggleStep(step.id)}
-                                            className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className={`rounded-full bg-white p-2 shadow-sm ${iconColorClass}`}>
-                                                    <span className="material-symbols-outlined text-base">{step.icon}</span>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                                        Step {index + 1}
-                                                    </p>
-                                                    <h3 className="text-sm font-semibold text-slate-900">{step.title}</h3>
-                                                    <p className="text-xs text-slate-500 line-clamp-1">{step.description}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-4 text-xs text-slate-500">
-                                                <span className="font-semibold">{step.delay}</span>
-                                                <span className="hidden rounded-full border border-slate-200 bg-white px-2 py-1 font-semibold sm:inline">
-                                                    {step.type}
-                                                </span>
-                                                <span className="material-symbols-outlined text-base">
-                                                    {stepIsOpen ? 'expand_less' : 'expand_more'}
-                                                </span>
-                                            </div>
-                                        </button>
-                                        {stepIsOpen && (
-                                            <div className="space-y-4 border-t border-slate-200 bg-white px-4 py-4">
-                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Title
-                                                        <input
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            value={step.title}
-                                                            onChange={(event) => onUpdateStep(step.id, 'title', event.target.value)}
-                                                        />
-                                                    </label>
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Delay
-                                                        <input
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            value={step.delay}
-                                                            onChange={(event) => onUpdateStep(step.id, 'delay', event.target.value)}
-                                                        />
-                                                    </label>
-                                                </div>
-                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Description
-                                                        <input
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            value={step.description}
-                                                            onChange={(event) => onUpdateStep(step.id, 'description', event.target.value)}
-                                                        />
-                                                    </label>
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Type
-                                                        <select
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            value={step.type}
-                                                            onChange={(event) => onUpdateStep(step.id, 'type', event.target.value)}
-                                                        >
-                                                            <option value="Email">Email</option>
-                                                            <option value="SMS">SMS</option>
-                                                            <option value="Task">Task</option>
-                                                        </select>
-                                                    </label>
-                                                </div>
-                                                <label className="text-xs font-semibold text-slate-600">
-                                                    Subject
-                                                    <input
-                                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                        value={step.subject}
-                                                        onChange={(event) => onUpdateStep(step.id, 'subject', event.target.value)}
-                                                    />
-                                                </label>
-                                                <label className="text-xs font-semibold text-slate-600">
-                                                    Message Body
-                                                    <textarea
-                                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                        rows={5}
-                                                        value={step.content}
-                                                        onChange={(event) => onUpdateStep(step.id, 'content', event.target.value)}
-                                                    />
-                                                </label>
-                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</p>
-                                                        <p className="mt-1 text-sm font-semibold text-slate-900">{previewSubject}</p>
-                                                        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-600">{previewBody}</p>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-xs text-slate-500">
-                                                        <p className="font-semibold uppercase tracking-wide text-slate-600">Variables you can drop in</p>
-                                                        <ul className="mt-2 space-y-1">
-                                                            {COMMON_TOKEN_HINTS.map((token) => (
-                                                                <li key={`${step.id}-${token}`} className="font-mono text-[11px]">
-                                                                    {token}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                                <div className="flex justify-end">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onSendTest(step)}
-                                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
-                                                    >
-                                                        <span className="material-symbols-outlined text-base">send</span>
-                                                        Send Test to Me
-                                                    </button>
-                                                </div>
-                                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onRemoveStep(step.id)}
-                                                        className="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                                                    >
-                                                        <span className="material-symbols-outlined text-base">delete</span>
-                                                        Delete Step
-                                                    </button>
-                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onMoveStep(step.id, 'up')}
-                                                            className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 hover:bg-slate-50"
-                                                        >
-                                                            <span className="material-symbols-outlined text-sm">arrow_upward</span> Up
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onMoveStep(step.id, 'down')}
-                                                            className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 hover:bg-slate-50"
-                                                        >
-                                                            <span className="material-symbols-outlined text-sm">arrow_downward</span> Down
-                                                        </button>
-                                                        <span className="ml-2">Auto preview updates with your edits.</span>
-                                                    </div>
-                                                </div>
-                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Attachments
-                                                        <div className="mt-1 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
-                                                            <input
-                                                                type="file"
-                                                                onChange={(e) => onAttachFile(step.id, e.target.files)}
-                                                                className="text-xs"
-                                                            />
-                                                            <div className="mt-2 space-y-1">
-                                                                {(step.attachments || []).map((file) => (
-                                                                    <div key={file.id} className="text-xs text-slate-700 flex items-center gap-2">
-                                                                        <span className="material-symbols-outlined text-sm">attach_file</span>
-                                                                        <span className="truncate">{file.name}</span>
-                                                                    </div>
-                                                                ))}
-                                                                {(step.attachments || []).length === 0 && (
-                                                                    <p className="text-xs text-slate-500">No attachments yet.</p>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        )
-                                        }
-                                    </article>
-                                );
-                            })}
-                        </div>
-                        <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                            <button
-                                type="button"
-                                onClick={onAddStep}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                            >
-                                <span className="material-symbols-outlined text-base">add</span>
-                                Add Step
-                            </button>
-                            <button
-                                type="button"
-                                onClick={onSave}
-                                disabled={isSaving}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:opacity-50"
-                            >
-                                <span className="material-symbols-outlined text-base">save</span>
-                                {isSaving ? 'Saving...' : saveLabel}
-                            </button>
-                        </div>
-                    </>
-                )
-                }
-            </section >
-        );
-    };
-
-    if (isLoading) {
-        return (
-            <div className="flex h-96 items-center justify-center">
-                <div className="animate-spin h-12 w-12 rounded-full border-b-2 border-primary-600"></div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return <div className="rounded-lg bg-rose-50 p-4 text-center text-rose-700">{error}</div>;
-    }
 
     return (
         <div className={isEmbedded ? '' : 'bg-slate-50 min-h-full'}>
@@ -787,252 +351,114 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         className="mb-6 flex items-center space-x-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-800"
                     >
                         <span className="material-symbols-outlined w-5 h-5">chevron_left</span>
-                        <span>Back to Admin Overview</span>
+                        <span>Back to Dashboard</span>
                     </button>
                 )}
 
                 <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="space-y-2">
-                        <p className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700">
-                            <span className="material-symbols-outlined text-base">monitoring</span>
-                            Leads Funnel
-                        </p>
+                    <div>
                         <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
-                        <p className="text-sm text-slate-500 sm:text-base">
-                            {subtitle}
-                        </p>
+                        <p className="text-slate-500">{subtitle}</p>
                     </div>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex gap-2">
                         <button
-                            type="button"
                             onClick={() => setIsQuickEmailOpen(true)}
-                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700"
                         >
-                            <span className="material-symbols-outlined text-base">outgoing_mail</span>
                             Open Email Library
                         </button>
                         <button
-                            type="button"
-                            onClick={triggerCsvUpload}
-                            disabled={isImportingCsv}
-                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-60"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50"
                         >
-                            <span className="material-symbols-outlined text-base">upload_file</span>
-                            Upload Leads CSV
+                            Import CSV
                         </button>
                     </div>
                 </header>
-                <input
-                    type="file"
-                    accept=".csv"
-                    ref={fileInputRef}
-                    className="hidden"
-                    onChange={handleCsvImport}
-                />
-                {importStatus && (
-                    <div className="text-sm text-slate-600 mb-4">
-                        {isImportingCsv ? 'Importing leads…' : importStatus}
+
+                <input type="file" ref={fileInputRef} className="hidden" onChange={handleCsvImport} accept=".csv" />
+                {importStatus && <div className="mb-4 text-sm text-blue-600">{importStatus}</div>}
+
+                {/* Render Single Funnel Panel */}
+                <section className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">
+                                Universal Sales Funnel
+                            </span>
+                            <h2 className="text-xl font-bold text-slate-900 mt-2">Agent Acquisition Sequence</h2>
+                            <p className="text-slate-500 text-sm">Automated 5-touch drip to convert real estate agents.</p>
+                        </div>
+                        <button onClick={() => togglePanel('universal')} className="text-slate-500 hover:text-slate-700">
+                            {panelExpanded.universal ? 'Collapse' : 'Expand'}
+                        </button>
                     </div>
-                )}
 
-                {/* Lead Scoring Engine / Performance Overview */}
-                <div className="mb-6 flex flex-wrap items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('funnel')}
-                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border ${activeTab === 'funnel'
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                            }`}
-                    >
-                        <span className="material-symbols-outlined text-base">rocket_launch</span>
-                        Universal Funnel
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('automation')}
-                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border ${activeTab === 'automation'
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                            }`}
-                    >
-                        <span className="material-symbols-outlined text-base">insights</span>
-                        Automation Performance
-                    </button>
-                </div>
-
-                {activeTab === 'funnel' && (
-                    <section className="mb-8 space-y-4">
-                        <div className="flex flex-col gap-3">
-                            <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                                <span className="material-symbols-outlined text-base">insights</span>
-                                Lead Scoring Engine
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <h2 className="text-2xl font-bold text-slate-900">Scoring Rules &amp; Tiers</h2>
-                                <p className="text-sm text-slate-500">
-                                    See the rules, tiers, and point gains that determine which prospects graduate to Hot or stay in nurture.
-                                </p>
-                                <button
-                                    type="button"
-                                    className="inline-flex items-center gap-2 self-start rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                                >
-                                    <span className="material-symbols-outlined text-base">tips_and_updates</span>
-                                    Show Scoring Tips
-                                    <span className="material-symbols-outlined text-sm">expand_more</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 sm:p-5">
-                            <div className="flex items-center justify-between text-xs text-slate-500 mb-4">
-                                <span className="uppercase tracking-wide font-semibold text-slate-600">Performance Overview</span>
-                                <span>Stats refresh when leads update</span>
-                            </div>
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
-                                    <div className="rounded-full bg-blue-100 text-blue-700 p-2"><span className="material-symbols-outlined">groups</span></div>
-                                    <div>
-                                        <div className="text-xs text-slate-500">Total Leads</div>
-                                        <div className="text-xl font-semibold text-slate-900">{scoringSummary.totalLeads}</div>
-                                    </div>
-                                </div>
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
-                                    <div className="rounded-full bg-green-100 text-green-700 p-2"><span className="material-symbols-outlined">trending_up</span></div>
-                                    <div>
-                                        <div className="text-xs text-slate-500">Conversion Rate</div>
-                                        <div className="text-xl font-semibold text-slate-900">{scoringSummary.conversionRate.toFixed(1)}%</div>
-                                    </div>
-                                </div>
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
-                                    <div className="rounded-full bg-purple-100 text-purple-700 p-2"><span className="material-symbols-outlined">event_available</span></div>
-                                    <div>
-                                        <div className="text-xs text-slate-500">Appointments Set</div>
-                                        <div className="text-xl font-semibold text-slate-900">{scoringSummary.appointments}</div>
-                                    </div>
-                                </div>
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
-                                    <div className="rounded-full bg-amber-100 text-amber-700 p-2"><span className="material-symbols-outlined">stars</span></div>
-                                    <div>
-                                        <div className="text-xs text-slate-500">Average Score</div>
-                                        <div className="text-xl font-semibold text-slate-900">{scoringSummary.averageScore.toFixed(1)}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                )}
-
-                {activeTab === 'funnel' && renderFunnelPanel('universal', {
-                    badgeIcon: 'rocket_launch',
-                    badgeClassName: 'bg-sky-50 text-sky-700',
-                    badgeLabel: 'Universal Sales Funnel',
-                    title: 'Universal Sales Funnel (5-Touch)',
-                    description:
-                        'Admin-only 5-touch sequence with urgency, modern challenges, benefits, and CTAs. Auto-assigned to every new lead.',
-                    iconColorClass: 'text-primary-600',
-                    steps: programSteps,
-                    expandedIds: expandedProgramStepIds,
-                    onToggleStep: toggleProgramStep,
-                    onUpdateStep: handleUpdateProgramStep,
-                    onRemoveStep: handleRemoveProgramStep,
-                    onAddStep: handleAddProgramStep,
-                    onMoveStep: handleMoveProgramStep,
-                    onAttachFile: handleAttachFile,
-                    onSave: handleSaveProgramSteps,
-                    saveLabel: 'Save Program Funnel',
-                    onSendTest: handleSendTestEmail
-                })}
-
-                {activeTab === 'automation' && (
-                    <section className="space-y-6">
-                        <div className="flex flex-col gap-2">
-                            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                <span className="material-symbols-outlined text-base">track_changes</span>
-                                Sequence Feedback
-                            </div>
-                            <h2 className="text-2xl font-bold text-slate-900">Automation Performance</h2>
-                            <p className="text-sm text-slate-500">Compare reply rates, openings, and meetings across the universal funnel.</p>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Top Performing Step</p>
-                                <h3 className="mt-1 text-base font-semibold text-slate-900">{topSteps[0]?.title || 'Curated step'}</h3>
-                                <p className="text-sm text-slate-600">
-                                    {(topSteps[0]?.replyRate ?? 0)}% reply · {(topSteps[0]?.meetingRate ?? 0)}% meetings
-                                </p>
-                                <div className="mt-3 h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-                                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, topSteps[0]?.replyRate ?? 0)}%` }} />
-                                </div>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Sequences Needing Love</p>
-                                <h3 className="mt-1 text-base font-semibold text-rose-700">{weakSteps[0]?.title || 'Follow-up touch'}</h3>
-                                <p className="text-sm text-slate-600">
-                                    Reply rate trending down; review copy and delay.
-                                </p>
-                                <button className="mt-3 inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-                                    <span className="material-symbols-outlined text-sm">edit</span>
-                                    Review step copy
-                                </button>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Fastest Replies</p>
-                                <h3 className="mt-1 text-base font-semibold text-slate-900">Task: Live Call</h3>
-                                <p className="text-sm text-slate-600">Average reply in 12 minutes once you log a call touch.</p>
-                                <button className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                    <span className="material-symbols-outlined text-sm">call</span>
-                                    Keep human touches
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Sequence Overview</p>
-                                    <h3 className="text-lg font-semibold text-slate-900">Health &amp; Reply Rates</h3>
-                                </div>
-                                <span className="text-xs text-slate-500">Rolling 14 day window</span>
-                            </div>
-                            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                                {sequenceCards.map((seq) => (
-                                    <div key={seq.title} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                                        <div className="flex items-center justify-between">
+                    {panelExpanded.universal && (
+                        <div className="space-y-4">
+                            {programSteps.map((step, index) => (
+                                <div key={step.id} className="border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
+                                    <div
+                                        className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100"
+                                        onClick={() => toggleProgramStep(step.id)}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className="material-symbols-outlined text-slate-400">{step.icon}</span>
                                             <div>
-                                                <h4 className="text-sm font-semibold text-slate-900">{seq.title}</h4>
-                                                <p className="text-[11px] text-slate-500 uppercase tracking-wide">Reply health</p>
-                                            </div>
-                                            <span className="text-xs text-slate-500">↑</span>
-                                        </div>
-                                        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                                            <div>
-                                                <div className="text-xs text-slate-500">Replies</div>
-                                                <div className="text-lg font-semibold text-slate-900">{seq.replies}%</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-slate-500">Opens</div>
-                                                <div className="text-lg font-semibold text-slate-900">{seq.opens}%</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-slate-500">Meetings</div>
-                                                <div className="text-lg font-semibold text-slate-900">{seq.meetings}</div>
+                                                <div className="text-xs font-bold text-slate-500 uppercase">Step {index + 1} • {step.delay}</div>
+                                                <div className="font-semibold text-slate-900">{step.title}</div>
                                             </div>
                                         </div>
-                                        <div className="mt-3 text-xs text-slate-600">{seq.tag}</div>
+                                        <span className="material-symbols-outlined text-slate-400">
+                                            {expandedProgramStepIds.includes(step.id) ? 'expand_less' : 'expand_more'}
+                                        </span>
                                     </div>
-                                ))}
-                                {sequenceCards.length === 0 && (
-                                    <div className="text-sm text-slate-500">No sequence analytics available yet.</div>
-                                )}
+
+                                    {expandedProgramStepIds.includes(step.id) && (
+                                        <div className="p-4 border-t border-slate-200 bg-white space-y-4">
+                                            <input
+                                                value={step.title}
+                                                onChange={(e) => handleUpdateProgramStep(step.id, 'title', e.target.value)}
+                                                className="w-full border p-2 rounded"
+                                                placeholder="Step Title"
+                                            />
+                                            <input
+                                                value={step.subject}
+                                                onChange={(e) => handleUpdateProgramStep(step.id, 'subject', e.target.value)}
+                                                className="w-full border p-2 rounded"
+                                                placeholder="Email Subject"
+                                            />
+                                            <textarea
+                                                value={step.content}
+                                                onChange={(e) => handleUpdateProgramStep(step.id, 'content', e.target.value)}
+                                                className="w-full border p-2 rounded h-32"
+                                                placeholder="Email Content"
+                                            />
+                                            <div className="flex justify-between items-center">
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => handleSendTestEmail(step)} className="text-blue-600 text-sm font-medium">Send Test</button>
+                                                    <button onClick={() => handleRemoveProgramStep(step.id)} className="text-red-600 text-sm font-medium">Delete</button>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => handleMoveProgramStep(step.id, 'up')} className="text-slate-500 text-sm">Move Up</button>
+                                                    <button onClick={() => handleMoveProgramStep(step.id, 'down')} className="text-slate-500 text-sm">Move Down</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            <div className="flex justify-between pt-4">
+                                <button onClick={handleAddProgramStep} className="text-blue-600 font-semibold text-sm">+ Add Step</button>
+                                <button onClick={handleSaveProgramSteps} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">Save Changes</button>
                             </div>
                         </div>
-                    </section>
-                )}
+                    )}
+                </section>
             </div>
             {isQuickEmailOpen && <QuickEmailModal onClose={() => setIsQuickEmailOpen(false)} />}
         </div>
     );
 };
 
-export default FunnelAnalyticsPanel;
+export default AdminFunnelAnalyticsPanel;

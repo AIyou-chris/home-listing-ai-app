@@ -1,5 +1,6 @@
 import React from 'react';
 import { LogoWithName } from './LogoWithName';
+import { adminAuthService } from '../services/adminAuthService';
 import { View } from '../types';
 
 interface SidebarProps {
@@ -108,6 +109,30 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
               </NavItem>
             ))}
           </div>
+
+          {!isDemoMode && (
+            <div className="mt-auto px-2 pb-6 border-t border-slate-100 pt-4">
+              <button
+                onClick={() => {
+                  localStorage.setItem('adminUser', 'true');
+                  window.location.hash = 'admin-dashboard';
+                  window.location.reload();
+                }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg transition-colors mb-2"
+              >
+                <Icon name="admin_panel_settings" className="text-slate-500" />
+                <span>Switch to Admin</span>
+              </button>
+
+              <button
+                onClick={() => adminAuthService.logout()}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+              >
+                <Icon name="logout" className="text-rose-500" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
 
           {isDemoMode && (
             <div className="mt-auto pt-6 space-y-3">

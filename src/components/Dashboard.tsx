@@ -144,7 +144,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             {/* Quick Actions Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
                 <div className="flex-1">
-                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Agent Dashboard</h1>
                     {!hideWelcome && (
                         <p className="text-slate-500 mt-1 text-sm sm:text-base">
                             Welcome back, {agentProfile.name}! Here&apos;s an overview of your real estate activity.

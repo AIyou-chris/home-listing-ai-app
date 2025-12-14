@@ -144,6 +144,17 @@ const mapTemplateToSidekick = (template: SidekickTemplate): AISidekick => ({
   metadata: { type: template.type, color: template.color, icon: template.icon }
 });
 
+const DEFAULT_DISPLAY_VOICES: Voice[] = [
+  { id: 'alloy', name: 'Alloy — Neutral', openaiVoice: 'alloy', gender: 'neutral' },
+  { id: 'echo', name: 'Echo — Male', openaiVoice: 'echo', gender: 'male' },
+  { id: 'fable', name: 'Fable — Male (British)', openaiVoice: 'fable', gender: 'male' },
+  { id: 'onyx', name: 'Onyx — Male (Deep)', openaiVoice: 'onyx', gender: 'male' },
+  { id: 'nova', name: 'Nova — Female (Energetic)', openaiVoice: 'nova', gender: 'female' },
+  { id: 'shimmer', name: 'Shimmer — Female (Clear)', openaiVoice: 'shimmer', gender: 'female' },
+  { id: 'sol', name: 'Sol — Coach', openaiVoice: 'nova', gender: 'female' },
+  { id: 'verse', name: 'Verse — Bold', openaiVoice: 'onyx', gender: 'male' }
+];
+
 // Helper to map app sidekick IDs to Supabase KB Sidekick IDs
 const mapToKbSidekickId = (id: string, type: string): KbSidekickId => {
   // Common mappings
@@ -298,7 +309,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
       if (sidekickTemplatesOverride && sidekickTemplatesOverride.length) {
         const mapped = effectiveTemplates.map(mapTemplateToSidekick);
         setSidekicks(mapped);
-        setVoices([]);
+        setVoices(DEFAULT_DISPLAY_VOICES);
         setSelectedSidekick(mapped[0] || null);
       } else {
         const data = await getSidekicks({ demoMode: isDemoMode });
@@ -1548,8 +1559,8 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                           key={v}
                           onClick={() => setPersonalityForm(prev => ({ ...prev, voice: v }))}
                           className={`px-3 py-2 border rounded-lg text-sm capitalize transition-colors ${(personalityForm as any).voice === v
-                              ? 'bg-slate-900 text-white border-slate-900'
-                              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                            ? 'bg-slate-900 text-white border-slate-900'
+                            : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                             }`}
                         >
                           <div className="flex items-center gap-2">
