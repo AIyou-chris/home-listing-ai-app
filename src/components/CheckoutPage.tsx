@@ -227,6 +227,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                       <p className="text-xs text-slate-500 mt-3 text-center">
                         Secure payment processing via Stripe
                       </p>
+                      <p className="text-[10px] text-slate-400 mt-2 text-center text-balance leading-tight px-4">
+                        Prices subject to change without notice. Existing customers will receive a 30-day written notice of any price adjustments.
+                      </p>
                       <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
                         <span className="material-symbols-outlined text-green-600 text-xl mt-0.5">verified_user</span>
                         <div>
