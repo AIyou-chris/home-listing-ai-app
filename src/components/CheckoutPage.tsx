@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { agentOnboardingService, AgentRecord } from '../services/agentOnboardingService';
 import LoadingSpinner from './LoadingSpinner';
 import { Logo } from './Logo';
+import { StripeLogo } from './StripeLogo';
 
 interface CheckoutPageProps {
   slug: string;
@@ -224,9 +225,13 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                         <span className="material-symbols-outlined text-base">account_balance</span>
                         {isCreatingSession ? 'Opening checkout...' : 'Subscribe with Card'}
                       </button>
-                      <p className="text-xs text-slate-500 mt-3 text-center">
-                        Secure payment processing via Stripe
-                      </p>
+                      <div className="mt-4 flex flex-col items-center justify-center gap-1.5 opacity-80">
+                        <div className="flex items-center gap-2 text-slate-500">
+                          <span className="material-symbols-outlined text-sm">lock</span>
+                          <span className="text-xs font-medium">Payments secured by</span>
+                          <StripeLogo className="h-4 text-slate-600 mb-0.5" />
+                        </div>
+                      </div>
                       <p className="text-[10px] text-slate-400 mt-2 text-center text-balance leading-tight px-4">
                         Prices subject to change without notice. Existing customers will receive a 30-day written notice of any price adjustments.
                       </p>
