@@ -111,6 +111,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     // const [isLoading, setIsLoading] = useState(true); // Removed unused
     const [isSaving, setIsSaving] = useState(false);
+    const [debugMsg, setDebugMsg] = useState<string>('');
     const [sendingTestId, setSendingTestId] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
 
@@ -347,6 +348,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     const handleSaveProgramSteps = async () => {
         setIsSaving(true);
+        setDebugMsg('Starting save...');
         console.log(`[Funnel] Saving to: ${API_BASE}/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`);
 
         try {
@@ -374,6 +376,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     throw new Error(`Server returned ${response.status}: ${errorText}`);
                 }
 
+                setDebugMsg(`✅ SUCCESS! Saved at ${new Date().toLocaleTimeString()}`);
                 alert('Funnel saved successfully!');
             } catch (err) {
                 clearTimeout(timeoutId);
@@ -385,6 +388,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             if (e instanceof DOMException && e.name === 'AbortError') {
                 msg = 'Request timed out (Backend might be waking up). Please try again in a minute.';
             }
+            setDebugMsg(`❌ FAILED: ${msg}`);
             alert(`Save Failed! Details: ${msg}`);
         } finally {
             setIsSaving(false);
@@ -630,6 +634,15 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                 )}
                                 {saveLabel}
                             </button>
+                        </div>
+                        {/* DEBUG STATUS ON SCREEN */}
+                        <div className="mt-4 p-3 bg-slate-100 rounded text-xs font-mono text-slate-600 break-all">
+                            <strong>Debug Status:</strong>
+                            <span className={isSaving ? 'text-blue-600' : ''}> {isSaving ? 'Saving...' : 'Idle'} </span>
+                            <br />
+                            <strong>Target:</strong> {API_BASE}/api/admin/marketing/sequences/{UNIVERSAL_FUNNEL_ID}
+                            <br />
+                            <strong>Log:</strong> {debugMsg}
                         </div>
                     </div>
                 )}
