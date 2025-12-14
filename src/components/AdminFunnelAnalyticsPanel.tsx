@@ -148,9 +148,9 @@ const AdminFunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [isImportingCsv, setIsImportingCsv] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [, setIsLoading] = useState(true);
+    const [, setIsSaving] = useState(false);
+    const [, setError] = useState<string | null>(null);
     // const [scoringSummary, setScoringSummary] = useState({
     //     totalLeads: 0,
     //     conversionRate: 0,
@@ -180,7 +180,7 @@ const AdminFunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
             const [bucket, key] = path.split('.');
             if (!bucket || !key) return '';
-            return (sampleMergeData as any)[bucket]?.[key] ?? '';
+            return (sampleMergeData as Record<string, any>)[bucket]?.[key] ?? '';
         });
     };
 

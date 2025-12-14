@@ -143,7 +143,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     }), []);
 
     // Flexible merge function that can take custom data source
-    const mergeTokens = (template: string, sourceData: any = sampleMergeData) => {
+    const mergeTokens = (template: string, sourceData: Record<string, any> = sampleMergeData) => {
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
             const [bucket, key] = path.split('.');
             if (!bucket || !key) return '';
@@ -288,7 +288,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 }
 
                 const data = await response.json();
-                const steps = (data.sequence?.steps || data.steps || []).map((s: any, i: number) => ({
+                const steps = (data.sequence?.steps || data.steps || []).map((s: Record<string, any>, i: number) => ({
                     id: s.id || `${UNIVERSAL_FUNNEL_ID}-${i}`,
                     title: s.subject || `Touch ${i + 1}`,
                     description: s.body?.slice(0, 50) || 'Step content',
