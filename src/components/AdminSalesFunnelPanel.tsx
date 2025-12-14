@@ -348,46 +348,39 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     const handleSaveProgramSteps = async () => {
         setIsSaving(true);
-        setDebugMsg('Starting save...');
-        console.log(`[Funnel] Saving to: ${API_BASE}/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`);
+        setDebugMsg('Starting direct DB save...');
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } = {} } = await supabase.auth.getUser();
             if (!user) {
                 alert('You must be logged in to save.');
+                setIsSaving(false);
                 return;
             }
 
-            // Timeout after 60 seconds (Render cold start can take ~50s)
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000);
+            console.log('[Funnel] Attempting direct DB write via Supabase client');
+            setDebugMsg('Writing directly to Database (bypassing API)...');
 
-            try {
-                const response = await fetch(`${API_BASE}/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
-                    body: JSON.stringify({ steps: programSteps }),
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
+            const { error: dbError } = await supabase
+                .from('funnels')
+                .upsert({
+                    id: UNIVERSAL_FUNNEL_ID,
+                    name: 'Universal Sales Funnel',
+                    type: 'universal_sales',
+                    steps: programSteps,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Server returned ${response.status}: ${errorText}`);
-                }
-
-                setDebugMsg(`✅ SUCCESS! Saved at ${new Date().toLocaleTimeString()}`);
-                alert('Funnel saved successfully!');
-            } catch (err) {
-                clearTimeout(timeoutId);
-                throw err;
+            if (dbError) {
+                throw new Error(`Database Write Failed: ${dbError.message}`);
             }
+
+            setDebugMsg(`✅ SUCCESS! Saved to DB at ${new Date().toLocaleTimeString()}`);
+            alert('Funnel saved successfully!');
+
         } catch (e) {
             console.error(e);
-            let msg = e instanceof Error ? e.message : 'Unknown error';
-            if (e instanceof DOMException && e.name === 'AbortError') {
-                msg = 'Request timed out (Backend might be waking up). Please try again in a minute.';
-            }
+            const msg = e instanceof Error ? e.message : 'Unknown error';
             setDebugMsg(`❌ FAILED: ${msg}`);
             alert(`Save Failed! Details: ${msg}`);
         } finally {
