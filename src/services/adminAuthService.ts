@@ -97,9 +97,15 @@ class AdminAuthService {
   }
 
   async logout(): Promise<void> {
-    await supabase.auth.signOut();
+    // 1. Remove lock FIRST so listeners know we are intentionally logging out
+    localStorage.removeItem('adminUser');
     this.currentAdmin = null;
-    localStorage.removeItem('adminUser'); // Clean up old local storage if it exists
+
+    // 2. Then trigger the auth event
+    await supabase.auth.signOut();
+
+    // 3. Force reload if needed (optional, but ensures clean slate)
+    // window.location.reload(); 
   }
 
   getCurrentAdmin(): AdminUser | null {
