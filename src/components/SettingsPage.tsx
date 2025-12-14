@@ -325,12 +325,8 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
     const [isBillingSettingsLoading, setIsBillingSettingsLoading] = useState<boolean>(false);
     const billingDefaultsRef = useRef<BillingSettings>(_billingSettings);
     const notificationDefaultsRef = useRef<NotificationSettings>(notificationSettings);
-    const paypalPortalUrl = (() => {
-        const metaEnv = (globalThis as Record<string, unknown> & { __VITE_ENV__?: Record<string, unknown> }).__VITE_ENV__;
-        const nodeEnv = typeof process !== 'undefined' ? process.env : undefined;
-        const value = metaEnv?.VITE_PAYPAL_PORTAL_URL ?? nodeEnv?.VITE_PAYPAL_PORTAL_URL ?? nodeEnv?.PAYPAL_PORTAL_URL;
-        return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-    })();
+    // PayPal portal URL removed
+    const stripePortalUrl = undefined; // Placeholder for Stripe Customer Portal URL if needed
 
     // Read tab query from hash: #/settings?tab=billing
     useEffect(() => {
@@ -1292,7 +1288,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         }
     };
 
-    const launchBillingCheckout = async (provider: 'paypal') => {
+    const launchBillingCheckout = async (provider: string = 'stripe') => {
         if (isDemoMode) {
             alert('Settings are read-only in demo mode.');
             return;
@@ -1303,8 +1299,10 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         }
 
         setBillingError(null);
-        setBillingMessage(null);
         setIsBillingCheckoutLoading(true);
+        setBillingMessage(
+            'Opening secure checkout in a new tab.'
+        );
 
         try {
             const session = await agentOnboardingService.createCheckoutSession({
@@ -1314,9 +1312,6 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
 
             if (session?.url) {
                 openCheckoutUrl(session.url);
-                setBillingMessage(provider === 'paypal'
-                    ? 'Opening PayPal subscription checkout in a new tab.'
-                    : 'Opening checkout in a new tab.');
             } else {
                 setBillingError('Checkout session did not return a redirect URL.');
             }
@@ -1333,21 +1328,14 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
     };
 
     // Billing handlers
-    const handlePayPalCheckout = () => {
-        if (billingData.managedBy && billingData.managedBy !== 'paypal') {
-            setBillingError(`Your subscription is managed via ${billingData.managedBy}. Please use the ${billingData.managedBy === 'stripe' ? 'Stripe customer portal' : 'billing team'} to make changes.`);
-            return;
+    const handleBillingCheckout = () => {
+        if (billingData.managedBy && billingData.managedBy !== 'stripe') {
+            const confirmed = window.confirm(`This subscription is managed by ${billingData.managedBy}. Continue with Stripe?`);
+            if (!confirmed) return;
         }
-        if (!paypalAvailable) {
-            setBillingError('PayPal is not available. Please contact support.');
-            return;
-        }
-        if (paypalPortalUrl) {
-            setBillingMessage('Opening PayPal in a new tab.');
-            window.open(paypalPortalUrl, '_blank');
-            return;
-        }
-        void launchBillingCheckout('paypal');
+
+        // Default to Stripe checkout
+        void launchBillingCheckout('stripe');
     };
 
     const handleContactSupport = () => {
@@ -1513,8 +1501,8 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         { id: 'billing', label: 'Billing', icon: 'credit_card' },
     ];
 
-    const paypalAvailable = paymentProviders.includes('paypal');
-    const subscriptionManagedBy = billingData.managedBy || (paypalAvailable ? 'paypal' : undefined);
+    const stripeAvailable = paymentProviders.includes('stripe') || true; // Default to true if list fails
+    const subscriptionManagedBy = billingData.managedBy || (stripeAvailable ? 'stripe' : undefined);
     const planAmountFormatted = formatCurrency(billingData.amount, billingData.currency ?? 'USD');
     const renewalDateLabel = formatDate(billingData.renewalDate);
     const cancellationRequestedLabel = formatDate(billingData.cancellationRequestedAt);
@@ -1526,20 +1514,18 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         Pending: 'bg-amber-100 text-amber-700',
         Failed: 'bg-rose-100 text-rose-700'
     };
-    const manageButtonLabel = (() => {
-        if (subscriptionManagedBy === 'paypal') {
-            return isBillingCheckoutLoading ? 'Opening PayPal…' : 'Manage with PayPal';
-        }
+    const getBillingButtonLabel = () => {
         if (subscriptionManagedBy === 'stripe') {
-            return 'Managed via Stripe';
+            return isBillingCheckoutLoading ? 'Opening Checkout…' : 'Manage Subscription';
         }
         if (subscriptionManagedBy === 'manual') {
             return 'Contact billing';
         }
-        return 'Manage subscription';
-    })();
-    const manageButtonDisabled =
-        subscriptionManagedBy !== 'paypal' || !paypalAvailable || isBillingCheckoutLoading;
+        return 'Manage Subscription'; // Default
+    };
+    const isBillingDisabled =
+        isDemoMode ||
+        isBillingCheckoutLoading;
     const cancelButtonDisabled = !canCancelPlan || isBillingSettingsLoading;
     const cancelButtonLabel = canCancelPlan
         ? 'Cancel Plan'
@@ -2736,7 +2722,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
                                                 {renewalDateLabel && (
                                                     <p className="mt-2 text-sm text-white/80">Renews on {renewalDateLabel}</p>
                                                 )}
-                                                {subscriptionManagedBy && subscriptionManagedBy !== 'paypal' && (
+                                                {subscriptionManagedBy && subscriptionManagedBy !== 'stripe' && (
                                                     <p className="mt-1 text-xs text-white/80">
                                                         Managed by {subscriptionManagedBy === 'manual' ? 'our billing team' : subscriptionManagedBy}.
                                                     </p>
@@ -2781,12 +2767,12 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
                                         <div className="mt-6 flex flex-wrap gap-3">
                                             <button
                                                 type="button"
-                                                onClick={handlePayPalCheckout}
-                                                disabled={manageButtonDisabled}
-                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/40 bg-white/15 text-white font-semibold shadow transition-colors ${manageButtonDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/25'}`}
+                                                onClick={handleBillingCheckout}
+                                                disabled={isBillingDisabled}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/40 bg-white/15 text-white font-semibold shadow transition-colors ${isBillingDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/25'}`}
                                             >
                                                 <span className="material-symbols-outlined text-base">account_balance</span>
-                                                {manageButtonLabel}
+                                                {getBillingButtonLabel()}
                                             </button>
                                             <button
                                                 type="button"
@@ -2807,11 +2793,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
                                             </button>
                                         </div>
                                         <p className="mt-2 text-xs text-white/90">Changes to your subscription are managed securely through your configured payment provider.</p>
-                                        {!paypalAvailable && subscriptionManagedBy === 'paypal' && (
-                                            <p className="mt-3 text-xs text-white/80">
-                                                PayPal checkout isn&apos;t available yet. Add your PayPal credentials to enable in-app billing.
-                                            </p>
-                                        )}
+                                        {/* Status Message */}
                                     </div>
                                 </FeatureSection>
 
