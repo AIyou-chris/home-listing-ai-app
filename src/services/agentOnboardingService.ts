@@ -23,7 +23,7 @@ export interface AgentRegistrationResponse {
 }
 
 export interface CheckoutSessionResponse {
-  provider: 'paypal';
+  provider: string; // Updated to generic string
   url: string;
   id: string;
   amount?: number | null;
@@ -123,7 +123,7 @@ export const agentOnboardingService = {
     promoCode
   }: {
     slug: string;
-    provider?: 'paypal';
+    provider?: string;
     amountCents?: number;
     promoCode?: string;
   }): Promise<CheckoutSessionResponse> {

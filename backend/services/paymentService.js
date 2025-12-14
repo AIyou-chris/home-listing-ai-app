@@ -1,115 +1,56 @@
-const centsToCurrency = (value) => (Number(value || 0) / 100).toFixed(2);
-
-const safeRequire = (moduleId) => {
-  try {
-    // eslint-disable-next-line global-require, import/no-dynamic-require
-    return require(moduleId);
-  } catch (error) {
-    console.warn(`[PaymentService] Optional dependency "${moduleId}" not available: ${error.message}`);
-    return null;
-  }
-};
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 module.exports = ({
-  defaultAmountCents = 4900,
-  paypalClientId,
-  paypalClientSecret,
-  paypalEnv = 'sandbox',
-  paypalCurrency = 'USD',
-  baseAppUrl = 'https://aiyouagent.com'
+  baseAppUrl = 'https://homelistingai.com'
 }) => {
-  const paypalSdk = safeRequire('@paypal/checkout-server-sdk');
-
-  let paypalClient = null;
-  if (paypalClientId && paypalClientSecret && paypalSdk) {
-    const Environment =
-      paypalEnv === 'live'
-        ? paypalSdk.core.LiveEnvironment
-        : paypalSdk.core.SandboxEnvironment;
-    const paypalEnvironment = new Environment(paypalClientId, paypalClientSecret);
-    paypalClient = new paypalSdk.core.PayPalHttpClient(paypalEnvironment);
-  }
-
-  const isConfigured = () => Boolean(paypalClient);
-
-  const listProviders = () => {
-    const providers = [];
-    if (paypalClient) providers.push('paypal');
-    return providers;
-  };
-
-  const buildReturnUrls = (slug) => {
-    const normalizedBase = baseAppUrl.replace(/\/$/, '');
-    return {
-      success: `${normalizedBase}/#/checkout/${slug}?status=success`,
-      cancel: `${normalizedBase}/#/checkout/${slug}?status=cancelled`
-    };
-  };
-
-  const createPaypalOrder = async ({ slug, amountCents }) => {
-    if (!paypalClient || !paypalSdk) {
-      throw new Error('PayPal is not configured');
+  const isConfigured = () => {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      console.warn('Stripe Secret Key is missing!');
+      return false;
     }
-
-    const urls = buildReturnUrls(slug);
-    const request = new paypalSdk.orders.OrdersCreateRequest();
-    request.prefer('return=representation');
-    request.requestBody({
-      intent: 'CAPTURE',
-      purchase_units: [
-        {
-          reference_id: slug,
-          custom_id: slug,
-          amount: {
-            currency_code: paypalCurrency,
-            value: centsToCurrency(amountCents || defaultAmountCents)
-          }
-        }
-      ],
-      application_context: {
-        brand_name: 'AI You Agent',
-        landing_page: 'LOGIN',
-        user_action: 'PAY_NOW',
-        return_url: urls.success,
-        cancel_url: urls.cancel
-      }
-    });
-
-    const order = await paypalClient.execute(request);
-    const approvalLink = order?.result?.links?.find((link) => link.rel === 'approve');
-
-    return {
-      provider: 'paypal',
-      url: approvalLink?.href,
-      id: order?.result?.id,
-      amount: amountCents || defaultAmountCents,
-      currency: paypalCurrency
-    };
+    return true;
   };
 
-  const createCheckoutSession = async ({ slug, provider, amountCents }) => {
-    // Force PayPal or auto-select
-    const preferred = provider || 'paypal';
+  const listProviders = () => isConfigured() ? ['stripe'] : [];
 
-    if (preferred === 'stripe') {
-      throw new Error('Stripe is no longer supported. Please use PayPal.');
+  const createCheckoutSession = async ({ priceId, slug, email, successUrl, cancelUrl }) => {
+    if (!isConfigured()) throw new Error('Stripe is not configured');
+
+    // Default to the provided $20 Plan Price ID if none specified
+    const finalPriceId = priceId || 'price_1SeMLsGtlY59RT0yAVUe2vTJ';
+
+    // Determine Redirect URLs (Handle both explicit URLs and legacy slug-based flow)
+    // Legacy flow uses /checkout/:slug
+    const sUrl = successUrl || `${baseAppUrl}/checkout/${slug}?status=success`;
+    const cUrl = cancelUrl || `${baseAppUrl}/checkout/${slug}?status=cancelled`;
+
+    console.log(`[Stripe] Creating session for ${email} (${slug}) using price ${finalPriceId}`);
+
+    try {
+      const session = await stripe.checkout.sessions.create({
+        line_items: [{ price: finalPriceId, quantity: 1 }],
+        mode: 'subscription',
+        success_url: sUrl,
+        cancel_url: cUrl,
+        customer_email: email,
+        client_reference_id: slug,
+        metadata: {
+          slug,
+          source: 'homelistingai_app'
+        },
+        allow_promotion_codes: true, // Allow promo codes in Stripe UI
+      });
+
+      return {
+        url: session.url,
+        sessionId: session.id,
+        provider: 'stripe'
+      };
+    } catch (error) {
+      console.error('[Stripe] Session Create Failed:', error);
+      throw error;
     }
-
-    if (preferred === 'paypal') {
-      return createPaypalOrder({ slug, amountCents });
-    }
-
-    // Default fallback
-    if (listProviders().includes('paypal')) {
-      return createPaypalOrder({ slug, amountCents });
-    }
-
-    throw new Error(`Unsupported or unconfigured payment provider: ${preferred}`);
   };
 
-  return {
-    isConfigured,
-    listProviders,
-    createCheckoutSession
-  };
+  return { isConfigured, listProviders, createCheckoutSession };
 };

@@ -116,7 +116,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
       .finally(() => setIsPolling(false));
   };
 
-  const handleCheckout = async (provider: 'paypal' = 'paypal') => {
+  const handleCheckout = async (provider: string = 'stripe') => {
     setError(null);
     setIsCreatingSession(true);
     try {
@@ -210,22 +210,22 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                   </div>
 
                   <div className="p-5 border border-slate-200 rounded-xl">
-                    <h2 className="font-semibold text-slate-800">Secure payment with PayPal</h2>
+                    <h2 className="font-semibold text-slate-800">Secure Subscription</h2>
                     <p className="text-sm text-slate-600 mt-2">
-                      You&apos;ll be redirected to PayPal&apos;s secure checkout page to complete your payment.
+                      You will be redirected to our secure checkout page to subscribe.
                     </p>
                     <div className="mt-6">
                       <button
                         type="button"
-                        onClick={() => handleCheckout('paypal')}
+                        onClick={() => handleCheckout('stripe')}
                         disabled={isCreatingSession}
                         className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold shadow ${isCreatingSession ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-500'}`}
                       >
                         <span className="material-symbols-outlined text-base">account_balance</span>
-                        {isCreatingSession ? 'Opening checkout...' : 'Continue to PayPal Checkout'}
+                        {isCreatingSession ? 'Opening checkout...' : 'Subscribe with Card'}
                       </button>
                       <p className="text-xs text-slate-500 mt-3 text-center">
-                        Secure payment processing by PayPal
+                        Secure payment processing via Stripe
                       </p>
                       <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
                         <span className="material-symbols-outlined text-green-600 text-xl mt-0.5">verified_user</span>
