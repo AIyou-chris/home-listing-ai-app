@@ -151,7 +151,15 @@ const AdminUsersPage = lazy(() => import('./components/AdminUsersPage'));
 
 const App: React.FC = () => {
     const [user, setUser] = useState<AppUser | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+
+    // PERF: Initialize loading state based on route to allow instant Landing Page load
+    const [isLoading, setIsLoading] = useState(() => {
+        const { route } = getRouteInfo();
+        // List of routes that should render immediately without waiting for Auth
+        const publicRoutes = ['', 'landing', 'signin', 'signup', 'demo', 'blueprint', 'blog', 'blog-post'];
+        const isPublic = !route || publicRoutes.includes(route) || route.startsWith('blog');
+        return !isPublic; // Only block UI for protected routes (dashboard/admin)
+    });
     const [isSettingUp, setIsSettingUp] = useState(false);
     const [isDemoMode, setIsDemoMode] = useState(false);
     // Use a plain string for view to avoid mismatches between multiple View type declarations
