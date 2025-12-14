@@ -336,6 +336,8 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        console.log('🚀 APP VERSION: LATEST-DEBUG-FIX-V2 (Safety Timer Enabled)');
+
         // Validate environment on app startup
         EnvValidation.logValidationResults();
 
