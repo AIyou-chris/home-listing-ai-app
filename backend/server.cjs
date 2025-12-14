@@ -3,6 +3,7 @@ const cors = require('cors');
 const OpenAI = require('openai');
 const helmet = require('helmet');
 const QRCode = require('qrcode');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { createClient } = require('@supabase/supabase-js');
 const { google } = require('googleapis');
 const crypto = require('crypto');
@@ -99,6 +100,43 @@ app.post('/api/scrape', async (req, res) => {
   } catch (error) {
     console.error('Scraping endpoint error:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+  res.status(500).json({ success: false, error: error.message });
+}
+});
+
+// STRIPE CHECKOUT ENDPOINT
+app.post('/api/subscription/checkout', async (req, res) => {
+  try {
+    const { priceId, successUrl, cancelUrl, userId, email, mode = 'subscription' } = req.body;
+
+    // Validate request
+    if (!priceId) return res.status(400).json({ error: 'Missing priceId' });
+
+    // Use the instantiated stripe client (must be init with key)
+    if (!process.env.STRIPE_SECRET_KEY) {
+      console.error('STRIPE_SECRET_KEY missing in server env');
+      return res.status(500).json({ error: 'Stripe configuration error: Secret Key missing' });
+    }
+
+    const sessionPayload = {
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: mode,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: userId,
+      metadata: { userId: userId },
+    };
+
+    if (email) {
+      sessionPayload.customer_email = email;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionPayload);
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error('Stripe Checkout Error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

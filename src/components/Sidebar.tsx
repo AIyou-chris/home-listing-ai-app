@@ -1,6 +1,7 @@
 import React from 'react';
 import { LogoWithName } from './LogoWithName';
 import { adminAuthService } from '../services/adminAuthService';
+import { supabase } from '../services/supabase';
 import { View } from '../types';
 
 interface SidebarProps {
@@ -60,6 +61,42 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
     { view: 'settings', icon: 'settings', label: 'Settings' },
   ];
 
+  const [checkoutLoading, setCheckoutLoading] = React.useState(false);
+
+  const handleSubscribe = async () => {
+    setCheckoutLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      // const token = (await supabase.auth.getSession()).data.session?.access_token; // Not using token yet, simple CORS
+
+      // Use the live API URL or current origin?
+      // Since backend serves frontend, relative path works.
+      const res = await fetch('/api/subscription/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceId: 'price_1SeMLsGtlY59RT0yAVUe2vTJ',
+          successUrl: window.location.origin + '/dashboard?payment=success',
+          cancelUrl: window.location.origin + '/dashboard?payment=cancelled',
+          userId: user?.id,
+          email: user?.email
+        })
+      });
+
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert('Failed to initialize checkout. ' + (data.error || ''));
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Connection error. Please try again.');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
     setView('landing');
@@ -112,6 +149,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
 
           {!isDemoMode && (
             <div className="mt-auto px-2 pb-6 border-t border-slate-100 pt-4">
+              {/* UPGRADE BUTTON */}
+              <button
+                disabled={checkoutLoading}
+                onClick={handleSubscribe}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg shadow-md transition-all mb-4"
+              >
+                <Icon name={checkoutLoading ? "sync" : "diamond"} className={checkoutLoading ? "animate-spin" : ""} />
+                <span>{checkoutLoading ? 'Loading...' : 'Upgrade to Pro'}</span>
+              </button>
+
               <button
                 onClick={() => {
                   localStorage.setItem('adminUser', 'true');
