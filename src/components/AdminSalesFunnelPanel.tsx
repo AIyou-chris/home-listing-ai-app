@@ -643,6 +643,24 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             <strong>Target:</strong> {API_BASE}/api/admin/marketing/sequences/{UNIVERSAL_FUNNEL_ID}
                             <br />
                             <strong>Log:</strong> {debugMsg}
+                            <br />
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    setDebugMsg('Testing connection...');
+                                    try {
+                                        // Try a simple GET to the health check or root
+                                        const res = await fetch(`${API_BASE}/`, { method: 'GET' });
+                                        const text = await res.text();
+                                        setDebugMsg(`✅ Connection OK! Status: ${res.status}. Response: ${text.slice(0, 50)}`);
+                                    } catch (err: any) {
+                                        setDebugMsg(`❌ Connection Failed: ${err.message}`);
+                                    }
+                                }}
+                                className="mt-2 text-[10px] underline text-indigo-600 hover:text-indigo-800"
+                            >
+                                Test Server Connection
+                            </button>
                         </div>
                     </div>
                 )}
