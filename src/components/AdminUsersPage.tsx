@@ -61,11 +61,9 @@ const AdminUsersPage: React.FC = () => {
 
         try {
             setLoading(true);
-            const response = await fetch(`/ api / admin / users / ${userId} `, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+            const auth = AuthService.getInstance();
+            const response = await auth.makeAuthenticatedRequest(`/api/admin/users/${userId}`, {
+                method: 'DELETE'
             });
 
             if (!response.ok) {
