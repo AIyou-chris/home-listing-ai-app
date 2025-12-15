@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useImpersonation } from '../context/ImpersonationContext';
+import { AuthService } from '../services/authService';
 
 interface AgentUser {
     id: string;
@@ -26,12 +27,13 @@ const AdminUsersPage: React.FC = () => {
         try {
             setLoading(true);
 
-            // Use Backend API to avoid RLS/Client connection issues
-            const response = await fetch('/api/admin/users');
+            // Use AuthService to ensure we hit the correct Backend URL and include Auth Headers
+            const auth = AuthService.getInstance();
+            const response = await auth.makeAuthenticatedRequest('/api/admin/users');
 
             if (!response.ok) {
                 const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || `Server returned ${response.status}`);
+                throw new Error(err.error || `Server returned ${response.status} `);
             }
 
             const data = await response.json();
@@ -59,7 +61,7 @@ const AdminUsersPage: React.FC = () => {
 
         try {
             setLoading(true);
-            const response = await fetch(`/api/admin/users/${userId}`, {
+            const response = await fetch(`/ api / admin / users / ${userId} `, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json'
@@ -139,8 +141,8 @@ const AdminUsersPage: React.FC = () => {
                                                 {user.email}
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                                <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                                                    }`}>
+                                                <span className={`inline - flex rounded - full px - 2 text - xs font - semibold leading - 5 ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                                    } `}>
                                                     {user.status}
                                                 </span>
                                             </td>
