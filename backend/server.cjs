@@ -3036,6 +3036,22 @@ app.get('/api/admin/dashboard-metrics', async (req, res) => {
 // Get all users endpoint - REAL DATA FROM SUPABASE
 app.get('/api/admin/users', async (req, res) => {
   try {
+    // SECURITY: Verify Request has valid Auth Token
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Unauthorized: Missing token' });
+    }
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+
+    // Optional: Check if user is admin (using email allowlist or metadata)
+    // const isAdmin = user.user_metadata?.role === 'admin' || process.env.VITE_ADMIN_EMAIL === user.email;
+    // if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
+
     const { page = 1, limit = 50, search } = req.query;
 
     let query = supabaseAdmin
@@ -3141,7 +3157,15 @@ app.put('/api/admin/users/:userId', async (req, res) => {
 app.delete('/api/admin/users/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log(`[Admin] Deleting user: ${userId}`);
+
+    // SECURITY: Verify Request
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: tokenError } = await supabase.auth.getUser(token);
+    if (tokenError || !user) return res.status(401).json({ error: 'Invalid token' });
+
+    console.log(`[Admin] Deleting user: ${userId} by ${user.email}`);
 
     // Delete from Supabase Auth (This is the primary record)
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
@@ -7144,6 +7168,13 @@ app.delete('/api/appointments/:appointmentId', async (req, res) => {
 // Admin: List all appointments
 app.get('/api/admin/appointments', async (req, res) => {
   try {
+    // SECURITY: Verify Request
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: tokenError } = await supabase.auth.getUser(token);
+    if (tokenError || !user) return res.status(401).json({ error: 'Invalid token' });
+
     const { data, error } = await supabaseAdmin
       .from('appointments')
       .select(APPOINTMENT_SELECT_FIELDS)
