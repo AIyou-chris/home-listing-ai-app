@@ -105,7 +105,7 @@ class AdminAuthService {
     await supabase.auth.signOut();
 
     // 3. Force reload if needed (optional, but ensures clean slate)
-    // window.location.reload(); 
+    window.location.reload();
   }
 
   getCurrentAdmin(): AdminUser | null {

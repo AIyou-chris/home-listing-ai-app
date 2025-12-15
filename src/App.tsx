@@ -441,24 +441,15 @@ const App: React.FC = () => {
                     return;
                 }
 
-                let propertiesToLoad: Property[] = [];
-                let attempts = 0;
-                const maxAttempts = 5;
+                // Attempt to fetch properties once
+                console.log(`Fetching properties...`);
+                let propertiesToLoad: Property[] = await getProperties(currentUser.uid);
+                const maxAttempts = 1;
 
-                // Retry mechanism for new users, in case the cloud function is still running
-                while (propertiesToLoad.length === 0 && attempts < maxAttempts) {
-                    attempts++;
-                    console.log(`Fetching properties, attempt #${attempts}`);
-                    propertiesToLoad = await getProperties(currentUser.uid);
-
-                    if (propertiesToLoad.length === 0 && attempts < maxAttempts) {
-                        if (attempts === 1) {
-                            // This is likely a new user.
-                            console.log("New user detected, waiting for account setup from backend...");
-                            setIsSettingUp(true); // Show a setup message
-                        }
-                        await sleep(2000); // Wait and retry
-                    }
+                if (propertiesToLoad.length === 0) {
+                    // New user or no properties found
+                    console.log("No properties found (new user?)");
+                    // setIsSettingUp(true); // Optional: show setup if needed, but avoid blocking
                 }
 
                 setIsSettingUp(false); // Stop showing setup message
