@@ -6433,6 +6433,67 @@ app.get('/api/conversations/export/csv', async (req, res) => {
   }
 });
 
+// MAILGUN WEBHOOK - HANDLE BOUNCES (Auto-Delete)
+app.post('/api/webhooks/mailgun', async (req, res) => {
+  try {
+    // 1. Validate Payload
+    const { signature, 'event-data': eventData } = req.body;
+    if (!signature || !eventData) return res.status(200).send('Ignored: No signature/data'); // 200 to stop retries if invalid
+
+    // 2. Verify Signature (HMAC)
+    const signingKey = process.env.MAILGUN_SIGNING_KEY || process.env.MAILGUN_API_KEY;
+    if (signingKey) {
+      const value = signature.timestamp + signature.token;
+      const hash = crypto.createHmac('sha256', signingKey).update(value).digest('hex');
+      if (hash !== signature.signature) {
+        console.warn('[Webhook] Invalid Mailgun signature. Ignoring.');
+        return res.status(401).send('Invalid signature');
+      }
+    }
+
+    // 3. Process Bounces
+    if (eventData.event === 'failed' && eventData.severity === 'permanent') {
+      const email = eventData.recipient;
+      console.log(`[Bounce] Detected permanent fail for ${email}. Initiating auto-delete...`);
+
+      // A. Find the lead(s) to get owner ID
+      const { data: leadsToDelete } = await supabaseAdmin
+        .from('leads')
+        .select('id, user_id')
+        .eq('email', email);
+
+      if (leadsToDelete && leadsToDelete.length > 0) {
+        for (const lead of leadsToDelete) {
+          // B. Remove from Active Funnels (Stop emails)
+          const ownerId = lead.user_id;
+          if (ownerId) {
+            const followUps = await marketingStore.loadActiveFollowUps(ownerId);
+            if (followUps && followUps.length > 0) {
+              const filtered = followUps.filter(f => f.leadId !== lead.id);
+              if (filtered.length !== followUps.length) {
+                await marketingStore.saveActiveFollowUps(ownerId, filtered);
+                console.log(`[Bounce] Removed lead ${lead.id} from active funnels.`);
+              }
+            }
+          }
+
+          // C. Delete the Lead
+          await supabaseAdmin.from('leads').delete().eq('id', lead.id);
+          console.log(`[Bounce] DELETED lead ${lead.id} (${email}) due to bounce.`);
+        }
+      } else {
+        console.log(`[Bounce] Email ${email} not found in Leads table. Skipping.`);
+      }
+    }
+
+    res.status(200).send('OK');
+
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).send('Error processing webhook');
+  }
+});
+
 // AI Card Profile Management Endpoints
 
 // Get AI Card profile
