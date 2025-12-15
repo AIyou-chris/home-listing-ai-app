@@ -3870,6 +3870,47 @@ app.post('/api/admin/leads', async (req, res) => {
               tags: ['funnel-trigger', funnelId, 'step-1']
             }).catch(err => console.error(`[Funnel] Failed to send email to ${email}`, err));
           }
+
+          // ENROLL IN ACTIVE FOLLOW-UPS FOR FUTURE STEPS (Step 2+)
+          try {
+            const nextStepIndex = 1; // We assumed Step 0 was Immediate
+            const nextStep = funnel.steps && funnel.steps[nextStepIndex];
+
+            // If there is a next step, enroll them
+            if (nextStep) {
+              let nextDelayMs = 2 * 24 * 60 * 60 * 1000; // Default 2 days
+              if (nextStep.delay) {
+                const parts = nextStep.delay.toString().match(/(\d+)/);
+                if (parts && parts[0]) {
+                  nextDelayMs = parseInt(parts[0]) * 24 * 60 * 60 * 1000;
+                }
+              }
+
+              // Check if already enrolled
+              const existing = activeFollowUps.find(f => f.leadId === mappedLead.id && f.sequenceId === funnelId);
+              if (!existing) {
+                const newFollowUp = {
+                  id: `followup-${mappedLead.id}`,
+                  leadId: mappedLead.id,
+                  sequenceId: funnelId,
+                  status: 'active',
+                  currentStepIndex: nextStepIndex,
+                  nextStepDate: new Date(Date.now() + nextDelayMs).toISOString(),
+                  history: [{
+                    id: `h-enroll-${Date.now()}`,
+                    type: 'enroll',
+                    description: 'Auto-enrolled via Import',
+                    date: new Date().toISOString()
+                  }]
+                };
+                activeFollowUps.push(newFollowUp);
+                await marketingStore.saveActiveFollowUps(assignedUserId, activeFollowUps);
+                console.log(`[Funnel] Enrolled lead ${mappedLead.id} for Step ${nextStepIndex + 1}. Next action: ${newFollowUp.nextStepDate}`);
+              }
+            }
+          } catch (enrollErr) {
+            console.error('[Funnel] Auto-enrollment error:', enrollErr);
+          }
         }
       } catch (err) {
         console.warn('[Funnel] Error triggering funnel step 1', err);
