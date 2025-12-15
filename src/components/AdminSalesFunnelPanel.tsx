@@ -358,18 +358,67 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 return;
             }
 
-            console.log('[Funnel] Attempting direct DB write via Supabase client');
-            setDebugMsg('Writing directly to Database (bypassing API)...');
+            console.log('[Funnel] Attempting save via Supabase client');
+            setDebugMsg('Looking up agent profile...');
 
-            const { error: dbError } = await supabase
+            // 1. Get Agent ID
+            const { data: agent, error: agentError } = await supabase
+                .from('agents')
+                .select('id')
+                .eq('auth_user_id', user.id)
+                .single();
+
+            if (agentError && agentError.code !== 'PGRST116') {
+                // PGRST116 is "not found", handled below
+                throw new Error(`Agent lookup failed: ${agentError.message}`);
+            }
+
+            // Fallback: If no agent record, we can't save to 'funnels' table properly unless we create one.
+            // But for Admin Dashboard, maybe we assume an agent exists?
+            // If strictly Admin, maybe we need a different table? 
+            // Assuming this is for "My Agent Funnel":
+            if (!agent) {
+                throw new Error("No Agent Profile found for your account. Please complete onboarding first.");
+            }
+
+            setDebugMsg(`Agent found: ${agent.id}. Checking existing funnel...`);
+
+            // 2. Check for existing funnel by key
+            const { data: existingFunnel, error: fetchError } = await supabase
                 .from('funnels')
-                .upsert({
-                    id: UNIVERSAL_FUNNEL_ID,
-                    name: 'Universal Sales Funnel',
-                    type: 'universal_sales',
-                    steps: programSteps,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'id' });
+                .select('id')
+                .eq('agent_id', agent.id)
+                .eq('funnel_key', 'universal_sales')
+                .single();
+
+            if (fetchError && fetchError.code !== 'PGRST116') {
+                throw new Error(`Funnel lookup failed: ${fetchError.message}`);
+            }
+
+            const payload = {
+                agent_id: agent.id,
+                funnel_key: 'universal_sales',
+                name: 'Universal Sales Funnel',
+                steps: programSteps, // DB column is 'steps' (jsonb)
+                updated_at: new Date().toISOString()
+            };
+
+            let dbError;
+            if (existingFunnel) {
+                setDebugMsg('Updating existing funnel...');
+                const res = await supabase
+                    .from('funnels')
+                    .update(payload)
+                    .eq('id', existingFunnel.id);
+                dbError = res.error;
+            } else {
+                setDebugMsg('Creating new funnel...');
+                // Removed 'id' to let DB generate UUID
+                const res = await supabase
+                    .from('funnels')
+                    .insert(payload);
+                dbError = res.error;
+            }
 
             if (dbError) {
                 throw new Error(`Database Write Failed: ${dbError.message}`);
