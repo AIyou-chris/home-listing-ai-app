@@ -59,13 +59,20 @@ const parseRouteSegments = (raw: string): string[] => {
 };
 
 const getRouteInfo = () => {
-    let segments = parseRouteSegments(window.location.hash);
-    if (!segments.length) {
-        segments = parseRouteSegments(window.location.pathname);
+    // Priority 1: Pathname (Clean URLs)
+    const pathSegments = parseRouteSegments(window.location.pathname);
+    if (pathSegments.length > 0) {
+        return {
+            segments: pathSegments,
+            route: pathSegments[0]
+        };
     }
+
+    // Priority 2: Hash (Legacy)
+    let hashSegments = parseRouteSegments(window.location.hash);
     return {
-        segments,
-        route: segments[0] || ''
+        segments: hashSegments,
+        route: hashSegments[0] || ''
     };
 };
 

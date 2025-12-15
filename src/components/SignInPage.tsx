@@ -36,23 +36,8 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
 
             // Navigate directly without reloading to avoid dropping the session
             // if it hasn't persisted to storage yet.
-            window.location.hash = 'admin-dashboard';
-            // We can't easily access setView here, but modifying the hash 
-            // might not trigger the listener if we don't dispatch an event.
-            // However, since we are in a component, we should use the parent's handler if possible,
-            // or force a refresh after a small delay.
-
-            // BETTER APPROACH: Use the onNavigateToSection if it supports views, 
-            // OR just rely on hashchange event listeners if we manually trigger one?
-
-            // Let's try a slight delay before reload if we MUST reload, 
-            // OR just rely on the router picking up the hash change.
-            // But App.tsx listens to hashchange.
-
-            // Actually, let's just reload after a safe delay to ensure persistence.
-            setTimeout(() => {
-                window.location.reload();
-            }, 500);
+            // Navigate to root with hash to ensure URL is clean (removes /signin)
+            window.location.href = '/#admin-dashboard';
 
 
         } catch (err: unknown) {
