@@ -364,6 +364,29 @@ const App: React.FC = () => {
         }, 8000);
 
         const initAuth = async () => {
+            // Check URL hash/path first - do this BEFORE awaiting getUser
+            const { route } = getRouteInfo();
+
+            // Allow access to certain routes without waiting for auth check
+            // This prevents "infinity spinner" on signin/signup if connection is slow or token is bad.
+            if (route === 'landing' || route === 'demo-dashboard' || route === 'demo-listing' || route === 'signin' || route === 'signup' || route === 'checkout' || route === 'dashboard-blueprint') {
+                setView(route as View);
+                setIsLoading(false);
+                // We do NOT return here completely if we want to support auto-redirect from signin -> dashboard.
+                // However, avoiding the await block is priority #1.
+                // onAuthStateChange (initialized below) handles the "User is actually logged in, redirect them" case concurrently.
+                // So returning here is SAFE and PREFERRED for speed.
+                if (route !== 'signin' && route !== 'signup') {
+                    // For non-auth pages, just return.
+                    return;
+                }
+                // For signin/signup, we might want to let it fall through? 
+                // No, if we fall through, we await getUser().
+                // Let's return. explicit redirect logic in onAuthStateChange will catch them 
+                // if they are logged in.
+                return;
+            }
+
             const { data } = await supabase.auth.getUser();
             const currentUser: AppUser | null = data.user
                 ? {
@@ -373,31 +396,10 @@ const App: React.FC = () => {
                     displayName: data.user.user_metadata?.name ?? null
                 }
                 : null;
+
             setIsLoading(true);
             setIsSettingUp(false); // Reset on every auth change
             setIsDemoMode(false); // Reset demo mode on any auth change
-
-            // Check URL hash/path first - some routes don't require auth
-            const { route } = getRouteInfo();
-
-            // Allow access to certain routes without auth
-            if (route === 'dashboard-blueprint') {
-                setView('dashboard-blueprint');
-                setIsLoading(false);
-                return;
-            }
-
-            if (route === 'checkout') {
-                setView('checkout');
-                setIsLoading(false);
-                return;
-            }
-
-            if (route === 'landing' || route === 'demo-dashboard' || route === 'demo-listing') {
-                setView(route);
-                setIsLoading(false);
-                return;
-            }
 
             // Force signup mode - bypass auth check
             const urlParams = new URLSearchParams(window.location.search);
@@ -409,6 +411,8 @@ const App: React.FC = () => {
 
             if (currentUser) {
                 console.log(`User signed in: ${currentUser.uid}`);
+                // ... rest of logic
+
 
                 // Check if user is an admin via RPC OR via local override (for testing/bypass)
                 const isLocalOverride = localStorage.getItem('adminUser') === 'true';
