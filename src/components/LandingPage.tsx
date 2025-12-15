@@ -2,6 +2,7 @@ import React from 'react';
 import { LogoWithName } from './LogoWithName';
 import ChatBotFAB from './ChatBotFAB';
 import { SEO } from './SEO';
+import { StripeLogo } from './StripeLogo';
 
 // --- New Components for the Redesigned Page ---
 
@@ -500,6 +501,10 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                                 60-Day Money-Back Guarantee
                             </p>
                             <p className="text-xs text-slate-200 mt-1">If you're not satisfied, get a full refund. No questions asked.</p>
+                            <div className="mt-4 flex flex-col items-center justify-center gap-1 opacity-80 pt-3 border-t border-white/10">
+                                <span className="text-[10px] text-slate-300 uppercase tracking-widest font-semibold">Secured by</span>
+                                <StripeLogo className="h-5 text-white" />
+                            </div>
                         </div>
                     </div>
                 </div>

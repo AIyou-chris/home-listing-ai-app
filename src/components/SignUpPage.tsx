@@ -4,6 +4,7 @@ import { agentOnboardingService } from '../services/agentOnboardingService';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
 import { Logo } from './Logo';
+import { StripeLogo } from './StripeLogo';
 
 interface SignUpPageProps {
     onNavigateToSignIn: () => void;
@@ -108,8 +109,12 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                             </div>
 
                             <div className="flex justify-around text-sm text-slate-500 font-medium pt-5 border-t border-slate-200">
-                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Secure Stripe & PayPal checkout</div>
+                                <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined w-4 h-4 text-green-500">check</span>
+                                    <span className="flex items-center gap-1">Secure checkout via <StripeLogo className="h-4 text-slate-600 mb-0.5" /></span>
+                                </div>
                                 <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Cancel anytime</div>
+                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> 60-Day Money-Back Guarantee</div>
                             </div>
                         </div>
 
