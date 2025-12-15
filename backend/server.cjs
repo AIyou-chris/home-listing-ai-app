@@ -603,8 +603,73 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
 });
 
 // In-memory storage for real data (in production, this would be a database)
-let users = [];
-const listings = [];
+// In-memory storage for real data (in production, this would be a database)
+let users = [
+  {
+    id: 'demo-user-1',
+    name: 'Sarah Connor',
+    email: 'sarah@homelistingai.com',
+    status: 'active',
+    role: 'agent',
+    createdAt: new Date().toISOString(),
+    lastActive: new Date().toISOString(),
+    plan: 'Pro',
+    auth_user_id: 'demo-auth-1' // Mock ID for mapping
+  },
+  {
+    id: 'demo-user-2',
+    name: 'John Connor',
+    email: 'john@homelistingai.com',
+    status: 'active',
+    role: 'agent',
+    createdAt: new Date().toISOString(),
+    lastActive: new Date().toISOString(),
+    plan: 'Team',
+    auth_user_id: 'demo-auth-2'
+  }
+];
+
+const listings = [
+  {
+    id: "prop-1",
+    address: "123 Maple Drive, Beverly Hills, CA 90210",
+    price: 2500000,
+    description: "Stunning modern villa with pool and city views.",
+    bedrooms: 4,
+    bathrooms: 3.5,
+    sqft: 3200,
+    status: "active",
+    listingDate: new Date().toISOString(),
+    agent: { id: "demo-user-1", name: "Sarah Connor" },
+    marketing: { views: 1250, inquiries: 14 }
+  },
+  {
+    id: "prop-2",
+    address: "456 Oak Lane, Sherman Oaks, CA 91403",
+    price: 1850000,
+    description: "Charming family home with large backyard.",
+    bedrooms: 3,
+    bathrooms: 2,
+    sqft: 2100,
+    status: "active",
+    listingDate: new Date(Date.now() - 86400000).toISOString(),
+    agent: { id: "demo-user-2", name: "John Connor" },
+    marketing: { views: 890, inquiries: 8 }
+  },
+  {
+    id: "prop-3",
+    address: "789 Pine Street, Santa Monica, CA 90401",
+    price: 3200000,
+    description: "Luxury condo steps from the beach.",
+    bedrooms: 2,
+    bathrooms: 2,
+    sqft: 1500,
+    status: "pending",
+    listingDate: new Date(Date.now() - 172800000).toISOString(),
+    agent: { id: "demo-user-1", name: "Sarah Connor" },
+    marketing: { views: 2100, inquiries: 35 }
+  }
+];
 
 const DEFAULT_LEAD_USER_ID =
   process.env.DEFAULT_LEAD_USER_ID || '75114b93-e1c8-4d54-9e43-dd557d9e3ad9';
@@ -3074,7 +3139,28 @@ app.get('/api/admin/users', async (req, res) => {
     // Return the raw array to match what frontend expects from direct supabase call
     // or wrap it if we want pagination. 
     // Frontend AdminUsersPage.tsx expects a simple array.
-    res.json(data || []);
+
+    // MERGE: Combine DB users (agents table) with In-Memory users (users array)
+    // This bridges the gap for users created via the mock POST endpoint
+    const dbEmails = new Set((data || []).map(u => u.email));
+    const memoryUsers = users.filter(u => !dbEmails.has(u.email));
+
+    // Normalize memory users to match DB schema partially
+    const normalizedMemoryUsers = memoryUsers.map(u => ({
+      id: u.id,
+      auth_user_id: u.auth_user_id || u.id,
+      first_name: u.name.split(' ')[0],
+      last_name: u.name.split(' ').slice(1).join(' '),
+      email: u.email,
+      status: u.status,
+      created_at: u.createdAt,
+      role: u.role
+      // missing other fields is fine, frontend handles it
+    }));
+
+    const finalUsers = [...(data || []), ...normalizedMemoryUsers];
+
+    res.json(finalUsers);
 
   } catch (error) {
     console.error('Get users error:', error);
