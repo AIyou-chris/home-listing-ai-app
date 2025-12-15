@@ -684,11 +684,13 @@ const App: React.FC = () => {
 
     const handleNavigateToSignUp = () => {
         setView('signup');
-        window.location.hash = 'signup';
+        window.history.pushState(null, '', '/signup');
+        window.dispatchEvent(new Event('popstate'));
     };
     const handleNavigateToSignIn = () => {
         setView('signin');
-        window.location.hash = 'signin';
+        window.history.pushState(null, '', '/signin');
+        window.dispatchEvent(new Event('popstate'));
     };
     const handleNavigateToLanding = () => {
         setIsDemoMode(false);
@@ -782,7 +784,8 @@ const App: React.FC = () => {
         setSequences(DEMO_SEQUENCES);
         setUserProfile(SAMPLE_AGENT);
         setView('demo-dashboard');
-        window.location.hash = 'demo-dashboard';
+        window.history.pushState(null, '', '/demo-dashboard');
+        window.dispatchEvent(new Event('popstate'));
     };
 
     const handleNavigateToAdmin = () => {

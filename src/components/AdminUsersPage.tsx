@@ -52,7 +52,8 @@ const AdminUsersPage: React.FC = () => {
         if (confirm('Are you sure you want to impersonate this user? You will see their dashboard exactly as they do.')) {
             impersonate(userId);
             // Redirect to blueprint dashboard
-            window.location.hash = '#/dashboard-blueprint';
+            window.history.pushState(null, '', '/dashboard-blueprint');
+            window.dispatchEvent(new Event('popstate'));
         }
     };
 

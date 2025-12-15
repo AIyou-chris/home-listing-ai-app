@@ -100,7 +100,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
     setView('landing');
-    window.location.hash = 'landing';
+    window.history.pushState(null, '', '/');
+    window.dispatchEvent(new Event('popstate'));
     onClose();
   };
 
@@ -162,7 +163,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
               <button
                 onClick={() => {
                   localStorage.setItem('adminUser', 'true');
-                  window.location.hash = 'admin-dashboard';
+                  window.history.pushState(null, '', '/admin-dashboard');
+                  window.dispatchEvent(new Event('popstate'));
                   window.location.reload();
                 }}
                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg transition-colors mb-2"
