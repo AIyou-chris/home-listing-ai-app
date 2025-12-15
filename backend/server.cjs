@@ -3033,43 +3033,33 @@ app.get('/api/admin/dashboard-metrics', async (req, res) => {
 });
 
 // Get all users endpoint - REAL DATA
+// Get all users endpoint - REAL DATA FROM SUPABASE
 app.get('/api/admin/users', async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, role, search } = req.query;
+    const { page = 1, limit = 50, search } = req.query;
 
-    let filteredUsers = [...users];
-
-    // Apply filters
-    if (status) {
-      filteredUsers = filteredUsers.filter(u => u.status === status);
-    }
-
-    if (role) {
-      filteredUsers = filteredUsers.filter(u => u.role === role);
-    }
+    let query = supabaseAdmin
+      .from('agents')
+      .select('*')
+      .order('created_at', { ascending: false });
 
     if (search) {
-      const searchLower = search.toLowerCase();
-      filteredUsers = filteredUsers.filter(u =>
-        u.name.toLowerCase().includes(searchLower) ||
-        u.email.toLowerCase().includes(searchLower)
-      );
+      // Simple search on email or names
+      // Note: Supabase 'or' syntax: .or(`email.ilike.%${search}%,first_name.ilike.%${search}%`)
+      query = query.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`);
     }
 
-    // Pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + parseInt(limit);
-    const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+    const { data, error } = await query;
 
-    res.json({
-      users: paginatedUsers,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: filteredUsers.length,
-        totalPages: Math.ceil(filteredUsers.length / limit)
-      }
-    });
+    if (error) {
+      throw error;
+    }
+
+    // Return the raw array to match what frontend expects from direct supabase call
+    // or wrap it if we want pagination. 
+    // Frontend AdminUsersPage.tsx expects a simple array.
+    res.json(data || []);
+
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ error: error.message });

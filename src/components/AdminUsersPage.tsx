@@ -26,21 +26,18 @@ const AdminUsersPage: React.FC = () => {
         try {
             setLoading(true);
 
-            // Add timeout to prevent infinite spinning
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Connection timed out. Please check your internet or Supabase configuration.')), 15000)
-            );
+            // Use Backend API to avoid RLS/Client connection issues
+            const response = await fetch('/api/admin/users');
 
-            const { data, error } = await Promise.race([
-                supabase
-                    .from('agents')
-                    .select('*')
-                    .order('created_at', { ascending: false }),
-                timeoutPromise
-            ]) as any;
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || `Server returned ${response.status}`);
+            }
 
-            if (error) throw error;
-            setUsers(data || []);
+            const data = await response.json();
+
+            // The API returns an array directly now
+            setUsers(Array.isArray(data) ? data : (data.users || []));
         } catch (err: any) {
             console.error('Error fetching users:', err);
             setError(err.message || 'Failed to load users');
