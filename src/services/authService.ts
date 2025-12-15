@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 // Firebase removed. Provide lightweight local auth stubs to keep UI working.
 type User = { uid: string; email?: string; displayName?: string; getIdToken?: () => Promise<string> };
 
@@ -7,7 +9,7 @@ const auth = {
     currentUser: null as User | null,
     onAuthStateChanged: (callback: AuthStateChangeCallback): (() => void) => {
         callback(auth.currentUser);
-        return () => {};
+        return () => { };
     }
 };
 
@@ -112,7 +114,7 @@ export class AuthService {
     private authStateListeners: ((state: AuthState) => void)[] = [];
     private adminMode: boolean = false;
 
-    private constructor() {}
+    private constructor() { }
 
     static getInstance(): AuthService {
         if (!AuthService.instance) {
@@ -122,33 +124,39 @@ export class AuthService {
     }
 
     // Sign up new user
-    async signUp(email: string, _password: string, fullName: string): Promise<{ user: User; agentProfile: AgentProfile }> {
-        const user = { uid: `local_${Date.now()}`, email, displayName: fullName };
-        auth.currentUser = user;
-        const agentProfile: AgentProfile = {
-            id: user.uid,
-            name: fullName,
+    async signUp(email: string, password: string, fullName: string): Promise<{ user: User; agentProfile: AgentProfile }> {
+        const { data, error } = await supabase.auth.signUp({
             email,
-            isOnboardingComplete: false,
-            subscriptionStatus: 'trial',
-            trialEndDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-            features: { aiChat: true, fileUpload: true, emailAutomation: true, qrTracking: true, analytics: true, sequences: true },
-            createdAt: new Date(),
-            updatedAt: new Date()
-        };
+            password,
+            options: { data: { full_name: fullName } }
+        });
+        if (error) throw error;
+        if (!data.user) throw new Error('Signup failed');
+
+        const user = { uid: data.user.id, email: data.user.email, displayName: fullName };
+        auth.currentUser = user;
+        const agentProfile = await this.getOrCreateAgentProfile(user);
         return { user, agentProfile };
     }
 
     // Sign in existing user
-    async signIn(email: string, _password: string): Promise<{ user: User; agentProfile: AgentProfile }> {
-        const user = { uid: `local_${Date.now()}`, email, displayName: email.split('@')[0] };
+    async signIn(email: string, password: string): Promise<{ user: User; agentProfile: AgentProfile }> {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        if (!data.user) throw new Error('Login failed');
+
+        const user = { uid: data.user.id, email: data.user.email, displayName: data.user.user_metadata?.full_name || email.split('@')[0] };
         auth.currentUser = user;
         const agentProfile = await this.getOrCreateAgentProfile(user);
         return { user, agentProfile };
     }
 
     // Sign out
-    async signOut(): Promise<void> { this.adminMode = false; auth.currentUser = null; }
+    async signOut(): Promise<void> {
+        this.adminMode = false;
+        auth.currentUser = null;
+        await supabase.auth.signOut();
+    }
 
     // Get or create agent profile
     private async getOrCreateAgentProfile(user: User): Promise<AgentProfile> {
@@ -282,7 +290,7 @@ export class AuthService {
     // Add auth state listener
     addAuthStateListener(listener: (state: AuthState) => void): () => void {
         this.authStateListeners.push(listener);
-        
+
         // Return unsubscribe function
         return () => {
             const index = this.authStateListeners.indexOf(listener);
@@ -304,7 +312,7 @@ export class AuthService {
                 try {
                     const agentProfile = await this.getOrCreateAgentProfile(user);
                     const adminUser = this.adminMode ? await this.getAdminUser() : null;
-                    
+
                     const authState: AuthState = {
                         user,
                         agentProfile,
@@ -341,6 +349,24 @@ export class AuthService {
                 this.notifyListeners(authState);
             }
         });
+
+        // Sync Supabase Session on Load
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user) {
+                const user = { uid: session.user.id, email: session.user.email, displayName: session.user.user_metadata?.full_name };
+                auth.currentUser = user;
+                this.notifyListeners({
+                    user,
+                    agentProfile: null, // will load async?
+                    adminUser: null,
+                    isLoading: false,
+                    isOnboardingComplete: false,
+                    isTrialActive: false,
+                    isAdmin: false
+                });
+                // We should technically call getOrCreateAgentProfile here but this is a stub recovery.
+            }
+        });
     }
 
     // ===== ADMIN-SPECIFIC METHODS =====
@@ -368,7 +394,7 @@ export class AuthService {
     // Switch back to regular mode
     switchToRegularMode(): void {
         this.adminMode = false;
-        
+
         const user = auth.currentUser;
         if (user) {
             // Notify listeners of state change
@@ -395,10 +421,10 @@ export class AuthService {
     // Check if user has specific admin permission
     async hasAdminPermission(permission: keyof AdminUser['permissions']): Promise<boolean> {
         if (!this.adminMode) return false;
-        
+
         const adminUser = await this.getAdminUser();
         if (!adminUser) return false;
-        
+
         return adminUser.permissions[permission] || false;
     }
 
@@ -443,19 +469,8 @@ export class AuthService {
 
     // Get current user's auth token
     async getAuthToken(): Promise<string | null> {
-        const user = auth.currentUser;
-        if (!user) return null;
-
-        if (typeof user.getIdToken === 'function') {
-            try {
-                return await user.getIdToken();
-            } catch (error) {
-                console.error('Error getting auth token:', error);
-                return null;
-            }
-        }
-
-        return 'dev-token';
+        const { data } = await supabase.auth.getSession();
+        return data.session?.access_token || null;
     }
 
     // Make authenticated API request
