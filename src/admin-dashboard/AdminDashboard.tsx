@@ -13,6 +13,7 @@ import AddListingPage from '../components/AddListingPage';
 import AdminListingsPage from './AdminListingsPage';
 import PropertyPage from '../components/PropertyPage';
 import AdminSettingsPage from './components/AdminSettingsPage';
+import AdminUsersPage from '../components/AdminUsersPage';
 import { LogoWithName } from '../components/LogoWithName';
 import ListingsPage from '../components/ListingsPage';
 import AdminDashboardSidebar from './AdminDashboardSidebar';
@@ -42,7 +43,8 @@ export type DashboardView =
   | 'inbox'
   | 'property'
   | 'add-listing'
-  | 'ai-card-builder';
+  | 'ai-card-builder'
+  | 'users';
 
 const cloneDemoProperty = (property: Property, index: number): Property => {
   const description =
@@ -363,6 +365,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
             onBackToDashboard={resetToDashboard}
           />
         );
+      case 'users':
+        return <AdminUsersPage />;
       default:
         return (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8">

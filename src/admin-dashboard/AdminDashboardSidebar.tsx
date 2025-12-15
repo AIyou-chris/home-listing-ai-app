@@ -15,7 +15,9 @@ type DashboardView =
   | 'inbox'
   | 'property'
   | 'add-listing'
-  | 'ai-card-builder';
+  | 'add-listing'
+  | 'ai-card-builder'
+  | 'users';
 
 interface AdminDashboardSidebarProps {
   activeView: DashboardView;
@@ -67,6 +69,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
 
     { view: 'funnel-analytics', icon: 'monitoring', label: 'Funnel' },
+    { view: 'users', icon: 'people', label: 'Users' },
     { view: 'settings', icon: 'settings', label: 'Settings' }
   ];
 
