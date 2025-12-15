@@ -3175,10 +3175,11 @@ app.delete('/api/admin/users/:userId', async (req, res) => {
     }
 
     // Explicitly delete from agents table (in case cascade is missing)
+    // We try to match either auth_user_id or id to be sure we catch it.
     const { error: agentError } = await supabaseAdmin
       .from('agents')
       .delete()
-      .eq('auth_user_id', userId);
+      .or(`auth_user_id.eq.${userId},id.eq.${userId}`);
 
     if (agentError) {
       console.error('[Admin] Failed to delete agent record:', agentError);

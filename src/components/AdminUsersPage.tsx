@@ -157,7 +157,7 @@ const AdminUsersPage: React.FC = () => {
                                                     Impersonate<span className="sr-only">, {user.first_name}</span>
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDelete(user.auth_user_id)}
+                                                    onClick={() => handleDelete(user.auth_user_id || user.id)}
                                                     className="ml-4 text-red-600 hover:text-red-900 font-semibold"
                                                 >
                                                     Delete<span className="sr-only">, {user.first_name}</span>
