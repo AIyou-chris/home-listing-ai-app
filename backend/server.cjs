@@ -7151,6 +7151,34 @@ app.delete('/api/appointments/:appointmentId', async (req, res) => {
   }
 });
 
+// Admin: List all appointments
+app.get('/api/admin/appointments', async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('appointments')
+      .select(APPOINTMENT_SELECT_FIELDS)
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+
+    const appointments = (data || []).map(row => {
+      // Retrieve agent profile if needed, or just map basic fields
+      // For list view, we might not need full agent profile decoration for performance,
+      // or we can do it if `user_id` is present.
+      // We'll use a simplified mapping or the existing mapAppointmentFromRow.
+      return mapAppointmentFromRow(row);
+    });
+
+    // Note: decorateAppointmentWithAgent might be expensive to run for ALL appointments 
+    // if it fetches profile for each. For now, returning basic mapped data.
+
+    res.json(appointments);
+  } catch (error) {
+    console.error('Error listing admin appointments:', error);
+    res.status(500).json({ error: 'Failed to list appointments' });
+  }
+});
+
 // Listing/Property Management Endpoints
 
 // Upload listing photo (handled by backend so uploads use service role key)

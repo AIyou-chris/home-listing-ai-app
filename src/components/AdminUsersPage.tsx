@@ -25,16 +25,25 @@ const AdminUsersPage: React.FC = () => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('agents')
-                .select('*')
-                .order('created_at', { ascending: false });
+
+            // Add timeout to prevent infinite spinning
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Connection timed out. Please check your internet or Supabase configuration.')), 15000)
+            );
+
+            const { data, error } = await Promise.race([
+                supabase
+                    .from('agents')
+                    .select('*')
+                    .order('created_at', { ascending: false }),
+                timeoutPromise
+            ]) as any;
 
             if (error) throw error;
             setUsers(data || []);
         } catch (err: any) {
             console.error('Error fetching users:', err);
-            setError(err.message);
+            setError(err.message || 'Failed to load users');
         } finally {
             setLoading(false);
         }
