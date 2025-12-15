@@ -101,8 +101,6 @@ app.post('/api/scrape', async (req, res) => {
     console.error('Scraping endpoint error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
-  res.status(500).json({ success: false, error: error.message });
-}
 });
 
 // STRIPE CHECKOUT ENDPOINT
