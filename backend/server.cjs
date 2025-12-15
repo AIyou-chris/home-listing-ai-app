@@ -3151,15 +3151,27 @@ app.put('/api/admin/users/:userId', async (req, res) => {
 app.delete('/api/admin/users/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
+    console.log(`[Admin] Deleting user: ${userId}`);
 
-    const userIndex = users.findIndex(u => u.id === userId);
-    if (userIndex === -1) {
-      return res.status(404).json({ error: 'User not found' });
+    // Delete from Supabase Auth (This is the primary record)
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+    if (authError) {
+      console.warn('[Admin] Auth delete warning (may not exist):', authError.message);
     }
 
-    users.splice(userIndex, 1);
+    // Explicitly delete from agents table (in case cascade is missing)
+    const { error: agentError } = await supabaseAdmin
+      .from('agents')
+      .delete()
+      .eq('auth_user_id', userId);
 
-    res.json({ message: 'User deleted successfully' });
+    if (agentError) {
+      console.error('[Admin] Failed to delete agent record:', agentError);
+      return res.status(500).json({ error: 'Failed to delete agent record' });
+    }
+
+    res.json({ success: true, message: 'User and agent record deleted successfully' });
   } catch (error) {
     console.error('Delete user error:', error);
     res.status(500).json({ error: error.message });

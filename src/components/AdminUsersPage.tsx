@@ -48,6 +48,32 @@ const AdminUsersPage: React.FC = () => {
         }
     };
 
+    const handleDelete = async (userId: string) => {
+        if (!confirm('Are you sure you want to delete this user? This cannot be undone.')) return;
+
+        try {
+            setLoading(true);
+            const response = await fetch(`/api/admin/users/${userId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || 'Failed to delete user');
+            }
+
+            // Refresh list
+            fetchUsers();
+        } catch (err: any) {
+            console.error('Delete error:', err);
+            setError(err.message);
+            setLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -121,6 +147,12 @@ const AdminUsersPage: React.FC = () => {
                                                     className="text-primary-600 hover:text-primary-900 font-semibold"
                                                 >
                                                     Impersonate<span className="sr-only">, {user.first_name}</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(user.auth_user_id)}
+                                                    className="ml-4 text-red-600 hover:text-red-900 font-semibold"
+                                                >
+                                                    Delete<span className="sr-only">, {user.first_name}</span>
                                                 </button>
                                             </td>
                                         </tr>
