@@ -132,14 +132,28 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       console.log('[AI Card Demo] Changes not saved in demo mode');
       setShowDemoNotice(true);
       setTimeout(() => setShowDemoNotice(false), 3000);
-      return form;
+      // return form; // This line is removed as per the instruction's implied replacement
     }
     setIsSaving(true);
     try {
+      if (isDemoMode) {
+        console.log('[AI Card] Saving to LocalStorage (Smart Demo Save)');
+        const mockSaved = { ...form, ...overrides };
+
+        // Save to Browser Memory
+        localStorage.setItem('ai_card_demo_data', JSON.stringify(mockSaved));
+
+        setForm(mockSaved);
+        setHasUnsavedChanges(false);
+        serverProfileRef.current = mockSaved;
+        return mockSaved;
+      }
+
+      const formUpdates = overrides; // Renaming for clarity based on the provided snippet's intent
       const base = serverProfileRef.current
         ? { ...serverProfileRef.current, ...form }
         : { ...form };
-      const payload = overrides ? { ...base, ...overrides } : base;
+      const payload = formUpdates ? { ...base, ...formUpdates } : base;
 
       const sanitizedPayload: Partial<AgentProfile> = {
         ...payload,
@@ -188,9 +202,17 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       try {
         setIsLoading(true);
         if (isDemoMode) {
-          // Load demo data in demo mode
-          setForm(DEMO_AI_CARD_PROFILE as AgentProfile);
-          serverProfileRef.current = DEMO_AI_CARD_PROFILE as AgentProfile;
+          // 1. Try LocalStorage (Smart Save)
+          const stored = localStorage.getItem('ai_card_demo_data');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            setForm(parsed);
+            serverProfileRef.current = parsed;
+          } else {
+            // 2. Fallback to Generic Demo Data (Wipe admin data)
+            setForm(DEMO_AI_CARD_PROFILE as AgentProfile);
+            serverProfileRef.current = DEMO_AI_CARD_PROFILE as AgentProfile;
+          }
           setHasUnsavedChanges(false);
         } else {
           const loadedProfile = await getAICardProfile();
