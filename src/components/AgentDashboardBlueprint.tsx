@@ -69,7 +69,10 @@ interface AgentDashboardBlueprintProps {
   demoListingCount?: number;
 }
 
-const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDemoMode = false, demoListingCount = 2 }) => {
+const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDemoMode: propIsDemoMode = false, demoListingCount = 2 }) => {
+  // Setup Failsafe: Force Demo Mode if URL implies it
+  const isDemoMode = propIsDemoMode || window.location.pathname.includes('blueprint') || window.location.pathname.includes('demo');
+
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { isImpersonating, stopImpersonating } = useImpersonation();
