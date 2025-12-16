@@ -143,7 +143,9 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         const phone = previewAgent?.phone || '(555) 987-6543';
         const email = previewAgent?.email || 'sarah@homelistingai.com';
         const website = previewAgent?.website || 'https://homelistingai.com';
-        const signature = `Best,\n${name}\n${title}\n${company}\n${phone}\n${website}`;
+        const cardUrl = previewAgent?.id ? `https://homelistingai.com/card/${previewAgent.id}` : 'https://homelistingai.com/card/demo';
+        // Add AI Card Link to signature
+        const signature = `Best,\n${name}\n${title}\n${company}\n${phone}\n${cardUrl}`;
 
         return {
             lead: {
@@ -221,7 +223,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     phone: previewAgent.phone,
                     company: previewAgent.company,
                     aiCardUrl: previewAgent.website || `https://homelistingai.com/card/${user?.id || 'default'}`,
-                    signature: `Best,\n${name}\n${previewAgent.professionalTitle || ''}\n${previewAgent.company}\n${previewAgent.phone}`
+                    signature: `Best,\n${name}\n${previewAgent.professionalTitle || ''}\n${previewAgent.company}\n${previewAgent.phone}\n${`https://homelistingai.com/card/${user?.id || 'default'}`}`
                 };
             } else {
                 realAgentData = {
@@ -230,7 +232,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     phone: metadata.phone || '',
                     company: metadata.company || 'HomeListingAI',
                     aiCardUrl: `https://homelistingai.com/card/${user?.id || 'default'}`,
-                    signature: `Best,\n${metadata.name || 'Admin'}\n${metadata.company || 'HomeListingAI'}\n${metadata.phone || ''}`
+                    signature: `Best,\n${metadata.name || 'Admin'}\n${metadata.company || 'HomeListingAI'}\n${metadata.phone || ''}\n${`https://homelistingai.com/card/${user?.id || 'default'}`}`
                 };
             }
 

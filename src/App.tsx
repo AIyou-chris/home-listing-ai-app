@@ -415,6 +415,7 @@ const App: React.FC = () => {
                 // User is signed out.
                 console.log("User signed out.");
                 setUser(null);
+                setIsAdmin(false); // Fix: Ensure admin state is cleared
                 setProperties([]);
                 setUserProfile(SAMPLE_AGENT);
                 setLeads([]);
