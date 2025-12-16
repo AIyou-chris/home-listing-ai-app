@@ -809,6 +809,12 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         </div>
       )}
 
+      {isDemoMode && !isImpersonating && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-indigo-600 text-white px-4 py-2 text-center font-bold shadow-md flex items-center justify-center gap-4">
+          <span>🛠️ BLUEPRINT MODE (Demo/Sandbox) — Changes save to Browser Memory only</span>
+        </div>
+      )}
+
       <Sidebar
         activeView={activeView}
         setView={setActiveView}
@@ -817,7 +823,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         isDemoMode={isDemoMode}
       />
 
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isImpersonating ? 'mt-10' : ''}`}>
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${(isImpersonating || isDemoMode) ? 'mt-10' : ''}`}>
         {/* Header */}
         <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-4">
