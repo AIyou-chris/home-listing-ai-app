@@ -545,9 +545,12 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                 <p className="text-xs text-slate-500">To: <span className="text-slate-900 font-medium">Jamie Carter (Lead)</span></p>
                                                                 <p className="text-xs text-slate-500">Subject: <span className="text-slate-900 font-medium">{mergeTokens(step.subject)}</span></p>
                                                             </div>
-                                                            <div className="prose prose-sm max-w-none text-slate-600 whitespace-pre-wrap">
-                                                                {mergeTokens(step.content)}
-                                                            </div>
+                                                            <div
+                                                                className="prose prose-sm max-w-none text-slate-600"
+                                                                dangerouslySetInnerHTML={{
+                                                                    __html: mergeTokens(step.content).replace(/\n/g, '<br/>')
+                                                                }}
+                                                            />
                                                         </div>
                                                     </div>
 
