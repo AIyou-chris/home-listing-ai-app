@@ -481,7 +481,7 @@ const App: React.FC = () => {
 
 
                 if (isAdmin) {
-                    console.log("Admin user detected (Auth Change), switching to Admin Dashboard");
+                    console.log("Admin user detected (Auth Change)");
                     setUser(currentUser);
                     setUserProfile({
                         ...SAMPLE_AGENT,
@@ -489,9 +489,17 @@ const App: React.FC = () => {
                         email: currentUser.email ?? '',
                         headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                     });
-                    // Clear agent-specific data...
 
-                    navigate('/admin-dashboard');
+                    // Allow Admins to stay on Blueprint/Demo pages
+                    const currentPath = window.location.pathname;
+                    const stayOnPage =
+                        currentPath.includes('/dashboard-blueprint') ||
+                        currentPath.includes('/demo-dashboard');
+
+                    if (!stayOnPage && !currentPath.includes('/admin-dashboard')) {
+                        navigate('/admin-dashboard');
+                    }
+
                     setIsLoading(false);
                     return;
                 }
