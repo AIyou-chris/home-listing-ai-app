@@ -183,18 +183,35 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         });
     };
 
+    // Add helper to resolve user email more robustly
+    const getActiveUserEmail = async (): Promise<string | null> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) return user.email;
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email) return session.user.email;
+
+        return null;
+    };
+
     const handleSendTestEmail = async (step: EditableStep) => {
         if (sendingTestId) return;
         setSendingTestId(step.id);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user || !user.email) {
-                alert('Could not find your email address.');
+            const email = await getActiveUserEmail();
+
+            if (!email) {
+                console.error('Could not resolve user email via getUser or getSession');
+                alert('Could not find your email address. Please try refreshing the page.');
                 return;
             }
 
             // Construct REAL data for the test email
             let realAgentData;
+
+            // Need user metadata for fallback
+            const { data: { user } } = await supabase.auth.getUser();
+            const metadata = user?.user_metadata || {};
 
             if (previewAgent) {
                 const name = previewAgent.fullName || 'Agent';
@@ -203,41 +220,37 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     firstName: name.split(' ')[0],
                     phone: previewAgent.phone,
                     company: previewAgent.company,
-                    aiCardUrl: previewAgent.website || `https://homelistingai.com/card/${user.id}`,
+                    aiCardUrl: previewAgent.website || `https://homelistingai.com/card/${user?.id || 'default'}`,
                     signature: `Best,\n${name}\n${previewAgent.professionalTitle || ''}\n${previewAgent.company}\n${previewAgent.phone}`
                 };
             } else {
                 realAgentData = {
-                    name: user.user_metadata?.name || user.email.split('@')[0],
-                    firstName: (user.user_metadata?.name || '').split(' ')[0] || 'Admin',
-                    phone: user.user_metadata?.phone || '',
-                    company: user.user_metadata?.company || 'HomeListingAI',
-                    aiCardUrl: `https://homelistingai.com/card/${user.id}`, // Mock or real URL
-                    signature: `Best,\n${user.user_metadata?.name || 'Admin'}\n${user.user_metadata?.company || 'HomeListingAI'}\n${user.user_metadata?.phone || ''}`
+                    name: metadata.name || email.split('@')[0],
+                    firstName: (metadata.name || '').split(' ')[0] || 'Admin',
+                    phone: metadata.phone || '',
+                    company: metadata.company || 'HomeListingAI',
+                    aiCardUrl: `https://homelistingai.com/card/${user?.id || 'default'}`,
+                    signature: `Best,\n${metadata.name || 'Admin'}\n${metadata.company || 'HomeListingAI'}\n${metadata.phone || ''}`
                 };
             }
 
             const realMergeData = {
-                lead: sampleMergeData.lead, // Use sample lead for test
+                lead: sampleMergeData.lead,
                 agent: realAgentData
             };
 
             const subject = mergeTokens(step.subject, realMergeData);
-            // Replace newlines with breaks for HTML email
             const body = mergeTokens(step.content, realMergeData).replace(/\n/g, '<br/>');
-
-            // Add a test prefix
             const testSubject = `[TEST] ${subject}`;
 
-            // Use the robust EmailService which is wired to Mailgun
             const sent = await emailService.sendEmail(
-                user.email,
+                email,
                 testSubject,
                 body,
                 { text: mergeTokens(step.content, realMergeData) }
             );
 
-            if (sent) alert(`Test email sent to ${user.email}`);
+            if (sent) alert(`Test email sent to ${email}`);
             else throw new Error('Email service returned failure');
         } catch (error) {
             console.error('Test email failed:', error);
