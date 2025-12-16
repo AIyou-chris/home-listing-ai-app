@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import QRCodeManagementPage from './QRCodeManagementPage';
 import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
+import { supabase } from '../services/supabase';
 import { setPreferredLanguage } from '../services/languagePreferenceService';
 import { notifyProfileChange } from '../services/agentProfileService';
 import ChatBotFAB from './ChatBotFAB';
@@ -412,7 +413,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       // Download the QR code
       const link = document.createElement('a');
       link.href = qrData.qrCode;
-      link.download = `ai-card-qr-${form.fullName.replace(/\s+/g, '-').toLowerCase()}.png`;
+      link.download = `ai - card - qr - ${form.fullName.replace(/\s+/g, '-').toLowerCase()}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -428,7 +429,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
   const handleDownloadCard = async () => {
     try {
       setIsLoading(true);
-      await downloadAICard('ai-card-preview', `${form.fullName.replace(/\s+/g, '-').toLowerCase()}-ai-card.png`);
+      await downloadAICard('ai-card-preview', `${form.fullName.replace(/\s+/g, '-').toLowerCase()} -ai - card.png`);
       console.log('✅ AI Card downloaded');
     } catch (error) {
       console.error('Failed to download AI Card:', error);
@@ -441,7 +442,15 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
   const handleShare = async (method: string) => {
     try {
       setIsLoading(true);
-      const shareData = await shareAICard(method, form.id);
+
+      // Resolve real ID if possible to avoid 'default'
+      let shareId = form.id;
+      if (!isDemoMode) {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user?.id) shareId = data.user.id;
+      }
+
+      const shareData = await shareAICard(method, shareId);
 
       if (method === 'copy') {
         setShareUrl(shareData.url);
@@ -454,8 +463,8 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
           // Fallback handled by user seeing the modal and copying manually
         }
       } else {
-        console.log(`✅ AI Card shared via ${method}`);
-        alert(`AI Card shared successfully via ${method}!`);
+        console.log(`✅ AI Card shared via ${method} `);
+        alert(`AI Card shared successfully via ${method} !`);
       }
     } catch (error) {
       console.error('Failed to share AI Card:', error);
@@ -517,7 +526,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
         style={{
           width: '400px',
           height: '850px',
-          background: `linear-gradient(135deg, ${form.brandColor}10 0%, white 50%, ${form.brandColor}05 100%)`
+          background: `linear - gradient(135deg, ${form.brandColor}10 0 %, white 50 %, ${form.brandColor}05 100 %)`
         }}
       >
         {/* Header with brand color accent */}
@@ -663,30 +672,30 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
             <div className="flex bg-gray-100 rounded-lg p-1 mx-auto sm:mx-0">
               <button
                 onClick={() => setActiveTab('edit')}
-                className={`flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none ${activeTab === 'edit'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                className={`flex items - center justify - center space - x - 1 sm: space - x - 2 px - 2 sm: px - 4 py - 2 rounded - md text - xs sm: text - sm font - medium transition - colors flex - 1 sm: flex - none ${activeTab === 'edit'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                  } `}
               >
                 <Palette className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>Edit</span>
               </button>
               <button
                 onClick={() => setActiveTab('preview')}
-                className={`flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none ${activeTab === 'preview'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                className={`flex items - center justify - center space - x - 1 sm: space - x - 2 px - 2 sm: px - 4 py - 2 rounded - md text - xs sm: text - sm font - medium transition - colors flex - 1 sm: flex - none ${activeTab === 'preview'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                  } `}
               >
                 <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>Preview</span>
               </button>
               <button
                 onClick={() => setActiveTab('qr-codes')}
-                className={`flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none ${activeTab === 'qr-codes'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                className={`flex items - center justify - center space - x - 1 sm: space - x - 2 px - 2 sm: px - 4 py - 2 rounded - md text - xs sm: text - sm font - medium transition - colors flex - 1 sm: flex - none ${activeTab === 'qr-codes'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                  } `}
               >
                 <QrCode className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>QR Codes</span>
@@ -742,10 +751,10 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
             </button>
             {isDemoMode && (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${showDemoNotice
-                ? 'bg-blue-500 text-white shadow-md'
-                : 'bg-blue-50 text-blue-700 border border-blue-100'
-                }`}>
+              <div className={`flex items - center gap - 1.5 px - 3 py - 1.5 rounded - lg text - xs font - medium transition - all ${showDemoNotice
+                  ? 'bg-blue-500 text-white shadow-md'
+                  : 'bg-blue-50 text-blue-700 border border-blue-100'
+                } `}>
                 <span className="material-symbols-outlined text-sm">info</span>
                 <span>Demo Mode: Changes not saved</span>
               </div>
@@ -1133,14 +1142,14 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
 
             <div className="grid grid-cols-2 gap-3 mb-6">
               <button
-                onClick={() => window.open(`sms:?body=${encodeURIComponent(shareUrl)}`, '_blank')}
+                onClick={() => window.open(`sms:? body = ${encodeURIComponent(shareUrl)} `, '_blank')}
                 className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 <Mail className="w-5 h-5 text-gray-700" />
                 <span className="text-sm font-medium text-gray-700">Text</span>
               </button>
               <button
-                onClick={() => window.open(`mailto:?body=${encodeURIComponent(shareUrl)}`, '_blank')}
+                onClick={() => window.open(`mailto:? body = ${encodeURIComponent(shareUrl)} `, '_blank')}
                 className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 <Mail className="w-5 h-5 text-gray-700" />

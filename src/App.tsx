@@ -64,6 +64,7 @@ import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
 import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
+const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
 import AIInteractiveTraining from './components/AIInteractiveTraining';
 import FunnelAnalyticsPanel from './components/FunnelAnalyticsPanel';
 
@@ -1094,6 +1095,13 @@ const App: React.FC = () => {
                         />
                     } />
                     <Route path="/checkout" element={renderCheckout()} />
+
+                    {/* Public AI Card View */}
+                    <Route path="/card/:id" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <PublicAICard />
+                        </Suspense>
+                    } />
 
                     {/* Demo Dashboard */}
                     <Route path="/admin-dashboard" element={
