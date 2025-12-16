@@ -5,6 +5,7 @@ import { ADMIN_EMAIL_TEMPLATES } from '../constants/adminEmailTemplates';
 import { emailService } from '../services/emailService';
 import { adminLeadsService } from '../services/adminLeadsService';
 import { authService } from '../services/authService';
+import { getAICardProfile, AICardProfile } from '../services/aiCardService';
 
 // CONSTANTS & TYPES
 
@@ -115,33 +116,59 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [debugMsg, setDebugMsg] = useState<string>('');
     const [sendingTestId, setSendingTestId] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
+    const [previewAgent, setPreviewAgent] = useState<AICardProfile | null>(null);
+
+    // Load AI Card Profile for Signature/Preview
+    useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                const profile = await getAICardProfile();
+                console.log("Loaded Profile for Funnel:", profile);
+                setPreviewAgent(profile);
+            } catch (e) {
+                console.error("Failed to load profile for funnel preview", e);
+            }
+        };
+        loadProfile();
+    }, []);
 
     // ANALYTICS & STATE
 
     // Default sample data for the LIVE PREVIEW
-    const sampleMergeData = useMemo(() => ({
-        lead: {
-            name: 'Jamie Carter',
-            firstName: 'Jamie',
-            lastName: 'Carter',
-            email: 'jamie@example.com',
-            phone: '(555) 123-4567',
-            interestAddress: '123 Maple Ave',
-            company: 'Keller Williams',
-            city: 'Austin',
-            state: 'TX'
-        },
-        agent: {
-            name: 'Sarah Smith',
-            firstName: 'Sarah',
-            lastName: 'Smith',
-            phone: '(555) 987-6543',
-            email: 'sarah@homelistingai.com',
-            company: 'HomeListingAI',
-            aiCardUrl: 'https://homelistingai.com/card/sarah-smith',
-            signature: 'Best,\nSarah Smith\nHomeListingAI\n(555) 987-6543\nhttps://homelistingai.com/card/sarah-smith'
-        }
-    }), []);
+    const sampleMergeData = useMemo(() => {
+        // Fallback or Active Agent Data
+        const name = previewAgent?.fullName || 'Sarah Smith';
+        const title = previewAgent?.professionalTitle || 'Real Estate Agent';
+        const company = previewAgent?.company || 'HomeListingAI';
+        const phone = previewAgent?.phone || '(555) 987-6543';
+        const email = previewAgent?.email || 'sarah@homelistingai.com';
+        const website = previewAgent?.website || 'https://homelistingai.com';
+        const signature = `Best,\n${name}\n${title}\n${company}\n${phone}\n${website}`;
+
+        return {
+            lead: {
+                name: 'Jamie Carter',
+                firstName: 'Jamie',
+                lastName: 'Carter',
+                email: 'jamie@example.com',
+                phone: '(555) 123-4567',
+                interestAddress: '123 Maple Ave',
+                company: 'Keller Williams',
+                city: 'Austin',
+                state: 'TX'
+            },
+            agent: {
+                name: name,
+                firstName: name.split(' ')[0],
+                lastName: name.split(' ').slice(1).join(' '),
+                phone: phone,
+                email: email,
+                company: company,
+                aiCardUrl: website,
+                signature: signature
+            }
+        };
+    }, [previewAgent]);
 
     // Flexible merge function that can take custom data source
     const mergeTokens = (template: string, sourceData: Record<string, any> = sampleMergeData) => {
@@ -167,14 +194,28 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             }
 
             // Construct REAL data for the test email
-            const realAgentData = {
-                name: user.user_metadata?.name || user.email.split('@')[0],
-                firstName: (user.user_metadata?.name || '').split(' ')[0] || 'Admin',
-                phone: user.user_metadata?.phone || '',
-                company: user.user_metadata?.company || 'HomeListingAI',
-                aiCardUrl: `https://homelistingai.com/card/${user.id}`, // Mock or real URL
-                signature: `Best,\n${user.user_metadata?.name || 'Admin'}\n${user.user_metadata?.company || 'HomeListingAI'}\n${user.user_metadata?.phone || ''}`
-            };
+            let realAgentData;
+
+            if (previewAgent) {
+                const name = previewAgent.fullName || 'Agent';
+                realAgentData = {
+                    name: name,
+                    firstName: name.split(' ')[0],
+                    phone: previewAgent.phone,
+                    company: previewAgent.company,
+                    aiCardUrl: previewAgent.website || `https://homelistingai.com/card/${user.id}`,
+                    signature: `Best,\n${name}\n${previewAgent.professionalTitle || ''}\n${previewAgent.company}\n${previewAgent.phone}`
+                };
+            } else {
+                realAgentData = {
+                    name: user.user_metadata?.name || user.email.split('@')[0],
+                    firstName: (user.user_metadata?.name || '').split(' ')[0] || 'Admin',
+                    phone: user.user_metadata?.phone || '',
+                    company: user.user_metadata?.company || 'HomeListingAI',
+                    aiCardUrl: `https://homelistingai.com/card/${user.id}`, // Mock or real URL
+                    signature: `Best,\n${user.user_metadata?.name || 'Admin'}\n${user.user_metadata?.company || 'HomeListingAI'}\n${user.user_metadata?.phone || ''}`
+                };
+            }
 
             const realMergeData = {
                 lead: sampleMergeData.lead, // Use sample lead for test
