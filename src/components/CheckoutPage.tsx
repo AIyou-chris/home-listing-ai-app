@@ -12,10 +12,7 @@ interface CheckoutPageProps {
 type ActivationState = 'pending' | 'activating' | 'active' | 'cancelled';
 
 const parseStatusParam = (): string | null => {
-  const hash = window.location.hash || '';
-  const queryIndex = hash.indexOf('?');
-  if (queryIndex === -1) return null;
-  const params = new URLSearchParams(hash.substring(queryIndex + 1));
+  const params = new URLSearchParams(window.location.search);
   return params.get('status');
 };
 

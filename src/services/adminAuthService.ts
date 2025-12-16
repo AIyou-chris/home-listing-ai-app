@@ -105,7 +105,8 @@ class AdminAuthService {
     await supabase.auth.signOut();
 
     // 3. Force reload if needed (optional, but ensures clean slate)
-    window.location.reload();
+    // 3. Force navigation to home to ensure we leave any protected routes/blueprints
+    window.location.href = '/';
   }
 
   getCurrentAdmin(): AdminUser | null {

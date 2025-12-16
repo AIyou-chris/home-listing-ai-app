@@ -2,58 +2,54 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 
 interface SEOProps {
-    title?: string;
+    title: string;
     description?: string;
-    canonical?: string;
-    type?: string;
-    name?: string;
     image?: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    structuredData?: Record<string, any>;
+    url?: string;
+    type?: string;
+    schema?: Record<string, any>;
 }
 
-export const SEO: React.FC<SEOProps> = ({
+const SEO: React.FC<SEOProps> = ({
     title,
-    description,
-    canonical,
+    description = "AI-powered real estate listings designed to sell faster.",
+    image,
+    url,
     type = 'website',
-    name = 'HomeListingAI',
-    image = 'https://homelistingai.com/og-image.png',
-    structuredData
+    schema
 }) => {
-    const siteTitle = 'HomeListingAI - AI-Powered Real Estate Assistant';
-    const metaTitle = title ? `${title} | ${name}` : siteTitle;
-    const metaDescription = description || "Revolutionize your real estate business with AI. 24/7 multilingual support, automated follow-ups, and intelligent lead management for $89/month.";
-    const currentUrl = canonical || window.location.href;
+    const siteTitle = "HomeListingAI";
+    const fullTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
+    const currentUrl = typeof window !== 'undefined' ? (url || window.location.href) : '';
+    const metaDesc = description.substring(0, 160); // Standard SEO length
 
     return (
         <Helmet>
-            {/* Standard metadata */}
-            <title>{metaTitle}</title>
-            <meta name="description" content={metaDescription} />
-            <link rel="canonical" href={currentUrl} />
+            {/* Standard Metadata */}
+            <title>{fullTitle}</title>
+            <meta name="description" content={metaDesc} />
 
-            {/* Open Graph */}
+            {/* OpenGraph / Social */}
             <meta property="og:type" content={type} />
-            <meta property="og:url" content={currentUrl} />
-            <meta property="og:title" content={metaTitle} />
-            <meta property="og:description" content={metaDescription} />
-            <meta property="og:image" content={image} />
-            <meta property="og:site_name" content={name} />
+            <meta property="og:title" content={fullTitle} />
+            <meta property="og:description" content={metaDesc} />
+            {currentUrl && <meta property="og:url" content={currentUrl} />}
+            {image && <meta property="og:image" content={image} />}
 
-            {/* Twitter */}
+            {/* Twitter Card */}
             <meta name="twitter:card" content="summary_large_image" />
-            <meta name="twitter:creator" content="@HomeListingAI" />
-            <meta name="twitter:title" content={metaTitle} />
-            <meta name="twitter:description" content={metaDescription} />
-            <meta name="twitter:image" content={image} />
+            <meta name="twitter:title" content={fullTitle} />
+            <meta name="twitter:description" content={metaDesc} />
+            {image && <meta name="twitter:image" content={image} />}
 
-            {/* Structured Data (JSON-LD) for AIO */}
-            {structuredData && (
+            {/* AIO: JSON-LD Structured Data for AI Agents */}
+            {schema && (
                 <script type="application/ld+json">
-                    {JSON.stringify(structuredData)}
+                    {JSON.stringify(schema)}
                 </script>
             )}
         </Helmet>
     );
 };
+
+export default SEO;

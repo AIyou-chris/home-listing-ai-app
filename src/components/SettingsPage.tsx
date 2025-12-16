@@ -326,7 +326,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
     const billingDefaultsRef = useRef<BillingSettings>(_billingSettings);
     const notificationDefaultsRef = useRef<NotificationSettings>(notificationSettings);
     // PayPal portal URL removed
-    const stripePortalUrl = undefined; // Placeholder for Stripe Customer Portal URL if needed
+
 
     // Read tab query from hash: #/settings?tab=billing
     useEffect(() => {
@@ -577,6 +577,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         let isActive = true;
 
         const loadPreferences = async () => {
+            if (activeTab !== 'notifications') return;
             if (!userId) {
                 setIsNotificationsLoading(false);
                 return;
@@ -622,7 +623,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         return () => {
             isActive = false;
         };
-    }, [userId, _onSaveNotifications, notifyApiError]);
+    }, [userId, _onSaveNotifications, notifyApiError, activeTab]);
 
 
     useEffect(() => {
@@ -645,10 +646,14 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
     }, [googleIntegrationClientPresent, googleIntegrationEnabled]);
 
     useEffect(() => {
-        void loadCalendarSettings({ showLoading: true });
-    }, [loadCalendarSettings]);
+        if (activeTab === 'calendar') {
+            void loadCalendarSettings({ showLoading: true });
+        }
+    }, [loadCalendarSettings, activeTab]);
 
     useEffect(() => {
+        if (activeTab !== 'billing') return;
+
         let isMounted = true;
         const loadProviders = async () => {
             try {
@@ -665,10 +670,12 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [activeTab]);
 
     useEffect(() => {
         let cancelled = false;
+
+        if (activeTab !== 'email') return;
 
         const load = async () => {
             setIsEmailSettingsLoading(true);
@@ -710,7 +717,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         return () => {
             cancelled = true;
         };
-    }, [applyEmailSettings, fetchEmailSettings, notifyApiError, userId]);
+    }, [applyEmailSettings, fetchEmailSettings, notifyApiError, userId, activeTab]);
 
     useEffect(() => {
         emailDefaultsRef.current = emailSettings;

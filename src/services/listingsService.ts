@@ -314,5 +314,45 @@ export const listingsService = {
     if (error) {
       throw new Error(`Failed to delete property: ${error.message}`)
     }
+  },
+
+  async generateDescription(input: {
+    address: string;
+    beds?: string | number;
+    baths?: string | number;
+    sqft?: string | number;
+    features?: string;
+    title?: string;
+  }): Promise<AIDescription> {
+    const { data: userData } = await supabase.auth.getUser();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (userData?.user?.id) {
+      headers['x-agent-id'] = userData.user.id;
+    }
+
+    // Parse features string
+    const featuresList = typeof input.features === 'string'
+      ? input.features.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
+    const response = await fetch(buildApiUrl('/api/ai/generate-listing'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        address: input.address,
+        beds: input.beds,
+        baths: input.baths,
+        sqft: input.sqft,
+        features: featuresList,
+        title: input.title
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate description');
+    }
+
+    const data = await response.json();
+    return data as AIDescription;
   }
 }

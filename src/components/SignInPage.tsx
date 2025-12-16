@@ -28,16 +28,8 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
             });
             if (error) throw error;
 
-            // CHEAT CODE FOR ADMIN ACCESS:
-            // Since the database RPC check is unreliable in this dev environment, we assume ANY login 
-            // from the owner's credentials should be Admin.
-            // We set the flag proactively.
-            localStorage.setItem('adminUser', 'true');
-
-            // Navigate directly without reloading to avoid dropping the session
-            // if it hasn't persisted to storage yet.
-            // Navigate to root with hash to ensure URL is clean (removes /signin)
-            window.location.href = '/#admin-dashboard';
+            if (error) throw error;
+            // Auth state change listener in App.tsx will handle navigation and admin checks.
 
 
         } catch (err: unknown) {

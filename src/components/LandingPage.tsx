@@ -1,7 +1,7 @@
 import React from 'react';
 import { LogoWithName } from './LogoWithName';
 import ChatBotFAB from './ChatBotFAB';
-import { SEO } from './SEO';
+import SEO from './SEO';
 import { StripeLogo } from './StripeLogo';
 
 // --- New Components for the Redesigned Page ---
@@ -1271,7 +1271,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <SEO
                 title="HomeListingAI - AI Real Estate Assistant"
                 description="Automate your real estate business with 24/7 AI agents. Lead qualification, scheduling, and marketing automation for modern realtors."
-                structuredData={{
+                schema={{
                     "@context": "https://schema.org",
                     "@type": "SoftwareApplication",
                     "name": "HomeListingAI",

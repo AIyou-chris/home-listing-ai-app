@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AI_PERSONALITIES, DEFAULT_AI_ASSIGNMENTS } from '../constants';
+import SEO from './SEO';
 
 interface NewLandingPageProps {
     onNavigateToSignUp: () => void;
@@ -32,7 +33,19 @@ const NewLandingPage: React.FC<NewLandingPageProps> = ({ onNavigateToSignUp, onE
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-
+            <SEO
+                title="Home"
+                description="The AI-powered platform for real estate agents. Generate listings, manage leads, and automate follow-ups with intelligent AI sidekicks."
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "SoftwareApplication",
+                    "name": "HomeListingAI",
+                    "applicationCategory": "BusinessApplication",
+                    "operatingSystem": "Web",
+                    "description": "Transform your property business with AI-powered insights, real-time analytics, and intelligent automation.",
+                    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+                }}
+            />
 
             {/* Hero Section */}
             <div className="relative overflow-hidden">

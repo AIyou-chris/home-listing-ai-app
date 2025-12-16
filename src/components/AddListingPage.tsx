@@ -67,7 +67,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
             : (initialProperty && 'description' in initialProperty && initialProperty.description && typeof initialProperty.description === 'object'
                 ? [initialProperty.description.title, ...(initialProperty.description.paragraphs || [])].filter(Boolean).join('\n')
                 : ''
-              )),
+            )),
         heroPhotos: (initialProperty?.heroPhotos as (File | string)[]) || [],
         galleryPhotos: (initialProperty?.galleryPhotos as (File | string)[]) || [],
         rawAmenities: Array.isArray(initialProperty?.features) ? initialProperty!.features.join(', ') : '',
@@ -80,8 +80,8 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         },
         agent: mergedAgentProfile,
         media: {
-             virtualTourUrl: '', propertyVideoUrl: '', droneFootageUrl: '', 
-             neighborhoodVideoUrl: '', agentInterviewUrl: '', additionalMediaUrl: ''
+            virtualTourUrl: '', propertyVideoUrl: '', droneFootageUrl: '',
+            neighborhoodVideoUrl: '', agentInterviewUrl: '', additionalMediaUrl: ''
         }
     });
     const [photoUrlInput, setPhotoUrlInput] = useState('');
@@ -100,6 +100,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
     }, [mergedAgentProfile]);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     const generatePreviewProperty = (): Property => {
         const heroPhotos = formData.heroPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p));
@@ -141,10 +142,41 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleGenerateDescription = async () => {
+        if (!formData.address && !formData.propertyTitle) {
+            alert('Please enter an Address or Title first.');
+            return;
+        }
+
+        setIsGenerating(true);
+        try {
+            const result = await listingsService.generateDescription({
+                address: formData.address,
+                beds: formData.beds,
+                baths: formData.baths,
+                sqft: formData.sqft,
+                features: formData.rawAmenities,
+                title: formData.propertyTitle
+            });
+
+            if (result && Array.isArray(result.paragraphs)) {
+                setFormData(prev => ({
+                    ...prev,
+                    description: result.paragraphs.join('\n\n')
+                }));
+            }
+        } catch (error) {
+            console.error('Failed to generate:', error);
+            alert('AI generation failed. Please try again.');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        
+
         try {
             const features = formData.rawAmenities
                 .split(',')
@@ -288,7 +320,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
 
                     <h1 className="text-3xl font-bold text-slate-900">Build AI Listing</h1>
                     <p className="text-slate-500 mt-1">Create your AI-powered property listing.</p>
-                    
+
                     <div className="my-6 p-5 rounded-xl bg-blue-50 border border-blue-200 flex items-center gap-4">
                         <span className="material-symbols-outlined w-8 h-8 text-blue-600 flex-shrink-0">spa</span>
                         <div>
@@ -299,24 +331,32 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
 
                     <form id="listing-form" onSubmit={handleSubmit}>
                         <CollapsibleSection title="Basic Information" icon="home_work">
-                           {/* Form fields here */}
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Title</label><input type="text" name="propertyTitle" value={formData.propertyTitle} onChange={handleSimpleChange} className={inputClasses} placeholder="Stunning Mid-Century Retreat" /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="text" name="price" value={formData.price} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 750000" /></div>
-                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Address</label><input type="text" name="address" value={formData.address} onChange={handleSimpleChange} className={inputClasses} placeholder="123 Main Street, Anytown, USA 12345" /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bedrooms</label><input type="text" name="beds" value={formData.beds} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 3" /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bathrooms</label><input type="text" name="baths" value={formData.baths} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 2.5" /></div>
-                               <div><label className="block text-sm font-medium text-slate-700 mb-1">Square Footage</label><input type="text" name="sqft" value={formData.sqft} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 1850" /></div>
-                               <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Description</label><textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={4} className={inputClasses} placeholder="Describe the property's features, amenities, and unique selling points."></textarea>
-                               <button type="button" className="mt-2 text-sm font-semibold text-primary-600 flex items-center gap-1"><span className="material-symbols-outlined w-4 h-4">auto_awesome</span> Generate Description</button></div>
-                           </div>
+                            {/* Form fields here */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Title</label><input type="text" name="propertyTitle" value={formData.propertyTitle} onChange={handleSimpleChange} className={inputClasses} placeholder="Stunning Mid-Century Retreat" /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="text" name="price" value={formData.price} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 750000" /></div>
+                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Address</label><input type="text" name="address" value={formData.address} onChange={handleSimpleChange} className={inputClasses} placeholder="123 Main Street, Anytown, USA 12345" /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Bedrooms</label><input type="text" name="beds" value={formData.beds} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 3" /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Bathrooms</label><input type="text" name="baths" value={formData.baths} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 2.5" /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Square Footage</label><input type="text" name="sqft" value={formData.sqft} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 1850" /></div>
+                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Description</label><textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={4} className={inputClasses} placeholder="Describe the property's features, amenities, and unique selling points."></textarea>
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateDescription}
+                                        disabled={isGenerating}
+                                        className="mt-2 text-sm font-semibold text-primary-600 flex items-center gap-1 hover:text-primary-700 disabled:opacity-50"
+                                    >
+                                        <span className="material-symbols-outlined w-4 h-4">{isGenerating ? 'hourglass_top' : 'auto_awesome'}</span>
+                                        {isGenerating ? 'Generating...' : 'Generate Description'}
+                                    </button></div>
+                            </div>
                         </CollapsibleSection>
 
-                         <CollapsibleSection title="Photo Management" icon="photo_camera">
+                        <CollapsibleSection title="Photo Management" icon="photo_camera">
                             <div>
                                 <h4 className="font-semibold text-slate-700 mb-2">Hero Photos (Select 3 for slider)</h4>
                                 <div className="grid grid-cols-3 gap-4 mb-6">
-                                    {[0,1,2].map(i => (
+                                    {[0, 1, 2].map(i => (
                                         <div key={i} className="aspect-video bg-slate-100 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
                                             <span className="material-symbols-outlined w-8 h-8">photo_camera</span>
                                         </div>
@@ -328,99 +368,99 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                                     Import from URL
                                     <span className="material-symbols-outlined w-4 h-4 text-slate-400">info</span>
                                 </h4>
-                                 <div className="flex gap-2">
+                                <div className="flex gap-2">
                                     <input
-                                      type="url"
-                                      placeholder="https://cdn.example.com/house.jpg"
-                                      className={inputClasses}
-                                      value={photoUrlInput}
-                                      onChange={(event) => setPhotoUrlInput(event.target.value)}
-                                      disabled={isUploadingPhotos}
+                                        type="url"
+                                        placeholder="https://cdn.example.com/house.jpg"
+                                        className={inputClasses}
+                                        value={photoUrlInput}
+                                        onChange={(event) => setPhotoUrlInput(event.target.value)}
+                                        disabled={isUploadingPhotos}
                                     />
                                     <button
-                                      type="button"
-                                      className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                                      onClick={handleAddPhotoUrl}
-                                      disabled={isUploadingPhotos}
+                                        type="button"
+                                        className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        onClick={handleAddPhotoUrl}
+                                        disabled={isUploadingPhotos}
                                     >
-                                      Add
+                                        Add
                                     </button>
-                                 </div>
+                                </div>
                                 {photoUrlError && <p className="text-xs text-rose-600 mt-1">{photoUrlError}</p>}
                             </div>
-                             <div className="mt-6">
-                               <h4 className="font-semibold text-slate-700 mb-2">Upload Photos</h4>
+                            <div className="mt-6">
+                                <h4 className="font-semibold text-slate-700 mb-2">Upload Photos</h4>
                                 <label htmlFor="photo-upload" className="block w-full p-8 text-center bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 cursor-pointer hover:bg-slate-100 hover:border-primary-400">
-                                   <span className="material-symbols-outlined w-8 h-8 mx-auto text-slate-400 mb-2">upload</span>
-                                   <span className="text-slate-600 font-semibold">Drag & drop files here</span>
-                                   <p className="text-sm text-slate-500">or click to browse</p>
-                                   <input id="photo-upload" type="file" multiple className="hidden" onChange={(e) => handleGalleryUpload(e.target.files)}/>
+                                    <span className="material-symbols-outlined w-8 h-8 mx-auto text-slate-400 mb-2">upload</span>
+                                    <span className="text-slate-600 font-semibold">Drag & drop files here</span>
+                                    <p className="text-sm text-slate-500">or click to browse</p>
+                                    <input id="photo-upload" type="file" multiple className="hidden" onChange={(e) => handleGalleryUpload(e.target.files)} />
                                 </label>
                                 {formData.galleryPhotos.length > 0 && <p className="text-sm mt-2 text-slate-600">{formData.galleryPhotos.length} photos staged for upload.</p>}
                                 {isUploadingPhotos && <p className="text-sm mt-1 text-slate-500">Uploading photos…</p>}
                                 {photoUploadError && <p className="text-sm mt-1 text-rose-600">{photoUploadError}</p>}
-                           </div>
+                            </div>
                         </CollapsibleSection>
-                        
+
                         <CollapsibleSection title="Buttons & Links" icon="smart_display">
-                          <div className="grid grid-cols-1 gap-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                                <button type="button" className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2">
-                                  <span className="material-symbols-outlined">open_in_new</span>
-                                  <span>To Listing</span>
-                                </button>
-                                <label className="block text-xs text-slate-600 mt-3 mb-1">Listing URL</label>
-                                <input
-                                  type="url"
-                                  name="ctaListingUrl"
-                                  value={formData.ctaListingUrl}
-                                  onChange={handleSimpleChange}
-                                  placeholder="https://your-listing-url.com"
-                                  className={inputClasses}
-                                />
-                              </div>
-                              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                                <button type="button" className="w-full h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2">
-                                  <span className="material-symbols-outlined">play_circle</span>
-                                  <span>Media</span>
-                                </button>
-                                <label className="block text-xs text-slate-600 mt-3 mb-1">Media URL</label>
-                                <input
-                                  type="url"
-                                  name="ctaMediaUrl"
-                                  value={formData.ctaMediaUrl}
-                                  onChange={handleSimpleChange}
-                                  placeholder="https://your-media-url.com"
-                                  className={inputClasses}
-                                />
-                              </div>
+                            <div className="grid grid-cols-1 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                                        <button type="button" className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2">
+                                            <span className="material-symbols-outlined">open_in_new</span>
+                                            <span>To Listing</span>
+                                        </button>
+                                        <label className="block text-xs text-slate-600 mt-3 mb-1">Listing URL</label>
+                                        <input
+                                            type="url"
+                                            name="ctaListingUrl"
+                                            value={formData.ctaListingUrl}
+                                            onChange={handleSimpleChange}
+                                            placeholder="https://your-listing-url.com"
+                                            className={inputClasses}
+                                        />
+                                    </div>
+                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                        <button type="button" className="w-full h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2">
+                                            <span className="material-symbols-outlined">play_circle</span>
+                                            <span>Media</span>
+                                        </button>
+                                        <label className="block text-xs text-slate-600 mt-3 mb-1">Media URL</label>
+                                        <input
+                                            type="url"
+                                            name="ctaMediaUrl"
+                                            value={formData.ctaMediaUrl}
+                                            onChange={handleSimpleChange}
+                                            placeholder="https://your-media-url.com"
+                                            className={inputClasses}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                                        <button type="button" className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2">
+                                            <span className="material-symbols-outlined">event_available</span>
+                                            <span>See the house</span>
+                                        </button>
+                                        <p className="mt-2 text-xs text-emerald-800">Opens booking modal in the app.</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <button type="button" className="w-full h-12 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold flex items-center justify-center gap-2">
+                                            <span className="material-symbols-outlined">map</span>
+                                            <span>Map</span>
+                                        </button>
+                                        <label className="block text-xs text-slate-600 mt-3 mb-1">Generated from Address</label>
+                                        <input type="text" readOnly value={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formData.address || '')}`} className={`${inputClasses} bg-slate-100`} />
+                                    </div>
+                                </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                                <button type="button" className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2">
-                                  <span className="material-symbols-outlined">event_available</span>
-                                  <span>See the house</span>
-                                </button>
-                                <p className="mt-2 text-xs text-emerald-800">Opens booking modal in the app.</p>
-                              </div>
-                              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                <button type="button" className="w-full h-12 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold flex items-center justify-center gap-2">
-                                  <span className="material-symbols-outlined">map</span>
-                                  <span>Map</span>
-                                </button>
-                                <label className="block text-xs text-slate-600 mt-3 mb-1">Generated from Address</label>
-                                <input type="text" readOnly value={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formData.address || '')}`} className={`${inputClasses} bg-slate-100`} />
-                              </div>
-                            </div>
-                          </div>
                         </CollapsibleSection>
-                        
+
                         {/* Amenities Editor removed for simplified app build */}
-                        
+
                         {/* App Features & Buttons section removed per simplification */}
-                        
-                         <CollapsibleSection title="Agent Information" icon="account_circle">
+
+                        <CollapsibleSection title="Agent Information" icon="account_circle">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Agent Name</label><input type="text" className={inputClasses} value={formData.agent.name ?? ''} readOnly /></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Phone</label><input type="tel" className={inputClasses} value={formData.agent.phone ?? ''} readOnly /></div>
@@ -430,25 +470,25 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Logo</label><input type="file" className={inputClasses} /></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Headshot</label><input type="file" className={inputClasses} /></div>
                                 <div className="md:col-span-2"><h4 className="font-semibold text-slate-700 mb-2 mt-4">Social Media Links</h4>
-                                  {formData.agent.socials.map((social, i) =>(
-                                    <div key={i} className="flex items-center gap-2 mb-2">
-                                      <span className="font-medium text-slate-600 w-24">{social.platform}</span>
-                                      <input type="url" className={inputClasses} placeholder={`https://...`} value={social.url} readOnly/>
-                                    </div>
-                                  ))}
+                                    {formData.agent.socials.map((social, i) => (
+                                        <div key={i} className="flex items-center gap-2 mb-2">
+                                            <span className="font-medium text-slate-600 w-24">{social.platform}</span>
+                                            <input type="url" className={inputClasses} placeholder={`https://...`} value={social.url} readOnly />
+                                        </div>
+                                    ))}
                                 </div>
-                                 <div className="md:col-span-2"><h4 className="font-semibold text-slate-700 mb-2 mt-4">Media Links (Videos, Interviews)</h4>
+                                <div className="md:col-span-2"><h4 className="font-semibold text-slate-700 mb-2 mt-4">Media Links (Videos, Interviews)</h4>
                                     <input type="url" className={`${inputClasses} mb-2`} placeholder="Video 1" />
                                     <input type="url" className={inputClasses} placeholder="Video 2" />
                                 </div>
                             </div>
                         </CollapsibleSection>
-                        
+
                         <CollapsibleSection title="Listing Sidekick" icon="smart_toy">
-                          <div className="space-y-4">
-                            <div className="text-sm text-slate-600">Live preview:</div>
-                            <ListingSidekickWidget property={generatePreviewProperty()} />
-                          </div>
+                            <div className="space-y-4">
+                                <div className="text-sm text-slate-600">Live preview:</div>
+                                <ListingSidekickWidget property={generatePreviewProperty()} />
+                            </div>
                         </CollapsibleSection>
                     </form>
                 </div>

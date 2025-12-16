@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase';
 import { ADMIN_EMAIL_TEMPLATES } from '../constants/adminEmailTemplates';
 import { emailService } from '../services/emailService';
 import { adminLeadsService } from '../services/adminLeadsService';
+import { authService } from '../services/authService';
 
 // CONSTANTS & TYPES
 
@@ -271,15 +272,12 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     useEffect(() => {
         const fetchFunnel = async () => {
-            // setIsLoading(true);
             try {
-                const { data: { user } } = await supabase.auth.getUser();
-                const headers: HeadersInit = user ? { 'x-user-id': user.id } : {};
-                const response = await fetch(`${API_BASE}/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
-                    headers
-                });
+                // Use Backend Proxy (Admin Key Support)
+                const response = await authService.makeAuthenticatedRequest('/api/admin/marketing/funnel/get');
 
                 if (!response.ok) {
+                    // If 404, it just means no funnel exists yet -> Defaults
                     if (response.status === 404) {
                         setProgramSteps(buildDefaultSteps());
                         return;
@@ -288,25 +286,14 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 }
 
                 const data = await response.json();
-                const steps = (data.sequence?.steps || data.steps || []).map((s: Record<string, any>, i: number) => ({
-                    id: s.id || `${UNIVERSAL_FUNNEL_ID}-${i}`,
-                    title: s.subject || `Touch ${i + 1}`,
-                    description: s.body?.slice(0, 50) || 'Step content',
-                    icon: i === 0 ? 'bolt' : 'email',
-                    delay: s.delay || '+2 days',
-                    type: s.type || 'Email',
-                    subject: s.subject || '',
-                    content: s.body || s.emailBody || '',
-                    attachments: s.attachments || []
-                }));
-
-                if (steps.length) setProgramSteps(steps);
-                else setProgramSteps(buildDefaultSteps());
+                if (data.steps && Array.isArray(data.steps)) {
+                    setProgramSteps(data.steps);
+                } else {
+                    setProgramSteps(buildDefaultSteps());
+                }
             } catch (err) {
-                console.warn(err);
+                console.warn('Fetch Funnel Error:', err);
                 setProgramSteps(buildDefaultSteps());
-            } finally {
-                // setIsLoading(false);
             }
         };
         fetchFunnel();
@@ -348,87 +335,27 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     const handleSaveProgramSteps = async () => {
         setIsSaving(true);
-        setDebugMsg('Starting direct DB save...');
+        setDebugMsg('Saving via Admin Proxy...');
 
         try {
-            const { data: { user } = {} } = await supabase.auth.getUser();
-            if (!user) {
-                alert('You must be logged in to save.');
-                setIsSaving(false);
-                return;
-            }
+            // Use Backend Proxy to save, which supports Admin Bypass Key
+            // This endpoint (/api/admin/marketing/funnel/save) finds the agent associated with the admin email
+            // and upserts the funnel data.
+            const response = await authService.makeAuthenticatedRequest('/api/admin/marketing/funnel/save', {
+                method: 'POST',
+                body: JSON.stringify({ steps: programSteps })
+            });
 
-            console.log('[Funnel] Attempting save via Supabase client');
-            setDebugMsg('Looking up agent profile...');
-
-            // 1. Get Agent ID
-            const { data: agent, error: agentError } = await supabase
-                .from('agents')
-                .select('id')
-                .eq('auth_user_id', user.id)
-                .single();
-
-            if (agentError && agentError.code !== 'PGRST116') {
-                // PGRST116 is "not found", handled below
-                throw new Error(`Agent lookup failed: ${agentError.message}`);
-            }
-
-            // Fallback: If no agent record, we can't save to 'funnels' table properly unless we create one.
-            // But for Admin Dashboard, maybe we assume an agent exists?
-            // If strictly Admin, maybe we need a different table? 
-            // Assuming this is for "My Agent Funnel":
-            if (!agent) {
-                throw new Error("No Agent Profile found for your account. Please complete onboarding first.");
-            }
-
-            setDebugMsg(`Agent found: ${agent.id}. Checking existing funnel...`);
-
-            // 2. Check for existing funnel by key
-            const { data: existingFunnel, error: fetchError } = await supabase
-                .from('funnels')
-                .select('id')
-                .eq('agent_id', agent.id)
-                .eq('funnel_key', 'universal_sales')
-                .single();
-
-            if (fetchError && fetchError.code !== 'PGRST116') {
-                throw new Error(`Funnel lookup failed: ${fetchError.message}`);
-            }
-
-            const payload = {
-                agent_id: agent.id,
-                funnel_key: 'universal_sales',
-                name: 'Universal Sales Funnel',
-                steps: programSteps, // DB column is 'steps' (jsonb)
-                updated_at: new Date().toISOString()
-            };
-
-            let dbError;
-            if (existingFunnel) {
-                setDebugMsg('Updating existing funnel...');
-                const res = await supabase
-                    .from('funnels')
-                    .update(payload)
-                    .eq('id', existingFunnel.id);
-                dbError = res.error;
-            } else {
-                setDebugMsg('Creating new funnel...');
-                // Removed 'id' to let DB generate UUID
-                const res = await supabase
-                    .from('funnels')
-                    .insert(payload);
-                dbError = res.error;
-            }
-
-            if (dbError) {
-                throw new Error(`Database Write Failed: ${dbError.message}`);
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Server Save Failed');
             }
 
             setDebugMsg(`✅ SUCCESS! Saved to DB at ${new Date().toLocaleTimeString()}`);
             alert('Funnel saved successfully!');
 
-        } catch (e) {
-            console.error(e);
+        } catch (e: any) {
+            console.error('Save Funnel Error:', e);
             const msg = e instanceof Error ? e.message : 'Unknown error';
             setDebugMsg(`❌ FAILED: ${msg}`);
             alert(`Save Failed! Details: ${msg}`);

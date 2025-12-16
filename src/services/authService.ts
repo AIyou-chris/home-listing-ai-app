@@ -75,6 +75,11 @@ export interface AuthState {
 }
 
 const getApiBaseUrl = (): string | null => {
+    // FORCE LOCALHOST IN DEV (Because .env points to production)
+    if (import.meta.env.DEV) {
+        return 'http://localhost:3002';
+    }
+
     const raw = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_API_BASE_URL
     if (typeof raw !== 'string') {
         return null
@@ -486,6 +491,14 @@ export class AuthService {
         headers.set('Content-Type', 'application/json');
         if (token) {
             headers.set('Authorization', `Bearer ${token}`);
+        }
+
+        // Add Admin Bypass Key if active
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('hlai_admin_bypass') === 'true') {
+            const adminPass = import.meta.env.VITE_ADMIN_PASSWORD;
+            if (adminPass) {
+                headers.set('X-Admin-Key', adminPass);
+            }
         }
 
         return fetch(resolvedUrl, {

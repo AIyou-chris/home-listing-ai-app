@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { HashRouter } from 'react-router-dom'
+import { BrowserRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import './index.css'
 import App from './App'
@@ -14,15 +14,12 @@ import { ImpersonationProvider } from './context/ImpersonationContext'
 const rootElement = document.getElementById('root')!
 const root = createRoot(rootElement)
 
-const rawHash = window.location.hash.replace(/^#/, '')
-const hashPath = rawHash.split('?')[0]
-const isBlueprintOnlyRoute = hashPath === '/dashboard-blueprint' || hashPath === 'dashboard-blueprint' || hashPath === '/blueprint' || hashPath === 'blueprint'
+const path = window.location.pathname;
+const isBlueprintOnlyRoute = path === '/dashboard-blueprint' || path === '/blueprint';
 
 if (import.meta.env.DEV) {
-  console.debug('[main] hash routing', {
-    hash: window.location.hash,
-    rawHash,
-    hashPath,
+  console.debug('[main] routing', {
+    path,
     isBlueprintOnlyRoute
   })
 }
@@ -30,7 +27,7 @@ if (import.meta.env.DEV) {
 const blueprintTree = (
   <StrictMode>
     <HelmetProvider>
-      <HashRouter>
+      <BrowserRouter>
         <ErrorBoundary>
           <SchedulerProvider>
             <ImpersonationProvider>
@@ -40,7 +37,7 @@ const blueprintTree = (
             </ImpersonationProvider>
           </SchedulerProvider>
         </ErrorBoundary>
-      </HashRouter>
+      </BrowserRouter>
     </HelmetProvider>
   </StrictMode>
 )
@@ -48,13 +45,13 @@ const blueprintTree = (
 const appTree = (
   <StrictMode>
     <HelmetProvider>
-      <HashRouter>
+      <BrowserRouter>
         <ErrorBoundary>
           <SchedulerProvider>
             <App />
           </SchedulerProvider>
         </ErrorBoundary>
-      </HashRouter>
+      </BrowserRouter>
     </HelmetProvider>
   </StrictMode>
 )

@@ -61,7 +61,13 @@ const port = process.env.PORT || 3002;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '16mb' }));
+// Middleware: Capture Raw Body for Stripe Webhooks (must be before processing JSON)
+app.use(express.json({
+  limit: '16mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf.toString();
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '16mb' }));
 app.use(helmet());
 
@@ -138,6 +144,67 @@ app.post('/api/subscription/checkout', async (req, res) => {
   }
 });
 
+
+// STRIPE WEBHOOK HANDLER
+app.post('/api/webhooks/stripe', async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.warn('⚠️ STRIPE_WEBHOOK_SECRET not set. Skipping verification (DEV ONLY) or Failing.');
+    // In production, you MUST fail here. For now, let's fail if missing.
+    return res.status(400).send('Webhook Error: Missing Valid Secret');
+  }
+
+  try {
+    event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error(`Webhook Signature Error: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const userId = session.client_reference_id || session.metadata?.userId;
+    const slug = session.metadata?.slug; // Fallback to slug
+
+    console.log(`💰 Payment succeeded. User: ${userId}, Slug: ${slug}`);
+
+    if (userId) {
+      const { error } = await supabaseAdmin
+        .from('agents')
+        .update({
+          status: 'active',
+          subscription_status: 'active',
+          plan: 'pro',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (error) console.error('Failed to update agent status by ID', error);
+      else console.log('✅ Agent activated by ID');
+
+    } else if (slug) {
+      const { error } = await supabaseAdmin
+        .from('agents')
+        .update({
+          status: 'active',
+          subscription_status: 'active',
+          plan: 'pro',
+          updated_at: new Date().toISOString()
+        })
+        .eq('slug', slug);
+
+      if (error) console.error('Failed to update agent status by Slug', error);
+      else console.log('✅ Agent activated by Slug');
+    } else {
+      console.warn('⚠️ Webhook received payment but could not identify agent (No ID or Slug).', session.id);
+    }
+  }
+
+  res.json({ received: true });
+});
 // DEBUG: Funnel Routes moved to top
 app.get('/api/funnels/:userId', async (req, res) => {
   try {
@@ -604,72 +671,11 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
 
 // In-memory storage for real data (in production, this would be a database)
 // In-memory storage for real data (in production, this would be a database)
-let users = [
-  {
-    id: 'demo-user-1',
-    name: 'Sarah Connor',
-    email: 'sarah@homelistingai.com',
-    status: 'active',
-    role: 'agent',
-    createdAt: new Date().toISOString(),
-    lastActive: new Date().toISOString(),
-    plan: 'Pro',
-    auth_user_id: 'demo-auth-1' // Mock ID for mapping
-  },
-  {
-    id: 'demo-user-2',
-    name: 'John Connor',
-    email: 'john@homelistingai.com',
-    status: 'active',
-    role: 'agent',
-    createdAt: new Date().toISOString(),
-    lastActive: new Date().toISOString(),
-    plan: 'Team',
-    auth_user_id: 'demo-auth-2'
-  }
-];
+// DEPRECATED: In-memory storage replaced by Supabase tables
+let users = [];
 
-const listings = [
-  {
-    id: "prop-1",
-    address: "123 Maple Drive, Beverly Hills, CA 90210",
-    price: 2500000,
-    description: "Stunning modern villa with pool and city views.",
-    bedrooms: 4,
-    bathrooms: 3.5,
-    sqft: 3200,
-    status: "active",
-    listingDate: new Date().toISOString(),
-    agent: { id: "demo-user-1", name: "Sarah Connor" },
-    marketing: { views: 1250, inquiries: 14 }
-  },
-  {
-    id: "prop-2",
-    address: "456 Oak Lane, Sherman Oaks, CA 91403",
-    price: 1850000,
-    description: "Charming family home with large backyard.",
-    bedrooms: 3,
-    bathrooms: 2,
-    sqft: 2100,
-    status: "active",
-    listingDate: new Date(Date.now() - 86400000).toISOString(),
-    agent: { id: "demo-user-2", name: "John Connor" },
-    marketing: { views: 890, inquiries: 8 }
-  },
-  {
-    id: "prop-3",
-    address: "789 Pine Street, Santa Monica, CA 90401",
-    price: 3200000,
-    description: "Luxury condo steps from the beach.",
-    bedrooms: 2,
-    bathrooms: 2,
-    sqft: 1500,
-    status: "pending",
-    listingDate: new Date(Date.now() - 172800000).toISOString(),
-    agent: { id: "demo-user-1", name: "Sarah Connor" },
-    marketing: { views: 2100, inquiries: 35 }
-  }
-];
+// DEPRECATED: In-memory listings replaced by Supabase 'properties' table
+const listings = [];
 
 const DEFAULT_LEAD_USER_ID =
   process.env.DEFAULT_LEAD_USER_ID || '75114b93-e1c8-4d54-9e43-dd557d9e3ad9';
@@ -3001,8 +3007,49 @@ app.post('/api/security/audit', async (req, res) => {
   }
 });
 
+// SECURITY MIDDLEWARE: Verify Admin Access
+const verifyAdmin = async (req, res, next) => {
+  try {
+    // 1. Check for Direct Admin Key Bypass (X-Admin-Key)
+    const adminKey = req.headers['x-admin-key'];
+    const validAdminPass = process.env.VITE_ADMIN_PASSWORD;
+
+    // Strict check: Header matches Env Password AND Env Password is set
+    if (adminKey && validAdminPass && adminKey === validAdminPass) {
+      console.log('👑 Admin access granted via X-Admin-Key Header');
+      req.user = { id: 'admin-bypass', email: process.env.VITE_ADMIN_EMAIL || 'admin@bypass', role: 'admin' };
+      return next();
+    }
+
+    // 2. Fallback to Supabase Token
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    // If no key and no token -> Fail
+    if (!token) return res.status(401).json({ error: 'Unauthorized: Missing token' });
+
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+
+    // Check Admin Role via RPC
+    const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: user.id });
+
+    // Fallback: Check strictly against Env Var
+    const isEnvAdmin = process.env.VITE_ADMIN_EMAIL && user.email === process.env.VITE_ADMIN_EMAIL;
+
+    if (!isAdmin && !isEnvAdmin) {
+      console.warn(`⛔ Blocked non-admin access attempt by: ${user.email}`);
+      return res.status(403).json({ error: 'Forbidden: You do not have admin privileges.' });
+    }
+
+    req.user = user; // Attach user to request
+    next();
+  } catch (e) {
+    console.error('Admin verification failed:', e);
+    res.status(500).json({ error: 'Internal Server Error during Auth' });
+  }
+};
+
 // Create security alert
-app.post('/api/security/alerts', async (req, res) => {
+app.post('/api/security/alerts', verifyAdmin, async (req, res) => {
   try {
     const { alertType, description, severity = 'warning' } = req.body || {};
     if (!alertType || !description) return res.status(400).json({ error: 'alertType and description are required' });
@@ -3024,11 +3071,161 @@ app.post('/api/security/alerts', async (req, res) => {
 app.patch('/api/security/alerts/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabase.from('security_alerts').update({ resolved: true, resolution: req.body?.resolution || null }).eq('id', id);
+    const { confirmed } = req.body;
+    const { data, error } = await supabase.from('security_alerts').update({
+      resolved: true,
+      resolved_at: new Date(),
+      confirmed
+    }).eq('id', id).select();
     if (error) throw error;
     res.json({ success: true });
   } catch (e) {
-    console.error('resolve alert failed', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// SAVE UNIVERSAL FUNNEL (Admin Bypass Support)
+app.post('/api/admin/marketing/funnel/save', verifyAdmin, async (req, res) => {
+  try {
+    const { steps } = req.body;
+    const userEmail = req.user.email;
+
+    // 1. Find the Agent Record for this Admin
+    let { data: agent, error: agentError } = await supabaseAdmin
+      .from('agents')
+      .select('id')
+      .eq('email', userEmail)
+      .single();
+
+    if (!agent) {
+      console.log(`⚠️ No Agent found for ${userEmail}. Creating 'System Admin' agent record...`);
+
+      // 1. Get or Create Auth User (Required for FK)
+      let authUserId;
+
+      // Try fetching existing auth user
+      const { data: { users }, error: userError } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = users.find(u => u.email === userEmail);
+
+      if (existingUser) {
+        authUserId = existingUser.id;
+      } else {
+        // Create new Auth User
+        const { data: newUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+          email: userEmail,
+          password: crypto.randomUUID(), // Random password, they use Admin Key anyway
+          email_confirm: true
+        });
+
+        if (createUserError) {
+          console.error("Failed to create Auth User:", createUserError);
+          // If error implies user exists but list missed it? 
+          // Just fail gracefully
+          return res.status(500).json({ error: 'Failed to create Auth User for Agent.' });
+        }
+        authUserId = newUser.user.id;
+      }
+
+      // 2. Create Agent
+      const { data: newAgent, error: createError } = await supabaseAdmin
+        .from('agents')
+        .insert({
+          email: userEmail,
+          first_name: 'System',
+          last_name: 'Admin',
+          auth_user_id: authUserId,
+          slug: 'admin-' + crypto.randomUUID().split('-')[0],
+          status: 'active',
+          created_at: new Date()
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        console.error("Failed to auto-create admin agent:", createError);
+        return res.status(500).json({ error: 'Failed to create Admin Agent Profile.' });
+      }
+      agent = newAgent;
+    }
+
+    // 2. Manual Upsert (Check First)
+    // Upsert failed due to missing constraint on (agent_id, funnel_key)
+
+    let existingFunnelId;
+    const { data: existingFunnel, error: fetchError } = await supabaseAdmin
+      .from('funnels')
+      .select('id')
+      .eq('agent_id', agent.id)
+      .eq('funnel_key', 'universal_sales')
+      .maybeSingle();
+
+    if (existingFunnel) {
+      existingFunnelId = existingFunnel.id;
+    }
+
+    const payload = {
+      agent_id: agent.id,
+      funnel_key: 'universal_sales',
+      name: 'Universal Sales Funnel',
+      steps: steps,
+      updated_at: new Date()
+    };
+
+    if (existingFunnelId) {
+      // UPDATE
+      const { data, error } = await supabaseAdmin
+        .from('funnels')
+        .update(payload)
+        .eq('id', existingFunnelId)
+        .select()
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } else {
+      // INSERT
+      const { data, error } = await supabaseAdmin
+        .from('funnels')
+        .insert(payload)
+        .select()
+        .single();
+      res.json({ success: true, data });
+    }
+
+  } catch (e) {
+    console.error('Save Funnel Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET UNIVERSAL FUNNEL (Admin Bypass Support)
+app.get('/api/admin/marketing/funnel/get', verifyAdmin, async (req, res) => {
+  try {
+    const userEmail = req.user.email;
+    const { data: agent } = await supabaseAdmin
+      .from('agents')
+      .select('id')
+      .eq('email', userEmail)
+      .single();
+
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const { data: funnel } = await supabaseAdmin
+      .from('funnels')
+      .select('*')
+      .eq('agent_id', agent.id)
+      .eq('funnel_key', 'universal_sales')
+      .single();
+
+    if (!funnel) {
+      return res.status(404).json({ error: 'Funnel not found' });
+    }
+
+    res.json({ steps: funnel.steps });
+
+  } catch (e) {
+    console.error('Get Funnel Error:', e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -3052,7 +3249,7 @@ app.post('/api/security/backup', async (req, res) => {
 });
 
 // Dashboard metrics endpoint - REAL DATA
-app.get('/api/admin/dashboard-metrics', async (req, res) => {
+app.get('/api/admin/dashboard-metrics', verifyAdmin, async (req, res) => {
   try {
     updateSystemHealth();
     const userStats = calculateUserStats();
@@ -3099,19 +3296,10 @@ app.get('/api/admin/dashboard-metrics', async (req, res) => {
 
 // Get all users endpoint - REAL DATA
 // Get all users endpoint - REAL DATA FROM SUPABASE
-app.get('/api/admin/users', async (req, res) => {
+app.get('/api/admin/users', verifyAdmin, async (req, res) => {
   try {
-    // SECURITY: Verify Request has valid Auth Token
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' });
-    }
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
-    }
+    // Auth handled by verifyAdmin middleware
+    const user = req.user;
 
     // Optional: Check if user is admin (using email allowlist or metadata)
     // const isAdmin = user.user_metadata?.role === 'admin' || process.env.VITE_ADMIN_EMAIL === user.email;
@@ -3168,7 +3356,140 @@ app.get('/api/admin/users', async (req, res) => {
   }
 });
 
+// Get all listings (Persist to DB)
+app.get('/api/listings', async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .select('*')
+      .order('listing_date', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    // Map DB schema to frontend expected format
+    const listings = data.map(item => ({
+      id: item.id,
+      address: item.address,
+      price: parseFloat(item.price),
+      bedrooms: item.bedrooms,
+      bathrooms: item.bathrooms,
+      sqft: item.sqft,
+      propertyType: item.property_type,
+      status: item.status,
+      description: item.description,
+      listingDate: item.listing_date,
+      heroPhotos: item.hero_photos || [],
+      galleryPhotos: item.gallery_photos || [],
+      features: item.features || [],
+      marketing: item.marketing_stats,
+      agent: { id: item.user_id, name: 'Agent Name Placeholder' }, // Placeholder, ideally join with agents table
+      ownerId: item.user_id
+    }));
+
+    res.json(listings);
+  } catch (error) {
+    console.error('Get listings error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create new listing (Persist to DB)
+app.post('/api/listings', async (req, res) => {
+  try {
+    const {
+      title,
+      address,
+      price,
+      bedrooms,
+      bathrooms,
+      squareFeet,
+      propertyType,
+      description,
+      features,
+      heroPhotos,
+      galleryPhotos,
+      agentId,
+      ownerId
+    } = req.body;
+
+    const userId = ownerId || agentId || DEFAULT_LEAD_USER_ID;
+
+    // Validate
+    if (!address || !userId) {
+      return res.status(400).json({ error: 'Address and User ID are required' });
+    }
+
+    // 1. Insert into Database (properties)
+    const dbPayload = {
+      user_id: userId, // Assuming userId maps to auth.users.id
+      address,
+      price: price || 0,
+      bedrooms: bedrooms || 0,
+      bathrooms: bathrooms || 0,
+      sqft: squareFeet || 0,
+      property_type: propertyType || 'Single Family',
+      description: description || '',
+      status: 'active',
+      hero_photos: heroPhotos || [],
+      gallery_photos: galleryPhotos || [],
+      features: features || [],
+      marketing_stats: { views: 0, inquiries: 0 },
+      listing_date: new Date().toISOString()
+    };
+
+    const { data: savedListing, error: dbError } = await supabaseAdmin
+      .from('properties')
+      .insert(dbPayload)
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('❌ Failed to insert listing to DB:', dbError);
+      // Fallback to memory if DB Fails? 
+      // No, we should error out to prevent data loss illusion.
+      throw new Error(`Database Insert Failed: ${dbError.message}`);
+    }
+
+    // 2. Add to In-Memory Array (for Immediate Consistency if Read falls back? No need, Read merges DB)
+    // But we might want it there for the 'listings' array dependent logic elsewhere?
+    // Actually, let's keep it clean. Read pulls from DB.
+
+    // Map back to Frontend format for response
+    const frontendListing = {
+      id: savedListing.id,
+      address: savedListing.address,
+      price: parseFloat(savedListing.price),
+      bedrooms: savedListing.bedrooms,
+      bathrooms: savedListing.bathrooms,
+      sqft: savedListing.sqft,
+      propertyType: savedListing.property_type,
+      status: savedListing.status,
+      description: savedListing.description,
+      listingDate: savedListing.listing_date,
+      heroPhotos: savedListing.hero_photos || [],
+      galleryPhotos: savedListing.gallery_photos || [],
+      features: savedListing.features || [],
+      marketing: savedListing.marketing_stats,
+      agent: { id: userId, name: 'Current User' }, // Placeholder, frontend re-fetches or uses context
+      ownerId: savedListing.user_id
+    };
+
+    // Also push to memory just in case other legacy endpoints access 'listings' variable directly
+    listings.push(frontendListing);
+
+    console.log(`✅ Created new listing: ${savedListing.id}`);
+    res.status(201).json(frontendListing);
+
+  } catch (error) {
+    console.error('Add listing error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Add new user endpoint
+// Add new user endpoint (Persist to Supabase Auth & Agents)
 app.post('/api/admin/users', async (req, res) => {
   try {
     const { name, email, role = 'agent', plan = 'Solo Agent' } = req.body;
@@ -3177,42 +3498,71 @@ app.post('/api/admin/users', async (req, res) => {
       return res.status(400).json({ error: 'Name and email are required' });
     }
 
-    // Check if user already exists
-    const existingUser = users.find(u => u.email === email);
-    if (existingUser) {
-      return res.status(400).json({ error: 'User with this email already exists' });
+    // 1. Create User in Supabase Auth
+    // We set a default temp password. In production, we'd trigger a password reset email.
+    const tempPassword = `Welcome${Math.floor(Math.random() * 10000)}!`;
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true, // Auto-confirm for admin created users
+      user_metadata: { role, full_name: name }
+    });
+
+    if (authError) {
+      console.error('Failed to create Supabase Auth user:', authError);
+      return res.status(400).json({ error: `Auth Error: ${authError.message}` });
     }
 
-    const newUser = {
-      id: (users.length + 1).toString(),
+    // 2. Insert into 'agents' table
+    const [firstName, ...rest] = name.split(' ');
+    const lastName = rest.join(' ');
+
+    const agentPayload = {
+      auth_user_id: authData.user.id,
+      first_name: firstName,
+      last_name: lastName || '',
+      email: email,
+      role: role,
+      status: 'active',
+      plan: plan,
+      created_at: new Date().toISOString()
+    };
+
+    const { data: agentData, error: agentError } = await supabaseAdmin
+      .from('agents')
+      .insert(agentPayload)
+      .select()
+      .single();
+
+    if (agentError) {
+      console.error('Failed to create Agent record:', agentError);
+      // Optional: Delete auth user if agent creation fails to keep consistency? 
+      // await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      return res.status(500).json({ error: `Database Error: ${agentError.message}` });
+    }
+
+    // 3. Fallback: Update Memory Array for legacy read endpoints
+    const memoryUser = {
+      id: agentData.id,
       name,
       email,
-      status: 'Active',
+      status: 'active',
       role,
       createdAt: new Date().toISOString(),
       lastActive: new Date().toISOString(),
-      propertiesCount: 0,
-      leadsCount: 0,
       plan,
-      subscriptionStatus: 'trial',
-      aiInteractions: 0,
-      dateJoined: new Date().toISOString(),
-      renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+      auth_user_id: authData.user.id
     };
+    users.push(memoryUser);
 
-    users.push(newUser);
+    console.log(`👤 Created new user: ${email} (ID: ${agentData.id})`);
 
-    // Add to recent activity
-    const activity = {
-      id: Date.now().toString(),
-      type: 'user_created',
-      description: `New user created: ${email}`,
-      timestamp: new Date().toISOString(),
-      userId: newUser.id,
-      userEmail: email
-    };
+    // Return the agent data + temp password so Admin knows it (for demo purposes)
+    res.status(201).json({
+      ...agentData,
+      temp_password: tempPassword
+    });
 
-    res.status(201).json(newUser);
   } catch (error) {
     console.error('Add user error:', error);
     res.status(500).json({ error: error.message });
@@ -4681,6 +5031,48 @@ INSTRUCTIONS:
   } catch (error) {
     console.error('[AI Chat] Error:', error);
     res.status(500).json({ success: false, error: 'Failed to generate answer' });
+  }
+});
+
+// AI Listing Generation Endpoint
+app.post('/api/ai/generate-listing', async (req, res) => {
+  try {
+    const { address, beds, baths, sqft, features, title } = req.body;
+
+    // Construct Prompt
+    const prompt = `Write a captivating real estate description for a property at ${address || 'a beautiful location'}.
+    
+    Basic Logic:
+    - Title: ${title || 'Luxury Home'}
+    - Specs: ${beds} Beds, ${baths} Baths, ${sqft} SqFt.
+    - Features: ${features ? features.join(', ') : 'None listed'}.
+    
+    Instructions:
+    - Return a JSON object with:
+      - "title": A catchy headline (max 10 words)
+      - "paragraphs": An array of strings, where each string is a paragraph.
+    - Tone: Professional, inviting, and persuasive.
+    - Highlight the features provided.
+    `;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: "You are an expert real estate copywriter." },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+
+    const content = completion.choices[0].message.content;
+    const json = JSON.parse(content);
+
+    res.json(json);
+
+  } catch (error) {
+    console.error('[AI Listing Gen] Error:', error);
+    res.status(500).json({ error: 'Failed to generate listing description' });
   }
 });
 
@@ -7419,63 +7811,98 @@ app.post('/api/listings/photo-upload', async (req, res) => {
   }
 });
 
-// Get all listings
-app.get('/api/listings', (req, res) => {
+// Get all listings (DB + Memory Fallback)
+app.get('/api/listings', async (req, res) => {
   try {
     const { status, agentId, priceMin, priceMax, bedrooms, propertyType } = req.query;
     const ownerId = req.query.userId || req.query.user_id;
-    let filteredListings = [...listings];
 
-    // Filter by status
-    if (status && status !== 'all') {
-      filteredListings = filteredListings.filter(listing => listing.status === status);
+    // 1. Fetch from Database (properties table)
+    let query = supabaseAdmin
+      .from('properties')
+      .select(`
+            *,
+            agents (
+                id,
+                first_name,
+                last_name,
+                email,
+                phone,
+                headshot_url
+            )
+        `)
+      .order('listing_date', { ascending: false });
+
+    // Apply Filters to DB Query
+    if (status && status !== 'all') query = query.eq('status', status);
+    if (ownerId) query = query.eq('user_id', ownerId);
+    if (priceMin) query = query.gte('price', parseInt(priceMin));
+    if (priceMax) query = query.lte('price', parseInt(priceMax));
+    if (bedrooms) query = query.gte('bedrooms', parseInt(bedrooms));
+    if (propertyType) query = query.eq('property_type', propertyType);
+
+    const { data: dbListings, error: dbError } = await query;
+    if (dbError) {
+      console.warn('⚠️ SQLite/Postgres properties fetch failed:', dbError.message);
     }
 
-    // Filter by agent
-    if (agentId) {
-      filteredListings = filteredListings.filter(
-        listing => listing.agent.id === agentId || listing.agentId === agentId
-      );
-    }
+    // 2. Map DB Results to Frontend Listing Format
+    const mappedDbListings = (dbListings || []).map(row => ({
+      id: row.id,
+      address: row.address,
+      price: parseFloat(row.price),
+      bedrooms: row.bedrooms,
+      bathrooms: row.bathrooms,
+      sqft: row.sqft,
+      propertyType: row.property_type,
+      status: row.status,
+      description: row.description,
+      listingDate: row.listing_date,
+      heroPhotos: row.hero_photos || [],
+      galleryPhotos: row.gallery_photos || [],
+      features: row.features || [],
+      marketing: row.marketing_stats || { views: 0, inquiries: 0 },
+      // Map Agent Logic
+      agent: row.agents ? {
+        id: row.agents.id,
+        name: `${row.agents.first_name || ''} ${row.agents.last_name || ''}`.trim() || row.agents.email,
+        email: row.agents.email,
+        phone: row.agents.phone,
+        image: row.agents.headshot_url
+      } : { id: 'unknown', name: 'Unknown Agent' },
+      ownerId: row.user_id
+    }));
 
-    // Filter by owner/user
-    if (ownerId) {
-      filteredListings = filteredListings.filter(listing => listing.ownerId === ownerId);
-    }
+    // 3. Filter In-Memory Listings (Legacy/Mock)
+    // We apply the same filters manually for the in-memory array
+    let filteredMemoryListings = [...listings];
+    if (status && status !== 'all') filteredMemoryListings = filteredMemoryListings.filter(l => l.status === status);
+    if (agentId) filteredMemoryListings = filteredMemoryListings.filter(l => (l.agent && l.agent.id === agentId) || l.agentId === agentId);
+    if (ownerId) filteredMemoryListings = filteredMemoryListings.filter(l => l.ownerId === ownerId);
+    if (priceMin) filteredMemoryListings = filteredMemoryListings.filter(l => l.price >= parseInt(priceMin));
+    if (priceMax) filteredMemoryListings = filteredMemoryListings.filter(l => l.price <= parseInt(priceMax));
+    if (bedrooms) filteredMemoryListings = filteredMemoryListings.filter(l => l.bedrooms >= parseInt(bedrooms));
+    if (propertyType) filteredMemoryListings = filteredMemoryListings.filter(l => l.propertyType === propertyType);
 
-    // Filter by price range
-    if (priceMin) {
-      filteredListings = filteredListings.filter(listing => listing.price >= parseInt(priceMin));
-    }
-    if (priceMax) {
-      filteredListings = filteredListings.filter(listing => listing.price <= parseInt(priceMax));
-    }
+    // 4. Merge (DB takes precedence logic? Or just concat?)
+    // Since mock data IDs start with 'prop-' and UUIDs are different, we can just concat.
+    // Ideally user migrates off mock data.
+    const combinedListings = [...mappedDbListings, ...filteredMemoryListings];
 
-    // Filter by bedrooms
-    if (bedrooms) {
-      filteredListings = filteredListings.filter(listing => listing.bedrooms >= parseInt(bedrooms));
-    }
+    console.log(`🏠 Retrieved ${combinedListings.length} listings (${mappedDbListings.length} from DB, ${filteredMemoryListings.length} from Memory)`);
 
-    // Filter by property type
-    if (propertyType) {
-      filteredListings = filteredListings.filter(listing => listing.propertyType === propertyType);
-    }
-
-    // Sort by listing date (newest first)
-    filteredListings.sort((a, b) => new Date(b.listingDate).getTime() - new Date(a.listingDate).getTime());
-
-    console.log(`🏠 Retrieved ${filteredListings.length} listings`);
     res.json({
-      listings: filteredListings,
-      total: filteredListings.length,
+      listings: combinedListings,
+      total: combinedListings.length,
       stats: {
-        active: listings.filter(l => l.status === 'active').length,
-        pending: listings.filter(l => l.status === 'pending').length,
-        sold: listings.filter(l => l.status === 'sold').length,
-        totalViews: listings.reduce((sum, l) => sum + (l.marketing?.views || 0), 0),
-        totalInquiries: listings.reduce((sum, l) => sum + (l.marketing?.inquiries || 0), 0)
+        active: combinedListings.filter(l => l.status === 'active').length,
+        pending: combinedListings.filter(l => l.status === 'pending').length,
+        sold: combinedListings.filter(l => l.status === 'sold').length,
+        totalViews: combinedListings.reduce((sum, l) => sum + (l.marketing?.views || 0), 0),
+        totalInquiries: combinedListings.reduce((sum, l) => sum + (l.marketing?.inquiries || 0), 0)
       }
     });
+
   } catch (error) {
     console.error('Error getting listings:', error);
     res.status(500).json({ error: 'Failed to get listings' });
