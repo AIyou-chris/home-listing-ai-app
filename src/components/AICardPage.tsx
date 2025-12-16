@@ -516,7 +516,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
         className="relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-2xl overflow-hidden border border-gray-200"
         style={{
           width: '400px',
-          height: '700px',
+          height: '850px',
           background: `linear-gradient(135deg, ${form.brandColor}10 0%, white 50%, ${form.brandColor}05 100%)`
         }}
       >
