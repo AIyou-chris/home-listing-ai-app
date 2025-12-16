@@ -510,10 +510,18 @@ const App: React.FC = () => {
                         }
                     });
 
-                if (!window.location.pathname.includes('/admin-login')) {
+                // Avoid redirecting if already on a valid protected/demo route
+                const currentPath = window.location.pathname;
+                const stayOnPage =
+                    currentPath.includes('/admin-login') ||
+                    currentPath.includes('/dashboard-blueprint') ||
+                    currentPath.includes('/demo-dashboard') ||
+                    currentPath.includes('/admin-dashboard');
+
+                if (!stayOnPage) {
                     navigate('/dashboard');
                 } else {
-                    console.log("Stiff on Admin Login page.");
+                    console.log(`Remaining on ${currentPath}`);
                 }
 
             } else {
