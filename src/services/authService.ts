@@ -493,13 +493,7 @@ export class AuthService {
             headers.set('Authorization', `Bearer ${token}`);
         }
 
-        // Add Admin Bypass Key if active
-        if (typeof localStorage !== 'undefined' && localStorage.getItem('hlai_admin_bypass') === 'true') {
-            const adminPass = import.meta.env.VITE_ADMIN_PASSWORD;
-            if (adminPass) {
-                headers.set('X-Admin-Key', adminPass);
-            }
-        }
+
 
         return fetch(resolvedUrl, {
             ...options,

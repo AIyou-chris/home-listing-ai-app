@@ -3010,20 +3010,10 @@ app.post('/api/security/audit', async (req, res) => {
 // SECURITY MIDDLEWARE: Verify Admin Access
 const verifyAdmin = async (req, res, next) => {
   try {
-    // 1. Check for Direct Admin Key Bypass (X-Admin-Key)
-    const adminKey = req.headers['x-admin-key'];
-    const validAdminPass = process.env.VITE_ADMIN_PASSWORD;
-
-    // Strict check: Header matches Env Password AND Env Password is set
-    if (adminKey && validAdminPass && adminKey === validAdminPass) {
-      console.log('👑 Admin access granted via X-Admin-Key Header');
-      req.user = { id: 'admin-bypass', email: process.env.VITE_ADMIN_EMAIL || 'admin@bypass', role: 'admin' };
-      return next();
-    }
-
-    // 2. Fallback to Supabase Token
+    // 1. Verify Supabase Token (Strict)
     const token = req.headers.authorization?.replace('Bearer ', '');
-    // If no key and no token -> Fail
+
+    // If no token -> Fail
     if (!token) return res.status(401).json({ error: 'Unauthorized: Missing token' });
 
     const { data: { user }, error } = await supabase.auth.getUser(token);

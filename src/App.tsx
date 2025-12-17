@@ -277,6 +277,15 @@ const App: React.FC = () => {
             });
         }, 8000);
 
+        if (import.meta.env.VITE_ADMIN_EMAIL) {
+            console.log("🔒 Security Configured: Standard Admin Email Protection Active");
+        } else {
+            console.warn("⚠️ Security Warning: No VITE_ADMIN_EMAIL configured");
+        }
+
+        // CLEANUP: Remove old bypass keys
+        localStorage.removeItem('hlai_admin_bypass');
+
         const initAuth = async () => {
             // Check URL path using location hook
             const route = location.pathname.substring(1).replace(/^\//, '');
@@ -476,10 +485,9 @@ const App: React.FC = () => {
                 const { data: isRpcAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
                 const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
                 const isEnvAdmin = typeof envAdminEmail === 'string' && currentUser.email && currentUser.email.toLowerCase() === envAdminEmail.toLowerCase();
-                const isLocalBypass = localStorage.getItem('hlai_admin_bypass') === 'true';
 
-                console.log('[Auth] Admin Check:', { rpc: isRpcAdmin, env: isEnvAdmin, bypass: isLocalBypass, email: currentUser.email });
-                const isAdmin = isRpcAdmin || isEnvAdmin || isLocalBypass;
+                console.log('[Auth] Admin Check:', { rpc: isRpcAdmin, env: isEnvAdmin, email: currentUser.email });
+                const isAdmin = isRpcAdmin || isEnvAdmin;
 
 
                 if (isAdmin) {
@@ -712,16 +720,7 @@ const App: React.FC = () => {
             const trimmedEmail = email.trim().toLowerCase();
             const trimmedPassword = password.trim();
 
-            // Direct Admin Bypass Check
-            const envPassword = import.meta.env.VITE_ADMIN_PASSWORD as string | undefined;
-            if (envPassword && trimmedPassword === envPassword) {
-                console.log("👑 Access granted via Admin Password Override");
-                localStorage.setItem('hlai_admin_bypass', 'true');
-                setIsAdmin(true);
-                setIsAdminLoginOpen(false);
-                navigate('/admin-dashboard');
-                return;
-            }
+            // Removed insecure bypass check. All logins must go through Supabase.
 
             // Try local demo credentials first (DEV ONLY)
             if (import.meta.env.DEV) {
