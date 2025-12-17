@@ -53,9 +53,9 @@ export interface ContactMessageData {
 
 class EmailService {
     private static instance: EmailService
-    private readonly endpoint = '/api/email/send'
+    private readonly endpoint = `${import.meta.env.VITE_API_URL || 'https://home-listing-ai-backend.onrender.com'}/api/email/send`
 
-    private constructor() {}
+    private constructor() { }
 
     static getInstance(): EmailService {
         if (!EmailService.instance) {
@@ -138,7 +138,7 @@ class EmailService {
     async sendConsultationConfirmation(data: ConsultationData, meetLink?: string, options: SendEmailOptions = {}): Promise<boolean> {
         try {
             console.log('📧 Attempting to send confirmation email to:', data.email);
-            
+
             const subject = 'Your Consultation Has Been Scheduled - HomeListingAI';
             const html = `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -172,7 +172,7 @@ class EmailService {
                 text: this.stripHtml(html),
                 ...options
             });
-            
+
             if (emailSent) {
                 console.log('✅ Confirmation email sent successfully');
                 return true;
@@ -194,7 +194,7 @@ class EmailService {
     ): Promise<boolean> {
         try {
             console.log('📧 Attempting to send admin notification about new consultation');
-            
+
             const adminEmail = 'us@homelistingai.com';
             const emailContent = {
                 to: adminEmail,
@@ -230,10 +230,10 @@ class EmailService {
 
             const preference = options.userId
                 ? {
-                      userId: options.userId,
-                      channel: 'email' as const,
-                      event: 'appointmentScheduled'
-                  }
+                    userId: options.userId,
+                    channel: 'email' as const,
+                    event: 'appointmentScheduled'
+                }
                 : undefined
 
             const emailSent = await this.sendEmail(adminEmail, emailContent.subject, emailContent.html, {
