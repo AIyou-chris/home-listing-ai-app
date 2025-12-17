@@ -12,7 +12,7 @@ import CheckoutPage from './components/CheckoutPage';
 import { getRegistrationContext } from './services/agentOnboardingService';
 import Dashboard from './components/Dashboard';
 import AgentDashboardBlueprint from './components/AgentDashboardBlueprint';
-import DemoDashboard from './components/DemoDashboard';
+
 import Sidebar from './components/Sidebar';
 import PropertyPage from './components/PropertyPage';
 import ListingsPage from './components/ListingsPage';
@@ -49,19 +49,10 @@ const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
     postShowing: 'Property Viewed'
 };
 
-// getRouteInfo removed - usage replaced by useLocation()
-const parseRouteSegments = (raw: string): string[] => {
-    // Helper functionality kept if needed for other parsing, 
-    // but mainly we rely on location.pathname now.
-    if (!raw) return [];
-    const cleaned = raw.replace(/^#/, '').replace(/^\//, '');
-    if (!cleaned) return [];
-    const [path] = cleaned.split('?');
-    return path.split('/').map(s => s.trim()).filter(Boolean);
-};
 
 
-import NotificationSystem from './components/NotificationSystem';
+
+
 import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
 import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
@@ -84,7 +75,7 @@ import { leadsService, LeadPayload } from './services/leadsService';
 
 
 // A helper function to delay execution
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 
 type AppUser = {
     uid: string;
@@ -146,12 +137,20 @@ const App: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
+    // Mock data for settings (Moved up for scope access)
+    const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
+
     // COMPATIBILITY: Bridge legacy 'setView' calls to 'navigate'
     const setView = useCallback((viewName: string) => {
-        // Handle special cases if needed
-        if (viewName === 'landing') navigate('/');
-        else navigate(`/${viewName}`);
-    }, [navigate]);
+        // Handle special cases
+        if (viewName === 'landing') {
+            navigate('/');
+        } else if (viewName === 'dashboard' && userProfile?.slug) {
+            navigate(`/dashboard/${userProfile.slug}`);
+        } else {
+            navigate(`/${viewName}`);
+        }
+    }, [navigate, userProfile?.slug]);
 
 
 
@@ -214,8 +213,7 @@ const App: React.FC = () => {
     const [isAdminLoginLoading, setIsAdminLoginLoading] = useState(false);
 
 
-    // Mock data for settings
-    const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
+
     const [, setIsProfileLoading] = useState(false);
     const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
         newLead: true,
@@ -251,7 +249,6 @@ const App: React.FC = () => {
     });
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{ id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid' }] });
     // Removed unused state variables
-    const [activeAgentSlug, setActiveAgentSlug] = useState<string | null>(null);
 
 
 
@@ -366,8 +363,7 @@ const App: React.FC = () => {
 
                 // Attempt to fetch properties once
                 console.log(`Fetching properties...`);
-                let propertiesToLoad: Property[] = await getProperties(currentUser.uid);
-                const maxAttempts = 1;
+                const propertiesToLoad: Property[] = await getProperties(currentUser.uid);
 
                 if (propertiesToLoad.length === 0) {
                     // New user or no properties found
@@ -487,7 +483,7 @@ const App: React.FC = () => {
                 console.log(`User signed in (Auth Change): ${currentUser.uid}`);
 
                 // IMPORTANT: Check for Admin Role immediately on auth change (RPC + Env Var Fallback + Local Bypass)
-                const { data: isRpcAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+                const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
                 const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
                 const isEnvAdmin = typeof envAdminEmail === 'string' && currentUser.email && currentUser.email.toLowerCase() === envAdminEmail.toLowerCase();
 
@@ -580,11 +576,12 @@ const App: React.FC = () => {
         resetInactivityTimer();
 
         return () => {
-            clearTimeout(safetyTimer);
+            clearTimeout(safetyTimer); // Uncomment if safetyTimer is used
             sub.subscription.unsubscribe();
             if (inactivityTimer) clearTimeout(inactivityTimer);
             activityEvents.forEach(event => window.removeEventListener(event, resetInactivityTimer));
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Load centralized agent profile and set up real-time updates
@@ -777,14 +774,7 @@ const App: React.FC = () => {
         setIsAdminLoginOpen(false);
         setAdminLoginError(null);
     };
-    const handleNavigateToSection = (sectionId: string) => {
-        if (sectionId === '#contact') {
-            setIsConsultationModalOpen(true);
-            return;
-        }
-        setView('landing');
-        setScrollToSection(sectionId);
-    };
+
 
     // Notification handling is now managed by NotificationSystem component
 
@@ -1017,7 +1007,7 @@ const App: React.FC = () => {
 
 
     const registrationContext = getRegistrationContext() as { slug?: string } | null;
-    const slugForCheckout = activeAgentSlug || registrationContext?.slug || null;
+    const slugForCheckout = registrationContext?.slug || null;
     const renderCheckout = () => {
         if (!slugForCheckout) {
             return (
@@ -1157,19 +1147,31 @@ const App: React.FC = () => {
                     {/* Protected Routes (Wrapped in Layout) */}
                     <Route element={<ProtectedLayout />}>
                         <Route path="/dashboard" element={
-                            isDemoMode ? <DemoDashboard properties={DEMO_FAT_PROPERTIES} onSelectProperty={() => undefined} /> :
-                                <Dashboard
-                                    agentProfile={userProfile}
-                                    properties={properties}
-                                    leads={leads}
-                                    appointments={appointments}
-                                    tasks={tasks}
-                                    onSelectProperty={handleSelectProperty}
-                                    onTaskUpdate={handleTaskUpdate}
-                                    onTaskAdd={handleTaskAdd}
-                                    onTaskDelete={handleTaskDelete}
-                                />
+                            userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <Dashboard
+                                key="dashboard-root"
+                                agentProfile={userProfile}
+                                properties={properties}
+                                leads={leads}
+                                appointments={appointments}
+                                tasks={tasks}
+                                onSelectProperty={handleSelectProperty}
+                                onTaskUpdate={handleTaskUpdate}
+                                onTaskAdd={handleTaskAdd}
+                                onTaskDelete={handleTaskDelete}
+                            />
                         } />
+                        <Route path="/dashboard/:slug" element={<Dashboard
+                            key="dashboard-slug"
+                            agentProfile={userProfile}
+                            properties={properties}
+                            leads={leads}
+                            appointments={appointments}
+                            tasks={tasks}
+                            onSelectProperty={handleSelectProperty}
+                            onTaskUpdate={handleTaskUpdate}
+                            onTaskAdd={handleTaskAdd}
+                            onTaskDelete={handleTaskDelete}
+                        />} />
 
                         <Route path="/listings" element={
                             <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => navigate('/add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => navigate('/dashboard')} />

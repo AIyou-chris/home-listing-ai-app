@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Property, Lead, Appointment, LeadStatus, AgentTask, TaskPriority, AgentProfile } from '../types';
+import { SAMPLE_AGENT } from '../constants';
 import SmartTaskManager from './SmartTaskManager';
 import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor, type LeadScore } from '../services/leadScoringService';
 // Hidden for launch - notification service will be re-enabled post-launch
 // import { notificationService } from '../services/notificationService';
-import { useAgentBranding } from '../hooks/useAgentBranding';
+// import { useAgentBranding } from '../hooks/useAgentBranding';
 import { MarketingHub } from './MarketingHub';
 import { ConnectOnboarding } from './ConnectOnboarding';
 import { ProductManager } from './ProductManager';
@@ -52,14 +54,14 @@ const SectionCard: React.FC<{ title: string; icon: string; children: React.React
                 aria-expanded={isOpen}
             >
                 <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined w-6 h-6 text-slate-600">{icon}</span>
-                    <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+                    <span className="material-symbols-outlined text-slate-400">{icon}</span>
+                    <h3 className="font-bold text-slate-800">{title}</h3>
                 </div>
-                <span className="material-symbols-outlined w-6 h-6 text-slate-500 transition-transform duration-300 md:hidden" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                    expand_more
+                <span className="material-symbols-outlined md:hidden text-slate-400">
+                    {isOpen ? 'expand_less' : 'expand_more'}
                 </span>
             </button>
-            <div className={`p-2 flex-grow ${isOpen ? 'block' : 'hidden'} md:block`}>
+            <div className={`${isOpen ? 'block' : 'hidden'} md:block flex-1`}>
                 {children}
             </div>
         </div>
@@ -97,18 +99,38 @@ const Dashboard: React.FC<DashboardProps> = ({
     onTaskUpdate,
     onTaskAdd,
     onTaskDelete,
-    hideWelcome = false,
-    hideAvatar = false
+    hideWelcome,
+    hideAvatar
 }) => {
-    const { uiProfile } = useAgentBranding();
-    const agentProfile = agentProfileOverride ?? uiProfile;
+    const { slug } = useParams<{ slug: string }>();
+    const navigate = useNavigate();
+
+    // Security Check: Ensure user is on their own dashboard
+    // If slug is present in URL but doesn't match profile, redirect to correct one
+    useEffect(() => {
+        if (slug && agentProfileOverride?.slug && slug !== agentProfileOverride.slug) {
+            console.warn(`Redirecting from ${slug} to ${agentProfileOverride.slug}`);
+            navigate(`/dashboard/${agentProfileOverride.slug}`, { replace: true });
+        }
+    }, [slug, agentProfileOverride?.slug, navigate]);
+
+    const agentProfile = agentProfileOverride || {
+        ...SAMPLE_AGENT,
+        // Fallbacks for optional fields ensuring type safety
+        id: agentProfileOverride?.id ?? 'unknown',
+        stripe_account_id: agentProfileOverride?.stripe_account_id,
+        plan: agentProfileOverride?.plan
+    } as AgentProfile;
+
+    const [activeTab, setActiveTab] = useState<Tab>('overview');
+    // const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isTaskManagerOpen, setIsTaskManagerOpen] = useState(false);
     const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState('');
     const [leadScores, setLeadScores] = useState<LeadScore[]>([]);
     const [isLoadingScores, setIsLoadingScores] = useState(false);
     const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<Tab>('overview');
+
     // Hidden for launch - notification states will be re-enabled post-launch
     // const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
     // const notificationDropdownRef = useRef<HTMLDivElement>(null);
@@ -662,8 +684,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <h2 className="text-lg font-bold text-slate-800">Your Subscription</h2>
                             {/* We cast to any because profile type might not have stripe_account_id definition updated yet */}
                             <PlatformSubscriptionUI
-                                accountId={agentProfile?.stripe_account_id || agentProfile.id}
-                                currentPlan={agentProfile?.plan || 'free'}
+                                accountId={agentProfile?.stripe_account_id || agentProfile?.id || ''}
+                                currentPlan={(agentProfile?.plan as 'free' | 'pro') || 'free'}
                             />
                         </div>
 
@@ -671,9 +693,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="space-y-4">
                             <h2 className="text-lg font-bold text-slate-800">Payout Settings</h2>
                             <ConnectOnboarding
-                                userId={agentProfile.id}
-                                email={agentProfile.email}
-                                firstName={agentProfile.first_name}
+                                userId={agentProfile?.id || ''}
+                                email={agentProfile?.email || ''}
+                                firstName={agentProfile?.first_name || agentProfile?.name?.split(' ')[0] || ''}
                             />
                         </div>
                     </div>

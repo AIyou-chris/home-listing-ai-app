@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../services/supabase';
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
@@ -52,12 +53,41 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
         setIsSubmitting(true);
 
         try {
+            // Assuming agentOnboardingService.registerAgent returns the user object or makes it available in the session
+            // For this change, we'll assume the user is available in the Supabase session after registration.
+            // If agentOnboardingService.registerAgent returns the user, it would be better to capture it directly.
             await agentOnboardingService.registerAgent({
                 firstName,
                 lastName,
                 email: email.trim().toLowerCase()
             });
-            navigate('/checkout');
+
+            // Registration successful!
+            // The slug is generated during registration. We can assume it's based on name or returned.
+            // However, agentOnboardingService.registerAgent returns void or user.
+            // Let's rely on the fact that we can derive it or fetch it.
+            // Better yet, the dashboard redirector /dashboard will handle it if we just go there,
+            // BUT we want to be explicit.
+            // For now, let's stick to /dashboard and let the App.tsx redirector handle the first load
+            // since we might not have the slug immediately available without another fetch.
+            // ACTUALLY, we can just fetch it quickly.
+
+            const { data: { user } } = await supabase.auth.getUser(); // Get the current authenticated user
+            if (!user) {
+                throw new Error('User not found after registration. Cannot determine dashboard slug.');
+            }
+
+            const { data: profile, error: profileError } = await supabase
+                .from('agents')
+                .select('slug')
+                .eq('id', user.id)
+                .single();
+
+            if (profileError) {
+                throw profileError;
+            }
+
+            navigate(profile?.slug ? `/dashboard/${profile.slug}` : '/dashboard');
         } catch (error) {
             console.error('Signup error:', error);
             const message = error instanceof Error ? error.message : 'An error occurred during sign up. Please try again.';

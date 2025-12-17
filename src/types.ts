@@ -12,6 +12,10 @@ export interface AgentProfile {
     website?: string;
     bio?: string;
     language?: string;
+    id?: string;
+    first_name?: string;
+    last_name?: string;
+    location?: string;
     stripe_account_id?: string;
     plan?: string;
 }
