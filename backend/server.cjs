@@ -3,7 +3,11 @@ const cors = require('cors');
 const OpenAI = require('openai');
 const helmet = require('helmet');
 const QRCode = require('qrcode');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+// Initialize Stripe with V2 Preview API
+const Stripe = require('stripe');
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2025-08-27.preview',
+});
 const { createClient } = require('@supabase/supabase-js');
 const { google } = require('googleapis');
 const crypto = require('crypto');
@@ -253,6 +257,58 @@ app.post('/api/webhooks/stripe', async (req, res) => {
 
     if (error) console.error('Failed to cancel subscription:', error);
     else console.log('✅ Agent access revoked (Subscription Deleted)');
+  }
+
+  res.json({ received: true });
+});
+
+// STRIPE CONNECT WEBHOOK HANDLER (THIN EVENTS)
+// Using a separate endpoint to keep logic clean and strictly for V2/Connect
+app.post('/api/webhooks/connect', async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let thinEvent;
+
+  // 1. Parse Thin Event
+  try {
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      // In dev, sometimes we might want to bypass, but for thin events, we really strictly need the SDK to parse it
+      console.warn('⚠️ STRIPE_WEBHOOK_SECRET missing. Thin event parsing might fail if SDK requires it for verification.');
+    }
+
+    // NOTE: 'stripe.parseThinEvent' is the V2 way. 
+    // If using the very latest beta, it might be 'stripe.webhooks.parseThinEvent' or similar. 
+    // Based on user prompt: 'client.parseThinEvent(req.body, sig, webhookSecret)'
+    thinEvent = stripe.parseThinEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error(`Connect Webhook Signature Error: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // 2. Fetch Full Event Data
+  try {
+    const event = await stripe.v2.core.events.retrieve(thinEvent.id);
+    console.log(`🔔 Connect Event Received: ${event.type}`);
+
+    // 3. Handle Events
+    if (event.type === 'v2.account.requirements.updated' || event.type === 'v2.account.updated') {
+      // This fires when account requirements change. 
+      // We should ideally update our local DB status or notify the user.
+      const accountId = event.data.object.id; // Correct path for V2 might vary, assuming standard object structure
+      console.log(`ℹ️ Account Updated: ${accountId}. Requirements might have changed.`);
+
+      // TODO: Sync status to DB
+      // const requirements = event.data.object.requirements;
+      // updateAgentStatus(accountId, requirements);
+    }
+
+    // Handle Platform Subscription Events (if they come through this endpoint? 
+    // Usually Subscription events are V1 and come through standard webhooks unless configured otherwise.
+    // User Instructions said: "This webhooks do not use thin events." for subscriptions.
+    // So Subscription events go to the MAIN webhook handler, not this one.
+
+  } catch (err) {
+    console.error(`Connect Webhook Processing Error: ${err.message}`);
+    return res.status(500).send(`Server Error: ${err.message}`);
   }
 
   res.json({ received: true });
@@ -5423,7 +5479,224 @@ Please represent this agent in your responses. Use their tone and branding where
     console.log('Context Prompt Length:', contextPrompt.length);
     console.log('Final Messages:', JSON.stringify(finalMessages, null, 2));
     console.log('------------------');
+    // ------------------------------------------------------------------
+    // STRIPE CONNECT INTEGRATION (V2)
+    // ------------------------------------------------------------------
 
+    // 1. Create Connected Account (V2)
+    app.post('/api/connect/create-account', async (req, res) => {
+      try {
+        const { userId, email, firstName } = req.body; // userId from our auth system
+
+        // TODO: Look up user in DB to see if they already have a stripe_account_id
+        // const existingAgent = await supabase.from('agents').select('stripe_account_id').eq('id', userId).single();
+        // if (existingAgent.data?.stripe_account_id) return res.json({ accountId: existingAgent.data.stripe_account_id });
+
+        // Create account using V2 API
+        const account = await stripe.v2.core.accounts.create({
+          display_name: firstName,
+          contact_email: email,
+          identity: {
+            country: 'us', // Hardcoded for demo
+          },
+          dashboard: 'full', // Enable full dashboard access for the connected account
+          defaults: {
+            responsibilities: {
+              fees_collector: 'stripe',
+              losses_collector: 'stripe',
+            },
+          },
+          configuration: {
+            customer: {},
+            merchant: {
+              capabilities: {
+                card_payments: {
+                  requested: true,
+                },
+              },
+            },
+          },
+        });
+
+        // TODO: Save account.id to database
+        // await supabase.from('agents').update({ stripe_account_id: account.id }).eq('id', userId);
+
+        res.json({ accountId: account.id });
+      } catch (error) {
+        console.error('Create Account Error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 2. Generate Onboarding Link
+    app.post('/api/connect/onboarding-link', async (req, res) => {
+      try {
+        const { accountId } = req.body;
+
+        // Create an account link to send the user to Stripe's hosted onboarding
+        const accountLink = await stripe.v2.core.accountLinks.create({
+          account: accountId,
+          use_case: {
+            type: 'account_onboarding',
+            account_onboarding: {
+              configurations: ['merchant', 'customer'],
+              refresh_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard`, // URL if user gets stuck
+              return_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard?onboarding=complete`, // URL after completion
+            },
+          },
+        });
+
+        res.json({ url: accountLink.url });
+      } catch (error) {
+        console.error('Onboarding Link Error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 3. Check Account Status (Requirements)
+    app.get('/api/connect/status/:accountId', async (req, res) => {
+      try {
+        const { accountId } = req.params;
+
+        // Retrieve account with expanded configuration and requirements
+        const account = await stripe.v2.core.accounts.retrieve(accountId, {
+          include: ["configuration.merchant", "requirements"],
+        });
+
+        const readyToProcessPayments =
+          account?.configuration?.merchant?.capabilities?.card_payments?.status === "active";
+
+        // Check if there are any outstanding requirements
+        const requirementsStatus = account.requirements?.summary?.minimum_deadline?.status;
+        const onboardingComplete =
+          requirementsStatus !== "currently_due" && requirementsStatus !== "past_due";
+
+        res.json({
+          readyToProcessPayments,
+          onboardingComplete,
+          details: account.requirements
+        });
+      } catch (error) {
+        console.error('Status Check Error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 4. Create Product (on Connected Account)
+    app.post('/api/connect/products', async (req, res) => {
+      try {
+        const { accountId, name, description, priceInCents } = req.body;
+
+        // Create product using Stripe-Account header
+        const product = await stripe.products.create({
+          name: name,
+          description: description,
+          default_price_data: {
+            unit_amount: priceInCents,
+            currency: 'usd',
+          },
+        }, {
+          stripeAccount: accountId, // Header to perform action on behalf of connected account
+        });
+
+        res.json(product);
+      } catch (error) {
+        console.error('Create Product Error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 5. List Products (from Connected Account)
+    app.get('/api/connect/products/:accountId', async (req, res) => {
+      try {
+        const { accountId } = req.params;
+
+        const products = await stripe.products.list({
+          limit: 20,
+          active: true,
+          expand: ['data.default_price'],
+        }, {
+          stripeAccount: accountId,
+        });
+
+        res.json(products.data);
+      } catch (error) {
+        console.error('List Products Error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 6. Create Checkout Session for Connected Account Product
+    app.post('/api/connect/checkout', async (req, res) => {
+      try {
+        const { accountId, priceId } = req.body;
+
+        const session = await stripe.checkout.sessions.create({
+          line_items: [
+            {
+              price: priceId,
+              quantity: 1,
+            },
+          ],
+          payment_intent_data: {
+            application_fee_amount: 123, // 1.23 USD generic fee for demo
+          },
+          mode: 'payment',
+          success_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/cancel`,
+        }, {
+          stripeAccount: accountId,
+        });
+
+        res.json({ url: session.url });
+      } catch (error) {
+        console.error('Connect Checkout Error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 7. Platform Subscription for Agent
+    app.post('/api/connect/subscription', async (req, res) => {
+      try {
+        const { accountId, priceId } = req.body; // accountId here is the Connected Account ID
+
+        // Create a subscription sessions for the connected account to pay the platform
+        // Note: 'customer_account' allows billing the connected account directly
+        const session = await stripe.checkout.sessions.create({
+          customer_account: accountId,
+          mode: 'subscription',
+          line_items: [
+            { price: priceId, quantity: 1 }, // Ensure this price exists in your Platform account!
+          ],
+          success_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard?subscription=success`,
+          cancel_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard?subscription=cancelled`,
+        });
+
+        res.json({ url: session.url });
+      } catch (error) {
+        console.error('Platform Subscription Error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 8. Billing Portal for Connected Account
+    app.post('/api/connect/portal', async (req, res) => {
+      try {
+        const { accountId } = req.body;
+
+        const session = await stripe.billingPortal.sessions.create({
+          customer_account: accountId, // Required to match the connected account
+          return_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard`,
+        });
+
+        res.json({ url: session.url });
+      } catch (error) {
+        console.error('Portal Error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // ------------------------------------------------------------------
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: finalMessages

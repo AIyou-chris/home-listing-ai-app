@@ -12,6 +12,8 @@ export interface AgentProfile {
     website?: string;
     bio?: string;
     language?: string;
+    stripe_account_id?: string;
+    plan?: string;
 }
 
 export interface AIDescription {

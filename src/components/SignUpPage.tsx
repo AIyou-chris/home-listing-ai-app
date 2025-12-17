@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
@@ -26,6 +27,7 @@ const FeatureHighlight: React.FC<{ icon: string, title: string, children: React.
 );
 
 const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSection, onEnterDemoMode }: SignUpPageProps): JSX.Element => {
+    const navigate = useNavigate();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
@@ -50,12 +52,12 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
         setIsSubmitting(true);
 
         try {
-            const registration = await agentOnboardingService.registerAgent({
+            await agentOnboardingService.registerAgent({
                 firstName,
                 lastName,
                 email: email.trim().toLowerCase()
             });
-            window.location.hash = `checkout/${registration.slug}`;
+            navigate('/checkout');
         } catch (error) {
             console.error('Signup error:', error);
             const message = error instanceof Error ? error.message : 'An error occurred during sign up. Please try again.';

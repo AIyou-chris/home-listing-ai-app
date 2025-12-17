@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Property, Lead, Appointment, LeadStatus, AgentTask, TaskPriority, AgentProfile } from '../types';
 import SmartTaskManager from './SmartTaskManager';
@@ -6,6 +5,10 @@ import { LeadScoringService, getScoreTierInfo, getScoreColor, getScoreBadgeColor
 // Hidden for launch - notification service will be re-enabled post-launch
 // import { notificationService } from '../services/notificationService';
 import { useAgentBranding } from '../hooks/useAgentBranding';
+import { MarketingHub } from './MarketingHub';
+import { ConnectOnboarding } from './ConnectOnboarding';
+import { ProductManager } from './ProductManager';
+import { PlatformSubscriptionUI } from './PlatformSubscriptionUI';
 
 interface DashboardProps {
     agentProfile?: AgentProfile;
@@ -20,6 +23,8 @@ interface DashboardProps {
     hideWelcome?: boolean;
     hideAvatar?: boolean;
 }
+
+type Tab = 'overview' | 'listings' | 'leads' | 'marketing' | 'payments';
 
 const StatCard: React.FC<{ title: string; value: string; icon: string, bgColor: string, iconColor: string }> = ({ title, value, icon, bgColor, iconColor }) => (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-5 transform hover:-translate-y-1 transition-transform duration-300">
@@ -103,6 +108,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [leadScores, setLeadScores] = useState<LeadScore[]>([]);
     const [isLoadingScores, setIsLoadingScores] = useState(false);
     const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<Tab>('overview');
     // Hidden for launch - notification states will be re-enabled post-launch
     // const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
     // const notificationDropdownRef = useRef<HTMLDivElement>(null);
@@ -196,345 +202,509 @@ const Dashboard: React.FC<DashboardProps> = ({
                 )}
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                <StatCard title="Active Listings" value={String(properties.length)} icon="home_work" bgColor="bg-blue-100" iconColor="text-blue-600" />
-                <StatCard title="New Leads" value={String(newLeadsCount)} icon="group" bgColor="bg-green-100" iconColor="text-green-600" />
-                <StatCard title="Hot Leads" value={isLoadingScores ? "..." : String(hotLeadsCount)} icon="local_fire_department" bgColor="bg-red-100" iconColor="text-red-600" />
-                <StatCard title="Avg Score" value={isLoadingScores ? "..." : String(averageScore)} icon="trending_up" bgColor="bg-orange-100" iconColor="text-orange-600" />
-            </div>
+            {/* Tabs for different sections */}
+            <nav className="flex space-x-8 border-b border-slate-200 mb-8">
+                <button
+                    onClick={() => setActiveTab('overview')}
+                    className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'overview' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                >
+                    Overview
+                </button>
+                <button
+                    onClick={() => setActiveTab('listings')}
+                    className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'listings' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                >
+                    Listings
+                </button>
+                <button
+                    onClick={() => setActiveTab('leads')}
+                    className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'leads' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                >
+                    Leads
+                </button>
+                <button
+                    onClick={() => setActiveTab('marketing')}
+                    className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'marketing' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                >
+                    Marketing
+                </button>
+                <button
+                    onClick={() => setActiveTab('payments')}
+                    className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'payments' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                >
+                    Payments & Store
+                </button>
+            </nav>
 
-            {/* Main Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                {/* Card 1: Upcoming Appointments */}
-                <SectionCard title="Upcoming Appointments" icon="calendar_today">
-                    <div className="flex flex-col h-full">
-                        {/* Mini Calendar */}
-                        <div className="mb-4 p-3 bg-slate-50 rounded-lg">
-                            <div className="text-center mb-2">
-                                <h4 className="text-sm font-semibold text-slate-700">
-                                    {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                                </h4>
-                            </div>
-                            <div className="grid grid-cols-7 gap-1 text-xs">
-                                {/* Day headers */}
-                                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-                                    <div key={index} className="text-center text-slate-500 font-medium py-1">
-                                        {day}
+            {activeTab === 'overview' && (
+                <>
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                        <StatCard title="Active Listings" value={String(properties.length)} icon="home_work" bgColor="bg-blue-100" iconColor="text-blue-600" />
+                        <StatCard title="New Leads" value={String(newLeadsCount)} icon="group" bgColor="bg-green-100" iconColor="text-green-600" />
+                        <StatCard title="Hot Leads" value={isLoadingScores ? "..." : String(hotLeadsCount)} icon="local_fire_department" bgColor="bg-red-100" iconColor="text-red-600" />
+                        <StatCard title="Avg Score" value={isLoadingScores ? "..." : String(averageScore)} icon="trending_up" bgColor="bg-orange-100" iconColor="text-orange-600" />
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        {/* Card 1: Upcoming Appointments */}
+                        <SectionCard title="Upcoming Appointments" icon="calendar_today">
+                            <div className="flex flex-col h-full">
+                                {/* Mini Calendar */}
+                                <div className="mb-4 p-3 bg-slate-50 rounded-lg">
+                                    <div className="text-center mb-2">
+                                        <h4 className="text-sm font-semibold text-slate-700">
+                                            {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                        </h4>
                                     </div>
-                                ))}
-                                {/* Calendar days */}
-                                {(() => {
-                                    const today = new Date();
-                                    const currentMonth = today.getMonth();
-                                    const currentYear = today.getFullYear();
-                                    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-                                    const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-
-                                    const days = [];
-                                    // Empty slots for days before the 1st
-                                    for (let i = 0; i < firstDayOfMonth; i++) {
-                                        days.push(<div key={`empty-${i}`} className="py-1"></div>);
-                                    }
-
-                                    // Actual days
-                                    for (let day = 1; day <= daysInMonth; day++) {
-                                        const isToday = day === today.getDate();
-                                        const hasAppointment = appointments.some(appt => {
-                                            const apptDate = new Date(appt.date);
-                                            return apptDate.getDate() === day &&
-                                                apptDate.getMonth() === currentMonth &&
-                                                apptDate.getFullYear() === currentYear;
-                                        });
-
-                                        days.push(
-                                            <div
-                                                key={day}
-                                                className={`
-                                                text-center py-1 rounded cursor-pointer transition-colors
-                                                ${isToday ? 'bg-primary-600 text-white font-semibold' : ''}
-                                                ${hasAppointment && !isToday ? 'bg-orange-100 text-orange-700 font-semibold' : ''}
-                                                ${!isToday && !hasAppointment ? 'text-slate-600 hover:bg-slate-200' : ''}
-                                            `}
-                                            >
+                                    <div className="grid grid-cols-7 gap-1 text-xs">
+                                        {/* Day headers */}
+                                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                                            <div key={index} className="text-center text-slate-500 font-medium py-1">
                                                 {day}
                                             </div>
-                                        );
-                                    }
-                                    return days;
-                                })()}
-                            </div>
-                        </div>
+                                        ))}
+                                        {/* Calendar days */}
+                                        {(() => {
+                                            const today = new Date();
+                                            const currentMonth = today.getMonth();
+                                            const currentYear = today.getFullYear();
+                                            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                                            const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
 
-                        {/* Appointments List */}
-                        <div className="flex-1 space-y-2 overflow-y-auto">
-                            <h5 className="text-sm font-semibold text-slate-700 mb-2">Today's Appointments</h5>
-                            {appointments.slice(0, 3).map(appt => (
-                                <div key={appt.id} className="p-2 rounded-lg hover:bg-slate-50 transition-colors border-l-2 border-primary-500">
-                                    <div className="flex justify-between items-center">
-                                        <p className="font-semibold text-slate-800 text-sm">{appt.leadName}</p>
-                                        <p className="text-xs font-bold text-slate-700">{appt.time}</p>
-                                    </div>
-                                    <div className="flex justify-between items-center mt-1">
-                                        <p className="text-xs text-slate-500 truncate pr-4">{appt.propertyAddress}</p>
-                                        <p className="text-xs text-slate-500">{new Date(appt.date).toLocaleDateString()}</p>
-                                    </div>
-                                </div>
-                            ))}
-                            {appointments.length === 0 && <p className="text-center text-sm text-slate-400 p-4">No upcoming appointments.</p>}
-                        </div>
-                    </div>
-                </SectionCard>
+                                            const days = [];
+                                            // Empty slots for days before the 1st
+                                            for (let i = 0; i < firstDayOfMonth; i++) {
+                                                days.push(<div key={`empty-${i}`} className="py-1"></div>);
+                                            }
 
-                {/* Card 2: Recent Leads with Scoring */}
-                <SectionCard title="Recent Leads" icon="groups">
-                    <div className="space-y-2 max-h-80 overflow-y-auto">
-                        {leads.slice(0, 5).map(lead => {
-                            const leadScore = leadScores.find(s => s.leadId === lead.id);
-                            const score = leadScore?.totalScore || 0;
-                            const tier = leadScore?.tier || 'Cold';
+                                            // Actual days
+                                            for (let day = 1; day <= daysInMonth; day++) {
+                                                const isToday = day === today.getDate();
+                                                const hasAppointment = appointments.some(appt => {
+                                                    const apptDate = new Date(appt.date);
+                                                    return apptDate.getDate() === day &&
+                                                        apptDate.getMonth() === currentMonth &&
+                                                        apptDate.getFullYear() === currentYear;
+                                                });
 
-                            return (
-                                <div key={lead.id} className="p-3 rounded-lg hover:bg-slate-50 transition-colors border-l-4"
-                                    style={{ borderLeftColor: tier === 'Qualified' ? '#10b981' : tier === 'Hot' ? '#f59e0b' : tier === 'Warm' ? '#3b82f6' : '#6b7280' }}>
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h4 className="font-semibold text-slate-800">{lead.name}</h4>
-                                        <div className="flex items-center gap-2">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreBadgeColor(tier)}`}>
-                                                {tier}
-                                            </span>
-                                            <LeadStatusBadge status={lead.status} />
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <p className="text-xs text-slate-500 flex-1 mr-2">{lead.lastMessage || 'No message yet'}</p>
-                                        <div className="flex items-center gap-1">
-                                            <span className="material-symbols-outlined w-3 h-3 text-slate-400">trending_up</span>
-                                            <span className={`text-xs font-semibold ${getScoreColor(score)}`}>
-                                                {isLoadingScores ? '...' : score}
-                                            </span>
-                                        </div>
+                                                days.push(
+                                                    <div
+                                                        key={day}
+                                                        className={`
+                                                        text-center py-1 rounded cursor-pointer transition-colors
+                                                        ${isToday ? 'bg-primary-600 text-white font-semibold' : ''}
+                                                        ${hasAppointment && !isToday ? 'bg-orange-100 text-orange-700 font-semibold' : ''}
+                                                        ${!isToday && !hasAppointment ? 'text-slate-600 hover:bg-slate-200' : ''}
+                                                    `}
+                                                    >
+                                                        {day}
+                                                    </div>
+                                                );
+                                            }
+                                            return days;
+                                        })()}
                                     </div>
                                 </div>
-                            );
-                        })}
-                        {leads.length === 0 && <p className="text-center text-sm text-slate-400 p-4">No recent leads found.</p>}
-                    </div>
-                </SectionCard>
 
-                {/* Card 3: Agent Task List */}
-                <SectionCard title="Agent Task List" icon="task_alt">
-                    <div className="absolute top-4 right-4">
-                        <button
-                            onClick={() => setIsTaskManagerOpen(true)}
-                            className="flex items-center gap-1 px-2 py-1 text-xs bg-primary-100 text-primary-700 rounded-md hover:bg-primary-200 transition-colors"
-                        >
-                            <span className="material-symbols-outlined text-sm">settings</span>
-                            Manage
-                        </button>
-                    </div>
-                    <div className="space-y-2 max-h-80 overflow-y-auto">
-                        {tasks.slice(0, 3).map(task => (
-                            <div key={task.id} className="flex items-center p-3 rounded-lg hover:bg-slate-50 transition-colors">
-                                <input
-                                    type="checkbox"
-                                    checked={task.isCompleted}
-                                    onChange={(e) => onTaskUpdate?.(task.id, { isCompleted: e.target.checked })}
-                                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
-                                />
-                                <div className="ml-3 flex-grow">
-                                    {editingTaskId === task.id ? (
-                                        <div className="space-y-2">
-                                            <input
-                                                type="text"
-                                                value={editingText}
-                                                onChange={(e) => setEditingText(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        onTaskUpdate?.(task.id, { text: editingText });
-                                                        setEditingTaskId(null);
-                                                        setEditingText('');
-                                                    } else if (e.key === 'Escape') {
-                                                        setEditingTaskId(null);
-                                                        setEditingText('');
-                                                    }
-                                                }}
-                                                onBlur={() => {
-                                                    onTaskUpdate?.(task.id, { text: editingText });
-                                                    setEditingTaskId(null);
-                                                    setEditingText('');
-                                                }}
-                                                className="w-full p-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                                autoFocus
-                                            />
-                                            <div className="text-xs text-slate-500">
-                                                Press Enter to save, Escape to cancel
+                                {/* Appointments List */}
+                                <div className="flex-1 space-y-2 overflow-y-auto">
+                                    <h5 className="text-sm font-semibold text-slate-700 mb-2">Today's Appointments</h5>
+                                    {appointments.slice(0, 3).map(appt => (
+                                        <div key={appt.id} className="p-2 rounded-lg hover:bg-slate-50 transition-colors border-l-2 border-primary-500">
+                                            <div className="flex justify-between items-center">
+                                                <p className="font-semibold text-slate-800 text-sm">{appt.leadName}</p>
+                                                <p className="text-xs font-bold text-slate-700">{appt.time}</p>
                                             </div>
+                                            <div className="flex justify-between items-center mt-1">
+                                                <p className="text-xs text-slate-500 truncate pr-4">{appt.propertyAddress}</p>
+                                                <p className="text-xs text-slate-500">{new Date(appt.date).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {appointments.length === 0 && <p className="text-center text-sm text-slate-400 p-4">No upcoming appointments.</p>}
+                                </div>
+                            </div>
+                        </SectionCard>
+
+                        {/* Card 2: Recent Leads with Scoring */}
+                        <SectionCard title="Recent Leads" icon="groups">
+                            <div className="space-y-2 max-h-80 overflow-y-auto">
+                                {leads.slice(0, 5).map(lead => {
+                                    const leadScore = leadScores.find(s => s.leadId === lead.id);
+                                    const score = leadScore?.totalScore || 0;
+                                    const tier = leadScore?.tier || 'Cold';
+
+                                    return (
+                                        <div key={lead.id} className="p-3 rounded-lg hover:bg-slate-50 transition-colors border-l-4"
+                                            style={{ borderLeftColor: tier === 'Qualified' ? '#10b981' : tier === 'Hot' ? '#f59e0b' : tier === 'Warm' ? '#3b82f6' : '#6b7280' }}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h4 className="font-semibold text-slate-800">{lead.name}</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreBadgeColor(tier)}`}>
+                                                        {tier}
+                                                    </span>
+                                                    <LeadStatusBadge status={lead.status} />
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <p className="text-xs text-slate-500 flex-1 mr-2">{lead.lastMessage || 'No message yet'}</p>
+                                                <div className="flex items-center gap-1">
+                                                    <span className="material-symbols-outlined w-3 h-3 text-slate-400">trending_up</span>
+                                                    <span className={`text-xs font-semibold ${getScoreColor(score)}`}>
+                                                        {isLoadingScores ? '...' : score}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {leads.length === 0 && <p className="text-center text-sm text-slate-400 p-4">No recent leads found.</p>}
+                            </div>
+                        </SectionCard>
+
+                        {/* Card 3: Agent Task List */}
+                        <SectionCard title="Agent Task List" icon="task_alt">
+                            <div className="absolute top-4 right-4">
+                                <button
+                                    onClick={() => setIsTaskManagerOpen(true)}
+                                    className="flex items-center gap-1 px-2 py-1 text-xs bg-primary-100 text-primary-700 rounded-md hover:bg-primary-200 transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-sm">settings</span>
+                                    Manage
+                                </button>
+                            </div>
+                            <div className="space-y-2 max-h-80 overflow-y-auto">
+                                {tasks.slice(0, 3).map(task => (
+                                    <div key={task.id} className="flex items-center p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={task.isCompleted}
+                                            onChange={(e) => onTaskUpdate?.(task.id, { isCompleted: e.target.checked })}
+                                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                                        />
+                                        <div className="ml-3 flex-grow">
+                                            {editingTaskId === task.id ? (
+                                                <div className="space-y-2">
+                                                    <input
+                                                        type="text"
+                                                        value={editingText}
+                                                        onChange={(e) => setEditingText(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                onTaskUpdate?.(task.id, { text: editingText });
+                                                                setEditingTaskId(null);
+                                                                setEditingText('');
+                                                            } else if (e.key === 'Escape') {
+                                                                setEditingTaskId(null);
+                                                                setEditingText('');
+                                                            }
+                                                        }}
+                                                        onBlur={() => {
+                                                            onTaskUpdate?.(task.id, { text: editingText });
+                                                            setEditingTaskId(null);
+                                                            setEditingText('');
+                                                        }}
+                                                        className="w-full p-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                                        autoFocus
+                                                    />
+                                                    <div className="text-xs text-slate-500">
+                                                        Press Enter to save, Escape to cancel
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p
+                                                    className={`text-sm ${task.isCompleted ? 'line-through text-slate-400' : 'text-slate-800 font-medium'} cursor-pointer hover:text-primary-600`}
+                                                    onClick={() => {
+                                                        if (!task.isCompleted) {
+                                                            setEditingTaskId(task.id);
+                                                            setEditingText(task.text);
+                                                        }
+                                                    }}
+                                                >
+                                                    {task.text}
+                                                </p>
+                                            )}
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <p className="text-xs text-slate-500">{task.dueDate}</p>
+                                                <TaskPriorityIndicator priority={task.priority} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {tasks.length === 0 && <p className="text-center text-sm text-slate-400 p-4">Your task list is empty.</p>}
+                                <div className="text-center pt-2 space-y-2">
+                                    <button
+                                        onClick={() => {
+                                            const newTask: AgentTask = {
+                                                id: `manual-task-${Date.now()}`,
+                                                text: 'New task - click to edit',
+                                                isCompleted: false,
+                                                dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                                                priority: 'Medium'
+                                            };
+                                            onTaskAdd?.(newTask);
+                                        }}
+                                        className="text-sm text-green-600 hover:text-green-700 font-medium"
+                                    >
+                                        + Add Quick Task
+                                    </button>
+                                    {tasks.length > 3 && (
+                                        <div>
+                                            <button
+                                                onClick={() => setIsTaskManagerOpen(true)}
+                                                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                                            >
+                                                View all {tasks.length} tasks →
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </SectionCard>
+                    </div>
+
+                    {/* Lead Scoring Overview */}
+                    {leads.length > 0 && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                            <SectionCard title="Lead Score Distribution" icon="analytics">
+                                <div className="space-y-3">
+                                    {isLoadingScores ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+                                            <span className="ml-2 text-sm text-slate-500">Loading scores...</span>
                                         </div>
                                     ) : (
-                                        <p
-                                            className={`text-sm ${task.isCompleted ? 'line-through text-slate-400' : 'text-slate-800 font-medium'} cursor-pointer hover:text-primary-600`}
-                                            onClick={() => {
-                                                if (!task.isCompleted) {
-                                                    setEditingTaskId(task.id);
-                                                    setEditingText(task.text);
-                                                }
-                                            }}
-                                        >
-                                            {task.text}
-                                        </p>
-                                    )}
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <p className="text-xs text-slate-500">{task.dueDate}</p>
-                                        <TaskPriorityIndicator priority={task.priority} />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                        {tasks.length === 0 && <p className="text-center text-sm text-slate-400 p-4">Your task list is empty.</p>}
-                        <div className="text-center pt-2 space-y-2">
-                            <button
-                                onClick={() => {
-                                    const newTask: AgentTask = {
-                                        id: `manual-task-${Date.now()}`,
-                                        text: 'New task - click to edit',
-                                        isCompleted: false,
-                                        dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                                        priority: 'Medium'
-                                    };
-                                    onTaskAdd?.(newTask);
-                                }}
-                                className="text-sm text-green-600 hover:text-green-700 font-medium"
-                            >
-                                + Add Quick Task
-                            </button>
-                            {tasks.length > 3 && (
-                                <div>
-                                    <button
-                                        onClick={() => setIsTaskManagerOpen(true)}
-                                        className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                                    >
-                                        View all {tasks.length} tasks →
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </SectionCard>
-            </div>
+                                        <>
+                                            {(['Qualified', 'Hot', 'Warm', 'Cold'] as const).map(tier => {
+                                                const count = leadScores.filter(s => s.tier === tier).length;
+                                                const percentage = leadScores.length > 0 ? Math.round((count / leadScores.length) * 100) : 0;
+                                                const tierInfo = getScoreTierInfo(tier);
+                                                const tierEmoji = typeof tierInfo === 'object' && tierInfo !== null && 'emoji' in tierInfo && typeof tierInfo.emoji === 'string'
+                                                    ? tierInfo.emoji
+                                                    : '📊';
 
-            {/* Lead Scoring Overview */}
-            {leads.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <SectionCard title="Lead Score Distribution" icon="analytics">
-                        <div className="space-y-3">
-                            {isLoadingScores ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-                                    <span className="ml-2 text-sm text-slate-500">Loading scores...</span>
-                                </div>
-                            ) : (
-                                <>
-                                    {(['Qualified', 'Hot', 'Warm', 'Cold'] as const).map(tier => {
-                                        const count = leadScores.filter(s => s.tier === tier).length;
-                                        const percentage = leadScores.length > 0 ? Math.round((count / leadScores.length) * 100) : 0;
-                                        const tierInfo = getScoreTierInfo(tier);
-                                        const tierEmoji = typeof tierInfo === 'object' && tierInfo !== null && 'emoji' in tierInfo && typeof tierInfo.emoji === 'string'
-                                            ? tierInfo.emoji
-                                            : '📊';
-
-                                        return (
-                                            <div key={tier} className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-lg">{tierEmoji}</span>
-                                                    <span className="font-medium text-slate-700">{tier} Leads</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-16 bg-slate-200 rounded-full h-2">
-                                                        <div
-                                                            className={`h-2 rounded-full ${tier === 'Qualified' ? 'bg-green-500' :
-                                                                tier === 'Hot' ? 'bg-orange-500' :
-                                                                    tier === 'Warm' ? 'bg-blue-500' : 'bg-slate-400'
-                                                                }`}
-                                                            style={{ width: `${percentage}%` }}
-                                                        ></div>
+                                                return (
+                                                    <div key={tier} className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-lg">{tierEmoji}</span>
+                                                            <span className="font-medium text-slate-700">{tier} Leads</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-16 bg-slate-200 rounded-full h-2">
+                                                                <div
+                                                                    className={`h-2 rounded-full ${tier === 'Qualified' ? 'bg-green-500' :
+                                                                        tier === 'Hot' ? 'bg-orange-500' :
+                                                                            tier === 'Warm' ? 'bg-blue-500' : 'bg-slate-400'
+                                                                        }`}
+                                                                    style={{ width: `${percentage}%` }}
+                                                                ></div>
+                                                            </div>
+                                                            <span className="text-sm font-semibold text-slate-600 w-8">{count}</span>
+                                                        </div>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-slate-600 w-8">{count}</span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </>
-                            )}
-                        </div>
-                    </SectionCard>
-
-                    <SectionCard title="Top Scoring Leads" icon="star">
-                        <div className="space-y-2">
-                            {isLoadingScores ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-                                    <span className="ml-2 text-sm text-slate-500">Loading scores...</span>
+                                                );
+                                            })}
+                                        </>
+                                    )}
                                 </div>
-                            ) : (
-                                leadScores
-                                    .sort((a, b) => b.totalScore - a.totalScore)
-                                    .slice(0, 3)
-                                    .map(score => {
-                                        const lead = leads.find(l => l.id === score.leadId);
-                                        if (!lead) return null;
+                            </SectionCard>
 
-                                        return (
-                                            <div key={lead.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
-                                                <div>
-                                                    <h4 className="font-semibold text-slate-800">{lead.name}</h4>
-                                                    <p className="text-xs text-slate-500">{lead.email}</p>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreBadgeColor(score.tier)}`}>
-                                                        {score.tier}
-                                                    </span>
-                                                    <span className={`text-lg font-bold ${getScoreColor(score.totalScore)}`}>
-                                                        {score.totalScore}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                            )}
-                            {!isLoadingScores && leadScores.length === 0 && (
-                                <p className="text-center text-sm text-slate-400 py-4">No scored leads yet</p>
+                            <SectionCard title="Top Scoring Leads" icon="star">
+                                <div className="space-y-2">
+                                    {isLoadingScores ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+                                            <span className="ml-2 text-sm text-slate-500">Loading scores...</span>
+                                        </div>
+                                    ) : (
+                                        leadScores
+                                            .sort((a, b) => b.totalScore - a.totalScore)
+                                            .slice(0, 3)
+                                            .map(score => {
+                                                const lead = leads.find(l => l.id === score.leadId);
+                                                if (!lead) return null;
+
+                                                return (
+                                                    <div key={lead.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                                                        <div>
+                                                            <h4 className="font-semibold text-slate-800">{lead.name}</h4>
+                                                            <p className="text-xs text-slate-500">{lead.email}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreBadgeColor(score.tier)}`}>
+                                                                {score.tier}
+                                                            </span>
+                                                            <span className={`text-lg font-bold ${getScoreColor(score.totalScore)}`}>
+                                                                {score.totalScore}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                    )}
+                                    {!isLoadingScores && leadScores.length === 0 && (
+                                        <p className="text-center text-sm text-slate-400 py-4">No scored leads yet</p>
+                                    )}
+                                </div>
+                            </SectionCard>
+                        </div>
+                    )}
+
+                    {/* Recent Listings - Full Width */}
+                    <div className="grid grid-cols-1 gap-6">
+                        <SectionCard title="Recent Listings" icon="domain">
+                            <div className="space-y-2 max-h-80 overflow-y-auto">
+                                {properties.length > 0 ? properties.slice(0, 4).map(prop => (
+                                    <div
+                                        key={prop.id}
+                                        onClick={() => onSelectProperty(prop.id)}
+                                        className="flex items-center p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
+                                    >
+                                        <img src={prop.imageUrl} alt={prop.address} className="w-16 h-16 rounded-md object-cover" />
+                                        <div className="ml-3">
+                                            <h4 className="font-semibold text-slate-800 text-sm">{prop.address}</h4>
+                                            <p className="text-sm font-bold text-primary-700">${prop.price.toLocaleString()}</p>
+                                        </div>
+                                        <span className="material-symbols-outlined w-5 h-5 text-slate-400 ml-auto">chevron_right</span>
+                                    </div>
+                                )) : (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <p>No listings found. Add one to get started!</p>
+                                    </div>
+                                )}
+                            </div>
+                        </SectionCard>
+                    </div>
+                </>
+            )}
+
+            {activeTab === 'listings' && (
+                <div className="grid grid-cols-1 gap-6">
+                    <SectionCard title="All Listings" icon="domain">
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {properties.length > 0 ? properties.map(prop => (
+                                <div
+                                    key={prop.id}
+                                    onClick={() => onSelectProperty(prop.id)}
+                                    className="flex items-center p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
+                                >
+                                    <img src={prop.imageUrl} alt={prop.address} className="w-16 h-16 rounded-md object-cover" />
+                                    <div className="ml-3">
+                                        <h4 className="font-semibold text-slate-800 text-sm">{prop.address}</h4>
+                                        <p className="text-sm font-bold text-primary-700">${prop.price.toLocaleString()}</p>
+                                    </div>
+                                    <span className="material-symbols-outlined w-5 h-5 text-slate-400 ml-auto">chevron_right</span>
+                                </div>
+                            )) : (
+                                <div className="text-center py-8 text-slate-500">
+                                    <p>No listings found. Add one to get started!</p>
+                                </div>
                             )}
                         </div>
                     </SectionCard>
                 </div>
             )}
 
-            {/* Recent Listings - Full Width */}
-            <div className="grid grid-cols-1 gap-6">
-                <SectionCard title="Recent Listings" icon="domain">
-                    <div className="space-y-2 max-h-80 overflow-y-auto">
-                        {properties.length > 0 ? properties.slice(0, 4).map(prop => (
-                            <div
-                                key={prop.id}
-                                onClick={() => onSelectProperty(prop.id)}
-                                className="flex items-center p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
-                            >
-                                <img src={prop.imageUrl} alt={prop.address} className="w-16 h-16 rounded-md object-cover" />
-                                <div className="ml-3">
-                                    <h4 className="font-semibold text-slate-800 text-sm">{prop.address}</h4>
-                                    <p className="text-sm font-bold text-primary-700">${prop.price.toLocaleString()}</p>
-                                </div>
-                                <span className="material-symbols-outlined w-5 h-5 text-slate-400 ml-auto">chevron_right</span>
-                            </div>
-                        )) : (
-                            <div className="text-center py-8 text-slate-500">
-                                <p>No listings found. Add one to get started!</p>
+            {activeTab === 'leads' && (
+                <div className="grid grid-cols-1 gap-6">
+                    <SectionCard title="All Leads" icon="groups">
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {leads.length > 0 ? leads.map(lead => {
+                                const leadScore = leadScores.find(s => s.leadId === lead.id);
+                                const score = leadScore?.totalScore || 0;
+                                const tier = leadScore?.tier || 'Cold';
+
+                                return (
+                                    <div key={lead.id} className="p-3 rounded-lg hover:bg-slate-50 transition-colors border-l-4"
+                                        style={{ borderLeftColor: tier === 'Qualified' ? '#10b981' : tier === 'Hot' ? '#f59e0b' : tier === 'Warm' ? '#3b82f6' : '#6b7280' }}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h4 className="font-semibold text-slate-800">{lead.name}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreBadgeColor(tier)}`}>
+                                                    {tier}
+                                                </span>
+                                                <LeadStatusBadge status={lead.status} />
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-slate-500 flex-1 mr-2">{lead.lastMessage || 'No message yet'}</p>
+                                            <div className="flex items-center gap-1">
+                                                <span className="material-symbols-outlined w-3 h-3 text-slate-400">trending_up</span>
+                                                <span className={`text-xs font-semibold ${getScoreColor(score)}`}>
+                                                    {isLoadingScores ? '...' : score}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            }) : (
+                                <p className="text-center text-sm text-slate-400 p-4">No leads found.</p>
+                            )}
+                        </div>
+                    </SectionCard>
+                </div>
+            )}
+
+            {activeTab === 'marketing' && (
+                <MarketingHub
+                    agentProfile={agentProfile}
+                    properties={properties}
+                />
+            )}
+
+            {activeTab === 'payments' && (
+                <div className="space-y-8">
+                    <div className="grid md:grid-cols-2 gap-6">
+                        {/* 1. Platform Subscription */}
+                        <div className="space-y-4">
+                            <h2 className="text-lg font-bold text-slate-800">Your Subscription</h2>
+                            {/* We cast to any because profile type might not have stripe_account_id definition updated yet */}
+                            <PlatformSubscriptionUI
+                                accountId={agentProfile?.stripe_account_id || agentProfile.id}
+                                currentPlan={agentProfile?.plan || 'free'}
+                            />
+                        </div>
+
+                        {/* 2. Connect Onboarding */}
+                        <div className="space-y-4">
+                            <h2 className="text-lg font-bold text-slate-800">Payout Settings</h2>
+                            <ConnectOnboarding
+                                userId={agentProfile.id}
+                                email={agentProfile.email}
+                                firstName={agentProfile.first_name}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="border-t border-slate-200 pt-8">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-lg font-bold text-slate-800">Store Management</h2>
+                            {agentProfile?.slug && (
+                                <a
+                                    href={`/store/${agentProfile.slug}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                                >
+                                    View Live Store <span className="material-symbols-outlined text-base">open_in_new</span>
+                                </a>
+                            )}
+                        </div>
+
+                        {/* Only show Product Manager if they have a Connect Account ID */}
+                        {agentProfile?.stripe_account_id ? (
+                            <ProductManager accountId={agentProfile.stripe_account_id} />
+                        ) : (
+                            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 text-slate-500">
+                                <span className="material-symbols-outlined text-4xl mb-2 opacity-50">lock</span>
+                                <p>Complete Payout Settings above to manage your store products.</p>
                             </div>
                         )}
                     </div>
-                </SectionCard>
-            </div>
+                </div>
+            )}
 
             {/* Smart Task Manager Modal */}
             {isTaskManagerOpen && (

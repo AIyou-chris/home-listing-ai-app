@@ -40,6 +40,7 @@ import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
 import DemoListingPage from './components/DemoListingPage';
 import ChatBotFAB from './components/ChatBotFAB';
+import { StorefrontPage } from './pages/StorefrontPage';
 
 const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
     universal_sales: 'Buyer Lead',
@@ -292,7 +293,7 @@ const App: React.FC = () => {
 
             // Allow access to certain routes without waiting for auth check
             // This prevents "infinity spinner" on signin/signup if connection is slow or token is bad.
-            if (route === 'landing' || route === 'demo-dashboard' || route === 'demo-listing' || route === 'signin' || route === 'signup' || route === 'checkout' || route === 'dashboard-blueprint') {
+            if (route === 'landing' || route === 'demo-dashboard' || route === 'demo-listing' || route === 'signin' || route === 'signup' || route === 'checkout' || route === 'dashboard-blueprint' || route.startsWith('store/')) {
                 setView(route as View);
                 setIsLoading(false);
                 // We do NOT return here completely if we want to support auto-redirect from signin -> dashboard.
@@ -451,7 +452,11 @@ const App: React.FC = () => {
                     setView('signup');
                 } else if (signedOutRoute === 'signin') {
                     setView('signin');
-                } else {
+                } else if (signedOutRoute.startsWith('store/')) {
+                    // Allow access to storefront pages
+                    console.log('🛍️ Storefront route accessed.');
+                }
+                else {
                     console.log('📍 Defaulting to landing');
                     setIsDemoMode(false);
                     setView('landing');
@@ -546,8 +551,8 @@ const App: React.FC = () => {
                 // User signed out
                 // ...
                 // Only redirect if we are on a protected route
-                const isProtected = !['', 'landing', 'signin', 'signup', 'demo', 'admin-login'].includes(location.pathname.replace(/^\//, ''));
-                if (isProtected) {
+                const isProtected = !['', 'landing', 'signin', 'signup', 'demo', 'admin-login', 'checkout'].includes(location.pathname.replace(/^\//, ''));
+                if (isProtected && !location.pathname.startsWith('/store/')) {
                     navigate('/signin');
                 }
             }
@@ -1095,6 +1100,9 @@ const App: React.FC = () => {
                         />
                     } />
                     <Route path="/checkout" element={renderCheckout()} />
+
+                    {/* Public Storefront Route */}
+                    <Route path="/store/:slug" element={<StorefrontPage />} />
 
                     {/* Public AI Card View */}
                     <Route path="/card/:id" element={
