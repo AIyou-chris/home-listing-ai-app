@@ -345,8 +345,8 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 if (!response.ok) {
                     // If 404, it just means no funnel exists yet -> Defaults
                     if (response.status === 404) {
-                        setProgramSteps(buildDefaultSteps());
-                        return;
+                        // Fall through to empty data handling
+                        throw new Error("Funnel not found (new)");
                     }
                     throw new Error("Failed to fetch funnel");
                 }
@@ -378,21 +378,19 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         // Fallback to legacy field just in case
                         setCustomSignature(data.signature);
                     }
-
-                    // LocalStorage Override (Browser-side persistence fallback)
-                    const localSig = localStorage.getItem('admin_funnel_signature');
-                    if (localSig) {
-                        setCustomSignature(localSig);
-                    }
                 } else {
                     setProgramSteps(buildDefaultSteps());
-                    // Recover from local storage even if fetch fails/empty
-                    const localSig = localStorage.getItem('admin_funnel_signature');
-                    if (localSig) setCustomSignature(localSig);
                 }
             } catch (err) {
                 console.warn('Fetch Funnel Error:', err);
                 setProgramSteps(buildDefaultSteps());
+            } finally {
+                // ALWAYS check local storage as the ultimate fallback/master for this device
+                const localSig = localStorage.getItem('admin_funnel_signature');
+                if (localSig) {
+                    console.log('Restoring signature from LocalStorage');
+                    setCustomSignature(localSig);
+                }
             }
         };
         fetchFunnel();
