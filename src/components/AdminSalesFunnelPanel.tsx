@@ -340,7 +340,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         const fetchFunnel = async () => {
             try {
                 // Use Backend Proxy (Admin Key Support)
-                const response = await authService.makeAuthenticatedRequest('/api/admin/marketing/funnel/get');
+                const response = await authService.makeAuthenticatedRequest(`/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`);
 
                 if (!response.ok) {
                     // If 404, it just means no funnel exists yet -> Defaults
@@ -405,10 +405,9 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
         try {
             // Use Backend Proxy to save, which supports Admin Bypass Key
-            // This endpoint (/api/admin/marketing/funnel/save) finds the agent associated with the admin email
-            // and upserts the funnel data.
-            const response = await authService.makeAuthenticatedRequest('/api/admin/marketing/funnel/save', {
-                method: 'POST',
+            // This endpoint (/api/admin/marketing/sequences/:id) upserts the funnel data.
+            const response = await authService.makeAuthenticatedRequest(`/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
+                method: 'PUT',
                 body: JSON.stringify({ steps: programSteps })
             });
 
