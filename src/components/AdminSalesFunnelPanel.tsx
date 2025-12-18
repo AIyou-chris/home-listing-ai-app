@@ -861,7 +861,16 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 isOpen={isSignatureModalOpen}
                 onClose={() => setIsSignatureModalOpen(false)}
                 initialSignature={customSignature || sampleMergeData.agent.signature}
-                onSave={setCustomSignature}
+                onSave={(newSig) => {
+                    setCustomSignature(newSig);
+                    // Immediate persistence to browser storage prevents data loss if user navigates away
+                    // without clicking the main "Save" button.
+                    if (newSig) {
+                        localStorage.setItem('admin_funnel_signature', newSig);
+                    } else {
+                        localStorage.removeItem('admin_funnel_signature');
+                    }
+                }}
             />
         </div>
     );
