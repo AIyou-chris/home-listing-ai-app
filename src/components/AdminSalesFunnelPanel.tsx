@@ -355,8 +355,19 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 if (data.steps && Array.isArray(data.steps)) {
                     // Extract Metadata Step (Signature)
                     const steps = data.steps as EditableStep[];
-                    const signatureStep = steps.find(s => s.id === 'meta-signature');
-                    const visibleSteps = steps.filter(s => s.id !== 'meta-signature');
+
+                    // Robust find: Check ID OR subject/title in case backend modified IDs
+                    const signatureStep = steps.find(s =>
+                        s.id === 'meta-signature' ||
+                        s.subject === 'METADATA' ||
+                        s.title === 'Hidden Signature Metadata'
+                    );
+
+                    const visibleSteps = steps.filter(s =>
+                        s.id !== 'meta-signature' &&
+                        s.subject !== 'METADATA' &&
+                        s.title !== 'Hidden Signature Metadata'
+                    );
 
                     setProgramSteps(visibleSteps);
 
