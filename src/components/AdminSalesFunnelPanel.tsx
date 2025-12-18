@@ -353,14 +353,21 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                 const data = await response.json();
                 if (data.steps && Array.isArray(data.steps)) {
-                    setProgramSteps(data.steps);
+                    // Extract Metadata Step (Signature)
+                    const steps = data.steps as EditableStep[];
+                    const signatureStep = steps.find(s => s.id === 'meta-signature');
+                    const visibleSteps = steps.filter(s => s.id !== 'meta-signature');
+
+                    setProgramSteps(visibleSteps);
+
+                    if (signatureStep) {
+                        setCustomSignature(signatureStep.content);
+                    } else if (data.signature) {
+                        // Fallback to legacy field just in case
+                        setCustomSignature(data.signature);
+                    }
                 } else {
                     setProgramSteps(buildDefaultSteps());
-                }
-
-                // Load persisted signature if present
-                if (data.signature) {
-                    setCustomSignature(data.signature);
                 }
             } catch (err) {
                 console.warn('Fetch Funnel Error:', err);
@@ -409,13 +416,26 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         setDebugMsg('Saving via Admin Proxy...');
 
         try {
-            // Use Backend Proxy to save, which supports Admin Bypass Key
-            // This endpoint (/api/admin/marketing/sequences/:id) upserts the funnel data.
+            // Prepare Steps with Metadata (Hidden Signature Step)
+            const stepsToSave = [...programSteps];
+            if (customSignature) {
+                stepsToSave.push({
+                    id: 'meta-signature',
+                    title: 'Hidden Signature Metadata',
+                    description: 'Do not edit',
+                    icon: 'lock',
+                    delay: '0',
+                    type: 'Hidden',
+                    subject: 'METADATA',
+                    content: customSignature
+                });
+            }
+
+            // Use Backend Proxy to save
             const response = await authService.makeAuthenticatedRequest(`/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
                 method: 'PUT',
                 body: JSON.stringify({
-                    steps: programSteps,
-                    signature: customSignature
+                    steps: stepsToSave
                 })
             });
 
