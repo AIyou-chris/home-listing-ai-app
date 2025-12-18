@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import QuickEmailModal from './QuickEmailModal';
+import { EmailEditor } from './EmailEditor';
 import { supabase } from '../services/supabase';
 import { ADMIN_EMAIL_TEMPLATES } from '../constants/adminEmailTemplates';
 import { emailService } from '../services/emailService';
@@ -173,12 +174,13 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     }, [previewAgent]);
 
     // Flexible merge function that can take custom data source
-    const mergeTokens = (template: string, sourceData: Record<string, any> = sampleMergeData) => {
+    const mergeTokens = (template: string, sourceData: Record<string, unknown> = sampleMergeData) => {
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
             const [bucket, key] = path.split('.');
             if (!bucket || !key) return '';
 
-            const value = sourceData[bucket]?.[key];
+            const bucketData = sourceData[bucket] as Record<string, string> | undefined;
+            const value = bucketData?.[key];
             if (value !== undefined) return value;
 
             return `{{${path}}}`;
@@ -410,7 +412,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             setDebugMsg(`✅ SUCCESS! Saved to DB at ${new Date().toLocaleTimeString()}`);
             alert('Funnel saved successfully!');
 
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error('Save Funnel Error:', e);
             const msg = e instanceof Error ? e.message : 'Unknown error';
             setDebugMsg(`❌ FAILED: ${msg}`);
@@ -561,12 +563,14 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                     </label>
                                                     <label className="block text-xs font-semibold text-slate-600">
                                                         Email Body
-                                                        <textarea
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono"
-                                                            rows={12}
-                                                            value={step.content}
-                                                            onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
-                                                        />
+                                                        <div className="mt-1">
+                                                            <EmailEditor
+                                                                value={step.content}
+                                                                onChange={(val) => onUpdateStep(step.id, 'content', val)}
+                                                                placeholder="Write your email content here..."
+                                                                className="w-full"
+                                                            />
+                                                        </div>
                                                     </label>
 
                                                     <div className="flex gap-2 pt-2">
@@ -687,8 +691,9 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                         } else {
                                             setDebugMsg(`✅ Connection OK! Status: ${res.status}. Response: ${text.slice(0, 50)}`);
                                         }
-                                    } catch (err: any) {
-                                        setDebugMsg(`❌ Connection Failed: ${err.message}`);
+                                    } catch (err: unknown) {
+                                        const message = err instanceof Error ? err.message : String(err);
+                                        setDebugMsg(`❌ Connection Failed: ${message}`);
                                     }
                                 }}
                                 className="mt-2 text-[10px] underline text-indigo-600 hover:text-indigo-800"
