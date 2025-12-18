@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import QuickEmailModal from './QuickEmailModal';
 import { EmailEditor } from './EmailEditor';
 import SignatureEditorModal from './SignatureEditorModal';
-import SignatureEditorModal from './SignatureEditorModal';
 import { supabase } from '../services/supabase';
 import { ADMIN_EMAIL_TEMPLATES } from '../constants/adminEmailTemplates';
 import { emailService } from '../services/emailService';
@@ -120,8 +119,6 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [sendingTestId, setSendingTestId] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
     const [previewAgent, setPreviewAgent] = useState<AICardProfile | null>(null);
-    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
-    const [customSignature, setCustomSignature] = useState<string>('');
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const [customSignature, setCustomSignature] = useState<string>('');
 
