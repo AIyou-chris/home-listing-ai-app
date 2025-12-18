@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AnalyticsPage from './AnalyticsPage';
 import QuickEmailModal from './QuickEmailModal';
+import SignatureEditorModal from './SignatureEditorModal';
 import SequenceFeedbackPanel from './SequenceFeedbackPanel';
 import { funnelService } from '../services/funnelService';
 import { supabase } from '../services/supabase';
@@ -345,6 +346,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [panelExpanded, setPanelExpanded] = useState(initPanelState);
     const [activeSection, setActiveSection] = useState<'funnels' | 'scoring' | 'feedback'>('funnels');
     const [sendingTestId, setSendingTestId] = useState<string | null>(null);
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+    const [customSignature, setCustomSignature] = useState<string>('');
 
     const handleSendTestEmail = async (step: EditableStep) => {
         if (sendingTestId) return;
@@ -441,6 +444,11 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     const mergeTokens = (template: string) => {
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
+            // Special handling for signature override
+            if (path === 'agent.signature' && customSignature) {
+                return customSignature;
+            }
+
             const [bucket, key] = path.split('.');
             if (!bucket || !key) return '';
             if (!(bucket in sampleMergeData)) return '';
@@ -686,186 +694,197 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => togglePanel(panelKey)}
-                        className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:bg-slate-50"
-                    >
-                        <span className="material-symbols-outlined text-base">
-                            {isOpen ? 'expand_less' : 'expand_more'}
-                        </span>
-                        {isOpen ? 'Collapse' : 'Expand'}
-                    </button>
+                    <div className="flex items-center gap-2 self-start">
+                        <button
+                            onClick={() => setIsSignatureModalOpen(true)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-colors shadow-sm"
+                        >
+                            <span className="material-symbols-outlined text-base">ink_pen</span>
+                            Edit Sig
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => togglePanel(panelKey)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:bg-slate-50"
+                        >
+                            <span className="material-symbols-outlined text-base">
+                                {isOpen ? 'expand_less' : 'expand_more'}
+                            </span>
+                            {isOpen ? 'Collapse' : 'Expand'}
+                        </button>
+                    </div>
                 </div>
-                {isOpen && (
-                    <>
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-500">
-                            <span className="font-semibold text-slate-600">Tokens:</span>
-                            {COMMON_TOKEN_HINTS.map((token) => (
-                                <span
-                                    key={`${panelKey}-${token}`}
-                                    className="rounded-full bg-slate-100 px-2 py-1 text-slate-600"
+                {
+                    isOpen && (
+                        <>
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-500">
+                                <span className="font-semibold text-slate-600">Tokens:</span>
+                                {COMMON_TOKEN_HINTS.map((token) => (
+                                    <span
+                                        key={`${panelKey}-${token}`}
+                                        className="rounded-full bg-slate-100 px-2 py-1 text-slate-600"
+                                    >
+                                        {token}
+                                    </span>
+                                ))}
+                            </div>
+                            <div className="space-y-4">
+                                {steps.map((step, index) => {
+                                    const stepIsOpen = expandedIds.includes(step.id);
+                                    const previewSubject = mergeTokens(step.subject);
+                                    const previewBody = mergeTokens(step.content);
+                                    return (
+                                        <article key={step.id} className="rounded-2xl border border-slate-200 bg-slate-50">
+                                            <button
+                                                type="button"
+                                                onClick={() => onToggleStep(step.id)}
+                                                className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`rounded-full bg-white p-2 shadow-sm ${iconColorClass}`}>
+                                                        <span className="material-symbols-outlined text-base">{step.icon}</span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                                            Step {index + 1}
+                                                        </p>
+                                                        <h3 className="text-sm font-semibold text-slate-900">{step.title}</h3>
+                                                        <p className="text-xs text-slate-500 line-clamp-1">{step.description}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4 text-xs text-slate-500">
+                                                    <span className="font-semibold">{step.delay}</span>
+                                                    <span className="hidden rounded-full border border-slate-200 bg-white px-2 py-1 font-semibold sm:inline">
+                                                        {step.type}
+                                                    </span>
+                                                    <span className="material-symbols-outlined text-base">
+                                                        {stepIsOpen ? 'expand_less' : 'expand_more'}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                            {stepIsOpen && (
+                                                <div className="space-y-4 border-t border-slate-200 bg-white px-4 py-4">
+                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                        <label className="text-xs font-semibold text-slate-600">
+                                                            Title
+                                                            <input
+                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                                                                value={step.title}
+                                                                onChange={(event) => onUpdateStep(step.id, 'title', event.target.value)}
+                                                            />
+                                                        </label>
+                                                        <label className="text-xs font-semibold text-slate-600">
+                                                            Delay
+                                                            <input
+                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                                                                value={step.delay}
+                                                                onChange={(event) => onUpdateStep(step.id, 'delay', event.target.value)}
+                                                            />
+                                                        </label>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                        <label className="text-xs font-semibold text-slate-600">
+                                                            Description
+                                                            <input
+                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                                                                value={step.description}
+                                                                onChange={(event) => onUpdateStep(step.id, 'description', event.target.value)}
+                                                            />
+                                                        </label>
+                                                        <label className="text-xs font-semibold text-slate-600">
+                                                            Type
+                                                            <input
+                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                                                                value={step.type}
+                                                                onChange={(event) => onUpdateStep(step.id, 'type', event.target.value)}
+                                                            />
+                                                        </label>
+                                                    </div>
+                                                    <label className="text-xs font-semibold text-slate-600">
+                                                        Subject
+                                                        <input
+                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                                                            value={step.subject}
+                                                            onChange={(event) => onUpdateStep(step.id, 'subject', event.target.value)}
+                                                        />
+                                                    </label>
+                                                    <label className="text-xs font-semibold text-slate-600">
+                                                        Message Body
+                                                        <textarea
+                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                                                            rows={5}
+                                                            value={step.content}
+                                                            onChange={(event) => onUpdateStep(step.id, 'content', event.target.value)}
+                                                        />
+                                                    </label>
+                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</p>
+                                                            <p className="mt-1 text-sm font-semibold text-slate-900">{previewSubject}</p>
+                                                            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-600">{previewBody}</p>
+                                                        </div>
+                                                        <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-xs text-slate-500">
+                                                            <p className="font-semibold uppercase tracking-wide text-slate-600">Variables you can drop in</p>
+                                                            <ul className="mt-2 space-y-1">
+                                                                {COMMON_TOKEN_HINTS.map((token) => (
+                                                                    <li key={`${step.id}-${token}`} className="font-mono text-[11px]">
+                                                                        {token}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-end">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onSendTest(step)}
+                                                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
+                                                        >
+                                                            <span className="material-symbols-outlined text-base">send</span>
+                                                            Send Test to Me
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onRemoveStep(step.id)}
+                                                            className="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                                        >
+                                                            <span className="material-symbols-outlined text-base">delete</span>
+                                                            Delete Step
+                                                        </button>
+                                                        <div className="text-xs text-slate-500">
+                                                            Auto preview updates with your edits.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                                <button
+                                    type="button"
+                                    onClick={onAddStep}
+                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                                 >
-                                    {token}
-                                </span>
-                            ))}
-                        </div>
-                        <div className="space-y-4">
-                            {steps.map((step, index) => {
-                                const stepIsOpen = expandedIds.includes(step.id);
-                                const previewSubject = mergeTokens(step.subject);
-                                const previewBody = mergeTokens(step.content);
-                                return (
-                                    <article key={step.id} className="rounded-2xl border border-slate-200 bg-slate-50">
-                                        <button
-                                            type="button"
-                                            onClick={() => onToggleStep(step.id)}
-                                            className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className={`rounded-full bg-white p-2 shadow-sm ${iconColorClass}`}>
-                                                    <span className="material-symbols-outlined text-base">{step.icon}</span>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                                        Step {index + 1}
-                                                    </p>
-                                                    <h3 className="text-sm font-semibold text-slate-900">{step.title}</h3>
-                                                    <p className="text-xs text-slate-500 line-clamp-1">{step.description}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-4 text-xs text-slate-500">
-                                                <span className="font-semibold">{step.delay}</span>
-                                                <span className="hidden rounded-full border border-slate-200 bg-white px-2 py-1 font-semibold sm:inline">
-                                                    {step.type}
-                                                </span>
-                                                <span className="material-symbols-outlined text-base">
-                                                    {stepIsOpen ? 'expand_less' : 'expand_more'}
-                                                </span>
-                                            </div>
-                                        </button>
-                                        {stepIsOpen && (
-                                            <div className="space-y-4 border-t border-slate-200 bg-white px-4 py-4">
-                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Title
-                                                        <input
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            value={step.title}
-                                                            onChange={(event) => onUpdateStep(step.id, 'title', event.target.value)}
-                                                        />
-                                                    </label>
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Delay
-                                                        <input
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            value={step.delay}
-                                                            onChange={(event) => onUpdateStep(step.id, 'delay', event.target.value)}
-                                                        />
-                                                    </label>
-                                                </div>
-                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Description
-                                                        <input
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            value={step.description}
-                                                            onChange={(event) => onUpdateStep(step.id, 'description', event.target.value)}
-                                                        />
-                                                    </label>
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Type
-                                                        <input
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            value={step.type}
-                                                            onChange={(event) => onUpdateStep(step.id, 'type', event.target.value)}
-                                                        />
-                                                    </label>
-                                                </div>
-                                                <label className="text-xs font-semibold text-slate-600">
-                                                    Subject
-                                                    <input
-                                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                        value={step.subject}
-                                                        onChange={(event) => onUpdateStep(step.id, 'subject', event.target.value)}
-                                                    />
-                                                </label>
-                                                <label className="text-xs font-semibold text-slate-600">
-                                                    Message Body
-                                                    <textarea
-                                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                        rows={5}
-                                                        value={step.content}
-                                                        onChange={(event) => onUpdateStep(step.id, 'content', event.target.value)}
-                                                    />
-                                                </label>
-                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</p>
-                                                        <p className="mt-1 text-sm font-semibold text-slate-900">{previewSubject}</p>
-                                                        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-600">{previewBody}</p>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-xs text-slate-500">
-                                                        <p className="font-semibold uppercase tracking-wide text-slate-600">Variables you can drop in</p>
-                                                        <ul className="mt-2 space-y-1">
-                                                            {COMMON_TOKEN_HINTS.map((token) => (
-                                                                <li key={`${step.id}-${token}`} className="font-mono text-[11px]">
-                                                                    {token}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                                <div className="flex justify-end">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onSendTest(step)}
-                                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
-                                                    >
-                                                        <span className="material-symbols-outlined text-base">send</span>
-                                                        Send Test to Me
-                                                    </button>
-                                                </div>
-                                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onRemoveStep(step.id)}
-                                                        className="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                                                    >
-                                                        <span className="material-symbols-outlined text-base">delete</span>
-                                                        Delete Step
-                                                    </button>
-                                                    <div className="text-xs text-slate-500">
-                                                        Auto preview updates with your edits.
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </article>
-                                );
-                            })}
-                        </div>
-                        <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                            <button
-                                type="button"
-                                onClick={onAddStep}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                            >
-                                <span className="material-symbols-outlined text-base">add</span>
-                                Add Step
-                            </button>
-                            <button
-                                type="button"
-                                onClick={onSave}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
-                            >
-                                <span className="material-symbols-outlined text-base">save</span>
-                                {saveLabel}
-                            </button>
-                        </div>
-                    </>
-                )}
-            </section>
+                                    <span className="material-symbols-outlined text-base">add</span>
+                                    Add Step
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onSave}
+                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
+                                >
+                                    <span className="material-symbols-outlined text-base">save</span>
+                                    {saveLabel}
+                                </button>
+                            </div>
+                        </>
+                    )
+                }
+            </section >
         );
     };
 
@@ -1041,6 +1060,13 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 )}
             </div>
             {isQuickEmailOpen && <QuickEmailModal onClose={() => setIsQuickEmailOpen(false)} isDemoMode={isDemoMode} />}
+
+            <SignatureEditorModal
+                isOpen={isSignatureModalOpen}
+                onClose={() => setIsSignatureModalOpen(false)}
+                initialSignature={customSignature || `Best regards,<br/><strong>${sampleMergeData.agent.name}</strong><br/>${sampleMergeData.agent.phone}`}
+                onSave={setCustomSignature}
+            />
         </div>
     );
 };

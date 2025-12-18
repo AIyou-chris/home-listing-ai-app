@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import EmailEditor from './EmailEditor';
+import { EmailEditor } from './EmailEditor';
 
 interface SignatureEditorModalProps {
     isOpen: boolean;
