@@ -1,5 +1,4 @@
-import React from 'react';
-import { Editor } from 'react-simple-wysiwyg';
+import Editor from 'react-simple-wysiwyg';
 
 interface EmailEditorProps {
     value: string;
@@ -26,7 +25,7 @@ export const EmailEditor: React.FC<EmailEditorProps> = ({
     return (
         <div className={`email-editor-wrapper ${className || ''}`}>
             <Editor
-                value={value}
+                value={value || ''}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
                 containerProps={{ style: containerStyle }}
