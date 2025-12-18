@@ -3198,6 +3198,11 @@ const verifyAdmin = async (req, res, next) => {
     // Check Admin Role via RPC
     const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: user.id });
 
+    if (rpcError) {
+      console.warn('⚠️ Admin check RPC failed (function might be missing):', rpcError.message);
+      // Fall through to env check, do not throw
+    }
+
     // Fallback: Check strictly against Env Var
     const isEnvAdmin = process.env.VITE_ADMIN_EMAIL && user.email === process.env.VITE_ADMIN_EMAIL;
 
@@ -3437,19 +3442,35 @@ app.post('/api/security/backup', async (req, res) => {
 app.get('/api/admin/dashboard-metrics', verifyAdmin, async (req, res) => {
   try {
     updateSystemHealth();
-    const userStats = calculateUserStats();
+
+    let userStats = {
+      totalUsers: 0,
+      activeUsers: 0,
+      trialUsers: 0,
+      expiredUsers: 0,
+      newUsersThisMonth: 0,
+    };
+
+    try {
+      userStats = calculateUserStats();
+    } catch (statError) {
+      console.error('Failed to calculate user stats:', statError);
+    }
+
+    // Safe access to users array
+    const lastUser = users && users.length > 0 ? users[users.length - 1] : null;
 
     const metrics = {
       ...userStats,
-      systemHealth,
+      systemHealth: systemHealth || { overall: 'unknown', issues: ['systemHealth undefined'] },
       recentActivity: [
         {
           id: '1',
           type: 'user_registration',
           description: 'New user registered',
           timestamp: new Date().toISOString(),
-          userId: users[users.length - 1]?.id,
-          userEmail: users[users.length - 1]?.email
+          userId: lastUser?.id || null,
+          userEmail: lastUser?.email || null
         },
         {
           id: '2',
@@ -3475,7 +3496,7 @@ app.get('/api/admin/dashboard-metrics', verifyAdmin, async (req, res) => {
     res.json(metrics);
   } catch (error) {
     console.error('Dashboard metrics error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined });
   }
 });
 
