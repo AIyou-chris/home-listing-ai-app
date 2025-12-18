@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import QuickEmailModal from './QuickEmailModal';
 import { EmailEditor } from './EmailEditor';
+import SignatureEditorModal from './SignatureEditorModal';
+import SignatureEditorModal from './SignatureEditorModal';
 import { supabase } from '../services/supabase';
 import { ADMIN_EMAIL_TEMPLATES } from '../constants/adminEmailTemplates';
 import { emailService } from '../services/emailService';
@@ -118,6 +120,10 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [sendingTestId, setSendingTestId] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
     const [previewAgent, setPreviewAgent] = useState<AICardProfile | null>(null);
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+    const [customSignature, setCustomSignature] = useState<string>('');
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+    const [customSignature, setCustomSignature] = useState<string>('');
 
     // Load AI Card Profile for Signature/Preview
     useEffect(() => {
@@ -176,6 +182,11 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     // Flexible merge function that can take custom data source
     const mergeTokens = (template: string, sourceData: Record<string, unknown> = sampleMergeData) => {
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
+            // Override agent.signature if custom signature is set
+            if (path === 'agent.signature' && customSignature) {
+                return customSignature;
+            }
+
             const [bucket, key] = path.split('.');
             if (!bucket || !key) return '';
 
@@ -753,16 +764,14 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         </button>
 
                         {/* AI Card Link */}
-                        <a
-                            href="#ai-card"
-                            onClick={() => {
-                                // Basic prevention
-                            }}
+                        {/* AI Card Link - Hijacked for Signature Editor */}
+                        <button
+                            onClick={() => setIsSignatureModalOpen(true)}
                             className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 shadow-sm transition-colors"
                         >
                             <span className="material-symbols-outlined text-indigo-600">badge</span>
-                            Edit AI Card / Signature
-                        </a>
+                            Edit Funnel Signature
+                        </button>
                     </div>
                 </header>
 
@@ -790,6 +799,13 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     templates={ADMIN_EMAIL_TEMPLATES}
                 />
             )}
+
+            <SignatureEditorModal
+                isOpen={isSignatureModalOpen}
+                onClose={() => setIsSignatureModalOpen(false)}
+                initialSignature={customSignature || sampleMergeData.agent.signature}
+                onSave={setCustomSignature}
+            />
         </div>
     );
 };
