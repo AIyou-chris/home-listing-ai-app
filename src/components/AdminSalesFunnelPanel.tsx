@@ -372,13 +372,23 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     setProgramSteps(visibleSteps);
 
                     if (signatureStep) {
+                        console.log('Found custom signature:', signatureStep.content);
                         setCustomSignature(signatureStep.content);
                     } else if (data.signature) {
                         // Fallback to legacy field just in case
                         setCustomSignature(data.signature);
                     }
+
+                    // LocalStorage Override (Browser-side persistence fallback)
+                    const localSig = localStorage.getItem('admin_funnel_signature');
+                    if (localSig) {
+                        setCustomSignature(localSig);
+                    }
                 } else {
                     setProgramSteps(buildDefaultSteps());
+                    // Recover from local storage even if fetch fails/empty
+                    const localSig = localStorage.getItem('admin_funnel_signature');
+                    if (localSig) setCustomSignature(localSig);
                 }
             } catch (err) {
                 console.warn('Fetch Funnel Error:', err);
@@ -449,6 +459,13 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     steps: stepsToSave
                 })
             });
+
+            // Backup to LocalStorage (Immediate persistence reliability)
+            if (customSignature) {
+                localStorage.setItem('admin_funnel_signature', customSignature);
+            } else {
+                localStorage.removeItem('admin_funnel_signature');
+            }
 
             if (!response.ok) {
                 const err = await response.json();
