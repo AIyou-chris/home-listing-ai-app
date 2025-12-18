@@ -8219,7 +8219,11 @@ app.get('/api/admin/appointments', async (req, res) => {
     res.json(appointments);
   } catch (error) {
     console.error('Error listing admin appointments:', error);
-    res.status(500).json({ error: 'Failed to list appointments' });
+    res.status(500).json({
+      error: 'Failed to list appointments',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
