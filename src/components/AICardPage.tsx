@@ -595,9 +595,9 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
 
           {/* Bio */}
           <div className="mb-6 flex-1">
-            <p className="text-sm text-gray-600 leading-relaxed line-clamp-4">
+            <div className="text-sm text-gray-600 leading-relaxed max-h-60 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
               {form.bio}
-            </p>
+            </div>
           </div>
 
           {/* How Can I Help Button */}
@@ -648,7 +648,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 
   return (
@@ -673,8 +673,8 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               <button
                 onClick={() => setActiveTab('edit')}
                 className={`flex items - center justify - center space - x - 1 sm: space - x - 2 px - 2 sm: px - 4 py - 2 rounded - md text - xs sm: text - sm font - medium transition - colors flex - 1 sm: flex - none ${activeTab === 'edit'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
                   } `}
               >
                 <Palette className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -683,8 +683,8 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               <button
                 onClick={() => setActiveTab('preview')}
                 className={`flex items - center justify - center space - x - 1 sm: space - x - 2 px - 2 sm: px - 4 py - 2 rounded - md text - xs sm: text - sm font - medium transition - colors flex - 1 sm: flex - none ${activeTab === 'preview'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
                   } `}
               >
                 <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -693,8 +693,8 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               <button
                 onClick={() => setActiveTab('qr-codes')}
                 className={`flex items - center justify - center space - x - 1 sm: space - x - 2 px - 2 sm: px - 4 py - 2 rounded - md text - xs sm: text - sm font - medium transition - colors flex - 1 sm: flex - none ${activeTab === 'qr-codes'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
                   } `}
               >
                 <QrCode className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -752,8 +752,8 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
             </button>
             {isDemoMode && (
               <div className={`flex items - center gap - 1.5 px - 3 py - 1.5 rounded - lg text - xs font - medium transition - all ${showDemoNotice
-                  ? 'bg-blue-500 text-white shadow-md'
-                  : 'bg-blue-50 text-blue-700 border border-blue-100'
+                ? 'bg-blue-500 text-white shadow-md'
+                : 'bg-blue-50 text-blue-700 border border-blue-100'
                 } `}>
                 <span className="material-symbols-outlined text-sm">info</span>
                 <span>Demo Mode: Changes not saved</span>
@@ -1016,7 +1016,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  {form.bio.length}/500 characters
+                  {form.bio.length}/2000 characters
                 </p>
               </CollapsibleSection>
 
