@@ -189,6 +189,12 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
             const bucketData = sourceData[bucket] as Record<string, string> | undefined;
             const value = bucketData?.[key];
+
+            // Auto-linkify specific URL fields if they are just raw strings
+            if (['agent.aiCardUrl', 'agent.website', 'lead.interestAddress'].includes(path) && value) {
+                return `<a href="${value}" target="_blank" rel="noopener noreferrer">${value}</a>`;
+            }
+
             if (value !== undefined) return value;
 
             return `{{${path}}}`;
@@ -667,7 +673,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                 <p className="text-xs text-slate-500">Subject: <span className="text-slate-900 font-medium">{mergeTokens(step.subject)}</span></p>
                                                             </div>
                                                             <div
-                                                                className="prose prose-sm max-w-none text-slate-600"
+                                                                className="prose prose-sm max-w-none text-slate-600 prose-a:text-blue-600 prose-a:underline prose-a:font-medium"
                                                                 dangerouslySetInnerHTML={{
                                                                     __html: mergeTokens(step.content).replace(/\n/g, '<br/>')
                                                                 }}
