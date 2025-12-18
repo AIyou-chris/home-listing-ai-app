@@ -545,7 +545,13 @@ const App: React.FC = () => {
 
             } else {
                 // User signed out
-                // ...
+                setUser(null);
+                setIsAdmin(false);
+                setUserProfile(SAMPLE_AGENT);
+                setProperties([]);
+                setLeads([]);
+                setAppointments([]);
+
                 // Only redirect if we are on a protected route
                 const isProtected = !['', 'landing', 'signin', 'signup', 'demo', 'admin-login', 'checkout'].includes(location.pathname.replace(/^\//, ''));
                 if (isProtected && !location.pathname.startsWith('/store/')) {
