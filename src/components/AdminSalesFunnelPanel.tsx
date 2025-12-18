@@ -357,6 +357,11 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 } else {
                     setProgramSteps(buildDefaultSteps());
                 }
+
+                // Load persisted signature if present
+                if (data.signature) {
+                    setCustomSignature(data.signature);
+                }
             } catch (err) {
                 console.warn('Fetch Funnel Error:', err);
                 setProgramSteps(buildDefaultSteps());
@@ -408,7 +413,10 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             // This endpoint (/api/admin/marketing/sequences/:id) upserts the funnel data.
             const response = await authService.makeAuthenticatedRequest(`/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
                 method: 'PUT',
-                body: JSON.stringify({ steps: programSteps })
+                body: JSON.stringify({
+                    steps: programSteps,
+                    signature: customSignature
+                })
             });
 
             if (!response.ok) {
