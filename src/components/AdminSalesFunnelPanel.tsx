@@ -795,6 +795,11 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         >
                             <span className="material-symbols-outlined text-indigo-600">badge</span>
                             Edit Funnel Signature
+                            {customSignature && (
+                                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800">
+                                    Active
+                                </span>
+                            )}
                         </button>
                     </div>
                 </header>
