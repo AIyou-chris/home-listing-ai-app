@@ -425,7 +425,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     description: 'Do not edit',
                     icon: 'lock',
                     delay: '0',
-                    type: 'Hidden',
+                    type: 'Email', // MUST be a valid type to pass backend validation
                     subject: 'METADATA',
                     content: customSignature
                 });
