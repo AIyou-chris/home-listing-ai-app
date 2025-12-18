@@ -41,6 +41,10 @@ export const EmailEditor: React.FC<EmailEditorProps> = ({
             border-top-right-radius: 0.5rem;
             background-color: #f8fafc; /* slate-50 */
         }
+        .email-editor-wrapper .rsw-editor a {
+            color: #2563eb; /* blue-600 */
+            text-decoration: underline;
+        }
       `}</style>
         </div>
     );
