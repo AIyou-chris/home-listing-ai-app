@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import AnalyticsPage from './AnalyticsPage';
 import QuickEmailModal from './QuickEmailModal';
 import SignatureEditorModal from './SignatureEditorModal';
+import { EmailEditor } from './EmailEditor';
 import SequenceFeedbackPanel from './SequenceFeedbackPanel';
 import { funnelService } from '../services/funnelService';
 import { supabase } from '../services/supabase';
@@ -808,20 +809,23 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                             onChange={(event) => onUpdateStep(step.id, 'subject', event.target.value)}
                                                         />
                                                     </label>
-                                                    <label className="text-xs font-semibold text-slate-600">
+                                                    <label className="text-xs font-semibold text-slate-600 block">
                                                         Message Body
-                                                        <textarea
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            rows={5}
+                                                        <EmailEditor
                                                             value={step.content}
-                                                            onChange={(event) => onUpdateStep(step.id, 'content', event.target.value)}
+                                                            onChange={(val) => onUpdateStep(step.id, 'content', val)}
+                                                            className="mt-1"
+                                                            placeholder="Draft your email..."
                                                         />
                                                     </label>
                                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                                                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</p>
                                                             <p className="mt-1 text-sm font-semibold text-slate-900">{previewSubject}</p>
-                                                            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-600">{previewBody}</p>
+                                                            <div
+                                                                className="mt-2 text-sm leading-relaxed text-slate-600 prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0"
+                                                                dangerouslySetInnerHTML={{ __html: previewBody.replace(/\n/g, '<br/>') }}
+                                                            />
                                                         </div>
                                                         <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-xs text-slate-500">
                                                             <p className="font-semibold uppercase tracking-wide text-slate-600">Variables you can drop in</p>
