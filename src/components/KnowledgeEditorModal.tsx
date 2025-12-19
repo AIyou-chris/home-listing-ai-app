@@ -140,10 +140,25 @@ const KnowledgeEditorModal: React.FC<KnowledgeEditorModalProps> = ({
               <button
                 onClick={handleScrape}
                 disabled={!websiteUrl.trim() || scraping}
-                className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-white ${scraping ? 'bg-emerald-300' : 'bg-emerald-700 hover:bg-emerald-800'}`}
+                className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-2 ${scraping ? 'bg-emerald-400 cursor-not-allowed' : 'bg-emerald-700 hover:bg-emerald-800'}`}
               >
-                {scraping ? 'Scraping…' : 'Scrape Website'}
+                {scraping ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-lg">refresh</span>
+                    Scraping...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-lg">download</span>
+                    Scrape Website
+                  </>
+                )}
               </button>
+              {websiteUrl === '' && !scraping && (
+                <p className="text-xs text-emerald-700 font-medium text-center animate-pulse">
+                  Ready to scrape next URL
+                </p>
+              )}
             </div>
           </div>
         </div>
