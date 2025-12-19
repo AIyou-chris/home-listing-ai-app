@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AgentProfile } from '../../context/AgentBrandingContext';
 import { generatePdf } from './PdfGenerator';
+import { EmailEditor } from '../EmailEditor';
 
 export interface ReportContent {
     title: string;
@@ -430,13 +431,12 @@ const ReportPreviewEditor: React.FC<ReportPreviewEditorProps> = ({ content: init
                                         </div>
                                     </div>
 
-                                    <div
-                                        className="text-slate-700 leading-relaxed whitespace-pre-wrap outline-none hover:bg-slate-50 rounded p-2 border border-transparent hover:border-slate-200 transition-colors relative"
-                                        contentEditable
-                                        suppressContentEditableWarning
-                                        onBlur={(e) => handleSectionChange(index, e.currentTarget.innerText)}
-                                    >
-                                        {section.content}
+                                    <div className="relative">
+                                        <EmailEditor
+                                            value={section.content}
+                                            onChange={(val) => handleSectionChange(index, val)}
+                                            placeholder="Write your section content here..."
+                                        />
                                     </div>
 
                                     {/* Loading Overlay for specific section */}
