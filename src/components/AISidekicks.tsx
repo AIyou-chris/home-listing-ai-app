@@ -2483,20 +2483,25 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                       <button
                         onClick={handleUrlScraping}
                         disabled={!websiteUrl.trim() || isScraping}
-                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {isScraping ? (
                           <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                             Scraping...
                           </>
                         ) : (
                           <>
-                            <span className="material-symbols-outlined mr-2">download</span>
+                            <span className="material-symbols-outlined text-lg">download</span>
                             Scrape Website
                           </>
                         )}
                       </button>
+                      {websiteUrl === '' && !isScraping && (
+                        <p className="text-xs text-green-700 font-medium text-center animate-pulse">
+                          Ready to scrape next URL
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

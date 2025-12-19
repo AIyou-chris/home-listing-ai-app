@@ -390,10 +390,25 @@ const AdminKnowledgeBasePage: React.FC<AdminKnowledgeBasePageProps> = ({ agentPr
                                         <button
                                             onClick={handleUrlScraping}
                                             disabled={isScraping || !websiteUrl.trim()}
-                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
                                         >
-                                            {isScraping ? 'Scraping...' : 'Scrape Website'}
+                                            {isScraping ? (
+                                                <>
+                                                    <span className="material-symbols-outlined animate-spin text-lg">refresh</span>
+                                                    Scraping...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="material-symbols-outlined text-lg">download</span>
+                                                    Scrape Website
+                                                </>
+                                            )}
                                         </button>
+                                        {websiteUrl === '' && !isScraping && (
+                                            <p className="text-xs text-green-700 font-medium text-center animate-pulse">
+                                                Ready to scrape next URL
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
