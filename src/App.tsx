@@ -1,5 +1,6 @@
+```
 import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
-import { Routes, Route, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence, LeadFunnelType } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
@@ -65,7 +66,7 @@ import FunnelAnalyticsPanel from './components/FunnelAnalyticsPanel';
 // import { getProperties, addProperty } from './services/firestoreService';
 // Temporary stubs while migrating off Firebase
 const getProperties = async (_uid: string): Promise<Property[]> => [];
-const addProperty = async (_data: PersistedProperty, _uid: string): Promise<string> => `prop_${Date.now()}`;
+const addProperty = async (_data: PersistedProperty, _uid: string): Promise<string> => `prop_${ Date.now() } `;
 import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
@@ -148,9 +149,9 @@ const App: React.FC = () => {
         if (viewName === 'landing') {
             navigate('/');
         } else if (viewName === 'dashboard' && userProfile?.slug) {
-            navigate(`/dashboard/${userProfile.slug}`);
+            navigate(`/ dashboard / ${ userProfile.slug } `);
         } else {
-            navigate(`/${viewName}`);
+            navigate(`/ ${ viewName } `);
         }
     }, [navigate, userProfile?.slug]);
 
@@ -334,7 +335,7 @@ const App: React.FC = () => {
                 }
 
                 if (currentUser) {
-                    console.log(`User signed in: ${currentUser.uid}`);
+                    console.log(`User signed in: ${ currentUser.uid } `);
                     // ... rest of logic
 
 
@@ -352,844 +353,839 @@ const App: React.FC = () => {
                             email: currentUser.email ?? '',
                             headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                         });
-                        setProperties([]);
-                        setLeads([]);
-                        setAppointments([]);
-                        setInteractions([]);
-                        setTasks([]);
-                        setConversations([]);
-                        setSequences([]);
-                        setView('admin-dashboard');
-                        // isLoading handled in finally
-                        return;
+setProperties([]);
+setLeads([]);
+setAppointments([]);
+setInteractions([]);
+setTasks([]);
+setConversations([]);
+setSequences([]);
+setView('admin-dashboard');
+// isLoading handled in finally
+return;
                     }
 
-                    // Attempt to fetch properties once
-                    console.log(`Fetching properties...`);
-                    const propertiesToLoad: Property[] = await getProperties(currentUser.uid);
+// Attempt to fetch properties once
+console.log(`Fetching properties...`);
+const propertiesToLoad: Property[] = await getProperties(currentUser.uid);
 
-                    if (propertiesToLoad.length === 0) {
-                        // New user or no properties found
-                        console.log("No properties found (new user?)");
-                        // setIsSettingUp(true); // Optional: show setup if needed, but avoid blocking
-                    }
+if (propertiesToLoad.length === 0) {
+    // New user or no properties found
+    console.log("No properties found (new user?)");
+    // setIsSettingUp(true); // Optional: show setup if needed, but avoid blocking
+}
 
-                    setIsSettingUp(false); // Stop showing setup message
+setIsSettingUp(false); // Stop showing setup message
 
-                    if (propertiesToLoad.length > 0) {
-                        console.log("Properties loaded successfully.");
-                        const profileToLoad = propertiesToLoad[0].agent;
+if (propertiesToLoad.length > 0) {
+    console.log("Properties loaded successfully.");
+    const profileToLoad = propertiesToLoad[0].agent;
 
-                        setUser(currentUser);
-                        setUserProfile(profileToLoad);
-                        setProperties(propertiesToLoad);
-                        setAppointments(DEMO_FAT_APPOINTMENTS); // Using demo data for now
-                        setInteractions(SAMPLE_INTERACTIONS); // Using demo data for now
-                        setTasks(SAMPLE_TASKS);
-                        setConversations(SAMPLE_CONVERSATIONS);
-                        setSequences(DEMO_SEQUENCES);
-                        if (route !== 'admin-dashboard' && !window.location.pathname.includes('/admin-login')) {
-                            setView('dashboard');
-                        } else {
-                            // If we are on admin dashboard but failed the admin check generally,
-                            // we might still want to respect the route if something weird happened,
-                            // BUT typically if we are here, we are NOT admin.
-                            // However, since we added the local override check above, this block
-                            // (properties loaded) should only run for NON-ADMINS.
-                            // So setting view to dashboard is correct, UNLESS we really messed up.
-                        }
-                    } else {
-                        console.log(`No properties found/loaded for user ${currentUser.uid}. Initializing empty state.`);
-                        // alert("We couldn't retrieve your account's data..."); // REMOVED BLOCKING ALERT
-                        // Keep user logged in but show the dashboard in a degraded state.
-                        setUser(currentUser);
-                        setProperties([]);
-                        setUserProfile({
-                            ...SAMPLE_AGENT,
-                            name: currentUser.displayName ?? 'New Agent',
-                            email: currentUser.email ?? '',
-                            headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
-                        });
-                        setLeads([]);
-                        setAppointments([]);
-                        setInteractions([]);
-                        setTasks([]);
-                        setConversations([]);
-                        setSequences([]);
-                        if (!window.location.pathname.includes('/admin-login')) {
-                            setView('dashboard');
-                        }
-                    }
+    setUser(currentUser);
+    setUserProfile(profileToLoad);
+    setProperties(propertiesToLoad);
+    setAppointments(DEMO_FAT_APPOINTMENTS); // Using demo data for now
+    setInteractions(SAMPLE_INTERACTIONS); // Using demo data for now
+    setTasks(SAMPLE_TASKS);
+    setConversations(SAMPLE_CONVERSATIONS);
+    setSequences(DEMO_SEQUENCES);
+    if (route !== 'admin-dashboard' && !window.location.pathname.includes('/admin-login')) {
+        setView('dashboard');
+    } else {
+        // If we are on admin dashboard but failed the admin check generally,
+        // we might still want to respect the route if something weird happened,
+        // BUT typically if we are here, we are NOT admin.
+        // However, since we added the local override check above, this block
+        // (properties loaded) should only run for NON-ADMINS.
+        // So setting view to dashboard is correct, UNLESS we really messed up.
+    }
+} else {
+    console.log(`No properties found/loaded for user ${currentUser.uid}. Initializing empty state.`);
+    // alert("We couldn't retrieve your account's data..."); // REMOVED BLOCKING ALERT
+    // Keep user logged in but show the dashboard in a degraded state.
+    setUser(currentUser);
+    setProperties([]);
+    setUserProfile({
+        ...SAMPLE_AGENT,
+        name: currentUser.displayName ?? 'New Agent',
+        email: currentUser.email ?? '',
+        headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
+    });
+    setLeads([]);
+    setAppointments([]);
+    setInteractions([]);
+    setTasks([]);
+    setConversations([]);
+    setSequences([]);
+    if (!window.location.pathname.includes('/admin-login')) {
+        setView('dashboard');
+    }
+}
                 } else {
-                    // User is signed out.
-                    console.log("User signed out.");
-                    setUser(null);
-                    setIsAdmin(false); // Fix: Ensure admin state is cleared
-                    setProperties([]);
-                    setUserProfile(SAMPLE_AGENT);
-                    setLeads([]);
-                    setAppointments([]);
-                    setInteractions([]);
-                    setTasks([]);
-                    setConversations([]);
-                    setSequences([]);
-                    const signedOutRoute = route;
-                    console.log('🔍 No user logged in, route=', signedOutRoute);
+    // User is signed out.
+    console.log("User signed out.");
+    setUser(null);
+    setIsAdmin(false); // Fix: Ensure admin state is cleared
+    setProperties([]);
+    setUserProfile(SAMPLE_AGENT);
+    setLeads([]);
+    setAppointments([]);
+    setInteractions([]);
+    setTasks([]);
+    setConversations([]);
+    setSequences([]);
+    const signedOutRoute = route;
+    console.log('🔍 No user logged in, route=', signedOutRoute);
 
-                    if (signedOutRoute === 'dashboard-blueprint') {
-                        setView('dashboard-blueprint');
-                    } else if (signedOutRoute === 'admin-setup') {
-                        setView('admin-setup');
-                    } else if (signedOutRoute === 'admin-login') {
-                        // Allow access to admin login
-                        console.log('🔓 Admin Login route accessed.');
-                    } else if (isAdminView(signedOutRoute) || signedOutRoute === 'admin-dashboard') {
-                        // If trying to access any admin route while logged out, show admin login
-                        console.log('🔒 Protected admin route accessed while logged out, showing login');
-                        setView('admin-dashboard');
-                    } else if (signedOutRoute === 'signup') {
-                        setView('signup');
-                    } else if (signedOutRoute === 'signin') {
-                        setView('signin');
-                    } else if (signedOutRoute.startsWith('store/')) {
-                        // Allow access to storefront pages
-                        console.log('🛍️ Storefront route accessed.');
-                    }
-                    else {
-                        console.log('📍 Defaulting to landing');
-                        setIsDemoMode(false);
-                        setView('landing');
-                    }
-                }
+    if (signedOutRoute === 'dashboard-blueprint') {
+        setView('dashboard-blueprint');
+    } else if (signedOutRoute === 'admin-setup') {
+        setView('admin-setup');
+    } else if (signedOutRoute === 'admin-login') {
+        // Allow access to admin login
+        console.log('🔓 Admin Login route accessed.');
+    } else if (isAdminView(signedOutRoute) || signedOutRoute === 'admin-dashboard') {
+        // If trying to access any admin route while logged out, show admin login
+        console.log('🔒 Protected admin route accessed while logged out, showing login');
+        setView('admin-dashboard');
+    } else if (signedOutRoute === 'signup') {
+        setView('signup');
+    } else if (signedOutRoute === 'signin') {
+        setView('signin');
+    } else if (signedOutRoute.startsWith('store/')) {
+        // Allow access to storefront pages
+        console.log('🛍️ Storefront route accessed.');
+    } else if (signedOutRoute.startsWith('checkout')) {
+        // Allow access to checkout pages
+        console.log('💳 Checkout route accessed.');
+    }
+    else {
+        console.log('📍 Defaulting to landing');
+        setIsDemoMode(false);
+        setView('landing');
+    }
+}
             } catch (error) {
-                console.error("❌ Critical Auth Init Error:", error);
-                // Fallback to landing in worst case
-                if (!window.location.pathname.includes('admin')) {
-                    setView('landing');
-                }
-            } finally {
-                // ALWAYS clear loading state
-                setIsLoading(false);
-            }
+    console.error("❌ Critical Auth Init Error:", error);
+    // Fallback to landing in worst case
+    if (!window.location.pathname.includes('admin')) {
+        setView('landing');
+    }
+} finally {
+    // ALWAYS clear loading state
+    setIsLoading(false);
+}
         };
 
-        initAuth();
+initAuth();
 
-        // Initialize session tracking
-        const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            const currentUser: AppUser | null = session?.user
-                ? {
-                    uid: session.user.id,
-                    id: session.user.id,
-                    email: session.user.email,
-                    displayName: session.user.user_metadata?.name ?? null
+// Initialize session tracking
+const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const currentUser: AppUser | null = session?.user
+        ? {
+            uid: session.user.id,
+            id: session.user.id,
+            email: session.user.email,
+            displayName: session.user.user_metadata?.name ?? null
+        }
+        : null;
+
+    // Re-run setup with new user
+    setIsLoading(true);
+    setIsSettingUp(false);
+    setIsDemoMode(false);
+
+    try {
+        if (currentUser) {
+            console.log(`User signed in (Auth Change): ${currentUser.uid}`);
+
+            // IMPORTANT: Check for Admin Role immediately on auth change (RPC + Env Var Fallback + Local Bypass)
+            const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+            const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
+            const isEnvAdmin = typeof envAdminEmail === 'string' && currentUser.email && currentUser.email.toLowerCase() === envAdminEmail.toLowerCase();
+
+            console.log('[Auth] Admin Check:', { rpc: isRpcAdmin, env: isEnvAdmin, email: currentUser.email });
+            const isAdmin = isRpcAdmin || isEnvAdmin;
+
+
+            if (isAdmin) {
+                console.log("Admin user detected (Auth Change)");
+                setUser(currentUser);
+                setUserProfile({
+                    ...SAMPLE_AGENT,
+                    name: 'System Administrator',
+                    email: currentUser.email ?? '',
+                    headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
+                });
+
+                // Allow Admins to stay on Blueprint/Demo pages
+                const currentPath = window.location.pathname;
+                const stayOnPage =
+                    currentPath.includes('/dashboard-blueprint') ||
+                    currentPath.includes('/demo-dashboard');
+
+                if (!stayOnPage && !currentPath.includes('/admin-dashboard')) {
+                    navigate('/admin-dashboard');
                 }
-                : null;
 
-            // Re-run setup with new user
-            setIsLoading(true);
-            setIsSettingUp(false);
-            setIsDemoMode(false);
+                // isLoading handled in finally
+                return;
+            }
 
-            try {
-                if (currentUser) {
-                    console.log(`User signed in (Auth Change): ${currentUser.uid}`);
+            // If not admin, normal agent flow
+            setUser(currentUser);
 
-                    // IMPORTANT: Check for Admin Role immediately on auth change (RPC + Env Var Fallback + Local Bypass)
-                    const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
-                    const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-                    const isEnvAdmin = typeof envAdminEmail === 'string' && currentUser.email && currentUser.email.toLowerCase() === envAdminEmail.toLowerCase();
-
-                    console.log('[Auth] Admin Check:', { rpc: isRpcAdmin, env: isEnvAdmin, email: currentUser.email });
-                    const isAdmin = isRpcAdmin || isEnvAdmin;
-
-
-                    if (isAdmin) {
-                        console.log("Admin user detected (Auth Change)");
-                        setUser(currentUser);
-                        setUserProfile({
-                            ...SAMPLE_AGENT,
-                            name: 'System Administrator',
-                            email: currentUser.email ?? '',
-                            headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
-                        });
-
-                        // Allow Admins to stay on Blueprint/Demo pages
-                        const currentPath = window.location.pathname;
-                        const stayOnPage =
-                            currentPath.includes('/dashboard-blueprint') ||
-                            currentPath.includes('/demo-dashboard');
-
-                        if (!stayOnPage && !currentPath.includes('/admin-dashboard')) {
-                            navigate('/admin-dashboard');
-                        }
-
-                        // isLoading handled in finally
-                        return;
-                    }
-
-                    // If not admin, normal agent flow
-                    setUser(currentUser);
-
-                    // SECURITY: Check Admin Status via RPC
-                    supabase.rpc('is_user_admin', { uid: currentUser.uid })
-                        .then(({ data, error }) => {
-                            if (data && !error) {
-                                setIsAdmin(true);
-                                console.log('✅ Admin privileges confirmed via RPC');
-                            } else {
-                                setIsAdmin(false);
-                            }
-                        });
-
-                    // Avoid redirecting if already on a valid protected/demo route
-                    const currentPath = window.location.pathname;
-                    const stayOnPage =
-                        currentPath.includes('/admin-login') ||
-                        currentPath.includes('/dashboard-blueprint') ||
-                        currentPath.includes('/demo-dashboard') ||
-                        currentPath.includes('/admin-dashboard');
-
-                    if (!stayOnPage) {
-                        navigate('/dashboard');
+            // SECURITY: Check Admin Status via RPC
+            supabase.rpc('is_user_admin', { uid: currentUser.uid })
+                .then(({ data, error }) => {
+                    if (data && !error) {
+                        setIsAdmin(true);
+                        console.log('✅ Admin privileges confirmed via RPC');
                     } else {
-                        console.log(`Remaining on ${currentPath}`);
+                        setIsAdmin(false);
                     }
+                });
 
-                } else {
-                    // User signed out
-                    setUser(null);
-                    setIsAdmin(false);
-                    setUserProfile(SAMPLE_AGENT);
-                    setProperties([]);
-                    setLeads([]);
-                    setAppointments([]);
+            // Avoid redirecting if already on a valid protected/demo route
+            const currentPath = window.location.pathname;
+            const stayOnPage =
+                currentPath.includes('/admin-login') ||
+                currentPath.includes('/dashboard-blueprint') ||
+                currentPath.includes('/demo-dashboard') ||
+                currentPath.includes('/admin-dashboard');
 
-                    // Only redirect if we are on a protected route
-                    const isProtected = !['', 'landing', 'signin', 'signup', 'demo', 'admin-login', 'checkout'].includes(location.pathname.replace(/^\//, ''));
-                    if (isProtected && !location.pathname.startsWith('/store/')) {
-                        navigate('/signin');
-                    }
-                }
-            } catch (error) {
-                console.error("❌ Auth State Change Error:", error);
-            } finally {
-                setIsLoading(false);
+            if (!stayOnPage) {
+                navigate('/dashboard');
+            } else {
+                console.log(`Remaining on ${currentPath}`);
             }
-        });
 
-        // SESSION TIMEOUT: Auto-logout after 30 minutes of inactivity
-        let inactivityTimer: NodeJS.Timeout;
-        const resetInactivityTimer = () => {
-            if (inactivityTimer) clearTimeout(inactivityTimer);
-            if (supabase.auth.getSession()) {
-                inactivityTimer = setTimeout(() => {
-                    console.log("Session timed out due to inactivity");
-                    adminAuthService.logout().catch(console.error);
-                    // Force UI update if needed, though onAuthStateChange should handle it
-                }, 30 * 60 * 1000); // 30 minutes
+        } else {
+            // User signed out
+            setUser(null);
+            setIsAdmin(false);
+            setUserProfile(SAMPLE_AGENT);
+            setProperties([]);
+            setLeads([]);
+            setAppointments([]);
+
+            // Only redirect if we are on a protected route
+            const isProtected = !['', 'landing', 'signin', 'signup', 'demo', 'admin-login', 'checkout'].includes(location.pathname.replace(/^\//, ''));
+            if (isProtected && !location.pathname.startsWith('/store/')) {
+                navigate('/signin');
             }
-        };
+        }
+    } catch (error) {
+        console.error("❌ Auth State Change Error:", error);
+    } finally {
+        setIsLoading(false);
+    }
+});
 
-        // Listen for user activity
-        const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-        activityEvents.forEach(event => window.addEventListener(event, resetInactivityTimer));
+// SESSION TIMEOUT: Auto-logout after 30 minutes of inactivity
+let inactivityTimer: NodeJS.Timeout;
+const resetInactivityTimer = () => {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
+    if (supabase.auth.getSession()) {
+        inactivityTimer = setTimeout(() => {
+            console.log("Session timed out due to inactivity");
+            adminAuthService.logout().catch(console.error);
+            // Force UI update if needed, though onAuthStateChange should handle it
+        }, 30 * 60 * 1000); // 30 minutes
+    }
+};
 
-        // Start timer
-        resetInactivityTimer();
+// Listen for user activity
+const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+activityEvents.forEach(event => window.addEventListener(event, resetInactivityTimer));
 
-        return () => {
-            clearTimeout(safetyTimer); // Uncomment if safetyTimer is used
-            sub.subscription.unsubscribe();
-            if (inactivityTimer) clearTimeout(inactivityTimer);
-            activityEvents.forEach(event => window.removeEventListener(event, resetInactivityTimer));
-        };
+// Start timer
+resetInactivityTimer();
+
+return () => {
+    clearTimeout(safetyTimer); // Uncomment if safetyTimer is used
+    sub.subscription.unsubscribe();
+    if (inactivityTimer) clearTimeout(inactivityTimer);
+    activityEvents.forEach(event => window.removeEventListener(event, resetInactivityTimer));
+};
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Load centralized agent profile and set up real-time updates
-    useEffect(() => {
-        if (user && !isDemoMode) {
-            // Load centralized agent profile
-            loadAgentProfile();
+// Load centralized agent profile and set up real-time updates
+useEffect(() => {
+    if (user && !isDemoMode) {
+        // Load centralized agent profile
+        loadAgentProfile();
 
-            // Load listings from backend
-            loadListingsFromBackend();
+        // Load listings from backend
+        loadListingsFromBackend();
 
-            // Subscribe to profile changes for real-time updates
-            const unsubscribe = subscribeToProfileChanges((updatedProfile) => {
-                setUserProfile(prev => ({
-                    ...prev,
-                    name: updatedProfile.name,
-                    title: updatedProfile.title,
-                    company: updatedProfile.company,
-                    headshotUrl: updatedProfile.headshotUrl,
-                    email: updatedProfile.email,
-                    phone: updatedProfile.phone
-                }));
-                console.log('🔄 Profile updated across app');
-            });
-
-            return () => {
-                unsubscribe();
-            };
-        }
-    }, [user, isDemoMode]);
-
-    const handleNavigateToSignUp = () => navigate('/signup');
-    const handleNavigateToSignIn = () => navigate('/signin');
-    const handleNavigateToLanding = () => {
-        setIsDemoMode(false);
-        navigate('/');
-    };
-
-    // Load centralized agent profile
-    const loadAgentProfile = async () => {
-        try {
-            setIsProfileLoading(true);
-            const profileData = await getProfileForDashboard();
+        // Subscribe to profile changes for real-time updates
+        const unsubscribe = subscribeToProfileChanges((updatedProfile) => {
             setUserProfile(prev => ({
                 ...prev,
-                name: profileData.name,
-                title: profileData.title,
-                company: profileData.company,
-                headshotUrl: profileData.headshotUrl,
-                email: profileData.email,
-                phone: profileData.phone,
-                language: profileData.language ?? prev.language
+                name: updatedProfile.name,
+                title: updatedProfile.title,
+                company: updatedProfile.company,
+                headshotUrl: updatedProfile.headshotUrl,
+                email: updatedProfile.email,
+                phone: updatedProfile.phone
             }));
-            console.log('✅ Loaded centralized agent profile');
-        } catch (error) {
-            console.error('Failed to load agent profile:', error);
-            // Keep using SAMPLE_AGENT as fallback
-        } finally {
-            setIsProfileLoading(false);
-        }
-    };
+            console.log('🔄 Profile updated across app');
+        });
 
-    // Load listings from backend
-    const loadListingsFromBackend = async () => {
-        try {
-            const response = await fetch('/api/listings');
-            if (response.ok) {
-                const data: { listings?: BackendListing[] } = await response.json();
-                // Convert backend format to frontend format
-                const backendListings: BackendListing[] = Array.isArray(data.listings) ? data.listings : [];
-                const frontendProperties = backendListings.map((listing) => ({
-                    id: listing.id,
-                    title: listing.title,
-                    address: listing.address,
-                    price: listing.price,
-                    bedrooms: listing.bedrooms,
-                    bathrooms: listing.bathrooms,
-                    squareFeet: listing.squareFeet,
-                    propertyType: listing.propertyType,
-                    description: listing.description || '',
-                    imageUrl: listing.heroPhotos?.[0] || '/demo/home-1.png',
-                    features: listing.features || [],
-                    heroPhotos: listing.heroPhotos || [],
-                    galleryPhotos: listing.galleryPhotos || [],
-                    agent: listing.agent,
-                    appFeatures: {
-                        gallery: true,
-                        schools: true,
-                        financing: true,
-                        virtualTour: true,
-                        amenities: true,
-                        schedule: true,
-                        map: true,
-                        history: true,
-                        neighborhood: true,
-                        reports: true,
-                        messaging: true
-                    },
-                    ctaListingUrl: listing.ctaListingUrl ?? '',
-                    ctaMediaUrl: listing.ctaMediaUrl ?? ''
-                }));
-                setProperties(frontendProperties);
-                console.log('✅ Loaded listings from backend:', frontendProperties.length);
-            } else {
-                console.warn('Failed to load listings from backend, using demo data');
-                setProperties(DEMO_FAT_PROPERTIES);
-            }
-        } catch (error) {
-            console.error('Error loading listings from backend:', error);
+        return () => {
+            unsubscribe();
+        };
+    }
+}, [user, isDemoMode]);
+
+const handleNavigateToSignUp = () => navigate('/signup');
+const handleNavigateToSignIn = () => navigate('/signin');
+const handleNavigateToLanding = () => {
+    setIsDemoMode(false);
+    navigate('/');
+};
+
+// Load centralized agent profile
+const loadAgentProfile = async () => {
+    try {
+        setIsProfileLoading(true);
+        const profileData = await getProfileForDashboard();
+        setUserProfile(prev => ({
+            ...prev,
+            name: profileData.name,
+            title: profileData.title,
+            company: profileData.company,
+            headshotUrl: profileData.headshotUrl,
+            email: profileData.email,
+            phone: profileData.phone,
+            language: profileData.language ?? prev.language
+        }));
+        console.log('✅ Loaded centralized agent profile');
+    } catch (error) {
+        console.error('Failed to load agent profile:', error);
+        // Keep using SAMPLE_AGENT as fallback
+    } finally {
+        setIsProfileLoading(false);
+    }
+};
+
+// Load listings from backend
+const loadListingsFromBackend = async () => {
+    try {
+        const response = await fetch('/api/listings');
+        if (response.ok) {
+            const data: { listings?: BackendListing[] } = await response.json();
+            // Convert backend format to frontend format
+            const backendListings: BackendListing[] = Array.isArray(data.listings) ? data.listings : [];
+            const frontendProperties = backendListings.map((listing) => ({
+                id: listing.id,
+                title: listing.title,
+                address: listing.address,
+                price: listing.price,
+                bedrooms: listing.bedrooms,
+                bathrooms: listing.bathrooms,
+                squareFeet: listing.squareFeet,
+                propertyType: listing.propertyType,
+                description: listing.description || '',
+                imageUrl: listing.heroPhotos?.[0] || '/demo/home-1.png',
+                features: listing.features || [],
+                heroPhotos: listing.heroPhotos || [],
+                galleryPhotos: listing.galleryPhotos || [],
+                agent: listing.agent,
+                appFeatures: {
+                    gallery: true,
+                    schools: true,
+                    financing: true,
+                    virtualTour: true,
+                    amenities: true,
+                    schedule: true,
+                    map: true,
+                    history: true,
+                    neighborhood: true,
+                    reports: true,
+                    messaging: true
+                },
+                ctaListingUrl: listing.ctaListingUrl ?? '',
+                ctaMediaUrl: listing.ctaMediaUrl ?? ''
+            }));
+            setProperties(frontendProperties);
+            console.log('✅ Loaded listings from backend:', frontendProperties.length);
+        } else {
+            console.warn('Failed to load listings from backend, using demo data');
             setProperties(DEMO_FAT_PROPERTIES);
         }
-    };
-
-    const handleEnterDemoMode = () => {
-        setIsDemoMode(true);
+    } catch (error) {
+        console.error('Error loading listings from backend:', error);
         setProperties(DEMO_FAT_PROPERTIES);
-        setLeads(DEMO_FAT_LEADS);
-        setAppointments(DEMO_FAT_APPOINTMENTS);
-        setInteractions(SAMPLE_INTERACTIONS);
-        setTasks(SAMPLE_TASKS);
-        setConversations(SAMPLE_CONVERSATIONS);
-        setSequences(DEMO_SEQUENCES);
-        setUserProfile(SAMPLE_AGENT);
-        navigate('/demo-dashboard');
-    };
+    }
+};
 
-    const handleNavigateToAdmin = () => {
-        // Show admin login modal instead of direct access
-        setIsAdminLoginOpen(true);
-        setAdminLoginError(null);
-    };
+const handleEnterDemoMode = () => {
+    setIsDemoMode(true);
+    setProperties(DEMO_FAT_PROPERTIES);
+    setLeads(DEMO_FAT_LEADS);
+    setAppointments(DEMO_FAT_APPOINTMENTS);
+    setInteractions(SAMPLE_INTERACTIONS);
+    setTasks(SAMPLE_TASKS);
+    setConversations(SAMPLE_CONVERSATIONS);
+    setSequences(DEMO_SEQUENCES);
+    setUserProfile(SAMPLE_AGENT);
+    navigate('/demo-dashboard');
+};
 
-    const handleAdminLogin = async (email: string, password: string) => {
-        setIsAdminLoginLoading(true);
-        setAdminLoginError(null);
+const handleNavigateToAdmin = () => {
+    // Show admin login modal instead of direct access
+    setIsAdminLoginOpen(true);
+    setAdminLoginError(null);
+};
 
-        try {
-            const trimmedEmail = email.trim().toLowerCase();
-            const trimmedPassword = password.trim();
+const handleAdminLogin = async (email: string, password: string) => {
+    setIsAdminLoginLoading(true);
+    setAdminLoginError(null);
 
-            // Removed insecure bypass check. All logins must go through Supabase.
+    try {
+        const trimmedEmail = email.trim().toLowerCase();
+        const trimmedPassword = password.trim();
 
-            // Try local demo credentials first (DEV ONLY)
-            if (import.meta.env.DEV) {
-                const demo = await adminAuthService.login(trimmedEmail, trimmedPassword);
-                if (demo.success) {
-                    setIsAdminLoginOpen(false);
-                    // navigate to admin dashboard
-                    navigate('/admin-dashboard');
-                    return;
-                }
-            }
+        // Removed insecure bypass check. All logins must go through Supabase.
 
-            // If demo credentials don't match, try Supabase Auth
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email: trimmedEmail,
-                password: trimmedPassword
-            });
-
-            if (error || !data.user) {
-                setAdminLoginError('Invalid login credentials');
+        // Try local demo credentials first (DEV ONLY)
+        if (import.meta.env.DEV) {
+            const demo = await adminAuthService.login(trimmedEmail, trimmedPassword);
+            if (demo.success) {
+                setIsAdminLoginOpen(false);
+                // navigate to admin dashboard
+                navigate('/admin-dashboard');
                 return;
             }
-
-            // Check if user has admin role via RPC
-            const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
-
-            if (rpcError || !isAdmin) {
-                console.warn('Login successful but user is not an admin', rpcError);
-                await supabase.auth.signOut();
-                setAdminLoginError('Unauthorized: You do not have admin privileges.');
-                return;
-            }
-
-            // Admin role confirmed via RPC
-            // Proceed to dashboard
-
-            setIsAdminLoginOpen(false);
-            setIsAdmin(true); // Manually set admin for this session (RPC verified)
-            navigate('/admin-dashboard');
-        } catch (error) {
-            console.error('Admin login failed', error);
-            setAdminLoginError('Invalid login credentials');
-        } finally {
-            setIsAdminLoginLoading(false);
         }
-    };
 
-    const handleAdminLoginClose = () => {
-        setIsAdminLoginOpen(false);
-        setAdminLoginError(null);
-    };
+        // If demo credentials don't match, try Supabase Auth
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: trimmedEmail,
+            password: trimmedPassword
+        });
 
-
-    // Notification handling is now managed by NotificationSystem component
-
-    // Task management handlers
-    const handleTaskUpdate = (taskId: string, updates: Partial<AgentTask>) => {
-        setTasks(prev => prev.map(task =>
-            task.id === taskId ? { ...task, ...updates } : task
-        ));
-    };
-
-    const handleTaskAdd = (newTask: AgentTask) => {
-        setTasks(prev => [newTask, ...prev]);
-    };
-
-    const handleTaskDelete = (taskId: string) => {
-        setTasks(prev => prev.filter(task => task.id !== taskId));
-    };
-
-    const handleSelectProperty = (id: string) => {
-        setSelectedPropertyId(id);
-        setView('property');
-    };
-
-    const handleSetProperty = (updatedProperty: Property) => {
-        setProperties(prev => prev.map(p => p.id === updatedProperty.id ? updatedProperty : p));
-    };
-
-    const handleSaveNewProperty = async (newPropertyData: Omit<Property, 'id' | 'description' | 'imageUrl'>) => {
-        if (!user && !isDemoMode) {
-            alert("Please sign in to add a new listing.");
-            setView('signin');
+        if (error || !data.user) {
+            setAdminLoginError('Invalid login credentials');
             return;
         }
 
-        const propertyWithAgent = {
-            ...newPropertyData,
-            agent: userProfile,
-        };
+        // Check if user has admin role via RPC
+        const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
 
-        const tempId = `prop-temp-${Date.now()}`;
-        const propertyForState: Property = {
-            id: tempId,
-            description: '',
-            imageUrl: 'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto-format&fit=crop',
-            ...propertyWithAgent,
-        };
-
-        setProperties(prev => [propertyForState, ...prev]);
-        setView('listings');
-
-        if (isDemoMode) {
-            // In demo mode, simulate saving and then automatically delete the listing after a delay
-            setTimeout(() => {
-                alert("This is a demo. The listing you just created will now be automatically deleted to complete the demonstration.");
-                setProperties(prev => prev.filter(p => p.id !== tempId));
-            }, 4000);
-        } else if (user) { // Only save to Firestore if a real user is logged in
-            try {
-                const { id: _discardedId, ...dataForPersistence } = propertyForState;
-                void _discardedId;
-                const newDocId = await addProperty(dataForPersistence, user.uid);
-
-                setProperties(prev => prev.map(p => p.id === tempId ? { ...p, id: newDocId } : p));
-            } catch (error) {
-                console.error("Failed to save property:", error);
-                alert("Error: Could not save the property to the database. Please try again.");
-                setProperties(prev => prev.filter(p => p.id !== tempId));
-                setView('add-listing');
-            }
+        if (rpcError || !isAdmin) {
+            console.warn('Login successful but user is not an admin', rpcError);
+            await supabase.auth.signOut();
+            setAdminLoginError('Unauthorized: You do not have admin privileges.');
+            return;
         }
+
+        // Admin role confirmed via RPC
+        // Proceed to dashboard
+
+        setIsAdminLoginOpen(false);
+        setIsAdmin(true); // Manually set admin for this session (RPC verified)
+        navigate('/admin-dashboard');
+    } catch (error) {
+        console.error('Admin login failed', error);
+        setAdminLoginError('Invalid login credentials');
+    } finally {
+        setIsAdminLoginLoading(false);
+    }
+};
+
+const handleAdminLoginClose = () => {
+    setIsAdminLoginOpen(false);
+    setAdminLoginError(null);
+};
+
+
+// Notification handling is now managed by NotificationSystem component
+
+// Task management handlers
+const handleTaskUpdate = (taskId: string, updates: Partial<AgentTask>) => {
+    setTasks(prev => prev.map(task =>
+        task.id === taskId ? { ...task, ...updates } : task
+    ));
+};
+
+const handleTaskAdd = (newTask: AgentTask) => {
+    setTasks(prev => [newTask, ...prev]);
+};
+
+const handleTaskDelete = (taskId: string) => {
+    setTasks(prev => prev.filter(task => task.id !== taskId));
+};
+
+const handleSelectProperty = (id: string) => {
+    setSelectedPropertyId(id);
+    setView('property');
+};
+
+const handleSetProperty = (updatedProperty: Property) => {
+    setProperties(prev => prev.map(p => p.id === updatedProperty.id ? updatedProperty : p));
+};
+
+const handleSaveNewProperty = async (newPropertyData: Omit<Property, 'id' | 'description' | 'imageUrl'>) => {
+    if (!user && !isDemoMode) {
+        alert("Please sign in to add a new listing.");
+        setView('signin');
+        return;
+    }
+
+    const propertyWithAgent = {
+        ...newPropertyData,
+        agent: userProfile,
     };
 
-    const handleDeleteProperty = (id: string) => {
-        if (window.confirm('Are you sure you want to delete this listing?')) {
-            setProperties(prev => prev.filter(p => p.id !== id));
-            if (selectedPropertyId === id) {
-                setSelectedPropertyId(null);
-                setView('listings');
-            }
-        }
+    const tempId = `prop-temp-${Date.now()}`;
+    const propertyForState: Property = {
+        id: tempId,
+        description: '',
+        imageUrl: 'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto-format&fit=crop',
+        ...propertyWithAgent,
     };
 
-    const triggerLeadSequences = useCallback(
-        async (
-            lead: Lead,
-            triggerType: SequenceTriggerType = 'Lead Capture',
-            propertyOverride?: Property
-        ) => {
-            try {
-                const sequenceService = SequenceExecutionService.getInstance();
-                await sequenceService.triggerSequences(
-                    triggerType,
-                    {
-                        lead,
-                        agent: userProfile || SAMPLE_AGENT,
-                        property: propertyOverride ?? resolvePropertyForLead(lead)
-                    },
-                    sequences
-                );
-                console.log(`✅ ${triggerType} sequences triggered for:`, lead.name);
-            } catch (error) {
-                console.error('❌ Error triggering sequences:', error);
-            }
-        },
-        [resolvePropertyForLead, sequences, userProfile]
-    );
+    setProperties(prev => [propertyForState, ...prev]);
+    setView('listings');
 
-    const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
-        const payload: LeadPayload = {
+    if (isDemoMode) {
+        // In demo mode, simulate saving and then automatically delete the listing after a delay
+        setTimeout(() => {
+            alert("This is a demo. The listing you just created will now be automatically deleted to complete the demonstration.");
+            setProperties(prev => prev.filter(p => p.id !== tempId));
+        }, 4000);
+    } else if (user) { // Only save to Firestore if a real user is logged in
+        try {
+            const { id: _discardedId, ...dataForPersistence } = propertyForState;
+            void _discardedId;
+            const newDocId = await addProperty(dataForPersistence, user.uid);
+
+            setProperties(prev => prev.map(p => p.id === tempId ? { ...p, id: newDocId } : p));
+        } catch (error) {
+            console.error("Failed to save property:", error);
+            alert("Error: Could not save the property to the database. Please try again.");
+            setProperties(prev => prev.filter(p => p.id !== tempId));
+            setView('add-listing');
+        }
+    }
+};
+
+const handleDeleteProperty = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this listing?')) {
+        setProperties(prev => prev.filter(p => p.id !== id));
+        if (selectedPropertyId === id) {
+            setSelectedPropertyId(null);
+            setView('listings');
+        }
+    }
+};
+
+const triggerLeadSequences = useCallback(
+    async (
+        lead: Lead,
+        triggerType: SequenceTriggerType = 'Lead Capture',
+        propertyOverride?: Property
+    ) => {
+        try {
+            const sequenceService = SequenceExecutionService.getInstance();
+            await sequenceService.triggerSequences(
+                triggerType,
+                {
+                    lead,
+                    agent: userProfile || SAMPLE_AGENT,
+                    property: propertyOverride ?? resolvePropertyForLead(lead)
+                },
+                sequences
+            );
+            console.log(`✅ ${triggerType} sequences triggered for:`, lead.name);
+        } catch (error) {
+            console.error('❌ Error triggering sequences:', error);
+        }
+    },
+    [resolvePropertyForLead, sequences, userProfile]
+);
+
+const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
+    const payload: LeadPayload = {
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone,
+        source: leadData.source || 'Website',
+        lastMessage: leadData.message,
+        funnelType: null
+    };
+
+    try {
+        const createdLead = await leadsService.create(payload);
+        setLeads(prev => [createdLead, ...prev]);
+        await triggerLeadSequences(createdLead);
+    } catch (error) {
+        console.error('❌ Failed to create lead via API, using local fallback:', error);
+        const createdLead: Lead = {
+            id: `lead-${Date.now()}`,
             name: leadData.name,
             email: leadData.email,
             phone: leadData.phone,
-            source: leadData.source || 'Website',
             lastMessage: leadData.message,
-            funnelType: null
+            status: 'New',
+            date: new Date().toISOString(),
+            funnelType: null,
+            interestedProperties: []
         };
+        setLeads(prev => [createdLead, ...prev]);
+        await triggerLeadSequences(createdLead);
+    }
+    setView('leads');
+};
 
+const handleLeadFunnelAssigned = useCallback(
+    async (lead: Lead, funnel: LeadFunnelType | null) => {
+        const previous = lead.funnelType ?? null;
+        setLeads((prev) =>
+            prev.map((item) =>
+                item.id === lead.id ? { ...item, funnelType: funnel ?? undefined } : item
+            )
+        );
         try {
-            const createdLead = await leadsService.create(payload);
-            setLeads(prev => [createdLead, ...prev]);
-            await triggerLeadSequences(createdLead);
+            const updatedLead = await leadsService.assignFunnel(lead.id, funnel);
+            setLeads((prev) => prev.map((item) => (item.id === lead.id ? updatedLead : item)));
+            if (funnel) {
+                const triggerType = FUNNEL_TRIGGER_MAP[funnel];
+                await triggerLeadSequences(
+                    updatedLead,
+                    triggerType,
+                    resolvePropertyForLead(updatedLead)
+                );
+            }
         } catch (error) {
-            console.error('❌ Failed to create lead via API, using local fallback:', error);
-            const createdLead: Lead = {
-                id: `lead-${Date.now()}`,
-                name: leadData.name,
-                email: leadData.email,
-                phone: leadData.phone,
-                lastMessage: leadData.message,
-                status: 'New',
-                date: new Date().toISOString(),
-                funnelType: null,
-                interestedProperties: []
-            };
-            setLeads(prev => [createdLead, ...prev]);
-            await triggerLeadSequences(createdLead);
-        }
-        setView('leads');
-    };
-
-    const handleLeadFunnelAssigned = useCallback(
-        async (lead: Lead, funnel: LeadFunnelType | null) => {
-            const previous = lead.funnelType ?? null;
+            console.error('❌ Failed to assign lead funnel:', error);
             setLeads((prev) =>
                 prev.map((item) =>
-                    item.id === lead.id ? { ...item, funnelType: funnel ?? undefined } : item
+                    item.id === lead.id ? { ...item, funnelType: previous ?? undefined } : item
                 )
             );
-            try {
-                const updatedLead = await leadsService.assignFunnel(lead.id, funnel);
-                setLeads((prev) => prev.map((item) => (item.id === lead.id ? updatedLead : item)));
-                if (funnel) {
-                    const triggerType = FUNNEL_TRIGGER_MAP[funnel];
-                    await triggerLeadSequences(
-                        updatedLead,
-                        triggerType,
-                        resolvePropertyForLead(updatedLead)
-                    );
-                }
-            } catch (error) {
-                console.error('❌ Failed to assign lead funnel:', error);
-                setLeads((prev) =>
-                    prev.map((item) =>
-                        item.id === lead.id ? { ...item, funnelType: previous ?? undefined } : item
-                    )
-                );
-                alert('Unable to update the lead funnel right now. Please try again.');
-            }
-        },
-        [resolvePropertyForLead, triggerLeadSequences]
-    );
-
-    // Load appointments from Supabase when user signs in or demo/local admin
-    React.useEffect(() => {
-        const load = async () => {
-            try {
-                // In demo/local mode we won't have a user id; fetch all for preview
-                const uid = (user && (user.id || user.uid)) || undefined;
-                const rows = await listAppointments(uid);
-                const mapped: Appointment[] = rows.map(r => ({
-                    id: r.id,
-                    type: r.kind,
-                    date: r.date,
-                    time: r.time_label,
-                    leadId: r.lead_id ?? null,
-                    propertyId: r.property_id ?? null,
-                    propertyAddress: r.property_address || undefined,
-                    notes: r.notes || '',
-                    status: r.status,
-                    leadName: r.name,
-                    email: r.email || undefined,
-                    phone: r.phone || undefined,
-                    remindAgent: r.remind_agent,
-                    remindClient: r.remind_client,
-                    agentReminderMinutes: r.agent_reminder_minutes_before,
-                    clientReminderMinutes: r.client_reminder_minutes_before,
-                    meetLink: r.meet_link || undefined,
-                    startIso: r.start_iso,
-                    endIso: r.end_iso,
-                    createdAt: r.created_at,
-                    updatedAt: r.updated_at
-                }));
-                setAppointments(mapped);
-            } catch (e) {
-                console.warn('Failed loading appointments', e);
-            }
-        };
-        load();
-    }, [user, isDemoMode]);
-
-    // Track which property is currently selected
-    const selectedProperty = properties.find(p => p.id === selectedPropertyId);
-    // Local admin check removed (use isAdmin state)
-
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-screen bg-slate-50">
-                <LoadingSpinner size="xl" type="dots" text="Loading Application..." />
-            </div>
-        );
-    }
-
-    if (isSettingUp) {
-        return (
-            <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
-                <LoadingSpinner size="xl" type="pulse" text="Setting up your new account..." />
-            </div>
-        );
-    }
-
-
-    const registrationContext = getRegistrationContext() as { slug?: string } | null;
-    const slugForCheckout = registrationContext?.slug || null;
-    const renderCheckout = () => {
-        if (!slugForCheckout) {
-            return (
-                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
-                    <div className="max-w-md space-y-4">
-                        <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
-                        <p className="text-sm text-slate-600">
-                            Your secure checkout link may have expired. Please restart the signup process to generate a new link.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={handleNavigateToSignUp}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
-                        >
-                            <span className="material-symbols-outlined text-base">person_add</span>
-                            Start new signup
-                        </button>
-                    </div>
-                </div>
-            );
+            alert('Unable to update the lead funnel right now. Please try again.');
         }
+    },
+    [resolvePropertyForLead, triggerLeadSequences]
+);
 
-        return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
+// Load appointments from Supabase when user signs in or demo/local admin
+React.useEffect(() => {
+    const load = async () => {
+        try {
+            // In demo/local mode we won't have a user id; fetch all for preview
+            const uid = (user && (user.id || user.uid)) || undefined;
+            const rows = await listAppointments(uid);
+            const mapped: Appointment[] = rows.map(r => ({
+                id: r.id,
+                type: r.kind,
+                date: r.date,
+                time: r.time_label,
+                leadId: r.lead_id ?? null,
+                propertyId: r.property_id ?? null,
+                propertyAddress: r.property_address || undefined,
+                notes: r.notes || '',
+                status: r.status,
+                leadName: r.name,
+                email: r.email || undefined,
+                phone: r.phone || undefined,
+                remindAgent: r.remind_agent,
+                remindClient: r.remind_client,
+                agentReminderMinutes: r.agent_reminder_minutes_before,
+                clientReminderMinutes: r.client_reminder_minutes_before,
+                meetLink: r.meet_link || undefined,
+                startIso: r.start_iso,
+                endIso: r.end_iso,
+                createdAt: r.created_at,
+                updatedAt: r.updated_at
+            }));
+            setAppointments(mapped);
+        } catch (e) {
+            console.warn('Failed loading appointments', e);
+        }
     };
+    load();
+}, [user, isDemoMode]);
 
-    const ProtectedLayout = () => (
-        <div className="flex h-screen bg-slate-50">
-            <Sidebar activeView={view} setView={setView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
-                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
-                        <span className="material-symbols-outlined text-xl">menu</span>
-                    </button>
-                    <div className="flex-1 flex justify-center">
-                        <LogoWithName />
-                    </div>
-                </header>
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
-                    <Outlet />
-                </main>
-            </div>
+// Track which property is currently selected
+const selectedProperty = properties.find(p => p.id === selectedPropertyId);
+// Local admin check removed (use isAdmin state)
+
+if (isLoading) {
+    return (
+        <div className="flex items-center justify-center h-screen bg-slate-50">
+            <LoadingSpinner size="xl" type="dots" text="Loading Application..." />
         </div>
     );
+}
 
-    // Helper to render routes
-    const renderRoutes = () => {
-        if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
-        console.log("📍 Rendering Routes");
+if (isSettingUp) {
+    return (
+        <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+            <LoadingSpinner size="xl" type="pulse" text="Setting up your new account..." />
+        </div>
+    );
+}
+
+
+// Unified Checkout Wrapper to handle both URL params and context
+const CheckoutRouteWrapper = () => {
+    const params = useParams<{ slug?: string }>();
+    const registrationContext = getRegistrationContext() as { slug?: string } | null;
+
+    // Prioritize URL param, fallback to context
+    const slugForCheckout = params.slug || registrationContext?.slug || null;
+
+    if (!slugForCheckout) {
         return (
-            <div className="h-full">
-                <Routes>
-                    {/* Public Routes */}
-                    <Route path="/" element={
-                        (user || isDemoMode || isAdmin) ? <Navigate to="/dashboard" replace /> :
-                            <LandingPage
-                                onNavigateToSignUp={handleNavigateToSignUp}
-                                onNavigateToSignIn={handleNavigateToSignIn}
-                                onEnterDemoMode={handleEnterDemoMode}
-                                scrollToSection={scrollToSection}
-                                onScrollComplete={() => setScrollToSection(null)}
-                                onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-                                onNavigateToAdmin={handleNavigateToAdmin}
-                            />
-                    } />
-                    <Route path="/landing" element={<Navigate to="/" replace />} />
-                    <Route path="/signin" element={
-                        <SignInPage
+            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
+                <div className="max-w-md space-y-4">
+                    <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
+                    <p className="text-sm text-slate-600">
+                        Your secure checkout link may have expired. Please restart the signup process to generate a new link.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={handleNavigateToSignUp}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
+                    >
+                        <span className="material-symbols-outlined text-base">person_add</span>
+                        Start new signup
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
+};
+
+const ProtectedLayout = () => (
+    <div className="flex h-screen bg-slate-50">
+        <Sidebar activeView={view} setView={setView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        <div className="flex-1 flex flex-col overflow-hidden">
+            <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
+                <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
+                    <span className="material-symbols-outlined text-xl">menu</span>
+                </button>
+                <div className="flex-1 flex justify-center">
+                    <LogoWithName />
+                </div>
+            </header>
+            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+                <Outlet />
+            </main>
+        </div>
+    </div>
+);
+
+// Helper to render routes
+const renderRoutes = () => {
+    if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
+    console.log("📍 Rendering Routes");
+    return (
+        <div className="h-full">
+            <Routes>
+                {/* Public Routes */}
+                <Route path="/" element={
+                    (user || isDemoMode || isAdmin) ? <Navigate to="/dashboard" replace /> :
+                        <LandingPage
                             onNavigateToSignUp={handleNavigateToSignUp}
-                            onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={handleEnterDemoMode}
-                            onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
-                        />
-                    } />
-                    <Route path="/signup" element={
-                        <SignUpPage
                             onNavigateToSignIn={handleNavigateToSignIn}
-                            onNavigateToLanding={handleNavigateToLanding}
                             onEnterDemoMode={handleEnterDemoMode}
-                            onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                            scrollToSection={scrollToSection}
+                            onScrollComplete={() => setScrollToSection(null)}
+                            onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
+                            onNavigateToAdmin={handleNavigateToAdmin}
                         />
-                    } />
+                } />
+                <Route path="/landing" element={<Navigate to="/" replace />} />
+                <Route path="/signin" element={
+                    <SignInPage
+                        onNavigateToSignUp={handleNavigateToSignUp}
+                        onNavigateToLanding={handleNavigateToLanding}
+                        onEnterDemoMode={handleEnterDemoMode}
+                        onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                    />
+                } />
+                <Route path="/signup" element={
+                    <SignUpPage
+                        onNavigateToSignIn={handleNavigateToSignIn}
+                        onNavigateToLanding={handleNavigateToLanding}
+                        onEnterDemoMode={handleEnterDemoMode}
+                        onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                    />
+                } />
 
-                    <Route path="/checkout" element={renderCheckout()} />
+                <Route path="/checkout/:slug?" element={<CheckoutRouteWrapper />} />
 
-                    {/* Legal Pages */}
-                    <Route path="/compliance" element={<CompliancePolicyPage />} />
-                    <Route path="/dmca" element={<DmcaPolicyPage />} />
+                {/* Legal Pages */}
+                <Route path="/compliance" element={<CompliancePolicyPage />} />
+                <Route path="/dmca" element={<DmcaPolicyPage />} />
 
-                    {/* Public Storefront Route */}
-                    <Route path="/store/:slug" element={<StorefrontPage />} />
+                {/* Public Storefront Route */}
+                <Route path="/store/:slug" element={<StorefrontPage />} />
 
-                    {/* Public AI Card View */}
-                    <Route path="/card/:id" element={
+                {/* Public AI Card View */}
+                <Route path="/card/:id" element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <PublicAICard />
+                    </Suspense>
+                } />
+
+                {/* Demo Dashboard */}
+                <Route path="/admin-dashboard" element={
+                    isAdmin ? <AdminDashboard /> : <Navigate to="/" />
+                } />
+                <Route path="/demo-dashboard" element={<AgentDashboardBlueprint isDemoMode={true} demoListingCount={2} />} />
+                <Route path="/dashboard-blueprint" element={<AgentDashboardBlueprint isDemoMode={true} demoListingCount={1} />} />
+
+                <Route path="/admin-login" element={
+                    <AdminLogin
+                        onLogin={handleAdminLogin}
+                        onBack={() => navigate('/')}
+                        isLoading={isAdminLoginLoading}
+                        error={adminLoginError || undefined}
+                    />
+                } />
+
+                {/* Admin Setup */}
+                <Route path="/admin-setup" element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <AdminSetup key={isAdminLoginOpen ? 'open' : 'closed'} />
+                    </Suspense>
+                } />
+
+                {/* Authenticated Admin Views (Users) */}
+                <Route path="/admin-users" element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <AdminUsersPage />
+                    </Suspense>
+                } />
+
+                {/* Authenticated Admin Views (Cloned Dashboard Tabs) */}
+                {['leads', 'contacts', 'ai-card', 'ai-training', 'knowledge-base', 'funnel-analytics', 'analytics', 'settings'].map(tab => (
+                    <Route key={tab} path={`/admin-${tab}`} element={
                         <Suspense fallback={<LoadingSpinner />}>
-                            <PublicAICard />
+                            <AdminDashboard initialTab={tab === 'contacts' ? 'leads' : tab as DashboardView} />
                         </Suspense>
                     } />
-
-                    {/* Demo Dashboard */}
-                    <Route path="/admin-dashboard" element={
-                        isAdmin ? <AdminDashboard /> : <Navigate to="/" />
-                    } />
-                    <Route path="/demo-dashboard" element={<AgentDashboardBlueprint isDemoMode={true} demoListingCount={2} />} />
-                    <Route path="/dashboard-blueprint" element={<AgentDashboardBlueprint isDemoMode={true} demoListingCount={1} />} />
-
-                    <Route path="/admin-login" element={
-                        <AdminLogin
-                            onLogin={handleAdminLogin}
-                            onBack={() => navigate('/')}
-                            isLoading={isAdminLoginLoading}
-                            error={adminLoginError || undefined}
-                        />
-                    } />
-
-                    {/* Admin Setup */}
-                    <Route path="/admin-setup" element={
-                        <Suspense fallback={<LoadingSpinner />}>
-                            <AdminSetup key={isAdminLoginOpen ? 'open' : 'closed'} />
-                        </Suspense>
-                    } />
-
-                    {/* Authenticated Admin Views (Users) */}
-                    <Route path="/admin-users" element={
-                        <Suspense fallback={<LoadingSpinner />}>
-                            <AdminUsersPage />
-                        </Suspense>
-                    } />
-
-                    {/* Authenticated Admin Views (Cloned Dashboard Tabs) */}
-                    {['leads', 'contacts', 'ai-card', 'ai-training', 'knowledge-base', 'funnel-analytics', 'analytics', 'settings'].map(tab => (
-                        <Route key={tab} path={`/admin-${tab}`} element={
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <AdminDashboard initialTab={tab === 'contacts' ? 'leads' : tab as DashboardView} />
-                            </Suspense>
-                        } />
-                    ))}
-                    {/* Catch-all for other admin routes */}
-                    <Route path="/admin-marketing" element={<Suspense fallback={<LoadingSpinner />}><AdminDashboard initialTab="funnel-analytics" /></Suspense>} />
-                    <Route path="/admin-ai-personalities" element={<Suspense fallback={<LoadingSpinner />}><AdminDashboard initialTab="knowledge-base" /></Suspense>} />
+                ))}
+                {/* Catch-all for other admin routes */}
+                <Route path="/admin-marketing" element={<Suspense fallback={<LoadingSpinner />}><AdminDashboard initialTab="funnel-analytics" /></Suspense>} />
+                <Route path="/admin-ai-personalities" element={<Suspense fallback={<LoadingSpinner />}><AdminDashboard initialTab="knowledge-base" /></Suspense>} />
 
 
-                    {/* Protected Routes (Wrapped in Layout) */}
-                    <Route element={<ProtectedLayout />}>
-                        <Route path="/dashboard" element={
-                            userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <Dashboard
-                                key="dashboard-root"
-                                agentProfile={userProfile}
-                                properties={properties}
-                                leads={leads}
-                                appointments={appointments}
-                                tasks={tasks}
-                                onSelectProperty={handleSelectProperty}
-                                onTaskUpdate={handleTaskUpdate}
-                                onTaskAdd={handleTaskAdd}
-                                onTaskDelete={handleTaskDelete}
-                            />
-                        } />
-                        <Route path="/dashboard/:slug" element={<Dashboard
-                            key="dashboard-slug"
+                {/* Protected Routes (Wrapped in Layout) */}
+                <Route element={<ProtectedLayout />}>
+                    <Route path="/dashboard" element={
+                        userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <Dashboard
+                            key="dashboard-root"
                             agentProfile={userProfile}
                             properties={properties}
                             leads={leads}
@@ -1199,126 +1195,139 @@ const App: React.FC = () => {
                             onTaskUpdate={handleTaskUpdate}
                             onTaskAdd={handleTaskAdd}
                             onTaskDelete={handleTaskDelete}
-                        />} />
+                        />
+                    } />
+                    <Route path="/dashboard/:slug" element={<Dashboard
+                        key="dashboard-slug"
+                        agentProfile={userProfile}
+                        properties={properties}
+                        leads={leads}
+                        appointments={appointments}
+                        tasks={tasks}
+                        onSelectProperty={handleSelectProperty}
+                        onTaskUpdate={handleTaskUpdate}
+                        onTaskAdd={handleTaskAdd}
+                        onTaskDelete={handleTaskDelete}
+                    />} />
 
-                        <Route path="/listings" element={
-                            <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => navigate('/add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => navigate('/dashboard')} />
-                        } />
+                    <Route path="/listings" element={
+                        <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => navigate('/add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => navigate('/dashboard')} />
+                    } />
 
-                        <Route path="/add-listing" element={
-                            <AddListingPage onCancel={() => navigate('/dashboard')} onSave={handleSaveNewProperty} />
-                        } />
+                    <Route path="/add-listing" element={
+                        <AddListingPage onCancel={() => navigate('/dashboard')} onSave={handleSaveNewProperty} />
+                    } />
 
-                        <Route path="/property" element={
-                            selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => navigate('/listings')} isDemoMode={isDemoMode} /> : <Navigate to="/listings" />
-                        } />
+                    <Route path="/property" element={
+                        selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => navigate('/listings')} isDemoMode={isDemoMode} /> : <Navigate to="/listings" />
+                    } />
 
-                        <Route path="/leads" element={
-                            <LeadsAndAppointmentsPage
-                                leads={leads}
-                                appointments={appointments}
-                                onAddNewLead={handleAddNewLead}
-                                onBackToDashboard={() => navigate('/dashboard')}
-                                resolvePropertyForLead={resolvePropertyForLead}
-                                onNewAppointment={async (appt) => {
-                                    setAppointments((prev) => [appt, ...prev]);
-                                    const lead = appt.leadId ? leads.find((l) => l.id === appt.leadId) : undefined;
-                                    if (lead) await triggerLeadSequences(lead, 'Appointment Scheduled', resolvePropertyForLead(lead));
-                                }}
-                                onAssignFunnel={handleLeadFunnelAssigned}
-                            />
-                        } />
+                    <Route path="/leads" element={
+                        <LeadsAndAppointmentsPage
+                            leads={leads}
+                            appointments={appointments}
+                            onAddNewLead={handleAddNewLead}
+                            onBackToDashboard={() => navigate('/dashboard')}
+                            resolvePropertyForLead={resolvePropertyForLead}
+                            onNewAppointment={async (appt) => {
+                                setAppointments((prev) => [appt, ...prev]);
+                                const lead = appt.leadId ? leads.find((l) => l.id === appt.leadId) : undefined;
+                                if (lead) await triggerLeadSequences(lead, 'Appointment Scheduled', resolvePropertyForLead(lead));
+                            }}
+                            onAssignFunnel={handleLeadFunnelAssigned}
+                        />
+                    } />
 
-                        <Route path="/inbox" element={
-                            <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => navigate('/dashboard')} />
-                        } />
+                    <Route path="/inbox" element={
+                        <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => navigate('/dashboard')} />
+                    } />
 
-                        <Route path="/ai-conversations" element={<AIConversationsPage isDemoMode={isDemoMode} />} />
-                        <Route path="/ai-card" element={<AICardPage isDemoMode={isDemoMode} />} />
-                        <Route path="/knowledge-base" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
-                        <Route path="/ai-training" element={<AIInteractiveTraining demoMode={isDemoMode} />} />
-                        <Route path="/funnel-analytics" element={
-                            <FunnelAnalyticsPanel
-                                onBackToDashboard={() => navigate('/dashboard')}
-                                title="Leads Funnel"
-                                subtitle="Homebuyer, Seller, and Showing funnels for every lead"
-                                variant="page"
-                            />
-                        } />
-                        <Route path="/analytics" element={<AnalyticsDashboard />} />
-                        <Route path="/ai-sidekicks" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
-                        <Route path="/marketing-reports" element={<MarketingReportsPage />} />
-                        <Route path="/settings" element={
-                            <SettingsPage
-                                userId={user?.uid ?? 'guest-agent'}
-                                userProfile={userProfile}
-                                onSaveProfile={setUserProfile}
-                                notificationSettings={notificationSettings}
-                                onSaveNotifications={setNotificationSettings}
-                                emailSettings={emailSettings}
-                                onSaveEmailSettings={setEmailSettings}
-                                calendarSettings={calendarSettings}
-                                onSaveCalendarSettings={setCalendarSettings}
-                                billingSettings={billingSettings}
-                                onSaveBillingSettings={setBillingSettings}
-                                onBackToDashboard={() => navigate('/dashboard')}
-                                onNavigateToAICard={() => navigate('/ai-card')}
-                            />
-                        } />
-                    </Route>
+                    <Route path="/ai-conversations" element={<AIConversationsPage isDemoMode={isDemoMode} />} />
+                    <Route path="/ai-card" element={<AICardPage isDemoMode={isDemoMode} />} />
+                    <Route path="/knowledge-base" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
+                    <Route path="/ai-training" element={<AIInteractiveTraining demoMode={isDemoMode} />} />
+                    <Route path="/funnel-analytics" element={
+                        <FunnelAnalyticsPanel
+                            onBackToDashboard={() => navigate('/dashboard')}
+                            title="Leads Funnel"
+                            subtitle="Homebuyer, Seller, and Showing funnels for every lead"
+                            variant="page"
+                        />
+                    } />
+                    <Route path="/analytics" element={<AnalyticsDashboard />} />
+                    <Route path="/ai-sidekicks" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
+                    <Route path="/marketing-reports" element={<MarketingReportsPage />} />
+                    <Route path="/settings" element={
+                        <SettingsPage
+                            userId={user?.uid ?? 'guest-agent'}
+                            userProfile={userProfile}
+                            onSaveProfile={setUserProfile}
+                            notificationSettings={notificationSettings}
+                            onSaveNotifications={setNotificationSettings}
+                            emailSettings={emailSettings}
+                            onSaveEmailSettings={setEmailSettings}
+                            calendarSettings={calendarSettings}
+                            onSaveCalendarSettings={setCalendarSettings}
+                            billingSettings={billingSettings}
+                            onSaveBillingSettings={setBillingSettings}
+                            onBackToDashboard={() => navigate('/dashboard')}
+                            onNavigateToAICard={() => navigate('/ai-card')}
+                        />
+                    } />
+                </Route>
 
-                    {/* Legacy/Misc Public Views */}
-                    <Route path="/blog" element={<BlogPage />} />
-                    <Route path="/blog-post" element={<BlogPostPage />} />
-                    <Route path="/demo-listing" element={<DemoListingPage />} />
-                    <Route path="/demo/listings/:id" element={<DemoListingPage />} />
-                    <Route path="/new-landing" element={<NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />} />
+                {/* Legacy/Misc Public Views */}
+                <Route path="/blog" element={<BlogPage />} />
+                <Route path="/blog-post" element={<BlogPostPage />} />
+                <Route path="/demo-listing" element={<DemoListingPage />} />
+                <Route path="/demo/listings/:id" element={<DemoListingPage />} />
+                <Route path="/new-landing" element={<NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />} />
 
-                    {/* Fallback */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-            </div>
-        );
-    };
-
-    // DEBUG: Log current state before render
-    console.log('🎨 RENDERING with view=', view, 'hash=', window.location.hash);
-
-    // Hash override removed - AppRoutes handles routing now
-
-    return (
-        <ImpersonationProvider>
-            <AgentBrandingProvider>
-                <AISidekickProvider>
-                    <ErrorBoundary>
-                        {renderRoutes()}
-                        {isConsultationModalOpen && (
-                            <ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
-                        )}
-                        {isAdminLoginOpen && view !== 'admin-setup' && (
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
-                            </Suspense>
-                        )}
-                        {view !== 'landing' && view !== 'new-landing' && (
-                            <ChatBotFAB
-                                context={{
-                                    userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
-                                    currentPage: view,
-                                    previousInteractions: user ? 1 : 0,
-                                    userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
-                                }}
-                                onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
-                                onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
-                                position="bottom-right"
-                                showWelcomeMessage={false}
-                            />
-                        )}
-                    </ErrorBoundary>
-                </AISidekickProvider>
-            </AgentBrandingProvider>
-        </ImpersonationProvider>
+                {/* Fallback */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+        </div>
     );
+};
+
+// DEBUG: Log current state before render
+console.log('🎨 RENDERING with view=', view, 'hash=', window.location.hash);
+
+// Hash override removed - AppRoutes handles routing now
+
+return (
+    <ImpersonationProvider>
+        <AgentBrandingProvider>
+            <AISidekickProvider>
+                <ErrorBoundary>
+                    {renderRoutes()}
+                    {isConsultationModalOpen && (
+                        <ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
+                    )}
+                    {isAdminLoginOpen && view !== 'admin-setup' && (
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
+                        </Suspense>
+                    )}
+                    {view !== 'landing' && view !== 'new-landing' && (
+                        <ChatBotFAB
+                            context={{
+                                userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
+                                currentPage: view,
+                                previousInteractions: user ? 1 : 0,
+                                userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
+                            }}
+                            onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
+                            onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
+                            position="bottom-right"
+                            showWelcomeMessage={false}
+                        />
+                    )}
+                </ErrorBoundary>
+            </AISidekickProvider>
+        </AgentBrandingProvider>
+    </ImpersonationProvider>
+);
 };
 
 
