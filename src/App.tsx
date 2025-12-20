@@ -22,6 +22,8 @@ import InteractionHubPage from './components/InteractionHubPage';
 import AIConversationsPage from './components/AIConversationsPage';
 import AICardPage from './components/AICardPage';
 import MarketingReportsPage from './components/MarketingReportsPage';
+import CompliancePolicyPage from './components/CompliancePolicyPage';
+import DmcaPolicyPage from './components/DmcaPolicyPage';
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
 import SettingsPage from './components/SettingsPage';
@@ -322,143 +324,153 @@ const App: React.FC = () => {
             setIsSettingUp(false); // Reset on every auth change
             setIsDemoMode(false); // Reset demo mode on any auth change
 
-            // Force signup mode - bypass auth check
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('force') === 'signup') {
-                setView('signup');
-                setIsLoading(false);
-                return;
-            }
-
-            if (currentUser) {
-                console.log(`User signed in: ${currentUser.uid}`);
-                // ... rest of logic
-
-
-                // Check if user is an admin via RPC (Server-Side Validation Only)
-                const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
-                const isAdminUser = !!isRpcAdmin;
-
-                if (isAdminUser) {
-                    console.log("Admin user confirmed via RPC");
-                    setIsAdmin(true);
-                    setUser(currentUser);
-                    setUserProfile({
-                        ...SAMPLE_AGENT,
-                        name: 'System Administrator',
-                        email: currentUser.email ?? '',
-                        headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
-                    });
-                    setProperties([]);
-                    setLeads([]);
-                    setAppointments([]);
-                    setInteractions([]);
-                    setTasks([]);
-                    setConversations([]);
-                    setSequences([]);
-                    setView('admin-dashboard');
-                    setIsLoading(false);
+            try {
+                // Force signup mode - bypass auth check
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('force') === 'signup') {
+                    setView('signup');
+                    // isLoading handled in finally
                     return;
                 }
 
-                // Attempt to fetch properties once
-                console.log(`Fetching properties...`);
-                const propertiesToLoad: Property[] = await getProperties(currentUser.uid);
+                if (currentUser) {
+                    console.log(`User signed in: ${currentUser.uid}`);
+                    // ... rest of logic
 
-                if (propertiesToLoad.length === 0) {
-                    // New user or no properties found
-                    console.log("No properties found (new user?)");
-                    // setIsSettingUp(true); // Optional: show setup if needed, but avoid blocking
-                }
 
-                setIsSettingUp(false); // Stop showing setup message
+                    // Check if user is an admin via RPC (Server-Side Validation Only)
+                    const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+                    const isAdminUser = !!isRpcAdmin;
 
-                if (propertiesToLoad.length > 0) {
-                    console.log("Properties loaded successfully.");
-                    const profileToLoad = propertiesToLoad[0].agent;
+                    if (isAdminUser) {
+                        console.log("Admin user confirmed via RPC");
+                        setIsAdmin(true);
+                        setUser(currentUser);
+                        setUserProfile({
+                            ...SAMPLE_AGENT,
+                            name: 'System Administrator',
+                            email: currentUser.email ?? '',
+                            headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
+                        });
+                        setProperties([]);
+                        setLeads([]);
+                        setAppointments([]);
+                        setInteractions([]);
+                        setTasks([]);
+                        setConversations([]);
+                        setSequences([]);
+                        setView('admin-dashboard');
+                        // isLoading handled in finally
+                        return;
+                    }
 
-                    setUser(currentUser);
-                    setUserProfile(profileToLoad);
-                    setProperties(propertiesToLoad);
-                    setAppointments(DEMO_FAT_APPOINTMENTS); // Using demo data for now
-                    setInteractions(SAMPLE_INTERACTIONS); // Using demo data for now
-                    setTasks(SAMPLE_TASKS);
-                    setConversations(SAMPLE_CONVERSATIONS);
-                    setSequences(DEMO_SEQUENCES);
-                    if (route !== 'admin-dashboard' && !window.location.pathname.includes('/admin-login')) {
-                        setView('dashboard');
+                    // Attempt to fetch properties once
+                    console.log(`Fetching properties...`);
+                    const propertiesToLoad: Property[] = await getProperties(currentUser.uid);
+
+                    if (propertiesToLoad.length === 0) {
+                        // New user or no properties found
+                        console.log("No properties found (new user?)");
+                        // setIsSettingUp(true); // Optional: show setup if needed, but avoid blocking
+                    }
+
+                    setIsSettingUp(false); // Stop showing setup message
+
+                    if (propertiesToLoad.length > 0) {
+                        console.log("Properties loaded successfully.");
+                        const profileToLoad = propertiesToLoad[0].agent;
+
+                        setUser(currentUser);
+                        setUserProfile(profileToLoad);
+                        setProperties(propertiesToLoad);
+                        setAppointments(DEMO_FAT_APPOINTMENTS); // Using demo data for now
+                        setInteractions(SAMPLE_INTERACTIONS); // Using demo data for now
+                        setTasks(SAMPLE_TASKS);
+                        setConversations(SAMPLE_CONVERSATIONS);
+                        setSequences(DEMO_SEQUENCES);
+                        if (route !== 'admin-dashboard' && !window.location.pathname.includes('/admin-login')) {
+                            setView('dashboard');
+                        } else {
+                            // If we are on admin dashboard but failed the admin check generally,
+                            // we might still want to respect the route if something weird happened,
+                            // BUT typically if we are here, we are NOT admin.
+                            // However, since we added the local override check above, this block
+                            // (properties loaded) should only run for NON-ADMINS.
+                            // So setting view to dashboard is correct, UNLESS we really messed up.
+                        }
                     } else {
-                        // If we are on admin dashboard but failed the admin check generally,
-                        // we might still want to respect the route if something weird happened,
-                        // BUT typically if we are here, we are NOT admin.
-                        // However, since we added the local override check above, this block
-                        // (properties loaded) should only run for NON-ADMINS.
-                        // So setting view to dashboard is correct, UNLESS we really messed up.
+                        console.log(`No properties found/loaded for user ${currentUser.uid}. Initializing empty state.`);
+                        // alert("We couldn't retrieve your account's data..."); // REMOVED BLOCKING ALERT
+                        // Keep user logged in but show the dashboard in a degraded state.
+                        setUser(currentUser);
+                        setProperties([]);
+                        setUserProfile({
+                            ...SAMPLE_AGENT,
+                            name: currentUser.displayName ?? 'New Agent',
+                            email: currentUser.email ?? '',
+                            headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
+                        });
+                        setLeads([]);
+                        setAppointments([]);
+                        setInteractions([]);
+                        setTasks([]);
+                        setConversations([]);
+                        setSequences([]);
+                        if (!window.location.pathname.includes('/admin-login')) {
+                            setView('dashboard');
+                        }
                     }
                 } else {
-                    console.log(`No properties found/loaded for user ${currentUser.uid}. Initializing empty state.`);
-                    // alert("We couldn't retrieve your account's data..."); // REMOVED BLOCKING ALERT
-                    // Keep user logged in but show the dashboard in a degraded state.
-                    setUser(currentUser);
+                    // User is signed out.
+                    console.log("User signed out.");
+                    setUser(null);
+                    setIsAdmin(false); // Fix: Ensure admin state is cleared
                     setProperties([]);
-                    setUserProfile({
-                        ...SAMPLE_AGENT,
-                        name: currentUser.displayName ?? 'New Agent',
-                        email: currentUser.email ?? '',
-                        headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
-                    });
+                    setUserProfile(SAMPLE_AGENT);
                     setLeads([]);
                     setAppointments([]);
                     setInteractions([]);
                     setTasks([]);
                     setConversations([]);
                     setSequences([]);
-                    if (!window.location.pathname.includes('/admin-login')) {
-                        setView('dashboard');
+                    const signedOutRoute = route;
+                    console.log('🔍 No user logged in, route=', signedOutRoute);
+
+                    if (signedOutRoute === 'dashboard-blueprint') {
+                        setView('dashboard-blueprint');
+                    } else if (signedOutRoute === 'admin-setup') {
+                        setView('admin-setup');
+                    } else if (signedOutRoute === 'admin-login') {
+                        // Allow access to admin login
+                        console.log('🔓 Admin Login route accessed.');
+                    } else if (isAdminView(signedOutRoute) || signedOutRoute === 'admin-dashboard') {
+                        // If trying to access any admin route while logged out, show admin login
+                        console.log('🔒 Protected admin route accessed while logged out, showing login');
+                        setView('admin-dashboard');
+                    } else if (signedOutRoute === 'signup') {
+                        setView('signup');
+                    } else if (signedOutRoute === 'signin') {
+                        setView('signin');
+                    } else if (signedOutRoute.startsWith('store/')) {
+                        // Allow access to storefront pages
+                        console.log('🛍️ Storefront route accessed.');
+                    }
+                    else {
+                        console.log('📍 Defaulting to landing');
+                        setIsDemoMode(false);
+                        setView('landing');
                     }
                 }
-            } else {
-                // User is signed out.
-                console.log("User signed out.");
-                setUser(null);
-                setIsAdmin(false); // Fix: Ensure admin state is cleared
-                setProperties([]);
-                setUserProfile(SAMPLE_AGENT);
-                setLeads([]);
-                setAppointments([]);
-                setInteractions([]);
-                setTasks([]);
-                setConversations([]);
-                setSequences([]);
-                const signedOutRoute = route;
-                console.log('🔍 No user logged in, route=', signedOutRoute);
-
-                if (signedOutRoute === 'dashboard-blueprint') {
-                    setView('dashboard-blueprint');
-                } else if (signedOutRoute === 'admin-setup') {
-                    setView('admin-setup');
-                } else if (signedOutRoute === 'admin-login') {
-                    // Allow access to admin login
-                    console.log('🔓 Admin Login route accessed.');
-                } else if (isAdminView(signedOutRoute) || signedOutRoute === 'admin-dashboard') {
-                    // If trying to access any admin route while logged out, show admin login
-                    console.log('🔒 Protected admin route accessed while logged out, showing login');
-                    setView('admin-dashboard');
-                } else if (signedOutRoute === 'signup') {
-                    setView('signup');
-                } else if (signedOutRoute === 'signin') {
-                    setView('signin');
-                } else if (signedOutRoute.startsWith('store/')) {
-                    // Allow access to storefront pages
-                    console.log('🛍️ Storefront route accessed.');
-                }
-                else {
-                    console.log('📍 Defaulting to landing');
-                    setIsDemoMode(false);
+            } catch (error) {
+                console.error("❌ Critical Auth Init Error:", error);
+                // Fallback to landing in worst case
+                if (!window.location.pathname.includes('admin')) {
                     setView('landing');
                 }
+            } finally {
+                // ALWAYS clear loading state
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
 
         initAuth();
@@ -479,86 +491,91 @@ const App: React.FC = () => {
             setIsSettingUp(false);
             setIsDemoMode(false);
 
-            if (currentUser) {
-                console.log(`User signed in (Auth Change): ${currentUser.uid}`);
+            try {
+                if (currentUser) {
+                    console.log(`User signed in (Auth Change): ${currentUser.uid}`);
 
-                // IMPORTANT: Check for Admin Role immediately on auth change (RPC + Env Var Fallback + Local Bypass)
-                const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
-                const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-                const isEnvAdmin = typeof envAdminEmail === 'string' && currentUser.email && currentUser.email.toLowerCase() === envAdminEmail.toLowerCase();
+                    // IMPORTANT: Check for Admin Role immediately on auth change (RPC + Env Var Fallback + Local Bypass)
+                    const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+                    const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
+                    const isEnvAdmin = typeof envAdminEmail === 'string' && currentUser.email && currentUser.email.toLowerCase() === envAdminEmail.toLowerCase();
 
-                console.log('[Auth] Admin Check:', { rpc: isRpcAdmin, env: isEnvAdmin, email: currentUser.email });
-                const isAdmin = isRpcAdmin || isEnvAdmin;
+                    console.log('[Auth] Admin Check:', { rpc: isRpcAdmin, env: isEnvAdmin, email: currentUser.email });
+                    const isAdmin = isRpcAdmin || isEnvAdmin;
 
 
-                if (isAdmin) {
-                    console.log("Admin user detected (Auth Change)");
-                    setUser(currentUser);
-                    setUserProfile({
-                        ...SAMPLE_AGENT,
-                        name: 'System Administrator',
-                        email: currentUser.email ?? '',
-                        headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
-                    });
+                    if (isAdmin) {
+                        console.log("Admin user detected (Auth Change)");
+                        setUser(currentUser);
+                        setUserProfile({
+                            ...SAMPLE_AGENT,
+                            name: 'System Administrator',
+                            email: currentUser.email ?? '',
+                            headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
+                        });
 
-                    // Allow Admins to stay on Blueprint/Demo pages
-                    const currentPath = window.location.pathname;
-                    const stayOnPage =
-                        currentPath.includes('/dashboard-blueprint') ||
-                        currentPath.includes('/demo-dashboard');
+                        // Allow Admins to stay on Blueprint/Demo pages
+                        const currentPath = window.location.pathname;
+                        const stayOnPage =
+                            currentPath.includes('/dashboard-blueprint') ||
+                            currentPath.includes('/demo-dashboard');
 
-                    if (!stayOnPage && !currentPath.includes('/admin-dashboard')) {
-                        navigate('/admin-dashboard');
+                        if (!stayOnPage && !currentPath.includes('/admin-dashboard')) {
+                            navigate('/admin-dashboard');
+                        }
+
+                        // isLoading handled in finally
+                        return;
                     }
 
-                    setIsLoading(false);
-                    return;
-                }
+                    // If not admin, normal agent flow
+                    setUser(currentUser);
 
-                // If not admin, normal agent flow
-                setUser(currentUser);
+                    // SECURITY: Check Admin Status via RPC
+                    supabase.rpc('is_user_admin', { uid: currentUser.uid })
+                        .then(({ data, error }) => {
+                            if (data && !error) {
+                                setIsAdmin(true);
+                                console.log('✅ Admin privileges confirmed via RPC');
+                            } else {
+                                setIsAdmin(false);
+                            }
+                        });
 
-                // SECURITY: Check Admin Status via RPC
-                supabase.rpc('is_user_admin', { uid: currentUser.uid })
-                    .then(({ data, error }) => {
-                        if (data && !error) {
-                            setIsAdmin(true);
-                            console.log('✅ Admin privileges confirmed via RPC');
-                        } else {
-                            setIsAdmin(false);
-                        }
-                    });
+                    // Avoid redirecting if already on a valid protected/demo route
+                    const currentPath = window.location.pathname;
+                    const stayOnPage =
+                        currentPath.includes('/admin-login') ||
+                        currentPath.includes('/dashboard-blueprint') ||
+                        currentPath.includes('/demo-dashboard') ||
+                        currentPath.includes('/admin-dashboard');
 
-                // Avoid redirecting if already on a valid protected/demo route
-                const currentPath = window.location.pathname;
-                const stayOnPage =
-                    currentPath.includes('/admin-login') ||
-                    currentPath.includes('/dashboard-blueprint') ||
-                    currentPath.includes('/demo-dashboard') ||
-                    currentPath.includes('/admin-dashboard');
+                    if (!stayOnPage) {
+                        navigate('/dashboard');
+                    } else {
+                        console.log(`Remaining on ${currentPath}`);
+                    }
 
-                if (!stayOnPage) {
-                    navigate('/dashboard');
                 } else {
-                    console.log(`Remaining on ${currentPath}`);
-                }
+                    // User signed out
+                    setUser(null);
+                    setIsAdmin(false);
+                    setUserProfile(SAMPLE_AGENT);
+                    setProperties([]);
+                    setLeads([]);
+                    setAppointments([]);
 
-            } else {
-                // User signed out
-                setUser(null);
-                setIsAdmin(false);
-                setUserProfile(SAMPLE_AGENT);
-                setProperties([]);
-                setLeads([]);
-                setAppointments([]);
-
-                // Only redirect if we are on a protected route
-                const isProtected = !['', 'landing', 'signin', 'signup', 'demo', 'admin-login', 'checkout'].includes(location.pathname.replace(/^\//, ''));
-                if (isProtected && !location.pathname.startsWith('/store/')) {
-                    navigate('/signin');
+                    // Only redirect if we are on a protected route
+                    const isProtected = !['', 'landing', 'signin', 'signup', 'demo', 'admin-login', 'checkout'].includes(location.pathname.replace(/^\//, ''));
+                    if (isProtected && !location.pathname.startsWith('/store/')) {
+                        navigate('/signin');
+                    }
                 }
+            } catch (error) {
+                console.error("❌ Auth State Change Error:", error);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         });
 
         // SESSION TIMEOUT: Auto-logout after 30 minutes of inactivity
@@ -1095,7 +1112,12 @@ const App: React.FC = () => {
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                         />
                     } />
+
                     <Route path="/checkout" element={renderCheckout()} />
+
+                    {/* Legal Pages */}
+                    <Route path="/compliance" element={<CompliancePolicyPage />} />
+                    <Route path="/dmca" element={<DmcaPolicyPage />} />
 
                     {/* Public Storefront Route */}
                     <Route path="/store/:slug" element={<StorefrontPage />} />

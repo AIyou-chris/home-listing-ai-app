@@ -13,21 +13,31 @@ export const AuthFooter: React.FC = () => {
                         <h4 className="text-sm font-semibold text-slate-300 mb-3">Legal</h4>
                         <ul className="space-y-2 text-sm">
                             <li>
-                                <a href="/terms-of-service.html" target="_blank" rel="noopener noreferrer" 
-                                   className="hover:text-white transition-colors">
+                                <a href="/terms-of-service.html" target="_blank" rel="noopener noreferrer"
+                                    className="hover:text-white transition-colors">
                                     Terms of Service
                                 </a>
                             </li>
                             <li>
-                                <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" 
-                                   className="hover:text-white transition-colors">
+                                <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer"
+                                    className="hover:text-white transition-colors">
                                     Privacy Policy
                                 </a>
                             </li>
                             <li>
-                                <a href="/refund-policy.html" target="_blank" rel="noopener noreferrer" 
-                                   className="hover:text-white transition-colors">
+                                <a href="/refund-policy.html" target="_blank" rel="noopener noreferrer"
+                                    className="hover:text-white transition-colors">
                                     Refund Policy
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/compliance" className="hover:text-white transition-colors">
+                                    Compliance Policy
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/dmca" className="hover:text-white transition-colors">
+                                    DMCA Policy
                                 </a>
                             </li>
                         </ul>
@@ -36,14 +46,14 @@ export const AuthFooter: React.FC = () => {
                         <h4 className="text-sm font-semibold text-slate-300 mb-3">Support</h4>
                         <ul className="space-y-2 text-sm">
                             <li>
-                                <a href="mailto:support@homelistingai.com" 
-                                   className="hover:text-white transition-colors">
+                                <a href="mailto:support@homelistingai.com"
+                                    className="hover:text-white transition-colors">
                                     support@homelistingai.com
                                 </a>
                             </li>
                             <li>
-                                <a href="mailto:legal@homelistingai.com" 
-                                   className="hover:text-white transition-colors">
+                                <a href="mailto:legal@homelistingai.com"
+                                    className="hover:text-white transition-colors">
                                     legal@homelistingai.com
                                 </a>
                             </li>
@@ -53,8 +63,8 @@ export const AuthFooter: React.FC = () => {
                         <h4 className="text-sm font-semibold text-slate-300 mb-3">Admin</h4>
                         <ul className="space-y-2 text-sm">
                             <li>
-                                <a href="#admin-dashboard" 
-                                   className="hover:text-white transition-colors">
+                                <a href="#admin-dashboard"
+                                    className="hover:text-white transition-colors">
                                     Admin Dashboard
                                 </a>
                             </li>

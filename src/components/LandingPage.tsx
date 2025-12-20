@@ -1111,8 +1111,8 @@ const FooterNew: React.FC<{ onNavigateToAdmin: () => void; }> = ({ onNavigateToA
                     <ul className="space-y-2 text-sm">
                         <li><a href="/terms-of-service.html" target="_blank" className="hover:text-white transition-colors">Terms of Service</a></li>
                         <li><a href="/privacy-policy.html" target="_blank" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                        <li><span className="text-slate-500 cursor-not-allowed">Compliance Policy</span></li>
-                        <li><span className="text-slate-500 cursor-not-allowed">DMCA Policy</span></li>
+                        <li><a href="/compliance" className="hover:text-white transition-colors">Compliance Policy</a></li>
+                        <li><a href="/dmca" className="hover:text-white transition-colors">DMCA Policy</a></li>
                     </ul>
                 </div>
 
