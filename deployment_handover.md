@@ -24,3 +24,10 @@ I have just implemented **Stripe Connect V2** (Server-side webhooks + Frontend S
 **Immediate Goal:** Get the new Stripe Connect features live on `homelistingai.com`.
 
 ---
+
+## 🗺️ System Flow & Future Requirements
+I have documented our current and desired flow in `system_flow_map.md`.
+**Crucial Requirement for Next Phase:**
+*   **Slug-Based Dashboards:** We want to change the private dashboard URL from `/dashboard` to `/dashboard/:slug` (e.g., `/dashboard/chris-potter`) to better identify user sessions and support future agency features.
+*   **Current State:** Storefronts use `/store/:slug` (working), but private Dashboard is still generic.
+

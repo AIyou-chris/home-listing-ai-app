@@ -614,7 +614,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                             onChange={(event) => onUpdateStep(step.id, 'type', event.target.value)}
                                                         >
                                                             <option value="Email">Email</option>
-                                                            <option value="Call">Call</option>
+                                                            <option value="Call">AI Call</option>
                                                             <option value="Text">Text</option>
                                                             <option value="Wild">Wild</option>
                                                         </select>
@@ -629,14 +629,23 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                         />
                                                     </label>
                                                     <label className="block text-xs font-semibold text-slate-600">
-                                                        Email Body
+                                                        {step.type === 'Call' ? 'AI Script (What the agent should say)' : 'Email Body'}
                                                         <div className="mt-1">
-                                                            <EmailEditor
-                                                                value={step.content}
-                                                                onChange={(val) => onUpdateStep(step.id, 'content', val)}
-                                                                placeholder="Write your email content here..."
-                                                                className="w-full"
-                                                            />
+                                                            {step.type === 'Call' ? (
+                                                                <textarea
+                                                                    className="w-full h-40 rounded-lg border border-slate-200 p-3 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono"
+                                                                    value={step.content}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
+                                                                    placeholder="Hi {{lead.firstName}}, this is {{agent.name}}'s artificial assistant calling..."
+                                                                />
+                                                            ) : (
+                                                                <EmailEditor
+                                                                    value={step.content}
+                                                                    onChange={(val) => onUpdateStep(step.id, 'content', val)}
+                                                                    placeholder="Write your email content here..."
+                                                                    className="w-full"
+                                                                />
+                                                            )}
                                                         </div>
                                                     </label>
 

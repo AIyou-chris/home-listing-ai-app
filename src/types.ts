@@ -324,7 +324,7 @@ export type TriggerType =
 
 export interface SequenceStep {
     id: string;
-    type: 'email' | 'ai-email' | 'task' | 'meeting' | 'reminder';
+    type: 'email' | 'ai-email' | 'task' | 'meeting' | 'reminder' | 'call';
     delay: { value: number; unit: 'minutes' | 'hours' | 'days' };
     content: string;
     subject?: string;

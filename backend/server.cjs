@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 const OpenAI = require('openai');
 const helmet = require('helmet');
 const QRCode = require('qrcode');
@@ -8960,6 +8961,90 @@ app.post('/api/admin/setup', async (req, res) => {
   } catch (error) {
     console.error('Admin setup error:', error);
     res.status(500).json({ error: 'Internal server error during setup' });
+  }
+});
+
+// VAPI CALL ENDPOINT
+app.post('/api/vapi/call', async (req, res) => {
+  try {
+    const { leadId, agentId, propertyId, script, leadName, leadPhone } = req.body;
+
+    if (!process.env.VAPI_PRIVATE_KEY) {
+      console.error('VAPI_PRIVATE_KEY missing');
+      return res.status(500).json({ error: 'Server configuration error: VAPI_PRIVATE_KEY missing' });
+    }
+
+    // 1. Fetch Context (if not fully provided)
+    let targetPhone = leadPhone;
+    let contextData = {};
+
+    // If we have a leadId, fetch details from Supabase to ensure we recall the latest data
+    if (leadId) {
+      const { data: lead, error: leadError } = await supabaseAdmin.from('leads').select('*').eq('id', leadId).single();
+      if (lead && !leadError) {
+        targetPhone = lead.phone || targetPhone;
+        contextData.leadName = lead.name;
+        contextData.leadEmail = lead.email;
+      }
+    }
+
+    // Fetch Property if provided
+    if (propertyId) {
+      const { data: p } = await supabaseAdmin.from('properties').select('*').eq('id', propertyId).single();
+      if (p) {
+        contextData.propertyAddress = p.address;
+        contextData.propertyPrice = p.price;
+        contextData.propertyBedrooms = p.bedrooms;
+      }
+    }
+
+    // Agent Name from params or context
+    // We assume the caller (SequenceExecutionService) provides agentId or agent context.
+
+    // 2. Prepare Vapi Call Payload
+    const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
+    if (!phoneNumberId) {
+      return res.status(500).json({ error: 'Server configuration error: VAPI_PHONE_NUMBER_ID missing' });
+    }
+
+    const payload = {
+      phoneNumberId: phoneNumberId,
+      customer: {
+        number: targetPhone,
+        name: leadName || contextData.leadName || 'Valued Lead'
+      },
+      assistant: {
+        // Use the assistant ID from env or a default one
+        ...(process.env.VAPI_ASSISTANT_ID ? { assistantId: process.env.VAPI_ASSISTANT_ID } : {}),
+
+        // Override variable values for dynamic context
+        variableValues: {
+          leadName: leadName || contextData.leadName || 'there',
+          agentName: 'Agent', // TODO: fetch actual agent name if needed
+          propertyAddress: contextData.propertyAddress || 'the property',
+          ...contextData
+        },
+
+        // If we want to override the first message (script)
+        // We can inject it into the first message or variable
+        firstMessage: script || undefined
+      }
+    };
+
+    console.log(`📞 Initiating Vapi Call to ${targetPhone} for Lead: ${contextData.leadName}`);
+
+    const response = await axios.post('https://api.vapi.ai/call/phone', payload, {
+      headers: {
+        'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    res.json({ success: true, callId: response.data.id });
+
+  } catch (error) {
+    console.error('Vapi Call Error:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to initiate call', details: error.response?.data || error.message });
   }
 });
 

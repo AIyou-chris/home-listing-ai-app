@@ -49,7 +49,7 @@ class SequenceExecutionService {
     context: SequenceContext
   ): Promise<string> {
     const activeSequenceId = `seq_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     const activeSequence: ActiveSequence = {
       id: activeSequenceId,
       leadId: context.lead.id,
@@ -61,9 +61,9 @@ class SequenceExecutionService {
     };
 
     this.activeSequences.set(activeSequenceId, activeSequence);
-    
+
     console.log(`🚀 Started sequence "${sequence.name}" for lead ${context.lead.name}`);
-    
+
     // Execute first step immediately if delay is 0
     const firstStep = sequence.steps[0];
     if (firstStep && this.getDelayInMs(firstStep.delay) === 0) {
@@ -97,13 +97,16 @@ class SequenceExecutionService {
         case 'meeting':
           await this.executeMeetingStep(activeSequence, step);
           break;
+        case 'call':
+          await this.executeCallStep(activeSequence, step);
+          break;
         default:
           console.warn(`Unknown step type: ${step.type}`);
       }
 
       // Move to next step
       activeSequence.currentStepIndex++;
-      
+
       // Check if sequence is complete
       if (activeSequence.currentStepIndex >= sequence.steps.length) {
         activeSequence.status = 'completed';
@@ -127,12 +130,12 @@ class SequenceExecutionService {
    */
   private async executeEmailStep(activeSequence: ActiveSequence, step: SequenceStep): Promise<void> {
     const { lead, property, agent } = activeSequence.context;
-    
+
     const subject = this.substituteVariables(step.subject || 'Follow-up', { lead, property, agent });
     const content = this.substituteVariables(step.content, { lead, property, agent });
-    
+
     const htmlContent = this.convertToHtml(content);
-    
+
     const success = await this.emailService.sendEmail(
       lead.email,
       subject,
@@ -167,9 +170,9 @@ class SequenceExecutionService {
   private async executeTaskStep(activeSequence: ActiveSequence, step: SequenceStep): Promise<void> {
     const { lead, property, agent } = activeSequence.context;
     const taskContent = this.substituteVariables(step.content, { lead, property, agent });
-    
+
     console.log(`📋 Task created: ${taskContent}`);
-    
+
     // Could integrate with task management system
     // For now, just log the task
   }
@@ -177,9 +180,48 @@ class SequenceExecutionService {
   /**
    * Execute meeting step (schedules a meeting)
    */
-  private async executeMeetingStep(activeSequence: ActiveSequence, step: SequenceStep): Promise<void> {
-    console.log(`📅 Meeting step: ${step.content}`);
+  private async executeMeetingStep(_activeSequence: ActiveSequence, _step: SequenceStep): Promise<void> {
     // Could integrate with calendar scheduling
+  }
+
+  /**
+   * Execute call step (triggers Vapi AI call)
+   */
+  private async executeCallStep(activeSequence: ActiveSequence, step: SequenceStep): Promise<void> {
+    const { lead, property, agent } = activeSequence.context;
+
+    // Convert template variables in script
+    const script = this.substituteVariables(step.content, { lead, property, agent });
+
+    console.log(`📞 Executing AI Call Step: Calling ${lead.name}...`);
+
+    try {
+      const response = await fetch('/api/vapi/call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          leadId: lead.id,
+          agentId: agent.id,
+          propertyId: property?.id,
+          script: script,
+          leadName: lead.name,
+          leadPhone: lead.phone
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Call API failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log(`✅ AI Call Initiated successfully. Call ID: ${data.callId}`);
+
+    } catch (error) {
+      console.error('❌ Failed to execute AI call step:', error);
+      throw error;
+    }
   }
 
   /**
@@ -253,7 +295,7 @@ class SequenceExecutionService {
    */
   private async processPendingSteps(): Promise<void> {
     const now = new Date();
-    
+
     for (const [id, activeSequence] of this.activeSequences) {
       if (
         activeSequence.status === 'active' &&
