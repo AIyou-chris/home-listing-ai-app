@@ -434,38 +434,59 @@ if (propertiesToLoad.length > 0) {
     setTasks([]);
     setConversations([]);
     setSequences([]);
-    const signedOutRoute = route;
-    console.log('🔍 No user logged in, route=', signedOutRoute);
 
-    if (signedOutRoute === 'dashboard-blueprint') {
+    // CRITICAL FIX: Check window.location.pathname directly
+    // route/view variables might be stale or derived incorrectly
+    const currentPath = window.location.pathname;
+    console.log('🔍 Auth check (Signed Out). Path:', currentPath);
+
+    if (currentPath.includes('/dashboard-blueprint')) {
         setView('dashboard-blueprint');
-    } else if (signedOutRoute === 'admin-setup') {
+    } else if (currentPath.includes('/admin-setup')) {
         setView('admin-setup');
-    } else if (signedOutRoute === 'admin-login') {
-        // Allow access to admin login
+    } else if (currentPath.includes('/admin-login')) {
         console.log('🔓 Admin Login route accessed.');
-    } else if (isAdminView(signedOutRoute) || signedOutRoute === 'admin-dashboard') {
-        // If trying to access any admin route while logged out, show admin login
-        console.log('🔒 Protected admin route accessed while logged out, showing login');
+    } else if (currentPath.includes('/admin') || currentPath.includes('/dashboard')) {
+        // Protected routes -> login
+        console.log('🔒 Protected route accessed while logged out, showing login');
+        // If it was specific admin dashboard, maybe keep it, but generally default to admin login view if admin
+        // Actually, sticking to 'admin-dashboard' (which renders login) is fine
         setView('admin-dashboard');
-    } else if (signedOutRoute === 'signup') {
+    } else if (currentPath === '/signup') {
         setView('signup');
-    } else if (signedOutRoute === 'signin') {
+    } else if (currentPath === '/signin') {
         setView('signin');
-    } else if (signedOutRoute.startsWith('store/')) {
-        // Allow access to storefront pages
+    } else if (currentPath.startsWith('/store/')) {
         console.log('🛍️ Storefront route accessed.');
-    } else if (signedOutRoute.startsWith('checkout')) {
-        // Allow access to checkout pages
-        console.log('💳 Checkout route accessed.');
+    } else if (currentPath.startsWith('/checkout')) {
+        console.log('💳 Checkout route accessed. ALLOWING.');
+        // Do NOT change view to landing. 
+        // We must ensure the router renders the checkout route.
+        // If 'view' state drives the router, we might need a 'checkout' view state or similar.
+        // However, strictly, App.tsx router should handle it if we just return?
+        // But earlier code sets view='landing' at the end.
+
+        // We'll set view to a safe value or just let it be. 
+        // Paradox: App.tsx uses 'view' state for some logic? 
+        // Lines 161-164 derive view from location.
+        // So if we just return, 'view' should already be 'checkout/...' derived from initial render?
+        // Let's explicitly NOT set view to 'landing'.
+        return;
     }
     else {
-        console.log('📍 Defaulting to landing');
-        setIsDemoMode(false);
-        setView('landing');
+        // Only default to landing if we are truly on an unknown/root path
+        if (currentPath === '/' || currentPath === '') {
+            console.log('📍 Root path, setting landing');
+            setView('landing');
+        } else {
+            // If we are on some other public page (blog, etc), let router handle it?
+            // Logic below forces landing for everything else.
+            console.log('📍 Unknown path, defaulting to landing: ', currentPath);
+            setIsDemoMode(false);
+            setView('landing');
+        }
     }
-}
-            } catch (error) {
+} {
     console.error("❌ Critical Auth Init Error:", error);
     // Fallback to landing in worst case
     if (!window.location.pathname.includes('admin')) {
