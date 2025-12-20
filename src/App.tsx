@@ -573,7 +573,8 @@ const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) =>
                 currentPath.includes('/admin-login') ||
                 currentPath.includes('/dashboard-blueprint') ||
                 currentPath.includes('/demo-dashboard') ||
-                currentPath.includes('/admin-dashboard');
+                currentPath.includes('/admin-dashboard') ||
+                currentPath.startsWith('/checkout'); // Allow checkout for logged in users
 
             if (!stayOnPage) {
                 navigate('/dashboard');
@@ -591,8 +592,19 @@ const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) =>
             setAppointments([]);
 
             // Only redirect if we are on a protected route
-            const isProtected = !['', 'landing', 'signin', 'signup', 'demo', 'admin-login', 'checkout'].includes(location.pathname.replace(/^\//, ''));
-            if (isProtected && !location.pathname.startsWith('/store/')) {
+            const currentPath = location.pathname;
+            // Check if it's a known public path (starts with...)
+            const isPublicPath =
+                currentPath === '/' ||
+                currentPath === '/landing' ||
+                currentPath === '/signin' ||
+                currentPath === '/signup' ||
+                currentPath === '/demo' ||
+                currentPath === '/admin-login' ||
+                currentPath.startsWith('/checkout') || // Whitelist checkout
+                currentPath.startsWith('/store/');     // Whitelist store
+
+            if (!isPublicPath) {
                 navigate('/signin');
             }
         }
