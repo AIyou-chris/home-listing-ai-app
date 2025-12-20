@@ -574,7 +574,8 @@ const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) =>
                 currentPath.includes('/dashboard-blueprint') ||
                 currentPath.includes('/demo-dashboard') ||
                 currentPath.includes('/admin-dashboard') ||
-                currentPath.startsWith('/checkout'); // Allow checkout for logged in users
+                currentPath.startsWith('/checkout') || // Allow checkout for logged in users
+                currentPath === '/signup';             // Allow signup page to handle its own redirect
 
             if (!stayOnPage) {
                 navigate('/dashboard');
@@ -592,7 +593,7 @@ const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) =>
             setAppointments([]);
 
             // Only redirect if we are on a protected route
-            const currentPath = location.pathname;
+            const currentPath = window.location.pathname; // Avoid stale location
             // Check if it's a known public path (starts with...)
             const isPublicPath =
                 currentPath === '/' ||
