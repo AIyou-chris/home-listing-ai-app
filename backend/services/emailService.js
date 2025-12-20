@@ -6,7 +6,7 @@ const assertFetchAvailable = () => {
   }
 };
 
-const buildWelcomeHtml = (firstName, dashboardUrl) => `
+const buildWelcomeHtml = (firstName, dashboardUrl, password) => `
   <!DOCTYPE html>
   <html>
   <head>
@@ -29,7 +29,11 @@ const buildWelcomeHtml = (firstName, dashboardUrl) => `
       .feature-text { font-size: 15px; line-height: 1.5; color: #475569; }
       .feature-title { font-weight: 600; color: #1e293b; display: block; margin-bottom: 2px; }
       .footer { background-color: #f1f5f9; padding: 24px; text-align: center; font-size: 13px; color: #64748b; }
-      .info-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-top: 24px; font-size: 14px; color: #64748b; }
+      .credentials-box { background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; margin: 24px 0; font-size: 15px; color: #1e40af; }
+      .credentials-title { font-weight: bold; margin-bottom: 8px; color: #1e3a8a; display: block; }
+      .credential-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+      .credential-label { font-weight: 600; color: #1e40af; }
+      .credential-value { font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 6px; border-radius: 4px; }
     </style>
   </head>
   <body>
@@ -45,6 +49,19 @@ const buildWelcomeHtml = (firstName, dashboardUrl) => `
           <p class="hero-text">
             We're thrilled to have you on board! Your personal AI Real Estate Dashboard is set up and ready to revolutionize how you handle leads, listings, and client communications.
           </p>
+
+          ${password ? `
+          <div class="credentials-box">
+            <span class="credentials-title">🔐 Your Login Credentials</span>
+            <div style="margin-top: 8px;">
+              <div><strong>Email:</strong> This address</div>
+              <div style="margin-top: 4px;"><strong>Temporary Password:</strong> <span class="credential-value">${password}</span></div>
+            </div>
+            <div style="margin-top: 12px; font-size: 13px; opacity: 0.9;">
+              For security, please change this password after your first login (Settings → Security).
+            </div>
+          </div>
+          ` : ''}
 
           <div class="btn-container">
             <a href="${dashboardUrl}" class="btn">Launch My Dashboard</a>
@@ -77,14 +94,10 @@ const buildWelcomeHtml = (firstName, dashboardUrl) => `
               <div class="feature-icon">💬</div>
               <div class="feature-text">
                 <span class="feature-title">24/7 Multilingual Support</span>
-                Your AI agents speak 12 languages fluently, ensuring you never miss an opportunity with international buyers.
+                Your AI agents speak 12 languages fluently, ensuring you never miss a opportunity with international buyers.
               </div>
             </li>
           </ul>
-
-          <div class="info-box">
-            <strong>💡 Pro Tip:</strong> Login using the credentials you just created. For security, we recommend enabling two-factor authentication in your settings.
-          </div>
         </div>
 
         <div class="footer">
@@ -98,19 +111,8 @@ const buildWelcomeHtml = (firstName, dashboardUrl) => `
   </html>
 `;
 
-const buildCredentialsHtml = (firstName, dashboardUrl, password) => `
-  <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #0f172a;">
-    <p>Hi ${firstName},</p>
-    <p>Your AI Agent dashboard credentials are ready.</p>
-    <p><strong>Email:</strong> This address<br /><strong>Temporary Password:</strong> ${password}</p>
-    <p>
-      👉 <a href="${dashboardUrl}" style="color: #4f46e5; font-weight: 600;">Login to your dashboard</a>
-    </p>
-    <p>For security, please change your password after your first login (Dashboard → Settings → Security).</p>
-    <p>If you run into any issues, reply to this email and our team will help immediately.</p>
-    <p style="margin-top: 32px;">– The AI You Agent Team</p>
-  </div>
-`;
+// Legacy credentials HTML builder removed/merged
+
 
 module.exports = (supabaseAdmin) => {
   const resendApiKey = process.env.RESEND_API_KEY;
@@ -335,7 +337,7 @@ module.exports = (supabaseAdmin) => {
   const sendWelcomeEmail = async ({ to, firstName, dashboardUrl, cc }) =>
     sendEmail({
       to,
-      subject: `Welcome to AI You Agent, ${firstName}!`,
+      subject: `Welcome to AI You Agent Team!`,
       html: buildWelcomeHtml(firstName, dashboardUrl),
       cc: cc && cc.length ? cc : fallbackSupportEmail ? [fallbackSupportEmail] : [],
       tags: { template: 'welcome' }
@@ -344,10 +346,10 @@ module.exports = (supabaseAdmin) => {
   const sendCredentialsEmail = async ({ to, firstName, dashboardUrl, password, cc }) =>
     sendEmail({
       to,
-      subject: 'Your AI You Agent login credentials',
-      html: buildCredentialsHtml(firstName, dashboardUrl, password),
+      subject: 'Welcome to AI You Agent Team!',
+      html: buildWelcomeHtml(firstName, dashboardUrl, password),
       cc: cc && cc.length ? cc : fallbackSupportEmail ? [fallbackSupportEmail] : [],
-      tags: { template: 'credentials' }
+      tags: { template: 'welcome-credentials' }
     });
 
   return {
