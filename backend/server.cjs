@@ -8977,8 +8977,9 @@ app.post('/api/vapi/call', async (req, res) => {
     // 1. Fetch Context (if not fully provided)
     let targetPhone = leadPhone;
     let contextData = {};
+    let agentContext = {};
 
-    // If we have a leadId, fetch details from Supabase to ensure we recall the latest data
+    // Get Lead Details
     if (leadId) {
       const { data: lead, error: leadError } = await supabaseAdmin.from('leads').select('*').eq('id', leadId).single();
       if (lead && !leadError) {
@@ -8988,7 +8989,7 @@ app.post('/api/vapi/call', async (req, res) => {
       }
     }
 
-    // Fetch Property if provided
+    // Get Property Details
     if (propertyId) {
       const { data: p } = await supabaseAdmin.from('properties').select('*').eq('id', propertyId).single();
       if (p) {
@@ -8998,8 +8999,14 @@ app.post('/api/vapi/call', async (req, res) => {
       }
     }
 
-    // Agent Name from params or context
-    // We assume the caller (SequenceExecutionService) provides agentId or agent context.
+    // Get Agent Details (for dynamic agent name/context)
+    if (agentId) {
+      const { data: a } = await supabaseAdmin.from('agents').select('*').eq('id', agentId).single();
+      if (a) {
+        agentContext.name = `${a.first_name} ${a.last_name}`;
+        agentContext.company = a.company || 'HomeListingAI';
+      }
+    }
 
     // 2. Prepare Vapi Call Payload
     const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
@@ -9014,37 +9021,108 @@ app.post('/api/vapi/call', async (req, res) => {
         name: leadName || contextData.leadName || 'Valued Lead'
       },
       assistant: {
-        // Use the assistant ID from env or a default one
         ...(process.env.VAPI_ASSISTANT_ID ? { assistantId: process.env.VAPI_ASSISTANT_ID } : {}),
 
-        // Override variable values for dynamic context
         variableValues: {
           leadName: leadName || contextData.leadName || 'there',
-          agentName: 'Agent', // TODO: fetch actual agent name if needed
+          agentName: agentContext.name || 'Agent',
+          companyName: agentContext.company || 'our agency',
           propertyAddress: contextData.propertyAddress || 'the property',
           ...contextData
         },
-
-        // If we want to override the first message (script)
-        // We can inject it into the first message or variable
         firstMessage: script || undefined
+      },
+      // META DATA for Webhook identification
+      analysis: {
+        successEvaluationPrompt: "Did the AI successfully answer the user's questions or set an appointment?",
+        structuredDataSchema: {
+          type: "object",
+          properties: {
+            summary: { type: "string" },
+            appointmentScheduled: { type: "boolean" },
+            userSentiment: { type: "string" }
+          }
+        }
+      },
+      assistantOverrides: {
+        metadata: {
+          agentId,
+          leadId,
+          propertyId,
+          source: 'funnel_automation'
+        }
       }
     };
 
-    console.log(`📞 Initiating Vapi Call to ${targetPhone} for Lead: ${contextData.leadName}`);
+    console.log(`📞 Initiating Vapi Call to ${targetPhone} [Lead: ${contextData.leadName}] [Agent: ${agentContext.name}]`);
 
-    const response = await axios.post('https://api.vapi.ai/call/phone', payload, {
+    const vapiRes = await fetch('https://api.vapi.ai/call/phone', {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify(payload)
     });
 
-    res.json({ success: true, callId: response.data.id });
+    if (!vapiRes.ok) {
+      const errText = await vapiRes.text();
+      throw new Error(`Vapi API Error: ${errText}`);
+    }
+
+    const data = await vapiRes.json();
+    res.json({ success: true, callId: data.id });
 
   } catch (error) {
-    console.error('Vapi Call Error:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Failed to initiate call', details: error.response?.data || error.message });
+    console.error('Vapi Call Error:', error.message);
+    res.status(500).json({ error: 'Failed to initiate call', details: error.message });
+  }
+});
+
+// VAPI WEBHOOK HANDLER
+app.post('/api/vapi/webhook', async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    // Vapi sends different message types. We care about 'end-of-call-report' or 'function-call'
+    // For transcripts/summaries, 'end-of-call-report' is key.
+    if (message?.type === 'end-of-call-report') {
+      const report = message;
+      const meta = report.assistant?.metadata || {}; // Should contain agentId, leadId
+      const summary = report.analysis?.summary;
+      const transcript = report.transcript;
+      const recordingUrl = report.recordingUrl;
+
+      console.log(`📥 Received Vapi Report for Call ${report.call?.id}`);
+
+      if (meta.leadId && summary) {
+        // Log interaction to Lead's AI Interactions (JSONB array assumption based on types.ts)
+        // We fetch the current lead first to append
+        const { data: lead } = await supabaseAdmin.from('leads').select('aiInteractions').eq('id', meta.leadId).single();
+
+        const newInteraction = {
+          timestamp: new Date().toISOString(),
+          type: 'voice_call',
+          summary: summary,
+          transcript: transcript, // Optional: might be too large, but storing just in case
+          recordingUrl: recordingUrl
+        };
+
+        const updatedInteractions = [...(lead?.aiInteractions || []), newInteraction];
+
+        await supabaseAdmin.from('leads').update({
+          aiInteractions: updatedInteractions,
+          lastContact: new Date().toISOString()
+        }).eq('id', meta.leadId);
+
+        console.log(`✅ Saved Call Summary to Lead ${meta.leadId}`);
+      }
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Vapi Webhook Error:', err);
+    res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
 
