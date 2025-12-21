@@ -9606,6 +9606,13 @@ app.get('/api/email/google/oauth-callback', async (req, res) => {
           tokenType: tokens.token_type,
           expiryDate: tokens.expiry_date || null,
           hasRefreshToken: Boolean(tokens.refresh_token)
+        },
+        credentials: {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiryDate: tokens.expiry_date,
+          scope: tokens.scope,
+          tokenType: tokens.token_type
         }
       });
 
@@ -9645,6 +9652,146 @@ app.get('/api/email/google/oauth-callback', async (req, res) => {
     sendOAuthResultPage(res, {
       type: `${storedState?.context || 'gmail'}-oauth-error`,
       reason: oauthError?.message || 'OAuth failed'
+    });
+  }
+});
+
+// Vapi Tool: Check Calendar Availability
+app.post('/api/vapi/calendar/availability', async (req, res) => {
+  try {
+    const { message } = req.body;
+    const toolCall = message?.toolCalls?.[0];
+
+    // Logic to handle both webhook format and direct Vapi tool call format if slightly different
+    // Standard Vapi Tool call struct: message.toolCalls[].function.name
+
+    if (!toolCall || toolCall.function.name !== 'checkAvailability') {
+      // If it's just a general webhook event but not a tool call we care about
+      return res.status(200).json({});
+    }
+
+    // Extract Agent ID from call metadata
+    const agentId = message.call?.metadata?.agentId;
+    if (!agentId) {
+      return res.json({
+        results: [{
+          toolCallId: toolCall.id,
+          result: "I cannot check the calendar because I don't know who the agent is. Please check the system configuration."
+        }]
+      });
+    }
+
+    // Load Agent's Google Credentials
+    const { getCalendarSettings } = require('./utils/calendarSettings');
+
+    // We need to raw-read the store because getCalendarSettings might filter credentials
+    const fs = require('fs');
+    const path = require('path');
+    const DATA_DIR = path.join(__dirname, 'data');
+    const STORE_FILE = path.join(DATA_DIR, 'calendar-settings.json');
+
+    let store = {};
+    if (fs.existsSync(STORE_FILE)) {
+      try {
+        store = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+      } catch (e) {
+        console.error('Error parsing calendar store:', e);
+      }
+    }
+
+    // normalizeUserId logic roughly
+    let key = agentId.trim().toLowerCase();
+    if (key.startsWith('blueprint-') || key === 'guest-agent') key = 'demo-blueprint';
+
+    const credentialData = store[key]?.connection?.credentials;
+
+    if (!credentialData || !credentialData.refreshToken) {
+      return res.json({
+        results: [{
+          toolCallId: toolCall.id,
+          result: "My calendar is not connected. Please ask the user to connect their Google Calendar in the settings."
+        }]
+      });
+    }
+
+    // Setup Google Client
+    const oauthClient = createGoogleOAuthClient();
+    oauthClient.setCredentials({
+      refresh_token: credentialData.refreshToken,
+      access_token: credentialData.accessToken
+    });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauthClient });
+
+    // Parse Arguments (date)
+    let args = {};
+    try {
+      if (typeof toolCall.function.arguments === 'string') {
+        args = JSON.parse(toolCall.function.arguments);
+      } else {
+        args = toolCall.function.arguments;
+      }
+    } catch (e) {
+      console.warn('Failed to parse tool arguments:', e);
+    }
+
+    const { startOfDay, endOfDay, format } = require('date-fns');
+
+    // Determine check window
+    // If date is "tomorrow" or "next tuesday", Vapi might send string. 
+    // Usually Vapi converts if we define schema type: string, format: date-time.
+    // For now, assume it might be simple date string or ISO.
+    let targetDate = new Date();
+    if (args.date) {
+      const parsed = new Date(args.date);
+      if (!isNaN(parsed.getTime())) {
+        targetDate = parsed;
+      }
+    }
+
+    const timeMin = startOfDay(targetDate).toISOString();
+    const timeMax = endOfDay(targetDate).toISOString();
+
+    // Check FreeBusy
+    const freeBusy = await calendar.freebusy.query({
+      resource: {
+        timeMin,
+        timeMax,
+        timeZone: 'America/Los_Angeles', // Ideally fetch from settings
+        items: [{ id: 'primary' }]
+      }
+    });
+
+    const busySlots = freeBusy.data.calendars.primary.busy;
+
+    // Simple availability summary
+    let resultText = `I checked the calendar for ${format(targetDate, 'EEEE, MMMM do')}. `;
+
+    if (busySlots.length === 0) {
+      resultText += "I am completely free all day.";
+    } else {
+      resultText += `I have ${busySlots.length} busy periods. `;
+
+      // If busy, maybe suggest a free time?
+      // For now, simple response.
+      resultText += "You can ask me to book a specific time.";
+    }
+
+    return res.json({
+      results: [{
+        toolCallId: toolCall.id,
+        result: resultText
+      }]
+    });
+
+  } catch (error) {
+    console.error('Vapi Calendar Tool Error:', error);
+    // Return a soft error to the AI so it can apologize
+    return res.json({
+      results: [{
+        toolCallId: req.body.message?.toolCalls?.[0]?.id || 'unknown',
+        result: "I'm having trouble accessing the calendar right now."
+      }]
     });
   }
 });

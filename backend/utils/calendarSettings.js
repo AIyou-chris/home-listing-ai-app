@@ -26,7 +26,9 @@ const DEFAULT_CONNECTION = {
   email: null,
   connectedAt: null,
   status: 'disconnected',
-  metadata: {}
+  status: 'disconnected',
+  metadata: {},
+  credentials: {}
 }
 
 let storeCache = null
@@ -86,6 +88,7 @@ const sanitizeConnection = (connection) => {
     connectedAt: connection.connectedAt || null,
     status: connection.status || (connection.provider ? 'active' : 'disconnected'),
     metadata: connection.metadata ? { ...connection.metadata } : {}
+    // Explicitly exclude credentials from sanitized output
   }
 }
 
@@ -197,6 +200,10 @@ const saveCalendarConnection = (userId, connection = {}) => {
     metadata: {
       ...(entry.connection.metadata || {}),
       ...(connection.metadata || {})
+    },
+    credentials: {
+      ...(entry.connection.credentials || {}),
+      ...(connection.credentials || {})
     }
   }
 
