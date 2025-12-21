@@ -327,7 +327,8 @@ export interface SequenceStep {
     type: 'email' | 'ai-email' | 'task' | 'meeting' | 'reminder' | 'call';
     delay: { value: number; unit: 'minutes' | 'hours' | 'days' };
     content: string;
-    subject?: string;
+    subject?: string; // For emails
+    callType?: 'agent' | 'sales'; // For calls
     meetingDetails?: {
         date: string;
         time: string;

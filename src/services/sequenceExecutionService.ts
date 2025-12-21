@@ -207,7 +207,8 @@ class SequenceExecutionService {
           propertyId: property?.id,
           script: script,
           leadName: lead.name,
-          leadPhone: lead.phone
+          leadPhone: lead.phone,
+          callType: step.callType // Pass 'sales' or 'agent'
         }),
       });
 

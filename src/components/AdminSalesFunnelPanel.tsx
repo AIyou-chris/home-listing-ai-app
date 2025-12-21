@@ -33,6 +33,7 @@ export type EditableStep = {
     type: string;
     subject: string;
     content: string;
+    callType?: 'agent' | 'sales';
     attachments?: Array<{ id: string; name: string; url?: string }>;
 };
 
@@ -648,6 +649,37 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                             )}
                                                         </div>
                                                     </label>
+
+                                                    {/* Call Source Selector - Only for Calls */}
+                                                    {step.type === 'Call' && (
+                                                        <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
+                                                            <span className="text-xs font-bold text-indigo-800 uppercase tracking-wide block mb-2">
+                                                                Call Source (Phone Number)
+                                                            </span>
+                                                            <div className="flex gap-4">
+                                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name={`callType-${step.id}`}
+                                                                        checked={!step.callType || step.callType === 'agent'}
+                                                                        onChange={() => onUpdateStep(step.id, 'callType', 'agent')}
+                                                                        className="text-indigo-600 focus:ring-indigo-500"
+                                                                    />
+                                                                    <span className="text-sm text-slate-700">Agent Number (Standard)</span>
+                                                                </label>
+                                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name={`callType-${step.id}`}
+                                                                        checked={step.callType === 'sales'}
+                                                                        onChange={() => onUpdateStep(step.id, 'callType', 'sales')}
+                                                                        className="text-indigo-600 focus:ring-indigo-500"
+                                                                    />
+                                                                    <span className="text-sm text-slate-700 font-medium">Sales Team Number</span>
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     <div className="flex gap-2 pt-2">
                                                         <button
