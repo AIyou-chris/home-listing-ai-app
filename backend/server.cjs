@@ -9009,9 +9009,12 @@ app.post('/api/vapi/call', async (req, res) => {
     }
 
     // 2. Prepare Vapi Call Payload
-    const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
+    const phoneNumberId = req.body.callType === 'sales'
+      ? process.env.VAPI_SALES_PHONE_NUMBER_ID
+      : process.env.VAPI_PHONE_NUMBER_ID;
+
     if (!phoneNumberId) {
-      return res.status(500).json({ error: 'Server configuration error: VAPI_PHONE_NUMBER_ID missing' });
+      return res.status(500).json({ error: 'Server configuration error: VAPI phone number ID missing' });
     }
 
     const payload = {
