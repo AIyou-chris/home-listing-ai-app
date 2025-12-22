@@ -9017,6 +9017,10 @@ app.post('/api/vapi/call', async (req, res) => {
       return res.status(500).json({ error: 'Server configuration error: VAPI phone number ID missing' });
     }
 
+    const assistantId = req.body.callType === 'sales' && process.env.VAPI_SALES_ASSISTANT_ID
+      ? process.env.VAPI_SALES_ASSISTANT_ID
+      : process.env.VAPI_ASSISTANT_ID;
+
     const payload = {
       phoneNumberId: phoneNumberId,
       customer: {
@@ -9024,7 +9028,7 @@ app.post('/api/vapi/call', async (req, res) => {
         name: leadName || contextData.leadName || 'Valued Lead'
       },
       assistant: {
-        ...(process.env.VAPI_ASSISTANT_ID ? { assistantId: process.env.VAPI_ASSISTANT_ID } : {}),
+        ...(assistantId ? { assistantId: assistantId } : {}),
 
         variableValues: {
           leadName: leadName || contextData.leadName || 'there',
