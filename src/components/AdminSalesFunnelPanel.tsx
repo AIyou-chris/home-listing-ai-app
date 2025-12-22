@@ -100,12 +100,17 @@ const buildDefaultSteps = (): EditableStep[] => ([
     }
 ]);
 
-const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
+interface AdminSalesFunnelPanelProps extends FunnelAnalyticsPanelProps {
+    forcedCallType?: 'agent' | 'sales';
+}
+
+const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
     onBackToDashboard,
     variant = 'page',
     title = 'Admin Sales Funnel',
     subtitle = '5-touch sales sequence to convert agents to the HomeListingAI platform.',
-    hideBackButton = false
+    hideBackButton = false,
+    forcedCallType
 }) => {
     const isEmbedded = variant === 'embedded';
     const [programSteps, setProgramSteps] = useState<EditableStep[]>(buildDefaultSteps());
@@ -653,7 +658,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                     </label>
 
                                                     {/* Call Source Selector - Only for Calls */}
-                                                    {step.type === 'Call' && (
+                                                    {step.type === 'Call' && !forcedCallType && (
                                                         <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
                                                             <span className="text-xs font-bold text-indigo-800 uppercase tracking-wide block mb-2">
                                                                 Call Source (Phone Number)

@@ -346,7 +346,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         return <AdminAISidekicksPage initialTab="overview" />;
 
       case 'funnel-analytics':
-        return <AdminSalesFunnelPanel onBackToDashboard={resetToDashboard} />;
+        return <AdminSalesFunnelPanel onBackToDashboard={resetToDashboard} forcedCallType="sales" />;
       case 'settings':
         return (
           <AdminSettingsPage
