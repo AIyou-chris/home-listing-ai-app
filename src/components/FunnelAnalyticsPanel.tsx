@@ -67,7 +67,7 @@ const initialWelcomeSteps: EditableStep[] = [
         description: 'Chatbot fires a warm intro email + SMS within 2 minutes.',
         icon: 'thunderstorm',
         delay: '0 min',
-        type: 'AI Email',
+        type: 'Email',
         subject: 'Welcome aboard, {{lead.name}}!',
         content: `Hi {{lead.name}},
 
@@ -84,7 +84,7 @@ Talk soon,
         description: 'Bot shares quick resources and asks for timeline + budget so you can prioritize.',
         icon: 'draft',
         delay: '+24 hrs',
-        type: 'Follow-up',
+        type: 'Email',
         subject: 'Quick check-in + next steps',
         content: `Hi {{lead.name}},
 
@@ -113,7 +113,7 @@ const initialHomeBuyerSteps: EditableStep[] = [
         description: 'AI concierge confirms price range, move timeline, and pre-approval status.',
         icon: 'assignment',
         delay: '0 min',
-        type: 'AI Intake',
+        type: 'Email',
         subject: 'Let’s dial in your wishlist',
         content: `Hey {{lead.name}},
 
@@ -130,7 +130,7 @@ Reply here and I’ll handle the rest.`
         description: 'Send 3 tailored MLS matches that fit the captured wishlist.',
         icon: 'home',
         delay: '+6 hrs',
-        type: 'AI Email',
+        type: 'Email',
         subject: 'Hand-picked homes to preview',
         content: `Based on your wishlist, here are three homes that hit the mark:
 1. {{lead.matchOne || 'Palm Oasis · $890k · Pool + ADU'}}
@@ -145,7 +145,7 @@ Want me to unlock more details or line up a private tour?`
         description: 'Invite the buyer to pick a tour window or book a virtual walk-through.',
         icon: 'calendar_add_on',
         delay: '+1 day',
-        type: 'CTA',
+        type: 'Email',
         subject: 'Ready to tour this week?',
         content: `I can stack back-to-back showings or drop you into a private FaceTime walk-through.
 
@@ -168,7 +168,7 @@ Mention {{lead.interestAddress || 'their top property'}} and confirm financing r
         description: 'Share lender resources or payment calculators to keep momentum.',
         icon: 'savings',
         delay: '+4 days',
-        type: 'Follow-up',
+        type: 'Email',
         subject: 'Lower payment options?',
         content: `Here’s a calculator tuned to the neighborhoods you like: {{agent.website}}/payments
 
@@ -183,7 +183,7 @@ const initialListingSteps: EditableStep[] = [
         description: 'Seller completes a quick form; AI turns the notes into a lifestyle narrative.',
         icon: 'stylus',
         delay: '0 min',
-        type: 'AI Intake',
+        type: 'Email',
         subject: 'Let’s make your home talk',
         content: `Thanks for the details on {{lead.interestAddress || 'your property'}}.
 I’m feeding them into our AI storyteller so buyers feel the lifestyle on the first touch.`
@@ -194,7 +194,7 @@ I’m feeding them into our AI storyteller so buyers feel the lifestyle on the f
         description: 'System builds the AI-powered property page with concierge + talking points.',
         icon: 'dynamic_feed',
         delay: '+30 min',
-        type: 'AI Builder',
+        type: 'Email',
         subject: 'Preview your interactive listing',
         content: `Here’s the first pass of your AI listing experience:
 {{agent.website}}/listing-preview
@@ -207,7 +207,7 @@ The concierge already knows how to answer buyer questions 24/7.`
         description: 'Share a preview link so sellers hear how the home “talks” to buyers.',
         icon: 'record_voice_over',
         delay: '+2 hrs',
-        type: 'Showcase',
+        type: 'Email',
         subject: 'Hear your home talk to buyers',
         content: `Play this preview — our AI concierge walks buyers through every highlight:
 {{agent.aiCardUrl}}/listing-preview
@@ -220,7 +220,7 @@ Send me any details you want it to emphasize.`
         description: 'Kick off marketing: QR codes, reels, email nurtures referencing the story.',
         icon: 'rocket_launch',
         delay: '+1 day',
-        type: 'Campaign',
+        type: 'Email',
         subject: 'Launch plan locked',
         content: `We’re launching with:
 - Interactive listing + AI concierge
@@ -235,7 +235,7 @@ Go-live date: {{lead.timeline || 'this Friday'}}.`
         description: 'AI summarizes buyer questions from the concierge for fine-tuning.',
         icon: 'insights',
         delay: '+3 days',
-        type: 'Analytics',
+        type: 'Email',
         subject: 'Buyer feedback recap',
         content: `AI pulled the top buyer questions so far:
 - {{lead.questionOne || 'Do utilities include solar credits?'}}
@@ -252,7 +252,7 @@ const initialPostShowingSteps: EditableStep[] = [
         description: 'AI concierge sends a recap minutes after the showing with highlights and next steps.',
         icon: 'handshake',
         delay: '0 min',
-        type: 'AI Email',
+        type: 'Email',
         subject: 'Thanks for touring {{lead.interestAddress}}',
         content: `Hi {{lead.name}},
 
@@ -266,7 +266,7 @@ Want a second look or details on similar homes? I’m on standby.`
         description: 'Ask the buyer to rate interest level and capture objections via chatbot survey.',
         icon: 'rate_review',
         delay: '+2 hrs',
-        type: 'Survey',
+        type: 'Text',
         subject: 'Mind sharing quick feedback?',
         content: `Drop a 30-second response so I can tailor our next steps:
 {{agent.aiCardUrl}}/feedback`
@@ -288,7 +288,7 @@ Include quick notes from the showing.`
         description: 'Share two similar homes with smart commentary to keep the buyer engaged with you.',
         icon: 'real_estate_agent',
         delay: '+2 days',
-        type: 'Follow-up',
+        type: 'Email',
         subject: 'Two smart alternates to compare',
         content: `Based on what you loved, here are two matches:
 1. {{lead.matchOne || 'Maple Modern – turnkey + office nook'}}
@@ -302,7 +302,7 @@ Want me to unlock either?`
         description: 'AI watches market activity and sends a gentle urgency nudge if interest remains high.',
         icon: 'notifications_active',
         delay: '+4 days',
-        type: 'Automation',
+        type: 'Email',
         subject: 'Market update: pace picked up',
         content: `Contracts jumped 12% this week for homes like {{lead.interestAddress}}.
 If you’re still interested, I can prep numbers + offer strategy anytime.`
@@ -793,20 +793,10 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                 value={step.type}
                                                                 onChange={(event) => onUpdateStep(step.id, 'type', event.target.value)}
                                                             >
-                                                                <option value="AI Email">AI Email</option>
+                                                                <option value="Email">Email</option>
                                                                 <option value="Call">AI Call</option>
                                                                 <option value="Task">Task</option>
                                                                 <option value="Text">Text</option>
-                                                                <option value="AI Intake">AI Intake</option>
-                                                                <option value="Follow-up">Follow-up</option>
-                                                                <option value="CTA">CTA</option>
-                                                                <option value="AI Builder">AI Builder</option>
-                                                                <option value="Showcase">Showcase</option>
-                                                                <option value="Campaign">Campaign</option>
-                                                                <option value="Analytics">Analytics</option>
-                                                                <option value="Survey">Survey</option>
-                                                                <option value="Automation">Automation</option>
-                                                                <option value="Custom">Custom</option>
                                                             </select>
                                                         </label>
                                                     </div>
