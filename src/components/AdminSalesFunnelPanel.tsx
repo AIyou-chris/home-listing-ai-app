@@ -625,7 +625,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                         Subject Line
                                                         <input
                                                             className={`mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${step.type === 'Call' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}
-                                                            value={step.subject}
+                                                            value={step.type === 'Call' ? '' : step.subject}
                                                             onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
                                                             disabled={step.type === 'Call'}
                                                             placeholder={step.type === 'Call' ? 'Not used for AI Calls' : ''}
