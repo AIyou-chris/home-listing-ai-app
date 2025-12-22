@@ -408,80 +408,88 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                 </div>
                 <div className="mt-16 flex justify-center animate-fade-in-up animation-delay-500">
                     {/* Single Plan */}
-                    <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform hover:scale-105 transition-all duration-300 animate-fade-in-up glow max-w-md">
+                    <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform hover:scale-105 transition-all duration-300 animate-fade-in-up glow max-w-5xl w-full">
                         <div className="flex-grow">
-                            <h3 className="text-2xl font-bold text-white">Complete AI Solution</h3>
-                            <p className="mt-2 text-slate-300">Everything you need to dominate your market, impress clients, and close more deals — automatically.</p>
-                            <p className="mt-6">
+                            <h3 className="text-2xl font-bold text-white text-center">Complete AI Solution</h3>
+                            <p className="mt-2 text-slate-300 text-center">Everything you need to dominate your market, impress clients, and close more deals — automatically.</p>
+                            <p className="mt-6 text-center">
                                 <span className="text-5xl font-extrabold text-white">$49</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
-                            <p className="mt-2 text-slate-300 line-through text-sm">Regular price: $129/mo</p>
-                            <ul className="mt-8 space-y-4">
+                            <p className="mt-2 text-slate-300 line-through text-sm text-center">Regular price: $129/mo</p>
+
+                            <ul className="mt-10 grid md:grid-cols-2 gap-x-12 gap-y-6 text-left">
+                                {/* LEFT COLUMN */}
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">smart_toy</span>
                                     <div>
-                                        <span className="text-slate-300 font-semibold">Unlimited AI conversations</span>
-                                        <p className="text-xs text-slate-400 mt-0.5">Your leads can ask anything, anytime — your AI responds instantly.</p>
+                                        <span className="text-slate-100 font-bold text-lg">AI Call Bot</span>
+                                        <p className="text-sm text-slate-300 mt-1">Automated voice calls that qualify leads instantly and handle objections.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">chat</span>
                                     <div>
-                                        <span className="text-slate-300 font-semibold">Up to 3 active AI-powered listings</span>
-                                        <p className="text-xs text-slate-400 mt-0.5">Every listing becomes its own interactive mobile app with a trained AI sidekick.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Unlimited AI conversations</span>
+                                        <p className="text-sm text-slate-300 mt-1">Your leads can ask anything, anytime — your AI responds instantly.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">phonelink_setup</span>
                                     <div>
-                                        <span className="text-slate-300 font-semibold">300 automated emails per month</span>
-                                        <p className="text-xs text-slate-400 mt-0.5">Smart follow-up sequences that nurture leads without lifting a finger.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Up to 3 active AI-powered listings</span>
+                                        <p className="text-sm text-slate-300 mt-1">Every listing becomes its own interactive mobile app with a trained AI sidekick.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">mark_email_read</span>
                                     <div>
-                                        <span className="text-slate-300 font-semibold">Advanced analytics dashboard</span>
-                                        <p className="text-xs text-slate-400 mt-0.5">Track conversations, engagement, and lead intent ratings in real time.</p>
+                                        <span className="text-slate-100 font-bold text-lg">300 automated emails per month</span>
+                                        <p className="text-sm text-slate-300 mt-1">Smart follow-up sequences that nurture leads without lifting a finger.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">psychology</span>
                                     <div>
-                                        <span className="text-slate-300 font-semibold">Your own trained GPT</span>
-                                        <p className="text-xs text-slate-400 mt-0.5">Fully customized to your tone, branding, and communication style.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Your own trained GPT</span>
+                                        <p className="text-sm text-slate-300 mt-1">Fully customized to your tone, branding, and communication style.</p>
+                                    </div>
+                                </li>
+
+                                {/* RIGHT COLUMN */}
+                                <li className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">autoplay</span>
+                                    <div>
+                                        <span className="text-slate-100 font-bold text-lg">Automated follow-up funnels</span>
+                                        <p className="text-sm text-slate-300 mt-1">Includes welcome sequence, reminders, and lead scoring.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">language</span>
                                     <div>
-                                        <span className="text-slate-300 font-semibold">Automated follow-up funnels</span>
-                                        <p className="text-xs text-slate-400 mt-0.5">Includes welcome sequence, reminders, and lead scoring.</p>
+                                        <span className="text-slate-100 font-bold text-lg">12-language auto-detect AI</span>
+                                        <p className="text-sm text-slate-300 mt-1">Your AI instantly responds in your lead’s preferred language.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">monitoring</span>
                                     <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-slate-300 font-semibold">12-language auto-detect AI</span>
-                                            <span className="material-symbols-outlined text-yellow-300 text-lg">language</span>
-                                        </div>
-                                        <p className="text-xs text-slate-400 mt-0.5">Your AI instantly responds in your lead’s preferred language — no settings needed.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Advanced analytics dashboard</span>
+                                        <p className="text-sm text-slate-300 mt-1">Track conversations, engagement, and lead intent ratings in real time.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">handshake</span>
                                     <div>
-                                        <span className="text-slate-300 font-semibold">Tools built to close deals</span>
-                                        <p className="text-xs text-slate-400 mt-0.5">Scheduling, instant notifications, transcripts, and warm lead routing.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Tools built to close deals</span>
+                                        <p className="text-sm text-slate-300 mt-1">Scheduling, instant notifications, transcripts, and warm lead routing.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-400 flex-shrink-0 mt-0.5">check_circle</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">notifications_active</span>
                                     <div>
-                                        <span className="text-slate-300 font-semibold">Need even more?</span>
-                                        <p className="text-xs text-slate-400 mt-0.5">We offer custom programs designed for teams & high-volume agents.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Instant Lead Notifications</span>
+                                        <p className="text-sm text-slate-300 mt-1">Get alerted the moment a hot lead engages with your listings.</p>
                                     </div>
                                 </li>
                             </ul>
