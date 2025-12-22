@@ -624,9 +624,11 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                     <label className="block text-xs font-semibold text-slate-600">
                                                         Subject Line
                                                         <input
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                                            className={`mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${step.type === 'Call' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}
                                                             value={step.subject}
                                                             onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
+                                                            disabled={step.type === 'Call'}
+                                                            placeholder={step.type === 'Call' ? 'Not used for AI Calls' : ''}
                                                         />
                                                     </label>
                                                     <label className="block text-xs font-semibold text-slate-600">
@@ -637,7 +639,7 @@ const AdminSalesFunnelPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                     className="w-full h-40 rounded-lg border border-slate-200 p-3 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono"
                                                                     value={step.content}
                                                                     onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
-                                                                    placeholder="Hi {{lead.firstName}}, this is {{agent.name}}'s artificial assistant calling..."
+                                                                    placeholder="Write the EXACT opening sentence here. Example: 'Hi {{lead.firstName}}, this is Mark calling from HomeListingAI...'"
                                                                 />
                                                             ) : (
                                                                 <EmailEditor
