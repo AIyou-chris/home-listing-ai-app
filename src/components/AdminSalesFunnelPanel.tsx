@@ -433,7 +433,8 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
             delay: '+2 days',
             type: 'Email',
             subject: 'New Message',
-            content: 'Hi {{lead.firstName}}, ...\n\n{{agent.signature}}'
+            content: 'Hi {{lead.firstName}}, ...\n\n{{agent.signature}}',
+            callType: forcedCallType || 'agent'
         };
         setProgramSteps((prev) => [...prev, newStep]);
     };
