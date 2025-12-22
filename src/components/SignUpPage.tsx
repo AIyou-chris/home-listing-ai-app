@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabase';
+
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';

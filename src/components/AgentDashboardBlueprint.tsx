@@ -34,7 +34,8 @@ import {
   CalendarSettings,
   BillingSettings,
   FollowUpSequence,
-  Interaction
+  Interaction,
+  LeadFunnelType
 } from '../types';
 
 type MarketingSequencesResponse = {
@@ -475,13 +476,14 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
     }
   ]
 
-  const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string }) => {
+  const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
     const payload: LeadPayload = {
       name: leadData.name,
       email: leadData.email,
       phone: leadData.phone,
       source: leadData.source || 'Website',
-      lastMessage: leadData.message
+      lastMessage: leadData.message,
+      funnelType: (leadData.funnelType as LeadFunnelType) || null
     };
 
     if (isDemoMode) {

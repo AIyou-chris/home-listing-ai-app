@@ -7,6 +7,7 @@ export interface NewLeadPayload {
     phone: string;
     message: string;
     source: string;
+    funnelType?: string;
 }
 
 interface AddLeadModalProps {
@@ -49,7 +50,7 @@ const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) 
             {...props}
             className="w-full appearance-none bg-white px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
         >
-          {props.children}
+            {props.children}
         </select>
         <span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
     </div>
@@ -62,7 +63,8 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onAddLead, initial
         email: '',
         phone: '',
         message: initialData?.message || '',
-        source: 'Manual Entry'
+        source: 'Manual Entry',
+        funnelType: ''
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -95,13 +97,23 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onAddLead, initial
                         <Label htmlFor="message">Message *</Label>
                         <Textarea id="message" name="message" placeholder="Enter lead message or notes" value={formData.message} onChange={handleChange} required />
                     </FormRow>
-                     <FormRow>
+                    <FormRow>
                         <Label htmlFor="source">Source</Label>
                         <Select id="source" name="source" value={formData.source} onChange={handleChange}>
                             <option>Manual Entry</option>
                             <option>Website Form</option>
                             <option>QR Code Scan</option>
                             <option>Referral</option>
+                        </Select>
+                    </FormRow>
+                    <FormRow>
+                        <Label htmlFor="funnelType">Enroll in Funnel</Label>
+                        <Select id="funnelType" name="funnelType" value={formData.funnelType || ''} onChange={handleChange}>
+                            <option value="">No Funnel (Manual Only)</option>
+                            <option value="universal_sales">Universal Welcome Drip</option>
+                            <option value="homebuyer">AI-Powered Homebuyer Journey</option>
+                            <option value="seller">AI-Powered Seller Funnel</option>
+                            <option value="postShowing">After-Showing Follow-Up</option>
                         </Select>
                     </FormRow>
                 </div>

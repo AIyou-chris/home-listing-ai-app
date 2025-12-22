@@ -38,10 +38,31 @@ const LeadStatusBadge: React.FC<{ status: LeadStatus }> = ({ status }) => {
 const funnelOptions: Array<{ id: LeadFunnelType; label: string; description: string; icon: string; accent: string }> = [
     {
         id: 'universal_sales',
-        label: 'Universal Sales Funnel (5-Touch)',
-        description: 'Auto-applied 5-touch sequence with urgency, benefits, and CTAs.',
-        icon: 'bolt',
+        label: 'Universal Welcome Drip',
+        description: 'Every new chatbot lead lands here automatically.',
+        icon: 'filter_alt',
         accent: 'text-blue-600 bg-blue-50 border-blue-200'
+    },
+    {
+        id: 'homebuyer',
+        label: 'AI-Powered Homebuyer Journey',
+        description: 'Guide serious buyers from first chat to offer-ready.',
+        icon: 'explore',
+        accent: 'text-emerald-600 bg-emerald-50 border-emerald-200'
+    },
+    {
+        id: 'seller',
+        label: 'AI-Powered Seller Funnel',
+        description: 'Show clients how the concierge tells their story.',
+        icon: 'campaign',
+        accent: 'text-orange-600 bg-orange-50 border-orange-200'
+    },
+    {
+        id: 'postShowing',
+        label: 'After-Showing Follow-Up',
+        description: 'Spin up smart follow-ups with surveys and urgency nudges.',
+        icon: 'rate_review',
+        accent: 'text-purple-600 bg-purple-50 border-purple-200'
     }
 ];
 
@@ -49,10 +70,10 @@ const funnelLabelMap = funnelOptions.reduce<Record<LeadFunnelType, string>>((map
     map[option.id] = option.label;
     return map;
 }, {
-    universal_sales: 'Universal Sales Funnel',
-    homebuyer: 'Legacy Homebuyer',
-    seller: 'Legacy Seller',
-    postShowing: 'Legacy Post-Showing'
+    universal_sales: 'Universal Welcome Drip',
+    homebuyer: 'AI-Powered Homebuyer Journey',
+    seller: 'AI-Powered Seller Funnel',
+    postShowing: 'After-Showing Follow-Up'
 } as Record<LeadFunnelType, string>);
 
 const LeadsList: React.FC<{
@@ -166,8 +187,8 @@ const LeadsList: React.FC<{
                                 <div className="mt-6 border-t border-slate-200/80 pt-4">
                                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
-                                            <p className="text-sm font-semibold text-slate-700">Assign to Leads Funnel</p>
-                                            <p className="text-xs text-slate-500">Drop them into the automation that fits their journey.</p>
+                                            <h4 className="text-sm font-semibold text-slate-800 mb-1">Assign to Leads Funnel (v2)</h4>
+                                            <p className="text-xs text-slate-500 mb-4">Drop them into the automation that fits their journey.</p>
                                         </div>
                                         <button
                                             type="button"
@@ -187,8 +208,8 @@ const LeadsList: React.FC<{
                                                     type="button"
                                                     onClick={() => handleAssign(lead, option.id)}
                                                     className={`rounded-2xl border px-4 py-3 text-left transition-colors ${isActive
-                                                            ? `${option.accent} shadow-sm`
-                                                            : 'border-slate-200 text-slate-600 hover:border-primary-200 hover:bg-primary-50/50'
+                                                        ? `${option.accent} shadow-sm`
+                                                        : 'border-slate-200 text-slate-600 hover:border-primary-200 hover:bg-primary-50/50'
                                                         }`}
                                                 >
                                                     <div className="flex items-center gap-2 text-sm font-semibold">
@@ -717,8 +738,8 @@ const TabButton: React.FC<{ isActive: boolean; onClick: () => void; icon: string
         <button
             onClick={onClick}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${isActive
-                    ? 'border-b-2 border-primary-600 text-primary-600'
-                    : 'text-slate-500 hover:text-slate-800'
+                ? 'border-b-2 border-primary-600 text-primary-600'
+                : 'text-slate-500 hover:text-slate-800'
                 }`}
         >
             <span className="material-symbols-outlined w-5 h-5">{icon}</span>
