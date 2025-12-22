@@ -520,7 +520,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                 {/* Team/Office Programs Note */}
                 <div className="mt-8 text-center animate-fade-in-up animation-delay-600">
                     <p className="text-slate-600 text-lg">
-                        Looking for team or full office programs? <button onClick={onOpenConsultationModal} className="text-primary-600 hover:text-primary-700 font-semibold underline">Just reach out</button> →
+                        Need something more custom? No worries. <button onClick={onOpenConsultationModal} className="text-primary-600 hover:text-primary-700 font-semibold underline">Just reach out</button> →
                     </p>
                 </div>
             </div>
