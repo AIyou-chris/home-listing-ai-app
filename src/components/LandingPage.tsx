@@ -82,7 +82,7 @@ const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void; onNaviga
     const features = [
         { icon: 'track_changes', title: 'Never Lose a Lead', description: 'Watch in real-time as every inquiry—from your website, ads, or QR codes—populates your dashboard instantly.' },
         { icon: 'psychology', title: 'Know Who to Call Next', description: 'Our AI doesn\'t just capture leads; it qualifies them. See who is pre-approved and ready to talk, so you can focus on the hottest prospects.' },
-        { icon: 'autoplay', title: 'Follow-Up on Autopilot', description: 'Launch powerful, multi-step follow-up sequences with a single click. Nurture every lead perfectly without lifting a finger.' },
+        { icon: 'autoplay', title: 'Follow-Up on Autopilot', description: 'Launch powerful, multi-step follow-up sequences—including our AI Call System—with a single click. Nurture every lead perfectly without lifting a finger.' },
         { icon: 'language', title: 'AI App Listing', description: "Transform each property into an interactive, AI-powered mobile app that buyers can engage with 24/7. It's your always-on open house." },
         { icon: 'translate', title: '12 Languages, Zero Barriers', description: 'AI automatically detects and responds in 12 languages. Connect with international buyers and expand your market reach effortlessly.' },
         { icon: 'insights', title: 'Actionable Analytics', description: 'See which marketing channels are working and get insights to optimize your strategy, budget, and ROI.' },
