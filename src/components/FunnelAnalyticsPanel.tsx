@@ -788,19 +788,36 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                         </label>
                                                         <label className="text-xs font-semibold text-slate-600">
                                                             Type
-                                                            <input
+                                                            <select
                                                                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
                                                                 value={step.type}
                                                                 onChange={(event) => onUpdateStep(step.id, 'type', event.target.value)}
-                                                            />
+                                                            >
+                                                                <option value="AI Email">AI Email</option>
+                                                                <option value="Call">AI Call</option>
+                                                                <option value="Task">Task</option>
+                                                                <option value="Text">Text</option>
+                                                                <option value="AI Intake">AI Intake</option>
+                                                                <option value="Follow-up">Follow-up</option>
+                                                                <option value="CTA">CTA</option>
+                                                                <option value="AI Builder">AI Builder</option>
+                                                                <option value="Showcase">Showcase</option>
+                                                                <option value="Campaign">Campaign</option>
+                                                                <option value="Analytics">Analytics</option>
+                                                                <option value="Survey">Survey</option>
+                                                                <option value="Automation">Automation</option>
+                                                                <option value="Custom">Custom</option>
+                                                            </select>
                                                         </label>
                                                     </div>
                                                     <label className="text-xs font-semibold text-slate-600">
                                                         Subject
                                                         <input
-                                                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                            value={step.subject}
+                                                            className={`mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 ${step.type === 'Call' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}
+                                                            value={step.type === 'Call' ? '' : step.subject}
                                                             onChange={(event) => onUpdateStep(step.id, 'subject', event.target.value)}
+                                                            disabled={step.type === 'Call'}
+                                                            placeholder={step.type === 'Call' ? 'Not used for AI Calls' : ''}
                                                         />
                                                     </label>
                                                     <label className="text-xs font-semibold text-slate-600 block">
