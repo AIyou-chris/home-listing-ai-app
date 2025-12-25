@@ -5,13 +5,14 @@ import LeadsAndAppointmentsPage from './LeadsAndAppointmentsPage';
 import ListingsPage from './ListingsPage';
 import AddListingPage from './AddListingPage';
 import PropertyPage from './PropertyPage';
-import InteractionHubPage from './InteractionHubPage';
-import AIConversationsPage from './AIConversationsPage';
+import AIInteractionHubPage from './AIInteractionHubPage';
 import AgentAISidekicksPage from './AgentAISidekicksPage';
 import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardPage from './AICardPage';
 import MarketingReportsPage from './MarketingReportsPage';
+import PaymentsAndStorePage from './PaymentsAndStorePage';
+import { MarketingHub } from './MarketingHub';
 
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
 import { listingsService } from '../services/listingsService';
@@ -223,6 +224,10 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
 
   const leadsMountedRef = useRef(true);
 
+  const handleUpdateLead = (updatedLead: Lead) => {
+    setLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
+  };
+
   const refreshLeads = useCallback(async () => {
     if (isDemoMode) {
       setLeads(DEMO_FAT_LEADS);
@@ -431,47 +436,17 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
   const blueprintSidekickTemplates = [
     {
       id: 'agent',
-      label: 'Agent Sidekick',
-      description: 'Represents the agent voice, tone, and lead interaction style.',
+      label: 'AI Agent Buddy',
+      description: 'Your all-in-one operations partner. Handles marketing, lead follow-up, and admin tasks.',
       type: 'agent',
-      icon: '👤',
-      color: '#3B82F6',
-      defaultName: 'Agent Sidekick',
+      icon: 'smart_toy',
+      color: '#4F46E5',
+      defaultName: 'AI Agent Buddy',
       defaultVoice: 'nova',
       personality: {
-        description: 'You are the agent’s primary sidekick. Use the agent profile, voice, and preferences. Summarize lead notes, appointment outcomes, and funnel status. Keep tone on-brand and concise.',
-        traits: ['agent-voice', 'summary', 'on-brand'],
+        description: 'You are the Agent’s primary Buddy. You are a world-class real estate assistant, marketer, and operations specialist. You can draft emails, summarize conversations, provide pricing insights, and manage the agent’s daily pulse. Your tone is professional yet friendly, and always highly efficient.',
+        traits: ['all-in-one', 'efficient', 'professional'],
         preset: 'professional'
-      }
-    },
-    {
-      id: 'sales_marketing',
-      label: 'Sales & Marketing Sidekick',
-      description: 'Writes emails, posts, SMS replies, and conversion CTAs.',
-      type: 'sales_marketing',
-      icon: '💼',
-      color: '#10B981',
-      defaultName: 'Sales & Marketing',
-      defaultVoice: 'sol',
-      personality: {
-        description: 'You are a skilled marketer for the agent. Write email templates, social posts, SMS replies. Promote lead conversion, personalization, and engagement. Offer CTA ideas and exportable content.',
-        traits: ['conversion', 'copy', 'cta'],
-        preset: 'sales'
-      }
-    },
-    {
-      id: 'listing_agent',
-      label: 'Listing Agent Sidekick',
-      description: 'Listing-focused: pricing strategy, listing copy, Q&A.',
-      type: 'listing_agent',
-      icon: '🏡',
-      color: '#F59E0B',
-      defaultName: 'Listing Agent',
-      defaultVoice: 'alloy',
-      personality: {
-        description: 'You are a listing-focused sidekick. Understand listings, pricing strategy, and home feature matching. Answer buyer/seller questions and refine listing descriptions.',
-        traits: ['listing', 'pricing', 'copy'],
-        preset: 'analytical'
       }
     }
   ]
@@ -682,17 +657,36 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
             onBackToDashboard={resetToDashboard}
             onNewAppointment={handleNewAppointment}
             onRefreshData={refreshLeads}
+            onUpdateLead={handleUpdateLead}
           />
         );
       case 'ai-card':
         return <AICardPage isDemoMode={isDemoMode} />;
       case 'ai-conversations':
-        return <AIConversationsPage isDemoMode={isDemoMode} />;
+      case 'inbox':
+      case 'ai-interaction-hub':
+        return (
+          <AIInteractionHubPage
+            properties={properties}
+            interactions={interactions}
+            setInteractions={setInteractions}
+            onAddNewLead={handleAddNewLead}
+            onBackToDashboard={resetToDashboard}
+            isDemoMode={isDemoMode}
+          />
+        );
       case 'listings':
         return (
           <ListingsPage
             properties={properties}
-            onSelectProperty={handleSelectProperty}
+            onSelectProperty={(id, action) => {
+              if (action === 'edit') {
+                setSelectedPropertyId(id);
+                setActiveView('edit-listing');
+              } else {
+                handleSelectProperty(id);
+              }
+            }}
             onAddNew={() => setActiveView('add-listing')}
             onDeleteProperty={handleDeleteProperty}
             onBackToDashboard={resetToDashboard}
@@ -747,10 +741,11 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         return (
           <FunnelAnalyticsPanel
             onBackToDashboard={resetToDashboard}
-            title="Leads Funnel"
+            title="AI Funnel"
             subtitle="Homebuyer, Seller, and Showing funnels for every lead"
             variant="page"
             isDemoMode={isDemoMode}
+            hideBackButton={true}
           />
         );
       case 'settings':
@@ -774,18 +769,22 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         );
       case 'analytics':
         return <AnalyticsDashboard />;
-      case 'inbox':
+      case 'marketing-reports':
+        return <MarketingReportsPage isDemoMode={isDemoMode} />;
+      case 'marketing':
         return (
-          <InteractionHubPage
+          <MarketingHub
+            agentProfile={agentProfile}
             properties={properties}
-            interactions={interactions}
-            setInteractions={setInteractions}
-            onAddNewLead={handleAddNewLead}
+          />
+        );
+      case 'payments':
+        return (
+          <PaymentsAndStorePage
+            agentProfile={agentProfile}
             onBackToDashboard={resetToDashboard}
           />
         );
-      case 'marketing-reports':
-        return <MarketingReportsPage isDemoMode={isDemoMode} />;
 
       default:
         return (
@@ -839,16 +838,21 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
               <span className="material-symbols-outlined">menu</span>
             </button>
             <h1 className="text-2xl font-bold text-slate-800">
-              {activeView === 'dashboard' ? 'Overview' :
+              {activeView === 'dashboard' ? 'My Daily Pulse' :
                 activeView === 'leads' ? 'Leads & Appointments' :
-                  activeView === 'listings' ? 'Listings' :
+                  activeView === 'listings' ? 'AI Listings' :
                     activeView === 'add-listing' ? 'Add Listing' :
-                      activeView === 'ai-conversations' ? 'AI Conversations' :
-                        activeView === 'ai-sidekicks' ? 'AI Sidekicks' :
-                          activeView === 'marketing-reports' ? 'Marketing Reports' :
-                            activeView === 'settings' ? 'Settings' :
-                              activeView === 'ai-card' ? 'AI Business Card' :
-                                'Dashboard'}
+                      activeView === 'ai-interaction-hub' ? 'AI Interaction Hub' :
+                        activeView === 'ai-conversations' ? 'AI Conversations' :
+                          activeView === 'ai-sidekicks' ? 'AI Agent' :
+                            activeView === 'knowledge-base' ? 'AI Agent' :
+                              activeView === 'marketing' ? 'Marketing Hub' :
+                                activeView === 'payments' ? 'Payments & Store' :
+                                  activeView === 'marketing-reports' ? 'Marketing Reports' :
+                                    activeView === 'funnel-analytics' ? 'Leads Funnel' :
+                                      activeView === 'settings' ? 'Settings' :
+                                        activeView === 'ai-card' ? 'AI Business Card' :
+                                          'Dashboard'}
             </h1>
           </div>
           <div className="flex items-center gap-4">
@@ -878,7 +882,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className={`flex-1 overflow-y-auto ${(activeView === 'knowledge-base' || activeView === 'funnel-analytics') ? 'p-0 md:p-8' : 'p-8'}`}>
           <div className="max-w-7xl mx-auto">
             {renderMainContent()}
           </div>

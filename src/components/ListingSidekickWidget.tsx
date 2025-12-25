@@ -54,12 +54,9 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
   const [conversationId, setConversationId] = useState<string | null>(null)
   const processedEmailsRef = useRef<Set<string>>(new Set())
   const [selectedVoice, setSelectedVoice] = useState('alloy')
-  const [testPrompt, setTestPrompt] = useState('')
-  const [testResponseText, setTestResponseText] = useState('')
-  const [isTesting, setIsTesting] = useState(false)
-  const [testError, setTestError] = useState<string | null>(null)
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null)
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
+
   const persona = useMemo(
     () => profile?.description?.trim() ?? DEFAULT_PERSONA_DESCRIPTION,
     [profile]
@@ -74,8 +71,7 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
     file: false,
     url: false
   })
-  const [showVoiceSamples, setShowVoiceSamples] = useState(true)
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
+  const [, setFeedbackMessage] = useState<string | null>(null);
 
   const getStoredConversationId = (listingId: string) => {
     if (typeof window === 'undefined') return null
@@ -105,6 +101,13 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
       isCancelled = true
     }
   }, [uid, property.id])
+
+  // Scroll to bottom of chat
+  useEffect(() => {
+    if (scroller.current) {
+      scroller.current.scrollTop = scroller.current.scrollHeight;
+    }
+  }, [history])
 
   const syncEmailsWithLeads = async (message: string, conversationId: string) => {
     if (!message || !conversationId || property.id === 'preview-id') return
@@ -194,10 +197,9 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
   }
 
   const handleVoicePreview = () => {
-    const text = property.description
-      ? `${property.description.title} ${property.description.paragraphs?.join(' ') ?? ''}`.trim()
-      : 'Listing Sidekick preview'
-    playVoiceSample(selectedVoice, text || 'Listing Sidekick preview')
+    // Simple greeting preview
+    const text = 'Hi! I am ready to answer questions about this property.';
+    playVoiceSample(selectedVoice, text)
   }
 
   const handleSavePersonality = async (payload: PersonalityPayload) => {
@@ -266,27 +268,6 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
       setKnowledgeError('Failed to scrape website.')
     } finally {
       setKnowledgeLoading(prev => ({ ...prev, url: false }))
-    }
-  }
-
-  const handleTestResponse = async () => {
-    const prompt = testPrompt.trim()
-    if (!prompt || isTesting) return
-    setIsTesting(true)
-    setTestError(null)
-    try {
-      const text = await continueConversation([
-        { sender: 'system', text: persona },
-        { sender: 'user', text: prompt }
-      ])
-      setTestResponseText(text)
-      setTestPrompt('')
-      await playVoiceSample(selectedVoice, text)
-    } catch (error) {
-      console.error('Listing sidekick test failed', error)
-      setTestError('Unable to test responses right now.')
-    } finally {
-      setIsTesting(false)
     }
   }
 
@@ -380,192 +361,184 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
       />
       <KnowledgeEditorModal
         isOpen={showKnowledgeEditor}
-        addingText={knowledgeLoading.text}
-        uploading={knowledgeLoading.file}
-        scraping={knowledgeLoading.url}
+        // addingText={knowledgeLoading.text}
+        // uploading={knowledgeLoading.file}
+        // scraping={knowledgeLoading.url}
         onClose={() => setShowKnowledgeEditor(false)}
         onAddText={handleAddTextKnowledge}
         onUpload={handleUploadKnowledgeFiles}
         onScrape={handleScrapeKnowledge}
       />
-      <div className='rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden space-y-1'>
-      <div className='px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between'>
-        <div className='flex items-center gap-2'>
-          <span className='material-symbols-outlined text-slate-700'>smart_toy</span>
+
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white shadow-md">
+            <span className='material-symbols-outlined'>smart_toy</span>
+          </div>
           <div>
-            <div className='text-sm font-semibold text-slate-900'>Listing Sidekick</div>
-            <div className='text-xs text-slate-500'>Speaks with your configured voice and persona</div>
+            <h3 className="text-xl font-bold text-slate-900">AI Listing Agent</h3>
+            <p className="text-sm text-slate-500">Your 24/7 automated open house host.</p>
           </div>
         </div>
-      </div>
 
-      <div className='px-5 py-5 space-y-6'>
-        <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3'>
-          <div className='flex items-start justify-between gap-4'>
-            <div>
-              <p className='text-[11px] uppercase tracking-[0.2em] text-slate-500'>Who I am</p>
-              <p className='text-lg font-semibold text-slate-900'>Listing Sidekick</p>
+        {/* 3 Config Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Identity Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-2 mb-3 text-slate-900 font-semibold">
+              <span className="material-symbols-outlined text-indigo-500">face</span>
+              Identity
             </div>
-            <div className='flex gap-2'>
+            <div className="space-y-3">
+              <div className="text-sm text-slate-600 line-clamp-2 h-10 leading-relaxed">
+                {profile?.description || "Professional & detail-oriented advisor."}
+              </div>
               <button
-                onClick={() => {
-                  setFeedbackMessage(null)
-                  setShowPersonaEditor(true)
-                }}
-                className='px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-full'
+                onClick={() => setShowPersonaEditor(true)}
+                className="w-full py-2 bg-indigo-50 text-indigo-700 font-semibold rounded-lg text-xs hover:bg-indigo-100 transition"
               >
-                AI Personality
+                Edit Persona
               </button>
+            </div>
+          </div>
+
+          {/* Knowledge Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3 text-slate-900 font-semibold">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-500">menu_book</span>
+                Training
+              </div>
+              {(knowledgeStatus || profile) && <div className="w-2 h-2 rounded-full bg-emerald-500"></div>}
+            </div>
+            <div className="space-y-3">
+              <div className="text-sm text-slate-600 line-clamp-2 h-10 leading-relaxed">
+                {knowledgeStatus || "Knowledge Base Active"}
+                {knowledgeError && <span className="text-red-500 block">{knowledgeError}</span>}
+              </div>
               <button
                 onClick={() => {
-                  setFeedbackMessage(null)
-                  setKnowledgeStatus(null)
-                  setKnowledgeError(null)
-                  setShowKnowledgeEditor(true)
+                  setKnowledgeStatus(null);
+                  setShowKnowledgeEditor(true);
                 }}
-                className='px-4 py-2 border border-slate-300 text-xs text-slate-700 rounded-full hover:border-slate-400'
+                className="w-full py-2 bg-emerald-50 text-emerald-700 font-semibold rounded-lg text-xs hover:bg-emerald-100 transition"
               >
                 Add Knowledge
               </button>
             </div>
           </div>
-          <textarea
-            readOnly
-            value={profile?.description ?? DEFAULT_PERSONA_DESCRIPTION}
-            className='w-full min-h-[92px] rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 focus:outline-none'
-          />
-          {(feedbackMessage || knowledgeStatus || knowledgeError) && (
-            <div className='space-y-1'>
-              {feedbackMessage && <p className='text-xs text-emerald-600'>{feedbackMessage}</p>}
-              {knowledgeStatus && <p className='text-xs text-slate-600'>{knowledgeStatus}</p>}
-              {knowledgeError && <p className='text-xs text-red-600'>{knowledgeError}</p>}
-            </div>
-          )}
-        </div>
 
-        <div className='rounded-2xl border border-slate-200 bg-white p-4 space-y-4'>
-          <div className='flex items-center justify-between'>
-            <div>
-              <p className='text-[11px] uppercase tracking-[0.2em] text-slate-500'>Voice & Preview Tools</p>
-              <p className='text-sm text-slate-700'>Select a voice and preview how the sidekick sounds.</p>
+          {/* Voice Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-2 mb-3 text-slate-900 font-semibold">
+              <span className="material-symbols-outlined text-sky-500">graphic_eq</span>
+              Voice
             </div>
-            <button
-              onClick={handleVoicePreview}
-              className='px-4 py-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition'
-            >
-              Preview Voice
-            </button>
-          </div>
-          <select
-            className='w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-primary-500 focus:ring-1 focus:ring-primary-200'
-            value={selectedVoice}
-            onChange={e => setSelectedVoice(e.target.value)}
-          >
-            {SAMPLE_VOICES.map(voice => (
-              <option key={voice.id} value={voice.id}>
-                {voice.name} — {voice.tone}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className='space-y-3'>
-          <div className='flex items-center justify-between'>
-            <p className='text-[11px] uppercase tracking-[0.2em] text-slate-500'>Sample All 6 OpenAI Voices</p>
-            <div className='flex items-center gap-3'>
-              <button
-                onClick={() => setShowVoiceSamples(prev => !prev)}
-                className='text-xs font-semibold text-blue-600 hover:underline'
+            <div className="space-y-3">
+              <select
+                className='w-full rounded-lg border border-slate-200 text-xs py-1.5 px-2 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500'
+                value={selectedVoice}
+                onChange={e => setSelectedVoice(e.target.value)}
               >
-                {showVoiceSamples ? 'Hide samples' : 'Show samples'}
+                {SAMPLE_VOICES.map(voice => (
+                  <option key={voice.id} value={voice.id}>
+                    {voice.name} ({voice.tone})
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleVoicePreview}
+                className="w-full py-2 bg-sky-50 text-sky-700 font-semibold rounded-lg text-xs hover:bg-sky-100 transition flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">{playingVoiceId ? 'stop' : 'play_arrow'}</span>
+                {playingVoiceId ? 'Playing...' : 'Preview Voice'}
               </button>
-              <a href='https://www.openai.fm/' target='_blank' rel='noreferrer' className='text-xs text-blue-600 hover:underline'>Try on openai.fm</a>
             </div>
           </div>
-          {showVoiceSamples && (
-            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-              {SAMPLE_VOICES.map(voice => (
-                <div key={voice.id} className='rounded-2xl border border-slate-200 bg-slate-50 p-3 flex flex-col justify-between'>
-                  <div>
-                    <div className='flex items-center justify-between mb-1'>
-                      <p className='text-base font-semibold text-slate-900'>{voice.name}</p>
-                      <span className='text-[10px] uppercase tracking-[0.2em] text-slate-500'>{voice.gender}</span>
-                    </div>
-                    <p className='text-sm text-slate-600 mb-1'>{voice.tone}</p>
-                    <p className='text-xs text-slate-500'>{voice.description}</p>
+        </div>
+
+        {/* Live Preview Chat */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[400px]">
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <h4 className="text-sm font-bold text-slate-700">Live Preview</h4>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span className="text-xs font-semibold text-emerald-600">Online</span>
+            </div>
+          </div>
+
+          <div ref={scroller} className="flex-1 overflow-y-auto p-5 space-y-4 bg-white">
+            {/* Initial Greeting */}
+            {history.length === 0 && (
+              <div className="flex justify-start">
+                <div className="flex gap-2 max-w-[85%]">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-sm">smart_toy</span>
                   </div>
-                  <button
-                    onClick={() => playVoiceSample(voice.id, `Hi, this is the ${voice.name} voice preview for your listing.`)}
-                    className={`mt-3 w-full px-3 py-1.5 rounded-lg text-xs font-semibold ${playingVoiceId === voice.id ? 'bg-slate-900 text-white' : 'bg-white border border-slate-300 text-slate-700 hover:border-slate-400'}`}
-                  >
-                    {playingVoiceId === voice.id ? 'Playing…' : 'Play'}
-                  </button>
+                  <div className="px-4 py-2.5 bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none shadow-sm border border-slate-200/50 text-sm">
+                    Hi! I'm ready to answer any questions about {property.address || 'this property'}.
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className='rounded-2xl border border-slate-200 bg-white p-4 space-y-3'>
-          <div className='flex items-center justify-between'>
-            <span className='text-sm font-semibold text-slate-900'>Test Responses</span>
-            {isTesting && <span className='text-xs text-emerald-600'>Generating response…</span>}
-          </div>
-          <div className='flex gap-3'>
-            <input
-              value={testPrompt}
-              onChange={e => setTestPrompt(e.target.value)}
-              disabled={isTesting}
-              placeholder='Enter a question or statement to test…'
-              className='flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-200'
-            />
-            <button
-              onClick={handleTestResponse}
-              disabled={!testPrompt.trim() || isTesting}
-              className='px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition disabled:opacity-60'
-            >
-              {isTesting ? 'Testing…' : 'Test Responses'}
-            </button>
-          </div>
-          {testError && <p className='text-xs text-red-600'>{testError}</p>}
-          {testResponseText && (
-            <div className='space-y-2 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700'>
-              <p className='text-xs font-semibold uppercase tracking-wide text-slate-500'>Preview</p>
-              <p>{testResponseText}</p>
-              <div className='flex items-center gap-2'>
-                <button
-                  onClick={() => playVoiceSample(selectedVoice, testResponseText)}
-                  className='px-3 py-1.5 rounded-full border border-slate-200 text-xs font-semibold text-slate-700 hover:border-slate-400'
-                >
-                  Replay Voice
-                </button>
-                <span className='text-[11px] text-slate-500'>Plays the current voice with the latest response.</span>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
 
-      <div ref={scroller} className='p-4 space-y-3 max-h-[48vh] overflow-y-auto'>
-        {history.length === 0 && (
-          <div className='text-sm text-slate-500'>Ask about features, schools, HOA, upgrades, timing…</div>
-        )}
-        {history.map((m, i) => (
-          <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`px-3 py-2 rounded-xl text-sm ${m.sender === 'user' ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-800'}`}>{m.text}</div>
+            {history.map((m, i) => (
+              <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {m.sender === 'ai' && (
+                  <div className="flex gap-2 max-w-[85%]">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                      <span className="material-symbols-outlined text-sm">smart_toy</span>
+                    </div>
+                    <div className="px-4 py-2.5 bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none shadow-sm border border-slate-200/50 text-sm leading-relaxed">
+                      {m.text}
+                    </div>
+                  </div>
+                )}
+                {m.sender === 'user' && (
+                  <div className="px-4 py-2.5 bg-blue-600 text-white rounded-2xl rounded-br-none shadow-md text-sm leading-relaxed max-w-[85%]">
+                    {m.text}
+                  </div>
+                )}
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="flex gap-2">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-sm">smart_toy</span>
+                  </div>
+                  <div className="px-4 py-3 bg-slate-50 rounded-2xl rounded-tl-none">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce delay-75"></div>
+                      <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce delay-150"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        ))}
-      </div>
-      <div className='border-t border-slate-200 p-3'>
-        <div className='flex items-center gap-2'>
-          <input value={input} onChange={e => setInput(e.target.value)} placeholder='Ask about this home…' className='flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm' />
-          <button onClick={run} disabled={!input.trim() || loading} className='px-3 py-2 rounded-lg bg-slate-900 text-white text-sm disabled:bg-slate-300'>
-            {loading ? 'Thinking…' : 'Ask'}
-          </button>
+
+          <div className="p-3 border-t border-slate-100 bg-white">
+            <div className="relative">
+              <input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && run()}
+                placeholder="Ask a test question..."
+                className="w-full pl-5 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+              />
+              <button
+                onClick={run}
+                disabled={!input.trim() || loading}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                <span className="material-symbols-outlined text-lg">arrow_upward</span>
+              </button>
+            </div>
+          </div>
         </div>
-        <div className='mt-2 text-[11px] text-slate-500'>If I can’t answer, I’ll escalate to the agent.</div>
       </div>
-    </div>
     </>
   )
 }

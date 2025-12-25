@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { Property, AgentProfile, AIDescription } from '../types';
 import { SAMPLE_AGENT } from '../constants';
@@ -16,30 +15,8 @@ interface AddListingPageProps {
     agentProfile?: AgentProfile | null;
 }
 
-const inputClasses = "w-full px-3 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition";
-
-
-const CollapsibleSection: React.FC<{ title: string; icon: string; children: React.ReactNode; }> = ({ title, icon, children }) => {
-    const [isOpen, setIsOpen] = useState(true);
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 mb-6">
-            <button
-                type="button"
-                className="flex items-center justify-between w-full p-5 text-left"
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <div className="flex items-center">
-                    <span className="material-symbols-outlined w-6 h-6 mr-3 text-primary-600">{icon}</span>
-                    <h2 className="text-xl font-bold text-slate-800">{title}</h2>
-                </div>
-                {isOpen ? <span className="material-symbols-outlined w-6 h-6 text-slate-500">expand_less</span> : <span className="material-symbols-outlined w-6 h-6 text-slate-500">expand_more</span>}
-            </button>
-            {isOpen && <div className="px-5 pb-6">{children}</div>}
-        </div>
-    );
-};
-
+const inputClasses = "w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition mb-1";
+const labelClasses = "block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 ml-1";
 
 const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initialProperty, agentProfile }) => {
     const { uiProfile } = useAgentBranding();
@@ -54,7 +31,6 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         };
     }, [agentProfile, uiProfile]);
 
-    // A simplified state for demonstration. In a real app, this would be more robust.
     const [formData, setFormData] = useState({
         propertyTitle: initialProperty?.title || '',
         price: initialProperty?.price != null ? String(initialProperty.price) : '',
@@ -69,47 +45,32 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 : ''
             )),
         heroPhotos: (initialProperty?.heroPhotos as (File | string)[]) || [],
-        galleryPhotos: (initialProperty?.galleryPhotos as (File | string)[]) || [],
-        rawAmenities: Array.isArray(initialProperty?.features) ? initialProperty!.features.join(', ') : '',
+        galleryPhotos: (initialProperty?.galleryPhotos as (File | string)[]) || [], // Keeping for compatibility but strictly using heroPhotos for the carousel
         ctaListingUrl: initialProperty?.ctaListingUrl || '',
-        ctaMediaUrl: initialProperty?.ctaMediaUrl || '',
-        appFeatures: {
-            gallery: true, schools: true, financing: true, virtualTour: true, amenities: true,
-            schedule: true, map: true, history: true, neighborhood: true, reports: true,
-            messaging: true
-        },
+        ctaContactMode: 'sidekick' as 'sidekick' | 'form', // New state for toggle
         agent: mergedAgentProfile,
-        media: {
-            virtualTourUrl: '', propertyVideoUrl: '', droneFootageUrl: '',
-            neighborhoodVideoUrl: '', agentInterviewUrl: '', additionalMediaUrl: ''
-        }
     });
-    const [photoUrlInput, setPhotoUrlInput] = useState('');
-    const [photoUrlError, setPhotoUrlError] = useState<string | null>(null);
-    const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
-    const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
 
-    useEffect(() => {
-        setFormData(prev => ({
-            ...prev,
-            agent: {
-                ...mergedAgentProfile,
-                socials: mergedAgentProfile.socials.map((social) => ({ ...social }))
-            }
-        }));
-    }, [mergedAgentProfile]);
-    const [isPreviewing, setIsPreviewing] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
+    const [isPreviewing, setIsPreviewing] = useState(false);
+
+    // Sync contact mode if URL is present vs empty
+    useEffect(() => {
+        // Simple heuristic: if ctaListingUrl is set but we want the PRIMARY contact button to be sidekick, we default to sidekick.
+        // But for this edit form, let's just default to sidekick unless we want to persist the choice (property needs a field for this).
+        // For now, defaulting to 'sidekick' visually.
+    }, []);
 
     const generatePreviewProperty = (): Property => {
         const heroPhotos = formData.heroPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p));
         if (heroPhotos.length === 0) {
-            heroPhotos.push('https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto-format&fit=crop');
+            heroPhotos.push('https://images.unsplash.com/photo-1600596542815-27b88e31e976?q=80&w=2000&auto-format&fit=crop');
         }
 
         return {
-            id: 'preview-id',
+            id: initialProperty?.id || 'preview-id',
             title: formData.propertyTitle,
             address: formData.address,
             price: Number(formData.price) || 0,
@@ -117,23 +78,18 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
             bathrooms: Number(formData.baths) || 0,
             squareFeet: Number(formData.sqft) || 0,
             description: {
-                title: 'Property Description Preview',
+                title: 'Property Description',
                 paragraphs: formData.description.split('\n').filter(p => p.trim() !== '')
             },
             heroPhotos: heroPhotos,
-            galleryPhotos: formData.galleryPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p)),
-            appFeatures: formData.appFeatures,
-            agent: {
-                ...formData.agent,
-                socials: Array.isArray(formData.agent.socials)
-                    ? formData.agent.socials.map((social) => ({ ...social }))
-                    : mergedAgentProfile.socials.map((social) => ({ ...social }))
-            },
+            galleryPhotos: heroPhotos, // Sync for preview
+            appFeatures: { gallery: true, schools: true, financing: true, virtualTour: true, amenities: true, schedule: true, map: true, history: true, neighborhood: true, reports: true, messaging: true },
+            agent: formData.agent,
             propertyType: 'Single-Family Home',
-            features: formData.rawAmenities.split(',').map(s => s.trim()).filter(f => f),
+            features: [],
             imageUrl: heroPhotos[0],
             ctaListingUrl: formData.ctaListingUrl,
-            ctaMediaUrl: formData.ctaMediaUrl,
+            ctaMediaUrl: '',
         };
     };
 
@@ -142,35 +98,38 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleGenerateDescription = async () => {
-        if (!formData.address && !formData.propertyTitle) {
-            alert('Please enter an Address or Title first.');
-            return;
-        }
-
-        setIsGenerating(true);
+    const handlePhotoUpload = async (fileList: FileList | null) => {
+        if (!fileList || fileList.length === 0) return;
+        setIsUploading(true);
+        setUploadError(null);
+        const files = Array.from(fileList);
         try {
-            const result = await listingsService.generateDescription({
-                address: formData.address,
-                beds: formData.beds,
-                baths: formData.baths,
-                sqft: formData.sqft,
-                features: formData.rawAmenities,
-                title: formData.propertyTitle
-            });
-
-            if (result && Array.isArray(result.paragraphs)) {
-                setFormData(prev => ({
-                    ...prev,
-                    description: result.paragraphs.join('\n\n')
-                }));
+            const uploadedUrls: string[] = [];
+            for (const file of files) {
+                const uploaded = await uploadListingPhoto(file);
+                uploadedUrls.push(uploaded);
             }
+            // Append to heroPhotos, max 6
+            setFormData(prev => {
+                const current = [...prev.heroPhotos];
+                const available = 6 - current.length;
+                if (available <= 0) return prev;
+                const newPhotos = [...current, ...uploadedUrls.slice(0, available)];
+                return { ...prev, heroPhotos: newPhotos };
+            });
         } catch (error) {
-            console.error('Failed to generate:', error);
-            alert('AI generation failed. Please try again.');
+            console.error('Photo upload failed:', error);
+            setUploadError('Failed to upload photos.');
         } finally {
-            setIsGenerating(false);
+            setIsUploading(false);
         }
+    };
+
+    const removePhoto = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            heroPhotos: prev.heroPhotos.filter((_, i) => i !== index)
+        }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -178,25 +137,9 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         setIsSaving(true);
 
         try {
-            const features = formData.rawAmenities
-                .split(',')
-                .map(s => s.trim())
-                .filter(Boolean);
-
             const description: AIDescription = {
-                title: 'Property Description Preview',
-                paragraphs: formData.description
-                    .split('\n')
-                    .map(p => p.trim())
-                    .filter(Boolean)
-            };
-
-            const agentSnapshot: AgentProfile = {
-                ...mergedAgentProfile,
-                ...formData.agent,
-                socials: Array.isArray(formData.agent.socials)
-                    ? formData.agent.socials.map((social) => ({ ...social }))
-                    : mergedAgentProfile.socials
+                title: 'Property Description',
+                paragraphs: formData.description.split('\n').map(p => p.trim()).filter(Boolean)
             };
 
             const payload: CreatePropertyInput = {
@@ -209,13 +152,13 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 propertyType: 'Single-Family Home',
                 status: 'Active',
                 description,
-                features,
+                features: [],
                 heroPhotos: formData.heroPhotos,
-                galleryPhotos: formData.galleryPhotos,
+                galleryPhotos: formData.heroPhotos, // Keeping them in sync for this streamlined version
                 ctaListingUrl: formData.ctaListingUrl,
-                ctaMediaUrl: formData.ctaMediaUrl,
-                appFeatures: formData.appFeatures,
-                agentSnapshot
+                ctaMediaUrl: '',
+                appFeatures: { gallery: true, schools: true, financing: true, virtualTour: true, amenities: true, schedule: true, map: true, history: true, neighborhood: true, reports: true, messaging: true },
+                agentSnapshot: formData.agent
             }
 
             const saved = initialProperty
@@ -225,63 +168,11 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
             onSave(saved);
         } catch (error) {
             console.error('Error saving listing:', error);
-            alert('Failed to save listing. Please try again.');
+            alert('Failed to save listing.');
         } finally {
             setIsSaving(false);
         }
     };
-
-    const attachNewPhotos = (urls: string[]) => {
-        if (urls.length === 0) return;
-        setFormData(prev => {
-            const heroClone = [...prev.heroPhotos];
-            if (heroClone.length < 3) {
-                const space = 3 - heroClone.length;
-                heroClone.push(...urls.slice(0, space));
-            }
-            return {
-                ...prev,
-                heroPhotos: heroClone,
-                galleryPhotos: [...prev.galleryPhotos, ...urls]
-            };
-        });
-    };
-
-    const handleAddPhotoUrl = () => {
-        const trimmed = photoUrlInput.trim();
-        if (!trimmed) {
-            setPhotoUrlError('Enter a URL to add an image.');
-            return;
-        }
-        if (!/^https?:\/\//i.test(trimmed)) {
-            setPhotoUrlError('Photo URLs must start with https://');
-            return;
-        }
-        setPhotoUrlError(null);
-        attachNewPhotos([trimmed]);
-        setPhotoUrlInput('');
-    };
-
-    const handleGalleryUpload = async (fileList: FileList | null) => {
-        if (!fileList || fileList.length === 0) return;
-        setIsUploadingPhotos(true);
-        setPhotoUploadError(null);
-        const files = Array.from(fileList);
-        try {
-            const uploadedUrls: string[] = [];
-            for (const file of files) {
-                const uploaded = await uploadListingPhoto(file);
-                uploadedUrls.push(uploaded);
-            }
-            attachNewPhotos(uploadedUrls);
-        } catch (error) {
-            console.error('Listing photo upload failed:', error);
-            setPhotoUploadError('Unable to upload photos. Please try again.');
-        } finally {
-            setIsUploadingPhotos(false);
-        }
-    };
-
 
     return (
         <>
@@ -289,208 +180,203 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 <PublicPropertyApp
                     property={generatePreviewProperty()}
                     onExit={() => setIsPreviewing(false)}
-                    onTalkToHome={() => alert('Voice assistant would open here!')}
+                    onTalkToHome={() => { }}
                 />
             )}
-            <div className="bg-slate-50 min-h-full">
-                <div className="max-w-screen-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-                    <header className="flex items-center justify-between mb-6">
-                        <button onClick={onCancel} className="text-sm font-semibold text-slate-600 hover:text-slate-900">
-                            &larr; Back to Dashboard
+            <div className="bg-slate-50 min-h-screen pb-24">
+                <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-8">
+                        <button onClick={onCancel} className="flex items-center text-slate-500 hover:text-slate-900 transition mb-1">
+                            <span className="material-symbols-outlined mr-1">arrow_back</span>
+                            Back
                         </button>
-                        <div className="flex items-center gap-2">
+                        <div className="flex gap-3">
                             <button
                                 type="button"
                                 onClick={() => setIsPreviewing(true)}
-                                disabled={isSaving}
-                                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 transition shadow-sm"
                             >
                                 Preview App
                             </button>
                             <button
-                                type="submit"
-                                form="listing-form"
+                                onClick={handleSubmit}
                                 disabled={isSaving}
-                                className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:bg-slate-400 disabled:cursor-not-allowed"
+                                className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-semibold text-sm hover:bg-slate-800 transition shadow-md disabled:bg-slate-400"
                             >
-                                {isSaving ? 'Saving...' : 'Save'}
+                                {isSaving ? 'Saving...' : 'Publish Listing'}
                             </button>
-                        </div>
-                    </header>
-
-                    <h1 className="text-3xl font-bold text-slate-900">Build AI Listing</h1>
-                    <p className="text-slate-500 mt-1">Create your AI-powered property listing.</p>
-
-                    <div className="my-6 p-5 rounded-xl bg-blue-50 border border-blue-200 flex items-center gap-4">
-                        <span className="material-symbols-outlined w-8 h-8 text-blue-600 flex-shrink-0">spa</span>
-                        <div>
-                            <h3 className="font-bold text-blue-800">Let AI guide you</h3>
-                            <p className="text-sm text-blue-700">From writing compelling descriptions to optimizing your content, AI is here to make your property shine.</p>
                         </div>
                     </div>
 
-                    <form id="listing-form" onSubmit={handleSubmit}>
-                        <CollapsibleSection title="Basic Information" icon="home_work">
-                            {/* Form fields here */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Title</label><input type="text" name="propertyTitle" value={formData.propertyTitle} onChange={handleSimpleChange} className={inputClasses} placeholder="Stunning Mid-Century Retreat" /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="text" name="price" value={formData.price} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 750000" /></div>
-                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Address</label><input type="text" name="address" value={formData.address} onChange={handleSimpleChange} className={inputClasses} placeholder="123 Main Street, Anytown, USA 12345" /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Bedrooms</label><input type="text" name="beds" value={formData.beds} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 3" /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Bathrooms</label><input type="text" name="baths" value={formData.baths} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 2.5" /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Square Footage</label><input type="text" name="sqft" value={formData.sqft} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. 1850" /></div>
-                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Description</label><textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={4} className={inputClasses} placeholder="Describe the property's features, amenities, and unique selling points."></textarea>
-                                    <button
-                                        type="button"
-                                        onClick={handleGenerateDescription}
-                                        disabled={isGenerating}
-                                        className="mt-2 text-sm font-semibold text-primary-600 flex items-center gap-1 hover:text-primary-700 disabled:opacity-50"
-                                    >
-                                        <span className="material-symbols-outlined w-4 h-4">{isGenerating ? 'hourglass_top' : 'auto_awesome'}</span>
-                                        {isGenerating ? 'Generating...' : 'Generate Description'}
-                                    </button></div>
-                            </div>
-                        </CollapsibleSection>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-2">Build AI Listing</h1>
+                    <p className="text-slate-500 mb-10">Streamlined editor for your immersive property feed.</p>
 
-                        <CollapsibleSection title="Photo Management" icon="photo_camera">
-                            <div>
-                                <h4 className="font-semibold text-slate-700 mb-2">Hero Photos (Select 3 for slider)</h4>
-                                <div className="grid grid-cols-3 gap-4 mb-6">
-                                    {[0, 1, 2].map(i => (
-                                        <div key={i} className="aspect-video bg-slate-100 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
-                                            <span className="material-symbols-outlined w-8 h-8">photo_camera</span>
+                    <div className="space-y-12">
+                        {/* Section 1: The Essentials */}
+                        <section>
+                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-sm">edit</span>
+                                </span>
+                                The Essentials
+                            </h2>
+                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="md:col-span-2">
+                                        <label className={labelClasses}>Property Title</label>
+                                        <input type="text" name="propertyTitle" value={formData.propertyTitle} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. Stunning Modern Retreat" />
+                                    </div>
+                                    <div>
+                                        <label className={labelClasses}>Price</label>
+                                        <input type="text" name="price" value={formData.price} onChange={handleSimpleChange} className={inputClasses} placeholder="$0" />
+                                    </div>
+                                    <div>
+                                        <label className={labelClasses}>Address</label>
+                                        <input type="text" name="address" value={formData.address} onChange={handleSimpleChange} className={inputClasses} placeholder="123 Main St..." />
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4 md:col-span-2">
+                                        <div>
+                                            <label className={labelClasses}>Beds</label>
+                                            <input type="text" name="beds" value={formData.beds} onChange={handleSimpleChange} className={inputClasses} placeholder="0" />
                                         </div>
-                                    ))}
+                                        <div>
+                                            <label className={labelClasses}>Baths</label>
+                                            <input type="text" name="baths" value={formData.baths} onChange={handleSimpleChange} className={inputClasses} placeholder="0" />
+                                        </div>
+                                        <div>
+                                            <label className={labelClasses}>Sq Ft</label>
+                                            <input type="text" name="sqft" value={formData.sqft} onChange={handleSimpleChange} className={inputClasses} placeholder="0" />
+                                        </div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className={labelClasses}>Description</label>
+                                        <textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={4} className={inputClasses} placeholder="Tell us about the home..." />
+                                    </div>
                                 </div>
                             </div>
-                            <div>
-                                <h4 className="font-semibold text-slate-700 mb-2 flex flex-wrap items-center gap-2">
-                                    Import from URL
-                                    <span className="material-symbols-outlined w-4 h-4 text-slate-400">info</span>
-                                </h4>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="url"
-                                        placeholder="https://cdn.example.com/house.jpg"
-                                        className={inputClasses}
-                                        value={photoUrlInput}
-                                        onChange={(event) => setPhotoUrlInput(event.target.value)}
-                                        disabled={isUploadingPhotos}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        onClick={handleAddPhotoUrl}
-                                        disabled={isUploadingPhotos}
-                                    >
-                                        Add
-                                    </button>
-                                </div>
-                                {photoUrlError && <p className="text-xs text-rose-600 mt-1">{photoUrlError}</p>}
-                            </div>
-                            <div className="mt-6">
-                                <h4 className="font-semibold text-slate-700 mb-2">Upload Photos</h4>
-                                <label htmlFor="photo-upload" className="block w-full p-8 text-center bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 cursor-pointer hover:bg-slate-100 hover:border-primary-400">
-                                    <span className="material-symbols-outlined w-8 h-8 mx-auto text-slate-400 mb-2">upload</span>
-                                    <span className="text-slate-600 font-semibold">Drag & drop files here</span>
-                                    <p className="text-sm text-slate-500">or click to browse</p>
-                                    <input id="photo-upload" type="file" multiple className="hidden" onChange={(e) => handleGalleryUpload(e.target.files)} />
-                                </label>
-                                {formData.galleryPhotos.length > 0 && <p className="text-sm mt-2 text-slate-600">{formData.galleryPhotos.length} photos staged for upload.</p>}
-                                {isUploadingPhotos && <p className="text-sm mt-1 text-slate-500">Uploading photos…</p>}
-                                {photoUploadError && <p className="text-sm mt-1 text-rose-600">{photoUploadError}</p>}
-                            </div>
-                        </CollapsibleSection>
+                        </section>
 
-                        <CollapsibleSection title="Buttons & Links" icon="smart_display">
-                            <div className="grid grid-cols-1 gap-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                                        <button type="button" className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2">
-                                            <span className="material-symbols-outlined">open_in_new</span>
-                                            <span>To Listing</span>
+                        {/* Section 2: Immersive Visuals */}
+                        <section>
+                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-sm">image</span>
+                                </span>
+                                Immersive Visuals
+                            </h2>
+                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60">
+                                <div className="flex items-center justify-between mb-4">
+                                    <span className="text-sm font-semibold text-slate-700">Background Carousel (Max 6)</span>
+                                    <span className="text-xs text-slate-400">{formData.heroPhotos.length}/6 photos</span>
+                                </div>
+
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    {/* Existing Photos */}
+                                    {formData.heroPhotos.map((photo, i) => {
+                                        const src = typeof photo === 'string' ? photo : URL.createObjectURL(photo);
+                                        return (
+                                            <div key={i} className="group relative aspect-[4/5] rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
+                                                <img src={src} className="w-full h-full object-cover" alt="" />
+                                                <button
+                                                    onClick={() => removePhoto(i)}
+                                                    className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-red-500"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">close</span>
+                                                </button>
+                                                <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-[10px] text-white font-medium backdrop-blur-sm">
+                                                    Slot {i + 1}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Upload Button */}
+                                    {formData.heroPhotos.length < 6 && (
+                                        <label className="relative aspect-[4/5] rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/50 transition cursor-pointer flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600">
+                                            <span className="material-symbols-outlined text-2xl">add_photo_alternate</span>
+                                            <span className="text-xs font-semibold">Add Photo</span>
+                                            <input type="file" multiple accept="image/*" className="hidden" onChange={e => handlePhotoUpload(e.target.files)} />
+                                        </label>
+                                    )}
+                                </div>
+                                {isUploading && <p className="text-sm text-blue-600 mt-2 animate-pulse">Uploading photos...</p>}
+                                {uploadError && <p className="text-sm text-red-600 mt-2">{uploadError}</p>}
+                            </div>
+                        </section>
+
+                        {/* Section 3: Connections */}
+                        <section>
+                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-sm">link</span>
+                                </span>
+                                Connect Your Listing
+                            </h2>
+                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60 space-y-8">
+
+                                {/* Contact Button Mode */}
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-900 mb-3">Contact Button Action</h3>
+                                    <div className="flex p-1 bg-slate-100 rounded-xl gap-1">
+                                        <button
+                                            onClick={() => setFormData(p => ({ ...p, ctaContactMode: 'sidekick' }))}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${formData.ctaContactMode === 'sidekick' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            <span className="material-symbols-outlined text-sm">smart_toy</span>
+                                            Launch AI Card
                                         </button>
-                                        <label className="block text-xs text-slate-600 mt-3 mb-1">Listing URL</label>
+                                        <button
+                                            onClick={() => setFormData(p => ({ ...p, ctaContactMode: 'form' }))}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${formData.ctaContactMode === 'form' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            <span className="material-symbols-outlined text-sm">mail</span>
+                                            Launch Contact Form
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-2 px-1">
+                                        {formData.ctaContactMode === 'sidekick'
+                                            ? "The 'Contact' button will open the AI Listing Agent to capture leads."
+                                            : "The 'Contact' button will open a simple email form for users to message you."}
+                                    </p>
+                                </div>
+
+                                {/* Link to Full Listing */}
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-900 mb-3">Full Listing Link (MLS/Zillow)</h3>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 material-symbols-outlined">link</span>
                                         <input
                                             type="url"
                                             name="ctaListingUrl"
                                             value={formData.ctaListingUrl}
                                             onChange={handleSimpleChange}
-                                            placeholder="https://your-listing-url.com"
-                                            className={inputClasses}
+                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"
+                                            placeholder="https://..."
                                         />
                                     </div>
-                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                                        <button type="button" className="w-full h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2">
-                                            <span className="material-symbols-outlined">play_circle</span>
-                                            <span>Media</span>
-                                        </button>
-                                        <label className="block text-xs text-slate-600 mt-3 mb-1">Media URL</label>
-                                        <input
-                                            type="url"
-                                            name="ctaMediaUrl"
-                                            value={formData.ctaMediaUrl}
-                                            onChange={handleSimpleChange}
-                                            placeholder="https://your-media-url.com"
-                                            className={inputClasses}
-                                        />
-                                    </div>
+                                    <p className="text-xs text-slate-500 mt-2 px-1">
+                                        Appears in the "Info" menu as "View Full Listing".
+                                    </p>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                                        <button type="button" className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2">
-                                            <span className="material-symbols-outlined">event_available</span>
-                                            <span>See the house</span>
-                                        </button>
-                                        <p className="mt-2 text-xs text-emerald-800">Opens booking modal in the app.</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <button type="button" className="w-full h-12 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold flex items-center justify-center gap-2">
-                                            <span className="material-symbols-outlined">map</span>
-                                            <span>Map</span>
-                                        </button>
-                                        <label className="block text-xs text-slate-600 mt-3 mb-1">Generated from Address</label>
-                                        <input type="text" readOnly value={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formData.address || '')}`} className={`${inputClasses} bg-slate-100`} />
-                                    </div>
-                                </div>
+
                             </div>
-                        </CollapsibleSection>
+                        </section>
 
-                        {/* Amenities Editor removed for simplified app build */}
-
-                        {/* App Features & Buttons section removed per simplification */}
-
-                        <CollapsibleSection title="Agent Information" icon="account_circle">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Agent Name</label><input type="text" className={inputClasses} value={formData.agent.name ?? ''} readOnly /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Phone</label><input type="tel" className={inputClasses} value={formData.agent.phone ?? ''} readOnly /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Email</label><input type="email" className={inputClasses} value={formData.agent.email ?? ''} readOnly /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Website</label><input type="url" className={inputClasses} value={formData.agent.website ?? ''} readOnly /></div>
-                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Bio</label><textarea rows={3} className={inputClasses} value={formData.agent.bio ?? ''} readOnly></textarea></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Logo</label><input type="file" className={inputClasses} /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Headshot</label><input type="file" className={inputClasses} /></div>
-                                <div className="md:col-span-2"><h4 className="font-semibold text-slate-700 mb-2 mt-4">Social Media Links</h4>
-                                    {formData.agent.socials.map((social, i) => (
-                                        <div key={i} className="flex items-center gap-2 mb-2">
-                                            <span className="font-medium text-slate-600 w-24">{social.platform}</span>
-                                            <input type="url" className={inputClasses} placeholder={`https://...`} value={social.url} readOnly />
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="md:col-span-2"><h4 className="font-semibold text-slate-700 mb-2 mt-4">Media Links (Videos, Interviews)</h4>
-                                    <input type="url" className={`${inputClasses} mb-2`} placeholder="Video 1" />
-                                    <input type="url" className={inputClasses} placeholder="Video 2" />
-                                </div>
-                            </div>
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="Listing Sidekick" icon="smart_toy">
-                            <div className="space-y-4">
-                                <div className="text-sm text-slate-600">Live preview:</div>
+                        {/* Section 4: AI Sidekick */}
+                        <section>
+                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-sm">smart_toy</span>
+                                </span>
+                                Listing Sidekick
+                            </h2>
+                            <div className="max-w-3xl">
                                 <ListingSidekickWidget property={generatePreviewProperty()} />
                             </div>
-                        </CollapsibleSection>
-                    </form>
+                        </section>
+
+                    </div>
                 </div>
             </div>
         </>

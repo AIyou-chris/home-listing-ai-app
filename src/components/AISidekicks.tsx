@@ -1100,25 +1100,8 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
   }
 
   return (
-    <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-              <span className="material-symbols-outlined text-blue-600">smart_toy</span>
-              Enhanced AI Sidekicks
-            </h1>
-            <p className="text-slate-600 mt-2">Advanced AI assistant management with analytics, training, and automation</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-green-50 px-3 py-1 rounded-full">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-green-700 text-sm font-medium">All Systems Active</span>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="max-w-screen-2xl mx-auto py-0 px-0 md:py-10 md:px-4 sm:px-6 lg:px-8">
+
       {notification && (
         <div className={`mb-6 rounded-lg border px-4 py-3 text-sm ${notification.type === 'error' ? 'border-rose-200 bg-rose-50 text-rose-800' : notification.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-800'}`}>
           <div className="flex items-center justify-between gap-3">
@@ -1134,12 +1117,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
           </div>
         </div>
       )}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <p className="text-xs text-slate-500">
-          Training feedback saved: {trainingAnalytics.saved}
-        </p>
-        <p className="text-xs text-slate-500 font-semibold">{trainingAnalytics.saved ? `${trainingAnalytics.saved} saves recorded` : 'Live analytics streaming…'}</p>
-      </div>
+
       {notification && (
         <div className={`mb-4 rounded-lg border px-4 py-3 text-sm ${notification.type === 'error' ? 'border-rose-200 bg-rose-50 text-rose-800' : notification.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-800'}`}>
           <div className="flex items-center justify-between gap-3">
@@ -1155,20 +1133,14 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
           </div>
         </div>
       )}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <p className="text-xs text-slate-500">
-          Training feedback saved: {trainingAnalytics.saved}
-        </p>
-      </div>
+
 
       <PageTipBanner
         pageKey="ai-sidekicks"
-        title="🤖 Your AI Agent Library"
-        message="Clone yourself with specialized AI assistants—each trained for a specific role in your business."
         expandedContent={
           <div className="space-y-4">
             <div>
-              <h4 className="font-semibold text-slate-900 mb-2">🎯 Each Sidekick Specializes In:</h4>
+              <h4 className="font-semibold text-slate-900 mb-2">🎯 Your Agent Specializes In:</h4>
               <ul className="space-y-2 text-slate-700">
                 <li className="flex items-start">
                   <span className="mr-2">•</span>
@@ -1191,38 +1163,20 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
             <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-100">
               <h4 className="font-semibold text-purple-900 mb-2">🧠 The Power Move:</h4>
               <p className="text-purple-800">
-                Top agents don't try to do everything themselves. They create specialized AI sidekicks, train each one
-                with role-specific knowledge (your scripts, your market data, your FAQ), then deploy them where they're
-                needed most. One sidekick handles follow-ups, another writes listings, another coaches you on objections.
-                It's like having a team of experts working 24/7.
+                Top agents don't try to do everything themselves. They deploy their AI Agent to handle role-specific tasks
+                (your scripts, your market data, your FAQ). Whether handling follow-ups, writing listings, or
+                coaching on objections, your Agent acts as a team of experts working 24/7.
               </p>
             </div>
           </div>
         }
       />
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-          <div className="flex items-center gap-3 mb-3">
-            <span className="material-symbols-outlined text-blue-600">psychology</span>
-            <h3 className="font-semibold text-blue-900">AI Sidekicks</h3>
-          </div>
-          <p className="text-blue-700 text-sm mb-3">Manage AI personalities and knowledge bases</p>
-          <div className="text-xs text-blue-600">
-            {sidekicks.length} sidekicks configured
-          </div>
-        </div>
-
-
-      </div>
-
       {/* AI Agent Library */}
       <div className="mb-8">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">AI Agent Library</h2>
-        <p className="text-slate-600 mb-6">Activate specialized AI agents to automate your workflow.</p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <div className="max-w-4xl mx-auto flex flex-col gap-6">
           {effectiveTemplates.map((template) => {
             // Check if this agent is already active
             let activeSidekick = sidekicks.find(s => s.type === template.type || (s.metadata && s.metadata.type === template.type));
@@ -1232,12 +1186,12 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
               activeSidekick = undefined;
             }
 
-            const isToolsExpanded = activeSidekick ? (expandedTools[activeSidekick.id] ?? false) : false;
+            const isToolsExpanded = activeSidekick ? (expandedTools[activeSidekick.id] ?? (effectiveTemplates.length === 1)) : false;
 
             if (activeSidekick) {
               // RENDER ACTIVE SIDEKICK CARD (Existing UI)
               return (
-                <div key={activeSidekick.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full flex flex-col relative overflow-hidden">
+                <div key={activeSidekick.id} className="bg-white rounded-none md:rounded-xl shadow-none md:shadow-sm border-y md:border border-slate-200 p-6 h-full flex flex-col relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-4">
                     <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                       <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
@@ -1250,7 +1204,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                       className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
                       style={{ backgroundColor: activeSidekick.color + '20', color: activeSidekick.color }}
                     >
-                      {activeSidekick.icon}
+                      <span className="material-symbols-outlined">{activeSidekick.icon}</span>
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold text-slate-900">{activeSidekick.name}</h3>

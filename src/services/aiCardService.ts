@@ -25,6 +25,7 @@ interface AICardProfile {
     twitter: string;
     linkedin: string;
     youtube: string;
+    backgroundImage?: string;
   };
   headshot: string | null;
   logo: string | null;

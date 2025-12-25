@@ -13,12 +13,20 @@ type EditableElement = HTMLInputElement | HTMLTextAreaElement;
 // Use the AICardProfile type from the service
 type AgentProfile = AICardProfile;
 
+const BACKGROUND_PRESETS = [
+  { id: 'luxury', label: 'Luxury Interior', url: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=1253&auto=format&fit=crop' },
+  { id: 'pool', label: 'Modern Exterior', url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1470&auto=format&fit=crop' },
+  { id: 'city', label: 'City Skyline', url: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=1544&auto=format&fit=crop' },
+  { id: 'minimal', label: 'Minimal Abstract', url: 'https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?q=80&w=1468&auto=format&fit=crop' }
+];
+
 const createEmptySocialLinks = (): AgentProfile['socialMedia'] => ({
   facebook: '',
   instagram: '',
   twitter: '',
   linkedin: '',
-  youtube: ''
+  youtube: '',
+  backgroundImage: BACKGROUND_PRESETS[0].url
 });
 
 const createDefaultProfile = (): AgentProfile => ({
@@ -72,7 +80,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       basic: isMobile,
       contact: isMobile,
       images: isMobile,
-      bio: isMobile,
+      design: isMobile,
       social: isMobile
     };
   });
@@ -321,6 +329,18 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
     ensureFocus(element, value);
   };
 
+  const handleBackgroundChange = (url: string) => {
+    const updatedSocialMedia = {
+      ...form.socialMedia,
+      backgroundImage: url
+    };
+    setForm(prev => ({
+      ...prev,
+      socialMedia: updatedSocialMedia
+    }));
+    setHasUnsavedChanges(true);
+  };
+
   const handleImageUpload = async (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) {
@@ -522,133 +542,121 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       {/* AI Card Container */}
       <div
         id="ai-card-preview"
-        className="relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-2xl overflow-hidden border border-gray-200"
+        className="relative rounded-3xl shadow-2xl overflow-hidden border border-white/20"
         style={{
           width: '400px',
           height: '850px',
-          background: `linear - gradient(135deg, ${form.brandColor}10 0 %, white 50 %, ${form.brandColor}05 100 %)`
         }}
       >
-        {/* Header with brand color accent */}
-        <div
-          className="h-3 w-full"
-          style={{ backgroundColor: form.brandColor }}
-        />
+        {/* Luxury Background Image */}
+        <div className="absolute inset-0 z-0">
+          <img
+            src={form.socialMedia.backgroundImage || BACKGROUND_PRESETS[0].url}
+            alt="Card Background"
+            className="w-full h-full object-cover transition-opacity duration-700"
+          />
+          {/* Subtle Dark Overlay for Contrast */}
+          <div className="absolute inset-0 bg-black/20" />
+        </div>
 
-        {/* Main Content */}
-        <div className="p-8 h-full flex flex-col">
-          {/* Logo Section */}
-          {form.logo && (
-            <div className="flex justify-center mb-6">
-              <img
-                src={form.logo}
-                alt="Company Logo"
-                className="h-12 w-auto object-contain"
-              />
-            </div>
-          )}
+        {/* Glass Content Card */}
+        <div className="relative z-10 w-full h-full flex items-center justify-center p-6">
+          <div className="w-full bg-white/30 backdrop-blur-md rounded-3xl border border-white/40 shadow-2xl overflow-hidden flex flex-col items-center text-center p-8">
 
-          {/* Agent Photo & Info */}
-          <div className="flex flex-col items-center text-center mb-8">
-            {/* Headshot */}
-            <div className="relative mb-4">
+            {/* Profile Picture (Bigger & First) */}
+            <div className="mb-6 relative">
               {form.headshot ? (
                 <img
                   src={form.headshot}
                   alt={form.fullName}
-                  className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
-                  style={{ borderColor: form.brandColor }}
+                  className="w-32 h-32 rounded-full object-cover border-4 border-white/50 shadow-lg"
                 />
               ) : (
                 <div
-                  className="w-24 h-24 rounded-full border-4 border-white shadow-lg flex items-center justify-center text-2xl font-bold text-white"
-                  style={{ backgroundColor: form.brandColor }}
+                  className="w-32 h-32 rounded-full border-4 border-white/50 shadow-lg flex items-center justify-center text-4xl font-bold text-white bg-slate-400"
                 >
                   {form.fullName.split(' ').map(n => n[0]).join('')}
                 </div>
               )}
             </div>
 
-            {/* Name & Title */}
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">{form.fullName}</h2>
-            <p className="text-lg text-gray-600 mb-1">{form.professionalTitle}</p>
-            <p className="text-base font-medium" style={{ color: form.brandColor }}>
+            {/* Gold Geometric Logo (Second) */}
+            <div className="mb-4">
+              {form.logo ? (
+                <img src={form.logo} alt="Logo" className="h-16 w-auto object-contain drop-shadow-md" />
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center shadow-lg transform rotate-45">
+                  <span className="material-symbols-outlined text-white text-2xl transform -rotate-45">apartment</span>
+                </div>
+              )}
+            </div>
+
+            {/* Text Content */}
+            <h2 className="text-3xl font-bold text-gray-900 mb-1 drop-shadow-sm">{form.fullName}</h2>
+            <p className="text-lg text-gray-800 font-medium mb-1 tracking-wide">{form.professionalTitle}</p>
+            <p className="text-sm font-semibold text-gray-700 uppercase tracking-widest mb-8">
               {form.company}
             </p>
-          </div>
 
-          {/* Contact Info */}
-          <div className="space-y-3 mb-8">
-            <div className="flex items-center justify-center space-x-2 text-gray-700">
-              <Phone className="w-4 h-4" style={{ color: form.brandColor }} />
-              <span className="text-sm">{form.phone}</span>
-            </div>
-            <div className="flex items-center justify-center space-x-2 text-gray-700">
-              <Mail className="w-4 h-4" style={{ color: form.brandColor }} />
-              <span className="text-sm">{form.email}</span>
-            </div>
-            <div className="flex items-center justify-center space-x-2 text-gray-700">
-              <Globe className="w-4 h-4" style={{ color: form.brandColor }} />
-              <span className="text-sm">{form.website}</span>
-            </div>
-          </div>
-
-          {/* Bio */}
-          <div className="mb-6 flex-1">
-            <div className="text-sm text-gray-600 leading-relaxed max-h-60 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
-              {form.bio}
-            </div>
-          </div>
-
-          {/* How Can I Help Button */}
-          <div className="mb-8">
+            {/* Colorful Buttons */}
             <button
               onClick={onChatClick}
-              className="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 hover:scale-105 shadow-lg text-base"
-              style={{ backgroundColor: form.brandColor }}
-            >
-              How can I help?
-            </button>
-          </div>
-
-          {/* Social Media Icons */}
-          <div className="flex justify-center space-x-4 mb-6">
-            {form.socialMedia.facebook && (
-              <Facebook className="w-5 h-5 text-blue-600 hover:scale-110 transition-transform cursor-pointer" />
-            )}
-            {form.socialMedia.instagram && (
-              <Instagram className="w-5 h-5 text-pink-500 hover:scale-110 transition-transform cursor-pointer" />
-            )}
-            {form.socialMedia.twitter && (
-              <Twitter className="w-5 h-5 text-blue-400 hover:scale-110 transition-transform cursor-pointer" />
-            )}
-            {form.socialMedia.linkedin && (
-              <Linkedin className="w-5 h-5 text-blue-700 hover:scale-110 transition-transform cursor-pointer" />
-            )}
-            {form.socialMedia.youtube && (
-              <Youtube className="w-5 h-5 text-red-600 hover:scale-110 transition-transform cursor-pointer" />
-            )}
-          </div>
-
-          {/* Share Button */}
-          <div className="flex justify-center">
-            <button
-              onClick={() => handleShare('copy')}
-              disabled={isLoading}
-              className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50"
+              className="w-full py-4 px-6 rounded-xl font-bold text-white mb-4 transition-all duration-300 hover:scale-105 shadow-lg flex items-center justify-center gap-2 group border border-white/20"
               style={{
-                backgroundColor: form.brandColor,
-                color: 'white',
-                marginBottom: '50px'
+                background: `linear-gradient(135deg, ${form.brandColor} 0%, ${form.brandColor}DD 100%)`,
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}
             >
-              <Share2 className="w-5 h-5" />
-              <span>{isLoading ? 'Sharing...' : 'Share Card'}</span>
+              <span className="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform">smart_toy</span>
+              Start AI Chat
             </button>
+
+            <button
+              className="w-full py-3 px-6 rounded-xl font-semibold text-gray-900 transition-all duration-300 hover:bg-white/60 hover:scale-105 flex items-center justify-center gap-2 shadow-md"
+              style={{
+                background: 'rgba(255, 255, 255, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.5)'
+              }}
+            >
+              <span className="material-symbols-outlined">contact_page</span>
+              Contact Info
+            </button>
+
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* Social Media Icons (Actual Icons) */}
+            <div className="flex justify-center space-x-3 mt-8">
+              {form.socialMedia.facebook && (
+                <a href={form.socialMedia.facebook} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-blue-700 shadow-sm backdrop-blur-sm">
+                  <Facebook className="w-5 h-5" />
+                </a>
+              )}
+              {form.socialMedia.instagram && (
+                <a href={form.socialMedia.instagram} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-pink-600 shadow-sm backdrop-blur-sm">
+                  <Instagram className="w-5 h-5" />
+                </a>
+              )}
+              {form.socialMedia.twitter && (
+                <a href={form.socialMedia.twitter} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-sky-500 shadow-sm backdrop-blur-sm">
+                  <Twitter className="w-5 h-5" />
+                </a>
+              )}
+              {form.socialMedia.linkedin && (
+                <a href={form.socialMedia.linkedin} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-blue-800 shadow-sm backdrop-blur-sm">
+                  <Linkedin className="w-5 h-5" />
+                </a>
+              )}
+              {form.socialMedia.youtube && (
+                <a href={form.socialMedia.youtube} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-red-600 shadow-sm backdrop-blur-sm">
+                  <Youtube className="w-5 h-5" />
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div >
+    </div>
   );
 
   return (
@@ -658,12 +666,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
         <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
           {/* Title Section */}
           <div className="text-center lg:text-left">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Business Card {isDemoMode && <span className="text-sm font-normal text-blue-600">(Demo)</span>}</h1>
-            <p className="text-sm sm:text-base text-gray-600 mt-1">
-              {isDemoMode ? 'Explore the AI Business Card features - changes won\'t be saved' : 'Create your interactive AI-powered business card'}
-              {isSaving && <span className="text-blue-600 ml-2">• Saving...</span>}
-              {isLoading && <span className="text-blue-600 ml-2">• Loading...</span>}
-            </p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Business Card</h1>
           </div>
 
           {/* Controls Section */}
@@ -672,32 +675,32 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
             <div className="flex bg-gray-100 rounded-lg p-1 mx-auto sm:mx-0">
               <button
                 onClick={() => setActiveTab('edit')}
-                className={`flex items - center justify - center space - x - 1 sm: space - x - 2 px - 2 sm: px - 4 py - 2 rounded - md text - xs sm: text - sm font - medium transition - colors flex - 1 sm: flex - none ${activeTab === 'edit'
+                className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'edit'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
                   } `}
               >
-                <Palette className="w-3 h-3 sm:w-4 sm:h-4" />
+                <Palette className="w-4 h-4" />
                 <span>Edit</span>
               </button>
               <button
                 onClick={() => setActiveTab('preview')}
-                className={`flex items - center justify - center space - x - 1 sm: space - x - 2 px - 2 sm: px - 4 py - 2 rounded - md text - xs sm: text - sm font - medium transition - colors flex - 1 sm: flex - none ${activeTab === 'preview'
+                className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'preview'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
                   } `}
               >
-                <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                <Eye className="w-4 h-4" />
                 <span>Preview</span>
               </button>
               <button
                 onClick={() => setActiveTab('qr-codes')}
-                className={`flex items - center justify - center space - x - 1 sm: space - x - 2 px - 2 sm: px - 4 py - 2 rounded - md text - xs sm: text - sm font - medium transition - colors flex - 1 sm: flex - none ${activeTab === 'qr-codes'
+                className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'qr-codes'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
                   } `}
               >
-                <QrCode className="w-3 h-3 sm:w-4 sm:h-4" />
+                <QrCode className="w-4 h-4" />
                 <span>QR Codes</span>
               </button>
             </div>
@@ -799,6 +802,9 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
             {/* Left Side - Form */}
             <div className="space-y-6 lg:space-y-8">
+
+
+
               {/* Basic Information */}
               <CollapsibleSection title="👤 Basic Information" sectionKey="basic">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1003,21 +1009,33 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               </CollapsibleSection>
 
               {/* Professional Bio */}
-              <CollapsibleSection title="📝 Professional Bio" sectionKey="bio">
-                <label htmlFor="ai-card-bio" className="block text-sm font-medium text-gray-700 mb-2">
-                  Professional Bio
-                </label>
-                <textarea
-                  id="ai-card-bio"
-                  value={form.bio}
-                  onChange={(e) => handleInputChange('bio', e.target.value, e.target)}
-                  rows={6}
-                  placeholder="Tell visitors about your experience and expertise..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-                <p className="text-sm text-gray-500 mt-2">
-                  {form.bio.length}/2000 characters
-                </p>
+              <CollapsibleSection title="Card Design" sectionKey="design">
+                <div className="grid grid-cols-2 gap-3">
+                  {BACKGROUND_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleBackgroundChange(preset.url)}
+                      className={`relative group rounded-lg overflow-hidden aspect-video border-2 transition-all ${(form.socialMedia.backgroundImage === preset.url) || (!form.socialMedia.backgroundImage && preset.id === 'luxury')
+                        ? 'border-blue-600 ring-2 ring-blue-600 ring-offset-2'
+                        : 'border-transparent hover:border-gray-300'
+                        }`}
+                    >
+                      <img
+                        src={preset.url}
+                        alt={preset.label}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 flex items-end p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-white text-xs font-semibold shadow-sm">{preset.label}</span>
+                      </div>
+                      {((form.socialMedia.backgroundImage === preset.url) || (!form.socialMedia.backgroundImage && preset.id === 'luxury')) && (
+                        <div className="absolute top-1 right-1 bg-blue-600 rounded-full p-0.5">
+                          <span className="material-symbols-outlined text-white text-sm">check</span>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </CollapsibleSection>
 
               {/* Social Media Links */}
@@ -1108,64 +1126,66 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       </div>
 
       {/* Share Modal */}
-      {showShareModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-fade-in">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+      {
+        showShareModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-fade-in">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Card URL Copied!</h3>
+                <p className="text-gray-600">Share this link to showcase your AI business card</p>
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">Card URL Copied!</h3>
-              <p className="text-gray-600">Share this link to showcase your AI business card</p>
-            </div>
 
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={shareUrl}
-                  readOnly
-                  className="flex-1 bg-transparent text-sm text-gray-700 outline-none"
-                />
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={shareUrl}
+                    readOnly
+                    className="flex-1 bg-transparent text-sm text-gray-700 outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareUrl);
+                    }}
+                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-6">
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(shareUrl);
-                  }}
-                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                  onClick={() => window.open(`sms:? body = ${encodeURIComponent(shareUrl)} `, '_blank')}
+                  className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
-                  Copy
+                  <Mail className="w-5 h-5 text-gray-700" />
+                  <span className="text-sm font-medium text-gray-700">Text</span>
+                </button>
+                <button
+                  onClick={() => window.open(`mailto:? body = ${encodeURIComponent(shareUrl)} `, '_blank')}
+                  className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <Mail className="w-5 h-5 text-gray-700" />
+                  <span className="text-sm font-medium text-gray-700">Email</span>
                 </button>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-6">
               <button
-                onClick={() => window.open(`sms:? body = ${encodeURIComponent(shareUrl)} `, '_blank')}
-                className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                onClick={() => setShowShareModal(false)}
+                className="w-full py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
               >
-                <Mail className="w-5 h-5 text-gray-700" />
-                <span className="text-sm font-medium text-gray-700">Text</span>
-              </button>
-              <button
-                onClick={() => window.open(`mailto:? body = ${encodeURIComponent(shareUrl)} `, '_blank')}
-                className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-              >
-                <Mail className="w-5 h-5 text-gray-700" />
-                <span className="text-sm font-medium text-gray-700">Email</span>
+                Done
               </button>
             </div>
-
-            <button
-              onClick={() => setShowShareModal(false)}
-              className="w-full py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
-            >
-              Done
-            </button>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Chat Bot Integration */}
       <ChatBotFAB
@@ -1188,7 +1208,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
         }}
         showWelcomeMessage={false}
       />
-    </div>
+    </div >
   );
 };
 

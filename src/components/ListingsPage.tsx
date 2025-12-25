@@ -1,7 +1,5 @@
-
 import React, { useState } from 'react';
-import { Copy, Check } from 'lucide-react';
-import { Property, isAIDescription } from '../types';
+import { Property } from '../types';
 
 interface PropertyCardProps {
     property: Property;
@@ -9,181 +7,254 @@ interface PropertyCardProps {
     onDelete: () => void;
     onOpenMarketing?: () => void;
     onOpenBuilder?: () => void;
+    onEdit?: () => void;
 }
+
+interface ContactFormModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (data: any) => void;
+    propertyName: string;
+}
+
+const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, onSubmit, propertyName }) => {
+    if (!isOpen) return null;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        // In a real app, gather form data here
+        onSubmit({});
+    };
+
+    return (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="absolute inset-0" onClick={onClose} />
+            <div className="relative w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition"
+                >
+                    <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+
+                <h3 className="text-xl font-bold text-white mb-1">Contact Agent</h3>
+                <p className="text-sm text-slate-200 mb-6">Inquire about {propertyName}</p>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <input type="text" placeholder="Name" className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:bg-white/20 focus:border-white/40 transition" />
+                    </div>
+                    <div>
+                        <input type="email" placeholder="Email" className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:bg-white/20 focus:border-white/40 transition" />
+                    </div>
+                    <div>
+                        <input type="tel" placeholder="Phone" className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:bg-white/20 focus:border-white/40 transition" />
+                    </div>
+                    <div>
+                        <textarea rows={3} placeholder="I'm interested in this property..." className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:bg-white/20 focus:border-white/40 transition resize-none" />
+                    </div>
+                    <button type="submit" className="w-full py-3.5 bg-white text-slate-900 font-bold rounded-xl hover:bg-slate-100 transition shadow-lg mt-2">
+                        Send to Agent
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 const PropertyCard: React.FC<PropertyCardProps> = ({
     property,
     onSelect,
-    onDelete,
+    onDelete: _onDelete, // Unused
     onOpenMarketing,
-    onOpenBuilder
+    onOpenBuilder: _onOpenBuilder, // Unused
+    onEdit
 }) => {
-    const handleCardClick = () => {
-        onSelect();
-    };
+    const [showContactForm, setShowContactForm] = useState(false);
 
-    const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
+    // Fallback image if property.imageUrl is missing or broken
+    const displayImage = property.imageUrl || property.heroPhotos?.[0] || 'https://images.unsplash.com/photo-1600596542815-27b88e31e976?q=80&w=2000&auto-format&fit=crop';
+    const imageSrc = typeof displayImage === 'string' ? displayImage : (displayImage instanceof File ? URL.createObjectURL(displayImage) : '');
+
+    const handleActionClick = (e: React.MouseEvent, action: string) => {
+        e.stopPropagation();
+        if (action === 'Showings') {
+            alert('Opening appointment scheduler...');
+        } else if (action === 'Info') {
             onSelect();
+        } else if (action === 'Listing') {
+            if (property.ctaListingUrl) {
+                window.open(property.ctaListingUrl, '_blank');
+            } else {
+                alert('No full listing URL configured.');
+            }
+        } else if (action === 'Contact') {
+            if (property.ctaContactMode === 'form') {
+                setShowContactForm(true);
+            } else {
+                // Default to Sidekick
+                onSelect();
+            }
         }
     };
 
-    const handleEditClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-        event.stopPropagation();
-        if (onOpenBuilder) {
-            onOpenBuilder();
-            return;
-        }
-        onSelect();
+    const handleFormSubmit = () => {
+        setShowContactForm(false);
+        alert('Message sent to agent!');
     };
-
-    const handleSidekickClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-        event.stopPropagation();
-        if (onOpenMarketing) {
-            onOpenMarketing();
-            return;
-        }
-        alert('Listing Sidekick setup coming soon.');
-    };
-
-    const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
-    const shareUrl =
-        typeof window !== 'undefined'
-            ? `${window.location.origin}/demo/listings/${encodeURIComponent(property.id)}`
-            : `https://demo.homelisting.ai/listings/${property.id}`;
-
-    const descriptionText = isAIDescription(property.description)
-        ? property.description.title
-        : (property.description || 'View details to learn more.');
 
     return (
         <div
-            className="bg-slate-800 rounded-2xl shadow-lg overflow-hidden flex flex-col text-white cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-            onClick={handleCardClick}
-            onKeyDown={handleCardKeyDown}
-            role="button"
-            tabIndex={0}
+            className="group relative w-full h-[80vh] md:h-[85vh] max-h-[900px] rounded-[2rem] overflow-hidden shadow-2xl shrink-0 snap-center cursor-pointer transition-transform duration-500 hover:scale-[1.01]"
+            onClick={onSelect}
         >
-            <div className="relative">
-                <img className="h-56 w-full object-cover" src={property.imageUrl} alt={property.address} />
-                <div className="absolute top-4 right-4 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
-                    Active
-                </div>
+            {/* Full Screen Image */}
+            <div className="absolute inset-0 bg-slate-200">
+                {imageSrc && (
+                    <img
+                        src={imageSrc}
+                        alt={property.address}
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        onError={(e) => {
+                            // Fallback on error
+                            (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                    />
+                )}
+                {/* Gradient Overlay for Text Readability */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-80" />
             </div>
-            <div className="p-6 flex flex-col flex-grow">
-                <div className="flex-grow">
-                    <h3 className="text-xl font-bold text-white">{property.title}</h3>
-                    <p className="mt-1 flex items-center gap-2 text-sky-300 text-sm">
-                        <span className="material-symbols-outlined text-base">location_on</span>
-                        {property.address}
-                    </p>
 
-                    <div className="mt-4 flex justify-between items-center">
-                        <div className="flex items-center gap-2 text-2xl font-bold text-white">
-                            <span className="material-symbols-outlined text-sky-400">payments</span>
-                            <span>${property.price.toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-lg font-semibold text-sky-300">
-                            <span className="material-symbols-outlined text-sky-400">fullscreen</span>
-                            <span>{property.squareFeet.toLocaleString()} squareFeet</span>
-                        </div>
+            <ContactFormModal
+                isOpen={showContactForm}
+                onClose={() => setShowContactForm(false)}
+                onSubmit={handleFormSubmit}
+                propertyName={property.address}
+            />
+
+            {/* Status Badge & Edit Button */}
+            <div className="absolute top-6 right-6 flex gap-2">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onEdit) onEdit();
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white hover:bg-black/60 transition"
+                >
+                    <span className="material-symbols-outlined text-xs">edit</span>
+                </button>
+                <span className="px-4 py-1.5 rounded-full bg-emerald-500/90 backdrop-blur-sm text-white text-xs font-bold uppercase tracking-wider shadow-lg border border-white/20 flex items-center">
+                    Active
+                </span>
+            </div>
+
+            {/* Main Content Overlay */}
+            <div className="absolute inset-x-0 bottom-0 p-6 flex flex-col items-center justify-end h-full pb-12">
+
+                {/* 'Talk to the Home' Magic Button */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // always opens sidekick regardless of bottom contact mode
+                        if (onOpenMarketing) onOpenMarketing();
+                    }}
+                    className="relative group/btn mb-8 px-8 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.5)] border border-white/20 flex items-center gap-3 transition-all active:scale-95 hover:shadow-[0_0_30px_rgba(139,92,246,0.6)]"
+                >
+                    <span className="material-symbols-outlined text-yellow-200 animate-pulse">auto_awesome</span>
+                    <span className="text-white font-bold text-lg tracking-wide">Talk to the Home</span>
+                </button>
+
+                {/* Glass Info Card */}
+                <div className="w-full bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 text-white mb-6">
+                    <div className="text-center mb-4">
+                        <h2 className="text-3xl font-bold tracking-tight text-white shadow-black/10 drop-shadow-md">
+                            ${property.price.toLocaleString()}
+                        </h2>
+                        <p className="text-slate-200 text-sm mt-1 font-medium tracking-wide flex items-center justify-center gap-1">
+                            <span className="material-symbols-outlined text-base">location_on</span>
+                            {property.address}
+                        </p>
                     </div>
 
-                    <div className="mt-2 flex items-center divide-x divide-slate-600 text-sm text-slate-300">
-                        <div className="flex items-center gap-2 pr-3">
-                            <span className="material-symbols-outlined text-base text-slate-400">bed</span>
-                            <span>{property.bedrooms} bds</span>
+                    <div className="flex justify-center items-center gap-8 text-sm font-semibold text-slate-100">
+                        <div className="flex flex-col items-center gap-1">
+                            <span className="text-lg">{property.bedrooms}</span>
+                            <span className="text-xs uppercase text-slate-400">Beds</span>
                         </div>
-                        <div className="flex items-center gap-2 px-3">
-                            <span className="material-symbols-outlined text-base text-slate-400">bathtub</span>
-                            <span>{property.bathrooms} ba</span>
+                        <div className="w-px h-8 bg-white/20" />
+                        <div className="flex flex-col items-center gap-1">
+                            <span className="text-lg">{property.bathrooms}</span>
+                            <span className="text-xs uppercase text-slate-400">Baths</span>
                         </div>
-                        <div className="flex items-center gap-2 pl-3">
-                            <span className="material-symbols-outlined text-base text-slate-400">straighten</span>
-                            <span>{property.squareFeet.toLocaleString()} squareFeet</span>
+                        <div className="w-px h-8 bg-white/20" />
+                        <div className="flex flex-col items-center gap-1">
+                            <span className="text-lg">{property.squareFeet.toLocaleString()}</span>
+                            <span className="text-xs uppercase text-slate-400">Sq Ft</span>
                         </div>
                     </div>
-
-                    <p className="mt-4 text-sm text-slate-400 leading-relaxed">{descriptionText}</p>
                 </div>
 
-                <div className="mt-6 pt-6 border-t border-slate-700">
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                        <button
-                            type="button"
-                            onClick={handleEditClick}
-                            className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-sky-600 rounded-lg shadow-sm hover:bg-sky-700 transition"
-                        >
-                            <span className="material-symbols-outlined w-4 h-4">edit</span>
-                            <span>Edit</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleSidekickClick}
-                            className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-slate-600 rounded-lg shadow-sm hover:bg-slate-700 transition"
-                        >
-                            <span className="material-symbols-outlined w-4 h-4">smart_toy</span>
-                            <span>Marketing Listing</span>
-                        </button>
-                    </div>
-                    <div className="mb-3">
-                        <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
-                            <span className="text-xs text-slate-400">Link shortening disabled; share the listing URL below:</span>
-                            <span className="truncate text-slate-100">{shareUrl}</span>
-                            <button
-                                onClick={async () => {
-                                    try {
-                                        await navigator.clipboard.writeText(shareUrl);
-                                        setCopyState('copied');
-                                        setTimeout(() => setCopyState('idle'), 2000);
-                                    } catch (error) {
-                                        console.error('Copy failed', error);
-                                        setCopyState('error');
-                                        setTimeout(() => setCopyState('idle'), 2000);
-                                    }
-                                }}
-                                className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-sky-300 hover:text-sky-200 transition"
-                            >
-                                {copyState === 'copied' ? (
-                                    <>
-                                        <Check className="w-3 h-3" />
-                                        Copied
-                                    </>
-                                ) : copyState === 'error' ? (
-                                    <>
-                                        <Copy className="w-3 h-3" />
-                                        Retry
-                                    </>
-                                ) : (
-                                    <>
-                                        <Copy className="w-3 h-3" />
-                                        Copy
-                                    </>
-                                )}
-                            </button>
+                {/* Circular Glass Actions - Now 4 Buttons */}
+                <div className="flex items-center gap-5 md:gap-8">
+                    <button
+                        onClick={(e) => handleActionClick(e, 'Showings')}
+                        className="flex flex-col items-center gap-2 group/action"
+                    >
+                        <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all group-hover/action:bg-white/20 group-active/action:scale-90">
+                            <span className="material-symbols-outlined text-white text-xl md:text-2xl">calendar_month</span>
                         </div>
-                    </div>
+                        <span className="text-[10px] md:text-xs font-medium text-slate-300">Showings</span>
+                    </button>
+
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            onDelete();
+                            onSelect(); // 'Info' opens detail view (Sidekick for now)
                         }}
-                        className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-rose-900 rounded-lg shadow-sm hover:bg-rose-800 transition"
+                        className="flex flex-col items-center gap-2 group/action"
                     >
-                        <span className="material-symbols-outlined w-4 h-4">delete</span>
-                        <span>Delete</span>
+                        <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all group-hover/action:bg-white/20 group-active/action:scale-90">
+                            <span className="material-symbols-outlined text-white text-xl md:text-2xl">info</span>
+                        </div>
+                        <span className="text-[10px] md:text-xs font-medium text-slate-300">Info</span>
                     </button>
+
+                    <button
+                        onClick={(e) => handleActionClick(e, 'Listing')}
+                        className="flex flex-col items-center gap-2 group/action"
+                    >
+                        <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all group-hover/action:bg-white/20 group-active/action:scale-90">
+                            <span className="material-symbols-outlined text-white text-xl md:text-2xl">language</span>
+                        </div>
+                        <span className="text-[10px] md:text-xs font-medium text-slate-300">Listing</span>
+                    </button>
+
+                    <button
+                        onClick={(e) => handleActionClick(e, 'Contact')}
+                        className="flex flex-col items-center gap-2 group/action"
+                    >
+                        <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all group-hover/action:bg-white/20 group-active/action:scale-90">
+                            <span className="material-symbols-outlined text-white text-xl md:text-2xl">chat_bubble</span>
+                        </div>
+                        <span className="text-[10px] md:text-xs font-medium text-slate-300">Contact</span>
+                    </button>
+                </div>
+
+                {/* Pagination Dots (Visual Only) */}
+                <div className="flex gap-2 mt-8">
+                    <div className="w-2 h-2 rounded-full bg-white shadow-sm" />
+                    <div className="w-2 h-2 rounded-full bg-white/40" />
+                    <div className="w-2 h-2 rounded-full bg-white/40" />
+                    <div className="w-2 h-2 rounded-full bg-white/40" />
                 </div>
             </div>
         </div>
     );
 };
 
-
 interface ListingsPageProps {
     properties: Property[];
-    onSelectProperty: (id: string) => void;
+    onSelectProperty: (id: string, action?: 'edit' | 'view') => void;
     onAddNew: () => void;
     onDeleteProperty: (id: string) => void;
     onBackToDashboard: () => void;
@@ -196,96 +267,46 @@ const ListingsPage: React.FC<ListingsPageProps> = ({
     onSelectProperty,
     onAddNew,
     onDeleteProperty,
-    onBackToDashboard,
+    onBackToDashboard: _onBackToDashboard, // Unused
     onOpenMarketing,
     onOpenBuilder
 }) => {
-    const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
-
     return (
-        <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-            <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
-                <span className="material-symbols-outlined w-5 h-5">chevron_left</span>
-                <span>Back to Dashboard</span>
-            </button>
-            <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900">AI Listings</h1>
-                    <p className="text-slate-500 mt-1">Manage your listings and their Listing Sidekick brains.</p>
-                </div>
+        <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6">
+            {/* Minimal Header */}
+            <header className="flex items-center justify-center mb-10">
                 <button
                     onClick={onAddNew}
-                    className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105"
+                    className="flex items-center gap-3 px-10 py-4 bg-indigo-600 text-white rounded-2xl text-lg font-bold shadow-xl shadow-indigo-200 hover:bg-indigo-700 hover:shadow-2xl hover:shadow-indigo-300 transition-all active:scale-95 hover:-translate-y-0.5"
                 >
-                    <span className="material-symbols-outlined h-5 w-5">add</span>
-                    <span>Add New Listing</span>
+                    <span className="material-symbols-outlined text-2xl">add</span>
+                    <span>Add Listing</span>
                 </button>
             </header>
 
-            <div className="mb-8">
-                <button
-                    type="button"
-                    onClick={() => setIsHelpPanelOpen(prev => !prev)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
-                    aria-expanded={isHelpPanelOpen}
-                >
-                    <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
-                    {isHelpPanelOpen ? 'Hide AI Listings Tips' : 'Show AI Listings Tips'}
-                    <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
-                </button>
-                {isHelpPanelOpen && (
-                    <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
-                        <div>
-                            <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                                <span className="material-symbols-outlined text-lg">home_work</span>
-                                Listing Playbook
-                            </h2>
-                            <ul className="space-y-1.5 list-disc list-inside">
-                                <li><strong>Keep data synced:</strong> Update price, status, and hero photos here—your AI site and AI Card stay in lockstep.</li>
-                                <li><strong>Listing Sidekick:</strong> Launch the Sidekick from each tile to train property-specific talking points and FAQs.</li>
-                                <li><strong>Media assets:</strong> Use the edit view to upload flyers, 3D tours, and feature sheets for instant sharing.</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                                <span className="material-symbols-outlined text-lg">qr_code</span>
-                                QR & Marketing Assets
-                            </h2>
-                            <ul className="space-y-1.5 list-disc list-inside">
-                                <li><strong>Generate QR codes:</strong> Each listing gets a unique QR link for yard signs, open houses, and print materials.</li>
-                                <li><strong>Campaign tracking:</strong> Clone the listing and adjust tracking tags to compare performance by channel.</li>
-                                <li><strong>Pro tip:</strong> Drop the listing QR into the AI Conversations hub so follow-ups automatically reference the right property.</li>
-                            </ul>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200/60 mb-8">
-                <div className="relative flex-grow">
-                    <span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2">search</span>
-                    <input type="text" placeholder="Search listings by title, address, or city..." className="w-full bg-white border border-slate-300 rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none" />
-                </div>
-            </div>
-
-            <main>
-                {properties.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {properties.map(prop => (
-                            <PropertyCard
-                                key={prop.id}
-                                property={prop}
-                                onSelect={() => onSelectProperty(prop.id)}
-                                onDelete={() => onDeleteProperty(prop.id)}
-                                onOpenMarketing={() => onOpenMarketing?.(prop.id)}
-                                onOpenBuilder={() => onOpenBuilder?.(prop.id)}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-center py-16 bg-white rounded-lg shadow-md border border-slate-200/60">
-                        <h2 className="text-xl font-semibold text-slate-700">No listings yet</h2>
-                        <p className="text-slate-500 mt-2">Click "Add New Listing" to get started.</p>
+            <main className="space-y-12 pb-24">
+                {properties.map(prop => (
+                    <PropertyCard
+                        key={prop.id}
+                        property={prop}
+                        onSelect={() => onSelectProperty(prop.id, 'view')}
+                        onEdit={() => onSelectProperty(prop.id, 'edit')}
+                        onDelete={() => onDeleteProperty(prop.id)}
+                        onOpenMarketing={() => onOpenMarketing?.(prop.id)}
+                        onOpenBuilder={() => onOpenBuilder?.(prop.id)}
+                    />
+                ))}
+                {properties.length === 0 && (
+                    <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                        <span className="material-symbols-outlined text-4xl text-slate-300 mb-4">real_estate_agent</span>
+                        <h3 className="text-lg font-bold text-slate-900">No listings yet</h3>
+                        <p className="text-slate-500 mb-6">Create your first AI-enabled listing to get started.</p>
+                        <button
+                            onClick={onAddNew}
+                            className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition"
+                        >
+                            Create Listing
+                        </button>
                     </div>
                 )}
             </main>

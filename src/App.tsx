@@ -819,6 +819,27 @@ const App: React.FC = () => {
         [resolvePropertyForLead, triggerLeadSequences]
     );
 
+    const handleUpdateLead = useCallback(async (updatedLead: Lead) => {
+        try {
+            // Optimistic update
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+
+            await leadsService.update(updatedLead.id, {
+                name: updatedLead.name,
+                email: updatedLead.email,
+                phone: updatedLead.phone,
+                lastMessage: updatedLead.lastMessage,
+                source: updatedLead.source,
+                funnelType: updatedLead.funnelType
+            });
+            // Use console for success or a toast if available (dashboard has its own notification context usually)
+            console.log('Lead updated successfully');
+        } catch (error) {
+            console.error('Failed to update lead:', error);
+            // Revert state if needed - relying on next fetch for now or we could snapshot prev state
+        }
+    }, []);
+
     // Load appointments from Supabase when user signs in or demo/local admin
     React.useEffect(() => {
         const load = async () => {
@@ -1080,6 +1101,7 @@ const App: React.FC = () => {
                                     if (lead) await triggerLeadSequences(lead, 'Appointment Scheduled', resolvePropertyForLead(lead));
                                 }}
                                 onAssignFunnel={handleLeadFunnelAssigned}
+                                onUpdateLead={handleUpdateLead}
                             />
                         } />
 

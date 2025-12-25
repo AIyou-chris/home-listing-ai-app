@@ -33,10 +33,10 @@ const AgentAISidekicksPage: React.FC<AgentAISidekicksPageProps> = ({
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
                             <span className="material-symbols-outlined text-primary-600">smart_toy</span>
-                            AI Sidekicks
+                            AI Agent
                         </h1>
                         <p className="text-slate-600 mt-1">
-                            Manage and train your AI assistants
+                            Manage and train your AI Agent
                         </p>
                     </div>
                 </div>
@@ -46,20 +46,20 @@ const AgentAISidekicksPage: React.FC<AgentAISidekicksPageProps> = ({
                     <button
                         onClick={() => setActiveTab('overview')}
                         className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'overview'
-                            ? 'border-primary-600 text-primary-600'
+                            ? 'border-blue-800 text-blue-800'
                             : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                             }`}
                     >
-                        Overview
+                        My AI Agent
                     </button>
                     <button
                         onClick={() => setActiveTab('training')}
                         className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'training'
-                            ? 'border-primary-600 text-primary-600'
+                            ? 'border-blue-800 text-blue-800'
                             : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                             }`}
                     >
-                        Training Studio
+                        Train Your AI
                     </button>
                 </div>
             </div>
@@ -67,7 +67,7 @@ const AgentAISidekicksPage: React.FC<AgentAISidekicksPageProps> = ({
             {/* Content Area */}
             <div className="flex-1 overflow-hidden">
                 {activeTab === 'overview' ? (
-                    <div className="h-full overflow-y-auto p-6">
+                    <div className="h-full overflow-y-auto p-0 md:p-6">
                         <AISidekicks
                             isDemoMode={isDemoMode}
                             sidekickTemplatesOverride={sidekickTemplatesOverride}
@@ -84,19 +84,11 @@ const AgentAISidekicksPage: React.FC<AgentAISidekicksPageProps> = ({
                                     suggestedQuestions = [
                                         "How would you handle a lead who says they are just looking?",
                                         "Draft a follow-up text for a missed appointment.",
-                                        "Summarize my last conversation with John Doe."
-                                    ];
-                                } else if (s.id === 'sales_marketing') {
-                                    suggestedQuestions = [
+                                        "Summarize my last conversation with Emily Rodriguez.",
                                         "Write an email campaign for a new luxury listing.",
                                         "Create 3 social media posts for an open house.",
-                                        "How should I respond to a lead asking about rates?"
-                                    ];
-                                } else if (s.id === 'listing_agent') {
-                                    suggestedQuestions = [
                                         "Write a listing description for a 3-bed modern home.",
-                                        "What are the key selling points for a home with a pool?",
-                                        "How do I handle a lowball offer?"
+                                        "What are the key selling points for a home with a pool?"
                                     ];
                                 }
 

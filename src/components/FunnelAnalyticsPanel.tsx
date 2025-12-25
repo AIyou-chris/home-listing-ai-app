@@ -20,7 +20,7 @@ const highlightCards = [
     {
         id: 'health',
         icon: 'insights',
-        title: 'Live Funnel Health',
+        title: 'AI Funnel',
         body: 'Track how many leads are captured, contacted, qualified, and booked straight from the dashboard.',
         targetSection: 'funnels' as const,
         bgClass: 'bg-sky-50',
@@ -683,7 +683,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     ) => {
         const isOpen = panelExpanded[panelKey];
         return (
-            <section key={`panel-${panelKey}`} className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
+            <section key={`panel-${panelKey}`} className="bg-white border-y border-slate-200 md:border md:rounded-2xl shadow-sm p-6 space-y-6">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-2">
                         <p className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${badgeClassName}`}>
@@ -894,24 +894,24 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     return (
-        <div className={isEmbedded ? '' : 'bg-slate-50 min-h-full'}>
-            <div className={`${isEmbedded ? '' : 'mx-auto max-w-screen-2xl'} ${isEmbedded ? 'py-6' : 'py-10'} px-4 sm:px-6 lg:px-8`}>
+        <div className={isEmbedded ? '' : 'bg-slate-50 min-h-full pb-24 md:pb-0'}>
+            <div className={`${isEmbedded ? '' : 'mx-auto max-w-screen-2xl'} ${isEmbedded ? 'py-6' : 'py-10'} px-0 md:px-6 lg:px-8`}>
                 {!hideBackButton && onBackToDashboard && (
                     <button
                         type="button"
                         onClick={onBackToDashboard}
-                        className="mb-6 flex items-center space-x-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-800"
+                        className="mb-6 flex items-center space-x-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-800 px-4 md:px-0"
                     >
                         <span className="material-symbols-outlined w-5 h-5">chevron_left</span>
                         <span>Back to Blueprint Overview</span>
                     </button>
                 )}
 
-                <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-4 md:px-0">
                     <div className="space-y-2">
                         <p className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700">
                             <span className="material-symbols-outlined text-base">monitoring</span>
-                            Leads Funnel
+                            AI Funnel
                         </p>
                         <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
                         <p className="text-sm text-slate-500 sm:text-base">
@@ -944,7 +944,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     )}
                 </header>
 
-                <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="hidden md:grid mb-8 grid-cols-1 gap-4 md:grid-cols-3">
                     {highlightCards.map((card) => {
                         const isActive = activeSection === card.targetSection;
                         return (
@@ -1047,7 +1047,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 )}
 
                 {activeSection === 'scoring' && (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="bg-white border-y border-slate-200 md:border md:rounded-2xl p-6 shadow-sm">
                         <div className="mb-6 space-y-2">
                             <p className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
                                 <span className="material-symbols-outlined text-base">workspace_premium</span>
@@ -1063,7 +1063,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 )}
 
                 {activeSection === 'feedback' && (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="bg-white border-y border-slate-200 md:border md:rounded-2xl p-6 shadow-sm">
                         <div className="mb-6 space-y-2">
                             <p className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
                                 <span className="material-symbols-outlined text-base">auto_fix_high</span>
@@ -1086,6 +1086,28 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 initialSignature={customSignature || `Best regards,<br/><strong>${sampleMergeData.agent.name}</strong><br/>${sampleMergeData.agent.phone}`}
                 onSave={setCustomSignature}
             />
+            {/* Mobile Fixed Navigation Bar */}
+            {!isEmbedded && (
+                <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 md:hidden flex justify-around items-center px-2 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                    {highlightCards.map((card) => {
+                        const isActive = activeSection === card.targetSection;
+                        return (
+                            <button
+                                key={card.id}
+                                onClick={() => setActiveSection(card.targetSection)}
+                                className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all ${isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <span className={`material-symbols-outlined text-2xl mb-0.5 ${isActive ? 'filled' : ''}`}>
+                                    {card.icon}
+                                </span>
+                                <span className="text-[10px] font-medium leading-none">
+                                    {card.title.replace('Live ', '').replace('Engine', '').replace('Sequence ', '')}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 };

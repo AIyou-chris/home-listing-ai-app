@@ -1,3 +1,22 @@
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Load environment variables from root-level .env files first so the backend picks up shared config
+dotenv.config({
+  path: path.resolve(__dirname, '../.env.local'),
+  override: false
+});
+dotenv.config({
+  path: path.resolve(__dirname, '../.env'),
+  override: false
+});
+// Finally load any backend-specific .env files (default behaviour)
+dotenv.config({
+  path: path.resolve(__dirname, '.env.local'),
+  override: false
+});
+dotenv.config();
+
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -13,7 +32,6 @@ const { createClient } = require('@supabase/supabase-js');
 const { google } = require('googleapis');
 const crypto = require('crypto');
 const fs = require('fs');
-const path = require('path');
 const os = require('os');
 const multer = require('multer');
 const upload = multer({
@@ -51,23 +69,6 @@ const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
 const { scrapeUrl } = require('./services/scraperService');
-const dotenv = require('dotenv');
-
-// Load environment variables from root-level .env files first so the backend picks up shared config
-dotenv.config({
-  path: path.resolve(__dirname, '../.env.local'),
-  override: false
-});
-dotenv.config({
-  path: path.resolve(__dirname, '../.env'),
-  override: false
-});
-// Finally load any backend-specific .env files (default behaviour)
-dotenv.config({
-  path: path.resolve(__dirname, '.env.local'),
-  override: false
-});
-dotenv.config();
 
 const app = express();
 

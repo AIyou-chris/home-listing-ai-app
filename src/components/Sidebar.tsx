@@ -48,21 +48,23 @@ const NavItem: React.FC<{
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose, isDemoMode = false }) => {
-  const navItems = [
-    { view: 'dashboard', icon: 'home', label: 'Overview' },
+  const [isAiToolsOpen, setIsAiToolsOpen] = React.useState(false);
+
+  const primaryItems = [
+    { view: 'dashboard', icon: 'home', label: 'My Daily Pulse' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
-    { view: 'ai-card', icon: 'badge', label: 'AI Card' },
-    { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
-    { view: 'listings', icon: 'storefront', label: 'AI Listings' },
-    { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
-    { view: 'marketing-reports', icon: 'description', label: 'Marketing Reports' },
-    { view: 'funnel-analytics', icon: 'monitoring', label: 'Leads Funnel' },
-    { view: 'settings', icon: 'settings', label: 'Settings' },
   ];
 
+  const aiToolsItems = [
+    { view: 'ai-card', icon: 'badge', label: 'AI Business Card' },
+    { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Agent Buddy' },
+    { view: 'listings', icon: 'storefront', label: 'AI Listings' },
 
+  ];
 
-
+  const communicationItems = [
+    { view: 'ai-interaction-hub', icon: 'bolt', label: 'AI Communication' },
+  ];
 
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -99,9 +101,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
         </div>
 
 
-        <nav className="flex-1 flex flex-col">
-          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm divide-y divide-slate-200">
-            {navItems.map((item) => (
+        <nav className="flex-1 flex flex-col gap-4">
+          {/* Primary Section */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm flex flex-col">
+            {/* Top Items */}
+            {primaryItems.map((item) => (
               <NavItem
                 key={item.view}
                 viewName={item.view as View}
@@ -113,6 +117,79 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
                 {item.label}
               </NavItem>
             ))}
+
+            {/* AI Tools Expandable Section */}
+            <div className="border-t border-slate-100">
+              <button
+                onClick={() => setIsAiToolsOpen(!isAiToolsOpen)}
+                className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <Icon name="construction" className="text-slate-400" />
+                  <span>AI Tools</span>
+                </div>
+                <Icon name={isAiToolsOpen ? 'expand_less' : 'expand_more'} className="text-slate-400" />
+              </button>
+
+              {isAiToolsOpen && (
+                <div className="divide-y divide-slate-100 bg-slate-50/50">
+                  {aiToolsItems.map((item) => (
+                    <NavItem
+                      key={item.view}
+                      viewName={item.view as View}
+                      activeView={activeView}
+                      setView={setView}
+                      icon={item.icon}
+                      onClose={onClose}
+                    >
+                      {item.label}
+                    </NavItem>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* AI Funnels (Top Level) */}
+            <div className="border-t border-slate-100">
+              <NavItem
+                viewName="funnel-analytics"
+                activeView={activeView}
+                setView={setView}
+                icon="monitoring"
+                onClose={onClose}
+              >
+                AI Funnels
+              </NavItem>
+            </div>
+
+            {/* AI Communication */}
+            <div className="border-t border-slate-100">
+              {communicationItems.map((item) => (
+                <NavItem
+                  key={item.view}
+                  viewName={item.view as View}
+                  activeView={activeView}
+                  setView={setView}
+                  icon={item.icon}
+                  onClose={onClose}
+                >
+                  {item.label}
+                </NavItem>
+              ))}
+            </div>
+
+            {/* Settings (Formerly Systems) */}
+            <div className="border-t border-slate-100">
+              <NavItem
+                viewName="settings"
+                activeView={activeView}
+                setView={setView}
+                icon="settings"
+                onClose={onClose}
+              >
+                Settings
+              </NavItem>
+            </div>
           </div>
 
           {!isDemoMode && (

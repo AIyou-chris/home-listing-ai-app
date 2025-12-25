@@ -41,6 +41,7 @@ export type View =
     | 'listings'
     | 'leads'
     | 'ai-conversations'
+    | 'ai-interaction-hub'
     | 'ai-card-builder'
     | 'ai-card'
     | 'ai-sidekicks'
@@ -57,6 +58,8 @@ export type View =
     | 'landing'
     | 'new-landing'
     | 'signup'
+    | 'payments'
+    | 'marketing'
     | 'checkout'
     | 'signin'
     | 'admin-dashboard'
@@ -107,6 +110,7 @@ export interface Property {
     imageUrl: string;
     ctaListingUrl?: string;
     ctaMediaUrl?: string;
+    ctaContactMode?: 'sidekick' | 'form';
     aiConfig?: {
         voice?: string;
         personalityId?: string;

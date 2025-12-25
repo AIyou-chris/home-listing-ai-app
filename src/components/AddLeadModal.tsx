@@ -13,10 +13,8 @@ export interface NewLeadPayload {
 interface AddLeadModalProps {
     onClose: () => void;
     onAddLead: (leadData: NewLeadPayload) => void;
-    initialData?: {
-        name?: string;
-        message?: string;
-    };
+    initialData?: Partial<NewLeadPayload>;
+    isEditing?: boolean;
 }
 
 const FormRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -57,14 +55,14 @@ const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) 
 );
 
 
-const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onAddLead, initialData }) => {
+const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onAddLead, initialData, isEditing = false }) => {
     const [formData, setFormData] = useState<NewLeadPayload>({
         name: initialData?.name || '',
-        email: '',
-        phone: '',
+        email: initialData?.email || '',
+        phone: initialData?.phone || '',
         message: initialData?.message || '',
-        source: 'Manual Entry',
-        funnelType: ''
+        source: initialData?.source || 'Manual Entry',
+        funnelType: initialData?.funnelType || ''
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -78,7 +76,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onAddLead, initial
     };
 
     return (
-        <Modal title="Add New Lead" onClose={onClose}>
+        <Modal title={isEditing ? "Edit Contact Details" : "Add New Lead"} onClose={onClose}>
             <form onSubmit={handleSubmit}>
                 <div className="p-6">
                     <FormRow>
@@ -122,7 +120,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onAddLead, initial
                         Cancel
                     </button>
                     <button type="submit" className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition">
-                        Add Lead
+                        {isEditing ? 'Save Changes' : 'Add Lead'}
                     </button>
                 </div>
             </form>
