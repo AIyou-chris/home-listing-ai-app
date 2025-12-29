@@ -847,6 +847,11 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                                 value={step.content}
                                                                                 onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
                                                                             />
+                                                                            <div className="flex justify-between items-center mt-1">
+                                                                                <span className="text-[10px] text-slate-400">
+                                                                                    {step.content?.length || 0} characters
+                                                                                </span>
+                                                                            </div>
                                                                             <div className="mt-3">
                                                                                 <label className="block text-xs font-semibold text-slate-600 mb-1">
                                                                                     Attach Image URL (MMS)
@@ -944,52 +949,135 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                            ) : (
+                                                            ) : step.type === 'Task' ? (
                                                                 <div className="space-y-4">
-                                                                    <label className="text-xs font-semibold text-slate-600">
-                                                                        Subject
+                                                                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-5">
+                                                                        <div className="flex items-center gap-2 mb-4">
+                                                                            <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+                                                                                <span className="material-symbols-outlined">assignment_turned_in</span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-emerald-900">Agent Task</h4>
+                                                                                <p className="text-xs text-emerald-700/80">A dedicated reminder for you to take action.</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <label className="block text-xs font-semibold text-emerald-800 mb-1">
+                                                                            Task Title
+                                                                        </label>
                                                                         <input
-                                                                            className="mt-1 w-full text-base font-bold text-slate-900 placeholder:text-slate-300 border-none p-0 focus:ring-0 bg-transparent"
-                                                                            placeholder="Message Subject..."
+                                                                            className="w-full text-sm font-bold text-slate-900 placeholder:text-slate-400 border-emerald-200 rounded-lg p-2.5 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-white mb-3"
+                                                                            placeholder="e.g. Call Lead..."
                                                                             value={step.subject}
                                                                             onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
                                                                         />
-                                                                    </label>
 
-                                                                    <div className="relative">
-                                                                        <div className="flex items-center justify-between mb-2">
-                                                                            <label className="text-xs font-semibold text-slate-600">Message Body</label>
-                                                                            <button
-                                                                                type="button"
-                                                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[10px] font-bold shadow-sm hover:shadow-md transition-all hover:scale-105"
-                                                                            >
-                                                                                <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                                                                                AI Magic
-                                                                            </button>
-                                                                        </div>
-                                                                        <EmailEditor
+                                                                        <label className="block text-xs font-semibold text-emerald-800 mb-1">
+                                                                            Instructions / Details
+                                                                        </label>
+                                                                        <textarea
+                                                                            className="w-full h-24 rounded-lg border-emerald-200 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-sm"
+                                                                            placeholder="Describe what needs to be done..."
                                                                             value={step.content}
-                                                                            onChange={(val) => onUpdateStep(step.id, 'content', val)}
-                                                                            placeholder="Type your message..."
-                                                                            className="min-h-[300px]"
+                                                                            onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
                                                                         />
-                                                                        <div className="flex items-center justify-end gap-2 mt-3">
-                                                                            {/* Action Buttons */}
-                                                                            <button
-                                                                                onClick={() => onSendTest(step)}
-                                                                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm"
-                                                                            >
-                                                                                Send Test
-                                                                            </button>
+
+                                                                        <div className="mt-4">
+                                                                            <label className="block text-[10px] uppercase font-bold text-emerald-600/70 mb-2 tracking-wide">
+                                                                                Quick Ideas
+                                                                            </label>
+                                                                            <div className="flex flex-wrap gap-2">
+                                                                                {[
+                                                                                    { emoji: '📞', label: 'Call Lead', title: 'Call Lead', desc: 'Call {{lead.name}} and ask about their timeline.' },
+                                                                                    { emoji: '📝', label: 'Personal Note', title: 'Send Handwritten Note', desc: 'Write a personal card thanking {{lead.name}}.' },
+                                                                                    { emoji: '📊', label: 'Prepare CMA', title: 'Prepare CMA', desc: 'Run comps for {{lead.interestAddress}} and send video review.' },
+                                                                                    { emoji: '🤝', label: 'Social Connect', title: 'Connect on Social', desc: 'Find {{lead.name}} on LinkedIn/IG and follow up.' }
+                                                                                ].map((idea) => (
+                                                                                    <button
+                                                                                        key={idea.label}
+                                                                                        onClick={() => {
+                                                                                            onUpdateStep(step.id, 'subject', idea.title);
+                                                                                            onUpdateStep(step.id, 'content', idea.desc);
+                                                                                        }}
+                                                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-200 rounded-full text-xs font-semibold text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition-all hover:scale-105 shadow-sm"
+                                                                                    >
+                                                                                        <span>{idea.emoji}</span>
+                                                                                        {idea.label}
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-emerald-200/50">
                                                                             <button
                                                                                 onClick={onSave}
-                                                                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700"
+                                                                                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-emerald-700"
                                                                             >
                                                                                 Save Changes
                                                                             </button>
                                                                         </div>
                                                                     </div>
                                                                 </div>
+                                                            ) : (
+                                                                <div className="space-y-4">
+                                                                    <div className="rounded-xl bg-violet-50 border border-violet-100 p-5">
+                                                                        <div className="flex items-center gap-2 mb-4">
+                                                                            <div className="p-2 bg-violet-100 text-violet-600 rounded-lg">
+                                                                                <span className="material-symbols-outlined">mail</span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-violet-900">Email Content</h4>
+                                                                                <p className="text-xs text-violet-700/80">Design your automated email message.</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <label className="block text-xs font-semibold text-violet-800/90 mb-1">
+                                                                            Subject Line
+                                                                        </label>
+                                                                        <input
+                                                                            className="w-full text-base font-bold text-slate-900 placeholder:text-slate-300 border border-violet-200 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white shadow-sm mb-4"
+                                                                            placeholder="e.g. following up on our chat..."
+                                                                            value={step.subject}
+                                                                            onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
+                                                                        />
+
+                                                                        <div className="relative">
+                                                                            <div className="flex items-center justify-between mb-2">
+                                                                                <label className="text-xs font-semibold text-violet-800/90">Message Body</label>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[10px] font-bold shadow-sm hover:shadow-md transition-all hover:scale-105"
+                                                                                >
+                                                                                    <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                                                                                    AI Magic
+                                                                                </button>
+                                                                            </div>
+                                                                            <div className="border border-violet-200 rounded-lg overflow-hidden shadow-sm bg-white">
+                                                                                <EmailEditor
+                                                                                    value={step.content}
+                                                                                    onChange={(val) => onUpdateStep(step.id, 'content', val)}
+                                                                                    placeholder="Type your message..."
+                                                                                    className="min-h-[300px]"
+                                                                                />
+                                                                            </div>
+                                                                            <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-violet-200/50">
+                                                                                <button
+                                                                                    onClick={() => onSendTest(step)}
+                                                                                    className="px-3 py-1.5 bg-white border border-violet-200 rounded-lg text-xs font-semibold text-violet-700 hover:bg-violet-50 shadow-sm"
+                                                                                >
+                                                                                    Send Test
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={onSave}
+                                                                                    className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-violet-700"
+                                                                                >
+                                                                                    Save Changes
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
                                                             )}
                                                         </div>
 
