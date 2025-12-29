@@ -249,6 +249,10 @@ export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const getSignature = useCallback(() => {
+    if (profile?.socialMedia?.emailSignature) {
+      return profile.socialMedia.emailSignature;
+    }
+
     const lines = [
       contact.name,
       [contact.title, contact.company].filter(Boolean).join(' | '),
@@ -257,7 +261,7 @@ export const AgentBrandingProvider: React.FC<{ children: React.ReactNode }> = ({
       contact.website
     ].filter((line) => line && line.trim().length > 0);
     return lines.join('\n');
-  }, [contact]);
+  }, [contact, profile]);
 
   const signature = useMemo(() => getSignature(), [getSignature]);
 

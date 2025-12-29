@@ -5,6 +5,7 @@ import { googleOAuthService } from './googleOAuthService'
 import { googleMeetService } from './googleMeetService'
 import { emailService } from './emailService'
 import { calendarSettingsService } from './calendarSettingsService'
+import { textingService } from './textingService'
 import type { CalendarSettings } from '../types'
 
 export type AppointmentKind =
@@ -115,10 +116,10 @@ const toIsoRange = (dateStr: string, timeLabel: string): {
   const normalized = dateStr.includes('-')
     ? dateStr
     : dateStr
-        .split('/')
-        .map((p, i) => (i === 2 ? p : p.padStart(2, '0')))
-        .reverse()
-        .join('-')
+      .split('/')
+      .map((p, i) => (i === 2 ? p : p.padStart(2, '0')))
+      .reverse()
+      .join('-')
 
   const { hour, minute } = parseTimeLabel(timeLabel)
   const start = new Date(
@@ -491,7 +492,8 @@ ${normalizedInput.message || 'No additional notes'}
           phone: normalizedInput.phone || '',
           date: normalizedInput.date,
           time: normalizedInput.time,
-          message: normalizedInput.message || ''
+          message: normalizedInput.message || '',
+          location: normalizedInput.propertyAddress || undefined
         },
         calendar.meetLink
       )
@@ -507,7 +509,8 @@ ${normalizedInput.message || 'No additional notes'}
           phone: normalizedInput.phone || '',
           date: normalizedInput.date,
           time: normalizedInput.time,
-          message: normalizedInput.message || ''
+          message: normalizedInput.message || '',
+          location: normalizedInput.propertyAddress || undefined
         },
         calendar.meetLink,
         { userId: agentUserId }
@@ -517,6 +520,16 @@ ${normalizedInput.message || 'No additional notes'}
     }
   } else {
     console.info('ℹ️ Google integrations disabled; skipping calendar event and email sends.')
+  }
+
+  // SMS Notifications
+  if (normalizedInput.phone) {
+    try {
+      const smsMessage = `Hi ${normalizedInput.name}, your ${normalizedInput.kind} is confirmed for ${normalizedInput.date} at ${normalizedInput.time}. \n📍 ${normalizedInput.propertyAddress || 'Check email for details'}`;
+      await textingService.sendSms(normalizedInput.phone, smsMessage);
+    } catch (error) {
+      console.warn('⚠️ SMS notification failed', error);
+    }
   }
 
   const appointmentPayload = {

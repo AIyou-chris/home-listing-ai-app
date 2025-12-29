@@ -1,6 +1,6 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lead, Appointment, LeadStatus, LeadFunnelType, Property } from '../types';
 import { scheduleAppointment } from '../services/schedulerService';
 import { analyticsService } from '../services/analyticsService';
@@ -98,7 +98,8 @@ const LeadsList: React.FC<{
     leadFunnels: Record<string, LeadFunnelType | null>;
     onAssignFunnel?: (lead: Lead, funnel: LeadFunnelType | null) => void | Promise<void>;
     onEditLead?: (lead: Lead) => void;
-}> = ({ leads, onSchedule, onContact, leadFunnels, onAssignFunnel, onEditLead }) => {
+    onDeleteLead?: (leadId: string) => void;
+}> = ({ leads, onSchedule, onContact, leadFunnels, onAssignFunnel, onEditLead, onDeleteLead }) => {
     const navigate = useNavigate();
     const [expandedLeadIds, setExpandedLeadIds] = useState<string[]>([]);
 
@@ -199,6 +200,17 @@ const LeadsList: React.FC<{
                                             <span className="material-symbols-outlined text-sm">chat</span>
                                             View AI Chat
                                         </button>
+                                        <button
+                                            onClick={() => {
+                                                if (window.confirm('Are you sure you want to delete this lead?')) {
+                                                    onDeleteLead?.(lead.id);
+                                                }
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50/50 text-red-600 text-xs font-semibold border border-red-100/50 hover:bg-red-50 hover:border-red-200 transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-sm">delete</span>
+                                            Delete
+                                        </button>
                                     </div>
                                 </div>
 
@@ -279,11 +291,12 @@ const LeadsList: React.FC<{
                                     </button>
                                 </div>
                             </>
-                        )}
+                        )
+                        }
                     </div>
                 );
             })}
-        </div>
+        </div >
     );
 };
 
@@ -329,7 +342,16 @@ const AppointmentsList: React.FC<{ appointments: Appointment[] }> = ({ appointme
                                         )}
                                     </div>
                                     {appt.propertyAddress && (
-                                        <p className="text-sm text-slate-500 mt-0.5 truncate">{appt.propertyAddress}</p>
+                                        <a
+                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appt.propertyAddress)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-slate-500 mt-0.5 truncate hover:text-indigo-600 hover:underline flex items-center gap-1 group/link"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <span className="material-symbols-outlined text-[16px] text-slate-400 group-hover/link:text-indigo-500 transition-colors">location_on</span>
+                                            {appt.propertyAddress}
+                                        </a>
                                     )}
                                     {appt.notes && (
                                         <p className="mt-2 text-sm text-slate-600 max-h-[3.5rem] overflow-hidden">
@@ -390,6 +412,7 @@ interface LeadsAndAppointmentsPageProps {
     onAssignFunnel?: (lead: Lead, funnel: LeadFunnelType | null) => Promise<void> | void;
     onRefreshData?: () => Promise<void> | void;
     onUpdateLead?: (lead: Lead) => void;
+    onDeleteLead?: (leadId: string) => void;
 }
 
 const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
@@ -401,10 +424,21 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     resolvePropertyForLead,
     onAssignFunnel,
     onRefreshData,
-    onUpdateLead
+    onUpdateLead,
+    onDeleteLead
 }) => {
     // const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'leads' | 'appointments'>('leads');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tabParam = searchParams.get('tab');
+    const activeTab = (tabParam === 'appointments' || tabParam === 'leads') ? tabParam : 'leads';
+
+    const setActiveTab = (tab: 'leads' | 'appointments') => {
+        setSearchParams(prev => {
+            const newParams = new URLSearchParams(prev);
+            newParams.set('tab', tab);
+            return newParams;
+        }, { replace: true });
+    };
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
     const [editingLead, setEditingLead] = useState<Lead | null>(null);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -412,6 +446,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [schedulingLead, setSchedulingLead] = useState<Lead | null>(null);
     const [contactingLead, setContactingLead] = useState<Lead | null>(null);
+    const [initialContactTab, setInitialContactTab] = useState<'email' | 'call' | 'sms' | 'note' | undefined>(undefined);
     const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
     const [syncAgeSeconds, setSyncAgeSeconds] = useState(0);
@@ -422,6 +457,39 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
         });
         return initial;
     });
+
+    // Handle deep linking for actions
+    useEffect(() => {
+        const leadId = searchParams.get('id');
+        const action = searchParams.get('action');
+
+        if (leadId && leads.length > 0) {
+            const lead = leads.find(l => l.id === leadId);
+            if (lead) {
+                if (action === 'contact') {
+                    setContactingLead(lead);
+                    const tabParam = searchParams.get('initialTab');
+                    if (tabParam === 'email' || tabParam === 'call' || tabParam === 'sms' || tabParam === 'note') {
+                        setInitialContactTab(tabParam);
+                    } else {
+                        setInitialContactTab(undefined);
+                    }
+                    setIsContactModalOpen(true);
+                } else if (action === 'view') {
+                    setEditingLead(lead);
+                    setIsAddLeadModalOpen(true);
+                }
+
+                // Optional: Clear params after processing to avoid reopening on refresh
+                // setSearchParams(prev => {
+                //      const newParams = new URLSearchParams(prev);
+                //      newParams.delete('id');
+                //      newParams.delete('action');
+                //      return newParams;
+                // }, { replace: true });
+            }
+        }
+    }, [searchParams, leads]);
 
     useEffect(() => {
         setLeadFunnels((prev) => {
@@ -699,6 +767,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                                 leadFunnels={leadFunnels}
                                 onAssignFunnel={handleAssignFunnel}
                                 onEditLead={handleEditLead}
+                                onDeleteLead={onDeleteLead}
                             />
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                                 <div className="lg:col-span-2">
@@ -752,7 +821,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                         const linkedPropertyId =
                             propertyContext?.id || schedulingLead?.interestedProperties?.[0] || undefined;
                         const linkedPropertyAddress =
-                            propertyContext?.address || propertyContext?.title || undefined;
+                            apptData.location || propertyContext?.address || propertyContext?.title || undefined;
                         let scheduledResult: SchedulerResult | null = null;
                         try {
                             scheduledResult = await scheduleAppointment({
@@ -783,7 +852,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                             time: scheduledAt?.time || apptData.time,
                             leadId: schedulingLead?.id ?? null,
                             propertyId: linkedPropertyId ?? null,
-                            propertyAddress: linkedPropertyAddress ?? undefined,
+                            propertyAddress: linkedPropertyAddress ?? apptData.location ?? undefined,
                             notes: apptData.message || '',
                             status: 'Scheduled',
                             leadName: schedulingLead?.name ?? apptData.name,
@@ -805,8 +874,12 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
             {isContactModalOpen && contactingLead && (
                 <ContactLeadModal
                     lead={contactingLead}
-                    onClose={handleCloseContactModal}
+                    onClose={() => {
+                        handleCloseContactModal();
+                        setInitialContactTab(undefined);
+                    }}
                     onSchedule={() => handleSwitchToSchedule(contactingLead)}
+                    initialTab={initialContactTab}
                 />
             )}
             {isExportModalOpen && (

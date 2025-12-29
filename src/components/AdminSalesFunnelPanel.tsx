@@ -126,7 +126,8 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
     const [importing, setImporting] = useState(false);
     const [previewAgent, setPreviewAgent] = useState<AICardProfile | null>(null);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
-    const [customSignature, setCustomSignature] = useState<string>('');
+
+    // Removed customSignature state
 
     // Load AI Card Profile for Signature/Preview
     useEffect(() => {
@@ -155,7 +156,8 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
         const website = previewAgent?.website || 'https://homelistingai.com';
         const cardUrl = previewAgent?.id ? `https://homelistingai.com/card/${previewAgent.id}` : 'https://homelistingai.com/card/demo';
         // Add AI Card Link to signature
-        const signature = `Best,\n${name}\n${title}\n${company}\n${phone}\n${cardUrl}`;
+
+        const signature = previewAgent?.socialMedia?.emailSignature || `Best,\n${name}\n${title}\n${company}\n${phone}\n${cardUrl}`;
 
         return {
             lead: {
@@ -186,10 +188,6 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
     const mergeTokens = (template: string, sourceData: Record<string, unknown> = sampleMergeData) => {
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
             // Override agent.signature if custom signature is set
-            if (path === 'agent.signature' && customSignature) {
-                return customSignature;
-            }
-
             const [bucket, key] = path.split('.');
             if (!bucket || !key) return '';
 
@@ -384,11 +382,11 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                     setProgramSteps(visibleSteps);
 
                     if (signatureStep) {
-                        console.log('Found custom signature:', signatureStep.content);
-                        setCustomSignature(signatureStep.content);
+                        console.log('Found custom signature (deprecated):', signatureStep.content);
+                        // setCustomSignature(signatureStep.content); // Removed
                     } else if (data.signature) {
                         // Fallback to legacy field just in case
-                        setCustomSignature(data.signature);
+                        // setCustomSignature(data.signature); // Removed
                     }
                 } else {
                     setProgramSteps(buildDefaultSteps());
@@ -397,12 +395,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                 console.warn('Fetch Funnel Error:', err);
                 setProgramSteps(buildDefaultSteps());
             } finally {
-                // ALWAYS check local storage as the ultimate fallback/master for this device
-                const localSig = localStorage.getItem('admin_funnel_signature');
-                if (localSig) {
-                    console.log('Restoring signature from LocalStorage');
-                    setCustomSignature(localSig);
-                }
+                // Done
             }
         };
         fetchFunnel();
@@ -450,18 +443,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
         try {
             // Prepare Steps with Metadata (Hidden Signature Step)
             const stepsToSave = [...programSteps];
-            if (customSignature) {
-                stepsToSave.push({
-                    id: 'meta-signature',
-                    title: 'Hidden Signature Metadata',
-                    description: 'Do not edit',
-                    icon: 'lock',
-                    delay: '0',
-                    type: 'Email', // MUST be a valid type to pass backend validation
-                    subject: 'METADATA',
-                    content: customSignature
-                });
-            }
+            // Removed deprecated custom signature saving logic
 
             // Use Backend Proxy to save
             const response = await authService.makeAuthenticatedRequest(`/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
@@ -472,11 +454,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
             });
 
             // Backup to LocalStorage (Immediate persistence reliability)
-            if (customSignature) {
-                localStorage.setItem('admin_funnel_signature', customSignature);
-            } else {
-                localStorage.removeItem('admin_funnel_signature');
-            }
+            localStorage.removeItem('admin_funnel_signature'); // Clean up legacy local storage if present
 
             if (!response.ok) {
                 const err = await response.json();
@@ -638,14 +616,14 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                                                         />
                                                     </label>
                                                     <label className="block text-xs font-semibold text-slate-600">
-                                                        {step.type === 'Call' ? 'AI Script (What the agent should say)' : 'Email Body'}
+                                                        {step.type === 'Call' ? 'AI Script (What the agent should say)' : step.type === 'Text' ? 'SMS Message' : 'Email Body'}
                                                         <div className="mt-1">
-                                                            {step.type === 'Call' ? (
+                                                            {step.type === 'Call' || step.type === 'Text' ? (
                                                                 <textarea
                                                                     className="w-full h-40 rounded-lg border border-slate-200 p-3 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono"
                                                                     value={step.content}
                                                                     onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
-                                                                    placeholder="Write the EXACT opening sentence here. Example: 'Hi {{lead.firstName}}, this is Mark calling from HomeListingAI...'"
+                                                                    placeholder={step.type === 'Call' ? "Write the EXACT opening sentence..." : "Write your text message here. Keep it short!"}
                                                                 />
                                                             ) : (
                                                                 <EmailEditor
@@ -868,20 +846,6 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                             Open Email Library
                         </button>
 
-                        {/* AI Card Link */}
-                        {/* AI Card Link - Hijacked for Signature Editor */}
-                        <button
-                            onClick={() => setIsSignatureModalOpen(true)}
-                            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 shadow-sm transition-colors"
-                        >
-                            <span className="material-symbols-outlined text-indigo-600">badge</span>
-                            Edit Funnel Signature
-                            {customSignature && (
-                                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800">
-                                    Active
-                                </span>
-                            )}
-                        </button>
                     </div>
                 </header>
 
@@ -910,21 +874,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                 />
             )}
 
-            <SignatureEditorModal
-                isOpen={isSignatureModalOpen}
-                onClose={() => setIsSignatureModalOpen(false)}
-                initialSignature={customSignature || sampleMergeData.agent.signature}
-                onSave={(newSig) => {
-                    setCustomSignature(newSig);
-                    // Immediate persistence to browser storage prevents data loss if user navigates away
-                    // without clicking the main "Save" button.
-                    if (newSig) {
-                        localStorage.setItem('admin_funnel_signature', newSig);
-                    } else {
-                        localStorage.removeItem('admin_funnel_signature');
-                    }
-                }}
-            />
+            {/* SignatureEditorModal Removed - Use Global Settings */}
         </div>
     );
 };

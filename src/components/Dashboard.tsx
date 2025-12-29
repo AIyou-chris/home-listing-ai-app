@@ -22,14 +22,21 @@ interface DashboardProps {
     onTaskUpdate?: (taskId: string, updates: Partial<AgentTask>) => void;
     onTaskAdd?: (task: AgentTask) => void;
     onTaskDelete?: (taskId: string) => void;
+    onViewLeads?: (leadId?: string, action?: 'view' | 'contact', initialTab?: 'email' | 'call' | 'sms' | 'note') => void;
+    onViewLogs?: () => void;
+    onViewListings?: () => void;
+    onViewAppointments?: () => void;
     hideWelcome?: boolean;
     hideAvatar?: boolean;
 }
 
 type Tab = 'overview' | 'listings' | 'leads' | 'marketing' | 'payments';
 
-const StatCard: React.FC<{ title: string; value: string; icon: string, bgColor: string, iconColor: string }> = ({ title, value, icon, bgColor, iconColor }) => (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-5 transform hover:-translate-y-1 transition-transform duration-300">
+const StatCard: React.FC<{ title: string; value: string; icon: string, bgColor: string, iconColor: string, onClick?: () => void }> = ({ title, value, icon, bgColor, iconColor, onClick }) => (
+    <div
+        onClick={onClick}
+        className={`bg-white rounded-xl shadow-sm border border-slate-200/60 p-5 transform hover:-translate-y-1 transition-transform duration-300 ${onClick ? 'cursor-pointer hover:shadow-md' : ''}`}
+    >
         <div className="flex items-center">
             <div className={`p-3 rounded-lg ${bgColor}`}>
                 <span className={`material-symbols-outlined h-6 w-6 ${iconColor}`}>{icon}</span>
@@ -99,6 +106,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     onTaskUpdate,
     onTaskAdd,
     onTaskDelete,
+    onViewLeads,
+    onViewLogs,
+    onViewListings,
+    onViewAppointments,
     hideWelcome,
     hideAvatar
 }) => {
@@ -166,6 +177,21 @@ const Dashboard: React.FC<DashboardProps> = ({
         loadLeadScores();
     }, [leads]);
 
+    const handleReviewSarah = () => {
+        if (!onViewLeads) return;
+
+        // Try to find Sarah Jenkins or just Sarah
+        const sarah = leads.find(l => l.name.toLowerCase().includes('sarah'));
+        if (sarah) {
+            onViewLeads(sarah.id);
+        } else {
+            // Find finding the top scoring lead as a fallback if no Sarah
+            const topLeadScore = [...leadScores].sort((a, b) => b.totalScore - a.totalScore)[0];
+            const topLead = topLeadScore ? leads.find(l => l.id === topLeadScore.leadId) : null;
+            onViewLeads(topLead?.id);
+        }
+    };
+
     // Hidden for launch - notification functions will be re-enabled post-launch
     // const handleSendTestNotification = async () => { ... };
     // const handleSendNewLeadNotification = async () => { ... };
@@ -223,11 +249,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 "I've been busy while you were away. I handled 12 new inquiries and pre-qualified Sarah Jenkins—she looks like a serious buyer. Want to review her profile?"
                             </p>
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-start gap-3">
-                                <button className="flex-1 sm:flex-none px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-lg hover:bg-indigo-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                                <button
+                                    onClick={handleReviewSarah}
+                                    className="flex-1 sm:flex-none px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-lg hover:bg-indigo-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                >
                                     <span className="material-symbols-outlined">visibility</span>
                                     Review Sarah
                                 </button>
-                                <button className="flex-1 sm:flex-none px-6 py-4 bg-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center">
+                                <button
+                                    onClick={() => onViewLogs?.()}
+                                    className="flex-1 sm:flex-none px-6 py-4 bg-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center"
+                                >
                                     Show All AI Logs
                                 </button>
                             </div>
@@ -237,7 +269,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Three Column Pulse Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
                 {/* 1. Who Needs Me? */}
                 <SectionCard title="Who Needs Me?" icon="priority_high" defaultOpen={true}>
                     <div className="p-2 space-y-4">
@@ -263,120 +295,171 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <div className="bg-slate-50 rounded-lg p-2 mb-3">
                                         <p className="text-xs text-slate-600 italic line-clamp-2">"{lead.lastMessage || 'Checking new listings in your area...'}"</p>
                                     </div>
-                                    <div className="flex flex-col sm:flex-row gap-2">
-                                        <button className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all active:scale-95">Contact</button>
-                                        <button className="flex-1 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all active:scale-95">View Profile</button>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        <button
+                                            onClick={() => lead.phone ? window.location.href = `tel:${lead.phone}` : onViewLeads?.(lead.id, 'contact', 'call')}
+                                            className="col-span-1 py-2.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-bold hover:bg-green-100 transition-all flex flex-col items-center justify-center gap-1"
+                                            title="Call Lead"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">call</span>
+                                            <span className="hidden sm:inline">Call</span>
+                                        </button>
+                                        <button
+                                            onClick={() => onViewLeads?.(lead.id, 'contact', 'note')}
+                                            className="col-span-1 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100 transition-all flex flex-col items-center justify-center gap-1"
+                                            title="Add Note"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">edit_note</span>
+                                            <span className="hidden sm:inline">Note</span>
+                                        </button>
+                                        <button
+                                            onClick={() => onViewLeads?.(lead.id, 'contact', 'email')}
+                                            className="col-span-1 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-1"
+                                            title="Send Email"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">mail</span>
+                                            <span className="hidden sm:inline">Email</span>
+                                        </button>
+                                        <button
+                                            onClick={() => onViewLeads?.(lead.id, 'view')}
+                                            className="col-span-1 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-1"
+                                            title="View Profile"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">person</span>
+                                            <span className="hidden sm:inline">Profile</span>
+                                        </button>
                                     </div>
                                 </div>
                             );
                         })}
-                        {leads.length === 0 && <p className="text-center text-sm text-slate-400 p-8 italic">Silence is golden. No urgent leads right now.</p>}
-                        <button className="w-full py-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors">See All Leads →</button>
-                    </div>
-                </SectionCard>
-
-                {/* 2. My Day */}
-                <SectionCard title="My Day" icon="calendar_clock">
-                    <div className="p-2 space-y-4">
-                        {appointments.length > 0 ? (
-                            <div className="relative border-l-2 border-slate-100 ml-4 pl-6 space-y-6 py-2">
-                                {appointments.slice(0, 4).map(appt => (
-                                    <div key={appt.id} className="relative">
-                                        <div className="absolute -left-[31px] top-1 w-2.5 h-2.5 rounded-full bg-white border-2 border-indigo-500 shadow-sm z-10"></div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">{appt.time}</span>
-                                            <h4 className="font-bold text-slate-900 text-sm mt-0.5 line-clamp-1">{appt.leadName || 'Unnamed Appointment'}</h4>
-                                            <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                                                <span className="material-symbols-outlined text-xs">location_on</span>
-                                                {appt.propertyAddress || 'Virtual Meeting'}
-                                            </p>
-                                            <div className="flex gap-2 mt-2">
-                                                <span className="px-2 py-0.5 bg-slate-100 text-[10px] font-bold text-slate-600 rounded-full">{appt.status}</span>
-                                                {appt.meetLink && <span className="px-2 py-0.5 bg-blue-50 text-[10px] font-bold text-blue-600 rounded-full">Zoom</span>}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="py-12 text-center">
-                                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <span className="material-symbols-outlined text-slate-300 text-3xl">event_busy</span>
+                        {leads.length === 0 && (
+                            <div className="p-8 text-center">
+                                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                                    <span className="material-symbols-outlined text-3xl">inbox</span>
                                 </div>
-                                <p className="text-sm text-slate-400 italic">Clear schedule. Enjoy the quiet!</p>
+                                <p className="text-slate-500 font-medium">No leads requiring attention right now.</p>
+                                <p className="text-sm text-slate-400">Time to generate some buzz! 🐝</p>
                             </div>
                         )}
-                        <button className="w-full py-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors">Manage Calendar →</button>
+
+                        <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                            <button
+                                onClick={() => onViewLeads?.()}
+                                className="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center justify-center gap-1"
+                            >
+                                See all leads
+                                <span className="material-symbols-outlined text-base">arrow_forward</span>
+                            </button>
+                        </div>
                     </div>
                 </SectionCard>
 
-                {/* 3. AI Night Shift */}
-                <SectionCard title="AI Night Shift" icon="bedtime">
-                    <div className="p-4 space-y-6">
-                        <div className="text-center mb-6">
-                            <div className="inline-flex items-center justify-center p-3 bg-indigo-50 rounded-2xl mb-3">
-                                <span className="text-3xl font-black text-indigo-600">12</span>
-                            </div>
-                            <h4 className="text-sm font-bold text-slate-900">Total Chats Handled</h4>
-                            <p className="text-xs text-slate-500 mt-1">While you were offline</p>
-                        </div>
-
-                        <div className="space-y-3">
-                            {[
-                                { label: 'Leads Qualified', value: 5, color: 'text-green-600', bg: 'bg-green-50' },
-                                { label: 'Appointments Booked', value: 1, color: 'text-orange-600', bg: 'bg-orange-50' },
-                                { label: 'FAQs Answered', value: 34, color: 'text-blue-600', bg: 'bg-blue-50' },
-                                { label: 'Handover Ready', value: 2, color: 'text-purple-600', bg: 'bg-purple-50' }
-                            ].map(stat => (
-                                <div key={stat.label} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                    <span className="text-xs font-bold text-slate-600">{stat.label}</span>
-                                    <span className={`px-2 py-0.5 ${stat.bg} ${stat.color} rounded-lg text-xs font-black`}>{stat.value}</span>
+                {/* My Day (Appointments & Tasks) */}
+                <SectionCard title="My Day" icon="calendar_month" defaultOpen={true}>
+                    <div className="p-5">
+                        <div className="space-y-4">
+                            {/* Next Appointment */}
+                            {appointments.length > 0 ? (
+                                <div className="p-4 bg-violet-50 rounded-xl border border-violet-100">
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <div className="p-2 bg-white rounded-lg text-violet-600 shadow-sm">
+                                            <span className="material-symbols-outlined">event</span>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-violet-600 uppercase tracking-wider">Next Up</p>
+                                            <h4 className="font-bold text-slate-900 text-sm">
+                                                {new Date(appointments[0].date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                {' - '}{appointments[0].type || 'Appointment'}
+                                            </h4>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-slate-600 pl-[3.25rem]">
+                                        With {appointments[0].leadName || 'Client'}
+                                    </p>
                                 </div>
-                            ))}
-                        </div>
+                            ) : (
+                                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center py-6">
+                                    <p className="text-slate-500 text-sm font-medium">No appointments today</p>
+                                    <p className="text-xs text-slate-400">Enjoy the focus time!</p>
+                                </div>
+                            )}
 
-                        <div className="mt-6 p-4 bg-indigo-600 rounded-2xl text-white text-center">
-                            <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">AI Efficiency</p>
-                            <p className="text-2xl font-black">98%</p>
-                            <div className="w-full bg-white/20 rounded-full h-1.5 mt-2">
-                                <div className="bg-white rounded-full h-1.5" style={{ width: '98%' }}></div>
+                            {/* Top 3 Tasks */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Priority Tasks</h4>
+                                    <button className="text-xs font-bold text-indigo-600 hover:text-indigo-800" onClick={() => setIsTaskManagerOpen(true)}>Manage</button>
+                                </div>
+
+                                {tasks.filter(t => !t.isCompleted).slice(0, 3).map(task => (
+                                    <div key={task.id} className="flex items-center gap-3 group">
+                                        <button
+                                            onClick={() => onTaskUpdate && onTaskUpdate(task.id, { isCompleted: !task.isCompleted })}
+                                            className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${task.isCompleted ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 hover:border-indigo-500'}`}
+                                        >
+                                            {task.isCompleted && <span className="material-symbols-outlined text-white text-xs">check</span>}
+                                        </button>
+                                        <span className={`text-sm ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.text}</span>
+                                        <TaskPriorityIndicator priority={task.priority} />
+                                    </div>
+                                ))}
+
+                                {tasks.filter(t => !t.isCompleted).length === 0 && (
+                                    <div className="text-center py-4">
+                                        <p className="text-sm text-slate-400 italic">All caught up!</p>
+                                    </div>
+                                )}
+
                             </div>
+
+                            <button
+                                onClick={() => onViewAppointments?.()}
+                                className="w-full py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined">edit_calendar</span>
+                                Manage Calendar
+                            </button>
                         </div>
-                        <button className="w-full py-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors">Review Activity Log →</button>
                     </div>
                 </SectionCard>
             </div>
 
+
+
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm transition-all hover:bg-slate-50 cursor-pointer group">
-                    <div className="flex items-center gap-3 mb-2 text-blue-600">
-                        <span className="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">home_work</span>
-                        <span className="text-2xl font-black text-slate-900">{properties.length}</span>
-                    </div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none">AI Listings</p>
-                </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm transition-all hover:bg-slate-50 cursor-pointer group">
-                    <div className="flex items-center gap-3 mb-2 text-green-600">
-                        <span className="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">group</span>
-                        <span className="text-2xl font-black text-slate-900">{leads.length}</span>
-                    </div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none">Total Leads</p>
-                </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm transition-all hover:bg-slate-50 cursor-pointer group">
-                    <div className="flex items-center gap-3 mb-2 text-orange-600">
-                        <span className="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">local_fire_department</span>
-                        <span className="text-2xl font-black text-slate-900">{hotLeadsCount}</span>
-                    </div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none">Hot Leads</p>
-                </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm transition-all hover:bg-slate-50 cursor-pointer group">
-                    <div className="flex items-center gap-3 mb-2 text-indigo-600">
-                        <span className="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">trending_up</span>
-                        <span className="text-2xl font-black text-slate-900">{averageScore}</span>
-                    </div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none">Avg Score</p>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+                <StatCard
+                    title="Active Listings"
+                    value={properties.length.toString()}
+                    icon="home"
+                    bgColor="bg-blue-50"
+                    iconColor="text-blue-600"
+                    onClick={() => onViewListings?.()}
+                />
+                <StatCard
+                    title="Total Leads"
+                    value={leads.length.toString()}
+                    icon="group"
+                    bgColor="bg-indigo-50"
+                    iconColor="text-indigo-600"
+                    onClick={() => onViewLeads?.()}
+                />
+                <StatCard
+                    title="Hot Leads"
+                    value={hotLeadsCount.toString()}
+                    icon="local_fire_department"
+                    bgColor="bg-orange-50"
+                    iconColor="text-orange-600"
+                    onClick={() => onViewLeads?.()}
+                />
+                <StatCard
+                    title="Avg Lead Score"
+                    value={averageScore.toString()}
+                    icon="speed"
+                    bgColor="bg-green-50"
+                    iconColor="text-green-600"
+                    onClick={() => onViewLeads?.()}
+                />
             </div>
 
             {/* Lead Scoring Overview */}

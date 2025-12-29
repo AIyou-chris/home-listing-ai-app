@@ -86,6 +86,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
   });
   const headshotInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const bgInputRef = useRef<HTMLInputElement>(null);
   const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
@@ -341,6 +342,30 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
     setHasUnsavedChanges(true);
   };
 
+  const handleBackgroundUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const uploadResult = await uploadAiCardAsset('background', file);
+      const url = uploadResult.url || uploadResult.path;
+      handleBackgroundChange(url);
+    } catch (error) {
+      console.error('Failed to upload background:', error);
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('User authentication required')) {
+        try {
+          const dataUrl = await fileToDataUrl(file);
+          handleBackgroundChange(dataUrl);
+        } catch (e) {
+          console.error('Failed to fallback background:', e);
+        }
+      }
+    } finally {
+      if (event.target) event.target.value = '';
+    }
+  };
+
   const handleImageUpload = async (type: 'headshot' | 'logo', event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) {
@@ -428,12 +453,35 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
   const handleGenerateQRCode = async () => {
     try {
       setIsLoading(true);
-      const qrData = await generateQRCode(form.id);
+
+      // 1. Construct Long URL
+      const baseUrl = window.location.origin;
+      const longUrl = `${baseUrl}/card/${form.id}`;
+
+      // 2. Shorten URL (Internal Backend)
+      let targetUrl = longUrl;
+      try {
+        const res = await fetch(`${baseUrl}/api/shorten`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: longUrl })
+        });
+        const data = await res.json();
+        if (data.success && data.shortUrl) {
+          targetUrl = data.shortUrl;
+          console.log('✅ URL Shortened:', targetUrl);
+        }
+      } catch (err) {
+        console.warn('Shortener failed, using long URL', err);
+      }
+
+      // 3. Generate QR for target URL
+      const qrData = await generateQRCode(form.id, targetUrl); // Modified service expected to accept custom URL, or I check service logic
 
       // Download the QR code
       const link = document.createElement('a');
       link.href = qrData.qrCode;
-      link.download = `ai - card - qr - ${form.fullName.replace(/\s+/g, '-').toLowerCase()}.png`;
+      link.download = `ai-card-qr-${form.fullName.replace(/\s+/g, '-').toLowerCase()}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -453,6 +501,46 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       console.log('✅ AI Card downloaded');
     } catch (error) {
       console.error('Failed to download AI Card:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      setIsLoading(true);
+      const baseUrl = window.location.origin;
+      // In a real app, form.id would be the public ID. For demo, we might need a fallback.
+      let shareId = form.id;
+      if (!isDemoMode) {
+        try {
+          const { data } = await supabase.auth.getUser();
+          if (data?.user?.id) shareId = data.user.id;
+        } catch (e) { }
+      }
+
+      const longUrl = `${baseUrl}/card/${shareId}`;
+      let targetUrl = longUrl;
+
+      try {
+        const res = await fetch(`${baseUrl}/api/shorten`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: longUrl })
+        });
+        const data = await res.json();
+        if (data.success && data.shortUrl) {
+          targetUrl = data.shortUrl;
+        }
+      } catch (err) {
+        console.warn('Shortener failed, using long URL', err);
+      }
+
+      await navigator.clipboard.writeText(targetUrl);
+      alert(`Link copied to clipboard!\n${targetUrl}`);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      alert('Failed to copy link.');
     } finally {
       setIsLoading(false);
     }
@@ -713,6 +801,16 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                 className="flex items-center justify-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs sm:text-sm font-medium flex-1 sm:flex-none disabled:opacity-50"
               >
                 <span>{isSaving ? 'Saving…' : hasUnsavedChanges ? 'Save Changes' : 'Saved'}</span>
+              </button>
+
+              <button
+                onClick={handleCopyLink}
+                disabled={isLoading}
+                className="flex items-center justify-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs sm:text-sm font-medium flex-1 sm:flex-none disabled:opacity-50"
+              >
+                <Share2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">{isLoading ? 'Copying...' : 'Copy Link'}</span>
+                <span className="xs:hidden">Link</span>
               </button>
 
               <button
@@ -1035,6 +1133,24 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                       )}
                     </button>
                   ))}
+
+                  {/* Upload Custom Background Button */}
+                  <button
+                    onClick={() => bgInputRef.current?.click()}
+                    className="relative group rounded-lg overflow-hidden aspect-video border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all flex flex-col items-center justify-center gap-2"
+                  >
+                    <div className="p-2 bg-gray-100 rounded-full group-hover:bg-blue-100 transition-colors">
+                      <Upload className="w-5 h-5 text-gray-500 group-hover:text-blue-600" />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-500 group-hover:text-blue-600">Upload Image</span>
+                  </button>
+                  <input
+                    ref={bgInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBackgroundUpload}
+                    className="hidden"
+                  />
                 </div>
               </CollapsibleSection>
 

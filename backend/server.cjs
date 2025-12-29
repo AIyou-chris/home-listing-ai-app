@@ -63,12 +63,14 @@ const {
 const {
   getCalendarSettings,
   updateCalendarSettings: updateCalendarPreferences,
-  saveCalendarConnection
+  saveCalendarConnection,
+  getCalendarCredentials
 } = require('./utils/calendarSettings');
 const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
 const { scrapeUrl } = require('./services/scraperService');
+const { sendSms } = require('./services/smsService');
 
 const app = express();
 
@@ -104,7 +106,144 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: true, limit: '16mb' }));
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false // Disable CSP for demo flexibility
+}));
+
+// URL SHORTENER STORE (File-based)
+const SHORT_LINKS_FILE = path.join(__dirname, 'data', 'shortLinks.json');
+const loadShortLinks = () => {
+  try {
+    if (fs.existsSync(SHORT_LINKS_FILE)) {
+      return JSON.parse(fs.readFileSync(SHORT_LINKS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Failed to load short links:', e);
+  }
+  return {};
+};
+const saveShortLinks = (links) => {
+  try {
+    fs.writeFileSync(SHORT_LINKS_FILE, JSON.stringify(links, null, 2));
+  } catch (e) {
+    console.error('Failed to save short links:', e);
+  }
+};
+
+// ANALYTICS STORE (File-based for Views)
+const ANALYTICS_FILE = path.join(__dirname, 'data', 'propertyAnalytics.json');
+const loadAnalytics = () => {
+  try {
+    if (fs.existsSync(ANALYTICS_FILE)) {
+      return JSON.parse(fs.readFileSync(ANALYTICS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Failed to load analytics:', e);
+  }
+  return {};
+};
+const saveAnalytics = (data) => {
+  try {
+    fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('Failed to save analytics:', e);
+  }
+};
+
+// URL SHORTENER ROUTES
+app.get('/s/:slug', (req, res) => {
+  const { slug } = req.params;
+  const links = loadShortLinks();
+  const target = links[slug];
+
+  if (target) {
+    // Track click (basic)
+    console.log(`🔀 Redirecting short link /s/${slug} -> ${target.url}`);
+    if (target.clicks !== undefined) {
+      target.clicks++;
+      target.lastClicked = new Date().toISOString();
+      saveShortLinks(links);
+    }
+    return res.redirect(target.url);
+  }
+
+  res.status(404).send('Link not found');
+});
+
+app.post('/api/shorten', (req, res) => {
+  const { url, customSlug } = req.body;
+  if (!url) return res.status(400).json({ error: 'URL is required' });
+
+  const links = loadShortLinks();
+
+  // Check duplicates
+  for (const [slug, data] of Object.entries(links)) {
+    if (data.url === url) {
+      return res.json({ success: true, slug, shortUrl: `${process.env.APP_BASE_URL || req.protocol + '://' + req.get('host')}/s/${slug}` });
+    }
+  }
+
+  let slug = customSlug;
+  if (!slug) {
+    // Generate 6-char slug
+    slug = crypto.randomBytes(3).toString('hex');
+    while (links[slug]) {
+      slug = crypto.randomBytes(3).toString('hex');
+    }
+  } else if (links[slug]) {
+    return res.status(400).json({ error: 'Custom slug already taken' });
+  }
+
+  links[slug] = {
+    url,
+    created: new Date().toISOString(),
+    clicks: 0
+  };
+  saveShortLinks(links);
+
+  const shortUrl = `${process.env.APP_BASE_URL || req.protocol + '://' + req.get('host')}/s/${slug}`;
+  res.json({ success: true, slug, shortUrl });
+});
+
+// ANALYTICS ROUTES
+app.get('/api/analytics/link-stats/:slug', (req, res) => {
+  const { slug } = req.params;
+  const links = loadShortLinks();
+  const target = links[slug];
+
+  if (target) {
+    res.json({
+      success: true,
+      clicks: target.clicks || 0,
+      lastClicked: target.lastClicked || null
+    });
+  } else {
+    res.status(404).json({ success: false, error: 'Link not found' });
+  }
+});
+
+app.post('/api/analytics/view', (req, res) => {
+  const { propertyId } = req.body;
+  if (!propertyId) return res.status(400).json({ error: 'Property ID required' });
+
+  const analytics = loadAnalytics();
+  if (!analytics[propertyId]) {
+    analytics[propertyId] = { views: 0 };
+  }
+
+  analytics[propertyId].views++;
+  analytics[propertyId].lastViewed = new Date().toISOString();
+  saveAnalytics(analytics);
+
+  res.json({ success: true, views: analytics[propertyId].views });
+});
+
+app.get('/api/analytics/view-stats/:propertyId', (req, res) => {
+  const { propertyId } = req.params;
+  const analytics = loadAnalytics();
+  const data = analytics[propertyId] || { views: 0 };
+  res.json({ success: true, views: data.views });
+});
 
 // Request Tracking Middleware
 app.use((req, res, next) => {
@@ -4386,14 +4525,193 @@ app.post('/api/webhooks/incoming-lead', async (req, res) => {
 
     console.log(`✅ Webhook lead processed: ${mappedLead.name} (${mappedLead.email})`);
 
-    // Trigger notification logic if needed (optional)
-    // await sendNewLeadNotification(mappedLead); 
+    // Trigger notification logic
+    try {
+      const prefs = await getNotificationPreferences(assignedUserId);
+      if (prefs.smsNewLeadAlerts && prefs.notificationPhone) {
+        const msg = `🔥 New Lead Alert!\nName: ${mappedLead.name}\nContact: ${mappedLead.phone || mappedLead.email || 'N/A'}\nSource: ${mappedLead.source}`;
+        // Verify phone number format? sendSms handles it usually.
+        await sendSms(prefs.notificationPhone, msg);
+        console.log(`📱 Sent SMS alert to Agent at ${prefs.notificationPhone}`);
+      }
+    } catch (notifyErr) {
+      console.warn('Failed to send SMS alert:', notifyErr.message);
+    }
 
     res.json({ success: true, leadId: mappedLead.id });
 
   } catch (err) {
     console.error('Webhook endpoint error:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Helper: Generate AI SMS Reply
+const generateAiSmsReply = async ({ history, leadName, agentName }) => {
+  const systemPrompt = `You are ${agentName || 'the AI assistant'}. 
+You are texting with a real estate lead named ${leadName || 'Friend'}.
+Your goal is to be helpful, professional, and friendly.
+Keep responses concise (SMS format). Max 2-3 sentences.
+Do not use markdown. Do not be pushy.
+If you don't know the answer, ask for clarification or offer to have the agent call them.`;
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.map(m => ({
+      role: (m.sender === 'user' || m.sender === 'lead') ? 'user' : 'assistant',
+      content: m.content || m.text || ''
+    }))
+  ];
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      max_tokens: 200,
+      temperature: 0.7
+    });
+    return completion.choices[0]?.message?.content;
+  } catch (err) {
+    console.error('AI SMS Generation Failed:', err);
+    return "I received your message and passed it to the agent. They will reply shortly.";
+  }
+};
+
+// Webhook for Telnyx Inbound SMS
+app.post('/api/webhooks/telnyx/inbound', async (req, res) => {
+  try {
+    const event = req.body;
+    // Telnyx sends many events, we only care about 'message.received'
+    if (event?.data?.event_type !== 'message.received') {
+      return res.sendStatus(200);
+    }
+
+    const payload = event.data.payload;
+    const fromPhone = payload.from?.phone_number;
+    const textBody = payload.text;
+
+    // Safety check
+    if (!fromPhone || !textBody) {
+      return res.sendStatus(200);
+    }
+
+    console.log(`📩 Inbound SMS from ${fromPhone}: "${textBody}"`);
+
+    // 1. Find the lead by phone
+    const { data: lead } = await supabaseAdmin
+      .from('leads')
+      .select('id, user_id, name')
+      .eq('phone', fromPhone)
+      .maybeSingle();
+
+    if (!lead) {
+      console.warn(`[SMS] Received text from unknown number: ${fromPhone}. (Skipping conversation handling)`);
+      return res.sendStatus(200);
+    }
+
+    // 2. Find active conversation
+    const { data: conversations } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id')
+      .eq('lead_id', lead.id)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    let conversationId = conversations?.[0]?.id;
+
+    // 3. If no active conversation, create one
+    if (!conversationId) {
+      console.log(`[SMS] No active conversation for ${lead.name}. Creating one.`);
+      const { data: newConv } = await supabaseAdmin
+        .from('ai_conversations')
+        .insert({
+          user_id: lead.user_id,
+          lead_id: lead.id,
+          title: `SMS with ${lead.name}`,
+          type: 'sms',
+          status: 'active',
+          contact_name: lead.name,
+          contact_phone: fromPhone,
+          updated_at: new Date().toISOString()
+        })
+        .select('id')
+        .single();
+      conversationId = newConv?.id;
+    }
+
+    if (conversationId) {
+      // 4. Insert Message
+      await supabaseAdmin.from('ai_conversation_messages').insert({
+        conversation_id: conversationId,
+        user_id: lead.user_id,
+        sender: 'lead',
+        channel: 'sms',
+        content: textBody,
+        created_at: new Date().toISOString()
+      });
+      console.log(`✅ [SMS] Saved to conversation ${conversationId}`);
+
+      // 5. Update Conversation Metadata
+      await supabaseAdmin.from('ai_conversations').update({
+        last_message: textBody,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }).eq('id', conversationId);
+
+      // Respond to Telnyx immediately
+      res.sendStatus(200);
+
+      // --- ASYNC AI AUTO-REPLY ---
+      (async () => {
+        try {
+          // Check preferences ?
+          const shouldAutoReply = true;
+
+          if (shouldAutoReply) {
+            // Fetch History
+            const { data: history } = await supabaseAdmin
+              .from('ai_conversation_messages')
+              .select('*')
+              .eq('conversation_id', conversationId)
+              .order('created_at', { ascending: true })
+              .limit(10);
+
+            const agentName = 'Agent';
+            const aiResponse = await generateAiSmsReply({ history: history || [], leadName: lead.name, agentName });
+
+            if (aiResponse) {
+              console.log(`🤖 AI Auto-Replying to ${fromPhone}: "${aiResponse}"`);
+              await sendSms(fromPhone, aiResponse);
+
+              // Save AI Reply
+              await supabaseAdmin.from('ai_conversation_messages').insert({
+                conversation_id: conversationId,
+                user_id: lead.user_id,
+                sender: 'ai',
+                channel: 'sms',
+                content: aiResponse,
+                created_at: new Date().toISOString()
+              });
+
+              // Update Last Message again
+              await supabaseAdmin.from('ai_conversations').update({
+                last_message: aiResponse,
+                last_message_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }).eq('id', conversationId);
+            }
+          }
+        } catch (bgError) {
+          console.error('Background AI Reply Error:', bgError);
+        }
+      })();
+      return;
+    }
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Telnyx Inbound Error:', error);
+    res.status(500).send(error.message);
   }
 });
 
@@ -4472,14 +4790,10 @@ app.post('/api/admin/leads', async (req, res) => {
             isImmediate = true;
           }
 
-          if (isImmediate && (firstStep.type === 'Email' || firstStep.type === 'email')) {
-            // Trigger Email
+          if (isImmediate) {
+            // Shared Logic: Fetch Profile & Prepare Tokens
             const agentProfile = await fetchAiCardProfileForUser(assignedUserId);
 
-            let subject = firstStep.subject || '';
-            let content = firstStep.content || firstStep.emailBody || firstStep.body || '';
-
-            // Token Replacement
             const safeName = name || '';
             const safeFirstName = safeName.split(' ')[0] || '';
             const agentName = agentProfile?.fullName || 'Your Agent';
@@ -4488,31 +4802,45 @@ app.post('/api/admin/leads', async (req, res) => {
             const agentWebsite = agentProfile?.website || '';
 
             const replaceTokens = (str) => {
-              return str
+              return (str || '')
                 .replace(/{{lead.name}}/g, safeName)
                 .replace(/{{lead.first_name}}/g, safeFirstName)
                 .replace(/{{agent.name}}/g, agentName)
                 .replace(/{{agent.phone}}/g, agentPhone)
                 .replace(/{{agent.email}}/g, agentEmail)
                 .replace(/{{agent.website}}/g, agentWebsite)
-                .replace(/{{agent_first_name}}/g, agentName.split(' ')[0]) // Legacy token support
-                .replace(/{{client_first_name}}/g, safeFirstName); // Legacy token support
+                .replace(/{{agent_first_name}}/g, agentName.split(' ')[0])
+                .replace(/{{client_first_name}}/g, safeFirstName);
             };
 
-            subject = replaceTokens(subject);
-            content = replaceTokens(content);
+            const stepType = (firstStep.type || '').toLowerCase();
 
-            console.log(`[Funnel] Triggering immediate email to ${email} for funnel ${funnelId}`);
+            // --- EMAIL STEP ---
+            if (stepType === 'email' || stepType === 'ai-email') {
+              let subject = replaceTokens(firstStep.subject || '');
+              let content = replaceTokens(firstStep.content || firstStep.emailBody || firstStep.body || '');
 
-            // Send (Fire & Forget to avoid blocking import loop)
-            emailService.sendEmail({
-              to: email,
-              subject,
-              text: content,
-              html: content.replace(/\n/g, '<br/>'),
-              from: agentEmail,
-              tags: ['funnel-trigger', funnelId, 'step-1']
-            }).catch(err => console.error(`[Funnel] Failed to send email to ${email}`, err));
+              console.log(`[Funnel] Triggering immediate email to ${email} for funnel ${funnelId}`);
+
+              emailService.sendEmail({
+                to: email,
+                subject,
+                text: content,
+                html: content.replace(/\n/g, '<br/>'),
+                from: agentEmail,
+                tags: ['funnel-trigger', funnelId, 'step-1']
+              }).catch(err => console.error(`[Funnel] Failed to send email to ${email}`, err));
+            }
+
+            // --- SMS STEP ---
+            else if ((stepType === 'sms' || stepType === 'text') && phone) {
+              let content = replaceTokens(firstStep.content || '');
+              let mediaUrls = firstStep.mediaUrl ? [firstStep.mediaUrl] : [];
+
+              console.log(`[Funnel] Triggering immediate SMS to ${phone} for funnel ${funnelId}`);
+
+              sendSms(phone, content, mediaUrls).catch(err => console.error(`[Funnel] Failed to send SMS to ${phone}`, err));
+            }
           }
 
           // ENROLL IN ACTIVE FOLLOW-UPS FOR FUTURE STEPS (Step 2+)
@@ -5008,6 +5336,105 @@ app.get('/api/leads/scoring-rules', (req, res) => {
   } catch (error) {
     console.error('Get scoring rules error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Create new lead (Public/Internal) with SMS Alerts
+app.post('/api/leads', async (req, res) => {
+  try {
+    const { name, email, phone, agentId, notes, source } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ success: false, error: 'Name and Email are required' });
+    }
+
+    const payload = {
+      name,
+      email,
+      phone,
+      agent_id: agentId,
+      notes,
+      source: source || 'web',
+      status: 'New',
+      created_at: new Date().toISOString()
+    };
+
+    let savedLead = null;
+
+    // 1. Save to Supabase (if configured)
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const { data, error } = await supabaseAdmin
+        .from('leads')
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase INSERT lead error:', error);
+        // Fallback or continue? We should probably fail if DB fails, but for demo we can proceed.
+      } else {
+        savedLead = data;
+      }
+    }
+
+    // 2. SMS Notifications
+    if (agentId) {
+      const prefs = await getNotificationPreferences(agentId);
+
+      if (prefs.smsNewLeadAlerts) {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinutes = now.getMinutes();
+        const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
+
+        const start = prefs.smsActiveHoursStart || '08:00';
+        const end = prefs.smsActiveHoursEnd || '21:00';
+
+        let isWithin = false;
+        if (start <= end) {
+          // Standard day range (e.g. 08:00 to 21:00)
+          isWithin = currentTime >= start && currentTime <= end;
+        } else {
+          // Overnight range (e.g. 21:00 to 08:00)
+          isWithin = currentTime >= start || currentTime <= end;
+        }
+
+        if (isWithin) {
+          console.log(`🔔 Sending SMS Alert for Agent ${agentId} at ${currentTime}`);
+
+          // Fetch Agent Phone
+          // If we can't fetch from DB, we might check a local store or fallback.
+          let agentPhone = null;
+
+          if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            const { data: agent } = await supabaseAdmin
+              .from('agents')
+              .select('phone')
+              .eq('id', agentId)
+              .single();
+            if (agent) agentPhone = agent.phone;
+          }
+
+          // Fallback mechanism if no DB agent phone (e.g. for demo with your specific number)
+          // For now, if no agent phone found, we log warning.
+
+          if (agentPhone) {
+            const smsMessage = `New Lead Alert: ${name} just signed up! 📞 ${phone || 'No phone'} 📧 ${email}`;
+            await sendSms(agentPhone, smsMessage);
+          } else {
+            console.warn(`⚠️ SMS Alert skipped: No phone number found for Agent ${agentId}`);
+          }
+        } else {
+          console.log(`🔕 SMS Alert muted: Current time ${currentTime} is outside active hours (${start}-${end})`);
+        }
+      }
+    }
+
+    res.json({ success: true, lead: savedLead || payload });
+
+  } catch (error) {
+    console.error('Create lead error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -5813,10 +6240,10 @@ app.post('/api/admin/email/quick-send', async (req, res) => {
 });
 
 // Notification preferences
-app.get('/api/notifications/preferences/:userId', (req, res) => {
+app.get('/api/notifications/preferences/:userId', async (req, res) => {
   try {
     const { userId } = req.params
-    const preferences = getNotificationPreferences(userId)
+    const preferences = await getNotificationPreferences(userId)
     res.json({ success: true, preferences })
   } catch (error) {
     console.error('Error fetching notification preferences:', error)
@@ -5873,11 +6300,11 @@ app.post('/api/language/detect', async (req, res) => {
   }
 })
 
-app.patch('/api/notifications/preferences/:userId', (req, res) => {
+app.patch('/api/notifications/preferences/:userId', async (req, res) => {
   try {
     const { userId } = req.params
     const updates = req.body || {}
-    const preferences = updateNotificationPreferences(userId, updates)
+    const preferences = await updateNotificationPreferences(userId, updates)
     res.json({ success: true, preferences })
   } catch (error) {
     console.error('Error updating notification preferences:', error)
@@ -9215,10 +9642,10 @@ app.listen(port, '0.0.0.0', () => {
   console.log('   DELETE /api/admin/listings/:id');
 });
 
-app.get('/api/email/settings/:userId', (req, res) => {
+app.get('/api/email/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params
-    const payload = getEmailSettings(userId)
+    const payload = await getEmailSettings(userId)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error fetching email settings:', error)
@@ -9226,7 +9653,7 @@ app.get('/api/email/settings/:userId', (req, res) => {
   }
 })
 
-app.post('/api/email/settings/:userId/connections', (req, res) => {
+app.post('/api/email/settings/:userId/connections', async (req, res) => {
   try {
     const { userId } = req.params
     const { provider, email } = req.body || {}
@@ -9235,8 +9662,8 @@ app.post('/api/email/settings/:userId/connections', (req, res) => {
       return res.status(400).json({ success: false, error: 'Provider is required' })
     }
 
-    const connections = connectEmailProvider(userId, provider, email)
-    const { settings } = getEmailSettings(userId)
+    const connections = await connectEmailProvider(userId, provider, email)
+    const { settings } = await getEmailSettings(userId)
     res.json({ success: true, connections, settings })
   } catch (error) {
     console.error('Error connecting email provider:', error)
@@ -9244,11 +9671,11 @@ app.post('/api/email/settings/:userId/connections', (req, res) => {
   }
 })
 
-app.delete('/api/email/settings/:userId/connections/:provider', (req, res) => {
+app.delete('/api/email/settings/:userId/connections/:provider', async (req, res) => {
   try {
     const { userId, provider } = req.params
-    const connections = disconnectEmailProvider(userId, provider)
-    const { settings } = getEmailSettings(userId)
+    const connections = await disconnectEmailProvider(userId, provider)
+    const { settings } = await getEmailSettings(userId)
     res.json({ success: true, connections, settings })
   } catch (error) {
     console.error('Error disconnecting email provider:', error)
@@ -9333,11 +9760,11 @@ const sendOAuthResultPage = (res, payload) => {
    </script></body></html>`);
 };
 
-app.patch('/api/email/settings/:userId', (req, res) => {
+app.patch('/api/email/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params
     const updates = req.body || {}
-    const payload = updateEmailSettings(userId, updates)
+    const payload = await updateEmailSettings(userId, updates)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error updating email settings:', error)
@@ -9345,10 +9772,10 @@ app.patch('/api/email/settings/:userId', (req, res) => {
   }
 })
 
-app.get('/api/billing/settings/:userId', (req, res) => {
+app.get('/api/billing/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params
-    const payload = getBillingSettings(userId)
+    const payload = await getBillingSettings(userId)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error fetching billing settings:', error)
@@ -9356,11 +9783,11 @@ app.get('/api/billing/settings/:userId', (req, res) => {
   }
 })
 
-app.patch('/api/billing/settings/:userId', (req, res) => {
+app.patch('/api/billing/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params
     const updates = req.body || {}
-    const payload = updateBillingSettings(userId, updates)
+    const payload = await updateBillingSettings(userId, updates)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error updating billing settings:', error)
@@ -9368,10 +9795,10 @@ app.patch('/api/billing/settings/:userId', (req, res) => {
   }
 })
 
-app.get('/api/calendar/settings/:userId', (req, res) => {
+app.get('/api/calendar/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params
-    const payload = getCalendarSettings(userId)
+    const payload = await getCalendarSettings(userId)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error fetching calendar settings:', error)
@@ -9379,11 +9806,11 @@ app.get('/api/calendar/settings/:userId', (req, res) => {
   }
 })
 
-app.patch('/api/calendar/settings/:userId', (req, res) => {
+app.patch('/api/calendar/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params
     const updates = req.body || {}
-    const payload = updateCalendarPreferences(userId, updates)
+    const payload = await updateCalendarPreferences(userId, updates)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error updating calendar settings:', error)
@@ -9601,7 +10028,7 @@ app.get('/api/email/google/oauth-callback', async (req, res) => {
     const emailAddress = profileResponse?.data?.email || `${storedState.userId}@gmail.com`;
 
     if (storedState.context === 'calendar') {
-      saveCalendarConnection(storedState.userId, {
+      await saveCalendarConnection(storedState.userId, {
         provider: 'google',
         email: emailAddress,
         connectedAt: new Date().toISOString(),
@@ -9637,7 +10064,7 @@ app.get('/api/email/google/oauth-callback', async (req, res) => {
       return;
     }
 
-    connectEmailProvider(storedState.userId, 'gmail', emailAddress, {
+    await connectEmailProvider(storedState.userId, 'gmail', emailAddress, {
       credentials: {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
@@ -9690,25 +10117,12 @@ app.post('/api/vapi/calendar/availability', async (req, res) => {
     const { getCalendarSettings } = require('./utils/calendarSettings');
 
     // We need to raw-read the store because getCalendarSettings might filter credentials
-    const fs = require('fs');
-    const path = require('path');
-    const DATA_DIR = path.join(__dirname, 'data');
-    const STORE_FILE = path.join(DATA_DIR, 'calendar-settings.json');
-
-    let store = {};
-    if (fs.existsSync(STORE_FILE)) {
-      try {
-        store = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-      } catch (e) {
-        console.error('Error parsing calendar store:', e);
-      }
-    }
-
-    // normalizeUserId logic roughly
+    // normalise user id logic
     let key = agentId.trim().toLowerCase();
     if (key.startsWith('blueprint-') || key === 'guest-agent') key = 'demo-blueprint';
 
-    const credentialData = store[key]?.connection?.credentials;
+    // Fetch credentials from DB
+    const credentialData = await getCalendarCredentials(key);
 
     if (!credentialData || !credentialData.refreshToken) {
       return res.json({
@@ -9791,12 +10205,38 @@ app.post('/api/vapi/calendar/availability', async (req, res) => {
 
   } catch (error) {
     console.error('Vapi Calendar Tool Error:', error);
-    // Return a soft error to the AI so it can apologize
     return res.json({
       results: [{
         toolCallId: req.body.message?.toolCalls?.[0]?.id || 'unknown',
         result: "I'm having trouble accessing the calendar right now."
       }]
     });
+  }
+});
+
+// SMS Sending Endpoint (Backend Proxy)
+app.post('/api/sms/send', async (req, res) => {
+  try {
+    const { to, message, userId } = req.body;
+    if (!to || !message) {
+      return res.status(400).json({ error: 'Missing to or message' });
+    }
+
+    // Optional rate limiting check
+    if (userId && typeof checkRateLimit === 'function' && !checkRateLimit(userId)) {
+      return res.status(429).json({ error: 'Rate limit exceeded' });
+    }
+
+    const { sendSms } = require('./services/smsService');
+    const success = await sendSms(to, message);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Failed to send SMS via provider' });
+    }
+  } catch (error) {
+    console.error('SMS Send Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });

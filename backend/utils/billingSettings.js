@@ -1,8 +1,4 @@
-const fs = require('fs')
-const path = require('path')
-
-const DATA_DIR = path.join(__dirname, '..', 'data')
-const STORE_FILE = path.join(DATA_DIR, 'billing-settings.json')
+const { supabaseAdmin } = require('../services/supabase');
 
 const DEFAULT_BILLING_SETTINGS = {
   planName: 'Complete AI Solution',
@@ -22,71 +18,23 @@ const DEFAULT_BILLING_SETTINGS = {
       invoiceUrl: null
     }
   ]
-}
+};
 
-let storeCache = null
+const demoStore = new Map();
 
-const clone = (value) => JSON.parse(JSON.stringify(value))
+const isUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 const normalizeUserId = (userId) => {
-  if (!userId || typeof userId !== 'string') {
-    return 'default-user'
-  }
+  if (!userId || typeof userId !== 'string') return 'default-user';
+  const trimmed = userId.trim().toLowerCase();
+  if (trimmed.startsWith('blueprint-') || trimmed === 'guest-agent') return 'demo-blueprint';
+  return trimmed;
+};
 
-  const trimmed = userId.trim().toLowerCase()
-  if (!trimmed) {
-    return 'default-user'
-  }
-
-  if (trimmed.startsWith('blueprint-') || trimmed === 'guest-agent') {
-    return 'demo-blueprint'
-  }
-
-  return trimmed
-}
-
-const loadStore = () => {
-  if (storeCache) {
-    return storeCache
-  }
-
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8')
-    storeCache = JSON.parse(raw)
-  } catch (error) {
-    storeCache = {}
-  }
-
-  return storeCache
-}
-
-const persistStore = () => {
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true })
-    fs.writeFileSync(STORE_FILE, JSON.stringify(storeCache ?? {}, null, 2), 'utf8')
-  } catch (error) {
-    console.error('[BillingSettings] Failed to persist store:', error)
-  }
-}
-
-const getEntry = (userId) => {
-  const key = normalizeUserId(userId)
-  const store = loadStore()
-
-  if (!store[key]) {
-    store[key] = clone(DEFAULT_BILLING_SETTINGS)
-  }
-
-  storeCache = store
-  persistStore()
-
-  return store[key]
-}
+const clone = (value) => JSON.parse(JSON.stringify(value));
 
 const sanitizeHistory = (history) => {
-  if (!Array.isArray(history)) {
-    return clone(DEFAULT_BILLING_SETTINGS.history)
-  }
+  if (!Array.isArray(history)) return clone(DEFAULT_BILLING_SETTINGS.history);
 
   return history
     .filter((entry) => entry && typeof entry === 'object')
@@ -97,39 +45,87 @@ const sanitizeHistory = (history) => {
       status: ['Paid', 'Pending', 'Failed'].includes(entry.status) ? entry.status : 'Paid',
       description: typeof entry.description === 'string' ? entry.description : undefined,
       invoiceUrl: typeof entry.invoiceUrl === 'string' ? entry.invoiceUrl : null
-    }))
-}
+    }));
+};
 
-const getBillingSettings = (userId) => {
-  const entry = getEntry(userId)
-  const payload = {
-    ...clone(DEFAULT_BILLING_SETTINGS),
-    ...clone(entry),
-    history: sanitizeHistory(entry.history)
-  }
-  return { settings: payload }
-}
+const getEntry = async (userId) => {
+  const normId = normalizeUserId(userId);
 
-const updateBillingSettings = (userId, updates = {}) => {
-  const entry = getEntry(userId)
-  const next = {
-    ...entry,
-    ...updates
+  if (!isUuid(normId)) {
+    if (!demoStore.has(normId)) demoStore.set(normId, clone(DEFAULT_BILLING_SETTINGS));
+    return demoStore.get(normId);
   }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('user_settings')
+      .select('data')
+      .eq('user_id', normId)
+      .eq('category', 'billing')
+      .single();
+
+    if (error && error.code !== 'PGRST116') console.error('[BillingSettings] DB Fetch Error:', error.message);
+
+    if (data?.data) {
+      return {
+        ...clone(DEFAULT_BILLING_SETTINGS),
+        ...data.data,
+        history: sanitizeHistory(data.data.history || DEFAULT_BILLING_SETTINGS.history)
+      };
+    }
+  } catch (err) {
+    console.error('[BillingSettings] Unexpected error:', err);
+  }
+
+  return clone(DEFAULT_BILLING_SETTINGS);
+};
+
+const saveEntry = async (userId, entry) => {
+  const normId = normalizeUserId(userId);
+
+  if (!isUuid(normId)) {
+    demoStore.set(normId, entry);
+  } else {
+    try {
+      const { error } = await supabaseAdmin
+        .from('user_settings')
+        .upsert({
+          user_id: normId,
+          category: 'billing',
+          data: entry,
+          updated_at: new Date()
+        }, { onConflict: 'user_id, category' });
+      if (error) console.error('[BillingSettings] DB Save Error:', error.message);
+    } catch (err) {
+      console.error('[BillingSettings] Unexpected save error:', err);
+    }
+  }
+};
+
+const getBillingSettings = async (userId) => {
+  const entry = await getEntry(userId);
+  // Ensure history exists
+  if (!entry.history) entry.history = clone(DEFAULT_BILLING_SETTINGS.history);
+
+  return { settings: entry };
+};
+
+const updateBillingSettings = async (userId, updates = {}) => {
+  const entry = await getEntry(userId);
+  const next = { ...entry, ...updates };
 
   if (updates.history) {
-    next.history = sanitizeHistory(updates.history)
+    next.history = sanitizeHistory(updates.history);
   }
 
-  storeCache[normalizeUserId(userId)] = next
-  persistStore()
+  await saveEntry(userId, next);
 
-  return getBillingSettings(userId)
-}
+  return { settings: next };
+};
 
 module.exports = {
   DEFAULT_BILLING_SETTINGS,
   getBillingSettings,
   updateBillingSettings
-}
+};
 

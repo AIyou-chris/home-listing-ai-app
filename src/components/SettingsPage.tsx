@@ -4,6 +4,12 @@ import { googleOAuthService } from '../services/googleOAuthService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
 import { billingSettingsService } from '../services/billingSettingsService';
 import { supabase } from '../services/supabase';
+import {
+    getAgentProfile,
+    updateAgentProfileWithNotification,
+    type AgentProfile as ServiceAgentProfile
+} from '../services/agentProfileService';
+import SignatureEditorModal from './SignatureEditorModal';
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import { useAgentBranding } from '../hooks/useAgentBranding';
@@ -567,6 +573,8 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         analyticsEnabled: true
     });
     const [isSecuritySettingsLoading, setIsSecuritySettingsLoading] = useState<boolean>(false);
+    const [serviceProfile, setServiceProfile] = useState<ServiceAgentProfile | null>(null);
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const securityDefaultsRef = useRef<SecuritySettingsState>({
         loginNotifications: true,
         sessionTimeout: 24,
@@ -1443,6 +1451,43 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
         [currentNotifications, notifyApiError, userId, _onSaveNotifications, isDemoMode]
     );
 
+    const handleNotificationUpdate = useCallback(
+        async (updates: Partial<NotificationSettings>) => {
+            if (isDemoMode) return;
+
+            const optimistic = { ...currentNotifications, ...updates };
+            setCurrentNotifications(optimistic);
+            setIsNotificationsSaving(true);
+            setNotificationSaveError(null);
+
+            try {
+                const response = await fetch(`/api/notifications/preferences/${encodeURIComponent(userId)}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+
+                if (!response.ok) throw new Error('Failed to update settings');
+
+                const data = await response.json();
+                const nextPreferences = (data?.preferences as NotificationSettings) || optimistic;
+                setCurrentNotifications(nextPreferences);
+                _onSaveNotifications(nextPreferences);
+            } catch (error) {
+                notifyApiError({
+                    title: 'Save failed',
+                    description: 'Could not save notification settings.',
+                    error
+                });
+                setNotificationSaveError('Database save failed.');
+                // Revert? (Complex given multiple updates, but okay to skip for now or rely on reload)
+            } finally {
+                setIsNotificationsSaving(false);
+            }
+        },
+        [currentNotifications, userId, isDemoMode, _onSaveNotifications, notifyApiError]
+    );
+
     const handleEmailSettingsChange = <K extends keyof EmailSettings>(field: K, value: EmailSettings[K]) => {
         setEmailFormData(prev => ({ ...prev, [field]: value }));
         setEmailSaveMessage(null);
@@ -1484,6 +1529,31 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
             setIsEmailSettingsSaving(false);
         }
     }
+
+    const handleSaveSignature = async (newSignature: string) => {
+        try {
+            setEmailFormData(prev => ({ ...prev, signature: newSignature }));
+
+            if (serviceProfile) {
+                const updatedSocials = {
+                    ...(serviceProfile.socialMedia || {}),
+                    emailSignature: newSignature
+                };
+
+                await updateAgentProfileWithNotification({
+                    socialMedia: updatedSocials as any
+                }, userId);
+
+                setServiceProfile(prev => prev ? ({ ...prev, socialMedia: updatedSocials as any }) : null);
+            }
+
+            setIsSignatureModalOpen(false);
+            setEmailSaveMessage('Signature updated successfully.');
+        } catch (err) {
+            console.error('Failed to save signature:', err);
+            setEmailSettingsError('Failed to save signature.');
+        }
+    };
 
     const handleCalendarSettingsChange = <K extends keyof CalendarSettings>(field: K, value: CalendarSettings[K]) => {
         setCalendarSettingsMessage(null);
@@ -1717,6 +1787,40 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
                                             </div>
                                         )}
 
+                                        <FeatureSection title="SMS Alerts" icon="sms">
+                                            <div className="grid grid-cols-1 gap-6">
+                                                <div className="bg-slate-50/50 p-4 rounded-lg border border-slate-200">
+                                                    <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                                                        <div className="flex-1">
+                                                            <label className="block text-sm font-semibold text-slate-800 mb-1">
+                                                                Mobile Number for Alerts
+                                                            </label>
+                                                            <p className="text-sm text-slate-500 mb-3">
+                                                                Enter your personal cell number to receive instant text alerts.
+                                                            </p>
+                                                            <input
+                                                                type="tel"
+                                                                placeholder="+1 (555) 000-0000"
+                                                                className="w-full max-w-sm px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                                                                value={currentNotifications.notificationPhone || ''}
+                                                                onChange={(e) => setCurrentNotifications(prev => ({ ...prev, notificationPhone: e.target.value }))}
+                                                                onBlur={(e) => handleNotificationUpdate({ notificationPhone: e.target.value })}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1 w-full md:w-auto min-w-[300px]">
+                                                            <FeatureToggleRow
+                                                                label="New Lead SMS Alerts"
+                                                                description="Get a text message immediately when a new lead signs up."
+                                                                enabled={!!currentNotifications.smsNewLeadAlerts}
+                                                                onToggle={(val) => handleNotificationToggle('smsNewLeadAlerts' as any, val)}
+                                                                disabled={isNotificationsSaving}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </FeatureSection>
+
                                         {NOTIFICATION_GROUPS.map((group) => (
                                             <FeatureSection key={group.title} title={group.title} icon={group.icon}>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1725,7 +1829,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
                                                             key={item.key}
                                                             label={item.label}
                                                             description={item.description}
-                                                            enabled={currentNotifications[item.key]}
+                                                            enabled={!!currentNotifications[item.key]}
                                                             onToggle={(value) => handleNotificationToggle(item.key, value)}
                                                             disabled={isNotificationsSaving}
                                                         />
@@ -1972,15 +2076,19 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
                                                     <label htmlFor="signature" className="block text-sm font-medium text-slate-700 mb-1">
                                                         Email Signature
                                                     </label>
-                                                    <textarea
-                                                        id="signature"
-                                                        name="signature"
-                                                        value={emailFormData.signature || ''}
-                                                        onChange={(e) => handleEmailSettingsChange('signature', e.target.value)}
-                                                        rows={4}
-                                                        className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                        placeholder="Best regards,\nYour Name\nReal Estate Agent\nPhone: (555) 123-4567"
-                                                    />
+                                                    <div className="mt-1 space-y-2">
+                                                        <div
+                                                            className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm bg-slate-50 min-h-[100px] max-h-[200px] text-sm overflow-auto prose prose-sm max-w-none"
+                                                            dangerouslySetInnerHTML={{ __html: emailFormData.signature || '<span class="text-slate-400 italic">No signature set. Click Edit to create one.</span>' }}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsSignatureModalOpen(true)}
+                                                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                                        >
+                                                            Edit Signature
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 <div className="flex items-center">
@@ -2884,6 +2992,12 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
                     </main>
                 </div>
             </div>
+            <SignatureEditorModal
+                isOpen={isSignatureModalOpen}
+                onClose={() => setIsSignatureModalOpen(false)}
+                initialSignature={emailFormData.signature || ''}
+                onSave={handleSaveSignature}
+            />
         </div>
     );
 };

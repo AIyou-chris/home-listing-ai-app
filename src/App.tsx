@@ -11,7 +11,7 @@ import SignInPage from './components/SignInPage';
 import CheckoutPage from './components/CheckoutPage';
 import { getRegistrationContext } from './services/agentOnboardingService';
 import Dashboard from './components/Dashboard';
-import AgentDashboardBlueprint from './components/AgentDashboardBlueprint';
+import AgentDashboard from './components/AgentDashboard';
 
 import Sidebar from './components/Sidebar';
 import PropertyPage from './components/PropertyPage';
@@ -840,6 +840,19 @@ const App: React.FC = () => {
         }
     }, []);
 
+    const handleDeleteLead = useCallback(async (leadId: string) => {
+        if (window.confirm('Are you sure you want to delete this lead?')) {
+            try {
+                // Optimistic update
+                setLeads(prev => prev.filter(l => l.id !== leadId));
+                // Call service if strictly needed, but for now local/demo state is primary or service is mock
+                // await leadsService.delete(leadId); 
+            } catch (error) {
+                console.error('Failed to delete lead:', error);
+            }
+        }
+    }, []);
+
     // Load appointments from Supabase when user signs in or demo/local admin
     React.useEffect(() => {
         const load = async () => {
@@ -1008,8 +1021,8 @@ const App: React.FC = () => {
                     <Route path="/admin-dashboard" element={
                         isAdmin ? <AdminDashboard /> : <Navigate to="/" />
                     } />
-                    <Route path="/demo-dashboard" element={<AgentDashboardBlueprint isDemoMode={true} demoListingCount={2} />} />
-                    <Route path="/dashboard-blueprint" element={<AgentDashboardBlueprint isDemoMode={true} demoListingCount={1} />} />
+                    <Route path="/demo-dashboard" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
+                    <Route path="/dashboard-blueprint" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
 
                     <Route path="/admin-login" element={
                         <AdminLogin
@@ -1050,31 +1063,9 @@ const App: React.FC = () => {
                     {/* Protected Routes (Wrapped in Layout) */}
                     <Route element={<ProtectedLayout />}>
                         <Route path="/dashboard" element={
-                            userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <Dashboard
-                                key="dashboard-root"
-                                agentProfile={userProfile}
-                                properties={properties}
-                                leads={leads}
-                                appointments={appointments}
-                                tasks={tasks}
-                                onSelectProperty={handleSelectProperty}
-                                onTaskUpdate={handleTaskUpdate}
-                                onTaskAdd={handleTaskAdd}
-                                onTaskDelete={handleTaskDelete}
-                            />
+                            userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />
                         } />
-                        <Route path="/dashboard/:slug" element={<Dashboard
-                            key="dashboard-slug"
-                            agentProfile={userProfile}
-                            properties={properties}
-                            leads={leads}
-                            appointments={appointments}
-                            tasks={tasks}
-                            onSelectProperty={handleSelectProperty}
-                            onTaskUpdate={handleTaskUpdate}
-                            onTaskAdd={handleTaskAdd}
-                            onTaskDelete={handleTaskDelete}
-                        />} />
+                        <Route path="/dashboard/:slug" element={<AgentDashboard />} />
 
                         <Route path="/listings" element={
                             <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => navigate('/add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => navigate('/dashboard')} />
@@ -1085,7 +1076,7 @@ const App: React.FC = () => {
                         } />
 
                         <Route path="/property" element={
-                            selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => navigate('/listings')} isDemoMode={isDemoMode} /> : <Navigate to="/listings" />
+                            selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => navigate('/listings')} isDemoMode={isDemoMode} leadCount={leads.filter(l => l.interestedProperties?.includes(selectedProperty.id)).length} /> : <Navigate to="/listings" />
                         } />
 
                         <Route path="/leads" element={
@@ -1102,6 +1093,7 @@ const App: React.FC = () => {
                                 }}
                                 onAssignFunnel={handleLeadFunnelAssigned}
                                 onUpdateLead={handleUpdateLead}
+                                onDeleteLead={handleDeleteLead}
                             />
                         } />
 

@@ -22,6 +22,7 @@ export interface AgentProfile {
     twitter: string;
     linkedin: string;
     youtube: string;
+    emailSignature?: string;
   };
   // Additional fields that might be needed across the app
   licenseNumber?: string;
@@ -178,7 +179,7 @@ const convertAICardToAgentProfile = (aiCardProfile: AICardProfile): AgentProfile
 // Convert Agent Profile back to AI Card format
 const convertAgentProfileToAICard = (agentProfile: Partial<AgentProfile>): Partial<AICardProfile> => {
   const aiCardData: Partial<AICardProfile> = {};
-  
+
   if (agentProfile.name !== undefined) aiCardData.fullName = agentProfile.name;
   if (agentProfile.title !== undefined) aiCardData.professionalTitle = agentProfile.title;
   if (agentProfile.company !== undefined) aiCardData.company = agentProfile.company;
@@ -191,7 +192,7 @@ const convertAgentProfileToAICard = (agentProfile: Partial<AgentProfile>): Parti
   if (agentProfile.brandColor !== undefined) aiCardData.brandColor = agentProfile.brandColor;
   if (agentProfile.language !== undefined) aiCardData.language = agentProfile.language;
   if (agentProfile.socialMedia !== undefined) aiCardData.socialMedia = agentProfile.socialMedia;
-  
+
   return aiCardData;
 };
 
@@ -307,7 +308,7 @@ export const subscribeToProfileChanges = (callback: (profile: AgentProfile) => v
       console.error('Error in profile change listener:', error);
     }
   }
-  
+
   // Return unsubscribe function
   return () => {
     profileChangeListeners = profileChangeListeners.filter(listener => listener !== callback);

@@ -58,6 +58,7 @@ export type EditableStep = {
     type: string;
     subject: string;
     content: string;
+    mediaUrl?: string;
 };
 
 const initialWelcomeSteps: EditableStep[] = [
@@ -723,151 +724,291 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                     </span>
                                 ))}
                             </div>
-                            <div className="space-y-4">
+                            <div className="space-y-0 relative">
                                 {steps.map((step, index) => {
                                     const stepIsOpen = expandedIds.includes(step.id);
-                                    const previewSubject = mergeTokens(step.subject);
-                                    const previewBody = mergeTokens(step.content);
+
+                                    // Timeline connector logic
+                                    const isLast = index === steps.length - 1;
+
                                     return (
-                                        <article key={step.id} className="rounded-2xl border border-slate-200 bg-slate-50">
-                                            <button
-                                                type="button"
-                                                onClick={() => onToggleStep(step.id)}
-                                                className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`rounded-full bg-white p-2 shadow-sm ${iconColorClass}`}>
-                                                        <span className="material-symbols-outlined text-base">{step.icon}</span>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                                            Step {index + 1}
-                                                        </p>
-                                                        <h3 className="text-sm font-semibold text-slate-900">{step.title}</h3>
-                                                        <p className="text-xs text-slate-500 line-clamp-1">{step.description}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-4 text-xs text-slate-500">
-                                                    <span className="font-semibold">{step.delay}</span>
-                                                    <span className="hidden rounded-full border border-slate-200 bg-white px-2 py-1 font-semibold sm:inline">
-                                                        {step.type}
-                                                    </span>
-                                                    <span className="material-symbols-outlined text-base">
-                                                        {stepIsOpen ? 'expand_less' : 'expand_more'}
-                                                    </span>
-                                                </div>
-                                            </button>
-                                            {stepIsOpen && (
-                                                <div className="space-y-4 border-t border-slate-200 bg-white px-4 py-4">
-                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                        <label className="text-xs font-semibold text-slate-600">
-                                                            Title
-                                                            <input
-                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                                value={step.title}
-                                                                onChange={(event) => onUpdateStep(step.id, 'title', event.target.value)}
-                                                            />
-                                                        </label>
-                                                        <label className="text-xs font-semibold text-slate-600">
-                                                            Delay
-                                                            <input
-                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                                value={step.delay}
-                                                                onChange={(event) => onUpdateStep(step.id, 'delay', event.target.value)}
-                                                            />
-                                                        </label>
-                                                    </div>
-                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                        <label className="text-xs font-semibold text-slate-600">
-                                                            Description
-                                                            <input
-                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                                value={step.description}
-                                                                onChange={(event) => onUpdateStep(step.id, 'description', event.target.value)}
-                                                            />
-                                                        </label>
-                                                        <label className="text-xs font-semibold text-slate-600">
-                                                            Type
-                                                            <select
-                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
-                                                                value={step.type}
-                                                                onChange={(event) => onUpdateStep(step.id, 'type', event.target.value)}
-                                                            >
-                                                                <option value="Email">Email</option>
-                                                                <option value="Call">AI Call</option>
-                                                                <option value="Task">Task</option>
-                                                                <option value="Text">Text</option>
-                                                            </select>
-                                                        </label>
-                                                    </div>
-                                                    <label className="text-xs font-semibold text-slate-600">
-                                                        Subject
-                                                        <input
-                                                            className={`mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 ${step.type === 'Call' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}
-                                                            value={step.type === 'Call' ? '' : step.subject}
-                                                            onChange={(event) => onUpdateStep(step.id, 'subject', event.target.value)}
-                                                            disabled={step.type === 'Call'}
-                                                            placeholder={step.type === 'Call' ? 'Not used for AI Calls' : ''}
-                                                        />
-                                                    </label>
-                                                    <label className="text-xs font-semibold text-slate-600 block">
-                                                        Message Body
-                                                        <EmailEditor
-                                                            value={step.content}
-                                                            onChange={(val) => onUpdateStep(step.id, 'content', val)}
-                                                            className="mt-1"
-                                                            placeholder="Draft your email..."
-                                                        />
-                                                    </label>
-                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</p>
-                                                            <p className="mt-1 text-sm font-semibold text-slate-900">{previewSubject}</p>
-                                                            <div
-                                                                className="mt-2 text-sm leading-relaxed text-slate-600 prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0"
-                                                                dangerouslySetInnerHTML={{ __html: previewBody.replace(/\n/g, '<br/>') }}
-                                                            />
-                                                        </div>
-                                                        <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-xs text-slate-500">
-                                                            <p className="font-semibold uppercase tracking-wide text-slate-600">Variables you can drop in</p>
-                                                            <ul className="mt-2 space-y-1">
-                                                                {COMMON_TOKEN_HINTS.map((token) => (
-                                                                    <li key={`${step.id}-${token}`} className="font-mono text-[11px]">
-                                                                        {token}
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex justify-end">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onSendTest(step)}
-                                                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
-                                                        >
-                                                            <span className="material-symbols-outlined text-base">send</span>
-                                                            Send Test to Me
-                                                        </button>
-                                                    </div>
-                                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onRemoveStep(step.id)}
-                                                            className="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                                                        >
-                                                            <span className="material-symbols-outlined text-base">delete</span>
-                                                            Delete Step
-                                                        </button>
-                                                        <div className="text-xs text-slate-500">
-                                                            Auto preview updates with your edits.
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                        <div key={step.id} className="relative pl-8 pb-6">
+                                            {/* Timeline Line */}
+                                            {!isLast && (
+                                                <div className="absolute left-[11px] top-8 bottom-0 w-0.5 bg-indigo-100" />
                                             )}
-                                        </article>
+
+                                            {/* Timeline Dot */}
+                                            <div className={`absolute left-0 top-3 w-6 h-6 rounded-full border-2 flex items-center justify-center z-10 bg-white ${stepIsOpen ? 'border-indigo-600 text-indigo-600' : 'border-slate-300 text-slate-400'}`}>
+                                                <div className={`w-2 h-2 rounded-full ${stepIsOpen ? 'bg-indigo-600' : 'bg-slate-300'}`} />
+                                            </div>
+
+                                            <article
+                                                className={`transition-all duration-200 border rounded-2xl ${stepIsOpen
+                                                    ? 'bg-white border-indigo-200 shadow-lg ring-1 ring-indigo-50/50'
+                                                    : 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-md cursor-pointer'
+                                                    }`}
+                                            >
+                                                {/* Header (Always Visible) */}
+                                                <div
+                                                    role="button"
+                                                    onClick={() => onToggleStep(step.id)}
+                                                    className="flex items-center justify-between p-4"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`p-2 rounded-xl ${stepIsOpen ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
+                                                            <span className="material-symbols-outlined">{step.icon}</span>
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-0.5">
+                                                                <h3 className={`text-sm font-bold ${stepIsOpen ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                                                    {step.title}
+                                                                </h3>
+                                                                {!stepIsOpen && (
+                                                                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
+                                                                        {step.delay}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-xs text-slate-500 font-medium max-w-[300px] truncate">
+                                                                {step.description}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3">
+                                                        {stepIsOpen ? (
+                                                            <span className="material-symbols-outlined text-indigo-400">expand_less</span>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">
+                                                                    {step.type}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Expanded Content */}
+                                                {stepIsOpen && (
+                                                    <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
+                                                        <div className="pt-4 border-t border-slate-100">
+                                                            {/* Quick Config Row */}
+                                                            <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                                <div className="flex-1">
+                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Timing</label>
+                                                                    <input
+                                                                        className="w-full bg-transparent text-sm font-bold text-slate-700 focus:outline-none"
+                                                                        value={step.delay}
+                                                                        onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)}
+                                                                    />
+                                                                </div>
+                                                                <div className="w-px h-8 bg-slate-200" />
+                                                                <div className="flex-1">
+                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Action Type</label>
+                                                                    <select
+                                                                        className="w-full bg-transparent text-sm font-bold text-indigo-600 focus:outline-none cursor-pointer"
+                                                                        value={step.type}
+                                                                        onChange={(e) => onUpdateStep(step.id, 'type', e.target.value)}
+                                                                    >
+                                                                        <option value="Email">Email</option>
+                                                                        <option value="Call">AI Call</option>
+                                                                        <option value="Task">Task</option>
+                                                                        <option value="SMS">SMS</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Condition: AI Call vs Text vs Standard Editor */}
+                                                            {step.type === 'Call' || step.type === 'AI Call' ? (
+                                                                <div className="rounded-xl bg-blue-50 border border-blue-100 p-6 flex items-start gap-4">
+                                                                    <div className="p-3 bg-white rounded-full shadow-sm text-blue-600">
+                                                                        <span className="material-symbols-outlined text-2xl">support_agent</span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <h4 className="text-blue-900 font-bold text-lg mb-1">AI Call Configured</h4>
+                                                                        <p className="text-blue-700/80 text-sm leading-relaxed max-w-md">
+                                                                            Your AI Agent will give them a friendly call to remind them about the appointment. You'll get the transcript right here in your dashboard.
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (step.type === 'Text' || step.type === 'sms' || step.type === 'SMS') ? (
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                                                                    {/* Left: Editor */}
+                                                                    <div className="space-y-4">
+                                                                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
+                                                                            <div className="flex items-center gap-2 mb-2">
+                                                                                <span className="material-symbols-outlined text-slate-500">sms</span>
+                                                                                <h4 className="text-sm font-bold text-slate-700">SMS Content</h4>
+                                                                            </div>
+                                                                            <textarea
+                                                                                className="w-full h-32 rounded-lg border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                                                placeholder="Type your text message here... (e.g. Hi {{lead.name}})"
+                                                                                value={step.content}
+                                                                                onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
+                                                                            />
+                                                                            <div className="mt-3">
+                                                                                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                                                                                    Attach Image URL (MMS)
+                                                                                </label>
+                                                                                <div className="flex gap-2">
+                                                                                    <input
+                                                                                        className="flex-1 rounded-lg border-slate-200 text-xs text-slate-700 bg-white"
+                                                                                        placeholder="https://..."
+                                                                                        value={step.mediaUrl || ''}
+                                                                                        onChange={(e) => onUpdateStep(step.id, 'mediaUrl', e.target.value)}
+                                                                                    />
+                                                                                    {step.mediaUrl && <div className="w-8 h-8 rounded bg-slate-100 bg-cover bg-center border border-slate-200 shrink-0" style={{ backgroundImage: `url(${step.mediaUrl})` }}></div>}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <p className="text-xs text-slate-400 mt-2">
+                                                                                Tokens like <code className="bg-slate-200 px-1 rounded text-slate-600">{'{{lead.name}}'}</code> are supported.
+                                                                            </p>
+                                                                            <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-slate-200">
+                                                                                <button
+                                                                                    onClick={() => onSendTest(step)}
+                                                                                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm"
+                                                                                >
+                                                                                    Send Test
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={onSave}
+                                                                                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700"
+                                                                                >
+                                                                                    Save Changes
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Right: Phone Preview (WYSIWYG) */}
+                                                                    <div className="flex flex-col items-center">
+                                                                        <h4 className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">Lead's Phone Preview</h4>
+                                                                        <div className="relative w-[280px] h-[500px] bg-slate-900 rounded-[3rem] shadow-2xl p-3 ring-4 ring-slate-100">
+                                                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-20"></div>
+                                                                            <div className="w-full h-full bg-slate-50 rounded-[2.2rem] overflow-hidden flex flex-col relative z-10">
+                                                                                {/* Status Bar */}
+                                                                                <div className="h-10 w-full bg-slate-100/80 backdrop-blur flex justify-between items-end px-6 pb-2 text-[10px] font-bold text-slate-900">
+                                                                                    <span>9:41</span>
+                                                                                    <div className="flex gap-1">
+                                                                                        <span className="material-symbols-outlined text-[12px]">signal_cellular_alt</span>
+                                                                                        <span className="material-symbols-outlined text-[12px]">wifi</span>
+                                                                                        <span className="material-symbols-outlined text-[12px]">battery_full</span>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {/* Header */}
+                                                                                <div className="h-12 border-b border-slate-200 bg-slate-50/80 backdrop-blur flex flex-col items-center justify-center">
+                                                                                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] text-indigo-700 font-bold mb-0.5">
+                                                                                        {sampleMergeData.agent.name.split(' ').map(n => n[0]).join('')}
+                                                                                    </div>
+                                                                                    <span className="text-[10px] text-slate-500 font-medium">{sampleMergeData.agent.name}</span>
+                                                                                </div>
+
+                                                                                {/* Messages */}
+                                                                                <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-white">
+                                                                                    <div className="text-[10px] text-center text-slate-400 font-medium">Today 9:41 AM</div>
+
+                                                                                    {step.mediaUrl && (
+                                                                                        <div className="flex justify-end">
+                                                                                            <div className="bg-blue-500 p-1 rounded-2xl rounded-tr-sm max-w-[85%] shadow-sm">
+                                                                                                <img src={step.mediaUrl} alt="MMS" className="rounded-xl w-full h-auto object-cover" />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    <div className="flex justify-end">
+                                                                                        <div className="bg-blue-500 text-white rounded-2xl rounded-tr-sm px-3 py-2 max-w-[85%] text-xs leading-relaxed shadow-sm">
+                                                                                            {step.content || <span className="opacity-50 italic">Typing...</span>}
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {/* Delivery Status */}
+                                                                                    <div className="flex justify-end">
+                                                                                        <span className="text-[9px] text-slate-400 font-medium">Delivered</span>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {/* Input Area (Mock) */}
+                                                                                <div className="h-12 border-t border-slate-200 bg-slate-50 px-2 flex items-center gap-2">
+                                                                                    <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
+                                                                                        <span className="material-symbols-outlined text-[14px]">add</span>
+                                                                                    </div>
+                                                                                    <div className="flex-1 h-8 rounded-full border border-slate-300 bg-white"></div>
+                                                                                    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                                                                                        <span className="material-symbols-outlined text-[14px]">arrow_upward</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-4">
+                                                                    <label className="text-xs font-semibold text-slate-600">
+                                                                        Subject
+                                                                        <input
+                                                                            className="mt-1 w-full text-base font-bold text-slate-900 placeholder:text-slate-300 border-none p-0 focus:ring-0 bg-transparent"
+                                                                            placeholder="Message Subject..."
+                                                                            value={step.subject}
+                                                                            onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
+                                                                        />
+                                                                    </label>
+
+                                                                    <div className="relative">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <label className="text-xs font-semibold text-slate-600">Message Body</label>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[10px] font-bold shadow-sm hover:shadow-md transition-all hover:scale-105"
+                                                                            >
+                                                                                <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                                                                                AI Magic
+                                                                            </button>
+                                                                        </div>
+                                                                        <EmailEditor
+                                                                            value={step.content}
+                                                                            onChange={(val) => onUpdateStep(step.id, 'content', val)}
+                                                                            placeholder="Type your message..."
+                                                                            className="min-h-[300px]"
+                                                                        />
+                                                                        <div className="flex items-center justify-end gap-2 mt-3">
+                                                                            {/* Action Buttons */}
+                                                                            <button
+                                                                                onClick={() => onSendTest(step)}
+                                                                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm"
+                                                                            >
+                                                                                Send Test
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={onSave}
+                                                                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700"
+                                                                            >
+                                                                                Save Changes
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="mt-4 flex justify-between items-end">
+                                                            <button
+                                                                onClick={() => onRemoveStep(step.id)}
+                                                                className="text-xs text-red-400 hover:text-red-500 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                                                            >
+                                                                Remove Step
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </article>
+                                        </div>
                                     );
                                 })}
-                            </div>
+
+                            </div >
                             <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                                 <button
                                     type="button"

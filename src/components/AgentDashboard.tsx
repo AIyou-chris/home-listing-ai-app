@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
 import LeadsAndAppointmentsPage from './LeadsAndAppointmentsPage';
@@ -66,12 +67,12 @@ const cloneDemoProperty = (property: Property, index: number): Property => {
 
 import { useImpersonation } from '../context/ImpersonationContext';
 
-interface AgentDashboardBlueprintProps {
+interface AgentDashboardProps {
   isDemoMode?: boolean;
   demoListingCount?: number;
 }
 
-const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDemoMode: propIsDemoMode = false, demoListingCount = 2 }) => {
+const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoMode = false, demoListingCount = 2 }) => {
   // Setup Failsafe: Force Demo Mode if URL implies it
   const isDemoMode = propIsDemoMode || window.location.pathname.includes('blueprint') || window.location.pathname.includes('demo');
 
@@ -515,6 +516,15 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
     setSelectedPropertyId(null);
   };
 
+  const handleBackToListings = () => {
+    setActiveView('listings');
+    setSelectedPropertyId(null);
+  };
+
+  const handleDeleteLead = (leadId: string) => {
+    setLeads(prev => prev.filter(l => l.id !== leadId));
+  };
+
   const renderMainContent = () => {
     switch (activeView) {
       case 'dashboard':
@@ -644,6 +654,20 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
                 onTaskUpdate={handleTaskUpdate}
                 onTaskAdd={handleTaskAdd}
                 onTaskDelete={handleTaskDelete}
+                onViewLeads={(leadId, action, initialTab) => {
+                  setActiveView('leads');
+                  if (leadId) {
+                    const params = new URLSearchParams();
+                    params.set('tab', 'leads');
+                    params.set('id', leadId);
+                    if (action) params.set('action', action);
+                    if (initialTab) params.set('initialTab', initialTab);
+                    navigate(`?${params.toString()}`, { replace: true });
+                  }
+                }}
+                onViewLogs={() => setActiveView('ai-interaction-hub')}
+                onViewListings={() => setActiveView('listings')}
+                onViewAppointments={() => setActiveView('leads')}
               />
             )}
           </div>
@@ -658,6 +682,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
             onNewAppointment={handleNewAppointment}
             onRefreshData={refreshLeads}
             onUpdateLead={handleUpdateLead}
+            onDeleteLead={handleDeleteLead}
           />
         );
       case 'ai-card':
@@ -697,7 +722,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
       case 'add-listing':
         return (
           <AddListingPage
-            onCancel={resetToDashboard}
+            onCancel={handleBackToListings}
             onSave={handleSaveNewProperty}
             agentProfile={agentProfile}
           />
@@ -705,7 +730,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
       case 'edit-listing':
         return selectedProperty ? (
           <AddListingPage
-            onCancel={resetToDashboard}
+            onCancel={handleBackToListings}
             onSave={handleSetProperty}
             initialProperty={selectedProperty}
             agentProfile={agentProfile}
@@ -723,7 +748,7 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         );
       case 'property':
         return selectedProperty ? (
-          <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setActiveView('listings')} isDemoMode={isDemoMode} />
+          <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setActiveView('listings')} isDemoMode={isDemoMode} leadCount={leads.filter(l => l.interestedProperties?.includes(selectedProperty.id)).length} />
         ) : (
           <ListingsPage
             properties={properties}
@@ -733,6 +758,17 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
             onBackToDashboard={resetToDashboard}
             onOpenMarketing={(id) => { setSelectedPropertyId(id); setActiveView('property'); }}
             onOpenBuilder={(id) => { setSelectedPropertyId(id); setActiveView('edit-listing'); }}
+          />
+        );
+      case 'ai-interaction-hub':
+        return (
+          <AIInteractionHubPage
+            properties={properties}
+            onBackToDashboard={resetToDashboard}
+            onAddNewLead={handleAddNewLead}
+            interactions={interactions}
+            setInteractions={setInteractions}
+            isDemoMode={isDemoMode}
           />
         );
       case 'knowledge-base':
@@ -796,8 +832,37 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
     }
   };
 
+  const isIntegrated = !isDemoMode;
+  const navigate = useNavigate();
+
+  // Navigation handlers that adapt to mode
+  const handleViewLeads = (leadId?: string, action?: 'view' | 'contact') => {
+    if (isIntegrated) {
+      const p = new URLSearchParams();
+      if (leadId) p.set('id', leadId);
+      if (action) p.set('action', action);
+      navigate(`/leads?${p.toString()}`);
+    }
+    else setActiveView('leads');
+  };
+
+  const handleViewLogs = () => {
+    if (isIntegrated) navigate('/inbox');
+    else setActiveView('ai-interaction-hub');
+  };
+
+  const handleViewListings = () => {
+    if (isIntegrated) navigate('/listings');
+    else setActiveView('listings');
+  };
+
+  const handleViewAppointments = () => {
+    if (isIntegrated) navigate('/leads?tab=appointments');
+    else setActiveView('leads');
+  };
+
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className={`flex ${isIntegrated ? 'flex-col min-h-full' : 'h-screen overflow-hidden'} bg-slate-50`}>
       {isImpersonating && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-white px-4 py-2 text-center font-bold shadow-md flex items-center justify-center gap-4">
           <span>👀 Viewing as {uiProfile.name} ({uiProfile.email})</span>
@@ -819,24 +884,29 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         </div>
       )}
 
-      <Sidebar
-        activeView={activeView}
-        setView={setActiveView}
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(!isSidebarOpen)}
-        isDemoMode={isDemoMode}
-      />
+      {/* Only render Sidebar in Demo/Standalone mode */}
+      {!isIntegrated && (
+        <Sidebar
+          activeView={activeView}
+          setView={setActiveView}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(!isSidebarOpen)}
+          isDemoMode={isDemoMode}
+        />
+      )}
 
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${(isImpersonating || isDemoMode) ? 'mt-10' : ''}`}>
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${(isImpersonating || (isDemoMode && !isImpersonating)) ? 'mt-10' : ''}`}>
         {/* Header */}
         <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 -ml-2 text-slate-500 hover:text-slate-700 lg:hidden"
-            >
-              <span className="material-symbols-outlined">menu</span>
-            </button>
+            {!isIntegrated && (
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2 -ml-2 text-slate-500 hover:text-slate-700 lg:hidden"
+              >
+                <span className="material-symbols-outlined">menu</span>
+              </button>
+            )}
             <h1 className="text-2xl font-bold text-slate-800">
               {activeView === 'dashboard' ? 'My Daily Pulse' :
                 activeView === 'leads' ? 'Leads & Appointments' :
@@ -884,7 +954,144 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
         {/* Main Content Area */}
         <main className={`flex-1 overflow-y-auto ${(activeView === 'knowledge-base' || activeView === 'funnel-analytics') ? 'p-0 md:p-8' : 'p-8'}`}>
           <div className="max-w-7xl mx-auto">
-            {renderMainContent()}
+            {activeView === 'dashboard' ? (
+              <div className="space-y-6">
+                {/* Welcome Setup Widget */}
+                {!isSetupDismissed && (
+                  <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-lg mb-8 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 opacity-10 pointer-events-none">
+                      <svg width="300" height="300" viewBox="0 0 100 100" fill="white">
+                        <circle cx="80" cy="20" r="40" />
+                        <circle cx="10" cy="90" r="30" />
+                      </svg>
+                    </div>
+
+                    <div className="relative z-10">
+                      <div className="flex items-start justify-between mb-6">
+                        <div>
+                          <h2 className="text-2xl font-bold mb-2">Welcome to your AI Command Center, {agentProfile.name ? agentProfile.name.split(' ')[0] : 'Agent'}! 🚀</h2>
+                          <p className="text-indigo-100 max-w-2xl">
+                            Let's get your AI Agent fully trained and operational. Complete these 5 steps to unlock your "AI-Ready" badge.
+                          </p>
+                        </div>
+                        <div className="absolute top-6 right-6">
+                          <button
+                            onClick={() => setIsSetupDismissed(true)}
+                            className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                            title="Dismiss Setup Guide"
+                          >
+                            <span className="material-symbols-outlined text-sm">close</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                        {/* Step 1: AI Card */}
+                        <button
+                          onClick={() => isIntegrated ? navigate('/ai-card') : setActiveView('ai-card')}
+                          className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                              1
+                            </div>
+                            <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">5 min</span>
+                          </div>
+                          <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">1. AI Business Card</h3>
+                          <p className="text-xs text-indigo-100 leading-relaxed">Fill out your bio & upload your headshot so your AI knows who you are.</p>
+                        </button>
+
+                        {/* Step 2: Train Brain */}
+                        <button
+                          onClick={() => isIntegrated ? navigate('/knowledge-base') : setActiveView('knowledge-base')}
+                          className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                              2
+                            </div>
+                            <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">15 min</span>
+                          </div>
+                          <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">2. Train Your Brain</h3>
+                          <p className="text-xs text-indigo-100 leading-relaxed">Upload PDFs or add text to train your "Personal GPT" on your business.</p>
+                        </button>
+
+                        {/* Step 3: Connect Email */}
+                        <button
+                          onClick={() => isIntegrated ? navigate('/settings') : setActiveView('settings')}
+                          className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                              3
+                            </div>
+                            <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">2 min</span>
+                          </div>
+                          <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">3. Connect Email</h3>
+                          <p className="text-xs text-indigo-100 leading-relaxed">Sync your Gmail so your AI can draft replies and book meetings.</p>
+                        </button>
+
+                        {/* Step 4: First Listing */}
+                        <button
+                          onClick={() => isIntegrated ? navigate('/add-listing') : setActiveView('add-listing')}
+                          className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                              4
+                            </div>
+                            <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">10 min</span>
+                          </div>
+                          <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">4. Add Listing</h3>
+                          <p className="text-xs text-indigo-100 leading-relaxed">Create your first AI-powered property listing to see the magic.</p>
+                        </button>
+
+                        {/* Step 5: Funnels */}
+                        <button
+                          onClick={() => isIntegrated ? navigate('/funnel-analytics') : setActiveView('funnel-analytics')}
+                          className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                              5
+                            </div>
+                            <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">5 min</span>
+                          </div>
+                          <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">5. Review Funnels</h3>
+                          <p className="text-xs text-indigo-100 leading-relaxed">Check your automated follow-up sequences and customize them.</p>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isLoadingProperties && properties.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+                    Loading listings…
+                  </div>
+                ) : (
+                  <Dashboard
+                    agentProfile={agentProfile}
+                    properties={properties}
+                    leads={leads}
+                    appointments={appointments}
+                    tasks={tasks}
+                    onSelectProperty={handleSelectProperty}
+                    onTaskUpdate={handleTaskUpdate}
+                    onTaskAdd={handleTaskAdd}
+                    onTaskDelete={handleTaskDelete}
+                    onViewLeads={handleViewLeads}
+                    onViewLogs={handleViewLogs}
+                    onViewListings={handleViewListings}
+                    onViewAppointments={handleViewAppointments}
+                  />
+                )}
+              </div>
+            ) : (
+              /* Only render other views if NOT integrated. If integrated, we should have navigated away. 
+                 However, for safety / demo mode, we keep this fallback */
+              renderMainContent()
+            )}
           </div>
         </main>
       </div>
@@ -892,4 +1099,4 @@ const AgentDashboardBlueprint: React.FC<AgentDashboardBlueprintProps> = ({ isDem
   );
 };
 
-export default AgentDashboardBlueprint;
+export default AgentDashboard;

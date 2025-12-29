@@ -25,6 +25,7 @@ interface AICardProfile {
     twitter: string;
     linkedin: string;
     youtube: string;
+    emailSignature?: string;
     backgroundImage?: string;
   };
   headshot: string | null;
@@ -91,7 +92,7 @@ const withAssetUrls = async (profile: AICardProfile): Promise<AICardProfile> => 
 };
 
 export const uploadAiCardAsset = async (
-  type: 'headshot' | 'logo',
+  type: 'headshot' | 'logo' | 'background',
   file: File,
   userId?: string
 ): Promise<{ path: string; url: string | null }> => {

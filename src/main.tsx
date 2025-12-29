@@ -6,7 +6,7 @@ import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { SchedulerProvider } from './context/SchedulerContext'
-import AgentDashboardBlueprint from './components/AgentDashboardBlueprint'
+import AgentDashboard from './components/AgentDashboard'
 import { AgentBrandingProvider } from './context/AgentBrandingContext'
 
 import { ImpersonationProvider } from './context/ImpersonationContext'
@@ -32,7 +32,7 @@ const blueprintTree = (
           <SchedulerProvider>
             <ImpersonationProvider>
               <AgentBrandingProvider>
-                <AgentDashboardBlueprint />
+                <AgentDashboard />
               </AgentBrandingProvider>
             </ImpersonationProvider>
           </SchedulerProvider>

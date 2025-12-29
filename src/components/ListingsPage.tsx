@@ -62,15 +62,161 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, on
     );
 };
 
+interface MarketingModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    property: Property;
+    onGoToMarketing: () => void;
+}
+
+const MarketingModal: React.FC<MarketingModalProps> = ({ isOpen, onClose, property, onGoToMarketing }) => {
+    const [shortUrl, setShortUrl] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+
+    React.useEffect(() => {
+        if (isOpen && !shortUrl) {
+            generateShortLink();
+        }
+    }, [isOpen]);
+
+    const generateShortLink = async () => {
+        setIsLoading(true);
+        const baseUrl = window.location.origin;
+        const longUrl = `${baseUrl}/listings/${property.id}`;
+        try {
+            // 1. Get Short Link
+            const res = await fetch(`${baseUrl}/api/shorten`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: longUrl })
+            });
+            const data = await res.json();
+            const link = (data.success && data.shortUrl) ? data.shortUrl : longUrl;
+            setShortUrl(link);
+
+            // 2. Generate QR Code for Short Link
+            // Use simple API fallback for listing since we don't have a specific backend endpoint for listing QRs yet
+            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(link)}`;
+            setQrCodeUrl(qrApiUrl);
+
+        } catch (err) {
+            console.error('Marketing tool error', err);
+            setShortUrl(longUrl);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCopyLink = () => {
+        if (shortUrl) {
+            navigator.clipboard.writeText(shortUrl);
+            alert('Link copied!');
+        }
+    };
+
+    const handleDownloadQr = () => {
+        if (qrCodeUrl) {
+            const link = document.createElement('a');
+            link.href = qrCodeUrl;
+            link.download = `listing-qr-${property.address.replace(/\s+/g, '-').toLowerCase()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="absolute inset-0" onClick={onClose} />
+            <div className="relative w-full max-w-sm bg-slate-900 border border-slate-700/50 rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 text-white">
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition"
+                >
+                    <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+
+                <div className="text-center mb-6">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-500/25">
+                        <span className="material-symbols-outlined text-2xl text-white">campaign</span>
+                    </div>
+                    <h3 className="text-xl font-bold mb-1">Marketing Tools</h3>
+                    <p className="text-sm text-slate-400">Promote your listing anywhere</p>
+                </div>
+
+                {isLoading ? (
+                    <div className="h-40 flex items-center justify-center">
+                        <span className="material-symbols-outlined animate-spin text-3xl text-indigo-500">sync</span>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        {/* URL Section */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Short Link</label>
+                            <div className="flex gap-2">
+                                <div className="flex-1 bg-slate-800/50 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-300 truncate font-mono">
+                                    {shortUrl}
+                                </div>
+                                <button
+                                    onClick={handleCopyLink}
+                                    className="px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition flex items-center justify-center"
+                                >
+                                    <span className="material-symbols-outlined text-lg">content_copy</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* QR Code Section */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Smart QR Code</label>
+                            <div className="bg-white p-4 rounded-2xl flex flex-col items-center gap-4">
+                                {qrCodeUrl && (
+                                    <img src={qrCodeUrl} alt="Listing QR Code" className="w-40 h-40 mix-blend-multiply" />
+                                )}
+                                <div className="flex flex-col gap-2 w-full">
+                                    <button
+                                        onClick={handleDownloadQr}
+                                        className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-lg text-sm transition flex items-center justify-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">download</span>
+                                        Download PNG
+                                    </button>
+                                    <button
+                                        onClick={onGoToMarketing}
+                                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm transition flex items-center justify-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">open_in_new</span>
+                                        Full Marketing Suite
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const PropertyCard: React.FC<PropertyCardProps> = ({
     property,
     onSelect,
-    onDelete: _onDelete, // Unused
+    onDelete,
     onOpenMarketing,
     onOpenBuilder: _onOpenBuilder, // Unused
     onEdit
 }) => {
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (window.confirm(`Are you sure you want to delete ${property.address}?`)) {
+            onDelete();
+        }
+    };
     const [showContactForm, setShowContactForm] = useState(false);
+    const [showMarketing, setShowMarketing] = useState(false);
 
     // Fallback image if property.imageUrl is missing or broken
     const displayImage = property.imageUrl || property.heroPhotos?.[0] || 'https://images.unsplash.com/photo-1600596542815-27b88e31e976?q=80&w=2000&auto-format&fit=crop';
@@ -103,6 +249,8 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
         alert('Message sent to agent!');
     };
 
+
+
     return (
         <div
             className="group relative w-full h-[80vh] md:h-[85vh] max-h-[900px] rounded-[2rem] overflow-hidden shadow-2xl shrink-0 snap-center cursor-pointer transition-transform duration-500 hover:scale-[1.01]"
@@ -130,6 +278,13 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
                 onClose={() => setShowContactForm(false)}
                 onSubmit={handleFormSubmit}
                 propertyName={property.address}
+            />
+
+            <MarketingModal
+                isOpen={showMarketing}
+                onClose={() => setShowMarketing(false)}
+                property={property}
+                onGoToMarketing={() => onSelect()}
             />
 
             {/* Status Badge & Edit Button */}
@@ -240,12 +395,37 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
                     </button>
                 </div>
 
-                {/* Pagination Dots (Visual Only) */}
-                <div className="flex gap-2 mt-8">
-                    <div className="w-2 h-2 rounded-full bg-white shadow-sm" />
-                    <div className="w-2 h-2 rounded-full bg-white/40" />
-                    <div className="w-2 h-2 rounded-full bg-white/40" />
-                    <div className="w-2 h-2 rounded-full bg-white/40" />
+                {/* Admin Actions Row */}
+                <div className="w-full mt-6 pt-6 border-t border-white/10 flex items-center justify-between gap-4">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onEdit) onEdit();
+                        }}
+                        className="flex-1 px-4 py-2.5 rounded-xl border border-indigo-400/50 text-indigo-300 font-semibold text-sm hover:bg-indigo-500/10 transition flex items-center justify-center gap-2"
+                    >
+                        <span className="material-symbols-outlined text-lg">edit_note</span>
+                        Edit Listing
+                    </button>
+
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMarketing(true);
+                        }}
+                        className="px-4 py-2.5 rounded-xl border border-indigo-400/50 text-indigo-300 font-semibold text-sm hover:bg-indigo-500/10 transition flex items-center justify-center gap-2"
+                        title="Get Short Link & QR"
+                    >
+                        <span className="material-symbols-outlined text-lg">qr_code_2</span>
+                    </button>
+
+                    <button
+                        onClick={handleDelete}
+                        className="px-4 py-2.5 rounded-xl text-red-300/80 font-medium text-sm hover:bg-red-500/10 hover:text-red-300 transition flex items-center gap-2"
+                    >
+                        <span className="material-symbols-outlined text-lg">delete</span>
+                        Delete
+                    </button>
                 </div>
             </div>
         </div>

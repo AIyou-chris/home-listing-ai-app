@@ -1,6 +1,12 @@
 import { Property, Lead, Appointment, Interaction, FollowUpSequence, ActiveLeadFollowUp, AnalyticsData } from './types';
 import { SAMPLE_AGENT } from './constants';
 
+const getRelDate = (offsetDays: number): string => {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return date.toISOString().split('T')[0]; // Returns YYYY-MM-DD
+};
+
 export const DEMO_FAT_PROPERTIES: Property[] = [
   {
     id: 'demo-1',
@@ -212,7 +218,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Marcus Chen',
     propertyId: 'demo-2',
     propertyAddress: '156 Maple Grove Lane, Austin, TX',
-    date: '2025-11-26',
+    date: getRelDate(1),
     time: '10:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -230,7 +236,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Emily Rodriguez',
     propertyId: 'demo-1',
     propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
-    date: '2025-11-25',
+    date: getRelDate(0),
     time: '14:30',
     type: 'Showing',
     status: 'Scheduled',
@@ -248,7 +254,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'David Park',
     propertyId: 'demo-1',
     propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
-    date: '2025-11-27',
+    date: getRelDate(2),
     time: '09:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -266,7 +272,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'David Park',
     propertyId: 'demo-2',
     propertyAddress: '156 Maple Grove Lane, Austin, TX',
-    date: '2025-11-27',
+    date: getRelDate(2),
     time: '15:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -284,7 +290,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Sarah & James Thompson',
     propertyId: 'demo-2',
     propertyAddress: '156 Maple Grove Lane, Austin, TX',
-    date: '2025-11-28',
+    date: getRelDate(3),
     time: '11:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -302,7 +308,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Jennifer Martinez',
     propertyId: 'demo-1',
     propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
-    date: '2025-11-29',
+    date: getRelDate(4),
     time: '13:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -320,7 +326,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Marcus Chen',
     propertyId: 'demo-1',
     propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
-    date: '2025-11-26',
+    date: getRelDate(1),
     time: '16:00',
     type: 'Open House',
     status: 'Scheduled',
@@ -338,7 +344,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Emily Rodriguez',
     propertyId: 'demo-2',
     propertyAddress: '156 Maple Grove Lane, Austin, TX',
-    date: '2025-11-28',
+    date: getRelDate(3),
     time: '10:30',
     type: 'Consultation',
     status: 'Scheduled',
@@ -356,7 +362,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'Sarah & James Thompson',
     propertyId: 'demo-1',
     propertyAddress: '2847 Sunset Boulevard, Los Angeles, CA',
-    date: '2025-11-27',
+    date: getRelDate(2),
     time: '14:00',
     type: 'Showing',
     status: 'Scheduled',
@@ -374,7 +380,7 @@ export const DEMO_FAT_APPOINTMENTS: Appointment[] = [
     leadName: 'David Park',
     propertyId: 'demo-2',
     propertyAddress: '156 Maple Grove Lane, Austin, TX',
-    date: '2025-11-29',
+    date: getRelDate(5),
     time: '09:30',
     type: 'Consultation',
     status: 'Scheduled',

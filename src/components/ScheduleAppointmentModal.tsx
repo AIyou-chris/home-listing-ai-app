@@ -21,6 +21,7 @@ export interface ScheduleAppointmentFormData {
     phone: string;
     date: string;
     time: string;
+    location: string;
     message: string;
     kind: AppointmentKind;
     agentId?: string | null;
@@ -63,7 +64,7 @@ const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) 
             {...props}
             className="w-full appearance-none bg-white px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
         >
-          {props.children}
+            {props.children}
         </select>
         <span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
     </div>
@@ -85,6 +86,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
         phone: '',
         date: '',
         time: 'Afternoon (1 PM - 4 PM)',
+        location: '',
         message: '',
         kind: 'Consultation',
         remindAgent: true,
@@ -104,6 +106,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
             phone: initialData?.phone ?? lead?.phone ?? prev.phone,
             date: initialData?.date ?? prev.date,
             time: initialData?.time ?? prev.time,
+            location: initialData?.location ?? prev.location,
             message: initialData?.message ?? prev.message,
             kind: initialData?.kind ?? prev.kind,
             remindAgent: initialData?.remindAgent ?? prev.remindAgent,
@@ -169,8 +172,8 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                             </div>
                         </FormRow>
                         <FormRow>
-                             <Label htmlFor="appt-time">Preferred Time *</Label>
-                             <Select id="appt-time" name="time" value={formData.time} onChange={handleChange}>
+                            <Label htmlFor="appt-time">Preferred Time *</Label>
+                            <Select id="appt-time" name="time" value={formData.time} onChange={handleChange}>
                                 <option>Morning (9 AM - 12 PM)</option>
                                 <option>Afternoon (1 PM - 4 PM)</option>
                                 <option>Evening (5 PM - 7 PM)</option>
@@ -205,7 +208,11 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                             </Select>
                         </FormRow>
                     )}
-                     <FormRow>
+                    <FormRow>
+                        <Label htmlFor="appt-location">Location</Label>
+                        <Input type="text" id="appt-location" name="location" placeholder="Address or meeting place" value={formData.location} onChange={handleChange} />
+                    </FormRow>
+                    <FormRow>
                         <Label htmlFor="appt-message">Message</Label>
                         <Textarea id="appt-message" name="message" placeholder="Any special requests or notes" value={formData.message} onChange={handleChange} />
                     </FormRow>

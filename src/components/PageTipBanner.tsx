@@ -69,7 +69,7 @@ const PageTipBanner: React.FC<PageTipBannerProps> = ({
   return (
     <div className="mb-6">
       {!isExpanded ? (
-        <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border-2 border-blue-300 rounded-xl p-4 shadow-lg">
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
           {(!title && !message) ? (
             <div className="flex items-center justify-center relative">
               <div className="absolute left-0 text-3xl opacity-50">{emoji}</div>
@@ -127,7 +127,7 @@ const PageTipBanner: React.FC<PageTipBannerProps> = ({
           )}
         </div>
       ) : (
-        <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border-2 border-blue-300 rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 bg-white/70 border-b border-blue-200">
             <div className="flex items-center gap-3">
               <div className="text-3xl">{emoji}</div>

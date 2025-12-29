@@ -328,7 +328,7 @@ export type TriggerType =
 
 export interface SequenceStep {
     id: string;
-    type: 'email' | 'ai-email' | 'task' | 'meeting' | 'reminder' | 'call';
+    type: 'email' | 'ai-email' | 'task' | 'meeting' | 'reminder' | 'call' | 'sms';
     delay: { value: number; unit: 'minutes' | 'hours' | 'days' };
     content: string;
     subject?: string; // For emails
@@ -460,16 +460,20 @@ export interface NotificationSettings {
     weeklySummary: boolean;
     appointmentReminders: boolean;
     taskReminders: boolean;
-    marketingUpdates: boolean;
     propertyInquiries: boolean;
     showingConfirmations: boolean;
     hotLeads: boolean;
-    priceChanges: boolean;
-    contractMilestones: boolean;
+    priceChanges?: boolean;
+    contractMilestones?: boolean;
+    marketingUpdates?: boolean;
     browserNotifications: boolean;
     weekendNotifications: boolean;
     weeklyReport: boolean;
     monthlyInsights: boolean;
+    smsNewLeadAlerts?: boolean;
+    notificationPhone?: string;
+    smsActiveHoursStart?: string;
+    smsActiveHoursEnd?: string;
 }
 
 export type CalendarIntegrationType = 'google' | 'outlook' | 'apple' | null;

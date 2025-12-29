@@ -1,8 +1,4 @@
-const fs = require('fs')
-const path = require('path')
-
-const DATA_DIR = path.join(__dirname, '..', 'data')
-const STORE_FILE = path.join(DATA_DIR, 'email-settings.json')
+const { supabaseAdmin } = require('../services/supabase');
 
 const DEFAULT_EMAIL_SETTINGS = {
   integrationType: 'forwarding',
@@ -14,106 +10,115 @@ const DEFAULT_EMAIL_SETTINGS = {
   fromName: '',
   signature: '',
   trackOpens: false
-}
+};
 
-const DEFAULT_CONNECTIONS = []
+const DEFAULT_CONNECTIONS = [];
 
-let storeCache = null
+const demoStore = new Map();
 
-const loadStore = () => {
-  if (storeCache) {
-    return storeCache
-  }
-
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8')
-    storeCache = JSON.parse(raw)
-  } catch (error) {
-    storeCache = {}
-  }
-
-  return storeCache
-}
-
-const persistStore = () => {
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true })
-    fs.writeFileSync(STORE_FILE, JSON.stringify(storeCache ?? {}, null, 2), 'utf8')
-  } catch (error) {
-    console.error('[EmailSettings] Failed to persist store:', error)
-  }
-}
+const isUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 const normalizeUserId = (userId) => {
-  if (!userId || typeof userId !== 'string') {
-    return 'default-user'
-  }
+  if (!userId || typeof userId !== 'string') return 'default-user';
+  return userId.trim().toLowerCase();
+};
 
-  const trimmed = userId.trim().toLowerCase()
-
-  if (trimmed.startsWith('blueprint-')) {
-    return 'demo-blueprint'
-  }
-
-  if (trimmed === 'guest-agent') {
-    return 'demo-blueprint'
-  }
-
-  return trimmed
-}
-
-const clone = (value) => JSON.parse(JSON.stringify(value))
+const clone = (value) => JSON.parse(JSON.stringify(value));
 
 const sanitizeConnections = (connections) =>
-  connections.map(({ credentials, ...rest }) => ({ ...rest }))
+  connections.map(({ credentials, ...rest }) => ({ ...rest }));
 
-const getEntry = (userId) => {
-  const store = loadStore()
-  const key = normalizeUserId(userId)
+const getEntry = async (userId) => {
+  const normId = normalizeUserId(userId);
 
-  if (!store[key]) {
-    store[key] = {
-      settings: clone(DEFAULT_EMAIL_SETTINGS),
-      connections: clone(DEFAULT_CONNECTIONS)
+  if (!isUuid(normId)) {
+    if (!demoStore.has(normId)) {
+      demoStore.set(normId, {
+        settings: clone(DEFAULT_EMAIL_SETTINGS),
+        connections: clone(DEFAULT_CONNECTIONS)
+      });
     }
+    return demoStore.get(normId);
   }
 
-  storeCache = store
-  persistStore()
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('user_settings')
+      .select('data')
+      .eq('user_id', normId)
+      .eq('category', 'email')
+      .single();
 
-  return store[key]
-}
+    if (error && error.code !== 'PGRST116') console.error('[EmailSettings] DB Fetch Error:', error.message);
 
-const getEmailSettings = (userId) => {
-  const entry = getEntry(userId)
+    if (data?.data) {
+      return {
+        settings: { ...DEFAULT_EMAIL_SETTINGS, ...(data.data.settings || {}) },
+        connections: Array.isArray(data.data.connections) ? data.data.connections : clone(DEFAULT_CONNECTIONS)
+      };
+    }
+  } catch (err) {
+    console.error('[EmailSettings] Unexpected error:', err);
+  }
+
+  return {
+    settings: clone(DEFAULT_EMAIL_SETTINGS),
+    connections: clone(DEFAULT_CONNECTIONS)
+  };
+};
+
+const saveEntry = async (userId, entry) => {
+  const normId = normalizeUserId(userId);
+
+  if (!isUuid(normId)) {
+    demoStore.set(normId, entry);
+  } else {
+    try {
+      const { error } = await supabaseAdmin
+        .from('user_settings')
+        .upsert({
+          user_id: normId,
+          category: 'email',
+          data: entry,
+          updated_at: new Date()
+        }, { onConflict: 'user_id, category' });
+      if (error) console.error('[EmailSettings] DB Save Error:', error.message);
+    } catch (err) {
+      console.error('[EmailSettings] Unexpected save error:', err);
+    }
+  }
+};
+
+const getEmailSettings = async (userId) => {
+  const entry = await getEntry(userId);
   return {
     settings: clone(entry.settings),
     connections: sanitizeConnections(entry.connections)
-  }
-}
+  };
+};
 
-const updateEmailSettings = (userId, updates = {}) => {
-  const entry = getEntry(userId)
-  const allowedKeys = Object.keys(DEFAULT_EMAIL_SETTINGS)
-  const nextSettings = { ...entry.settings }
+const updateEmailSettings = async (userId, updates = {}) => {
+  const entry = await getEntry(userId);
+  const allowedKeys = Object.keys(DEFAULT_EMAIL_SETTINGS);
+  const nextSettings = { ...entry.settings };
 
   Object.entries(updates).forEach(([key, value]) => {
     if (allowedKeys.includes(key)) {
-      nextSettings[key] = value
+      nextSettings[key] = value;
     }
-  })
+  });
 
-  entry.settings = nextSettings
-  persistStore()
+  entry.settings = nextSettings;
+  await saveEntry(userId, entry);
 
-  return getEmailSettings(userId)
-}
+  return getEmailSettings(userId);
+};
 
-const connectEmailProvider = (userId, provider, emailAddress, options = {}) => {
-  const entry = getEntry(userId)
-  const now = new Date().toISOString()
-  const fallbackEmail = emailAddress || entry.settings.fromEmail || `${normalizeUserId(userId)}@example.com`
-  const email = fallbackEmail.trim() || `${normalizeUserId(userId)}@example.com`
+const connectEmailProvider = async (userId, provider, emailAddress, options = {}) => {
+  const entry = await getEntry(userId);
+  const now = new Date().toISOString();
+  const fallbackEmail = emailAddress || entry.settings.fromEmail || `${normalizeUserId(userId)}@example.com`;
+  const email = fallbackEmail.trim() || `${normalizeUserId(userId)}@example.com`;
 
   const connection = {
     provider,
@@ -121,39 +126,39 @@ const connectEmailProvider = (userId, provider, emailAddress, options = {}) => {
     connectedAt: now,
     status: 'active',
     credentials: options.credentials ? { ...options.credentials } : undefined
-  }
+  };
 
-  const filtered = entry.connections.filter((item) => item.provider !== provider)
-  entry.connections = [...filtered, connection]
+  const filtered = entry.connections.filter((item) => item.provider !== provider);
+  entry.connections = [...filtered, connection];
 
   if (provider === 'gmail') {
-    entry.settings.integrationType = 'oauth'
-    entry.settings.fromEmail = email
+    entry.settings.integrationType = 'oauth';
+    entry.settings.fromEmail = email;
     if (!entry.settings.fromName) {
-      entry.settings.fromName = email.split('@')[0]
+      entry.settings.fromName = email.split('@')[0];
     }
   }
 
-  persistStore()
+  await saveEntry(userId, entry);
 
-  return sanitizeConnections(entry.connections)
-}
+  return sanitizeConnections(entry.connections);
+};
 
-const disconnectEmailProvider = (userId, provider) => {
-  const entry = getEntry(userId)
-  entry.connections = entry.connections.filter((item) => item.provider !== provider)
+const disconnectEmailProvider = async (userId, provider) => {
+  const entry = await getEntry(userId);
+  entry.connections = entry.connections.filter((item) => item.provider !== provider);
 
   if (provider === 'gmail') {
-    const stillConnected = entry.connections.some((item) => item.provider === 'gmail')
+    const stillConnected = entry.connections.some((item) => item.provider === 'gmail');
     if (!stillConnected) {
-      entry.settings.integrationType = 'forwarding'
+      entry.settings.integrationType = 'forwarding';
     }
   }
 
-  persistStore()
+  await saveEntry(userId, entry);
 
-  return sanitizeConnections(entry.connections)
-}
+  return sanitizeConnections(entry.connections);
+};
 
 module.exports = {
   DEFAULT_EMAIL_SETTINGS,
@@ -161,4 +166,4 @@ module.exports = {
   updateEmailSettings,
   connectEmailProvider,
   disconnectEmailProvider
-}
+};

@@ -37,6 +37,7 @@ export interface ConsultationData {
     date: string;
     time: string;
     message: string;
+    location?: string;
 }
 
 export interface CalendarResult {
@@ -50,6 +51,9 @@ export interface ContactMessageData {
     phone?: string;
     message: string;
 }
+
+// Helper to generate Google Maps URL
+const getMapsUrl = (location: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
 
 class EmailService {
     private static instance: EmailService
@@ -151,6 +155,7 @@ class EmailService {
                             <p><strong>Date:</strong> ${new Date(data.date).toLocaleDateString()}</p>
                             <p><strong>Time:</strong> ${data.time}</p>
                             <p><strong>Duration:</strong> 30 minutes</p>
+                            ${data.location ? `<p><strong>Location:</strong> <a href="${getMapsUrl(data.location)}" style="color: #1e40af;">${data.location}</a> 📍</p>` : ''}
                             ${meetLink ? `<p><strong>Meeting Link:</strong> <a href="${meetLink}" style="color: #1e40af;">Join Meeting</a></p>` : ''}
                         </div>
                         
@@ -211,6 +216,7 @@ class EmailService {
                             <p><strong>Phone:</strong> ${data.phone || 'Not provided'}</p>
                             <p><strong>Date:</strong> ${new Date(data.date).toLocaleDateString()}</p>
                             <p><strong>Time:</strong> ${data.time}</p>
+                            ${data.location ? `<p><strong>Location:</strong> <a href="${getMapsUrl(data.location)}" style="color: #1e40af;">${data.location}</a> 📍</p>` : ''}
                             ${meetLink ? `<p><strong>Meeting Link:</strong> <a href="${meetLink}" style="color: #1e40af;">Join Meeting</a></p>` : ''}
                         </div>
                         

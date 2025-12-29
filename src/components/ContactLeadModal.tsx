@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Modal from './Modal';
 import { Lead } from '../types';
 import { leadsService, PhoneLogPayload } from '../services/leadsService';
+import { textingService } from '../services/textingService';
 
 type FollowUpSequenceSummary = {
     id: string;
@@ -34,11 +35,10 @@ const TabButton: React.FC<{
 }> = ({ isActive, onClick, icon, children }) => (
     <button
         onClick={onClick}
-        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-            isActive 
-                ? 'border-primary-600 text-primary-600' 
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-        }`}
+        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${isActive
+            ? 'border-primary-600 text-primary-600'
+            : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
     >
         <span className="material-symbols-outlined w-5 h-5">{icon}</span>
         <span>{children}</span>
@@ -49,6 +49,7 @@ interface ContactLeadModalProps {
     lead: Lead;
     onClose: () => void;
     onSchedule: (lead: Lead) => void;
+    initialTab?: 'email' | 'call' | 'note' | 'sms' | 'schedule';
 }
 
 const FormRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -82,11 +83,11 @@ const defaultDateTimeValue = () => {
     return offset.toISOString().slice(0, 16);
 };
 
-const ContactLeadModal: React.FC<ContactLeadModalProps> = ({ lead, onClose, onSchedule }) => {
-    const [activeTab, setActiveTab] = useState<'email' | 'call' | 'note'>('email');
+const ContactLeadModal: React.FC<ContactLeadModalProps> = ({ lead, onClose, onSchedule, initialTab }) => {
+    const [activeTab, setActiveTab] = useState<'email' | 'call' | 'note' | 'sms' | 'schedule'>(initialTab || 'email');
     const [emailSubject, setEmailSubject] = useState(`Re: Your inquiry`);
     const [emailMessage, setEmailMessage] = useState(
-`Hi ${lead.name.split(' ')[0]},
+        `Hi ${lead.name.split(' ')[0]},
 
 Thank you for your interest. I'd love to discuss this property with you and answer any questions you may have.
 
@@ -110,6 +111,9 @@ Best regards,`
     const [enrollMessage, setEnrollMessage] = useState<string | null>(null);
     const [isEnrolling, setIsEnrolling] = useState(false);
     const [enrolledSequenceIds, setEnrolledSequenceIds] = useState<string[]>([]);
+    const [smsMessage, setSmsMessage] = useState('');
+    const [isSendingSms, setIsSendingSms] = useState(false);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
 
     const availableSequenceOptions = useMemo(() => {
         if (!availableSequences.length) return [];
@@ -246,7 +250,64 @@ Best regards,`
         }
     };
 
-    const handleTabClick = (tab: 'email' | 'call' | 'note' | 'schedule') => {
+    const handleSendSms = async () => {
+        if (!smsMessage.trim()) return;
+        setIsSendingSms(true);
+        try {
+            const success = await textingService.sendSms(lead.phone, smsMessage);
+            if (success) {
+                alert('SMS sent successfully!');
+                setSmsMessage('');
+                onClose();
+            } else {
+                alert('Failed to send SMS. Ensure the number is valid and verify your Telnyx setup.');
+            }
+        } catch (error) {
+            console.error('Failed to send SMS', error);
+            alert('Failed to send SMS');
+        } finally {
+            setIsSendingSms(false);
+        }
+    };
+
+    const handleSendEmail = async () => {
+        if (!emailSubject.trim() || !emailMessage.trim()) {
+            alert('Please provide a subject and message.');
+            return;
+        }
+
+        setIsSendingEmail(true);
+        try {
+            const response = await fetch('/api/email/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    to: lead.email,
+                    subject: emailSubject,
+                    text: emailMessage,
+                    html: emailMessage.replace(/\n/g, '<br/>')
+                })
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to send email');
+            }
+
+            alert('Email sent successfully!');
+            onClose();
+        } catch (error) {
+            console.error('Failed to send email:', error);
+            const message = error instanceof Error ? error.message : 'Could not send email.';
+            alert(`Error: ${message}`);
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
+    const handleTabClick = (tab: 'email' | 'call' | 'note' | 'sms' | 'schedule') => {
         if (tab === 'schedule') {
             onSchedule(lead);
         } else {
@@ -259,6 +320,9 @@ Best regards,`
                 setCallOutcome('connected');
                 setCallStartedAt(defaultDateTimeValue());
             }
+            if (tab === 'sms') {
+                setSmsMessage('');
+            }
         }
     }
 
@@ -268,18 +332,19 @@ Best regards,`
             <p className="text-sm text-slate-500 mt-0.5">Log an interaction or schedule a follow-up</p>
         </div>
     );
-    
+
     return (
         <Modal title={titleNode} onClose={onClose}>
             <div className="border-b border-slate-200">
                 <nav className="flex items-center">
                     <TabButton isActive={activeTab === 'email'} onClick={() => handleTabClick('email')} icon='mail'>Email</TabButton>
                     <TabButton isActive={activeTab === 'call'} onClick={() => handleTabClick('call')} icon='call'>Log Call</TabButton>
+                    <TabButton isActive={activeTab === 'sms'} onClick={() => handleTabClick('sms')} icon='sms'>Send Text</TabButton>
                     <TabButton isActive={activeTab === 'note'} onClick={() => handleTabClick('note')} icon='edit_note'>Add Note</TabButton>
                     <TabButton isActive={false} onClick={() => handleTabClick('schedule')} icon='calendar_today'>Schedule</TabButton>
                 </nav>
             </div>
-            
+
             <div className="p-6">
                 <FormRow>
                     <Label htmlFor="sequence-select">Enroll in follow-up sequence</Label>
@@ -335,7 +400,7 @@ Best regards,`
                         </FormRow>
                     </>
                 )}
-                 {activeTab === 'call' && (
+                {activeTab === 'call' && (
                     <>
                         <FormRow>
                             <Label htmlFor="call-started-at">Call Time</Label>
@@ -398,49 +463,78 @@ Best regards,`
                             )}
                         </div>
                     </>
-                 )}
-                 {activeTab === 'note' && (
+                )}
+                {activeTab === 'sms' && (
+                    <FormRow>
+                        <Label htmlFor="sms-message">Text Message</Label>
+                        <Textarea
+                            id="sms-message"
+                            value={smsMessage}
+                            onChange={(e) => setSmsMessage(e.target.value)}
+                            placeholder={`Type a text message to ${lead.name}...`}
+                            maxLength={160}
+                        />
+                        <p className="text-xs text-slate-500 mt-1 text-right">{smsMessage.length}/160 characters</p>
+                    </FormRow>
+                )}
+                {activeTab === 'note' && (
                     <FormRow>
                         <Label htmlFor="note-content">Add a Note</Label>
-                        <Textarea 
-                            id="note-content" 
-                            value={noteContent} 
-                            onChange={(e) => setNoteContent(e.target.value)} 
+                        <Textarea
+                            id="note-content"
+                            value={noteContent}
+                            onChange={(e) => setNoteContent(e.target.value)}
                             placeholder={`Add a private note for ${lead.name}...`}
                         />
                     </FormRow>
-                 )}
+                )}
             </div>
 
             <div className="flex justify-end items-center px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-xl">
-                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition mr-2">
-                        Cancel
+                <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition mr-2">
+                    Cancel
+                </button>
+                {activeTab === 'email' && (
+                    <button
+                        type="button"
+                        onClick={handleSendEmail}
+                        disabled={isSendingEmail}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition ${isSendingEmail ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                        <span className="material-symbols-outlined w-5 h-5">send</span>
+                        <span>{isSendingEmail ? 'Sending...' : 'Send Email'}</span>
                     </button>
-                    {activeTab === 'email' && (
-                        <button type="button" onClick={() => { alert('Email sent!'); onClose(); }} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition">
-                            <span className="material-symbols-outlined w-5 h-5">send</span>
-                            <span>Send Email</span>
-                        </button>
-                    )}
-                    {(activeTab === 'call' || activeTab === 'note') && (
-                         <button
-                            type="button"
-                            disabled={activeTab === 'call' ? isSavingCall : false}
-                            onClick={() => {
-                                if (activeTab === 'call') {
-                                    handleSaveCallLog();
-                                } else {
-                                    alert('Note saved!');
-                                    onClose();
-                                }
-                            }}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition ${isSavingCall ? 'opacity-70 cursor-not-allowed' : ''}`}
-                        >
-                            <span className="material-symbols-outlined w-5 h-5">save</span>
-                            <span>{activeTab === 'call' ? (isSavingCall ? 'Saving...' : 'Save Call Log') : 'Save Note'}</span>
-                        </button>
-                    )}
-                </div>
+                )}
+                {(activeTab === 'call' || activeTab === 'note') && (
+                    <button
+                        type="button"
+                        disabled={activeTab === 'call' ? isSavingCall : false}
+                        onClick={() => {
+                            if (activeTab === 'call') {
+                                handleSaveCallLog();
+                            } else {
+                                alert('Note saved!');
+                                onClose();
+                            }
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition ${isSavingCall ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                        <span className="material-symbols-outlined w-5 h-5">save</span>
+                        <span>{activeTab === 'call' ? (isSavingCall ? 'Saving...' : 'Save Call Log') : 'Save Note'}</span>
+                    </button>
+                )}
+                {activeTab === 'sms' && (
+                    <button
+                        type="button"
+                        onClick={handleSendSms}
+                        disabled={isSendingSms || !smsMessage.trim()}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition ${isSendingSms ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                        <span className="material-symbols-outlined w-5 h-5">send</span>
+                        <span>{isSendingSms ? 'Sending...' : 'Send SMS'}</span>
+                    </button>
+                )}
+            </div>
         </Modal>
     );
 };
