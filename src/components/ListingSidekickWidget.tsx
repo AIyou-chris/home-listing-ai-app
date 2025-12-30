@@ -102,6 +102,13 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
     }
   }, [uid, property.id])
 
+  // Sync voice from profile
+  useEffect(() => {
+    if (profile?.voice_label) {
+      setSelectedVoice(profile.voice_label)
+    }
+  }, [profile])
+
   // Scroll to bottom of chat
   useEffect(() => {
     if (scroller.current) {
@@ -196,6 +203,22 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
     }
   }
 
+  const handleVoiceChange = async (voiceId: string) => {
+    setSelectedVoice(voiceId)
+    if (!uid) return
+    try {
+      const updated = await upsertListingProfile(uid, property.id, {
+        description: profile?.description,
+        traits: profile?.traits,
+        persona_preset: profile?.persona_preset,
+        voice_label: voiceId
+      })
+      setProfile(updated)
+    } catch (error) {
+      console.error('Failed to save voice preference', error)
+    }
+  }
+
   const handleVoicePreview = () => {
     // Simple greeting preview
     const text = 'Hi! I am ready to answer questions about this property.';
@@ -209,7 +232,8 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
       const updated = await upsertListingProfile(uid, property.id, {
         description: payload.description,
         traits: payload.traits,
-        persona_preset: payload.preset
+        persona_preset: payload.preset,
+        voice_label: profile?.voice_label // Preserve voice
       })
       setProfile(updated)
       setFeedbackMessage('Personality saved.')
@@ -438,7 +462,7 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
               <select
                 className='w-full rounded-lg border border-slate-200 text-xs py-1.5 px-2 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500'
                 value={selectedVoice}
-                onChange={e => setSelectedVoice(e.target.value)}
+                onChange={e => handleVoiceChange(e.target.value)}
               >
                 {SAMPLE_VOICES.map(voice => (
                   <option key={voice.id} value={voice.id}>

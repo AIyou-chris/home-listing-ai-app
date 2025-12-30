@@ -38,6 +38,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         beds: initialProperty?.bedrooms != null ? String(initialProperty.bedrooms) : '',
         baths: initialProperty?.bathrooms != null ? String(initialProperty.bathrooms) : '',
         sqft: initialProperty?.squareFeet != null ? String(initialProperty.squareFeet) : '',
+        features: initialProperty?.features ? initialProperty.features.join(', ') : '',
         description: (typeof initialProperty?.description === 'string'
             ? (initialProperty?.description as string)
             : (initialProperty && 'description' in initialProperty && initialProperty.description && typeof initialProperty.description === 'object'
@@ -55,13 +56,40 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewing, setIsPreviewing] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     // Sync contact mode if URL is present vs empty
     useEffect(() => {
-        // Simple heuristic: if ctaListingUrl is set but we want the PRIMARY contact button to be sidekick, we default to sidekick.
-        // But for this edit form, let's just default to sidekick unless we want to persist the choice (property needs a field for this).
-        // For now, defaulting to 'sidekick' visually.
-    }, []);
+        // Initialize contact mode from appFeatures if available
+        if (initialProperty?.appFeatures) {
+            // If sidekickContact is explicitly false, it matches 'form' (legacy might follow URL presence)
+            const useSidekick = initialProperty.appFeatures.sidekickContact !== false; // Default to true/sidekick
+            setFormData(prev => ({ ...prev, ctaContactMode: useSidekick ? 'sidekick' : 'form' }));
+        }
+    }, [initialProperty]);
+
+    const handleGenerateDescription = async () => {
+        setIsGenerating(true);
+        try {
+            const result = await listingsService.generateDescription({
+                address: formData.address,
+                beds: formData.beds,
+                baths: formData.baths,
+                sqft: formData.sqft,
+                title: formData.propertyTitle,
+                features: formData.features
+            });
+
+            // Format the result into a string
+            const text = [result.title, ...(result.paragraphs || [])].join('\n\n');
+            setFormData(prev => ({ ...prev, description: text }));
+        } catch (error) {
+            console.error(error);
+            alert('Failed to generate description. Please ensure you have entered an address and basic details.');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
     const generatePreviewProperty = (): Property => {
         const heroPhotos = formData.heroPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p));
@@ -83,10 +111,23 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
             },
             heroPhotos: heroPhotos,
             galleryPhotos: heroPhotos, // Sync for preview
-            appFeatures: { gallery: true, schools: true, financing: true, virtualTour: true, amenities: true, schedule: true, map: true, history: true, neighborhood: true, reports: true, messaging: true },
+            appFeatures: {
+                gallery: true,
+                schools: true,
+                financing: true,
+                virtualTour: true,
+                amenities: true,
+                schedule: true,
+                map: true,
+                history: true,
+                neighborhood: true,
+                reports: true,
+                messaging: true,
+                sidekickContact: formData.ctaContactMode === 'sidekick'
+            },
             agent: formData.agent,
             propertyType: 'Single-Family Home',
-            features: [],
+            features: formData.features.split(',').map(f => f.trim()).filter(Boolean),
             imageUrl: heroPhotos[0],
             ctaListingUrl: formData.ctaListingUrl,
             ctaMediaUrl: '',
@@ -152,12 +193,25 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 propertyType: 'Single-Family Home',
                 status: 'Active',
                 description,
-                features: [],
+                features: formData.features.split(',').map(f => f.trim()).filter(Boolean),
                 heroPhotos: formData.heroPhotos,
                 galleryPhotos: formData.heroPhotos, // Keeping them in sync for this streamlined version
                 ctaListingUrl: formData.ctaListingUrl,
                 ctaMediaUrl: '',
-                appFeatures: { gallery: true, schools: true, financing: true, virtualTour: true, amenities: true, schedule: true, map: true, history: true, neighborhood: true, reports: true, messaging: true },
+                appFeatures: {
+                    gallery: true,
+                    schools: true,
+                    financing: true,
+                    virtualTour: true,
+                    amenities: true,
+                    schedule: true,
+                    map: true,
+                    history: true,
+                    neighborhood: true,
+                    reports: true,
+                    messaging: true,
+                    sidekickContact: formData.ctaContactMode === 'sidekick'
+                },
                 agentSnapshot: formData.agent
             }
 
@@ -250,8 +304,23 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                                         </div>
                                     </div>
                                     <div className="md:col-span-2">
-                                        <label className={labelClasses}>Description</label>
-                                        <textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={4} className={inputClasses} placeholder="Tell us about the home..." />
+                                        <label className={labelClasses}>Features / Amenities</label>
+                                        <input type="text" name="features" value={formData.features} onChange={handleSimpleChange} className={inputClasses} placeholder="e.g. Pool, Spa, Solar Panels, Gated Community, Renovated Kitchen" />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <div className="flex justify-between items-center mb-1 ml-1">
+                                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Description</label>
+                                            <button
+                                                onClick={handleGenerateDescription}
+                                                type="button"
+                                                disabled={isGenerating || !formData.address}
+                                                className="text-xs text-blue-600 font-bold flex items-center gap-1 hover:underline disabled:opacity-50 disabled:no-underline"
+                                            >
+                                                <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                                                {isGenerating ? 'Detailed AI Magic...' : 'Generate with AI'}
+                                            </button>
+                                        </div>
+                                        <textarea name="description" value={formData.description} onChange={handleSimpleChange} rows={6} className={inputClasses} placeholder="Tell us about the home..." />
                                     </div>
                                 </div>
                             </div>

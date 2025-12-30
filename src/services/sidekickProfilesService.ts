@@ -77,7 +77,7 @@ export const upsertAgentProfile = async (
 export const upsertListingProfile = async (
   userId: string,
   listingId: string,
-  profile: { description?: string | null; traits?: string[] | null; persona_preset?: string | null }
+  profile: { description?: string | null; traits?: string[] | null; persona_preset?: string | null; voice_label?: string | null }
 ): Promise<SidekickProfile> => {
   const payload = {
     user_id: userId,
@@ -85,7 +85,8 @@ export const upsertListingProfile = async (
     listing_id: listingId,
     description: profile.description ?? null,
     traits: profile.traits ?? null,
-    persona_preset: profile.persona_preset ?? 'custom'
+    persona_preset: profile.persona_preset ?? 'custom',
+    ...(profile.voice_label !== undefined ? { voice_label: profile.voice_label } : {})
   }
 
   const { data, error } = await supabase
