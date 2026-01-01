@@ -16,6 +16,7 @@ import {
     type MessageRow
 } from '../services/chatService';
 import { supabase } from '../services/supabase';
+import PageTipBanner from './PageTipBanner';
 import { DEMO_CONVERSATIONS, DEMO_MESSAGES } from '../demoConstants';
 
 // Unified types for the hub
@@ -270,6 +271,39 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
                         {isExporting ? 'Exporting...' : 'Export Logs'}
                     </button>
                 </div>
+            </div>
+
+            <div className="px-4 md:px-6 pb-4 bg-white border-b border-slate-200">
+                <PageTipBanner
+                    pageKey="ai-hub"
+                    expandedContent={
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="font-semibold text-slate-900 mb-2">🧠 Your AI Command Center:</h4>
+                                <ul className="space-y-2 text-slate-700">
+                                    <li className="flex items-start">
+                                        <span className="mr-2">👀</span>
+                                        <span><strong>Centralized Feed:</strong> View every active conversation across all channels (SMS, Web Chat, Email) in one unified stream.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">🦸</span>
+                                        <span><strong>Jump In Anytime:</strong> The AI handles the nurturing, but you can take over instantly if a conversation gets hot or complex.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">📝</span>
+                                        <span><strong>Full Context:</strong> See the entire history—from first hello to latest objection—before you even say a word.</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div className="bg-gradient-to-r from-violet-50 to-purple-50 p-4 rounded-lg border border-violet-100">
+                                <h4 className="font-semibold text-violet-900 mb-2">💡 Pro Tip:</h4>
+                                <p className="text-violet-800">
+                                    Use "Create Lead" on any anonymous inquiry to instantly promote them to your pipeline and assign them to a nurture campaign.
+                                </p>
+                            </div>
+                        </div>
+                    }
+                />
             </div>
 
             <div className={`flex flex-1 overflow-hidden relative w-full ${!selectedItemId ? 'bg-white' : ''}`}>

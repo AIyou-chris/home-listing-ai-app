@@ -16,6 +16,12 @@ import PaymentsAndStorePage from './PaymentsAndStorePage';
 import { MarketingHub } from './MarketingHub';
 
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
+import {
+  BLUEPRINT_PROPERTIES,
+  BLUEPRINT_LEADS,
+  BLUEPRINT_APPOINTMENTS,
+  BLUEPRINT_SEQUENCES
+} from '../constants/agentBlueprintData';
 import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
 import { listAppointments } from '../services/appointmentsService';
@@ -69,12 +75,14 @@ import { useImpersonation } from '../context/ImpersonationContext';
 
 interface AgentDashboardProps {
   isDemoMode?: boolean;
+  isBlueprintMode?: boolean;
   demoListingCount?: number;
 }
 
-const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoMode = false, demoListingCount = 2 }) => {
+const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoMode = false, isBlueprintMode: propIsBlueprintMode = false, demoListingCount = 2 }) => {
   // Setup Failsafe: Force Demo Mode if URL implies it
   const isDemoMode = propIsDemoMode || window.location.pathname.includes('blueprint') || window.location.pathname.includes('demo');
+  const isBlueprintMode = propIsBlueprintMode || window.location.pathname.includes('blueprint');
 
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -164,6 +172,10 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       try {
         console.log('DEBUG: loadProperties', { isDemoMode, demoListingCount, demoPropsLength: DEMO_FAT_PROPERTIES.length });
         if (isDemoMode) {
+          if (isBlueprintMode) {
+            setProperties(BLUEPRINT_PROPERTIES);
+            return;
+          }
           const sliced = DEMO_FAT_PROPERTIES.slice(0, demoListingCount);
           console.log('DEBUG: sliced properties', sliced.length);
           setProperties(sliced.map((property, index) => cloneDemoProperty(property, index)));
@@ -195,7 +207,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     return () => {
       isMounted = false;
     };
-  }, [isDemoMode, notifyApiError, demoListingCount]);
+  }, [isDemoMode, isBlueprintMode, notifyApiError, demoListingCount]);
 
   useEffect(() => {
     let isMounted = true;
@@ -231,7 +243,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
   const refreshLeads = useCallback(async () => {
     if (isDemoMode) {
-      setLeads(DEMO_FAT_LEADS);
+      if (isBlueprintMode) {
+        setLeads(BLUEPRINT_LEADS);
+      } else {
+        setLeads(DEMO_FAT_LEADS);
+      }
       setIsLeadsLoading(false);
       return;
     }
@@ -252,7 +268,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         setIsLeadsLoading(false);
       }
     }
-  }, [notifyApiError, isDemoMode]);
+  }, [notifyApiError, isDemoMode, isBlueprintMode]);
 
   useEffect(() => {
     leadsMountedRef.current = true;
@@ -264,7 +280,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
   const refreshAppointments = useCallback(async () => {
     if (isDemoMode) {
-      setAppointments(DEMO_FAT_APPOINTMENTS);
+      if (isBlueprintMode) {
+        setAppointments(BLUEPRINT_APPOINTMENTS);
+      } else {
+        setAppointments(DEMO_FAT_APPOINTMENTS);
+      }
       return;
     }
     try {
@@ -298,7 +318,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     } catch (error) {
       console.warn('Failed to load appointments', error);
     }
-  }, [isDemoMode]);
+  }, [isDemoMode, isBlueprintMode]);
 
   useEffect(() => {
     refreshAppointments();
@@ -309,7 +329,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
     const loadSequences = async () => {
       if (isDemoMode) {
-        if (isMounted) setSequences([]);
+        if (isBlueprintMode) {
+          if (isMounted) setSequences(BLUEPRINT_SEQUENCES);
+        } else {
+          if (isMounted) setSequences([]);
+        }
         return;
       }
       if (sequences.length) return;
@@ -345,7 +369,10 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     return () => {
       isMounted = false;
     };
-  }, [isDemoMode, sequences.length, notifyApiError]);
+    return () => {
+      isMounted = false;
+    };
+  }, [isDemoMode, isBlueprintMode, sequences.length, notifyApiError]);
 
   const handleSelectProperty = (id: string) => {
     setSelectedPropertyId(id);
@@ -686,7 +713,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           />
         );
       case 'ai-card':
-        return <AICardPage isDemoMode={isDemoMode} />;
+        return <AICardPage isDemoMode={isDemoMode} isBlueprintMode={isBlueprintMode} />;
       case 'ai-conversations':
       case 'inbox':
       case 'ai-interaction-hub':
@@ -760,17 +787,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             onOpenBuilder={(id) => { setSelectedPropertyId(id); setActiveView('edit-listing'); }}
           />
         );
-      case 'ai-interaction-hub':
-        return (
-          <AIInteractionHubPage
-            properties={properties}
-            onBackToDashboard={resetToDashboard}
-            onAddNewLead={handleAddNewLead}
-            interactions={interactions}
-            setInteractions={setInteractions}
-            isDemoMode={isDemoMode}
-          />
-        );
+
       case 'knowledge-base':
         return <AgentAISidekicksPage sidekickTemplatesOverride={blueprintSidekickTemplates} isDemoMode={isDemoMode} />;
       case 'funnel-analytics':
@@ -878,11 +895,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         </div>
       )}
 
-      {isDemoMode && !isImpersonating && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-indigo-600 text-white px-4 py-2 text-center font-bold shadow-md flex items-center justify-center gap-4">
-          <span>🛠️ BLUEPRINT MODE (Demo/Sandbox) — Changes save to Browser Memory only</span>
-        </div>
-      )}
 
       {/* Only render Sidebar in Demo/Standalone mode */}
       {!isIntegrated && (
@@ -892,10 +904,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(!isSidebarOpen)}
           isDemoMode={isDemoMode}
+          isBlueprintMode={isBlueprintMode}
         />
       )}
 
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${(isImpersonating || (isDemoMode && !isImpersonating)) ? 'mt-10' : ''}`}>
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isImpersonating ? 'mt-10' : ''}`}>
         {/* Header */}
         <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-4">
@@ -952,13 +965,13 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         </header>
 
         {/* Main Content Area */}
-        <main className={`flex-1 overflow-y-auto ${(activeView === 'knowledge-base' || activeView === 'funnel-analytics') ? 'p-0 md:p-8' : 'p-8'}`}>
+        <main className="flex-1 overflow-y-auto p-0 md:p-8">
           <div className="max-w-7xl mx-auto">
             {activeView === 'dashboard' ? (
               <div className="space-y-6">
                 {/* Welcome Setup Widget */}
                 {!isSetupDismissed && (
-                  <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-lg mb-8 relative overflow-hidden">
+                  <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-none md:rounded-2xl p-6 text-white shadow-lg mb-8 relative overflow-hidden">
                     <div className="absolute top-0 right-0 opacity-10 pointer-events-none">
                       <svg width="300" height="300" viewBox="0 0 100 100" fill="white">
                         <circle cx="80" cy="20" r="40" />

@@ -1,4 +1,5 @@
 import React from 'react';
+import PageTipBanner from './PageTipBanner';
 import { AgentProfile } from '../types';
 import { PlatformSubscriptionUI } from './PlatformSubscriptionUI';
 import { ConnectOnboarding } from './ConnectOnboarding';
@@ -14,8 +15,8 @@ const PaymentsAndStorePage: React.FC<PaymentsAndStorePageProps> = ({
     onBackToDashboard
 }) => {
     return (
-        <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-            <div className="mb-8 flex items-center justify-between">
+        <div className="max-w-screen-2xl mx-auto py-6 px-0 sm:px-6 lg:px-8">
+            <div className="mb-8 flex items-center justify-between px-4 sm:px-0">
                 <div>
                     <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Payments & Store</h1>
                     <p className="text-slate-500 mt-2">Manage your subscription, payouts, and digital store.</p>
@@ -29,10 +30,43 @@ const PaymentsAndStorePage: React.FC<PaymentsAndStorePageProps> = ({
                 </button>
             </div>
 
+            <div className="mb-8 px-4 sm:px-0">
+                <PageTipBanner
+                    pageKey="payments-store"
+                    expandedContent={
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="font-semibold text-slate-900 mb-2">💰 Monetize Your Expertise:</h4>
+                                <ul className="space-y-2 text-slate-700">
+                                    <li className="flex items-start">
+                                        <span className="mr-2">💳</span>
+                                        <span><strong>Your Subscription:</strong> Manage your plan, update payment methods, and view billing history for the platform.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">🏦</span>
+                                        <span><strong>Get Paid:</strong> Connect your bank account (via Stripe) so you can receive earnings from your digital store products instantly.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">🛍️</span>
+                                        <span><strong>Digital Store:</strong> Your AI Agent automatically sells your guides, templates, and consultations 24/7.</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-100">
+                                <h4 className="font-semibold text-amber-900 mb-2">💡 Pro Tip:</h4>
+                                <p className="text-amber-800">
+                                    Once your Payout Settings are active, you can upload "Homebuyer Guides" or "Seller Checklists" to your store, and your AI will pitch them to leads for you.
+                                </p>
+                            </div>
+                        </div>
+                    }
+                />
+            </div>
+
             <div className="space-y-8">
                 <div className="grid md:grid-cols-2 gap-8">
                     {/* 1. Platform Subscription */}
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="bg-white p-6 rounded-none md:rounded-2xl border-y md:border border-slate-200 shadow-sm">
                         <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
                             <span className="material-symbols-outlined text-indigo-600">subscriptions</span>
                             Your Subscription
@@ -44,7 +78,7 @@ const PaymentsAndStorePage: React.FC<PaymentsAndStorePageProps> = ({
                     </div>
 
                     {/* 2. Payout Settings */}
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="bg-white p-6 rounded-none md:rounded-2xl border-y md:border border-slate-200 shadow-sm">
                         <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
                             <span className="material-symbols-outlined text-green-600">payments</span>
                             Payout Settings
@@ -57,7 +91,7 @@ const PaymentsAndStorePage: React.FC<PaymentsAndStorePageProps> = ({
                     </div>
                 </div>
 
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="bg-white p-8 rounded-none md:rounded-2xl border-y md:border border-slate-200 shadow-sm">
                     <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
                         <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                             <span className="material-symbols-outlined text-blue-600">storefront</span>

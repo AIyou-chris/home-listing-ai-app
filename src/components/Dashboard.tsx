@@ -177,18 +177,26 @@ const Dashboard: React.FC<DashboardProps> = ({
         loadLeadScores();
     }, [leads]);
 
-    const handleReviewSarah = () => {
-        if (!onViewLeads) return;
+    // Dynamic Top Lead Resolution
+    const topLead = React.useMemo(() => {
+        if (leads.length === 0) return null;
+        // If we have scores, pick the top one
+        if (leadScores.length > 0) {
+            const sorted = [...leadScores].sort((a, b) => b.totalScore - a.totalScore);
+            const bestId = sorted[0]?.leadId;
+            return leads.find(l => l.id === bestId) || leads[0];
+        }
+        // Fallback to most recent
+        return leads[0];
+    }, [leads, leadScores]);
 
-        // Try to find Sarah Jenkins or just Sarah
-        const sarah = leads.find(l => l.name.toLowerCase().includes('sarah'));
-        if (sarah) {
-            onViewLeads(sarah.id);
+    const handleReviewPriorityLead = () => {
+        if (!onViewLeads) return;
+        if (topLead) {
+            onViewLeads(topLead.id);
         } else {
-            // Find finding the top scoring lead as a fallback if no Sarah
-            const topLeadScore = [...leadScores].sort((a, b) => b.totalScore - a.totalScore)[0];
-            const topLead = topLeadScore ? leads.find(l => l.id === topLeadScore.leadId) : null;
-            onViewLeads(topLead?.id);
+            // If no leads, maybe go to leads tab?
+            onViewLeads();
         }
     };
 
@@ -246,16 +254,29 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <span className="text-2xl">👋</span>
                             </h2>
                             <p className="text-slate-600 leading-relaxed max-w-2xl mb-4 text-sm sm:text-base">
-                                "I've been busy while you were away. I handled 12 new inquiries and pre-qualified Sarah Jenkins—she looks like a serious buyer. Want to review her profile?"
+                                {topLead
+                                    ? `"I've been monitoring your inbound channels. I pre-qualified ${topLead.name} and they look like a strong match. Want to review their profile?"`
+                                    : `"I'm online and ready to help! Share your AI Business Card to start capturing leads."`
+                                }
                             </p>
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-start gap-3">
-                                <button
-                                    onClick={handleReviewSarah}
-                                    className="flex-1 sm:flex-none px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-lg hover:bg-indigo-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                                >
-                                    <span className="material-symbols-outlined">visibility</span>
-                                    Review Sarah
-                                </button>
+                                {topLead ? (
+                                    <button
+                                        onClick={handleReviewPriorityLead}
+                                        className="flex-1 sm:flex-none px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-lg hover:bg-indigo-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined">visibility</span>
+                                        Review {topLead.name.split(' ')[0]}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => navigate('/ai-card')}
+                                        className="flex-1 sm:flex-none px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-lg hover:bg-indigo-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined">share</span>
+                                        Share AI Card
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => onViewLogs?.()}
                                     className="flex-1 sm:flex-none px-6 py-4 bg-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center"

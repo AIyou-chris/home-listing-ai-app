@@ -96,8 +96,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ appointments }) => {
     }
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200/80 p-5">
-            <div className="flex items-center justify-between mb-4">
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200/80 p-2 sm:p-5">
+            <div className="flex items-center justify-between mb-4 px-1">
                 <h3 className="text-lg font-bold text-slate-800">
                     {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                 </h3>

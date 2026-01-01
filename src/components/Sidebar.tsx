@@ -9,6 +9,7 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   isDemoMode?: boolean;
+  isBlueprintMode?: boolean;
 }
 
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
@@ -47,7 +48,7 @@ const NavItem: React.FC<{
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose, isDemoMode = false }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose, isDemoMode = false, isBlueprintMode = false }) => {
   const [isAiToolsOpen, setIsAiToolsOpen] = React.useState(false);
 
   const primaryItems = [
@@ -209,7 +210,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
             </div>
           )}
 
-          {isDemoMode && (
+          {isDemoMode && !isBlueprintMode && (
             <div className="mt-auto pt-6 space-y-3">
               <div className="px-2">
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">

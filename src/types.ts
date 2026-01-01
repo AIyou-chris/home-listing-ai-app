@@ -111,6 +111,7 @@ export interface Property {
     ctaListingUrl?: string;
     ctaMediaUrl?: string;
     ctaContactMode?: 'sidekick' | 'form';
+    agentId?: string;
     aiConfig?: {
         voice?: string;
         personalityId?: string;

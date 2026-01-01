@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import AISidekicks from './AISidekicks';
 import UnifiedTrainingStudio from './UnifiedTrainingStudio';
+import PageTipBanner from './PageTipBanner';
 
 interface AgentAISidekicksPageProps {
     isDemoMode?: boolean;
@@ -74,35 +75,69 @@ const AgentAISidekicksPage: React.FC<AgentAISidekicksPageProps> = ({
                         />
                     </div>
                 ) : (
-                    <div className="h-full overflow-y-auto">
-                        <UnifiedTrainingStudio
-                            mode="blueprint"
-                            demoMode={isDemoMode}
-                            sidekicks={sidekickTemplatesOverride?.map(s => {
-                                let suggestedQuestions: string[] = [];
-                                if (s.id === 'agent') {
-                                    suggestedQuestions = [
-                                        "How would you handle a lead who says they are just looking?",
-                                        "Draft a follow-up text for a missed appointment.",
-                                        "Summarize my last conversation with Emily Rodriguez.",
-                                        "Write an email campaign for a new luxury listing.",
-                                        "Create 3 social media posts for an open house.",
-                                        "Write a listing description for a 3-bed modern home.",
-                                        "What are the key selling points for a home with a pool?"
-                                    ];
+                    <div className="h-full flex flex-col overflow-hidden">
+                        <div className="p-4 md:p-6 pb-0">
+                            <PageTipBanner
+                                pageKey="ai-training"
+                                expandedContent={
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h4 className="font-semibold text-slate-900 mb-2">🎓 How to Train Your AI Business Partner:</h4>
+                                            <ul className="space-y-2 text-slate-700">
+                                                <li className="flex items-start">
+                                                    <span className="mr-2">💬</span>
+                                                    <span><strong>Chat Naturally:</strong> Ask questions or give commands just like you would to a human assistant (e.g., "Write a listing description").</span>
+                                                </li>
+                                                <li className="flex items-start">
+                                                    <span className="mr-2">👍</span>
+                                                    <span><strong>Give Feedback:</strong> Use the Thumbs Up/Down buttons on every response. This is the #1 way the AI learns your preferences.</span>
+                                                </li>
+                                                <li className="flex items-start">
+                                                    <span className="mr-2">✏️</span>
+                                                    <span><strong>Correct Mistakes:</strong> If a response isn't right, click Thumbs Down and provide the "Better Answer". The AI updates its memory instantly.</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
+                                            <h4 className="font-semibold text-blue-900 mb-2">💎 The Payoff:</h4>
+                                            <p className="text-blue-800">
+                                                Spending just 15 minutes training your AI on your scripts and style can save you 10+ hours a week. A well-trained AI can handle 80% of routine inquiries autonomously, sounding exactly like you.
+                                            </p>
+                                        </div>
+                                    </div>
                                 }
+                            />
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <UnifiedTrainingStudio
+                                mode="blueprint"
+                                demoMode={isDemoMode}
+                                sidekicks={sidekickTemplatesOverride?.map(s => {
+                                    let suggestedQuestions: string[] = [];
+                                    if (s.id === 'agent') {
+                                        suggestedQuestions = [
+                                            "How would you handle a lead who says they are just looking?",
+                                            "Draft a follow-up text for a missed appointment.",
+                                            "Summarize my last conversation with Emily Rodriguez.",
+                                            "Write an email campaign for a new luxury listing.",
+                                            "Create 3 social media posts for an open house.",
+                                            "Write a listing description for a 3-bed modern home.",
+                                            "What are the key selling points for a home with a pool?"
+                                        ];
+                                    }
 
-                                return {
-                                    id: s.id,
-                                    name: s.label,
-                                    icon: s.icon,
-                                    description: s.description,
-                                    systemPrompt: s.personality.description,
-                                    color: s.color,
-                                    suggestedQuestions
-                                };
-                            })}
-                        />
+                                    return {
+                                        id: s.id,
+                                        name: s.label,
+                                        icon: s.icon,
+                                        description: s.description,
+                                        systemPrompt: s.personality.description,
+                                        color: s.color,
+                                        suggestedQuestions
+                                    };
+                                })}
+                            />
+                        </div>
                     </div>
                 )}
             </div>

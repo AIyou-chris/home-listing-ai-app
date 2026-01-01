@@ -1140,32 +1140,26 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
         expandedContent={
           <div className="space-y-4">
             <div>
-              <h4 className="font-semibold text-slate-900 mb-2">🎯 Your Agent Specializes In:</h4>
+              <h4 className="font-semibold text-slate-900 mb-2">🚀 Meet Your AI Business Partner:</h4>
               <ul className="space-y-2 text-slate-700">
                 <li className="flex items-start">
-                  <span className="mr-2">•</span>
-                  <span><strong>Agent Assistant (👤):</strong> Client communication, scheduling appointments, and deal coordination</span>
+                  <span className="mr-2">✨</span>
+                  <span><strong>All-in-One Powerhouse:</strong> Handles client communication, marketing campaigns, and listing management in one unified system.</span>
                 </li>
                 <li className="flex items-start">
-                  <span className="mr-2">•</span>
-                  <span><strong>Marketing Strategist (📈):</strong> Campaign creation, social media content, and lead generation copy</span>
+                  <span className="mr-2">🕒</span>
+                  <span><strong>24/7 Availability:</strong> Responds to leads instantly via text and email, ensuring you never miss an opportunity.</span>
                 </li>
                 <li className="flex items-start">
-                  <span className="mr-2">•</span>
-                  <span><strong>Listing Expert (🏠):</strong> Property descriptions, market analysis, and pricing guidance</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2">•</span>
-                  <span><strong>Sales Coach (💼):</strong> Lead qualification, objection handling, and closing strategies</span>
+                  <span className="mr-2">🧠</span>
+                  <span><strong>Full Customization:</strong> Train it with your personal scripts, FAQs, and local market expertise.</span>
                 </li>
               </ul>
             </div>
             <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-100">
-              <h4 className="font-semibold text-purple-900 mb-2">🧠 The Power Move:</h4>
+              <h4 className="font-semibold text-purple-900 mb-2">💡 The Power Move:</h4>
               <p className="text-purple-800">
-                Top agents don't try to do everything themselves. They deploy their AI Agent to handle role-specific tasks
-                (your scripts, your market data, your FAQ). Whether handling follow-ups, writing listings, or
-                coaching on objections, your Agent acts as a team of experts working 24/7.
+                Stop juggling multiple tools. Centralize your operations with a single AI partner that learns your voice and handles the busy work, allowing you to focus purely on closing deals and building relationships.
               </p>
             </div>
           </div>

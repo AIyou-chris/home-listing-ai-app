@@ -3,6 +3,7 @@ import { LogoWithName } from './LogoWithName';
 import ChatBotFAB from './ChatBotFAB';
 import SEO from './SEO';
 import { StripeLogo } from './StripeLogo';
+import { MultiToolShowcase } from './MultiToolShowcase';
 
 // --- New Components for the Redesigned Page ---
 
@@ -229,78 +230,13 @@ const AIAppShowcaseSection: React.FC = () => {
                 <div className="mt-16 grid lg:grid-cols-2 gap-16 items-center animate-fade-in-up animation-delay-400">
                     {/* Left Column - Listing App Preview */}
                     <div className="flex justify-center lg:justify-end animate-fade-in-left">
-                        <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden transform hover:scale-105 transition-all duration-300">
+                        <div className="w-full max-w-md transform hover:scale-105 transition-all duration-300">
                             {/* Property Image */}
-                            <div className="relative">
-                                <img
-                                    src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&auto=format&fit=crop&q=80"
-                                    alt="Modern home"
-                                    className="w-full h-48 object-cover"
-                                />
-                                <div className="absolute bottom-2 left-2 bg-slate-900/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-                                    I'M REALTORS®
-                                </div>
-                            </div>
-
-                            {/* Property Details */}
-                            <div className="p-6">
-                                <h3 className="text-xl font-bold text-slate-900 mb-2">Stunning Mid-Century Modern in Silver Lake</h3>
-                                <div className="flex items-center gap-1 text-slate-600 mb-4">
-                                    <span className="material-symbols-outlined text-lg">location_on</span>
-                                </div>
-                                <div className="text-3xl font-bold text-green-600 mb-6">$500,000.00</div>
-
-                                {/* Property Stats */}
-                                <div className="grid grid-cols-3 gap-4 mb-6 bg-slate-50 rounded-xl p-4">
-                                    <div className="text-center">
-                                        <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-blue-600">bed</span>
-                                        </div>
-                                        <div className="text-2xl font-bold text-slate-900">0</div>
-                                        <div className="text-xs text-slate-600">Bedrooms</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-blue-600">bathtub</span>
-                                        </div>
-                                        <div className="text-2xl font-bold text-slate-900">0</div>
-                                        <div className="text-xs text-slate-600">Bathrooms</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-blue-600">square_foot</span>
-                                        </div>
-                                        <div className="text-2xl font-bold text-slate-900">0</div>
-                                        <div className="text-xs text-slate-600">Sq Ft</div>
-                                    </div>
-                                </div>
-
-                                {/* CTA Button */}
-                                <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 mb-4">
-                                    <span className="material-symbols-outlined">mic</span>
-                                    Talk to the Home Now
-                                </button>
-
-                                {/* Action Icons */}
-                                <div className="grid grid-cols-4 gap-2">
-                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
-                                        <span className="material-symbols-outlined text-blue-600">event</span>
-                                        <span className="text-xs text-slate-600">Showings</span>
-                                    </button>
-                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
-                                        <span className="material-symbols-outlined text-blue-600">bookmark</span>
-                                        <span className="text-xs text-slate-600">Save</span>
-                                    </button>
-                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
-                                        <span className="material-symbols-outlined text-blue-600">chat</span>
-                                        <span className="text-xs text-slate-600">Contact</span>
-                                    </button>
-                                    <button className="flex flex-col items-center gap-1 p-2 hover:bg-slate-50 rounded-lg transition-colors">
-                                        <span className="material-symbols-outlined text-blue-600">share</span>
-                                        <span className="text-xs text-slate-600">Share</span>
-                                    </button>
-                                </div>
-                            </div>
+                            <img
+                                src="/demo/silverlake-app.png"
+                                alt="AI Listing App Preview"
+                                className="w-full h-auto drop-shadow-2xl"
+                            />
                         </div>
                     </div>
 
@@ -503,12 +439,12 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                         <p className="text-center text-xs text-slate-300 mt-3 opacity-90">
                             Price may increase at any time. Secure your lifetime rate today.
                         </p>
-                        <div className="mt-4 pt-4 border-t border-white/20 text-center">
-                            <p className="text-sm font-bold text-white flex items-center justify-center gap-2">
-                                <span className="material-symbols-outlined text-yellow-300">verified_user</span>
-                                60-Day Money-Back Guarantee
-                            </p>
-                            <p className="text-xs text-slate-200 mt-1">If you're not satisfied, get a full refund. No questions asked.</p>
+                        <div className="mt-6 pt-6 border-t border-white/20 text-center">
+                            <div className="inline-flex items-center justify-center gap-3 bg-white/10 rounded-full px-6 py-2.5 mb-2 border border-white/20 backdrop-blur-sm shadow-sm ring-1 ring-white/10">
+                                <span className="material-symbols-outlined text-yellow-300 text-2xl animate-pulse">verified_user</span>
+                                <span className="text-lg sm:text-xl font-bold text-white tracking-wide">60-Day Money-Back Guarantee</span>
+                            </div>
+                            <p className="text-sm text-slate-100 mt-2 font-medium">If you're not satisfied, get a full refund. No questions asked.</p>
                             <div className="mt-4 flex flex-col items-center justify-center gap-1 opacity-80 pt-3 border-t border-white/10">
                                 <span className="text-[10px] text-slate-300 uppercase tracking-widest font-semibold">Secured by</span>
                                 <StripeLogo className="h-5 text-white" />
@@ -1302,14 +1238,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} />
 
-                <DashboardShowcaseSection onEnterDemoMode={onEnterDemoMode} onNavigateToSignUp={onNavigateToSignUp} />
-                <AIAppShowcaseSection />
-                <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenConsultationModal={onOpenConsultationModal} />
-                <WhiteLabelSection onOpenConsultationModal={onOpenConsultationModal} />
-                <AboutUsSection />
+                <MultiToolShowcase />
+
                 <FeaturesGridSection />
                 <WhatYouGetSectionNew />
                 <TestimonialsSection />
+
+                <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenConsultationModal={onOpenConsultationModal} />
+
+                <AboutUsSection />
+                <WhiteLabelSection onOpenConsultationModal={onOpenConsultationModal} />
+
                 <FaqSection />
                 <FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
             </main>

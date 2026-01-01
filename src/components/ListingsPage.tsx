@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Property } from '../types';
+import PageTipBanner from './PageTipBanner';
 
 interface PropertyCardProps {
     property: Property;
@@ -253,7 +254,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
 
     return (
         <div
-            className="group relative w-full h-[80vh] md:h-[85vh] max-h-[900px] rounded-[2rem] overflow-hidden shadow-2xl shrink-0 snap-center cursor-pointer transition-transform duration-500 hover:scale-[1.01]"
+            className="group relative w-full h-[80vh] md:h-[85vh] max-h-[900px] rounded-none sm:rounded-[2rem] overflow-hidden shadow-2xl shrink-0 snap-center cursor-pointer transition-transform duration-500 hover:scale-[1.01]"
             onClick={onSelect}
         >
             {/* Full Screen Image */}
@@ -452,7 +453,39 @@ const ListingsPage: React.FC<ListingsPageProps> = ({
     onOpenBuilder
 }) => {
     return (
-        <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6">
+        <div className="max-w-2xl mx-auto py-8 px-0 sm:px-6">
+            <div className="mb-8 px-4 sm:px-0">
+                <PageTipBanner
+                    pageKey="ai-listings"
+                    expandedContent={
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="font-semibold text-slate-900 mb-2">🏡 Master Your AI Listings:</h4>
+                                <ul className="space-y-2 text-slate-700">
+                                    <li className="flex items-start">
+                                        <span className="mr-2">➕</span>
+                                        <span><strong>Add Property:</strong> Click "Add Listing" to input property details. The system instantly spins up a dedicated AI agent for that specific home.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">🤖</span>
+                                        <span><strong>Its Own Listing Agent:</strong> Every property gets its own expert AI that knows every detail (from HOA fees to floor type), ready to answer buyer questions 24/7.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">🚀</span>
+                                        <span><strong>Instant Marketing:</strong> Use the "Marketing" tools to generate descriptions, emails, and social posts in seconds using the property's unique data.</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-100">
+                                <h4 className="font-semibold text-indigo-900 mb-2">💡 Why This Matters:</h4>
+                                <p className="text-indigo-800">
+                                    Buyers expect instant answers. By giving each listing its own "Agent", you ensure zero lead leakage and provide a premium, 24/7 concierge experience that sellers love—without you lifting a finger.
+                                </p>
+                            </div>
+                        </div>
+                    }
+                />
+            </div>
             {/* Minimal Header */}
             <header className="flex items-center justify-center mb-10">
                 <button

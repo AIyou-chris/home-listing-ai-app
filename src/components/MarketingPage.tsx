@@ -8,12 +8,13 @@ import QuickEmailModal from './QuickEmailModal';
 import { useFunnelEditorStore, StylePresetId } from '../state/useFunnelEditorStore';
 import { FunnelStepEditor } from './funnel/FunnelStepEditor';
 import { AISuggestionsPanel } from './funnel/AISuggestionsPanel';
+import PageTipBanner from './PageTipBanner';
 
 interface MarketingPageProps {
-  properties: Property[];
-  sequences: FollowUpSequence[];
-  setSequences: React.Dispatch<React.SetStateAction<FollowUpSequence[]>>;
-  onBackToDashboard: () => void;
+    properties: Property[];
+    sequences: FollowUpSequence[];
+    setSequences: React.Dispatch<React.SetStateAction<FollowUpSequence[]>>;
+    onBackToDashboard: () => void;
 }
 
 const SequencesContent: React.FC<{
@@ -25,7 +26,6 @@ const SequencesContent: React.FC<{
     onActivateSequence: (sequence: FollowUpSequence) => void;
     onEditStep: (sequence: FollowUpSequence, stepId: string) => void;
 }> = ({ sequences, setSequences, onQuickEmail, activeSequenceId, activeStepId, onActivateSequence, onEditStep }) => {
-    const [showTips, setShowTips] = useState(true);
     const [expandedSequenceIds, setExpandedSequenceIds] = useState<string[]>([]);
 
     useEffect(() => {
@@ -59,42 +59,36 @@ const SequencesContent: React.FC<{
             </div>
             <p className="px-6 text-xs text-slate-500">Pop open ready-to-send templates agents rely on all day without leaving the funnel.</p>
             <div className="px-6 pt-4">
-                <button
-                    type="button"
-                    onClick={() => setShowTips(prev => !prev)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
-                    aria-expanded={showTips}
-                >
-                    <span className="material-symbols-outlined text-xl">{showTips ? 'psychiatry' : 'tips_and_updates'}</span>
-                    {showTips ? 'Hide Sequence Tips' : 'Show Sequence Tips'}
-                    <span className="material-symbols-outlined text-base ml-auto">{showTips ? 'expand_less' : 'expand_more'}</span>
-                </button>
-                {showTips && (
-                    <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
-                        <div>
-                            <h4 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                                <span className="material-symbols-outlined text-lg">calendar_month</span>
-                                Designing Drip Sequences
-                            </h4>
-                            <ul className="space-y-1.5 list-disc list-inside">
-                                <li><strong>Map the milestones:</strong> Line up emails, AI touches, tasks, and meetings around the buyer journey (new lead, hot lead, nurture).</li>
-                                <li><strong>Mix the mediums:</strong> Alternate AI follow-ups, personal emails, and tasks so agents know exactly when to jump in.</li>
-                                <li><strong>Refresh templates quarterly:</strong> Duplicate high-performers, tweak messaging, and keep a warm-up step at the start.</li>
-                            </ul>
+                <PageTipBanner
+                    pageKey="ai-funnels"
+                    expandedContent={
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="font-semibold text-slate-900 mb-2">🚀 Power Up Your AI Funnels:</h4>
+                                <ul className="space-y-2 text-slate-700">
+                                    <li className="flex items-start">
+                                        <span className="mr-2">✏️</span>
+                                        <span><strong>Complete Control:</strong> Edit any step to customize the voice. You can mix emails, texts, and task reminders to build the perfect nurturing journey.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">💬</span>
+                                        <span><strong>Multi-Channel Magic:</strong> Don't just email. Set up automated text sequences that feel personal, triggering real conversations that the AI takes over instantly.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">🔄</span>
+                                        <span><strong>Smart Follow-Ups:</strong> Configure specific time delays (2 days, 1 week) so your leads hear from you exactly when it counts, running 24/7 in the background.</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
+                                <h4 className="font-semibold text-blue-900 mb-2">💎 Why It Works:</h4>
+                                <p className="text-blue-800">
+                                    Most agents give up after 2 attempts. These AI funnels persist indefinitely, turning cold leads warm and booking appointments automatically so you wake up to a booked calendar.
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                                <span className="material-symbols-outlined text-lg">mail</span>
-                                Quick Email vs. Sequence
-                            </h4>
-                            <ul className="space-y-1.5 list-disc list-inside">
-                                <li><strong>Use sequences</strong> for consistent nurture flows.</li>
-                                <li><strong>Use Quick Email</strong> for one-off messages without editing automations.</li>
-                                <li><strong>Mailgun handles delivery:</strong> Templates stay handy so you can send polished responses fast.</li>
-                            </ul>
-                        </div>
-                    </div>
-                )}
+                    }
+                />
             </div>
             <div className="mt-6">
                 <ul className="divide-y divide-slate-200">
@@ -195,7 +189,7 @@ const QRCodeSystem: React.FC<{ properties: Property[] }> = ({ properties }) => {
         { id: 'qr1', name: '742 Ocean Drive - Flyer', destinationUrl: 'https://homelistingai.app/p/prop-demo-1', scanCount: 152, createdAt: '2024-08-01', qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://homelistingai.app/p/prop-demo-1` },
         { id: 'qr2', name: 'Agent Website - Business Card', destinationUrl: 'https://prestigeproperties.com', scanCount: 89, createdAt: '2024-07-28', qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://prestigeproperties.com` }
     ]);
-    
+
     useEffect(() => {
         const property = properties.find(p => p.id === selectedPropertyId);
         if (property) {
@@ -227,7 +221,7 @@ const QRCodeSystem: React.FC<{ properties: Property[] }> = ({ properties }) => {
         setTrackedQRCodes(prev => [newCode, ...prev]);
         setGeneratedQrCodeUrl('');
     };
-    
+
     const handleDownload = (qrUrl: string, name: string) => {
         const link = document.createElement('a');
         link.href = qrUrl;
@@ -456,7 +450,7 @@ const MessagingCenter: React.FC = () => {
                             <div className="space-y-3">
                                 {messageTemplates.map(template => (
                                     <div key={template.id} className="border border-slate-200 rounded-lg p-4 hover:border-primary-300 transition-colors cursor-pointer"
-                                         onClick={() => setSelectedTemplate(template.content)}>
+                                        onClick={() => setSelectedTemplate(template.content)}>
                                         <h4 className="font-semibold text-slate-900">{template.title}</h4>
                                         <p className="text-sm text-slate-600 mt-1">{template.content.substring(0, 80)}...</p>
                                     </div>
@@ -482,7 +476,7 @@ const MessagingCenter: React.FC = () => {
                                         <span>Send Message</span>
                                     </button>
                                     <button
-                                        onClick={() => {setCustomMessage(''); setSelectedTemplate('');}}
+                                        onClick={() => { setCustomMessage(''); setSelectedTemplate(''); }}
                                         className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-50 transition"
                                     >
                                         Clear
@@ -512,21 +506,19 @@ const MessagingCenter: React.FC = () => {
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className={`material-symbols-outlined w-4 h-4 ${
-                                                    message.type === 'notification' ? 'text-blue-600' :
+                                                <span className={`material-symbols-outlined w-4 h-4 ${message.type === 'notification' ? 'text-blue-600' :
                                                     message.type === 'sms' ? 'text-green-600' :
-                                                    message.type === 'email' ? 'text-purple-600' : 'text-orange-600'
-                                                }`}>
+                                                        message.type === 'email' ? 'text-purple-600' : 'text-orange-600'
+                                                    }`}>
                                                     {message.type === 'notification' ? 'notifications' :
-                                                     message.type === 'sms' ? 'sms' :
-                                                     message.type === 'email' ? 'email' : 'message'}
+                                                        message.type === 'sms' ? 'sms' :
+                                                            message.type === 'email' ? 'email' : 'message'}
                                                 </span>
                                                 <h4 className="font-semibold text-slate-900">{message.title}</h4>
-                                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                                    message.status === 'sent' ? 'bg-blue-100 text-blue-700' :
+                                                <span className={`px-2 py-1 text-xs rounded-full ${message.status === 'sent' ? 'bg-blue-100 text-blue-700' :
                                                     message.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                                                    message.status === 'opened' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
-                                                }`}>
+                                                        message.status === 'opened' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+                                                    }`}>
                                                     {message.status}
                                                 </span>
                                             </div>
@@ -570,11 +562,10 @@ const MessagingCenter: React.FC = () => {
                         <button
                             key={tab.id}
                             onClick={() => setMessagingTab(tab.id)}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
-                                messagingTab === tab.id
-                                    ? 'bg-primary-100 text-primary-700'
-                                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                            }`}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${messagingTab === tab.id
+                                ? 'bg-primary-100 text-primary-700'
+                                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                }`}
                         >
                             <span className="material-symbols-outlined w-4 h-4">{tab.icon}</span>
                             <span>{tab.label}</span>
@@ -590,7 +581,7 @@ const MessagingCenter: React.FC = () => {
                     <div>
                         <h4 className="font-semibold text-orange-900">Notification Status</h4>
                         <p className="text-sm text-orange-700">
-                            Browser notifications: <span className="font-semibold">Ready to send</span> • 
+                            Browser notifications: <span className="font-semibold">Ready to send</span> •
                             Enable in Settings first for best experience
                         </p>
                     </div>
@@ -934,7 +925,7 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
                 return <div>Select a tab</div>;
         }
     };
-    
+
     return (
         <div className="bg-slate-50 min-h-full">
             <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
@@ -952,14 +943,13 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
                 <div className="border-b border-slate-200">
                     <nav className="-mb-px flex space-x-6 overflow-x-auto">
                         {tabs.map(tab => (
-                             <button
+                            <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap ${
-                                    activeTab === tab.id
-                                        ? 'border-primary-600 text-primary-600'
-                                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
-                                }`}
+                                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors duration-200 whitespace-nowrap ${activeTab === tab.id
+                                    ? 'border-primary-600 text-primary-600'
+                                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                                    }`}
                             >
                                 <span className="material-symbols-outlined w-5 h-5">{tab.icon}</span>
                                 <span>{tab.label}</span>
@@ -971,7 +961,7 @@ const MarketingPage: React.FC<MarketingPageProps> = ({ properties, sequences, se
                     {renderContent()}
                 </main>
             </div>
-             {isAnalyticsModalOpen && analyticsSequence && (
+            {isAnalyticsModalOpen && analyticsSequence && (
                 <SequenceAnalyticsModal
                     sequence={analyticsSequence}
                     onClose={() => {

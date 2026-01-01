@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import PageTipBanner from './PageTipBanner';
 import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import QRCodeManagementPage from './QRCodeManagementPage';
 import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
@@ -7,6 +8,7 @@ import { setPreferredLanguage } from '../services/languagePreferenceService';
 import { notifyProfileChange } from '../services/agentProfileService';
 import ChatBotFAB from './ChatBotFAB';
 import { DEMO_AI_CARD_PROFILE } from '../constants';
+import { BLUEPRINT_AGENT } from '../constants/agentBlueprintData';
 
 type EditableElement = HTMLInputElement | HTMLTextAreaElement;
 
@@ -63,7 +65,7 @@ const mapToCentralProfile = (profile: AgentProfile) => ({
   updated_at: profile.updated_at
 });
 
-const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) => {
+const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> = ({ isDemoMode = false, isBlueprintMode = false }) => {
   const [form, setForm] = useState<AgentProfile>(() => createDefaultProfile());
 
   const [isLoading, setIsLoading] = useState(false);
@@ -214,10 +216,29 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
         if (isDemoMode) {
           // 1. Try LocalStorage (Smart Save)
           const stored = localStorage.getItem('ai_card_demo_data');
-          if (stored) {
+          if (stored && !isBlueprintMode) {
             const parsed = JSON.parse(stored);
             setForm(parsed);
             serverProfileRef.current = parsed;
+          } else if (isBlueprintMode) {
+            // Blueprint Mode - Clean Slate
+            const blueprint: AgentProfile = {
+              id: BLUEPRINT_AGENT.id,
+              fullName: BLUEPRINT_AGENT.name,
+              professionalTitle: BLUEPRINT_AGENT.title,
+              company: BLUEPRINT_AGENT.company,
+              phone: BLUEPRINT_AGENT.phone,
+              email: BLUEPRINT_AGENT.email,
+              website: BLUEPRINT_AGENT.website,
+              bio: BLUEPRINT_AGENT.bio,
+              brandColor: BLUEPRINT_AGENT.brandColor,
+              language: BLUEPRINT_AGENT.language,
+              socialMedia: createEmptySocialLinks(),
+              headshot: BLUEPRINT_AGENT.headshotUrl || null,
+              logo: BLUEPRINT_AGENT.logoUrl || null
+            };
+            setForm(blueprint);
+            serverProfileRef.current = blueprint;
           } else {
             // 2. Fallback to Generic Demo Data (Wipe admin data)
             setForm(DEMO_AI_CARD_PROFILE as AgentProfile);
@@ -599,17 +620,21 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
   const CollapsibleSection: React.FC<{
     title: string;
     sectionKey: string;
+    icon?: string;
     children: React.ReactNode;
-  }> = ({ title, sectionKey, children }) => {
+  }> = ({ title, sectionKey, icon, children }) => {
     const isCollapsed = collapsedSections[sectionKey];
 
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 overflow-hidden">
         <button
           onClick={() => toggleSection(sectionKey)}
           className="w-full flex items-center justify-between p-4 md:p-6 text-left hover:bg-gray-50 transition-colors"
         >
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          <div className="flex items-center gap-3">
+            {icon && <span className="material-symbols-outlined text-gray-500">{icon}</span>}
+            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          </div>
           {isCollapsed ? (
             <ChevronDown className="w-5 h-5 text-gray-500" />
           ) : (
@@ -626,15 +651,11 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
   };
 
   const AICardPreview: React.FC<{ onChatClick?: () => void }> = ({ onChatClick }) => (
-    <div className="relative">
+    <div className="relative w-full max-w-[400px] mx-auto aspect-[9/19.5]">
       {/* AI Card Container */}
       <div
         id="ai-card-preview"
-        className="relative rounded-3xl shadow-2xl overflow-hidden border border-white/20"
-        style={{
-          width: '400px',
-          height: '850px',
-        }}
+        className="relative w-full h-full rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20"
       >
         {/* Luxury Background Image */}
         <div className="absolute inset-0 z-0">
@@ -648,20 +669,20 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
         </div>
 
         {/* Glass Content Card */}
-        <div className="relative z-10 w-full h-full flex items-center justify-center p-6">
-          <div className="w-full bg-white/30 backdrop-blur-md rounded-3xl border border-white/40 shadow-2xl overflow-hidden flex flex-col items-center text-center p-8">
+        <div className="relative z-10 w-full h-full flex items-center justify-center p-4 sm:p-6">
+          <div className="w-full bg-white/30 backdrop-blur-md rounded-3xl border border-white/40 shadow-2xl overflow-hidden flex flex-col items-center text-center p-5 sm:p-8 max-h-full overflow-y-auto custom-scrollbar">
 
             {/* Profile Picture (Bigger & First) */}
-            <div className="mb-6 relative">
+            <div className="mb-4 sm:mb-6 relative shrink-0">
               {form.headshot ? (
                 <img
                   src={form.headshot}
                   alt={form.fullName}
-                  className="w-32 h-32 rounded-full object-cover border-4 border-white/50 shadow-lg"
+                  className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-white/50 shadow-lg"
                 />
               ) : (
                 <div
-                  className="w-32 h-32 rounded-full border-4 border-white/50 shadow-lg flex items-center justify-center text-4xl font-bold text-white bg-slate-400"
+                  className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white/50 shadow-lg flex items-center justify-center text-2xl sm:text-4xl font-bold text-white bg-slate-400"
                 >
                   {form.fullName.split(' ').map(n => n[0]).join('')}
                 </div>
@@ -669,77 +690,73 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
             </div>
 
             {/* Gold Geometric Logo (Second) */}
-            <div className="mb-4">
+            <div className="mb-3 sm:mb-4 shrink-0">
               {form.logo ? (
-                <img src={form.logo} alt="Logo" className="h-16 w-auto object-contain drop-shadow-md" />
+                <img src={form.logo} alt="Logo" className="h-12 w-auto sm:h-16 object-contain drop-shadow-md" />
               ) : (
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center shadow-lg transform rotate-45">
-                  <span className="material-symbols-outlined text-white text-2xl transform -rotate-45">apartment</span>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center shadow-lg transform rotate-45">
+                  <span className="material-symbols-outlined text-white text-xl sm:text-2xl transform -rotate-45">apartment</span>
                 </div>
               )}
             </div>
 
             {/* Text Content */}
-            <h2 className="text-3xl font-bold text-gray-900 mb-1 drop-shadow-sm">{form.fullName}</h2>
-            <p className="text-lg text-gray-800 font-medium mb-1 tracking-wide">{form.professionalTitle}</p>
-            <p className="text-sm font-semibold text-gray-700 uppercase tracking-widest mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 drop-shadow-sm leading-tight">{form.fullName}</h2>
+            <p className="text-base sm:text-lg text-gray-800 font-medium mb-1 tracking-wide leading-tight">{form.professionalTitle}</p>
+            <p className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-widest mb-6 sm:mb-8">
               {form.company}
             </p>
 
             {/* Colorful Buttons */}
             <button
               onClick={onChatClick}
-              className="w-full py-4 px-6 rounded-xl font-bold text-white mb-4 transition-all duration-300 hover:scale-105 shadow-lg flex items-center justify-center gap-2 group border border-white/20"
+              className="w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl font-bold text-white mb-3 sm:mb-4 transition-all duration-300 hover:scale-105 shadow-lg flex items-center justify-center gap-2 group border border-white/20 shrink-0"
               style={{
                 background: `linear-gradient(135deg, ${form.brandColor} 0%, ${form.brandColor}DD 100%)`,
                 textShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}
             >
-              <span className="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform">smart_toy</span>
-              Start AI Chat
+              <span className="material-symbols-outlined text-xl sm:text-2xl group-hover:rotate-12 transition-transform">auto_awesome</span>
+              <span className="text-sm sm:text-base">Ask my Assistant</span>
             </button>
 
             <button
-              className="w-full py-3 px-6 rounded-xl font-semibold text-gray-900 transition-all duration-300 hover:bg-white/60 hover:scale-105 flex items-center justify-center gap-2 shadow-md"
+              className="w-full py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl font-semibold text-gray-900 transition-all duration-300 hover:bg-white/60 hover:scale-105 flex items-center justify-center gap-2 shadow-md shrink-0"
               style={{
                 background: 'rgba(255, 255, 255, 0.4)',
                 border: '1px solid rgba(255, 255, 255, 0.5)'
               }}
             >
-              <span className="material-symbols-outlined">contact_page</span>
-              Contact Info
+              <span className="material-symbols-outlined text-lg sm:text-xl">contact_page</span>
+              <span className="text-sm sm:text-base">Contact Info</span>
             </button>
 
             {/* Spacer */}
-            <div className="flex-1" />
+            <div className="flex-1 min-h-[1rem]" />
 
             {/* Social Media Icons (Actual Icons) */}
-            <div className="flex justify-center space-x-3 mt-8">
-              {form.socialMedia.facebook && (
-                <a href={form.socialMedia.facebook} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-blue-700 shadow-sm backdrop-blur-sm">
-                  <Facebook className="w-5 h-5" />
-                </a>
-              )}
-              {form.socialMedia.instagram && (
-                <a href={form.socialMedia.instagram} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-pink-600 shadow-sm backdrop-blur-sm">
-                  <Instagram className="w-5 h-5" />
-                </a>
-              )}
-              {form.socialMedia.twitter && (
-                <a href={form.socialMedia.twitter} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-sky-500 shadow-sm backdrop-blur-sm">
-                  <Twitter className="w-5 h-5" />
-                </a>
-              )}
-              {form.socialMedia.linkedin && (
-                <a href={form.socialMedia.linkedin} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-blue-800 shadow-sm backdrop-blur-sm">
-                  <Linkedin className="w-5 h-5" />
-                </a>
-              )}
-              {form.socialMedia.youtube && (
-                <a href={form.socialMedia.youtube} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-red-600 shadow-sm backdrop-blur-sm">
-                  <Youtube className="w-5 h-5" />
-                </a>
-              )}
+            <div className="flex justify-center flex-wrap gap-2 sm:gap-3 mt-6 sm:mt-8 pb-2">
+              {Object.entries(form.socialMedia).map(([key, url]) => {
+                if (!url || key === 'backgroundImage') return null;
+                const iconMap: Record<string, React.ReactNode> = {
+                  facebook: <Facebook className="w-4 h-4 sm:w-5 sm:h-5" />,
+                  instagram: <Instagram className="w-4 h-4 sm:w-5 sm:h-5" />,
+                  twitter: <Twitter className="w-4 h-4 sm:w-5 sm:h-5" />,
+                  linkedin: <Linkedin className="w-4 h-4 sm:w-5 sm:h-5" />,
+                  youtube: <Youtube className="w-4 h-4 sm:w-5 sm:h-5" />
+                };
+                return (
+                  <a
+                    key={key}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2.5 sm:p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-slate-800 shadow-sm backdrop-blur-sm"
+                  >
+                    {iconMap[key]}
+                  </a>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -838,64 +855,43 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
       </div>
 
       {/* Help / Pro Tips */}
-      <div className="p-4 sm:p-6">
+      <div className="p-4 sm:p-6 pt-0 sm:pt-6">
         <div className="max-w-screen-2xl mx-auto">
-          <div className="flex items-center gap-3 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setIsHelpPanelOpen(prev => !prev)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
-              aria-expanded={isHelpPanelOpen}
-            >
-              <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
-              {isHelpPanelOpen ? 'Hide AI Card Tips' : 'Show AI Card Tips'}
-              <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
-            </button>
-            {isDemoMode && (
-              <div className={`flex items - center gap - 1.5 px - 3 py - 1.5 rounded - lg text - xs font - medium transition - all ${showDemoNotice
-                ? 'bg-blue-500 text-white shadow-md'
-                : 'bg-blue-50 text-blue-700 border border-blue-100'
-                } `}>
-                <span className="material-symbols-outlined text-sm">info</span>
-                <span>Demo Mode: Changes not saved</span>
+          <PageTipBanner
+            pageKey="ai-card"
+            expandedContent={
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-slate-900 mb-2">🆔 Your Digital Identity:</h4>
+                  <ul className="space-y-2 text-slate-700">
+                    <li className="flex items-start">
+                      <span className="mr-2">🎨</span>
+                      <span><strong>Brand consistency:</strong> Upload your headshot, logo, and pick a brand color so the card mirrors your print and web collateral.</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-2">🔗</span>
+                      <span><strong>Bio & links:</strong> Keep the story tight (2–3 sentences) and make sure social URLs point to active accounts clients can browse.</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-2">💬</span>
+                      <span><strong>AI Chat:</strong> Use the preview chat to confirm the AI introduces you correctly and handles common questions smoothly.</span>
+                    </li>
+                  </ul>
+                </div>
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
+                  <h4 className="font-semibold text-blue-900 mb-2">💡 Pro Tip:</h4>
+                  <p className="text-blue-800">
+                    Pair the AI card QR with a "Talk to my AI concierge" CTA—buyers love the novelty and you capture more late-night inquiries.
+                  </p>
+                </div>
               </div>
-            )}
-          </div>
-          {isHelpPanelOpen && (
-            <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
-              <div>
-                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-lg">badge</span>
-                  Build a High-Converting AI Card
-                </h2>
-                <ul className="space-y-1.5 list-disc list-inside">
-                  <li><strong>Brand consistency:</strong> Upload your headshot, logo, and pick a brand color so the card mirrors your print and web collateral.</li>
-                  <li><strong>Bio & social links:</strong> Keep the story tight (2–3 sentences) and make sure social URLs point to active accounts clients can browse.</li>
-                  <li><strong>AI assistant chat:</strong> Use the preview chat to confirm the AI introduces you correctly and handles common questions smoothly.</li>
-                </ul>
-              </div>
-
-              <div>
-                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-lg">qr_code_2</span>
-                  QR Code Marketing
-                </h2>
-                <ul className="space-y-1.5 list-disc list-inside">
-                  <li><strong>Print placements:</strong> Add QR codes to flyers, signage, business cards, and listing packets so leads can reach your AI card instantly.</li>
-                  <li><strong>Track engagement:</strong> Generate unique codes per campaign (open house, mailer, social) and monitor scans inside the QR dashboard.</li>
-                  <li><strong>Landing experience:</strong> Make sure the AI card contact buttons (call, text, chat) are enabled before distributing the code.</li>
-                </ul>
-                <p className="mt-3 text-sm text-slate-500">
-                  <strong>Pro tip:</strong> Pair the AI card QR with a “Talk to my AI concierge” CTA—buyers love the novelty and you capture more late-night inquiries.
-                </p>
-              </div>
-            </div>
-          )}
+            }
+          />
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 sm:p-6">
+      <div className="flex-1 p-0 sm:p-6">
         {activeTab === 'edit' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
             {/* Left Side - Form */}
@@ -904,7 +900,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
 
 
               {/* Basic Information */}
-              <CollapsibleSection title="👤 Basic Information" sectionKey="basic">
+              <CollapsibleSection title="Basic Information" sectionKey="basic" icon="person">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="ai-card-full-name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -971,7 +967,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               </CollapsibleSection>
 
               {/* Contact Information */}
-              <CollapsibleSection title="📞 Contact Information" sectionKey="contact">
+              <CollapsibleSection title="Contact Information" sectionKey="contact" icon="call">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="ai-card-phone" className="block text-sm font-medium text-gray-700 mb-2">
@@ -1015,7 +1011,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               </CollapsibleSection>
 
               {/* Images */}
-              <CollapsibleSection title="🖼️ Images" sectionKey="images">
+              <CollapsibleSection title="Images" sectionKey="images" icon="image">
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Headshot */}
@@ -1107,7 +1103,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               </CollapsibleSection>
 
               {/* Professional Bio */}
-              <CollapsibleSection title="Card Design" sectionKey="design">
+              <CollapsibleSection title="Card Design" sectionKey="design" icon="palette">
                 <div className="grid grid-cols-2 gap-3">
                   {BACKGROUND_PRESETS.map((preset) => (
                     <button
@@ -1155,7 +1151,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
               </CollapsibleSection>
 
               {/* Social Media Links */}
-              <CollapsibleSection title="🔗 Social Media Links" sectionKey="social">
+              <CollapsibleSection title="Social Media Links" sectionKey="social" icon="link">
 
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
@@ -1223,7 +1219,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) 
                   ✨ Live Preview
                 </h2>
                 <div className="flex justify-center">
-                  <div className="transform scale-75 sm:scale-90 lg:scale-100 origin-top">
+                  <div className="w-full flex justify-center">
                     <AICardPreview onChatClick={() => setIsChatOpen(true)} />
                   </div>
                 </div>

@@ -10,6 +10,7 @@ import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from './Schedul
 import ContactLeadModal from './ContactLeadModal';
 import CalendarView from './CalendarView';
 import ExportModal from './ExportModal';
+import PageTipBanner from './PageTipBanner';
 
 const formatDate = (dateStr: string) => {
     try {
@@ -133,7 +134,7 @@ const LeadsList: React.FC<{
                 return (
                     <div
                         key={lead.id}
-                        className="relative bg-white/20 backdrop-blur-3xl rounded-[1.5rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/50 p-5 transition-all duration-500 hover:shadow-[0_20px_40px_-10px_rgba(99,102,241,0.2)] hover:-translate-y-1 hover:bg-white/30 group ring-1 ring-white/40"
+                        className="relative bg-white/20 backdrop-blur-3xl rounded-none sm:rounded-[1.5rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border-y sm:border border-white/50 p-5 transition-all duration-500 hover:shadow-[0_20px_40px_-10px_rgba(99,102,241,0.2)] hover:-translate-y-1 hover:bg-white/30 group ring-1 ring-white/40"
                     >
                         {/* Status Accent Bar */}
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${statusColorMap[lead.status] || 'bg-slate-200'}`} />
@@ -328,7 +329,7 @@ const AppointmentsList: React.FC<{ appointments: Appointment[] }> = ({ appointme
                     {upcoming.map(appt => (
                         <li
                             key={appt.id}
-                            className="relative bg-white/20 backdrop-blur-3xl rounded-[2rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/50 p-7 transition-all duration-500 hover:shadow-xl hover:bg-white/30 group overflow-hidden ring-1 ring-white/40"
+                            className="relative bg-white/20 backdrop-blur-3xl rounded-none sm:rounded-[2rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border-y sm:border border-white/50 p-7 transition-all duration-500 hover:shadow-xl hover:bg-white/30 group overflow-hidden ring-1 ring-white/40"
                         >
                             <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500/80" />
                             <div className="flex items-center justify-between gap-6">
@@ -637,12 +638,12 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
             <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] bg-blue-100/50 rounded-full blur-[100px] -z-10" />
             <div className="fixed inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] opacity-30 -z-10 pointer-events-none" />
 
-            <div className="max-w-screen-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-                <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
+            <div className="max-w-screen-2xl mx-auto py-10 px-0 sm:px-6 lg:px-8">
+                <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6 px-4 sm:px-0">
                     <span className="material-symbols-outlined w-5 h-5">arrow_back</span>
                     <span>Back to Dashboard</span>
                 </button>
-                <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
+                <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10 px-4 sm:px-0">
                     <div>
                         <h1 className="text-4xl font-black text-slate-900 tracking-tight">Leads & Appointments</h1>
                         <p className="text-slate-500 mt-2 text-lg">Manage your prospects and schedule showings.</p>
@@ -681,47 +682,43 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                 </header>
 
                 <div className="mb-8">
-                    <button
-                        type="button"
-                        onClick={() => setIsHelpPanelOpen(prev => !prev)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
-                        aria-expanded={isHelpPanelOpen}
-                    >
-                        <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
-                        {isHelpPanelOpen ? 'Hide Leads & Appointments Tips' : 'Show Leads & Appointments Tips'}
-                        <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
-                    </button>
-                    {isHelpPanelOpen && (
-                        <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
-                            <div>
-                                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                                    <span className="material-symbols-outlined text-lg">diversity_3</span>
-                                    Leads Hub
-                                </h2>
-                                <ul className="space-y-1.5 list-disc list-inside">
-                                    <li><strong>Segment by status:</strong> Use the filters to surface hot or stalled prospects for focused follow-up.</li>
-                                    <li><strong>Conversation history:</strong> Open a lead to keep notes tight and add next steps while the context is fresh.</li>
-                                    <li><strong>Quick actions:</strong> Use “Contact” for emails/calls or “Schedule” to instantly drop a meeting on the calendar.</li>
-                                </ul>
-                            </div>
-                            <div>
-                                <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                                    <span className="material-symbols-outlined text-lg">calendar_month</span>
-                                    Appointments
-                                </h2>
-                                <ul className="space-y-1.5 list-disc list-inside">
-                                    <li><strong>Calendar view:</strong> Click any slot to add a showing, inspection, or follow-up touch.</li>
-                                    <li><strong>Auto confirmations:</strong> Appointments triggered here send reminders if your notification settings allow it.</li>
-                                    <li><strong>Need to reschedule?</strong> Edit from the timeline and the system re-syncs reminders for you.</li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
+                    <div className="mb-8 px-4 sm:px-0">
+                        <PageTipBanner
+                            pageKey="leads-appointments"
+                            expandedContent={
+                                <div className="space-y-4">
+                                    <div>
+                                        <h4 className="font-semibold text-slate-900 mb-2">🎯 Manage Your Pipeline:</h4>
+                                        <ul className="space-y-2 text-slate-700">
+                                            <li className="flex items-start">
+                                                <span className="mr-2">📥</span>
+                                                <span><strong>Smart Funnels:</strong> New leads drop straight into automated funnels (Buyer, Seller, etc.), triggering instant AI follow-up texts and emails.</span>
+                                            </li>
+                                            <li className="flex items-start">
+                                                <span className="mr-2">🔥</span>
+                                                <span><strong>Take Action:</strong> Click any lead to view their full AI conversation history, add notes, or toggle their status to "Hot" to prioritize them.</span>
+                                            </li>
+                                            <li className="flex items-start">
+                                                <span className="mr-2">📅</span>
+                                                <span><strong>Seamless Scheduling:</strong> The calendar manages showings and appointments automatically. Sync with your Google Calendar to prevent double-booking.</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-lg border border-emerald-100">
+                                        <h4 className="font-semibold text-emerald-900 mb-2">💡 Pro Tip:</h4>
+                                        <p className="text-emerald-800">
+                                            Don't just collect leads—work them. Use the filters to focus on your "Hot" prospects first every morning, while your AI Assistant nurtures the "Cold" leads in the background until they are ready to buy.
+                                        </p>
+                                    </div>
+                                </div>
+                            }
+                        />
+                    </div>
                 </div>
 
 
                 <main>
-                    <div className="border-b border-slate-200 mb-6">
+                    <div className="border-b border-slate-200 mb-6 px-4 sm:px-0">
                         <nav className="flex space-x-2">
                             <TabButton
                                 isActive={activeTab === 'leads'}
@@ -743,7 +740,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     </div>
 
                     {activeTab === 'leads' &&
-                        <div className="bg-white/30 backdrop-blur-3xl rounded-[2rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 p-4 mb-6">
+                        <div className="mx-4 sm:mx-0 bg-white/30 backdrop-blur-3xl rounded-[2rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 p-4 mb-6">
                             <div className="flex items-center justify-between">
                                 <div className="relative w-full max-w-sm">
                                     <span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2">search</span>
@@ -769,27 +766,19 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                                 onEditLead={handleEditLead}
                                 onDeleteLead={onDeleteLead}
                             />
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                <div className="lg:col-span-2">
-                                    <div className="rounded-lg overflow-hidden border border-slate-200">
-                                        <CalendarView appointments={appointments} />
-                                    </div>
+                            <div className="space-y-8">
+                                <div className="rounded-none sm:rounded-lg overflow-hidden border-y sm:border border-slate-200 shadow-sm">
+                                    <CalendarView appointments={appointments} />
                                 </div>
-                                <div className="lg:col-span-1">
-                                    <AppointmentsList appointments={appointments} />
-                                </div>
+                                <AppointmentsList appointments={appointments} />
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            <div className="lg:col-span-2">
-                                <div className="scale-95 origin-top rounded-lg overflow-hidden border border-slate-200">
-                                    <CalendarView appointments={appointments} />
-                                </div>
+                        <div className="space-y-8">
+                            <div className="rounded-none sm:rounded-lg overflow-hidden border-y sm:border border-slate-200 shadow-sm">
+                                <CalendarView appointments={appointments} />
                             </div>
-                            <div className="lg:col-span-1">
-                                <AppointmentsList appointments={appointments} />
-                            </div>
+                            <AppointmentsList appointments={appointments} />
                         </div>
                     )}
                 </main>

@@ -13,6 +13,7 @@ import SignatureEditorModal from './SignatureEditorModal';
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import { useAgentBranding } from '../hooks/useAgentBranding';
+import PageTipBanner from './PageTipBanner';
 
 import { getBooleanEnv, getEnvVar } from '../lib/env';
 
@@ -1666,12 +1667,46 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
     }, [reloadEmailSettings, loadCalendarSettings, userId]);
 
     return (
-        <div className="py-10 px-4 sm:px-6 lg:px-0">
-            <button onClick={_onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6">
+        <div className="py-6 px-0 md:px-6 lg:px-0">
+            <button onClick={_onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6 px-4 md:px-0">
                 <span className="material-symbols-outlined w-5 h-5">chevron_left</span>
                 <span>Back to Dashboard</span>
             </button>
-            <div className="w-full bg-white rounded-xl lg:rounded-none shadow-lg border border-slate-200/60">
+
+            <div className="mb-6 px-4 md:px-0">
+                <PageTipBanner
+                    pageKey="settings"
+                    expandedContent={
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="font-semibold text-slate-900 mb-2">⚙️ Configure Your AI's Brain & Behavior:</h4>
+                                <ul className="space-y-2 text-slate-700">
+                                    <li className="flex items-start">
+                                        <span className="mr-2">🔔</span>
+                                        <span><strong>Notification Control:</strong> Decide exactly when you want to be alerted (e.g., only for Hot Leads or Appointment Bookings) to avoid alert fatigue.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">📅</span>
+                                        <span><strong>Calendar Sync:</strong> Connect your Google or Outlook calendar so the AI knows your real-time availability and never double-books you.</span>
+                                    </li>
+                                    <li className="flex items-start">
+                                        <span className="mr-2">💳</span>
+                                        <span><strong>Billing & Plans:</strong> Manage your subscription, view invoices, and update payment methods securely.</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div className="bg-gradient-to-r from-slate-100 to-gray-100 p-4 rounded-lg border border-slate-200">
+                                <h4 className="font-semibold text-slate-800 mb-2">💡 Pro Tip:</h4>
+                                <p className="text-slate-600">
+                                    Keep your "Personal GPT" profile updated in the <strong>AI Card</strong> tab. The more the AI knows about you, the better it sells you.
+                                </p>
+                            </div>
+                        </div>
+                    }
+                />
+            </div>
+
+            <div className="w-full bg-white rounded-none md:rounded-xl shadow-lg border-y md:border border-slate-200/60">
                 <div className="flex flex-col md:flex-row">
                     {/* Sidebar Navigation */}
                     <aside className="md:w-64 p-6 border-b md:border-b-0 md:border-r border-slate-200/80">

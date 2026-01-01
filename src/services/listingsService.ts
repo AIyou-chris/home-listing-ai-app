@@ -163,6 +163,7 @@ const mapRowToProperty = (row: PropertyRow): Property => {
     features: row.features ?? [],
     appFeatures: ensureAppFeatures(row.app_features),
     agent,
+    agentId: row.agent_id ?? undefined,
     imageUrl,
     ctaListingUrl: row.cta_listing_url ?? undefined,
     ctaMediaUrl: row.cta_media_url ?? undefined

@@ -8428,6 +8428,46 @@ app.post('/api/appointments', async (req, res) => {
     const isoRange =
       startIso && endIso ? { startIso, endIso } : computeAppointmentIsoRange(day, label);
 
+    // Auto-Resolve or Create Lead if missing
+    let resolvedLeadId = leadId;
+    if (!resolvedLeadId && contactEmail) {
+      // 1. Try to find existing lead by email
+      const { data: existingLead } = await supabaseAdmin
+        .from('leads')
+        .select('id')
+        .eq('user_id', ownerId)
+        .eq('email', contactEmail)
+        .maybeSingle();
+
+      if (existingLead) {
+        resolvedLeadId = existingLead.id;
+      } else {
+        // 2. Create new lead
+        console.log(`✨ Auto-creating lead for appointment: ${contactName}`);
+        const { data: newLead, error: leadError } = await supabaseAdmin
+          .from('leads')
+          .insert({
+            user_id: ownerId,
+            name: contactName,
+            email: contactEmail,
+            phone: phone || null,
+            status: 'New',
+            source: 'Appointment Scheduler',
+            notes: `Auto-created from ${kind} appointment request.`,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+
+        if (!leadError && newLead) {
+          resolvedLeadId = newLead.id;
+        } else {
+          console.warn('Failed to auto-create lead', leadError);
+        }
+      }
+    }
+
     // CRITICAL: Prevent Double Booking
     // Check if any *active* appointment overlaps with this range for this user
     // Standard Overlap Logic: (Active.Start < New.End) AND (Active.End > New.Start)
@@ -8449,7 +8489,7 @@ app.post('/api/appointments', async (req, res) => {
 
     const insertPayload = {
       user_id: ownerId,
-      lead_id: isUuid(leadId) ? leadId : null,
+      lead_id: isUuid(resolvedLeadId) ? resolvedLeadId : null,
       property_id: propertyId || null,
       property_address: propertyAddress || null,
       kind,
@@ -10247,132 +10287,132 @@ app.post('/api/sms/send', async (req, res) => {
    ========================================================================= */
 
 const checkFunnelFollowUps = async () => {
-    if (!supabaseAdmin) return;
-    try {
-        const { data: allFollowUpRows, error } = await supabaseAdmin
-            .from('follow_up_active_store')
-            .select('*');
+  if (!supabaseAdmin) return;
+  try {
+    const { data: allFollowUpRows, error } = await supabaseAdmin
+      .from('follow_up_active_store')
+      .select('*');
 
-        if (error) {
-           // Silent fail if table not ready
-           return;
-        }
-        if (!allFollowUpRows || allFollowUpRows.length === 0) return;
-
-        const now = new Date();
-
-        for (const row of allFollowUpRows) {
-            const userId = row.user_id;
-            let followUps = row.follow_ups || [];
-            if (!Array.isArray(followUps)) continue;
-
-            let hasUpdates = false;
-
-            // Load user's funnel definitions
-            const funnelSequences = await marketingStore.loadSequences(userId);
-            if (!funnelSequences) continue;
-
-            for (const item of followUps) {
-                // Check if active and due
-                if (item.status === 'active' && item.nextStepDate && new Date(item.nextStepDate) <= now) {
-                    
-                    try {
-                        const steps = funnelSequences[item.sequenceId];
-                        if (steps && steps[item.currentStepIndex]) {
-                            const stepToExecute = steps[item.currentStepIndex];
-                            
-                            // Fetch Lead Details
-                            const { data: lead } = await supabaseAdmin
-                                .from('leads')
-                                .select('*')
-                                .eq('id', item.leadId)
-                                .single();
-
-                            if (lead) {
-                                // Execute Step
-                                await executeDelayedStep(userId, lead, stepToExecute);
-                                
-                                // Advance to Next Step
-                                const nextIndex = item.currentStepIndex + 1;
-                                const nextStep = steps[nextIndex];
-
-                                if (nextStep) {
-                                    let delayMs = 24 * 60 * 60 * 1000;
-                                    if (nextStep.delay) {
-                                        const parts = nextStep.delay.toString().match(/(\d+)/);
-                                        if (parts) delayMs = parseInt(parts[0]) * 24 * 60 * 60 * 1000; 
-                                    }
-                                    item.currentStepIndex = nextIndex;
-                                    item.nextStepDate = new Date(now.getTime() + delayMs).toISOString();
-                                    
-                                    item.history.push({
-                                        id: 'exc-' + Date.now(),
-                                        type: 'execution',
-                                        stepId: stepToExecute.id,
-                                        description: 'Executed Step ' + item.currentStepIndex + ': ' + stepToExecute.type,
-                                        date: now.toISOString()
-                                    });
-                                } else {
-                                    item.status = 'completed';
-                                    item.nextStepDate = null;
-                                    item.history.push({ type: 'complete', date: now.toISOString() });
-                                }
-                                hasUpdates = true;
-                            }
-                        }
-                    } catch (err) {
-                        console.error('[Scheduler] Failed to execute step for lead ' + item.leadId, err.message);
-                    }
-                }
-            }
-
-            if (hasUpdates) {
-                await marketingStore.saveActiveFollowUps(userId, followUps);
-            }
-        }
-
-    } catch (err) {
-        // console.error('[Scheduler] Error checking follow-ups:', err.message);
+    if (error) {
+      // Silent fail if table not ready
+      return;
     }
+    if (!allFollowUpRows || allFollowUpRows.length === 0) return;
+
+    const now = new Date();
+
+    for (const row of allFollowUpRows) {
+      const userId = row.user_id;
+      let followUps = row.follow_ups || [];
+      if (!Array.isArray(followUps)) continue;
+
+      let hasUpdates = false;
+
+      // Load user's funnel definitions
+      const funnelSequences = await marketingStore.loadSequences(userId);
+      if (!funnelSequences) continue;
+
+      for (const item of followUps) {
+        // Check if active and due
+        if (item.status === 'active' && item.nextStepDate && new Date(item.nextStepDate) <= now) {
+
+          try {
+            const steps = funnelSequences[item.sequenceId];
+            if (steps && steps[item.currentStepIndex]) {
+              const stepToExecute = steps[item.currentStepIndex];
+
+              // Fetch Lead Details
+              const { data: lead } = await supabaseAdmin
+                .from('leads')
+                .select('*')
+                .eq('id', item.leadId)
+                .single();
+
+              if (lead) {
+                // Execute Step
+                await executeDelayedStep(userId, lead, stepToExecute);
+
+                // Advance to Next Step
+                const nextIndex = item.currentStepIndex + 1;
+                const nextStep = steps[nextIndex];
+
+                if (nextStep) {
+                  let delayMs = 24 * 60 * 60 * 1000;
+                  if (nextStep.delay) {
+                    const parts = nextStep.delay.toString().match(/(\d+)/);
+                    if (parts) delayMs = parseInt(parts[0]) * 24 * 60 * 60 * 1000;
+                  }
+                  item.currentStepIndex = nextIndex;
+                  item.nextStepDate = new Date(now.getTime() + delayMs).toISOString();
+
+                  item.history.push({
+                    id: 'exc-' + Date.now(),
+                    type: 'execution',
+                    stepId: stepToExecute.id,
+                    description: 'Executed Step ' + item.currentStepIndex + ': ' + stepToExecute.type,
+                    date: now.toISOString()
+                  });
+                } else {
+                  item.status = 'completed';
+                  item.nextStepDate = null;
+                  item.history.push({ type: 'complete', date: now.toISOString() });
+                }
+                hasUpdates = true;
+              }
+            }
+          } catch (err) {
+            console.error('[Scheduler] Failed to execute step for lead ' + item.leadId, err.message);
+          }
+        }
+      }
+
+      if (hasUpdates) {
+        await marketingStore.saveActiveFollowUps(userId, followUps);
+      }
+    }
+
+  } catch (err) {
+    // console.error('[Scheduler] Error checking follow-ups:', err.message);
+  }
 };
 
 const executeDelayedStep = async (userId, lead, step) => {
-    const replaceTokens = (str) => {
-        return (str || '')
-            .replace(/{{lead.name}}/g, lead.name || 'Client')
-            .replace(/{{lead.first_name}}/g, (lead.name || 'Client').split(' ')[0])
-            .replace(/{{client_first_name}}/g, (lead.name || 'Client').split(' ')[0]);
-    };
+  const replaceTokens = (str) => {
+    return (str || '')
+      .replace(/{{lead.name}}/g, lead.name || 'Client')
+      .replace(/{{lead.first_name}}/g, (lead.name || 'Client').split(' ')[0])
+      .replace(/{{client_first_name}}/g, (lead.name || 'Client').split(' ')[0]);
+  };
 
-    const type = (step.type || '').toLowerCase();
-    const content = replaceTokens(step.content || '');
-    const subject = replaceTokens(step.subject || '');
+  const type = (step.type || '').toLowerCase();
+  const content = replaceTokens(step.content || '');
+  const subject = replaceTokens(step.subject || '');
 
-    // SMS / Text
-    if (type === 'sms' || type === 'text') {
-        const phone = lead.phone;
-        if (phone) {
-             const mediaUrls = step.mediaUrl ? [step.mediaUrl] : [];
-             console.log('[Scheduler] Sending Delayed SMS to ' + phone);
-             await sendSms(phone, content, mediaUrls);
-        }
-    } 
-    // Email
-    else if (type === 'email' || type === 'ai-email') {
-        const email = lead.email;
-        if (email) {
-             console.log('[Scheduler] Sending Delayed Email to ' + email);
-             const emailService = require('./services/emailService'); // Ensure loaded
-             await emailService.sendEmail({
-                 to: email,
-                 subject,
-                 text: content,
-                 html: content.replace(/\n/g, '<br/>'),
-                 from: process.env.MAILGUN_FROM_EMAIL || 'noreply@homelistingai.app', 
-                 tags: ['delayed-funnel']
-             });
-        }
+  // SMS / Text
+  if (type === 'sms' || type === 'text') {
+    const phone = lead.phone;
+    if (phone) {
+      const mediaUrls = step.mediaUrl ? [step.mediaUrl] : [];
+      console.log('[Scheduler] Sending Delayed SMS to ' + phone);
+      await sendSms(phone, content, mediaUrls);
     }
+  }
+  // Email
+  else if (type === 'email' || type === 'ai-email') {
+    const email = lead.email;
+    if (email) {
+      console.log('[Scheduler] Sending Delayed Email to ' + email);
+      const emailService = require('./services/emailService'); // Ensure loaded
+      await emailService.sendEmail({
+        to: email,
+        subject,
+        text: content,
+        html: content.replace(/\n/g, '<br/>'),
+        from: process.env.MAILGUN_FROM_EMAIL || 'noreply@homelistingai.app',
+        tags: ['delayed-funnel']
+      });
+    }
+  }
 };
 
 // Start Scheduler (Every 60 seconds)

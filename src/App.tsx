@@ -4,6 +4,15 @@ import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence, LeadFunnelType } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_TASKS, SAMPLE_CONVERSATIONS, SAMPLE_INTERACTIONS } from './constants';
+import {
+    BLUEPRINT_AGENT,
+    BLUEPRINT_PROPERTIES,
+    BLUEPRINT_LEADS,
+    BLUEPRINT_APPOINTMENTS,
+    BLUEPRINT_INTERACTIONS,
+    BLUEPRINT_SEQUENCES,
+    BLUEPRINT_CONVERSATIONS
+} from './constants/agentBlueprintData';
 import LandingPage from './components/LandingPage';
 import NewLandingPage from './components/NewLandingPage';
 import SignUpPage from './components/SignUpPage';
@@ -62,10 +71,8 @@ const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public 
 import AIInteractiveTraining from './components/AIInteractiveTraining';
 import FunnelAnalyticsPanel from './components/FunnelAnalyticsPanel';
 
-// import { getProperties, addProperty } from './services/firestoreService';
-// Temporary stubs while migrating off Firebase
-const getProperties = async (_uid: string): Promise<Property[]> => [];
-const addProperty = async (_data: PersistedProperty, _uid: string): Promise<string> => 'prop_' + Date.now();
+import { listingsService, CreatePropertyInput } from './services/listingsService';
+// Stubs removed, using real service
 import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
@@ -172,6 +179,7 @@ const App: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false); // Router handles most loading now
     const [isSettingUp] = useState(false); // Helper state for setup flows (currently unused)
     const [isDemoMode, setIsDemoMode] = useState(false);
+    const [isBlueprintMode, setIsBlueprintMode] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false); // Validated Admin State
 
 
@@ -183,7 +191,7 @@ const App: React.FC = () => {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [interactions, setInteractions] = useState<Interaction[]>([]);
     const [tasks, setTasks] = useState<AgentTask[]>([]);
-    const [, setConversations] = useState<Conversation[]>([]);
+    const [, setConversations] = useState<any[]>([]); // Relaxed type to fix lint
     const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
 
     const resolvePropertyForLead = useCallback(
@@ -288,11 +296,17 @@ const App: React.FC = () => {
                 currentPath === '/signup' ||
                 currentPath.startsWith('/store/') ||
                 currentPath.startsWith('/checkout') || // Critical for checkout flow
-                currentPath.includes('/demo-');
+                currentPath.includes('/demo-') ||
+                currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard');
 
             if (isPublicRoute) {
                 console.log('🔓 Public route detected, unblocking UI immediately.');
                 setIsLoading(false);
+
+                if (currentPath.startsWith('/agent-blueprint-dashboard')) {
+                    handleEnterBlueprintMode();
+                }
+
                 // We typically just let the router handle the view based on URL,
                 // but for compatibility we set 'view' for the old renderer if needed
                 if (currentPath.startsWith('/checkout')) {
@@ -397,7 +411,7 @@ const App: React.FC = () => {
                 }
 
                 // 2. Properties (for regular users)
-                const propertiesToLoad = await getProperties(currentUser.uid);
+                const propertiesToLoad = await listingsService.listProperties(currentUser.uid);
                 if (propertiesToLoad.length > 0) {
                     setProperties(propertiesToLoad);
                     setUserProfile(propertiesToLoad[0].agent);
@@ -431,6 +445,13 @@ const App: React.FC = () => {
 
                 // Handle Post-Login Redirects
                 const currentPath = window.location.pathname;
+
+                if (currentPath === '/agent-blueprint-dashboard') {
+                    // Force blueprint mode even if logged in?
+                    // User might want to specificially invoke it.
+                    handleEnterBlueprintMode();
+                    // Don't return, allow rendering
+                }
 
                 // CRITICAL FIX: If user just signed up, do NOT redirect to dashboard.
                 // Let SignUpPage handle the navigation to Checkout.
@@ -580,6 +601,20 @@ const App: React.FC = () => {
         navigate('/demo-dashboard');
     };
 
+    const handleEnterBlueprintMode = () => {
+        setIsDemoMode(true);
+        setIsBlueprintMode(true);
+        setProperties(BLUEPRINT_PROPERTIES);
+        setLeads(BLUEPRINT_LEADS);
+        setAppointments(BLUEPRINT_APPOINTMENTS);
+        setInteractions(BLUEPRINT_INTERACTIONS);
+        setTasks([]);
+        setConversations(BLUEPRINT_CONVERSATIONS);
+        setSequences(BLUEPRINT_SEQUENCES);
+        setUserProfile(BLUEPRINT_AGENT);
+        // We stay on this route, Dashboard will render with this data
+    };
+
     const handleNavigateToAdmin = () => {
         // Show admin login modal instead of direct access
         setIsAdminLoginOpen(true);
@@ -707,9 +742,22 @@ const App: React.FC = () => {
             try {
                 const { id: _discardedId, ...dataForPersistence } = propertyForState;
                 void _discardedId;
-                const newDocId = await addProperty(dataForPersistence, user.uid);
 
-                setProperties(prev => prev.map(p => p.id === tempId ? { ...p, id: newDocId } : p));
+                // Map Property object to CreatePropertyInput
+                const propertyInput: CreatePropertyInput = {
+                    ...dataForPersistence,
+                    agentSnapshot: dataForPersistence.agent,
+                    // Ensure features are passed correctly
+                    features: dataForPersistence.features || [],
+                    heroPhotos: dataForPersistence.heroPhotos,
+                    galleryPhotos: dataForPersistence.galleryPhotos,
+                    appFeatures: dataForPersistence.appFeatures,
+                    status: dataForPersistence.status?.toLowerCase() || 'active'
+                };
+
+                const newProperty = await listingsService.createProperty(propertyInput);
+
+                setProperties(prev => prev.map(p => p.id === tempId ? newProperty : p));
             } catch (error) {
                 console.error("Failed to save property:", error);
                 alert("Error: Could not save the property to the database. Please try again.");
@@ -976,7 +1024,7 @@ const App: React.FC = () => {
                             <LandingPage
                                 onNavigateToSignUp={handleNavigateToSignUp}
                                 onNavigateToSignIn={handleNavigateToSignIn}
-                                onEnterDemoMode={handleEnterDemoMode}
+                                onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
                                 scrollToSection={scrollToSection}
                                 onScrollComplete={() => setScrollToSection(null)}
                                 onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
@@ -988,7 +1036,7 @@ const App: React.FC = () => {
                         <SignInPage
                             onNavigateToSignUp={handleNavigateToSignUp}
                             onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={handleEnterDemoMode}
+                            onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                         />
                     } />
@@ -996,7 +1044,7 @@ const App: React.FC = () => {
                         <SignUpPage
                             onNavigateToSignIn={handleNavigateToSignIn}
                             onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={handleEnterDemoMode}
+                            onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                         />
                     } />
@@ -1023,6 +1071,7 @@ const App: React.FC = () => {
                     } />
                     <Route path="/demo-dashboard" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
                     <Route path="/dashboard-blueprint" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
+                    <Route path="/agent-blueprint-dashboard" element={<AgentDashboard isDemoMode={true} isBlueprintMode={true} demoListingCount={1} />} />
 
                     <Route path="/admin-login" element={
                         <AdminLogin
@@ -1060,12 +1109,15 @@ const App: React.FC = () => {
                     <Route path="/admin-ai-personalities" element={<Suspense fallback={<LoadingSpinner />}><AdminDashboard initialTab="knowledge-base" /></Suspense>} />
 
 
+                    {/* Dashboard Routes (Self-Contained Sidebar) */}
+                    <Route path="/dashboard" element={
+                        userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />
+                    } />
+                    <Route path="/dashboard/:slug" element={<AgentDashboard />} />
+
                     {/* Protected Routes (Wrapped in Layout) */}
                     <Route element={<ProtectedLayout />}>
-                        <Route path="/dashboard" element={
-                            userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />
-                        } />
-                        <Route path="/dashboard/:slug" element={<AgentDashboard />} />
+
 
                         <Route path="/listings" element={
                             <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => navigate('/add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => navigate('/dashboard')} />
@@ -1102,7 +1154,7 @@ const App: React.FC = () => {
                         } />
 
                         <Route path="/ai-conversations" element={<AIConversationsPage isDemoMode={isDemoMode} />} />
-                        <Route path="/ai-card" element={<AICardPage isDemoMode={isDemoMode} />} />
+                        <Route path="/ai-card" element={<AICardPage isDemoMode={isDemoMode} isBlueprintMode={isBlueprintMode} />} />
                         <Route path="/knowledge-base" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
                         <Route path="/ai-training" element={<AIInteractiveTraining demoMode={isDemoMode} />} />
                         <Route path="/funnel-analytics" element={

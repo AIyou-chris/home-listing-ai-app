@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import PageTipBanner from './PageTipBanner';
 import { Property, AgentProfile, AIDescription } from '../types';
 import { SAMPLE_AGENT } from '../constants';
 import ListingSidekickWidget from './ListingSidekickWidget'
@@ -238,9 +239,9 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 />
             )}
             <div className="bg-slate-50 min-h-screen pb-24">
-                <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6">
+                <div className="max-w-3xl mx-auto py-8 px-0 sm:px-6">
                     {/* Header */}
-                    <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center justify-between mb-8 px-4 sm:px-0">
                         <button onClick={onCancel} className="flex items-center text-slate-500 hover:text-slate-900 transition mb-1">
                             <span className="material-symbols-outlined mr-1">arrow_back</span>
                             Back
@@ -263,19 +264,54 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                         </div>
                     </div>
 
-                    <h1 className="text-3xl font-bold text-slate-900 mb-2">Build AI Listing</h1>
-                    <p className="text-slate-500 mb-10">Streamlined editor for your immersive property feed.</p>
+                    <div className="mb-8 px-4 sm:px-0">
+                        <h1 className="text-3xl font-bold text-slate-900 mb-2">Build AI Listing</h1>
+                        <p className="text-slate-500">Streamlined editor for your immersive property feed.</p>
+                    </div>
+
+                    <div className="mb-10 px-4 sm:px-0">
+                        <PageTipBanner
+                            pageKey="add-listing"
+                            expandedContent={
+                                <div className="space-y-4">
+                                    <div>
+                                        <h4 className="font-semibold text-slate-900 mb-2">🏡 Creating an Intelligent Listing:</h4>
+                                        <ul className="space-y-2 text-slate-700">
+                                            <li className="flex items-start">
+                                                <span className="mr-2">📝</span>
+                                                <span><strong>The Essentials:</strong> Accurate details (beds, baths, sqft) trigger the AI's ability to answer specific buyer questions instantly.</span>
+                                            </li>
+                                            <li className="flex items-start">
+                                                <span className="mr-2">📸</span>
+                                                <span><strong>Visuals Matter:</strong> Upload high-res photos. The AI scans them to generate rich descriptions and engaging emails.</span>
+                                            </li>
+                                            <li className="flex items-start">
+                                                <span className="mr-2">🤖</span>
+                                                <span><strong>Instant Sidekick:</strong> As soon as you hit publish, a dedicated AI agent is created specifically for this property.</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-lg border border-emerald-100">
+                                        <h4 className="font-semibold text-emerald-900 mb-2">💡 Pro Tip:</h4>
+                                        <p className="text-emerald-800">
+                                            Use "Generate with AI" for the description. It weaves facts and features into a compelling narrative in seconds.
+                                        </p>
+                                    </div>
+                                </div>
+                            }
+                        />
+                    </div>
 
                     <div className="space-y-12">
                         {/* Section 1: The Essentials */}
                         <section>
-                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2 px-4 sm:px-0">
                                 <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
                                     <span className="material-symbols-outlined text-sm">edit</span>
                                 </span>
                                 The Essentials
                             </h2>
-                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60">
+                            <div className="bg-white p-6 rounded-none md:rounded-3xl shadow-sm border-y md:border border-slate-200/60">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="md:col-span-2">
                                         <label className={labelClasses}>Property Title</label>
@@ -328,13 +364,13 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
 
                         {/* Section 2: Immersive Visuals */}
                         <section>
-                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2 px-4 sm:px-0">
                                 <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
                                     <span className="material-symbols-outlined text-sm">image</span>
                                 </span>
                                 Immersive Visuals
                             </h2>
-                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60">
+                            <div className="bg-white p-6 rounded-none md:rounded-3xl shadow-sm border-y md:border border-slate-200/60">
                                 <div className="flex items-center justify-between mb-4">
                                     <span className="text-sm font-semibold text-slate-700">Background Carousel (Max 6)</span>
                                     <span className="text-xs text-slate-400">{formData.heroPhotos.length}/6 photos</span>
@@ -376,13 +412,13 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
 
                         {/* Section 3: Connections */}
                         <section>
-                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2 px-4 sm:px-0">
                                 <span className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
                                     <span className="material-symbols-outlined text-sm">link</span>
                                 </span>
                                 Connect Your Listing
                             </h2>
-                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60 space-y-8">
+                            <div className="bg-white p-6 rounded-none md:rounded-3xl shadow-sm border-y md:border border-slate-200/60 space-y-8">
 
                                 {/* Contact Button Mode */}
                                 <div>
