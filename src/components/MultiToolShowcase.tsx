@@ -130,7 +130,7 @@ const tools = [
         id: 'marketing',
         title: 'Marketing Hub',
         icon: 'ads_click',
-        image: '/demo/marketing-hub-mockup.png',
+        image: '/demo/marketing-hub-laptop.png',
         headline: 'Content Creation on Autopilot',
         description: 'Generate listing descriptions, social posts, and ad copy in seconds. Post to Facebook, Instagram, and LinkedIn with one click.',
         bullets: [
