@@ -59,7 +59,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
 
   const dashboardBaseUrl =
     (import.meta.env.VITE_DASHBOARD_BASE_URL as string | undefined) ||
-    'https://aiyouagent.com';
+    'https://homelistingai.com';
   const dashboardUrl = useMemo(
     () => `${dashboardBaseUrl.replace(/\/$/, '')}/dashboard/${slug}`,
     [dashboardBaseUrl, slug]
