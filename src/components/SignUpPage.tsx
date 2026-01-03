@@ -186,8 +186,21 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
 
                                 <div>
                                     <button type="submit" disabled={isSubmitting} className={`w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg shadow-md transition-shadow ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-lg'}`}>
-                                        {isSubmitting ? 'Preparing checkout...' : '→ Continue to Secure Checkout'}
+                                        {isSubmitting ? (
+                                            <>
+                                                <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+                                                Preparing checkout...
+                                            </>
+                                        ) : (
+                                            '→ Continue to Secure Checkout'
+                                        )}
                                     </button>
+                                    {isSubmitting && (
+                                        <div className="mt-4 text-center animate-pulse">
+                                            <p className="text-sm text-slate-600 font-medium">Creating your secure account...</p>
+                                            <p className="text-xs text-slate-500 mt-1">This may take up to a minute. Please do not close this window.</p>
+                                        </div>
+                                    )}
                                 </div>
                             </form>
 

@@ -1,17 +1,16 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import { supabase } from './services/supabase';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, AgentTask, Interaction, Conversation, FollowUpSequence, LeadFunnelType } from './types';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, FollowUpSequence, LeadFunnelType } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
-import { SAMPLE_AGENT, SAMPLE_TASKS, SAMPLE_CONVERSATIONS, SAMPLE_INTERACTIONS } from './constants';
+import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
 import {
     BLUEPRINT_AGENT,
     BLUEPRINT_PROPERTIES,
     BLUEPRINT_LEADS,
     BLUEPRINT_APPOINTMENTS,
     BLUEPRINT_INTERACTIONS,
-    BLUEPRINT_SEQUENCES,
-    BLUEPRINT_CONVERSATIONS
+    BLUEPRINT_SEQUENCES
 } from './constants/agentBlueprintData';
 import LandingPage from './components/LandingPage';
 import NewLandingPage from './components/NewLandingPage';
@@ -19,7 +18,7 @@ import SignUpPage from './components/SignUpPage';
 import SignInPage from './components/SignInPage';
 import CheckoutPage from './components/CheckoutPage';
 import { getRegistrationContext } from './services/agentOnboardingService';
-import Dashboard from './components/Dashboard';
+
 import AgentDashboard from './components/AgentDashboard';
 
 import Sidebar from './components/Sidebar';
@@ -94,7 +93,7 @@ type AppUser = {
     created_at?: string;
 };
 
-type PersistedProperty = Omit<Property, 'id'>;
+
 
 // const ADMIN_VIEWS = [
 //     'admin-dashboard',
@@ -190,8 +189,8 @@ const App: React.FC = () => {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [interactions, setInteractions] = useState<Interaction[]>([]);
-    const [tasks, setTasks] = useState<AgentTask[]>([]);
-    const [, setConversations] = useState<any[]>([]); // Relaxed type to fix lint
+
+
     const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
 
     const resolvePropertyForLead = useCallback(
@@ -594,8 +593,7 @@ const App: React.FC = () => {
         setLeads(DEMO_FAT_LEADS);
         setAppointments(DEMO_FAT_APPOINTMENTS);
         setInteractions(SAMPLE_INTERACTIONS);
-        setTasks(SAMPLE_TASKS);
-        setConversations(SAMPLE_CONVERSATIONS);
+
         setSequences(DEMO_SEQUENCES);
         setUserProfile(SAMPLE_AGENT);
         navigate('/demo-dashboard');
@@ -608,8 +606,7 @@ const App: React.FC = () => {
         setLeads(BLUEPRINT_LEADS);
         setAppointments(BLUEPRINT_APPOINTMENTS);
         setInteractions(BLUEPRINT_INTERACTIONS);
-        setTasks([]);
-        setConversations(BLUEPRINT_CONVERSATIONS);
+
         setSequences(BLUEPRINT_SEQUENCES);
         setUserProfile(BLUEPRINT_AGENT);
         // We stay on this route, Dashboard will render with this data
@@ -686,19 +683,7 @@ const App: React.FC = () => {
     // Notification handling is now managed by NotificationSystem component
 
     // Task management handlers
-    const handleTaskUpdate = (taskId: string, updates: Partial<AgentTask>) => {
-        setTasks(prev => prev.map(task =>
-            task.id === taskId ? { ...task, ...updates } : task
-        ));
-    };
 
-    const handleTaskAdd = (newTask: AgentTask) => {
-        setTasks(prev => [newTask, ...prev]);
-    };
-
-    const handleTaskDelete = (taskId: string) => {
-        setTasks(prev => prev.filter(task => task.id !== taskId));
-    };
 
     const handleSelectProperty = (id: string) => {
         setSelectedPropertyId(id);
@@ -1109,14 +1094,12 @@ const App: React.FC = () => {
                     <Route path="/admin-ai-personalities" element={<Suspense fallback={<LoadingSpinner />}><AdminDashboard initialTab="knowledge-base" /></Suspense>} />
 
 
-                    {/* Dashboard Routes (Self-Contained Sidebar) */}
-                    <Route path="/dashboard" element={
-                        userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />
-                    } />
-                    <Route path="/dashboard/:slug" element={<AgentDashboard />} />
-
                     {/* Protected Routes (Wrapped in Layout) */}
                     <Route element={<ProtectedLayout />}>
+                        <Route path="/dashboard" element={
+                            userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />
+                        } />
+                        <Route path="/dashboard/:slug" element={<AgentDashboard />} />
 
 
                         <Route path="/listings" element={
