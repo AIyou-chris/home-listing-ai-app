@@ -64,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
   ];
 
   const communicationItems = [
-    { view: 'ai-interaction-hub', icon: 'bolt', label: 'AI Communication' },
+    { view: 'inbox', icon: 'bolt', label: 'AI Communication' },
   ];
 
   const handleLogoClick = (e: React.MouseEvent) => {

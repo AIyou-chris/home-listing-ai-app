@@ -26,7 +26,7 @@ import PropertyPage from './components/PropertyPage';
 import ListingsPage from './components/ListingsPage';
 import AddListingPage from './components/AddListingPage';
 import LeadsAndAppointmentsPage from './components/LeadsAndAppointmentsPage';
-import InteractionHubPage from './components/InteractionHubPage';
+import InteractionHubPage from './components/AIInteractionHubPage';
 import AIConversationsPage from './components/AIConversationsPage';
 import AICardPage from './components/AICardPage';
 import MarketingReportsPage from './components/MarketingReportsPage';
