@@ -10453,7 +10453,18 @@ const checkFunnelFollowUps = async () => {
         if (item.status === 'active' && item.nextStepDate && new Date(item.nextStepDate) <= now) {
 
           try {
-            const steps = funnelSequences[item.sequenceId];
+
+            // Robust lookup for sequence (Handle Array vs Map)
+            let sequence;
+            if (Array.isArray(funnelSequences)) {
+              sequence = funnelSequences.find(s => s.id === item.sequenceId);
+            } else {
+              sequence = funnelSequences[item.sequenceId];
+            }
+
+            const steps = sequence ? sequence.steps : null;
+            const sequenceSignature = sequence ? sequence.signature : null;
+
             if (steps && steps[item.currentStepIndex]) {
               const stepToExecute = steps[item.currentStepIndex];
 
@@ -10466,7 +10477,7 @@ const checkFunnelFollowUps = async () => {
 
               if (lead) {
                 // Execute Step
-                await executeDelayedStep(userId, lead, stepToExecute);
+                await executeDelayedStep(userId, lead, stepToExecute, sequenceSignature);
 
                 // Advance to Next Step
                 const nextIndex = item.currentStepIndex + 1;
@@ -10512,12 +10523,13 @@ const checkFunnelFollowUps = async () => {
   }
 };
 
-const executeDelayedStep = async (userId, lead, step) => {
+const executeDelayedStep = async (userId, lead, step, signature) => {
   const replaceTokens = (str) => {
     return (str || '')
       .replace(/{{lead.name}}/g, lead.name || 'Client')
       .replace(/{{lead.first_name}}/g, (lead.name || 'Client').split(' ')[0])
-      .replace(/{{client_first_name}}/g, (lead.name || 'Client').split(' ')[0]);
+      .replace(/{{client_first_name}}/g, (lead.name || 'Client').split(' ')[0])
+      .replace(/{{agent.signature}}/g, signature || 'Best,\nHomeListingAI Team');
   };
 
   const type = (step.type || '').toLowerCase();
