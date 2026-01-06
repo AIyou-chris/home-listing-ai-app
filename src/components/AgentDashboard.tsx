@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../services/supabase';
 import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
 import LeadsAndAppointmentsPage from './LeadsAndAppointmentsPage';
@@ -83,6 +84,21 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   // Setup Failsafe: Force Demo Mode if URL implies it
   const isDemoMode = propIsDemoMode || window.location.pathname.includes('blueprint') || window.location.pathname.includes('demo');
   const isBlueprintMode = propIsBlueprintMode || window.location.pathname.includes('blueprint');
+
+  const navigate = useNavigate();
+
+  // --- SUPER ADMN FAILSAFE ---
+  // If us@homelistingai.com somehow lands here, KICK THEM OUT to admin dashboard.
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && (user.email?.toLowerCase() === 'us@homelistingai.com' || user.email?.toLowerCase() === 'admin@homelistingai.com')) {
+        console.log("👮 AgentDashboard Bouncer: Redirecting admin...");
+        navigate('/admin-dashboard', { replace: true });
+      }
+    };
+    if (!isDemoMode) checkUser();
+  }, [isDemoMode, navigate]);
 
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -850,7 +866,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   };
 
   const isIntegrated = !isDemoMode;
-  const navigate = useNavigate();
+
 
   // Navigation handlers that adapt to mode
   const handleViewLeads = (leadId?: string, action?: 'view' | 'contact') => {
