@@ -125,37 +125,6 @@ const tools = [
             }
         ],
         layout: 'right-image'
-    },
-    {
-        id: 'marketing',
-        title: 'Marketing Hub',
-        icon: 'ads_click',
-        image: '/demo/marketing-hub-laptop.png',
-        headline: 'Content Creation on Autopilot',
-        description: 'Generate listing descriptions, social posts, and ad copy in seconds. Post to Facebook, Instagram, and LinkedIn with one click.',
-        bullets: [
-            {
-                icon: 'edit_note',
-                text: 'SEO-optimized listing descriptions',
-                subtext: 'Rank higher on Zillow and Google with descriptions written to attract search traffic.'
-            },
-            {
-                icon: 'share',
-                text: 'One-click multi-platform posting',
-                subtext: 'Blast your new listing to Facebook, Instagram, and LinkedIn instantly.'
-            },
-            {
-                icon: 'bar_chart',
-                text: 'Track engagement & ROI in real-time',
-                subtext: 'See exactly which posts are driving leads so you can double down on what works.'
-            },
-            {
-                icon: 'checklist',
-                text: 'AI "Pulse" smart daily task prioritization',
-                subtext: 'Start every day knowing exactly which 5 tasks will make you money.'
-            }
-        ],
-        layout: 'left-image'
     }
 ];
 
@@ -163,8 +132,7 @@ const animations = [
     'animate-fade-in-left', // Listing (Left Layout) -> Slide in from Left
     'animate-scale-in',     // Card -> Pop in
     'animate-slide-in-right', // Funnel (Left Layout, but visually maybe flow right?) Let's stick to Layout logic or variety. slide-in-right is cool.
-    'animate-fade-in-up',   // Assistant -> Rise up
-    'animate-slide-in-left' // Marketing -> Slide in from Left
+    'animate-fade-in-up'   // Assistant -> Rise up
 ];
 
 export const MultiToolShowcase: React.FC = () => {
