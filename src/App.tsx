@@ -1009,8 +1009,8 @@ const App: React.FC = () => {
                             <LandingPage
                                 onNavigateToSignUp={handleNavigateToSignUp}
                                 onNavigateToSignIn={handleNavigateToSignIn}
-                                onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
-                                onNavigateToShowcase={() => navigate('/demo-showcase')}
+                                onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                onNavigateToShowcase={() => navigate('/demo-dashboard')}
                                 scrollToSection={scrollToSection}
                                 onScrollComplete={() => setScrollToSection(null)}
                                 onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
@@ -1022,7 +1022,7 @@ const App: React.FC = () => {
                         <SignInPage
                             onNavigateToSignUp={handleNavigateToSignUp}
                             onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
+                            onEnterDemoMode={() => navigate('/demo-dashboard')}
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                         />
                     } />
@@ -1030,7 +1030,7 @@ const App: React.FC = () => {
                         <SignUpPage
                             onNavigateToSignIn={handleNavigateToSignIn}
                             onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
+                            onEnterDemoMode={() => navigate('/demo-dashboard')}
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                         />
                     } />
