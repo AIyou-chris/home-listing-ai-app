@@ -52,8 +52,6 @@ import DemoListingPage from './components/DemoListingPage';
 import ChatBotFAB from './components/ChatBotFAB';
 import { StorefrontPage } from './pages/StorefrontPage';
 import { MultiToolShowcase } from './components/MultiToolShowcase';
-import DemoDashboard from './components/DemoDashboard';
-
 const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
     universal_sales: 'Buyer Lead',
     homebuyer: 'Buyer Lead',
@@ -1057,9 +1055,9 @@ const App: React.FC = () => {
                     <Route path="/admin-dashboard" element={
                         isAdmin ? <AdminDashboard /> : <Navigate to="/" />
                     } />
-                    <Route path="/demo-dashboard" element={<DemoDashboard properties={DEMO_FAT_PROPERTIES} onSelectProperty={(id) => navigate(`/properties/${id}`)} />} />
+                    <Route path="/demo-dashboard" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
                     <Route path="/dashboard-blueprint" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
-                    <Route path="/agent-blueprint-dashboard" element={<DemoDashboard properties={DEMO_FAT_PROPERTIES} onSelectProperty={(id) => navigate(`/properties/${id}`)} />} />
+                    <Route path="/agent-blueprint-dashboard" element={<AgentDashboard isDemoMode={true} isBlueprintMode={true} demoListingCount={1} />} />
                     <Route path="/demo-showcase" element={<MultiToolShowcase />} />
 
                     <Route path="/admin-login" element={
