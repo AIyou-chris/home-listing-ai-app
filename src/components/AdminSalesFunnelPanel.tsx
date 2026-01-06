@@ -11,8 +11,10 @@ import { getAICardProfile, AICardProfile } from '../services/aiCardService';
 
 // CONSTANTS & TYPES
 
-// FORCE LIVE BACKEND: The local .env is pointing to localhost:3002 (which is dead), so we must override it here.
-const API_BASE = 'https://home-listing-ai-backend.onrender.com';
+// API Configuration
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:3002'
+    : 'https://home-listing-ai-backend.onrender.com';
 
 const UNIVERSAL_FUNNEL_ID = 'universal_sales';
 
