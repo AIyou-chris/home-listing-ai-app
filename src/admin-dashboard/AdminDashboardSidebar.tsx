@@ -128,7 +128,14 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
           </button>
 
           <button
-            onClick={() => adminAuthService.logout()}
+            onClick={async () => {
+              console.log("🚪 Sign Out Clicked");
+              try {
+                await adminAuthService.logout();
+              } catch (e) { console.error("Logout err", e); }
+              // Force redirect regardless of service success
+              window.location.href = '/signin';
+            }}
             className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors"
           >
             <Icon name="logout" className="text-rose-500" />
