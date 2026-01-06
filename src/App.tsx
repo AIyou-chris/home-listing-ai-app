@@ -51,6 +51,7 @@ import BlogPostPage from './components/BlogPostPage';
 import DemoListingPage from './components/DemoListingPage';
 import ChatBotFAB from './components/ChatBotFAB';
 import { StorefrontPage } from './pages/StorefrontPage';
+import { MultiToolShowcase } from './components/MultiToolShowcase';
 
 const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
     universal_sales: 'Buyer Lead',
@@ -1009,7 +1010,7 @@ const App: React.FC = () => {
                             <LandingPage
                                 onNavigateToSignUp={handleNavigateToSignUp}
                                 onNavigateToSignIn={handleNavigateToSignIn}
-                                onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
+                                onEnterDemoMode={() => navigate('/demo-showcase')}
                                 scrollToSection={scrollToSection}
                                 onScrollComplete={() => setScrollToSection(null)}
                                 onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
@@ -1021,7 +1022,7 @@ const App: React.FC = () => {
                         <SignInPage
                             onNavigateToSignUp={handleNavigateToSignUp}
                             onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
+                            onEnterDemoMode={() => navigate('/demo-showcase')}
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                         />
                     } />
@@ -1029,7 +1030,7 @@ const App: React.FC = () => {
                         <SignUpPage
                             onNavigateToSignIn={handleNavigateToSignIn}
                             onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
+                            onEnterDemoMode={() => navigate('/demo-showcase')}
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                         />
                     } />
@@ -1057,6 +1058,7 @@ const App: React.FC = () => {
                     <Route path="/demo-dashboard" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
                     <Route path="/dashboard-blueprint" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
                     <Route path="/agent-blueprint-dashboard" element={<AgentDashboard isDemoMode={true} isBlueprintMode={true} demoListingCount={1} />} />
+                    <Route path="/demo-showcase" element={<MultiToolShowcase />} />
 
                     <Route path="/admin-login" element={
                         <AdminLogin

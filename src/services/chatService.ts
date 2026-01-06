@@ -1,5 +1,5 @@
 export type ChatScope = 'agent' | 'listing' | 'marketing'
-export type ConversationChannel = 'chat' | 'voice' | 'email'
+export type ConversationChannel = 'chat' | 'voice' | 'email' | 'sms'
 
 type ConversationMetadata = Record<string, unknown> | null
 type MessageTranslation = Record<string, unknown> | string | null
@@ -155,7 +155,7 @@ export const listConversations = async (params: {
     if (params.listingId) queryParams.append('listingId', params.listingId);
 
     const response = await fetch(`/api/conversations?${queryParams.toString()}`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -174,7 +174,7 @@ export const getMessages = async (
 ): Promise<MessageRow[]> => {
   try {
     const response = await fetch(`/api/conversations/${conversationId}/messages?limit=${limit}`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -357,15 +357,15 @@ export const exportConversationsCSV = async (params: {
     if (params.endDate) queryParams.append('endDate', params.endDate);
 
     const response = await fetch(`/api/conversations/export/csv?${queryParams.toString()}`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     // Get the filename from the response headers
     const contentDisposition = response.headers.get('Content-Disposition');
-    const filename = contentDisposition 
-      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') 
+    const filename = contentDisposition
+      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
       : `conversations_export_${new Date().toISOString().split('T')[0]}.csv`;
 
     // Create blob and download

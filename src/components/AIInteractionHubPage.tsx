@@ -1,21 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-    Search, Filter, MessageCircle, Phone, User, Eye, Trash2, Tag,
-    Clock, Sparkles, ClipboardCheck, Languages, Volume2, Home, Megaphone,
-    Cpu, ChevronLeft, Download, Send, Plus
+    Search, MessageCircle, Phone, User, Trash2,
+    Clock, Sparkles, Home, Megaphone,
+    Cpu, ChevronLeft, Download, Send, Plus, Check, CheckCheck, AlertCircle
 } from 'lucide-react';
-import { Interaction, Property, InteractionSourceType } from '../types';
+import { Interaction, Property } from '../types';
 import AddLeadModal, { type NewLeadPayload } from './AddLeadModal';
 import {
     listConversations,
     getMessages,
-    deleteConversation,
     exportConversationsCSV,
-    type ConversationRow,
-    type MessageRow
 } from '../services/chatService';
-import { supabase } from '../services/supabase';
+
 import PageTipBanner from './PageTipBanner';
 import { DEMO_CONVERSATIONS, DEMO_MESSAGES } from '../demoConstants';
 
@@ -71,6 +68,7 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
     const [messages, setMessages] = useState<any[]>([]);
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [newMessage, setNewMessage] = useState(''); // State for reply input
 
     // Load Conversations (from chatService)
     const loadConversations = useCallback(async () => {
@@ -213,6 +211,41 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
             alert("Conversations are permanently logged.");
         }
         setSelectedItemId(null);
+    };
+
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || !selectedItemId) return;
+
+        try {
+            // Determine best channel
+            const item = hubItems.find(i => i.id === selectedItemId);
+            const targetChannel = item?.conversationType === 'voice' || item?.contact.phone ? 'sms' : 'chat'; // Default to SMS if phone avl
+
+            // Optimistic UI update? No, wait for server to confirm (esp for Red Light)
+            const { appendMessage } = await import('../services/chatService');
+
+            await appendMessage({
+                conversationId: selectedItemId,
+                role: 'user', // Agent
+                content: newMessage,
+                channel: targetChannel,
+                userId: 'agent' // explicit agent sender
+            });
+
+            // Refresh messages logic? (Requires pulling again or returning msg)
+            // Ideally we re-fetch messages
+            if (selectedItemId && selectedItemType === 'conversation') {
+                const { getMessages } = await import('../services/chatService');
+                const rows = await getMessages(selectedItemId);
+                setMessages(rows);
+            }
+
+            setNewMessage('');
+
+        } catch (error: any) {
+            console.error("Send failed:", error);
+            alert(`Failed to send: ${error.message || 'Unknown error'}`);
+        }
     };
 
     const selectedItem = hubItems.find(i => i.id === selectedItemId);
@@ -461,6 +494,17 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
                                                     <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${msg.sender === 'lead' ? 'bg-white border border-slate-100 text-slate-700' : 'bg-indigo-600 text-white'}`}>
                                                         <div className="text-[10px] font-bold opacity-50 mb-1 uppercase tracking-wider">{msg.sender === 'lead' ? selectedItem.contact.name : 'AI Buddy'}</div>
                                                         {msg.content || msg.text}
+                                                        {msg.sender === 'ai' && (
+                                                            <div className="flex justify-end mt-1">
+                                                                {msg.metadata?.status === 'delivered' ? (
+                                                                    <span title="Delivered"><CheckCheck className="w-3 h-3 text-indigo-200" /></span>
+                                                                ) : msg.metadata?.status === 'failed' ? (
+                                                                    <span title="Failed"><AlertCircle className="w-3 h-3 text-red-300" /></span>
+                                                                ) : (
+                                                                    <span title="Sent"><Check className="w-3 h-3 text-indigo-300 opacity-70" /></span>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -471,8 +515,21 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
                             <footer className="p-4 bg-white border-t border-slate-100">
                                 <div className="flex items-center gap-4 max-w-3xl mx-auto">
                                     <div className="flex-1 relative">
-                                        <input type="text" placeholder={`Reply to ${selectedItem.contact.name}...`} className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
-                                        <button className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 text-white rounded-lg"><Send className="w-4 h-4" /></button>
+                                        <input
+                                            type="text"
+                                            value={newMessage}
+                                            onChange={(e) => setNewMessage(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                            placeholder={`Reply to ${selectedItem.contact.name}...`}
+                                            className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        />
+                                        <button
+                                            onClick={handleSendMessage}
+                                            disabled={!newMessage.trim()}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <Send className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 </div>
                             </footer>

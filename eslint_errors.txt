@@ -1,0 +1,21 @@
+
+/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AIInteractionHubPage.tsx
+    4:13  error    'Filter' is defined but never used                                                                                   @typescript-eslint/no-unused-vars
+    4:49  error    'Eye' is defined but never used                                                                                      @typescript-eslint/no-unused-vars
+    4:62  error    'Tag' is defined but never used                                                                                      @typescript-eslint/no-unused-vars
+    5:22  error    'ClipboardCheck' is defined but never used                                                                           @typescript-eslint/no-unused-vars
+    5:38  error    'Languages' is defined but never used                                                                                @typescript-eslint/no-unused-vars
+    5:49  error    'Volume2' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
+    8:33  error    'InteractionSourceType' is defined but never used                                                                    @typescript-eslint/no-unused-vars
+   13:5   error    'deleteConversation' is defined but never used                                                                       @typescript-eslint/no-unused-vars
+   15:10  error    'ConversationRow' is defined but never used                                                                          @typescript-eslint/no-unused-vars
+   16:10  error    'MessageRow' is defined but never used                                                                               @typescript-eslint/no-unused-vars
+   18:10  error    'supabase' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+   63:56  warning  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+   71:46  warning  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+  169:8   warning  React Hook useEffect has a missing dependency: 'handleSelectItem'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  248:25  warning  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+  259:39  warning  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+
+✖ 16 problems (11 errors, 5 warnings)
+

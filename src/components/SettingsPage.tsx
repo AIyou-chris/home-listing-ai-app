@@ -5,7 +5,6 @@ import { calendarSettingsService } from '../services/calendarSettingsService';
 import { billingSettingsService } from '../services/billingSettingsService';
 import { supabase } from '../services/supabase';
 import {
-    getAgentProfile,
     updateAgentProfileWithNotification,
     type AgentProfile as ServiceAgentProfile
 } from '../services/agentProfileService';
@@ -2042,12 +2041,7 @@ const SettingsPage: React.FC<SettingsPageProps & { isDemoMode?: boolean }> = ({ 
                                                                         <span className="font-semibold">📧 Connect Gmail</span>
                                                                     )}
                                                                 </button>
-                                                            ) : (
-                                                                <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                                                    <div className="font-semibold text-slate-700 mb-1">Gmail OAuth disabled</div>
-                                                                    Add Google OAuth credentials (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, and set `VITE_ENABLE_GOOGLE_INTEGRATIONS=true`) then restart the dev server to enable one-click Gmail connections. Until then, use the forwarding address above.
-                                                                </div>
-                                                            )
+                                                            ) : null
                                                         )}
                                                     </div>
 

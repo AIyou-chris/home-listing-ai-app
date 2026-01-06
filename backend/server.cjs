@@ -70,7 +70,7 @@ const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
 const { scrapeUrl } = require('./services/scraperService');
-const { sendSms } = require('./services/smsService');
+const { sendSms, validatePhoneNumber } = require('./services/smsService');
 
 const app = express();
 
@@ -4581,8 +4581,43 @@ If you don't know the answer, ask for clarification or offer to have the agent c
 app.post('/api/webhooks/telnyx/inbound', async (req, res) => {
   try {
     const event = req.body;
-    // Telnyx sends many events, we only care about 'message.received'
-    if (event?.data?.event_type !== 'message.received') {
+    const eventType = event?.data?.event_type;
+
+    // --- CASE 1: DELIVERY STATUS UPDATE (Outbound) ---
+    if (eventType === 'message.finalized') {
+      const payload = event.data.payload;
+      const telnyxId = payload.id;
+      const status = payload.to?.[0]?.status || 'unknown'; // delivered, failed, etc.
+
+      if (telnyxId) {
+        console.log(`📡 [SMS Status] Message ${telnyxId} -> ${status}`);
+        // Update DB status
+        // We find the message by its stored Telnyx ID
+        const { data: msgs } = await supabaseAdmin
+          .from('ai_conversation_messages')
+          .select('id, metadata')
+          .contains('metadata', { telnyxId: telnyxId }) // Find by JSON field
+          .limit(1);
+
+        if (msgs && msgs[0]) {
+          const msg = msgs[0];
+          const newMeta = { ...(msg.metadata || {}), status: status, status_at: new Date().toISOString() };
+
+          await supabaseAdmin
+            .from('ai_conversation_messages')
+            .update({ metadata: newMeta })
+            .eq('id', msg.id);
+
+          console.log(`✅ [SMS Status] Updated DB record to: ${status}`);
+        } else {
+          console.log(`⚠️ [SMS Status] Could not find message with ID ${telnyxId} in DB.`);
+        }
+      }
+      return res.sendStatus(200);
+    }
+
+    // --- CASE 2: INBOUND MESSAGE ---
+    if (eventType !== 'message.received') {
       return res.sendStatus(200);
     }
 
@@ -4596,6 +4631,23 @@ app.post('/api/webhooks/telnyx/inbound', async (req, res) => {
     }
 
     console.log(`📩 Inbound SMS from ${fromPhone}: "${textBody}"`);
+
+    // --- PHASE 4: RED LIGHT (Auto-Stop Compliance) ---
+    const stopKeywords = ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'];
+    if (stopKeywords.includes(textBody.trim().toUpperCase())) {
+      console.log(`🛑 [Red Light] Received STOP command from ${fromPhone}. Unsubscribing.`);
+
+      // 1. Mark lead as unsubscribed in DB
+      const { error } = await supabaseAdmin
+        .from('leads')
+        .update({ status: 'unsubscribed', last_contact_at: new Date().toISOString() })
+        .eq('phone', fromPhone);
+
+      if (error) console.error('Failed to update lead status:', error);
+
+      // 2. Stop processing (Do NOT send to AI)
+      return res.sendStatus(200);
+    }
 
     // 1. Find the lead by phone
     const { data: lead } = await supabaseAdmin
@@ -4664,6 +4716,19 @@ app.post('/api/webhooks/telnyx/inbound', async (req, res) => {
       // --- ASYNC AI AUTO-REPLY ---
       (async () => {
         try {
+          // --- RED LIGHT CHECK ---
+          // Verify lead is not unsubscribed before replying
+          const { data: checkLead } = await supabaseAdmin
+            .from('leads')
+            .select('status')
+            .eq('id', lead.id)
+            .single();
+
+          if (checkLead?.status === 'unsubscribed') {
+            console.log(`🛑 [Red Light] Blocked AI Auto-Reply to ${fromPhone} (User Unsubscribed)`);
+            return;
+          }
+
           // Check preferences ?
           const shouldAutoReply = true;
 
@@ -4681,15 +4746,17 @@ app.post('/api/webhooks/telnyx/inbound', async (req, res) => {
 
             if (aiResponse) {
               console.log(`🤖 AI Auto-Replying to ${fromPhone}: "${aiResponse}"`);
-              await sendSms(fromPhone, aiResponse);
+              const smsResult = await sendSms(fromPhone, aiResponse);
+              const telnyxId = smsResult?.data?.id;
 
-              // Save AI Reply
+              // Save AI Reply with Tracking ID
               await supabaseAdmin.from('ai_conversation_messages').insert({
                 conversation_id: conversationId,
                 user_id: lead.user_id,
                 sender: 'ai',
                 channel: 'sms',
                 content: aiResponse,
+                metadata: { telnyxId: telnyxId, status: 'sent' }, // Initial status
                 created_at: new Date().toISOString()
               });
 
@@ -7499,7 +7566,7 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
 
     const { data: conversation, error: conversationError } = await supabaseAdmin
       .from('ai_conversations')
-      .select('id, user_id, message_count')
+      .select('id, user_id, message_count, contact_phone, lead_id')
       .eq('id', conversationId)
       .maybeSingle();
 
@@ -7514,6 +7581,35 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
       role === 'user' ? 'agent' : role === 'system' ? 'ai' : role === 'ai' ? 'ai' : 'lead';
     const normalizedChannel = channel || 'chat';
 
+    // --- MANUAL REPLY HANDLING (Actual SMS Sending) ---
+    // If agent is replying via SMS, we must actually send the text!
+    let externalMetadata = {};
+    if (sender === 'agent' && normalizedChannel === 'sms' && conversation.contact_phone) {
+      // 1. Red Light Check (DB)
+      if (conversation.lead_id) {
+        const { data: leadStatus } = await supabaseAdmin
+          .from('leads')
+          .select('status')
+          .eq('id', conversation.lead_id)
+          .maybeSingle();
+
+        if (leadStatus?.status === 'unsubscribed') {
+          return res.status(400).json({ error: 'Cannot send status: User is Unsubscribed (Red Light)' });
+        }
+      }
+
+      // 2. Send via Telnyx
+      console.log(`📤 Sending Manual SMS to ${conversation.contact_phone}: "${content}"`);
+      const smsResult = await sendSms(conversation.contact_phone, content);
+
+      if (!smsResult) {
+        return res.status(400).json({ error: 'SMS Send Failed (Check Safety Rules or Validity)' });
+      }
+
+      externalMetadata = { telnyxId: smsResult.id, status: 'sent', sent_by: 'agent' };
+    }
+
+
     const insertPayload = {
       conversation_id: conversationId,
       user_id: userId || null,
@@ -7521,7 +7617,8 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
       channel: normalizedChannel,
       content,
       translation: translation || null,
-      metadata: metadata || null
+      translation: translation || null,
+      metadata: { ...(metadata || {}), ...externalMetadata }
     };
 
     const { data: messageRow, error: insertError } = await supabaseAdmin
@@ -9505,7 +9602,9 @@ app.post('/api/vapi/call', async (req, res) => {
           propertyAddress: contextData.propertyAddress || 'the property',
           ...contextData
         },
-        firstMessage: script || undefined
+        firstMessage: script || undefined,
+        // SMART VOICEMAIL: If a machine picks up, say this execution-optimized message
+        voicemailMessage: `Hi, this is ${agentContext.name || 'the assistant'} with ${agentContext.company || 'HomeListingAI'}. I was calling about your property inquiry. I'll send you a text message shortly. Thanks!`
       },
       // META DATA for Webhook identification
       analysis: {
@@ -9528,7 +9627,12 @@ app.post('/api/vapi/call', async (req, res) => {
         }
       }
     };
-
+    // STEP: Validate Number before calling
+    const isPhoneValid = await validatePhoneNumber(targetPhone);
+    if (!isPhoneValid) {
+      console.warn(`🛑 [Vapi] Aborted call to invalid number: ${targetPhone}`);
+      return res.status(400).json({ error: 'Invalid phone number (rejected by verification)' });
+    }
     console.log(`📞 Initiating Vapi Call to ${targetPhone} [Lead: ${contextData.leadName}] [Agent: ${agentContext.name}]`);
 
     const vapiRes = await fetch('https://api.vapi.ai/call/phone', {
@@ -9568,7 +9672,18 @@ app.post('/api/vapi/webhook', async (req, res) => {
       const transcript = report.transcript;
       const recordingUrl = report.recordingUrl;
 
-      console.log(`📥 Received Vapi Report for Call ${report.call?.id}`);
+      console.log(`📥 Received Vapi Report for Call ${report.call?.id}. Reason: ${report.endedReason}`);
+
+      // --- SMART FEATURE: MISSED CALL FALLBACK ---
+      // If the customer didn't answer, auto-text them immediately.
+      const missedReasons = ['customer-did-not-answer', 'customer-busy', 'customer-unavailable'];
+      if (missedReasons.includes(report.endedReason) && report.customer?.number) {
+        console.log(`📞✖️ Missed call detected. Engaging SMS Fallback Safety Net...`);
+        const fallbackMsg = `Hi! I just tried calling you about your property inquiry. Is now a good time to chat?`;
+
+        await sendSms(report.customer.number, fallbackMsg);
+        // (Delivery status collected via webhook later)
+      }
 
       if (meta.leadId && summary) {
         // Log interaction to Lead's AI Interactions (JSONB array assumption based on types.ts)

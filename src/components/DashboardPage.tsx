@@ -239,8 +239,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ slug }) => {
         <div className="mt-8 text-center">
           <p className="text-sm text-slate-500">
             Need help? Contact support at{' '}
-            <a href="mailto:support@aiyouagent.com" className="text-indigo-600 hover:text-indigo-500 font-medium">
-              support@aiyouagent.com
+            <a href="mailto:support@homelistingai.com" className="text-indigo-600 hover:text-indigo-500 font-medium">
+              support@homelistingai.com
             </a>
           </p>
         </div>
