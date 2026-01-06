@@ -88,10 +88,10 @@ class SequenceExecutionService {
 
       switch (stepType) {
         case 'email':
-          await this.executeEmailStep(activeSequence, step);
+          await this.executeEmailStep(activeSequence, step, sequence);
           break;
         case 'ai-email':
-          await this.executeAIEmailStep(activeSequence, step);
+          await this.executeAIEmailStep(activeSequence, step, sequence);
           break;
         case 'task':
           await this.executeTaskStep(activeSequence, step);
@@ -104,7 +104,7 @@ class SequenceExecutionService {
           break;
         case 'sms':
         case 'text':
-          await this.executeSmsStep(activeSequence, step);
+          await this.executeSmsStep(activeSequence, step, sequence);
           break;
         default:
           console.warn(`Unknown step type: ${step.type}`);
@@ -134,11 +134,11 @@ class SequenceExecutionService {
   /**
    * Execute email step with variable substitution
    */
-  private async executeEmailStep(activeSequence: ActiveSequence, step: SequenceStep): Promise<void> {
+  private async executeEmailStep(activeSequence: ActiveSequence, step: SequenceStep, sequence: FollowUpSequence): Promise<void> {
     const { lead, property, agent } = activeSequence.context;
 
-    const subject = this.substituteVariables(step.subject || 'Follow-up', { lead, property, agent });
-    const content = this.substituteVariables(step.content, { lead, property, agent });
+    const subject = this.substituteVariables(step.subject || 'Follow-up', { lead, property, agent }, sequence);
+    const content = this.substituteVariables(step.content, { lead, property, agent }, sequence);
 
     const htmlContent = this.convertToHtml(content) + `
       <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px; font-family: sans-serif;">
@@ -168,7 +168,7 @@ class SequenceExecutionService {
   /**
    * Execute AI-generated email step
    */
-  private async executeAIEmailStep(activeSequence: ActiveSequence, step: SequenceStep): Promise<void> {
+  private async executeAIEmailStep(activeSequence: ActiveSequence, step: SequenceStep, sequence: FollowUpSequence): Promise<void> {
     // For now, treat as regular email - could integrate with AI service later
     console.log(`🤖 AI Email step: ${step.content}`);
     // This would generate personalized content using AI
@@ -176,7 +176,7 @@ class SequenceExecutionService {
       ...step,
       subject: 'Personalized Follow-up',
       content: step.content
-    });
+    }, sequence);
   }
 
   /**
@@ -243,11 +243,11 @@ class SequenceExecutionService {
   /**
    * Execute SMS step
    */
-  private async executeSmsStep(activeSequence: ActiveSequence, step: SequenceStep): Promise<void> {
+  private async executeSmsStep(activeSequence: ActiveSequence, step: SequenceStep, sequence: FollowUpSequence): Promise<void> {
     const { lead, property, agent } = activeSequence.context;
 
     // Substitute variables
-    let message = this.substituteVariables(step.content, { lead, property, agent });
+    let message = this.substituteVariables(step.content, { lead, property, agent }, sequence);
 
     // COMPLIANCE: Append STOP instruction if not present
     if (!message.toLowerCase().includes('stop')) {
@@ -287,7 +287,8 @@ class SequenceExecutionService {
    */
   private substituteVariables(
     template: string,
-    context: { lead: Lead; property?: Property; agent: AgentProfile }
+    context: { lead: Lead; property?: Property; agent: AgentProfile },
+    sequence?: FollowUpSequence
   ): string {
     let result = template;
 
@@ -312,7 +313,12 @@ class SequenceExecutionService {
     result = result.replace(/\{\{agent\.title\}\}/g, context.agent.title || '');
     result = result.replace(/\{\{agent\.company\}\}/g, context.agent.company || '');
     result = result.replace(/\{\{agent\.phone\}\}/g, context.agent.phone || '');
+    result = result.replace(/\{\{agent\.phone\}\}/g, context.agent.phone || '');
     result = result.replace(/\{\{agent\.email\}\}/g, context.agent.email || '');
+
+    // Agent Signature (Funnel Specific or Fallback)
+    const signature = sequence?.signature || context.agent.bio || `Best,\n${context.agent.name}`;
+    result = result.replace(/\{\{agent\.signature\}\}/g, signature);
 
     return result;
   }

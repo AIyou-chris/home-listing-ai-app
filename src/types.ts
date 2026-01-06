@@ -352,6 +352,7 @@ export interface FollowUpSequence {
     isActive: boolean;
     analytics?: SequenceAnalytics;
     smartTriggers?: SmartTrigger[];
+    signature?: string;
 }
 
 // Sequence Performance Analytics
