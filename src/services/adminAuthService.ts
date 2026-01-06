@@ -97,16 +97,19 @@ class AdminAuthService {
   }
 
   async logout(): Promise<void> {
-    // 1. Remove lock FIRST so listeners know we are intentionally logging out
-    localStorage.removeItem('adminUser');
-    this.currentAdmin = null;
+    try {
+      // 1. Remove lock FIRST so listeners know we are intentionally logging out
+      localStorage.removeItem('adminUser');
+      this.currentAdmin = null;
 
-    // 2. Then trigger the auth event
-    await supabase.auth.signOut();
-
-    // 3. Force reload if needed (optional, but ensures clean slate)
-    // 3. Force navigation to home to ensure we leave any protected routes/blueprints
-    window.location.href = '/';
+      // 2. Then trigger the auth event
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      // 3. Force navigation to signin to ensure fresh state
+      window.location.href = '/signin';
+    }
   }
 
   getCurrentAdmin(): AdminUser | null {
