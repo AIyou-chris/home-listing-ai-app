@@ -127,7 +127,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
     const [previewAgent, setPreviewAgent] = useState<AICardProfile | null>(null);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
 
-    // Removed customSignature state
+    const [customSignature, setCustomSignature] = useState<string>('');
 
     // Load AI Card Profile for Signature/Preview
     useEffect(() => {
@@ -157,7 +157,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
         const cardUrl = previewAgent?.id ? `https://homelistingai.com/card/${previewAgent.id}` : 'https://homelistingai.com/card/demo';
         // Add AI Card Link to signature
 
-        const signature = previewAgent?.socialMedia?.emailSignature || `Best,\n${name}\n${title}\n${company}\n${phone}\n${cardUrl}`;
+        const signature = customSignature || previewAgent?.socialMedia?.emailSignature || `Best,\n${name}\n${title}\n${company}\n${phone}\n${cardUrl}`;
 
         return {
             lead: {
@@ -182,7 +182,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                 signature: signature
             }
         };
-    }, [previewAgent]);
+    }, [previewAgent, customSignature]);
 
     // Flexible merge function that can take custom data source
     const mergeTokens = (template: string, sourceData: Record<string, unknown> = sampleMergeData) => {
@@ -383,10 +383,11 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
 
                     if (signatureStep) {
                         console.log('Found custom signature (deprecated):', signatureStep.content);
-                        // setCustomSignature(signatureStep.content); // Removed
+                        setCustomSignature(signatureStep.content);
                     } else if (data.signature) {
-                        // Fallback to legacy field just in case
-                        // setCustomSignature(data.signature); // Removed
+                        setCustomSignature(data.signature);
+                    } else {
+                        setProgramSteps(buildDefaultSteps());
                     }
                 } else {
                     setProgramSteps(buildDefaultSteps());
@@ -449,7 +450,8 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
             const response = await authService.makeAuthenticatedRequest(`/api/admin/marketing/sequences/${UNIVERSAL_FUNNEL_ID}`, {
                 method: 'PUT',
                 body: JSON.stringify({
-                    steps: stepsToSave
+                    steps: stepsToSave,
+                    signature: customSignature
                 })
             });
 
@@ -826,6 +828,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
         );
     };
 
+
     return (
         <div className={isEmbedded ? '' : 'bg-slate-50 min-h-full'}>
             <div className={`${isEmbedded ? '' : 'mx-auto max-w-screen-2xl'} ${isEmbedded ? 'py-6' : 'py-10'} px-4 sm:px-6 lg:px-8`}>
@@ -871,6 +874,14 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                             Open Email Library
                         </button>
 
+                        <button
+                            onClick={() => setIsSignatureModalOpen(true)}
+                            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 shadow-sm transition-colors"
+                        >
+                            <span className="material-symbols-outlined text-purple-600">edit_note</span>
+                            Edit Signature
+                        </button>
+
                     </div>
                 </header>
 
@@ -899,7 +910,16 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                 />
             )}
 
-            {/* SignatureEditorModal Removed - Use Global Settings */}
+            {/* SignatureEditorModal */}
+            <SignatureEditorModal
+                isOpen={isSignatureModalOpen}
+                initialSignature={customSignature || ''}
+                onSave={(newSignature) => {
+                    setCustomSignature(newSignature);
+                    setIsSignatureModalOpen(false);
+                }}
+                onClose={() => setIsSignatureModalOpen(false)}
+            />
         </div>
     );
 };
