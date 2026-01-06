@@ -613,9 +613,7 @@ const App: React.FC = () => {
     };
 
     const handleNavigateToAdmin = () => {
-        // Show admin login modal instead of direct access
-        setIsAdminLoginOpen(true);
-        setAdminLoginError(null);
+        navigate('/admin-login');
     };
 
     const handleAdminLogin = async (email: string, password: string) => {
