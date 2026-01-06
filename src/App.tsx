@@ -435,8 +435,14 @@ const App: React.FC = () => {
 
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                 if (session?.user) {
-                    setSession(session);
-                    setUser(session.user);
+                    const currentUser: AppUser = {
+                        uid: session.user.id,
+                        id: session.user.id,
+                        email: session.user.email ?? null,
+                        displayName: session.user.user_metadata?.name ?? null,
+                        created_at: session.user.created_at
+                    };
+                    setUser(currentUser);
 
                     // IMMEDIATE ADMIN CHECK (Redundant but fast)
                     const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
@@ -446,11 +452,11 @@ const App: React.FC = () => {
                         // Force navigation will happen via useEffect below
                     }
 
-                    await loadUserData(session.user);
+                    await loadUserData(currentUser);
                 }
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
-                setSession(null);
+
                 setUserProfile(SAMPLE_AGENT);
                 setIsAdmin(false);
                 setProperties([]);
