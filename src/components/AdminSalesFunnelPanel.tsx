@@ -12,7 +12,8 @@ import { getAICardProfile, AICardProfile } from '../services/aiCardService';
 // CONSTANTS & TYPES
 
 // API Configuration
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+// API Configuration
+const API_BASE = import.meta.env.DEV
     ? 'http://localhost:3002'
     : 'https://home-listing-ai-backend.onrender.com';
 
