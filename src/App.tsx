@@ -393,10 +393,13 @@ const App: React.FC = () => {
                 // 1. Admin Check logic
                 const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
                 const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-                const isEnvAdmin = typeof envAdminEmail === 'string' && currentUser.email && currentUser.email.toLowerCase() === envAdminEmail.toLowerCase();
+                const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+                if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
+
+                const isEnvAdmin = currentUser.email && adminEmails.includes(currentUser.email.toLowerCase());
 
                 if (isRpcAdmin || isEnvAdmin) {
-                    console.log("👮 Admin privileges confirmed.");
+                    console.log("👮 Admin privileges confirmed for:", currentUser.email);
                     setIsAdmin(true);
                     // Update profile for admin
                     setUserProfile({
@@ -1097,7 +1100,8 @@ const App: React.FC = () => {
                     {/* Protected Routes (Wrapped in Layout) */}
                     <Route element={<ProtectedLayout />}>
                         <Route path="/dashboard" element={
-                            userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />
+                            isAdmin ? <Navigate to="/admin-dashboard" replace /> :
+                                (userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />)
                         } />
                         <Route path="/dashboard/:slug" element={<AgentDashboard />} />
 
