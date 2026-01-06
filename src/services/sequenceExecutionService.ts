@@ -134,7 +134,16 @@ class SequenceExecutionService {
     const subject = this.substituteVariables(step.subject || 'Follow-up', { lead, property, agent });
     const content = this.substituteVariables(step.content, { lead, property, agent });
 
-    const htmlContent = this.convertToHtml(content);
+    const htmlContent = this.convertToHtml(content) + `
+      <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px; font-family: sans-serif;">
+        <p style="font-size: 12px; color: #64748b; margin-bottom: 5px;">
+          You are receiving this email because you requested information about a property or contacted ${agent.company || 'us'}.
+        </p>
+        <p style="font-size: 12px; color: #64748b;">
+          <a href="https://homelistingai.com/unsubscribe?email=${encodeURIComponent(lead.email)}" style="color: #64748b; text-decoration: underline;">Unsubscribe</a> from future updates.
+        </p>
+      </div>
+    `;
 
     const success = await this.emailService.sendEmail(
       lead.email,
