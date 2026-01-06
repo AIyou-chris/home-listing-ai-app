@@ -84,7 +84,9 @@ class SequenceExecutionService {
     try {
       console.log(`📧 Executing step ${activeSequence.currentStepIndex + 1} of sequence "${sequence.name}"`);
 
-      switch (step.type) {
+      const stepType = step.type.toLowerCase();
+
+      switch (stepType) {
         case 'email':
           await this.executeEmailStep(activeSequence, step);
           break;
@@ -99,6 +101,10 @@ class SequenceExecutionService {
           break;
         case 'call':
           await this.executeCallStep(activeSequence, step);
+          break;
+        case 'sms':
+        case 'text':
+          await this.executeSmsStep(activeSequence, step);
           break;
         default:
           console.warn(`Unknown step type: ${step.type}`);
@@ -230,6 +236,48 @@ class SequenceExecutionService {
 
     } catch (error) {
       console.error('❌ Failed to execute AI call step:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute SMS step
+   */
+  private async executeSmsStep(activeSequence: ActiveSequence, step: SequenceStep): Promise<void> {
+    const { lead, property, agent } = activeSequence.context;
+
+    // Substitute variables
+    let message = this.substituteVariables(step.content, { lead, property, agent });
+
+    // COMPLIANCE: Append STOP instruction if not present
+    if (!message.toLowerCase().includes('stop')) {
+      message += '\n\nReply STOP to unsubscribe';
+    }
+
+    console.log(`📱 Executing SMS Step: Sending to ${lead.phone}...`);
+
+    try {
+      const response = await fetch('/api/sms/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: lead.phone,
+          message: message,
+          userId: agent.id || 'system'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`SMS API successful response not received: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log(`✅ SMS Sent successfully`, data);
+
+    } catch (error) {
+      console.error('❌ Failed to execute SMS step:', error);
       throw error;
     }
   }

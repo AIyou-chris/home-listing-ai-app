@@ -699,12 +699,37 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                                                                 <p className="text-xs text-slate-500">To: <span className="text-slate-900 font-medium">Jamie Carter (Lead)</span></p>
                                                                 <p className="text-xs text-slate-500">Subject: <span className="text-slate-900 font-medium">{mergeTokens(step.subject)}</span></p>
                                                             </div>
-                                                            <div
-                                                                className="prose prose-sm max-w-none text-slate-600 prose-a:text-blue-600 prose-a:underline prose-a:font-medium"
-                                                                dangerouslySetInnerHTML={{
-                                                                    __html: mergeTokens(step.content).replace(/\n/g, '<br/>')
-                                                                }}
-                                                            />
+                                                            <div className="prose prose-sm max-w-none text-slate-600 prose-a:text-blue-600 prose-a:underline prose-a:font-medium">
+                                                                <div dangerouslySetInnerHTML={{ __html: mergeTokens(step.content).replace(/\n/g, '<br/>') }} />
+
+                                                                {/* COMPLIANCE PREVIEW */}
+                                                                {(step.type === 'Email' || step.type === 'email') && (
+                                                                    <div className="mt-6 pt-4 border-t border-slate-200">
+                                                                        <p className="text-[10px] text-slate-400">
+                                                                            You are receiving this email because you requested information about a property or contacted HomeListingAI.
+                                                                        </p>
+                                                                        <p className="text-[10px] text-slate-400 mt-1">
+                                                                            <a href="#" className="underline hover:text-slate-600">Unsubscribe</a> from future updates.
+                                                                        </p>
+                                                                        <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit">
+                                                                            <span className="material-symbols-outlined text-[14px]">verified_user</span>
+                                                                            Compliance Footer Applied Automatically
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {(step.type === 'Text' || step.type === 'text' || step.type === 'sms') && (
+                                                                    <div className="mt-4 pt-3 border-t border-dashed border-slate-200">
+                                                                        <p className="text-xs text-slate-500 font-mono">
+                                                                            Reply STOP to unsubscribe
+                                                                        </p>
+                                                                        <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit">
+                                                                            <span className="material-symbols-outlined text-[14px]">verified_user</span>
+                                                                            SMS Compliance Applied
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
 
