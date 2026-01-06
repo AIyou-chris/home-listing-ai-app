@@ -6408,7 +6408,28 @@ app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
 
     const sequenceIndex = followUpSequences.findIndex(seq => seq.id === sequenceId);
     if (sequenceIndex === -1) {
-      return res.status(404).json({ error: 'Sequence not found' });
+      // Logic for UPSERT: If not found, create it!
+      const newSequence = {
+        id: sequenceId,
+        name: updates.name || sequenceId.replace(/[_-]/g, ' '),
+        description: updates.description || 'Auto-created sequence',
+        triggerType: updates.triggerType || 'Lead Created',
+        steps: updates.steps || [],
+        isActive: updates.isActive !== undefined ? updates.isActive : true,
+        signature: updates.signature || '',
+        ...updates,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      followUpSequences.push(newSequence);
+      await marketingStore.saveSequences(ownerId, followUpSequences);
+
+      return res.json({
+        success: true,
+        sequence: newSequence,
+        message: 'Sequence created successfully (Upsert)'
+      });
     }
 
     followUpSequences[sequenceIndex] = {
