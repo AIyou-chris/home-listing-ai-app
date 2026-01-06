@@ -1010,7 +1010,8 @@ const App: React.FC = () => {
                             <LandingPage
                                 onNavigateToSignUp={handleNavigateToSignUp}
                                 onNavigateToSignIn={handleNavigateToSignIn}
-                                onEnterDemoMode={() => navigate('/demo-showcase')}
+                                onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
+                                onNavigateToShowcase={() => navigate('/demo-showcase')}
                                 scrollToSection={scrollToSection}
                                 onScrollComplete={() => setScrollToSection(null)}
                                 onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
@@ -1022,7 +1023,7 @@ const App: React.FC = () => {
                         <SignInPage
                             onNavigateToSignUp={handleNavigateToSignUp}
                             onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={() => navigate('/demo-showcase')}
+                            onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                         />
                     } />
@@ -1030,7 +1031,7 @@ const App: React.FC = () => {
                         <SignUpPage
                             onNavigateToSignIn={handleNavigateToSignIn}
                             onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={() => navigate('/demo-showcase')}
+                            onEnterDemoMode={() => navigate('/agent-blueprint-dashboard')}
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                         />
                     } />

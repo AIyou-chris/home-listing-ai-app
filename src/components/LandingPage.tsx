@@ -7,7 +7,7 @@ import { MultiToolShowcase } from './MultiToolShowcase';
 
 // --- New Components for the Redesigned Page ---
 
-const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () => void; onEnterDemoMode: () => void; onOpenConsultationModal: () => void; }> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal }) => {
+const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () => void; onEnterDemoMode: () => void; onNavigateToShowcase?: () => void; onOpenConsultationModal: () => void; }> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onNavigateToShowcase, onOpenConsultationModal }) => {
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
     const navLinks = [
         { name: "Price", href: "#pricing" },
@@ -19,7 +19,11 @@ const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () 
     const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
         e.preventDefault();
         if (targetId === '#demo') {
-            onEnterDemoMode();
+            if (onNavigateToShowcase) {
+                onNavigateToShowcase();
+            } else {
+                onEnterDemoMode();
+            }
         } else if (targetId === '#contact') {
             onOpenConsultationModal();
         }
@@ -1195,9 +1199,10 @@ interface LandingPageProps {
     onScrollComplete?: () => void;
     onOpenConsultationModal: () => void;
     onNavigateToAdmin: () => void;
+    onNavigateToShowcase?: () => void;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
     const [isChatOpen, setIsChatOpen] = React.useState(false);
 
     const handleOpenChatBot = () => {
@@ -1234,6 +1239,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 onNavigateToSignIn={onNavigateToSignIn}
                 onEnterDemoMode={onEnterDemoMode}
                 onOpenConsultationModal={onOpenConsultationModal}
+                onNavigateToShowcase={onNavigateToShowcase}
             />
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} />
