@@ -803,8 +803,11 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                                 onClick={async () => {
                                     setDebugMsg('Testing connection...');
                                     try {
-                                        // Try a simple GET to the health check or root
-                                        const res = await fetch(`${API_BASE}/`, { method: 'GET' });
+                                        // Try a simple GET to the health check or sequences API to verify JSON response
+                                        const res = await fetch(`${API_BASE}/api/admin/marketing/sequences`, {
+                                            method: 'GET',
+                                            headers: { 'Content-Type': 'application/json' }
+                                        });
                                         const text = await res.text();
 
                                         const isFrontend = text.toLowerCase().includes('<!doctype html') || text.includes('div id="root"');
