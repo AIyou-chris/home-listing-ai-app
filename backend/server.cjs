@@ -101,7 +101,8 @@ app.use(cors({
   origin: true, // Allow all origins (reflects request origin)
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'x-admin-user-id', 'x-agent-id', 'x-owner-id', 'x-request-id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'x-admin-user-id', 'x-agent-id', 'x-owner-id', 'x-request-id'],
+  exposedHeaders: ['X-Backend-Version', 'X-Debug-Owner'] // ALLOW FRONTEND TO READ THESE
 }));
 // Middleware: Capture Raw Body for Stripe Webhooks (must be before processing JSON)
 app.use(express.json({
