@@ -6440,6 +6440,7 @@ app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
 
     await marketingStore.saveSequences(ownerId, followUpSequences);
 
+    res.setHeader('X-Backend-Version', 'v2-Upsert-Fixed'); // Deployment Marker
     res.json({
       success: true,
       sequence: followUpSequences[sequenceIndex],
