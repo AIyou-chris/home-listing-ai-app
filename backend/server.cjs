@@ -609,6 +609,21 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     persistSession: false
   }
 });
+
+// DEBUG ENDPOINT: Verify Server Configuration
+app.get('/api/admin/debug-config-check', (req, res) => {
+  // Basic obscuration
+  const anon = SUPABASE_ANON_KEY || '';
+  const service = SUPABASE_SERVICE_ROLE_KEY || '';
+
+  res.json({
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    isServiceKeySameAsAnon: anon === service,
+    serviceKeyLength: service.length,
+    anonKeyLength: anon.length,
+    envServiceRoleKeyFound: Object.keys(process.env).includes('SUPABASE_SERVICE_ROLE_KEY')
+  });
+});
 console.log('[server] has service role?', Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY));
 
 const emailService = createEmailService(supabaseAdmin);
