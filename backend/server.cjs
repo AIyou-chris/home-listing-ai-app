@@ -6457,6 +6457,8 @@ app.get('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
 app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
+    console.log(`[Marketing-PUT] Owner: ${ownerId}, Sequence: ${req.params.sequenceId}`);
+
     // STRICT VALIDATION: Request must have a valid owner to save
     if (!ownerId) {
       console.warn('[Warning] PUT Sequence request missing ownerId!');
@@ -6490,7 +6492,10 @@ app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
       };
 
       userSequences.push(newSequence);
-      if (ownerId) await marketingStore.saveSequences(ownerId, userSequences);
+      // CRITICAL: Await and Catch failures
+      if (ownerId) {
+        await marketingStore.saveSequences(ownerId, userSequences);
+      }
 
       return res.json({
         success: true,
