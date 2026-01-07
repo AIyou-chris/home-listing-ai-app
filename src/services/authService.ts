@@ -481,8 +481,14 @@ export class AuthService {
     // Make authenticated API request
     async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
         const resolvedUrl = resolveApiUrl(url)
+        console.log('[AuthDebug] makeAuthenticatedRequest started for:', resolvedUrl);
+
         const isLocalApi = resolvedUrl.includes('http://localhost:5001/') || resolvedUrl.includes('http://127.0.0.1:5001/') || resolvedUrl.startsWith('/')
+
+        console.log('[AuthDebug] Getting auth token...');
         const token = await this.getAuthToken();
+        console.log('[AuthDebug] Auth token retrieved:', !!token);
+
         if (!token && !isLocalApi) {
             console.warn('AuthService: proceeding without auth token for', resolvedUrl);
         }
@@ -494,16 +500,26 @@ export class AuthService {
             headers.set('Authorization', `Bearer ${token}`);
         }
 
-        // Fix: Use Supabase session directly to get User ID for the x-user-id header
+        console.log('[AuthDebug] Getting Supabase session for x-user-id...');
         const { data } = await supabase.auth.getSession();
+        console.log('[AuthDebug] Session retrieved, User ID present:', !!data.session?.user?.id);
+
         if (data.session?.user?.id) {
             headers.set('x-user-id', data.session.user.id);
         }
 
-        return fetch(resolvedUrl, {
-            ...options,
-            headers
-        });
+        console.log('[AuthDebug] Executing fetch...');
+        try {
+            const response = await fetch(resolvedUrl, {
+                ...options,
+                headers
+            });
+            console.log('[AuthDebug] Fetch completed, Status:', response.status);
+            return response;
+        } catch (error) {
+            console.error('[AuthDebug] Fetch FAILED:', error);
+            throw error;
+        }
     }
 
 
