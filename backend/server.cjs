@@ -6499,18 +6499,26 @@ app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
       });
     }
 
+    // -------------------------------------------------------------------------
+    // FIX: Update the DB-loaded array, NOT the global default implementation
+    // -------------------------------------------------------------------------
     userSequences[sequenceIndex] = {
       ...userSequences[sequenceIndex],
       ...updates,
       updatedAt: new Date().toISOString()
     };
 
+    // DEBUG: Inspect payload
+    if (updates.steps) {
+      console.log(`[Marketing-PUT] Received ${updates.steps.length} steps. Sample Type: ${updates.steps[0]?.type}`);
+    }
+
     if (ownerId) await marketingStore.saveSequences(ownerId, userSequences);
 
-    res.setHeader('X-Backend-Version', 'v4-DB-Persistence'); // Deployment Marker
+    res.setHeader('X-Backend-Version', 'v5-Fixed-Return');
     res.json({
       success: true,
-      sequence: followUpSequences[sequenceIndex],
+      sequence: userSequences[sequenceIndex], // RETURN THE UPDATED SEQUENCE!
       message: 'Sequence updated successfully'
     });
   } catch (error) {
@@ -6525,13 +6533,19 @@ app.delete('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
     const ownerId = resolveMarketingOwnerId(req);
     const { sequenceId } = req.params;
 
-    const sequenceIndex = followUpSequences.findIndex(seq => seq.id === sequenceId);
+    // LOAD DB STATE
+    let userSequences = await marketingStore.loadSequences(ownerId);
+    if (!userSequences || !Array.isArray(userSequences)) {
+      return res.status(404).json({ error: 'No sequences found to delete' });
+    }
+
+    const sequenceIndex = userSequences.findIndex(seq => seq.id === sequenceId);
     if (sequenceIndex === -1) {
       return res.status(404).json({ error: 'Sequence not found' });
     }
 
-    const deletedSequence = followUpSequences.splice(sequenceIndex, 1)[0];
-    await marketingStore.saveSequences(ownerId, followUpSequences);
+    const deletedSequence = userSequences.splice(sequenceIndex, 1)[0];
+    await marketingStore.saveSequences(ownerId, userSequences);
 
     res.json({
       success: true,
