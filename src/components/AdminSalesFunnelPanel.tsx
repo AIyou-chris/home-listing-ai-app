@@ -459,12 +459,14 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
             // Backup to LocalStorage (Immediate persistence reliability)
             localStorage.removeItem('admin_funnel_signature'); // Clean up legacy local storage if present
 
+            const data = await response.json();
             if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || 'Server Save Failed');
+                throw new Error(data.error || 'Server Save Failed');
             }
 
-            const debugOwner = response.headers.get('X-Debug-Owner');
+            // Prefer Body ID (CORS-Safe) over Header ID
+            const debugOwner = data.debug_owner_id || response.headers.get('X-Debug-Owner') || 'Unknown';
+
             setDebugMsg(`✅ SUCCESS! Saved to Owner: ${debugOwner} at ${new Date().toLocaleTimeString()}`);
             alert(`Funnel saved successfully! Server ID: ${debugOwner}`);
 
