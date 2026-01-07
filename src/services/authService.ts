@@ -501,24 +501,30 @@ export class AuthService {
             let userId: string | undefined;
 
             try {
-                // Increased timeout to 10s for slow devices
-                const { data } = await withTimeout(supabase.auth.getSession(), 10000, 'Obtain Session');
+                // Increased timeout to 30s (was 10s) for slow devices/network
+                const { data } = await withTimeout(supabase.auth.getSession(), 30000, 'Obtain Session');
                 token = data.session?.access_token;
                 userId = data.session?.user?.id;
             } catch (err) {
                 console.warn('[AuthDebug] getSession timed out or failed. Trying getUser as fallback...', err);
-                // Fallback: getUser (verifies with server, might bypass local storage lock)
-                const { data: userData } = await withTimeout(supabase.auth.getUser(), 10000, 'Obtain User (Fallback)');
-                userId = userData.user?.id;
 
-                // If we have a user but no session token, we might have trouble with Bearer auth, 
-                // but at least we have the ID for x-user-id.
-                // We'll try to get the session again with a shorter timeout just for the token
-                if (!token) {
-                    try {
-                        const { data: sessionData } = await withTimeout(supabase.auth.getSession(), 3000, 'Obtain Token (Retry)');
+                // Fallback: getUser (verifies with server, might bypass local storage lock) - 30s timeout
+                try {
+                    const { data: userData } = await withTimeout(supabase.auth.getUser(), 30000, 'Obtain User (Fallback)');
+                    userId = userData.user?.id;
+
+                    // If we have a user but no session token, we might have trouble with Bearer auth, 
+                    // but at least we have the ID for x-user-id.
+                    if (!token) {
+                        // Last ditch effort for token, but don't block if it fails
+                        const { data: sessionData } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
                         token = sessionData.session?.access_token;
-                    } catch (ignore) { }
+                    }
+                } catch (fallbackErr) {
+                    console.error('[AuthDebug] CRITICAL: Both session and user retrieval failed/timed out.', fallbackErr);
+                    // RARE: Proceed without auth if absolutely necessary, but likely will fail 401.
+                    // We rethrow here to show the specific error to the UI
+                    throw new Error('Unable to verify login session. Please check your internet connection.');
                 }
             }
 
