@@ -469,7 +469,13 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
 
         } catch (e: unknown) {
             console.error('Save Funnel Error:', e);
-            const msg = e instanceof Error ? e.message : 'Unknown error';
+            let msg = e instanceof Error ? e.message : 'Unknown error';
+
+            // Helpful advice for timeouts
+            if (msg.includes('Timeout')) {
+                msg += '\n\nYour session appears stuck. Please Sign Out and Sign In again to refresh your connection.';
+            }
+
             setDebugMsg(`❌ FAILED: ${msg}`);
             alert(`Save Failed! Details: ${msg}`);
         } finally {

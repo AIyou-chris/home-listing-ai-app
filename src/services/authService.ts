@@ -494,9 +494,14 @@ export class AuthService {
         try {
             const isLocalApi = resolvedUrl.includes('http://localhost:5001/') || resolvedUrl.includes('http://127.0.0.1:5001/') || resolvedUrl.startsWith('/')
 
-            console.log('[AuthDebug] Getting auth token...');
-            const token = await withTimeout(this.getAuthToken(), 10000, 'getAuthToken');
-            console.log('[AuthDebug] Auth token retrieved:', !!token);
+            console.log('[AuthDebug] Getting Supabase Session (Token + ID)...');
+            // OPTIMIZATION: Get both Token and User ID in ONE call to avoid double-await hangs
+            const { data } = await withTimeout(supabase.auth.getSession(), 5000, 'Obtain Session');
+
+            const token = data.session?.access_token;
+            const userId = data.session?.user?.id;
+
+            console.log('[AuthDebug] Session Retrieved. HasToken:', !!token, 'HasID:', !!userId);
 
             if (!token && !isLocalApi) {
                 console.warn('AuthService: proceeding without auth token for', resolvedUrl);
@@ -509,19 +514,15 @@ export class AuthService {
                 headers.set('Authorization', `Bearer ${token}`);
             }
 
-            console.log('[AuthDebug] Getting Supabase session for x-user-id...');
-            const { data } = await withTimeout(supabase.auth.getSession(), 10000, 'getSession');
-            console.log('[AuthDebug] Session retrieved, User ID present:', !!data.session?.user?.id);
-
-            if (data.session?.user?.id) {
-                headers.set('x-user-id', data.session.user.id);
+            if (userId) {
+                headers.set('x-user-id', userId);
             }
 
             console.log('[AuthDebug] Executing fetch...');
             const response = await withTimeout(fetch(resolvedUrl, {
                 ...options,
                 headers
-            }), 15000, 'fetch API');
+            }), 15000, 'API Network Request');
 
             console.log('[AuthDebug] Fetch completed, Status:', response.status);
             return response;
