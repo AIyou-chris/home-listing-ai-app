@@ -12,6 +12,25 @@ async function runSmokeTest() {
     console.log(`👤 User ID: ${TEST_USER_ID}`);
     console.log(`🌐 API: ${API_BASE}`);
 
+    // 0. CONFIG CHECK
+    console.log('\n--- STEP 0: CONFIG CHECK ---');
+    try {
+        const configRes = await fetch(`${API_BASE}/api/admin/debug-config-check`);
+        if (configRes.ok) {
+            const config = await configRes.json();
+            console.log('SERVER CONFIG:', JSON.stringify(config, null, 2));
+            if (!config.hasServiceKey || config.isServiceKeySameAsAnon) {
+                console.error('❌ CRITICAL CONFIG ERROR: Service Key is missing or identical to Anon Key.');
+            } else {
+                console.log('✅ CONFIG OK: Service Key detected and distinct.');
+            }
+        } else {
+            console.warn('⚠️ Config endpoint not reached (might be deploying?) Status:', configRes.status);
+        }
+    } catch (e) {
+        console.warn('⚠️ Config check failed (network/parsing):', e.message);
+    }
+
     // 1. PUT (Save Data)
     console.log('\n--- STEP 1: WRITING DATA (PUT) ---');
     const testPayload = {

@@ -102,12 +102,24 @@ class AdminAuthService {
       localStorage.removeItem('adminUser');
       this.currentAdmin = null;
 
-      // 2. Then trigger the auth event
-      await supabase.auth.signOut();
+      // 2. Fire and forget logout (don't await) to prevent hanging
+      void supabase.auth.signOut().catch(err => console.warn('Background logout error', err));
+
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      // 3. Force navigation to signin to ensure fresh state
+      // 3. AGGRESSIVE CLEANUP: Remove Supabase tokens manually to prevent auto-relogin
+      // Clear all potential Supabase keys (default is sb-<project-ref>-auth-token)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          localStorage.removeItem(key);
+        }
+      });
+      // Clear admin user
+      localStorage.removeItem('adminUser');
+
+      console.log('🚪 Force redirecting to signin...');
+      // 4. Force navigation to signin to ensure fresh state
       window.location.href = '/signin';
     }
   }
