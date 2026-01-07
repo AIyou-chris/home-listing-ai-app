@@ -6380,21 +6380,35 @@ app.patch('/api/notifications/preferences/:userId', async (req, res) => {
 })
 
 // Get single follow-up sequence
+// Get single follow-up sequence
 app.get('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
     const { sequenceId } = req.params;
 
+    console.log(`[Marketing-GET] Fetching sequence ${sequenceId} for owner: ${ownerId}`);
+
+    // LOAD DB STATE ONLY - Do not touch global variables
     const sequences = await marketingStore.loadSequences(ownerId);
+
+    if (!sequences) {
+      console.warn(`[Marketing-GET] No sequences found for owner ${ownerId} (DB returned null)`);
+      // If DB is empty, user has no data. Do not fallback to global. 
+      // Return 404 to force frontend to handle "New/Empty" state or default.
+      return res.status(404).json({ error: 'User has no marketing sequences saved' });
+    }
+
     const sequence = sequences.find(seq => seq.id === sequenceId);
 
     if (!sequence) {
+      console.warn(`[Marketing-GET] Sequence ${sequenceId} not found in user's list`);
       return res.status(404).json({ error: 'Sequence not found' });
     }
 
+    console.log(`[Marketing-GET] Success. Returning sequence: ${sequence.name}`);
     res.json(sequence);
   } catch (error) {
-    console.error('Get sequence error:', error);
+    console.error('[Marketing-GET] Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
