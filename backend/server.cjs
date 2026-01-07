@@ -6391,10 +6391,10 @@ app.get('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
     // LOAD DB STATE ONLY - Do not touch global variables
     const sequences = await marketingStore.loadSequences(ownerId);
 
-    if (!sequences) {
-      console.warn(`[Marketing-GET] No sequences found for owner ${ownerId} (DB returned null)`);
-      // If DB is empty, user has no data. Do not fallback to global. 
-      // Return 404 to force frontend to handle "New/Empty" state or default.
+    // Safety check: ensure sequences is an array before searching
+    if (!sequences || !Array.isArray(sequences)) {
+      console.warn(`[Marketing-GET] No sequences found for owner ${ownerId} (DB returned null/invalid)`);
+      // Return 404 so frontend knows to use defaults
       return res.status(404).json({ error: 'User has no marketing sequences saved' });
     }
 
