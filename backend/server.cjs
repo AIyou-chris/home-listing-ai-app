@@ -760,10 +760,13 @@ const marketingStore = {
 
   async saveSequences(ownerId, sequences) {
     if (!ownerId || !supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.warn('[Marketing] Missing logic dependencies for Save');
       return false;
     }
     try {
-      const { error } = await supabaseAdmin
+      console.log(`[Marketing-DB] Attempting UPSERT to table: ${FOLLOW_UP_SEQUENCES_TABLE} for user: ${ownerId}`);
+
+      const { data, error, count } = await supabaseAdmin
         .from(FOLLOW_UP_SEQUENCES_TABLE)
         .upsert(
           {
@@ -771,12 +774,16 @@ const marketingStore = {
             sequences,
             updated_at: new Date().toISOString()
           },
-          { onConflict: 'user_id' }
-        );
+          { onConflict: 'user_id', count: 'exact' }
+        )
+        .select();
 
       if (error) {
+        console.error('[Marketing-DB] Supabase UPSERT Error:', error);
         throw error;
       }
+
+      console.log(`[Marketing-DB] UPSERT Success. Rows affected: ${count}. Data returned:`, !!data);
       return true;
     } catch (error) {
       if (!String(error?.message ?? '').includes('does not exist')) {
