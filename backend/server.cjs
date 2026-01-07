@@ -6520,7 +6520,8 @@ app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
 
     if (ownerId) await marketingStore.saveSequences(ownerId, userSequences);
 
-    res.setHeader('X-Backend-Version', 'v5-Fixed-Return');
+    res.setHeader('X-Backend-Version', 'v6-Debug-ID');
+    res.setHeader('X-Debug-Owner', String(ownerId)); // Expose ID for frontend check
     res.json({
       success: true,
       sequence: userSequences[sequenceIndex], // RETURN THE UPDATED SEQUENCE!

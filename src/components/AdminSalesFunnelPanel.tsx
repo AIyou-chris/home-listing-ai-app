@@ -464,8 +464,9 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                 throw new Error(err.error || 'Server Save Failed');
             }
 
-            setDebugMsg(`✅ SUCCESS! Saved to DB at ${new Date().toLocaleTimeString()}`);
-            alert('Funnel saved successfully!');
+            const debugOwner = response.headers.get('X-Debug-Owner');
+            setDebugMsg(`✅ SUCCESS! Saved to Owner: ${debugOwner} at ${new Date().toLocaleTimeString()}`);
+            alert(`Funnel saved successfully! Server ID: ${debugOwner}`);
 
         } catch (e: unknown) {
             console.error('Save Funnel Error:', e);
