@@ -1,8 +1,10 @@
 const fetch = require('node-fetch');
+const crypto = require('crypto');
 
 // CONFIG
 const API_BASE = 'https://home-listing-ai-backend.onrender.com';
-const TEST_USER_ID = `smoke-test-user-${Date.now()}`;
+// Generate a VALID UUID to pass backend regex validation
+const TEST_USER_ID = crypto.randomUUID ? crypto.randomUUID() : '12345678-1234-4321-8888-1234567890ab';
 const SEQUENCE_ID = 'universal_sales';
 
 async function runSmokeTest() {

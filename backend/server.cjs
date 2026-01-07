@@ -783,6 +783,13 @@ const marketingStore = {
         throw error;
       }
 
+      // CRITICAL CHECK: If RLS blocks the write, count will be 0 but error will be null.
+      if (count === 0) {
+        const isAnon = process.env.SUPABASE_SERVICE_ROLE_KEY === process.env.SUPABASE_ANON_KEY;
+        console.error(`[Marketing-DB] UPSERT SILENT FAIL. Rows affected: 0. ServiceKeyIsAnon: ${isAnon}`);
+        throw new Error('Database Write Failed: Row Level Security blocked the update. Check Server Permissions.');
+      }
+
       console.log(`[Marketing-DB] UPSERT Success. Rows affected: ${count}. Data returned:`, !!data);
       return true;
     } catch (error) {
