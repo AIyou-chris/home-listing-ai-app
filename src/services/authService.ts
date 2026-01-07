@@ -500,15 +500,41 @@ export class AuthService {
             let token: string | undefined;
             let userId: string | undefined;
 
+            // OPTIMISTIC BYPASS: Try to get token from LocalStorage DIRECTLY
+            // This avoids the 'getSession' lock/timeout issues entirely.
             try {
-                // Increased timeout to 30s (was 10s) for slow devices/network
-                const { data } = await withTimeout(supabase.auth.getSession(), 30000, 'Obtain Session');
-                token = data.session?.access_token;
-                userId = data.session?.user?.id;
-            } catch (err) {
-                console.warn('[AuthDebug] getSession timed out or failed. Trying getUser as fallback...', err);
+                // Find any key that looks like a Supabase auth token
+                const sbKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+                if (sbKey) {
+                    const raw = localStorage.getItem(sbKey);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        token = parsed.access_token;
+                        userId = parsed.user?.id;
+                        console.log('[AuthDebug] ⚡️ Optimistic Token Found in LocalStorage');
+                    }
+                }
+            } catch (e) {
+                console.warn('[AuthDebug] Failed to parse local storage token', e);
+            }
 
-                // Fallback: getUser (verifies with server, might bypass local storage lock) - 30s timeout
+            if (!token) {
+                try {
+                    // Increased timeout to 30s (was 10s) for slow devices/network
+                    const { data } = await withTimeout(supabase.auth.getSession(), 30000, 'Obtain Session');
+                    token = data.session?.access_token;
+                    userId = data.session?.user?.id;
+                } catch (err) {
+                    // Fall through to fallback below
+                    console.warn('[AuthDebug] getSession timed out or failed. Trying getUser as fallback...', err);
+                }
+            }
+
+            // Fallback: getUser (verifies with server, might bypass local storage lock) - 30s timeout
+            // (Empty fallback block removed)
+
+            // Fallback: getUser (verifies with server) ONLY if we still don't have a token/user
+            if (!token && !userId) {
                 try {
                     const { data: userData } = await withTimeout(supabase.auth.getUser(), 30000, 'Obtain User (Fallback)');
                     userId = userData.user?.id;
@@ -521,10 +547,11 @@ export class AuthService {
                         token = sessionData.session?.access_token;
                     }
                 } catch (fallbackErr) {
-                    console.error('[AuthDebug] CRITICAL: Both session and user retrieval failed/timed out.', fallbackErr);
-                    // RARE: Proceed without auth if absolutely necessary, but likely will fail 401.
-                    // We rethrow here to show the specific error to the UI
-                    throw new Error('Unable to verify login session. Please check your internet connection.');
+                    // If we already have a token (optimistic), we don't care about this error.
+                    if (!token) {
+                        console.error('[AuthDebug] CRITICAL: Both session and user retrieval failed/timed out.', fallbackErr);
+                        throw new Error('Unable to verify login session. Please check your internet connection.');
+                    }
                 }
             }
 
