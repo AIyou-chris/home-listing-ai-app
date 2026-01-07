@@ -489,22 +489,25 @@ export class AuthService {
 
         const headers = new Headers(options.headers);
         headers.set('Content-Type', 'application/json');
+
         if (token) {
             headers.set('Authorization', `Bearer ${token}`);
-            // Explicitly set x-user-id so backend can resolve ownerId
-            const user = auth.currentUser;
-            if (user?.uid) {
-                headers.set('x-user-id', user.uid);
-            }
         }
 
-
+        // Fix: Use Supabase session directly to get User ID for the x-user-id header
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user?.id) {
+            headers.set('x-user-id', data.session.user.id);
+        }
 
         return fetch(resolvedUrl, {
             ...options,
             headers
         });
     }
+
+
+
 }
 
 export const authService = AuthService.getInstance();
