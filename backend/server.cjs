@@ -6403,10 +6403,15 @@ app.get('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
 app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
+    // LOAD DB STATE
+    let userSequences = await marketingStore.loadSequences(ownerId);
+    if (!userSequences || !Array.isArray(userSequences)) {
+      userSequences = JSON.parse(JSON.stringify(followUpSequences));
+    }
     const { sequenceId } = req.params;
     const updates = req.body;
 
-    const sequenceIndex = followUpSequences.findIndex(seq => seq.id === sequenceId);
+    const sequenceIndex = userSequences.findIndex(seq => seq.id === sequenceId);
     if (sequenceIndex === -1) {
       // Logic for UPSERT: If not found, create it!
       const newSequence = {
@@ -6422,8 +6427,8 @@ app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
         updatedAt: new Date().toISOString()
       };
 
-      followUpSequences.push(newSequence);
-      await marketingStore.saveSequences(ownerId, followUpSequences);
+      userSequences.push(newSequence);
+      if (ownerId) await marketingStore.saveSequences(ownerId, userSequences);
 
       return res.json({
         success: true,
@@ -6432,15 +6437,15 @@ app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
       });
     }
 
-    followUpSequences[sequenceIndex] = {
-      ...followUpSequences[sequenceIndex],
+    userSequences[sequenceIndex] = {
+      ...userSequences[sequenceIndex],
       ...updates,
       updatedAt: new Date().toISOString()
     };
 
-    await marketingStore.saveSequences(ownerId, followUpSequences);
+    if (ownerId) await marketingStore.saveSequences(ownerId, userSequences);
 
-    res.setHeader('X-Backend-Version', 'v2-Upsert-Fixed'); // Deployment Marker
+    res.setHeader('X-Backend-Version', 'v4-DB-Persistence'); // Deployment Marker
     res.json({
       success: true,
       sequence: followUpSequences[sequenceIndex],
