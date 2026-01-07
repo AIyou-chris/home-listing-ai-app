@@ -495,13 +495,34 @@ export class AuthService {
             const isLocalApi = resolvedUrl.includes('http://localhost:5001/') || resolvedUrl.includes('http://127.0.0.1:5001/') || resolvedUrl.startsWith('/')
 
             console.log('[AuthDebug] Getting Supabase Session (Token + ID)...');
-            // OPTIMIZATION: Get both Token and User ID in ONE call to avoid double-await hangs
-            const { data } = await withTimeout(supabase.auth.getSession(), 5000, 'Obtain Session');
 
-            const token = data.session?.access_token;
-            const userId = data.session?.user?.id;
+            // STRATEGY: Try getSession (Local) first. If it hangs/fails, try getUser (Network).
+            let token: string | undefined;
+            let userId: string | undefined;
 
-            console.log('[AuthDebug] Session Retrieved. HasToken:', !!token, 'HasID:', !!userId);
+            try {
+                // Increased timeout to 10s for slow devices
+                const { data } = await withTimeout(supabase.auth.getSession(), 10000, 'Obtain Session');
+                token = data.session?.access_token;
+                userId = data.session?.user?.id;
+            } catch (err) {
+                console.warn('[AuthDebug] getSession timed out or failed. Trying getUser as fallback...', err);
+                // Fallback: getUser (verifies with server, might bypass local storage lock)
+                const { data: userData } = await withTimeout(supabase.auth.getUser(), 10000, 'Obtain User (Fallback)');
+                userId = userData.user?.id;
+
+                // If we have a user but no session token, we might have trouble with Bearer auth, 
+                // but at least we have the ID for x-user-id.
+                // We'll try to get the session again with a shorter timeout just for the token
+                if (!token) {
+                    try {
+                        const { data: sessionData } = await withTimeout(supabase.auth.getSession(), 3000, 'Obtain Token (Retry)');
+                        token = sessionData.session?.access_token;
+                    } catch (ignore) { }
+                }
+            }
+
+            console.log('[AuthDebug] Auth Resolved. HasToken:', !!token, 'HasID:', !!userId);
 
             if (!token && !isLocalApi) {
                 console.warn('AuthService: proceeding without auth token for', resolvedUrl);
