@@ -6393,6 +6393,12 @@ app.get('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
 
     console.log(`[Marketing-GET] Fetching sequence ${sequenceId} for owner: ${ownerId}`);
 
+    // Prevent Caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+
     // LOAD DB STATE ONLY - Do not touch global variables
     const sequences = await marketingStore.loadSequences(ownerId);
 
