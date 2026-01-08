@@ -17,6 +17,7 @@ import NewLandingPage from './components/NewLandingPage';
 import SignUpPage from './components/SignUpPage';
 import SignInPage from './components/SignInPage';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
+import ResetPasswordPage from './components/ResetPasswordPage';
 import CheckoutPage from './components/CheckoutPage';
 import { getRegistrationContext } from './services/agentOnboardingService';
 
@@ -1038,6 +1039,7 @@ const App: React.FC = () => {
                             onNavigateToLanding={handleNavigateToLanding}
                         />
                     } />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
                     <Route path="/signup" element={
                         <SignUpPage
                             onNavigateToSignIn={handleNavigateToSignIn}
