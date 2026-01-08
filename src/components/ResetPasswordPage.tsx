@@ -1,30 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthHeader } from './AuthHeader';
 import { AuthFooter } from './AuthFooter';
 
 const ResetPasswordPage: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+    const [isLinkValid, setIsLinkValid] = useState(true);
 
     // Verify we have a session (Supabase link should have set it)
     useEffect(() => {
+        // 1. Check URL for immediate errors (e.g. #error=access_denied&error_code=otp_expired)
+        const hashParams = new URLSearchParams(location.hash.substring(1)); // Remove #
+        const errorDescription = hashParams.get('error_description');
+        const errorCode = hashParams.get('error_code');
+
+        if (errorCode || errorDescription) {
+            console.error('❌ Reset Link Error:', errorCode, errorDescription);
+            setIsLinkValid(false);
+            setError(formatErrorMessage(errorCode, errorDescription));
+            return;
+        }
+
+        // 2. Check Session
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (!session) {
                 // If no session, the link might be invalid or expired.
                 console.warn('⚠️ No active session found on Reset Password page.');
-                setError('Invalid or expired reset link. Please try requesting a new one.');
+                setIsLinkValid(false);
+                setError('This password reset link is invalid or has expired. Please request a new one.');
             } else {
                 console.log('✅ Active session verified for password reset.');
+                setIsLinkValid(true);
             }
         });
-    }, []);
+    }, [location]);
+
+    const formatErrorMessage = (code: string | null, desc: string | null): string => {
+        if (code === 'otp_expired') return 'This link has expired. Please request a new one.';
+        return desc ? decodeURIComponent(desc).replace(/\+/g, ' ') : 'Invalid reset link.';
+    };
 
     const handleUpdatePassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -106,50 +128,64 @@ const ResetPasswordPage: React.FC = () => {
                             </div>
                         )}
 
-                        <form className="mt-8 space-y-6" onSubmit={handleUpdatePassword}>
-                            <div className="space-y-4">
-                                <div>
-                                    <label htmlFor="new-password" className="block text-sm font-semibold text-slate-700 mb-1.5">New Password</label>
-                                    <div className="relative">
+                        {!isLinkValid ? (
+                            <div className="mt-8">
+                                <button
+                                    onClick={() => navigate('/forgot-password')}
+                                    className="w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-primary-600 rounded-lg shadow-md hover:bg-primary-700 transition-colors"
+                                >
+                                    Request New Link
+                                </button>
+                                <p className="text-center text-sm text-slate-600 mt-4">
+                                    Alternatively, <button onClick={() => navigate('/signin')} className="text-primary-600 font-semibold hover:underline">Sign In</button> if you remember it.
+                                </p>
+                            </div>
+                        ) : (
+                            <form className="mt-8 space-y-6" onSubmit={handleUpdatePassword}>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label htmlFor="new-password" className="block text-sm font-semibold text-slate-700 mb-1.5">New Password</label>
+                                        <div className="relative">
+                                            <input
+                                                type={isPasswordVisible ? "text" : "password"}
+                                                id="new-password"
+                                                required
+                                                value={password}
+                                                onChange={e => setPassword(e.target.value)}
+                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
+                                                placeholder="••••••••"
+                                            />
+                                            <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-500 hover:text-primary-600">
+                                                <span className="material-symbols-outlined w-5 h-5">{isPasswordVisible ? 'visibility_off' : 'visibility'}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="confirm-password" className="block text-sm font-semibold text-slate-700 mb-1.5">Confirm Password</label>
                                         <input
                                             type={isPasswordVisible ? "text" : "password"}
-                                            id="new-password"
+                                            id="confirm-password"
                                             required
-                                            value={password}
-                                            onChange={e => setPassword(e.target.value)}
+                                            value={confirmPassword}
+                                            onChange={e => setConfirmPassword(e.target.value)}
                                             className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
                                             placeholder="••••••••"
                                         />
-                                        <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-500 hover:text-primary-600">
-                                            <span className="material-symbols-outlined w-5 h-5">{isPasswordVisible ? 'visibility_off' : 'visibility'}</span>
-                                        </button>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label htmlFor="confirm-password" className="block text-sm font-semibold text-slate-700 mb-1.5">Confirm Password</label>
-                                    <input
-                                        type={isPasswordVisible ? "text" : "password"}
-                                        id="confirm-password"
-                                        required
-                                        value={confirmPassword}
-                                        onChange={e => setConfirmPassword(e.target.value)}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
-                                        placeholder="••••••••"
-                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={isLoading}
+                                        className={`w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-primary-600 rounded-lg shadow-md hover:bg-primary-700 transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    >
+                                        {isLoading ? 'Updating...' : 'Update Password'}
+                                    </button>
                                 </div>
-                            </div>
-
-                            <div>
-                                <button
-                                    type="submit"
-                                    disabled={isLoading}
-                                    className={`w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-primary-600 rounded-lg shadow-md hover:bg-primary-700 transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                >
-                                    {isLoading ? 'Updating...' : 'Update Password'}
-                                </button>
-                            </div>
-                        </form>
+                            </form>
+                        )}
                     </div>
                 </div>
             </main>
