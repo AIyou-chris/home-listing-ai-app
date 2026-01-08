@@ -18,7 +18,10 @@ const ResetPasswordPage: React.FC = () => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (!session) {
                 // If no session, the link might be invalid or expired.
+                console.warn('⚠️ No active session found on Reset Password page.');
                 setError('Invalid or expired reset link. Please try requesting a new one.');
+            } else {
+                console.log('✅ Active session verified for password reset.');
             }
         });
     }, []);
@@ -39,12 +42,25 @@ const ResetPasswordPage: React.FC = () => {
         }
 
         setIsLoading(true);
+        console.log('🔄 Attempting password update...');
 
         try {
-            const { error } = await supabase.auth.updateUser({ password });
+            // Race the Update against a 10-second timeout
+            const updatePromise = supabase.auth.updateUser({ password });
 
-            if (error) throw error;
+            const timeoutPromise = new Promise<{ error: any; data?: any }>((_, reject) =>
+                setTimeout(() => reject(new Error('Update timed out. Please check your connection and try again.')), 10000)
+            );
 
+            // Force cast to any to handle the race result
+            const result = await Promise.race([updatePromise, timeoutPromise]) as any;
+
+            if (result.error) {
+                console.error('❌ Update failed:', result.error);
+                throw result.error;
+            }
+
+            console.log('✅ Password updated successfully');
             setMessage('Password updated successfully! Redirecting to dashboard...');
 
             // Redirect after a brief pause so they see the success message
@@ -53,6 +69,7 @@ const ResetPasswordPage: React.FC = () => {
             }, 2000);
 
         } catch (err: unknown) {
+            console.error('❌ Error caught:', err);
             const msg = err instanceof Error ? err.message : 'Failed to update password.';
             setError(msg);
         } finally {
