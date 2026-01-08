@@ -15,24 +15,42 @@ const ResetPasswordPage: React.FC = () => {
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isLinkValid, setIsLinkValid] = useState(true);
 
-    // Verify we have a session (Supabase link should have set it)
+    // Verify or Set Session from URL
     useEffect(() => {
-        // 1. Check URL for immediate errors (e.g. #error=access_denied&error_code=otp_expired)
-        const hashParams = new URLSearchParams(location.hash.substring(1)); // Remove #
-        const errorDescription = hashParams.get('error_description');
-        const errorCode = hashParams.get('error_code');
+        const handleSessionSetup = async () => {
+            // 1. Check URL for immediate errors (e.g. #error=access_denied&error_code=otp_expired)
+            const hashParams = new URLSearchParams(location.hash.substring(1)); // Remove #
+            const errorDescription = hashParams.get('error_description');
+            const errorCode = hashParams.get('error_code');
+            const accessToken = hashParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token');
 
-        if (errorCode || errorDescription) {
-            console.error('❌ Reset Link Error:', errorCode, errorDescription);
-            setIsLinkValid(false);
-            setError(formatErrorMessage(errorCode, errorDescription));
-            return;
-        }
+            if (errorCode || errorDescription) {
+                console.error('❌ Reset Link Error:', errorCode, errorDescription);
+                setIsLinkValid(false);
+                setError(formatErrorMessage(errorCode, errorDescription));
+                return;
+            }
 
-        // 2. Check Session
-        supabase.auth.getSession().then(({ data: { session } }) => {
+            // 2. FORCE Session Set if tokens allow it (Manual Override)
+            if (accessToken && refreshToken) {
+                console.log('🔑 Recovery tokens found in URL. Manually setting session...');
+                const { error: setSessionError } = await supabase.auth.setSession({
+                    access_token: accessToken,
+                    refresh_token: refreshToken
+                });
+                if (setSessionError) {
+                    console.error('❌ Failed to set session from URL:', setSessionError);
+                    setIsLinkValid(false);
+                    setError('Failed to verify reset link. Please try again.');
+                    return;
+                }
+                console.log('✅ Session manually established from recovery link.');
+            }
+
+            // 3. Verify Active Session
+            const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
-                // If no session, the link might be invalid or expired.
                 console.warn('⚠️ No active session found on Reset Password page.');
                 setIsLinkValid(false);
                 setError('This password reset link is invalid or has expired. Please request a new one.');
@@ -40,7 +58,9 @@ const ResetPasswordPage: React.FC = () => {
                 console.log('✅ Active session verified for password reset.');
                 setIsLinkValid(true);
             }
-        });
+        };
+
+        handleSessionSetup();
     }, [location]);
 
     const formatErrorMessage = (code: string | null, desc: string | null): string => {
