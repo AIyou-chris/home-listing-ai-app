@@ -16,6 +16,7 @@ import LandingPage from './components/LandingPage';
 import NewLandingPage from './components/NewLandingPage';
 import SignUpPage from './components/SignUpPage';
 import SignInPage from './components/SignInPage';
+import ForgotPasswordPage from './components/ForgotPasswordPage';
 import CheckoutPage from './components/CheckoutPage';
 import { getRegistrationContext } from './services/agentOnboardingService';
 
@@ -1028,6 +1029,13 @@ const App: React.FC = () => {
                             onNavigateToLanding={handleNavigateToLanding}
                             onEnterDemoMode={() => navigate('/demo-dashboard')}
                             onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                        />
+                    } />
+                    <Route path="/forgot-password" element={
+                        <ForgotPasswordPage
+                            onNavigateToSignUp={handleNavigateToSignUp}
+                            onNavigateToSignIn={handleNavigateToSignIn}
+                            onNavigateToLanding={handleNavigateToLanding}
                         />
                     } />
                     <Route path="/signup" element={
