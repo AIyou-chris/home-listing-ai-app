@@ -14,53 +14,56 @@ const ResetPasswordPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isLinkValid, setIsLinkValid] = useState(true);
+    const [debugSessionStatus, setDebugSessionStatus] = useState<string>('Initializing...');
 
-    // Verify or Set Session from URL
+    // Helper to get tokens from URL
+    const getTokensFromUrl = () => {
+        const hashParams = new URLSearchParams(location.hash.substring(1));
+        return {
+            accessToken: hashParams.get('access_token'),
+            refreshToken: hashParams.get('refresh_token'),
+            errorCode: hashParams.get('error_code'),
+            errorDescription: hashParams.get('error_description')
+        };
+    };
+
+    // Initial Setup
     useEffect(() => {
-        const handleSessionSetup = async () => {
-            // 1. Check URL for immediate errors (e.g. #error=access_denied&error_code=otp_expired)
-            const hashParams = new URLSearchParams(location.hash.substring(1)); // Remove #
-            const errorDescription = hashParams.get('error_description');
-            const errorCode = hashParams.get('error_code');
-            const accessToken = hashParams.get('access_token');
-            const refreshToken = hashParams.get('refresh_token');
+        const init = async () => {
+            const { accessToken, refreshToken, errorCode, errorDescription } = getTokensFromUrl();
 
             if (errorCode || errorDescription) {
                 console.error('❌ Reset Link Error:', errorCode, errorDescription);
                 setIsLinkValid(false);
                 setError(formatErrorMessage(errorCode, errorDescription));
+                setDebugSessionStatus(`Link Error: ${errorCode}`);
                 return;
             }
 
-            // 2. FORCE Session Set if tokens allow it (Manual Override)
+            // Attempt to restore session
             if (accessToken && refreshToken) {
-                console.log('🔑 Recovery tokens found in URL. Manually setting session...');
-                const { error: setSessionError } = await supabase.auth.setSession({
+                setDebugSessionStatus('Restoring Session from URL...');
+                const { error } = await supabase.auth.setSession({
                     access_token: accessToken,
                     refresh_token: refreshToken
                 });
-                if (setSessionError) {
-                    console.error('❌ Failed to set session from URL:', setSessionError);
-                    setIsLinkValid(false);
-                    setError('Failed to verify reset link. Please try again.');
-                    return;
+                if (error) {
+                    console.error('❌ Failed to set session:', error);
+                    setDebugSessionStatus('Session Restore Failed');
+                } else {
+                    setDebugSessionStatus('Session Restored (Ready)');
                 }
-                console.log('✅ Session manually established from recovery link.');
-            }
-
-            // 3. Verify Active Session
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                console.warn('⚠️ No active session found on Reset Password page.');
-                setIsLinkValid(false);
-                setError('This password reset link is invalid or has expired. Please request a new one.');
             } else {
-                console.log('✅ Active session verified for password reset.');
-                setIsLinkValid(true);
+                // Check if already active
+                const { data: { session } } = await supabase.auth.getSession();
+                setDebugSessionStatus(session ? 'Active Session Found' : 'No Session / No Tokens');
+                if (!session) {
+                    setIsLinkValid(false);
+                    setError('Invalid link. Please try again.');
+                }
             }
         };
-
-        handleSessionSetup();
+        init();
     }, [location]);
 
     const formatErrorMessage = (code: string | null, desc: string | null): string => {
@@ -77,24 +80,43 @@ const ResetPasswordPage: React.FC = () => {
             setError('Passwords do not match');
             return;
         }
-
         if (password.length < 6) {
             setError('Password must be at least 6 characters');
             return;
         }
 
         setIsLoading(true);
-        console.log('🔄 Attempting password update...');
+        console.log('🔄 SARTING UPDATE FLOW...');
 
         try {
-            // Race the Update against a 10-second timeout
+            // 1. FINAL SESSION CHECK (The Fix)
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            console.log('Session Status at Start:', currentSession ? 'Active' : 'Missing');
+
+            if (!currentSession) {
+                // LAST DITCH RESCUE
+                console.warn('⚠️ No session! Attempting JIT Restore...');
+                const { accessToken, refreshToken } = getTokensFromUrl();
+                if (accessToken && refreshToken) {
+                    const { error: restoreError } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken
+                    });
+                    if (restoreError) throw new Error('Session lost and could not be restored.');
+                    console.log('✅ JIT Session Restored.');
+                } else {
+                    throw new Error('No active session found. Please reload the link.');
+                }
+            }
+
+            // 2. Perform Update with Timeout
+            console.log('🔄 Calling updateUser...');
             const updatePromise = supabase.auth.updateUser({ password });
 
             const timeoutPromise = new Promise<{ error: any; data?: any }>((_, reject) =>
-                setTimeout(() => reject(new Error('Update timed out. Please check your connection and try again.')), 10000)
+                setTimeout(() => reject(new Error('Update timed out. The server did not respond in time.')), 10000)
             );
 
-            // Force cast to any to handle the race result
             const result = await Promise.race([updatePromise, timeoutPromise]) as any;
 
             if (result.error) {
@@ -102,17 +124,13 @@ const ResetPasswordPage: React.FC = () => {
                 throw result.error;
             }
 
-            console.log('✅ Password updated successfully');
-            setMessage('Password updated successfully! Redirecting to dashboard...');
-
-            // Redirect after a brief pause so they see the success message
-            setTimeout(() => {
-                navigate('/dashboard');
-            }, 2000);
+            console.log('✅ Password updated!');
+            setMessage('Success! Password updated. Redirecting...');
+            setTimeout(() => navigate('/dashboard'), 2000);
 
         } catch (err: unknown) {
             console.error('❌ Error caught:', err);
-            const msg = err instanceof Error ? err.message : 'Failed to update password.';
+            const msg = err instanceof Error ? err.message : 'Update failed.';
             setError(msg);
         } finally {
             setIsLoading(false);
@@ -148,6 +166,11 @@ const ResetPasswordPage: React.FC = () => {
                             </div>
                         )}
 
+                        {/* Debug Indicator (Subtle) */}
+                        <div className="text-xs text-slate-400 text-center mt-2 font-mono">
+                            Status: {debugSessionStatus}
+                        </div>
+
                         {!isLinkValid ? (
                             <div className="mt-8">
                                 <button
@@ -156,9 +179,6 @@ const ResetPasswordPage: React.FC = () => {
                                 >
                                     Request New Link
                                 </button>
-                                <p className="text-center text-sm text-slate-600 mt-4">
-                                    Alternatively, <button onClick={() => navigate('/signin')} className="text-primary-600 font-semibold hover:underline">Sign In</button> if you remember it.
-                                </p>
                             </div>
                         ) : (
                             <form className="mt-8 space-y-6" onSubmit={handleUpdatePassword}>
