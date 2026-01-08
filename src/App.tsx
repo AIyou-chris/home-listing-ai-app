@@ -295,6 +295,7 @@ const App: React.FC = () => {
                 currentPath === '/landing' ||
                 currentPath === '/signin' ||
                 currentPath === '/signup' ||
+                currentPath === '/reset-password' ||
                 currentPath.startsWith('/store/') ||
                 currentPath.startsWith('/checkout') || // Critical for checkout flow
                 currentPath.includes('/demo-') ||
