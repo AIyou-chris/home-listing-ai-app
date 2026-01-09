@@ -54,7 +54,7 @@ export interface RenewalData {
 
 // Firebase removed - using local fallbacks
 
-const API_BASE_URL = 'http://localhost:5001/home-listing-ai/us-central1/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/home-listing-ai/us-central1/api';
 
 const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
     id: 'default',
@@ -250,14 +250,14 @@ export class AdminService {
         // DatabaseService removed
         const messages: BroadcastMessage[] = [];
         const message = messages.find(m => m.id === messageId);
-        
+
         if (!message) {
             throw new Error(`Broadcast message with ID ${messageId} not found`);
         }
 
         const { deliveryStats } = message;
         const totalRecipients = deliveryStats.totalRecipients;
-        
+
         return {
             messageId,
             totalRecipients,
@@ -308,18 +308,18 @@ export class AdminService {
     static async getRenewalData(): Promise<RenewalData[]> {
         const allUsers = await this.getAllUsers();
         const now = new Date();
-        
+
         return allUsers
             .filter(user => user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trial')
             .map(user => {
                 const renewalDate = new Date(user.renewalDate);
                 const daysUntilRenewal = Math.ceil((renewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                
+
                 // Calculate risk level based on usage and activity
                 let riskLevel: 'low' | 'medium' | 'high' = 'low';
                 const lastActiveDate = new Date(user.lastActive);
                 const daysSinceLastActive = Math.floor((now.getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
-                
+
                 if (daysSinceLastActive > 30 || user.propertiesCount === 0) {
                     riskLevel = 'high';
                 } else if (daysSinceLastActive > 7 || user.aiInteractions < 5) {
@@ -357,7 +357,7 @@ export class AdminService {
 
     static async updateUserPlan(_userId: string, _plan: User['plan']): Promise<void> {
         // DatabaseService removed - no-op
-        
+
         // DatabaseService removed - no-op
     }
 
@@ -374,11 +374,11 @@ export class AdminService {
         const activeUsers = allUsers.filter(user => user.status === 'Active');
         const trialUsers = allUsers.filter(user => user.subscriptionStatus === 'trial');
         const expiredUsers = allUsers.filter(user => user.subscriptionStatus === 'expired');
-        
+
         const totalProperties = allUsers.reduce((sum, user) => sum + user.propertiesCount, 0);
         const totalLeads = allUsers.reduce((sum, user) => sum + user.leadsCount, 0);
         const totalAiInteractions = allUsers.reduce((sum, user) => sum + user.aiInteractions, 0);
-        
+
         return {
             totalUsers: allUsers.length,
             activeUsers: activeUsers.length,
@@ -392,7 +392,7 @@ export class AdminService {
 
     static async setMaintenanceMode(enabled: boolean): Promise<void> {
         await this.updateSystemSettings({ maintenanceMode: enabled });
-        
+
         if (enabled) {
             await NotificationService.sendMaintenanceNotification(
                 'System Maintenance',
@@ -641,7 +641,7 @@ export class AdminService {
             // Set up subscription tracking
             const renewalData = await this.getRenewalData();
             const highRiskUsers = renewalData.filter(user => user.riskLevel === 'high');
-            
+
             if (highRiskUsers.length > 0) {
                 await this.createSystemAlert(
                     'warning',

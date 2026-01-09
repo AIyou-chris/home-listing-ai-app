@@ -14,7 +14,7 @@ import SecurityDashboard from './SecurityDashboard';
 import AdminCRMContactsSupabase from './AdminCRMContactsSupabase';
 import AdminMarketingPanel from './admin/admin-marketing-panel';
 import AdminKnowledgePanel from './admin/admin-knowledge-panel';
-import AdminBlogWriterPanel from './admin/admin-blog-writer-panel';
+
 import AIContentPage from './AIContentPage';
 import AICardPage from './AICardPage';
 import AIInteractiveTraining from './AIInteractiveTraining';
@@ -54,7 +54,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     newLeadForm,
     setNewLeadForm
   } = useAdminModal();
-  
+
   // Local state for data management (should be moved to context later)
   const [users, setUsers] = useState<User[]>(() => {
     const savedUsers = localStorage.getItem('adminUsers');
@@ -105,7 +105,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         renewalDate: '2024-01-01'
       }
     ];
-    
+
     if (savedUsers) {
       try {
         return JSON.parse(savedUsers);
@@ -169,22 +169,22 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       role: newUserForm.role as User['role'],
       plan: newUserForm.plan as User['plan'],
       status: 'Active',
-      dateJoined: new Date().toISOString().slice(0,10),
+      dateJoined: new Date().toISOString().slice(0, 10),
       lastActive: new Date().toISOString(),
       propertiesCount: 0,
       leadsCount: 0,
       aiInteractions: 0,
       subscriptionStatus: 'active',
-      renewalDate: new Date(new Date().getFullYear()+1,0,1).toISOString().slice(0,10)
+      renewalDate: new Date(new Date().getFullYear() + 1, 0, 1).toISOString().slice(0, 10)
     };
-    
+
     // Add to state (localStorage will be updated automatically via useEffect)
     setUsers(prev => [newUser, ...prev]);
-    
+
     // Close modal and reset form
     setShowAddUserModal(false);
     setNewUserForm({ name: '', email: '', role: 'agent', plan: 'Solo Agent' });
-    
+
     console.log(`User ${newUserForm.name} added successfully!`);
   };
 
@@ -193,7 +193,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
 
   // Users tab: save edits
   const handleSaveUserEdit = async (userData: Partial<User> & { id: string }) => {
-    setUsers(prev => prev.map(user => 
+    setUsers(prev => prev.map(user =>
       user.id === userData.id ? { ...user, ...userData } : user
     ));
     console.log(`User ${userData.name} updated successfully!`);
@@ -232,17 +232,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       date: new Date().toISOString().split('T')[0],
       lastMessage: ''
     };
-    
+
     // Add to state (localStorage will be updated automatically via useEffect)
     setLeads(prev => [newLead, ...prev]);
-    
+
     console.log(`Lead ${leadData.name} added successfully!`);
   };
 
   const handleEditLead = async (leadData: Partial<Lead> & { id: string }) => {
     try {
       // Update leads array
-      setLeads(prev => prev.map(lead => 
+      setLeads(prev => prev.map(lead =>
         lead.id === leadData.id ? { ...lead, ...leadData } : lead
       ));
       alert(`Lead ${leadData.name} updated successfully!`);
@@ -260,7 +260,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
 
     try {
       // Update lead status to Contacted
-      const response = await AuthService.getInstance().makeAuthenticatedRequest(`http://localhost:5001/home-listing-ai/us-central1/api/admin/leads/${selectedLead.id}`, {
+      const response = await AuthService.getInstance().makeAuthenticatedRequest(`/admin/leads/${selectedLead.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -274,15 +274,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       if (!response.ok) {
         throw new Error('Failed to update lead');
       }
-    
-    alert(`Contact message sent to ${selectedLead.name} successfully!`);
-    
-    // Close modal
-    setShowContactModal(false);
-    setSelectedLead(null);
-      
+
+      alert(`Contact message sent to ${selectedLead.name} successfully!`);
+
+      // Close modal
+      setShowContactModal(false);
+      setSelectedLead(null);
+
       // Refresh leads list
-      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('http://localhost:5001/home-listing-ai/us-central1/api/admin/leads');
+      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('/admin/leads');
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
         setLeads(data.leads || []);
@@ -309,7 +309,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     }
 
     try {
-      const response = await AuthService.getInstance().makeAuthenticatedRequest(`http://localhost:5001/home-listing-ai/us-central1/api/admin/leads/${selectedLead.id}`, {
+      const response = await AuthService.getInstance().makeAuthenticatedRequest(`/admin/leads/${selectedLead.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -323,16 +323,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       if (!response.ok) {
         throw new Error('Failed to log call');
       }
-    
-    alert(`Call logged for ${selectedLead.name} successfully!`);
-    
-    // Reset and close modal
-    setNoteContent('');
-    setShowContactModal(false);
-    setSelectedLead(null);
-      
+
+      alert(`Call logged for ${selectedLead.name} successfully!`);
+
+      // Reset and close modal
+      setNoteContent('');
+      setShowContactModal(false);
+      setSelectedLead(null);
+
       // Refresh leads list
-      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('http://localhost:5001/home-listing-ai/us-central1/api/admin/leads');
+      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('/admin/leads');
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
         setLeads(data.leads || []);
@@ -363,7 +363,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
     }
 
     try {
-      const response = await AuthService.getInstance().makeAuthenticatedRequest(`http://localhost:5001/home-listing-ai/us-central1/api/admin/leads/${selectedLead.id}`, {
+      const response = await AuthService.getInstance().makeAuthenticatedRequest(`/admin/leads/${selectedLead.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -376,16 +376,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       if (!response.ok) {
         throw new Error('Failed to add note');
       }
-    
-    alert(`Note added for ${selectedLead.name} successfully!`);
-    
-    // Reset and close modal
-    setNoteContent('');
-    setShowContactModal(false);
-    setSelectedLead(null);
-      
+
+      alert(`Note added for ${selectedLead.name} successfully!`);
+
+      // Reset and close modal
+      setNoteContent('');
+      setShowContactModal(false);
+      setSelectedLead(null);
+
       // Refresh leads list
-      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('http://localhost:5001/home-listing-ai/us-central1/api/admin/leads');
+      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('/admin/leads');
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
         setLeads(data.leads || []);
@@ -413,7 +413,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
 
     try {
       // Update lead status to Showing
-      const response = await AuthService.getInstance().makeAuthenticatedRequest(`http://localhost:5001/home-listing-ai/us-central1/api/admin/leads/${selectedLead.id}`, {
+      const response = await AuthService.getInstance().makeAuthenticatedRequest(`/admin/leads/${selectedLead.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -427,21 +427,21 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
       if (!response.ok) {
         throw new Error('Failed to schedule appointment');
       }
-    
-    alert(`Appointment scheduled for ${selectedLead.name} on ${scheduleForm.date} at ${scheduleForm.time}!`);
-    
-    // Reset form and close modal
-    setScheduleForm({
-      date: '',
-      time: '',
-      type: 'Showing',
-      notes: ''
-    });
-    setShowScheduleModal(false);
-    setSelectedLead(null);
-      
+
+      alert(`Appointment scheduled for ${selectedLead.name} on ${scheduleForm.date} at ${scheduleForm.time}!`);
+
+      // Reset form and close modal
+      setScheduleForm({
+        date: '',
+        time: '',
+        type: 'Showing',
+        notes: ''
+      });
+      setShowScheduleModal(false);
+      setSelectedLead(null);
+
       // Refresh leads list
-      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('http://localhost:5001/home-listing-ai/us-central1/api/admin/leads');
+      const refreshResponse = await AuthService.getInstance().makeAuthenticatedRequest('/admin/leads');
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
         setLeads(data.leads || []);
@@ -505,7 +505,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 <h1 className="text-3xl font-bold text-slate-900">User Management</h1>
                 <p className="text-slate-500 mt-1">Manage and support your platform users</p>
               </div>
-              <button 
+              <button
                 onClick={() => setShowAddUserModal(true)}
                 className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-all duration-300 transform hover:scale-105"
               >
@@ -619,22 +619,20 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                         <td className="px-6 py-4 font-medium text-slate-800">{user.name}</td>
                         <td className="px-6 py-4 text-slate-600">{user.email}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
                             {user.role}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                            }`}>
                             {user.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-slate-600">{user.dateJoined}</td>
                         <td className="px-6 py-4">
-                          
+
                           <button
                             onClick={() => handleDeleteUser(user.id)}
                             className="text-red-600 hover:text-red-700"
@@ -660,7 +658,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   <p className="text-slate-500 mt-1">Manage all platform prospects and appointments.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button 
+                  <button
                     onClick={() => setShowAddLeadModal(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition"
                   >
@@ -668,7 +666,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     <span>Add New Lead</span>
                   </button>
                   {!googleConnected ? (
-                    <button 
+                    <button
                       onClick={async () => {
                         try {
                           const ok = await googleOAuthService.requestAccess({ context: 'calendar' })
@@ -691,14 +689,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       Connected
                     </span>
                   )}
-                  <button 
+                  <button
                     onClick={() => openScheduler({ kind: 'Consultation' })}
                     className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold shadow-sm hover:bg-green-600 transition"
                   >
                     <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
                     <span>Schedule Appointment</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => setIsExportModalOpen(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg font-semibold shadow-sm hover:bg-slate-700 transition"
                   >
@@ -764,69 +762,63 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   </div>
                 </div>
               </section>
-              
+
               <main>
                 <div className="border-b border-slate-200 mb-6">
                   <nav className="flex space-x-2">
-                    <button 
+                    <button
                       onClick={() => setActiveLeadsTab('leads')}
-                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${
-                        activeLeadsTab === 'leads' 
-                          ? 'border-primary-600 text-primary-600' 
-                          : 'border-transparent text-slate-500 hover:text-slate-800'
-                      }`}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${activeLeadsTab === 'leads'
+                        ? 'border-primary-600 text-primary-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
                     >
                       <span className="material-symbols-outlined w-5 h-5">group</span>
                       <span>Leads</span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        activeLeadsTab === 'leads' 
-                          ? 'bg-primary-100 text-primary-700' 
-                          : 'bg-slate-200 text-slate-600'
-                      }`}>{leads.length}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeLeadsTab === 'leads'
+                        ? 'bg-primary-100 text-primary-700'
+                        : 'bg-slate-200 text-slate-600'
+                        }`}>{leads.length}</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => setActiveLeadsTab('appointments')}
-                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${
-                        activeLeadsTab === 'appointments' 
-                          ? 'border-primary-600 text-primary-600' 
-                          : 'border-transparent text-slate-500 hover:text-slate-800'
-                      }`}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${activeLeadsTab === 'appointments'
+                        ? 'border-primary-600 text-primary-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
                     >
                       <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
                       <span>Appointments</span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        activeLeadsTab === 'appointments' 
-                          ? 'bg-primary-100 text-primary-700' 
-                          : 'bg-slate-200 text-slate-600'
-                      }`}>{leads.filter(l => l.status === 'Showing' || l.status === 'Contacted').length}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeLeadsTab === 'appointments'
+                        ? 'bg-primary-100 text-primary-700'
+                        : 'bg-slate-200 text-slate-600'
+                        }`}>{leads.filter(l => l.status === 'Showing' || l.status === 'Contacted').length}</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => setActiveLeadsTab('scoring')}
-                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${
-                        activeLeadsTab === 'scoring' 
-                          ? 'border-primary-600 text-primary-600' 
-                          : 'border-transparent text-slate-500 hover:text-slate-800'
-                      }`}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${activeLeadsTab === 'scoring'
+                        ? 'border-primary-600 text-primary-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
                     >
                       <span className="material-symbols-outlined w-5 h-5">analytics</span>
                       <span>Lead Scoring</span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        activeLeadsTab === 'scoring' 
-                          ? 'bg-primary-100 text-primary-700' 
-                          : 'bg-slate-200 text-slate-600'
-                      }`}>0</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeLeadsTab === 'scoring'
+                        ? 'bg-primary-100 text-primary-700'
+                        : 'bg-slate-200 text-slate-600'
+                        }`}>0</span>
                     </button>
                   </nav>
                 </div>
-                
+
                 <div className="bg-white rounded-lg shadow-sm border border-slate-200/80 p-4 mb-6">
                   <div className="flex items-center justify-between">
                     <div className="relative w-full max-w-sm">
                       <span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2">search</span>
-                      <input 
-                        type="text" 
-                        placeholder={activeLeadsTab === 'leads' ? "Search leads..." : activeLeadsTab === 'appointments' ? "Search appointments..." : "Search scoring..."} 
-                        className="w-full bg-white border border-slate-300 rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none" 
+                      <input
+                        type="text"
+                        placeholder={activeLeadsTab === 'leads' ? "Search leads..." : activeLeadsTab === 'appointments' ? "Search appointments..." : "Search scoring..."}
+                        className="w-full bg-white border border-slate-300 rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                       />
                     </div>
                     <button className="flex items-center gap-2 text-sm font-semibold text-slate-600 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-100 transition">
@@ -847,7 +839,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           </div>
                           <h3 className="text-lg font-semibold text-slate-900 mb-2">No Leads Yet</h3>
                           <p className="text-slate-500 mb-6">Start by adding your first lead to track prospects and appointments.</p>
-                          <button 
+                          <button
                             onClick={() => setShowAddLeadModal(true)}
                             className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold shadow-sm hover:bg-primary-700 transition mx-auto"
                           >
@@ -857,84 +849,84 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                         </div>
                       ) : (
                         leads.map(lead => (
-                      <div key={lead.id} className="bg-white rounded-xl shadow-md border border-slate-200/80 p-6 transition-all duration-300 hover:shadow-lg hover:border-slate-300">
-                        <div className="flex items-center gap-4">
-                          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl">
-                            {lead.name.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-3">
-                              <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
-                              <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${getLeadStatusStyle(lead.status)}`}>{lead.status}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1">
-                              <span className="material-symbols-outlined w-5 h-5 text-slate-400">calendar_today</span>
-                              <span>{lead.date}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {lead.lastMessage && (
-                          <div className="mt-4 pt-4 border-t border-slate-200/80">
-                            <div className="p-4 bg-slate-50/70 rounded-lg border-l-4 border-primary-300">
-                              <div className="flex items-start gap-3 text-sm text-slate-600">
-                                <span className="material-symbols-outlined w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5">format_quote</span>
-                                <p className="italic">{lead.lastMessage}</p>
+                          <div key={lead.id} className="bg-white rounded-xl shadow-md border border-slate-200/80 p-6 transition-all duration-300 hover:shadow-lg hover:border-slate-300">
+                            <div className="flex items-center gap-4">
+                              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl">
+                                {lead.name.charAt(0)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-3">
+                                  <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
+                                  <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${getLeadStatusStyle(lead.status)}`}>{lead.status}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1">
+                                  <span className="material-symbols-outlined w-5 h-5 text-slate-400">calendar_today</span>
+                                  <span>{lead.date}</span>
+                                </div>
                               </div>
                             </div>
+
+                            {lead.lastMessage && (
+                              <div className="mt-4 pt-4 border-t border-slate-200/80">
+                                <div className="p-4 bg-slate-50/70 rounded-lg border-l-4 border-primary-300">
+                                  <div className="flex items-start gap-3 text-sm text-slate-600">
+                                    <span className="material-symbols-outlined w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5">format_quote</span>
+                                    <p className="italic">{lead.lastMessage}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
+
+                              <button
+                                onClick={() => handleDeleteLead(lead.id)}
+                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-500 rounded-lg shadow-sm hover:bg-red-600 transition"
+                                title="Delete lead"
+                              >
+                                <span className="material-symbols-outlined w-5 h-5">delete</span>
+                                <span>Delete</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedLead(lead);
+                                  setShowContactModal(true);
+                                }}
+                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition"
+                              >
+                                <span className="material-symbols-outlined w-5 h-5">contact_mail</span>
+                                <span>Contact</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedLead(lead);
+                                  openScheduler({
+                                    name: lead.name,
+                                    email: lead.email,
+                                    phone: lead.phone,
+                                    kind: 'Showing'
+                                  });
+                                }}
+                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg shadow-sm hover:bg-green-600 transition"
+                              >
+                                <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
+                                <span>Schedule</span>
+                              </button>
+                            </div>
                           </div>
-                        )}
-                        <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
-                          
-                          <button 
-                            onClick={() => handleDeleteLead(lead.id)}
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-500 rounded-lg shadow-sm hover:bg-red-600 transition"
-                            title="Delete lead"
-                          >
-                            <span className="material-symbols-outlined w-5 h-5">delete</span>
-                            <span>Delete</span>
-                          </button>
-                          <button 
-                            onClick={() => {
-                              setSelectedLead(lead);
-                              setShowContactModal(true);
-                            }}
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 transition"
-                          >
-                            <span className="material-symbols-outlined w-5 h-5">contact_mail</span>
-                            <span>Contact</span>
-                          </button>
-                          <button 
-                            onClick={() => {
-                              setSelectedLead(lead);
-                              openScheduler({
-                                name: lead.name,
-                                email: lead.email,
-                                phone: lead.phone,
-                                kind: 'Showing'
-                              });
-                            }}
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg shadow-sm hover:bg-green-600 transition"
-                          >
-                            <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
-                            <span>Schedule</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))
+                        ))
+                      )}
+
+                      {/* Centralized Modals */}
+                      <AdminModals
+                        users={users}
+                        leads={leads}
+                        onAddUser={handleAddUser}
+                        onEditUser={handleSaveUserEdit}
+                        onAddLead={handleAddLead}
+                        onEditLead={handleEditLead}
+                      />                    </>
                   )}
 
-      {/* Centralized Modals */}
-      <AdminModals
-        users={users}
-        leads={leads}
-        onAddUser={handleAddUser}
-        onEditUser={handleSaveUserEdit}
-        onAddLead={handleAddLead}
-        onEditLead={handleEditLead}
-      />                    </>
-                  )}
-                  
                   {activeLeadsTab === 'appointments' && (
                     <>
                       {leads.filter(l => l.status === 'Showing' || l.status === 'Contacted').length === 0 ? (
@@ -944,7 +936,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           </div>
                           <h3 className="text-lg font-semibold text-slate-900 mb-2">No Appointments Yet</h3>
                           <p className="text-slate-500 mb-6">Schedule appointments with your leads to track showings and meetings.</p>
-                          <button 
+                          <button
                             onClick={() => openScheduler({ kind: 'Consultation' })}
                             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold shadow-sm hover:bg-green-700 transition mx-auto"
                           >
@@ -962,9 +954,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                               <div className="min-w-0">
                                 <div className="flex items-center gap-3">
                                   <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
-                                  <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${
-                                    lead.status === 'Showing' ? 'bg-purple-100 text-purple-700' : 'bg-yellow-100 text-yellow-700'
-                                  }`}>
+                                  <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${lead.status === 'Showing' ? 'bg-purple-100 text-purple-700' : 'bg-yellow-100 text-yellow-700'
+                                    }`}>
                                     {lead.status === 'Showing' ? 'Scheduled' : 'Contacted'}
                                   </span>
                                 </div>
@@ -986,7 +977,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                               </div>
                             )}
                             <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-end gap-3">
-                              <button 
+                              <button
                                 onClick={() => {
                                   setSelectedLead(lead);
                                   setShowContactModal(true);
@@ -996,7 +987,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                                 <span className="material-symbols-outlined w-5 h-5">contact_mail</span>
                                 <span>Contact</span>
                               </button>
-                              <button 
+                              <button
                                 onClick={() => {
                                   setSelectedLead(lead);
                                   openScheduler({
@@ -1016,17 +1007,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                         ))
                       )}
 
-      {/* Centralized Modals */}
-      <AdminModals
-        users={users}
-        leads={leads}
-        onAddUser={handleAddUser}
-        onEditUser={handleSaveUserEdit}
-        onAddLead={handleAddLead}
-        onEditLead={handleEditLead}
-      />                    </>
+                      {/* Centralized Modals */}
+                      <AdminModals
+                        users={users}
+                        leads={leads}
+                        onAddUser={handleAddUser}
+                        onEditUser={handleSaveUserEdit}
+                        onAddLead={handleAddLead}
+                        onEditLead={handleEditLead}
+                      />                    </>
                   )}
-                  
+
                   {activeLeadsTab === 'scoring' && (
                     <>
                       {/* Lead Scoring Overview */}
@@ -1041,7 +1032,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           </div>
                           <p className="text-sm text-slate-500">out of 100</p>
                         </div>
-                        
+
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold text-slate-900">High Priority</h3>
@@ -1052,7 +1043,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           </div>
                           <p className="text-sm text-slate-500">leads need attention</p>
                         </div>
-                        
+
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-6">
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold text-slate-900">Conversion Rate</h3>
@@ -1081,8 +1072,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                             </div>
                           ) : (
                             <div className="space-y-4">
-                                                             {leads.map(lead => {
-                                 const score = typeof lead.score === 'number' ? lead.score : 50;
+                              {leads.map(lead => {
+                                const score = typeof lead.score === 'number' ? lead.score : 50;
                                 const getScoreColor = (score: number) => {
                                   if (score >= 80) return 'text-red-600 bg-red-100';
                                   if (score >= 60) return 'text-yellow-600 bg-yellow-100';
@@ -1093,7 +1084,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                                   if (score >= 60) return 'Medium Priority';
                                   return 'Low Priority';
                                 };
-                                
+
                                 return (
                                   <div key={lead.id} className="p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
                                     <div className="flex items-center justify-between">
@@ -1112,23 +1103,22 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                                           </div>
                                         </div>
                                       </div>
-                                      
+
                                       <div className="flex items-center gap-3">
                                         <div className="text-right">
                                           <div className="text-sm font-semibold text-slate-900">{score}</div>
                                           <div className="text-xs text-slate-500">points</div>
                                         </div>
                                         <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
-                                          <div 
-                                            className={`h-full rounded-full ${
-                                              score >= 80 ? 'bg-red-500' : score >= 60 ? 'bg-yellow-500' : 'bg-green-500'
-                                            }`}
+                                          <div
+                                            className={`h-full rounded-full ${score >= 80 ? 'bg-red-500' : score >= 60 ? 'bg-yellow-500' : 'bg-green-500'
+                                              }`}
                                             style={{ width: `${score}%` }}
                                           ></div>
                                         </div>
                                       </div>
                                     </div>
-                                    
+
                                     <div className="mt-3 pt-3 border-t border-slate-200">
                                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                         <div>
@@ -1139,12 +1129,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                                           <span className="text-slate-500">Source:</span>
                                           <span className="ml-1 font-medium text-slate-700">{lead.source}</span>
                                         </div>
-                                                                                 <div>
-                                           <span className="text-slate-500">Created:</span>
-                                           <span className="ml-1 font-medium text-slate-700">
-                                             {new Date(lead.date).toLocaleDateString()}
-                                           </span>
-                                         </div>
+                                        <div>
+                                          <span className="text-slate-500">Created:</span>
+                                          <span className="ml-1 font-medium text-slate-700">
+                                            {new Date(lead.date).toLocaleDateString()}
+                                          </span>
+                                        </div>
                                         <div>
                                           <span className="text-slate-500">Last Contact:</span>
                                           <span className="ml-1 font-medium text-slate-700">
@@ -1161,15 +1151,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                         </div>
                       </div>
 
-      {/* Centralized Modals */}
-      <AdminModals
-        users={users}
-        leads={leads}
-        onAddUser={handleAddUser}
-        onEditUser={handleSaveUserEdit}
-        onAddLead={handleAddLead}
-        onEditLead={handleEditLead}
-      />                    </>
+                      {/* Centralized Modals */}
+                      <AdminModals
+                        users={users}
+                        leads={leads}
+                        onAddUser={handleAddUser}
+                        onEditUser={handleSaveUserEdit}
+                        onAddLead={handleAddLead}
+                        onEditLead={handleEditLead}
+                      />                    </>
                   )}
                 </div>
               </main>
@@ -1183,15 +1173,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
               />
             )}
 
-      {/* Centralized Modals */}
-      <AdminModals
-        users={users}
-        leads={leads}
-        onAddUser={handleAddUser}
-        onEditUser={handleSaveUserEdit}
-        onAddLead={handleAddLead}
-        onEditLead={handleEditLead}
-      />          </>
+            {/* Centralized Modals */}
+            <AdminModals
+              users={users}
+              leads={leads}
+              onAddUser={handleAddUser}
+              onEditUser={handleSaveUserEdit}
+              onAddLead={handleAddLead}
+              onEditLead={handleEditLead}
+            />          </>
         );
       case 'admin-ai-content':
         return <AIContentPage />;
@@ -1365,7 +1355,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <div className="bg-green-500 h-2 rounded-full" style={{ width: '99.9%' }}></div>
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-slate-700">AI Response Time</span>
@@ -1375,7 +1365,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <div className="bg-blue-500 h-2 rounded-full" style={{ width: '85%' }}></div>
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-slate-700">User Satisfaction</span>
@@ -1385,7 +1375,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <div className="bg-purple-500 h-2 rounded-full" style={{ width: '96%' }}></div>
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-slate-700">Data Accuracy</span>
@@ -1455,22 +1445,20 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   { action: 'Payment processed', user: 'David Kim', time: '25 minutes ago', type: 'payment' }
                 ].map((activity, index) => (
                   <div key={index} className="flex items-center gap-4 p-4 bg-slate-50 rounded-lg">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      activity.type === 'registration' ? 'bg-blue-100' :
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activity.type === 'registration' ? 'bg-blue-100' :
                       activity.type === 'listing' ? 'bg-green-100' :
-                      activity.type === 'conversion' ? 'bg-purple-100' :
-                      activity.type === 'ai' ? 'bg-orange-100' : 'bg-indigo-100'
-                    }`}>
-                      <span className={`material-symbols-outlined w-4 h-4 ${
-                        activity.type === 'registration' ? 'text-blue-600' :
-                        activity.type === 'listing' ? 'text-green-600' :
-                        activity.type === 'conversion' ? 'text-purple-600' :
-                        activity.type === 'ai' ? 'text-orange-600' : 'text-indigo-600'
+                        activity.type === 'conversion' ? 'bg-purple-100' :
+                          activity.type === 'ai' ? 'bg-orange-100' : 'bg-indigo-100'
                       }`}>
+                      <span className={`material-symbols-outlined w-4 h-4 ${activity.type === 'registration' ? 'text-blue-600' :
+                        activity.type === 'listing' ? 'text-green-600' :
+                          activity.type === 'conversion' ? 'text-purple-600' :
+                            activity.type === 'ai' ? 'text-orange-600' : 'text-indigo-600'
+                        }`}>
                         {activity.type === 'registration' ? 'person_add' :
-                         activity.type === 'listing' ? 'home' :
-                         activity.type === 'conversion' ? 'trending_up' :
-                         activity.type === 'ai' ? 'psychology' : 'payments'}
+                          activity.type === 'listing' ? 'home' :
+                            activity.type === 'conversion' ? 'trending_up' :
+                              activity.type === 'ai' ? 'psychology' : 'payments'}
                       </span>
                     </div>
                     <div className="flex-1">
@@ -1488,7 +1476,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         return (
           <>
             <SecurityDashboard />
-            
+
             {/* Security Tab Navigation */}
             <div className="border-b border-slate-200 mb-6">
               <nav className="-mb-px flex space-x-6 overflow-x-auto">
@@ -1655,12 +1643,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`text-sm font-bold ${
-                          customer.status === 'overdue' ? 'text-red-600' :
+                        <div className={`text-sm font-bold ${customer.status === 'overdue' ? 'text-red-600' :
                           customer.status === 'due' ? 'text-orange-600' : 'text-blue-600'
-                        }`}>
+                          }`}>
                           {customer.daysLeft < 0 ? `${Math.abs(customer.daysLeft)} days overdue` :
-                           customer.daysLeft === 0 ? 'Due today' : `${customer.daysLeft} days`}
+                            customer.daysLeft === 0 ? 'Due today' : `${customer.daysLeft} days`}
                         </div>
                         <div className="text-xs text-slate-500 mt-1">{customer.followUp}</div>
                       </div>
@@ -1684,7 +1671,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <span>Clicked: 12 (52%)</span>
                     </div>
                   </div>
-                  
+
                   <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-orange-900">Renewal Day</h4>
@@ -1696,7 +1683,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <span>Responded: 2 (40%)</span>
                     </div>
                   </div>
-                  
+
                   <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-red-900">Day 1 Recovery</h4>
@@ -1708,7 +1695,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <span>Reconnected: 1 (50%)</span>
                     </div>
                   </div>
-                  
+
                   <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-purple-900">Day 3 Recovery</h4>
@@ -1732,7 +1719,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   Create New Campaign
                 </button>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Pre-renewal Campaign */}
                 <div className="p-6 border border-slate-200 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -1757,12 +1744,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     <div className="flex justify-between">
                       <span className="text-slate-600">Success Rate:</span>
                       <span className="font-semibold text-green-600">78%</span>
+                    </div>
                   </div>
-                </div>
                   <button className="w-full mt-4 px-3 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition text-sm font-medium">
                     Edit Campaign
                   </button>
-              </div>
+                </div>
 
                 {/* Renewal Day Campaign */}
                 <div className="p-6 border border-slate-200 rounded-lg bg-gradient-to-br from-orange-50 to-amber-50">
@@ -1780,10 +1767,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <span className="text-slate-600">Trigger:</span>
                       <span className="font-semibold">Renewal day</span>
                     </div>
-                                         <div className="flex justify-between">
-                       <span className="text-slate-600">Channel:</span>
-                       <span className="font-semibold">Email</span>
-                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Channel:</span>
+                      <span className="font-semibold">Email</span>
+                    </div>
                     <div className="flex justify-between">
                       <span className="text-slate-600">Success Rate:</span>
                       <span className="font-semibold text-green-600">85%</span>
@@ -1866,7 +1853,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 {[
                   { name: 'John Smith', plan: 'Pro Team', recovered: '2 days ago', method: 'Phone call', value: '$299/month' },
                   { name: 'Maria Garcia', plan: 'Solo Agent', recovered: '1 day ago', method: 'Email offer', value: '$99/month' },
-                                     { name: 'Robert Wilson', plan: 'Brokerage', recovered: '3 days ago', method: 'Email reminder', value: '$599/month' },
+                  { name: 'Robert Wilson', plan: 'Brokerage', recovered: '3 days ago', method: 'Email reminder', value: '$599/month' },
                   { name: 'Jennifer Lee', plan: 'Pro Team', recovered: '5 days ago', method: 'Phone call', value: '$299/month' }
                 ].map((success, index) => (
                   <div key={index} className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
@@ -1925,11 +1912,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   ].map((tab) => (
                     <button
                       key={tab.id}
-                      className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition ${
-                        tab.id === 'general' 
-                          ? 'border-primary-500 text-primary-600' 
-                          : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                      }`}
+                      className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition ${tab.id === 'general'
+                        ? 'border-primary-500 text-primary-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                        }`}
                     >
                       <span className="material-symbols-outlined w-5 h-5">{tab.icon}</span>
                       {tab.label}
@@ -2034,7 +2020,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                         <div>
                           <h4 className="font-semibold text-slate-900">Voice Assistant</h4>
@@ -2045,7 +2031,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                         <div>
                           <h4 className="font-semibold text-slate-900">QR Code System</h4>
@@ -2056,7 +2042,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                         <div>
                           <h4 className="font-semibold text-slate-900">Analytics Dashboard</h4>
@@ -2067,7 +2053,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                         <div>
                           <h4 className="font-semibold text-slate-900">Knowledge Base</h4>
@@ -2134,7 +2120,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                           <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
                         <div>
                           <h4 className="font-semibold text-blue-900">Auto Updates</h4>
@@ -2183,7 +2169,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -2195,7 +2181,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
@@ -2207,7 +2193,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -2232,7 +2218,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       </div>
                       <div>
                         <p className="font-semibold text-red-900">Database Connection Slow</p>
-                                                 <p className="text-sm text-red-700">Response time &gt; 2s for 15 minutes</p>
+                        <p className="text-sm text-red-700">Response time &gt; 2s for 15 minutes</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -2240,7 +2226,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <button className="text-xs text-red-600 hover:text-red-800 font-medium">Acknowledge</button>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -2256,7 +2242,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <button className="text-xs text-yellow-600 hover:text-yellow-800 font-medium">Acknowledge</button>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -2272,7 +2258,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <button className="text-xs text-yellow-600 hover:text-yellow-800 font-medium">Acknowledge</button>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -2305,7 +2291,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       <option>System Status</option>
                     </select>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Priority Level</label>
                     <div className="flex gap-3">
@@ -2327,7 +2313,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       </label>
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Target Audience</label>
                     <div className="flex gap-3">
@@ -2349,7 +2335,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       </label>
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Message Title</label>
                     <input
@@ -2358,7 +2344,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Message Content</label>
                     <textarea
@@ -2367,7 +2353,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     ></textarea>
                   </div>
-                  
+
                   <div className="flex gap-3">
                     <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition">
                       <span className="material-symbols-outlined w-5 h-5">schedule</span>
@@ -2450,8 +2436,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         return <AdminKnowledgePanel />;
 
 
-      case 'admin-blog-writer':
-        return <AdminBlogWriterPanel />;
+
       default:
         return <AdminDashboard users={users} leads={leads} onDeleteUser={handleDeleteUser} onDeleteLead={handleDeleteLead} />;
     }
@@ -2466,35 +2451,35 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-bold text-slate-900 mb-4">Add New User</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Name</label>
                 <input
                   type="text"
                   value={newUserForm.name}
-                  onChange={(e) => setNewUserForm({...newUserForm, name: e.target.value})}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter user name"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
                 <input
                   type="email"
                   value={newUserForm.email}
-                  onChange={(e) => setNewUserForm({...newUserForm, email: e.target.value})}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter user email"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Role</label>
                 <select
                   value={newUserForm.role}
-                  onChange={(e) => setNewUserForm({...newUserForm, role: e.target.value})}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="agent">Agent</option>
@@ -2506,7 +2491,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Plan</label>
                 <select
                   value={newUserForm.plan}
-                  onChange={(e) => setNewUserForm({...newUserForm, plan: e.target.value})}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, plan: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="Solo Agent">Solo Agent</option>
@@ -2515,7 +2500,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 </select>
               </div>
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowAddUserModal(false)}
@@ -2607,46 +2592,46 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-bold text-slate-900 mb-4">Add New Lead</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Name *</label>
                 <input
                   type="text"
                   value={newLeadForm.name}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, name: e.target.value})}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, name: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter lead name"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Email *</label>
                 <input
                   type="email"
                   value={newLeadForm.email}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, email: e.target.value})}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, email: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter lead email"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Phone</label>
                 <input
                   type="tel"
                   value={newLeadForm.phone}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, phone: e.target.value})}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, phone: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter phone number"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
                 <select
                   value={newLeadForm.status}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, status: e.target.value as LeadStatus})}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, status: e.target.value as LeadStatus })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="New">New</option>
@@ -2661,7 +2646,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Source</label>
                 <select
                   value={newLeadForm.source}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, source: e.target.value})}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, source: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="Website">Website</option>
@@ -2671,19 +2656,19 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                   <option value="Other">Other</option>
                 </select>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
                 <textarea
                   value={newLeadForm.notes}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, notes: e.target.value})}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, notes: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   rows={3}
                   placeholder="Add any notes about this lead"
                 />
               </div>
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowAddLeadModal(false)}
@@ -2701,7 +2686,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
           </div>
         </div>
       )}
-      
+
       {/* Contact Modal */}
       {showContactModal && selectedLead && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2715,44 +2700,41 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 <span className="material-symbols-outlined w-6 h-6">close</span>
               </button>
             </div>
-            
+
             <div className="border-b border-slate-200">
               <nav className="flex items-center">
-                <button 
+                <button
                   onClick={() => setActiveContactTab('email')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                    activeContactTab === 'email' 
-                      ? 'border-primary-600 text-primary-600' 
-                      : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeContactTab === 'email'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                    }`}
                 >
                   <span className="material-symbols-outlined w-5 h-5">mail</span>
                   <span>Email</span>
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveContactTab('call')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                    activeContactTab === 'call' 
-                      ? 'border-primary-600 text-primary-600' 
-                      : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeContactTab === 'call'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                    }`}
                 >
                   <span className="material-symbols-outlined w-5 h-5">call</span>
                   <span>Log Call</span>
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveContactTab('note')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                    activeContactTab === 'note' 
-                      ? 'border-primary-600 text-primary-600' 
-                      : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeContactTab === 'note'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                    }`}
                 >
                   <span className="material-symbols-outlined w-5 h-5">edit_note</span>
                   <span>Add Note</span>
-              </button>
-              <button
-                onClick={() => {
+                </button>
+                <button
+                  onClick={() => {
                     setShowContactModal(false);
                     if (selectedLead) {
                       openScheduler({
@@ -2772,7 +2754,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ currentView }) => {
                 </button>
               </nav>
             </div>
-            
+
             <div className="p-6">
               {activeContactTab === 'email' && (
                 <>
@@ -2799,17 +2781,17 @@ Best regards,`}
                     />
                   </div>
 
-      {/* Centralized Modals */}
-      <AdminModals
-        users={users}
-        leads={leads}
-        onAddUser={handleAddUser}
-        onEditUser={handleSaveUserEdit}
-        onAddLead={handleAddLead}
-        onEditLead={handleEditLead}
-      />                </>
+                  {/* Centralized Modals */}
+                  <AdminModals
+                    users={users}
+                    leads={leads}
+                    onAddUser={handleAddUser}
+                    onEditUser={handleSaveUserEdit}
+                    onAddLead={handleAddLead}
+                    onEditLead={handleEditLead}
+                  />                </>
               )}
-              
+
               {activeContactTab === 'call' && (
                 <div className="mb-4">
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Log Call Details</label>
@@ -2822,7 +2804,7 @@ Best regards,`}
                   />
                 </div>
               )}
-              
+
               {activeContactTab === 'note' && (
                 <div className="mb-4">
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Add a Note</label>
@@ -2838,20 +2820,20 @@ Best regards,`}
             </div>
 
             <div className="flex justify-end items-center px-6 py-4 bg-slate-50 border-t border-slate-200">
-              <button 
+              <button
                 onClick={() => {
                   setShowContactModal(false);
                   setSelectedLead(null);
                   setNoteContent('');
                   setActiveContactTab('email');
-                }} 
+                }}
                 className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition mr-2"
               >
                 Cancel
               </button>
               {activeContactTab === 'email' && (
-                <button 
-                  onClick={() => handleContact('Email sent successfully')} 
+                <button
+                  onClick={() => handleContact('Email sent successfully')}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition"
                 >
                   <span className="material-symbols-outlined w-5 h-5">send</span>
@@ -2859,7 +2841,7 @@ Best regards,`}
                 </button>
               )}
               {(activeContactTab === 'call' || activeContactTab === 'note') && (
-                <button 
+                <button
                   onClick={activeContactTab === 'call' ? handleLogCall : handleAddNote}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition"
                 >
@@ -2871,39 +2853,39 @@ Best regards,`}
           </div>
         </div>
       )}
-      
+
       {/* Schedule Modal */}
       {showScheduleModal && selectedLead && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-bold text-slate-900 mb-4">Schedule Appointment with {selectedLead.name}</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Date *</label>
                 <input
                   type="date"
                   value={scheduleForm.date}
-                  onChange={(e) => setScheduleForm({...scheduleForm, date: e.target.value})}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
-    </div>
-              
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Time *</label>
                 <input
                   type="time"
                   value={scheduleForm.time}
-                  onChange={(e) => setScheduleForm({...scheduleForm, time: e.target.value})}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
                 <select
                   value={scheduleForm.type}
-                  onChange={(e) => setScheduleForm({...scheduleForm, type: e.target.value})}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, type: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="Showing">Property Showing</option>
@@ -2911,19 +2893,19 @@ Best regards,`}
                   <option value="Meeting">General Meeting</option>
                 </select>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
                 <textarea
                   value={scheduleForm.notes}
-                  onChange={(e) => setScheduleForm({...scheduleForm, notes: e.target.value})}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, notes: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   rows={3}
                   placeholder="Add any notes about the appointment"
                 />
               </div>
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
@@ -2945,7 +2927,7 @@ Best regards,`}
           </div>
         </div>
       )}
-      
+
       {/* Centralized Modals */}
       <AdminModals
         users={users}

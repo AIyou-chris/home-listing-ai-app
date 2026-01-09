@@ -9,7 +9,7 @@ interface PlatformSubscriptionUIProps {
 export const PlatformSubscriptionUI: React.FC<PlatformSubscriptionUIProps> = ({ accountId, currentPlan = 'free' }) => {
     const [loading, setLoading] = useState(false);
 
-    const PRO_PRICE_ID = 'price_H5ggYJDqQeaU8h'; // Placeholder - Replace with REAL Platform Price ID
+    const PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_PLACEHOLDER_MISSING'; // Must be set in .env
 
     const handleSubscribe = async () => {
         setLoading(true);

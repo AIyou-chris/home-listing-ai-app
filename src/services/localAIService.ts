@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5001/home-listing-ai/us-central1/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/home-listing-ai/us-central1/api';
 
 /**
  * Continues a conversation using the local AI server
@@ -11,7 +11,7 @@ export const continueConversation = async (
 ): Promise<string> => {
   try {
     console.log("Calling local AI server with", messages.length, "messages");
-    
+
     const response = await fetch(`${API_BASE_URL}/continue-conversation`, {
       method: 'POST',
       headers: {
@@ -42,12 +42,12 @@ export const continueConversation = async (
  * @returns A promise that resolves to an object containing the audio URL and duration
  */
 export const generateSpeech = async (
-  text: string, 
+  text: string,
   voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova'
 ): Promise<{ audioUrl: string; duration: number; success: boolean }> => {
   try {
     console.log("Calling local speech generation with text length:", text.length);
-    
+
     const response = await fetch(`${API_BASE_URL}/generate-speech`, {
       method: 'POST',
       headers: {
@@ -63,7 +63,7 @@ export const generateSpeech = async (
 
     const data = await response.json();
     console.log("Received speech response:", data);
-    
+
     return {
       audioUrl: data.audioUrl,
       duration: data.duration,

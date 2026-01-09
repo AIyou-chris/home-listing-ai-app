@@ -2080,88 +2080,7 @@ function autoScoreLead(lead) {
   return lead;
 }
 
-let blogPosts = [
-  {
-    id: '1',
-    title: 'The Future of Real Estate Technology',
-    slug: 'future-real-estate-technology',
-    content: '# The Future of Real Estate Technology\n\nReal estate is evolving rapidly with new technologies that are transforming how we buy, sell, and manage properties. From AI-powered market analysis to virtual reality tours, the industry is embracing innovation at an unprecedented pace.\n\n## Key Trends\n\n- **AI and Machine Learning**: Automated property valuations and market predictions\n- **Virtual Reality**: Immersive property tours from anywhere in the world\n- **Blockchain**: Secure and transparent property transactions\n- **Smart Home Integration**: IoT devices for property management\n\n## Impact on Agents\n\nReal estate agents are leveraging these technologies to provide better service to their clients while streamlining their operations.\n\n*Published on January 15, 2024*',
-    excerpt: 'Discover how AI and automation are transforming the real estate industry.',
-    author: 'Admin',
-    publishedAt: new Date('2024-01-15').toISOString(),
-    status: 'published',
-    tags: ['Technology', 'Real Estate', 'AI'],
-    imageUrl: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800',
-    readTime: '5 min read',
-    metaDescription: 'Explore how AI, VR, blockchain, and smart home technology are revolutionizing real estate. Learn about the latest PropTech trends shaping the industry.',
-    focusKeyword: 'real estate technology',
-    semanticKeywords: ['PropTech', 'AI in real estate', 'virtual reality tours', 'blockchain property', 'smart homes', 'automated valuations'],
-    aioScore: 92,
-    structuredData: {
-      type: 'Article',
-      headline: 'The Future of Real Estate Technology',
-      description: 'Discover how AI and automation are transforming the real estate industry.',
-      author: 'Admin',
-      publisher: 'HomeListingAI',
-      datePublished: new Date('2024-01-15').toISOString(),
-      dateModified: new Date('2024-01-15').toISOString(),
-      wordCount: 245,
-      readingTime: '5 min read',
-      categories: ['Technology', 'Real Estate'],
-      keywords: ['real estate technology', 'PropTech', 'AI in real estate', 'virtual reality tours']
-    },
-    socialMeta: {
-      ogTitle: 'The Future of Real Estate Technology - AI & Innovation Trends',
-      ogDescription: 'Discover how AI, VR, and blockchain are transforming real estate. Essential reading for agents and investors.',
-      ogImage: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&h=630',
-      twitterTitle: 'The Future of Real Estate Technology 🏠🤖',
-      twitterDescription: 'AI, VR, blockchain - see how tech is revolutionizing real estate',
-      twitterImage: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&h=600',
-      linkedinTitle: 'How Technology is Transforming Real Estate in 2024',
-      linkedinDescription: 'Professional insights into PropTech trends every real estate professional should know.'
-    }
-  },
-  {
-    id: '2',
-    title: '5 Tips for First-Time Homebuyers',
-    slug: 'tips-first-time-homebuyers',
-    content: '# 5 Tips for First-Time Homebuyers\n\nBuying your first home can be overwhelming, but with the right preparation and guidance, it can be an exciting and rewarding experience.\n\n## 1. Get Pre-Approved\n\nBefore you start house hunting, get pre-approved for a mortgage. This will give you a clear budget and show sellers you\'re serious.\n\n## 2. Research Neighborhoods\n\nLook beyond the house itself. Research schools, crime rates, property taxes, and future development plans.\n\n## 3. Don\'t Skip the Inspection\n\nA home inspection can reveal hidden issues that could cost you thousands later.\n\n## 4. Consider Hidden Costs\n\nFactor in property taxes, insurance, maintenance, and utilities when calculating affordability.\n\n## 5. Work with a Professional\n\nA good real estate agent can guide you through the process and help you avoid common pitfalls.\n\n*Published on January 10, 2024*',
-    excerpt: 'Essential advice for navigating your first home purchase successfully.',
-    author: 'Admin',
-    publishedAt: new Date('2024-01-10').toISOString(),
-    status: 'published',
-    tags: ['Homebuying', 'Tips', 'Guide'],
-    imageUrl: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=800',
-    readTime: '3 min read',
-    metaDescription: 'Complete guide for first-time homebuyers. Learn about pre-approval, neighborhood research, home inspections, hidden costs, and working with agents.',
-    focusKeyword: 'first time homebuyer tips',
-    semanticKeywords: ['home buying guide', 'mortgage pre-approval', 'home inspection', 'real estate agent', 'homebuying process', 'first home purchase'],
-    aioScore: 88,
-    structuredData: {
-      type: 'Article',
-      headline: '5 Tips for First-Time Homebuyers',
-      description: 'Essential advice for navigating your first home purchase successfully.',
-      author: 'Admin',
-      publisher: 'HomeListingAI',
-      datePublished: new Date('2024-01-10').toISOString(),
-      dateModified: new Date('2024-01-10').toISOString(),
-      wordCount: 186,
-      readingTime: '3 min read',
-      categories: ['Homebuying', 'Guide'],
-      keywords: ['first time homebuyer tips', 'home buying guide', 'mortgage pre-approval', 'home inspection']
-    },
-    socialMeta: {
-      ogTitle: '5 Essential Tips for First-Time Homebuyers - Complete Guide',
-      ogDescription: 'Navigate your first home purchase with confidence. Expert tips on pre-approval, inspections, and more.',
-      ogImage: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=1200&h=630',
-      twitterTitle: '5 Must-Know Tips for First-Time Homebuyers 🏡',
-      twitterDescription: 'Your complete guide to buying your first home successfully',
-      twitterImage: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=1200&h=600',
-      linkedinTitle: 'Professional Guide: 5 Tips for First-Time Homebuyers',
-      linkedinDescription: 'Help your clients navigate their first home purchase with these essential tips from real estate professionals.'
-    }
-  }
-];
+
 
 // Marketing Data
 let followUpSequences = [
@@ -6526,6 +6445,7 @@ app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
     res.json({
       success: true,
       sequence: userSequences[sequenceIndex], // RETURN THE UPDATED SEQUENCE!
+      debug_owner_id: String(ownerId), // CORS-Proof Debug ID
       message: 'Sequence updated successfully'
     });
   } catch (error) {
@@ -6792,91 +6712,7 @@ app.delete('/api/admin/marketing/qr-codes/:qrCodeId', (req, res) => {
   }
 });
 
-// Blog API endpoints
-app.get('/api/blog', (req, res) => {
-  try {
-    const { page = 1, limit = 10, tag, search } = req.query;
-    let filteredPosts = [...blogPosts];
 
-    // Filter by tag
-    if (tag) {
-      filteredPosts = filteredPosts.filter(post =>
-        post.tags.some(t => t.toLowerCase().includes(tag.toLowerCase()))
-      );
-    }
-
-    // Filter by search
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filteredPosts = filteredPosts.filter(post =>
-        post.title.toLowerCase().includes(searchLower) ||
-        post.excerpt.toLowerCase().includes(searchLower) ||
-        post.content.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // Pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-    const paginatedPosts = filteredPosts.slice(startIndex, endIndex);
-
-    res.json({
-      posts: paginatedPosts,
-      total: filteredPosts.length,
-      page: parseInt(page),
-      totalPages: Math.ceil(filteredPosts.length / limit)
-    });
-  } catch (error) {
-    console.error('Get blog posts error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/blog/:slug', (req, res) => {
-  try {
-    const { slug } = req.params;
-    const post = blogPosts.find(p => p.slug === slug);
-
-    if (!post) {
-      return res.status(404).json({ error: 'Blog post not found' });
-    }
-
-    res.json(post);
-  } catch (error) {
-    console.error('Get blog post error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/blog', (req, res) => {
-  try {
-    const { title, content, excerpt, tags, imageUrl } = req.body;
-
-    if (!title || !content) {
-      return res.status(400).json({ error: 'Title and content are required' });
-    }
-
-    const newPost = {
-      id: Date.now().toString(),
-      title,
-      slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-      content,
-      excerpt: excerpt || content.substring(0, 150) + '...',
-      author: 'Admin',
-      publishedAt: new Date().toISOString(),
-      status: 'published',
-      tags: tags || [],
-      imageUrl: imageUrl || '',
-      readTime: Math.ceil(content.split(' ').length / 200) + ' min read'
-    };
-
-    blogPosts.unshift(newPost);
-    res.status(201).json({ success: true, post: newPost });
-  } catch (error) {
-    console.error('Create blog post error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // AI Sidekick Command Center Endpoints
 console.log('[Server] Registering AI Sidekick routes');

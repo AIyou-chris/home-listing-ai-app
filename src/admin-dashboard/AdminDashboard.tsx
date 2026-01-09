@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import AICardPage from '../components/AICardPage';
 import AIConversationsPage from '../components/AIConversationsPage';
-
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import AdminCommandCenter from './components/AdminCommandCenter';
 import AdminAISidekicksPage from './components/AdminAISidekicksPage';
@@ -103,7 +103,16 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard' }) => {
   const agentOptions = [{ id: 'admin-agent', name: 'Admin Team' }, { id: 'system-admin', name: 'System Admin' }];
-  const [activeView, setActiveView] = useState<DashboardView>(initialTab);
+  const { tab } = useParams<{ tab: string }>();
+  const navigate = useNavigate();
+
+  // Use URL tab if available, otherwise fall back to initialTab
+  const activeView = (tab as DashboardView) || initialTab;
+
+  const handleSetView = (newView: DashboardView) => {
+    navigate(`/admin/${newView}`);
+  };
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDemoMode] = useState(false);
 
@@ -126,7 +135,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   const handleSelectProperty = (propertyId: string | null) => {
     setSelectedPropertyId(propertyId);
     if (propertyId) {
-      setActiveView('property');
+      handleSetView('property');
     }
   };
 
@@ -154,7 +163,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       agent: agentProfile
     };
     setProperties((prev) => [newProperty, ...prev]);
-    setActiveView('listings');
+    handleSetView('listings');
   };
 
   const handleDeleteProperty = (propertyId: string) => {
@@ -279,7 +288,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   };
 
   const resetToDashboard = () => {
-    setActiveView('dashboard');
+    handleSetView('dashboard');
     setSelectedPropertyId(null);
   };
 
@@ -324,21 +333,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         );
       case 'property':
         return selectedProperty ? (
-          <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setActiveView('listings')} />
+          <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => handleSetView('listings')} />
         ) : (
           <ListingsPage
             properties={properties}
             onSelectProperty={handleSelectProperty}
-            onAddNew={() => setActiveView('add-listing')}
+            onAddNew={() => handleSetView('add-listing')}
             onDeleteProperty={handleDeleteProperty}
             onBackToDashboard={resetToDashboard}
             onOpenMarketing={(id) => {
               setSelectedPropertyId(id);
-              setActiveView('property');
+              handleSetView('property');
             }}
             onOpenBuilder={(id) => {
               setSelectedPropertyId(id);
-              setActiveView('property');
+              handleSetView('property');
             }}
           />
         );
@@ -381,7 +390,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <AdminDashboardSidebar activeView={activeView} setView={setActiveView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <AdminDashboardSidebar activeView={activeView} setView={handleSetView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">

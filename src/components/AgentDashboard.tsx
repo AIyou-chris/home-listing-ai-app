@@ -207,7 +207,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       } catch (error) {
         notifyApiError({
           title: 'Could not load listings',
-          description: 'Showing demo listings for now. Refresh once you are signed in to try again.',
+          description: 'Could not load listings. Please refresh to try again.',
           error
         });
         if (isMounted) {
@@ -276,7 +276,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     } catch (error) {
       notifyApiError({
         title: 'Could not load leads',
-        description: 'Using sample leads for now. Refresh after signing in to try again.',
+        description: 'Could not load leads. Please refresh to try again.',
         error
       });
     } finally {
@@ -525,24 +525,16 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       setLeads((prev) => [createdLead, ...prev]);
       void logLeadCaptured(createdLead);
     } catch (error) {
+
       notifyApiError({
         title: 'Could not save lead',
-        description: 'We saved a local copy so you do not lose the info. Try syncing again later.',
+        description: 'Please check your connection and try again.',
         error
       });
-      const fallbackLead: Lead = {
-        id: `lead-${Date.now()}`,
-        name: leadData.name,
-        email: leadData.email,
-        phone: leadData.phone,
-        status: 'New',
-        date: new Date().toISOString(),
-        lastMessage: leadData.message
-      };
-      setLeads((prev) => [fallbackLead, ...prev]);
-      void logLeadCaptured(fallbackLead);
+      // In production, do not show a fake success.
     }
-  };
+  }
+
 
   const handleNewAppointment = (appointment: Appointment) => {
     setAppointments((prev) => [appointment, ...prev]);

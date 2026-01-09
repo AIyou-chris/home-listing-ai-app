@@ -16,8 +16,9 @@ module.exports = ({
   const createCheckoutSession = async ({ priceId, slug, email, successUrl, cancelUrl }) => {
     if (!isConfigured()) throw new Error('Stripe is not configured');
 
-    // Default to the provided $20 Plan Price ID if none specified
-    const finalPriceId = priceId || 'price_1SeMLsGtlY59RT0yAVUe2vTJ';
+    // Default to the provided Plan Price ID from env if none specified
+    const finalPriceId = priceId || process.env.STRIPE_DEFAULT_PRICE_ID;
+    if (!finalPriceId) throw new Error('No Price ID provided and STRIPE_DEFAULT_PRICE_ID is missing');
 
     // Determine Redirect URLs (Handle both explicit URLs and legacy slug-based flow)
     // Legacy flow uses /checkout/:slug

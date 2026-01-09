@@ -47,9 +47,8 @@ import { getProfileForDashboard, subscribeToProfileChanges } from './services/ag
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './admin-dashboard/AdminDashboard';
-import type { DashboardView } from './admin-dashboard/AdminDashboard';
-import BlogPage from './components/BlogPage';
-import BlogPostPage from './components/BlogPostPage';
+
+
 import DemoListingPage from './components/DemoListingPage';
 import ChatBotFAB from './components/ChatBotFAB';
 import { StorefrontPage } from './pages/StorefrontPage';
@@ -141,7 +140,6 @@ interface BackendListing {
 }
 
 import { ImpersonationProvider } from './context/ImpersonationContext';
-const AdminUsersPage = lazy(() => import('./components/AdminUsersPage'));
 
 const App: React.FC = () => {
     const [user, setUser] = useState<AppUser | null>(null);
@@ -167,7 +165,7 @@ const App: React.FC = () => {
         } else {
             navigate(`/${viewName}`);
         }
-    }, [navigate, userProfile?.slug]);
+    }, [navigate, userProfile?.slug, userProfile?.id]);
 
 
 
@@ -478,7 +476,7 @@ const App: React.FC = () => {
             clearTimeout(safetyTimer);
             subscription.unsubscribe();
         };
-    }, []);
+    }, [navigate, setView]);
 
     // --- FORCE ADMIN REDIRECT ---
     // If we are detected as Admin, but not on an admin page, GO TO ADMIN DASHBOARD.
@@ -594,12 +592,14 @@ const App: React.FC = () => {
                 setProperties(frontendProperties);
                 console.log('✅ Loaded listings from backend:', frontendProperties.length);
             } else {
-                console.warn('Failed to load listings from backend, using demo data');
-                setProperties(DEMO_FAT_PROPERTIES);
+                console.warn('Failed to load listings from backend');
+                // IN PRODUCTION: Do NOT show demo data on failure. Show nothing.
+                setProperties([]);
             }
         } catch (error) {
             console.error('Error loading listings from backend:', error);
-            setProperties(DEMO_FAT_PROPERTIES);
+            // IN PRODUCTION: Do NOT show demo data on error.
+            setProperties([]);
         }
     };
 
@@ -1074,8 +1074,18 @@ const App: React.FC = () => {
                     } />
 
                     {/* Demo Dashboard */}
-                    <Route path="/admin-dashboard" element={
-                        isAdmin ? <AdminDashboard /> : <Navigate to="/" />
+                    <Route path="/admin" element={
+                        isAdmin ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/" />
+                    } />
+                    <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+                    <Route path="/admin/:tab" element={
+                        isAdmin ? (
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <AdminDashboard />
+                            </Suspense>
+                        ) : (
+                            <Navigate to="/" />
+                        )
                     } />
                     <Route path="/demo-dashboard" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
                     <Route path="/dashboard-blueprint" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
@@ -1099,23 +1109,7 @@ const App: React.FC = () => {
                     } />
 
                     {/* Authenticated Admin Views (Users) */}
-                    <Route path="/admin-users" element={
-                        <Suspense fallback={<LoadingSpinner />}>
-                            <AdminUsersPage />
-                        </Suspense>
-                    } />
 
-                    {/* Authenticated Admin Views (Cloned Dashboard Tabs) */}
-                    {['leads', 'contacts', 'ai-card', 'ai-training', 'knowledge-base', 'funnel-analytics', 'analytics', 'settings'].map(tab => (
-                        <Route key={tab} path={`/admin-${tab}`} element={
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <AdminDashboard initialTab={tab === 'contacts' ? 'leads' : tab as DashboardView} />
-                            </Suspense>
-                        } />
-                    ))}
-                    {/* Catch-all for other admin routes */}
-                    <Route path="/admin-marketing" element={<Suspense fallback={<LoadingSpinner />}><AdminDashboard initialTab="funnel-analytics" /></Suspense>} />
-                    <Route path="/admin-ai-personalities" element={<Suspense fallback={<LoadingSpinner />}><AdminDashboard initialTab="knowledge-base" /></Suspense>} />
 
 
                     {/* Protected Routes (Wrapped in Layout) */}
@@ -1196,8 +1190,7 @@ const App: React.FC = () => {
                     </Route>
 
                     {/* Legacy/Misc Public Views */}
-                    <Route path="/blog" element={<BlogPage />} />
-                    <Route path="/blog-post" element={<BlogPostPage />} />
+
                     <Route path="/demo-listing" element={<DemoListingPage />} />
                     <Route path="/demo/listings/:id" element={<DemoListingPage />} />
                     <Route path="/new-landing" element={<NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />} />
