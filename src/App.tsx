@@ -1122,7 +1122,7 @@ const App: React.FC = () => {
                     <Route element={<ProtectedLayout />}>
                         <Route path="/dashboard" element={
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
-                                (userProfile.slug ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />)
+                                (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />)
                         } />
                         <Route path="/dashboard/:slug" element={<AgentDashboard />} />
 
