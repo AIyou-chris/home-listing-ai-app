@@ -16,14 +16,35 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
     const [error, setError] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    // Check for existing session on mount
+    React.useEffect(() => {
+        const checkSession = async () => {
+            console.log('🔍 SignInPage: Checking for existing session...');
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                console.log('✅ SignInPage: Active session found, redirecting...');
+                // If we have a session, assume we are good to go
+                // Use a direct window location change if navigation fails? No, try calling the prop first.
+                // Actually, App.tsx should handle this, but maybe it missed it?
+                // Let's force a reload/redirect to dashboard
+                window.location.href = '/dashboard';
+            } else {
+                console.log('⚪ SignInPage: No active session.');
+            }
+        };
+        checkSession();
+    }, []);
 
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
+        console.log('🚀 Attempting Sign In for:', email);
+
         try {
             // Race the Sign-In against a 15-second timeout
             // This prevents the "Loading Forever" experience if the network/client is stuck
+            console.log('⏳ calling signInWithPassword...');
             const signInPromise = supabase.auth.signInWithPassword({
                 email: email.trim().toLowerCase(),
                 password
@@ -36,9 +57,18 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
             // Force cast to any to handle the race result mixture
             const result = await Promise.race([signInPromise, timeoutPromise]) as any;
 
-            if (result.error) throw result.error;
+            if (result.error) {
+                console.error('❌ Sign In Error:', result.error);
+                throw result.error;
+            }
 
+            console.log('✅ Sign In Success! Session Established.');
             // Auth state change listener in App.tsx will handle the rest (redirects)
+            // But just in case, let's manually trigger navigation if nothing happens in 1s
+            setTimeout(() => {
+                console.log('🔄 Manually triggering dashboard navigation...');
+                window.location.href = '/dashboard';
+            }, 1000);
 
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'An unexpected error occurred';
