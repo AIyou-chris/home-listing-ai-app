@@ -41,17 +41,30 @@ const ResetPasswordPage: React.FC = () => {
             }
 
             // Attempt to restore session
+            // STRATEGY: Wait 1s to let Supabase Auto-Detect finish. 
+            // If we force setSession too fast, it conflicts with the client's own listeners.
+            setDebugSessionStatus('Waiting for Auto-Detect...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const { data: { session: existingSession } } = await supabase.auth.getSession();
+
+            if (existingSession) {
+                setDebugSessionStatus('Session Restored (Auto)');
+                return;
+            }
+
+            // If auto-detect failed, THEN we manually force it
             if (accessToken && refreshToken) {
-                setDebugSessionStatus('Restoring Session from URL...');
+                setDebugSessionStatus('Auto failed. Forcing Session...');
                 const { error } = await supabase.auth.setSession({
                     access_token: accessToken,
                     refresh_token: refreshToken
                 });
                 if (error) {
                     console.error('❌ Failed to set session:', error);
-                    setDebugSessionStatus('Session Restore Failed');
+                    setDebugSessionStatus('Session Restore Failed: ' + error.message);
                 } else {
-                    setDebugSessionStatus('Session Restored (Ready)');
+                    setDebugSessionStatus('Session Restored (Manual)');
                 }
             } else {
                 // Check if already active
