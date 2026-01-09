@@ -156,8 +156,14 @@ const App: React.FC = () => {
         // Handle special cases
         if (viewName === 'landing') {
             navigate('/');
-        } else if (viewName === 'dashboard' && userProfile?.slug) {
-            navigate(`/dashboard/${userProfile.slug}`);
+        } else if (viewName === 'dashboard') {
+            // FIX: Do not redirect to slug if it's the default sample agent (Sarah Johnson)
+            // This prevents new users from seeing "/dashboard/sarah-johnson"
+            if (userProfile?.slug && userProfile.id !== SAMPLE_AGENT.id) {
+                navigate(`/dashboard/${userProfile.slug}`);
+            } else {
+                navigate('/dashboard');
+            }
         } else {
             navigate(`/${viewName}`);
         }
