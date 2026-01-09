@@ -5,11 +5,17 @@ const API_BASE = '/api/funnels';
 
 export const funnelService = {
     async fetchFunnels(userId: string): Promise<Record<string, EditableStep[]>> {
-        // Mock for Demo/Blueprint Mode
+        // Mock for Demo/Blueprint Mode with Local Storage Persistence
         if (userId === 'demo-blueprint' || userId.startsWith('demo-')) {
-            console.log('Using mock funnels for demo user:', userId);
-            // Return empty or default structure to prevent 404
-            return {};
+            console.log('Using local storage funnels for demo user:', userId);
+            try {
+                const key = `hlai_demo_funnels_${userId}`;
+                const saved = localStorage.getItem(key);
+                return saved ? JSON.parse(saved) : {};
+            } catch (e) {
+                console.warn('Failed to load demo funnels from local storage', e);
+                return {};
+            }
         }
 
         try {
@@ -28,12 +34,28 @@ export const funnelService = {
     },
 
     async saveFunnelStep(userId: string, funnelType: string, steps: EditableStep[]): Promise<boolean> {
-        // Mock for Demo/Blueprint Mode
+        // Mock for Demo/Blueprint Mode with Local Storage Persistence
         if (userId === 'demo-blueprint' || userId.startsWith('demo-')) {
-            console.log('Mock saving funnel for demo user:', userId);
-            // Simulate network delay
-            await new Promise(resolve => setTimeout(resolve, 500));
-            return true;
+            console.log('Using local storage save for demo user:', userId);
+            try {
+                // Simulate network delay
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Get existing funnels to merge, or start fresh
+                const key = `hlai_demo_funnels_${userId}`;
+                const existingRaw = localStorage.getItem(key);
+                const existing = existingRaw ? JSON.parse(existingRaw) : {};
+
+                // Update specific funnel type
+                existing[funnelType] = steps;
+
+                localStorage.setItem(key, JSON.stringify(existing));
+                console.log(`Saved demo funnel (${funnelType}) to local storage.`);
+                return true;
+            } catch (e) {
+                console.error('Failed to save demo funnel to local storage', e);
+                return false;
+            }
         }
 
         try {
