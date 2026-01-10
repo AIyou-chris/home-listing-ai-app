@@ -45,8 +45,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   ];
 
   const aiToolsItems = [
-    { to: '/card', icon: 'badge', label: 'AI Business Card' },
-    { to: '/dashboard/agent-training', icon: 'smart_toy', label: 'AI Agent Buddy' },
+    { to: '/ai-card', icon: 'badge', label: 'AI Business Card' },
+    { to: '/ai-training', icon: 'smart_toy', label: 'AI Agent Buddy' },
     { to: '/listings', icon: 'storefront', label: 'AI Listings' },
   ];
 
