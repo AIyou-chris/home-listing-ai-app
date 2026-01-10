@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   ];
 
   const communicationItems = [
-    { to: '/leads', icon: 'bolt', label: 'AI Communication' },
+    { to: '/inbox', icon: 'bolt', label: 'AI Communication' },
   ];
 
   const handleLogoClick = () => {
