@@ -61,20 +61,25 @@ const omitKey = <T,>(map: Record<string, T>, key: string): Record<string, T> => 
   return clone;
 };
 
-
 const sidekickTemplates: SidekickTemplate[] = [
+  // God sidekick removed for production users
+  // {
+  //   id: 'god',
+  //   label: 'God (Ops Overseer)', 
+  //   ...
+  // },
   {
-    id: 'god',
-    label: 'God (Ops Overseer)',
-    description: 'System-wide admin intelligence and decision support.',
-    type: 'god',
-    icon: '🧠',
-    color: '#0EA5E9',
-    defaultName: 'God',
-    defaultVoice: 'nova',
+    id: 'agent',
+    label: 'Agent Sidekick',
+    description: 'Represents the agent voice, tone, and lead interaction style.',
+    type: 'agent',
+    icon: '🤖',
+    color: '#3B82F6',
+    defaultName: 'Agent',
+    defaultVoice: 'alloy',
     personality: {
-      description: 'You are the omniscient admin AI. Calm, precise, and directive. Provide short, actionable guidance with safety in mind.',
-      traits: ['directive', 'calm', 'system-aware'],
+      description: 'You are the agent’s primary sidekick. Use the agent profile, voice, and preferences. Summarize lead notes, appointment outcomes, and funnel status. Keep tone on-brand and concise.',
+      traits: ['professional', 'helpful', 'knowledgeable'],
       preset: 'professional'
     }
   },
@@ -1506,6 +1511,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                         <button
                           key={v}
                           onClick={() => setPersonalityForm(prev => ({ ...prev, voice: v }))}
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
                           className={`px-3 py-2 border rounded-lg text-sm capitalize transition-colors ${(personalityForm as any).voice === v
                             ? 'bg-slate-900 text-white border-slate-900'
                             : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
@@ -1513,6 +1519,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                         >
                           <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined text-base">
+                              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                               {(personalityForm as any).voice === v ? 'volume_up' : 'volume_mute'}
                             </span>
                             {v}

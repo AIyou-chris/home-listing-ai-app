@@ -145,15 +145,15 @@ Your job is to:
 Core objective:
 Deliver a complete, ready-to-train AI system that learns like a real assistant — not just from text, but from behavior, tone, and intent. Detect what we’re missing, make recommendations, and confirm when the AI is truly “trained to perform.”`
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const ADMIN_SIDEKICKS: SidekickOption[] = [
 	{
-		id: 'god',
-		name: 'God (Ops Overseer)',
-		icon: 'security',
-		description: 'App-wide overseer for admin intelligence and decisions',
-		systemPrompt:
-			'You are the omniscient admin AI. Calm, precise, and directive. Provide short, actionable guidance with safety in mind. Protect admin data, avoid agent/demo data, and keep responses scoped to admin workflows.',
-		color: 'bg-sky-100 text-sky-800 border-sky-200'
+		id: 'agent',
+		name: 'Agent',
+		icon: 'robot_2',
+		description: 'Represents the agent voice, tone, and lead interaction style.',
+		systemPrompt: 'You are the agent’s primary sidekick. Use the agent profile, voice, and preferences. Summarize lead notes, appointment outcomes, and funnel status. Keep tone on-brand and concise.',
+		color: 'bg-blue-100 text-blue-800 border-blue-200'
 	},
 	{
 		id: 'sales',
@@ -187,7 +187,16 @@ export const ADMIN_SIDEKICKS: SidekickOption[] = [
 interface TrainingProps {
 	demoMode?: boolean;
 	blueprintMode?: boolean;
-	sidekickTemplatesOverride?: Array<{ id: string; name: string; icon: string; description: string; systemPrompt: string }>;
+	sidekickTemplatesOverride?: Array<{
+		id: string
+		name: string
+		icon: string
+		description: string
+		systemPrompt: string
+		label?: string
+		defaultName?: string
+		personality?: { description: string }
+	}>;
 }
 
 const AIInteractiveTraining: React.FC<TrainingProps> = ({ demoMode = false, blueprintMode = false, sidekickTemplatesOverride }) => {
@@ -346,7 +355,7 @@ const AIInteractiveTraining: React.FC<TrainingProps> = ({ demoMode = false, blue
 
 		try {
 			const conversationHistory = messages.map(msg => ({
-				sender: msg.role === 'assistant' ? 'assistant' : 'user',
+				sender: (msg.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
 				text: msg.content
 			}))
 
