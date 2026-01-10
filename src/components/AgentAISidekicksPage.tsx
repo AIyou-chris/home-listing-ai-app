@@ -26,6 +26,14 @@ const AgentAISidekicksPage: React.FC<AgentAISidekicksPageProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'training'>(initialTab);
 
+    // FILTER FOR SINGLE AGENT (User Request: "Single AI agent... does not have activate")
+    // We strictly filter for the 'agent' ID if overrides are present, or we need to fetch defaults if not.
+    // However, App.tsx passes overrides for Blueprint.
+    // If overrides are present, we filter to 'agent'.
+    const singleAgentList = sidekickTemplatesOverride
+        ? sidekickTemplatesOverride.filter(s => s.id === 'agent')
+        : undefined;
+
     return (
         <div className="flex flex-col h-full bg-slate-50">
             {/* Header with Tabs */}
@@ -71,7 +79,8 @@ const AgentAISidekicksPage: React.FC<AgentAISidekicksPageProps> = ({
                     <div className="h-full overflow-y-auto p-0 md:p-6">
                         <AISidekicks
                             isDemoMode={isDemoMode}
-                            sidekickTemplatesOverride={sidekickTemplatesOverride}
+                            hideLifecycleControls={true} // User Request: "Does not have activate agent sidekick"
+                            sidekickTemplatesOverride={singleAgentList}
                         />
                     </div>
                 ) : (

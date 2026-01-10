@@ -68,7 +68,8 @@ import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
 import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
-import AIInteractiveTraining from './components/AIInteractiveTraining';
+import CombinedTrainingPage from './components/AgentAISidekicksPage';
+// import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
 import FunnelAnalyticsPanel from './components/FunnelAnalyticsPanel';
 
 import { listingsService, CreatePropertyInput } from './services/listingsService';
@@ -1101,7 +1102,7 @@ const App: React.FC = () => {
                     } />
                     <Route path="/demo-dashboard" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
                     <Route path="/dashboard-blueprint" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
-                    <Route path="/agent-blueprint-dashboard" element={<AgentDashboard isDemoMode={true} isBlueprintMode={true} demoListingCount={1} />} />
+                    <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={true} isBlueprintMode={true} demoListingCount={1} />} />
                     <Route path="/demo-showcase" element={<MultiToolShowcase />} />
 
                     <Route path="/admin-login" element={
@@ -1127,6 +1128,11 @@ const App: React.FC = () => {
                     {/* Protected Routes (Wrapped in Layout) */}
                     <Route element={<ProtectedLayout />}>
                         <Route path="/dashboard" element={
+                            isAdmin ? <Navigate to="/admin-dashboard" replace /> :
+                                (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />)
+                        } />
+                        {/* New Primary Dashboard Route */}
+                        <Route path="/daily-pulse" element={
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
                                 (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />)
                         } />
@@ -1170,7 +1176,9 @@ const App: React.FC = () => {
                         <Route path="/ai-conversations" element={<AIConversationsPage isDemoMode={isDemoMode} />} />
                         <Route path="/ai-card" element={<AICardPage isDemoMode={isDemoMode} isBlueprintMode={isBlueprintMode} />} />
                         <Route path="/knowledge-base" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
-                        <Route path="/ai-training" element={<AIInteractiveTraining demoMode={isDemoMode} />} />
+                        <Route path="/ai-training" element={<CombinedTrainingPage isDemoMode={isDemoMode} initialTab="training" />} />
+                        <Route path="/ai-agent" element={<CombinedTrainingPage isDemoMode={isDemoMode} initialTab="overview" />} />
+                        {/* <Route path="/ai-training" element={<AIInteractiveTraining demoMode={isDemoMode} />} /> */}
                         <Route path="/funnel-analytics" element={
                             <FunnelAnalyticsPanel
                                 onBackToDashboard={() => navigate('/dashboard')}

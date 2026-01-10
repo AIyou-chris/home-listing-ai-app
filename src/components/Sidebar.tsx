@@ -39,19 +39,24 @@ const NavItem: React.FC<{
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, isBlueprintMode = false }) => {
   const [isAiToolsOpen, setIsAiToolsOpen] = React.useState(false);
 
+  // BASE PATH LOGIC FOR BLUEPRINT
+  const basePath = isBlueprintMode ? '/agent-blueprint-dashboard' : '';
+
+  const getPath = (path: string) => `${basePath}${path}`;
+
   const primaryItems = [
-    { to: '/dashboard', icon: 'home', label: 'My Daily Pulse' },
-    { to: '/leads', icon: 'groups', label: 'Leads & Appointments' },
+    { to: getPath('/daily-pulse'), icon: 'home', label: 'My Daily Pulse' },
+    { to: getPath('/leads'), icon: 'groups', label: 'Leads & Appointments' },
   ];
 
   const aiToolsItems = [
-    { to: '/ai-card', icon: 'badge', label: 'AI Business Card' },
-    { to: '/ai-training', icon: 'smart_toy', label: 'AI Agent Buddy' },
-    { to: '/listings', icon: 'storefront', label: 'AI Listings' },
+    { to: getPath('/ai-card'), icon: 'badge', label: 'AI Business Card' },
+    { to: getPath('/ai-agent'), icon: 'smart_toy', label: 'AI Agent' },
+    { to: getPath('/listings'), icon: 'storefront', label: 'AI Listings' },
   ];
 
   const communicationItems = [
-    { to: '/inbox', icon: 'bolt', label: 'AI Communication' },
+    { to: getPath('/inbox'), icon: 'bolt', label: 'AI Communication' },
   ];
 
   const handleLogoClick = () => {
@@ -74,7 +79,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
         `}>
         <div className="flex justify-between items-center px-2 mb-6">
           <a
-            href="/"
+            href={isBlueprintMode ? "/agent-blueprint-dashboard" : "/"}
             onClick={handleLogoClick}
             className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg"
           >
@@ -133,7 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
             {/* AI Funnels (Top Level) */}
             <div className="border-t border-slate-100">
               <NavItem
-                to="/funnel-analytics"
+                to={getPath("/funnel-analytics")}
                 icon="monitoring"
                 onClose={onClose}
               >
@@ -158,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
             {/* Settings (Formerly Systems) */}
             <div className="border-t border-slate-100">
               <NavItem
-                to="/settings"
+                to={getPath("/settings")}
                 icon="settings"
                 onClose={onClose}
               >

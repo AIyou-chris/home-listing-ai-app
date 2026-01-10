@@ -32,6 +32,7 @@ import { scrapeWebsite } from '../services/scraperService';
 
 interface AISidekicksProps {
   isDemoMode?: boolean;
+  hideLifecycleControls?: boolean;
   sidekickTemplatesOverride?: SidekickTemplate[];
 }
 
@@ -177,7 +178,7 @@ const mapToKbSidekickId = (id: string, type: string): KbSidekickId => {
   return 'main';
 };
 
-const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickTemplatesOverride }) => {
+const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, hideLifecycleControls = false, sidekickTemplatesOverride }) => {
   const [sidekicks, setSidekicks] = useState<AISidekick[]>([]);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedSidekick, setSelectedSidekick] = useState<AISidekick | null>(null);
@@ -1378,19 +1379,79 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, sidekickT
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-slate-100 flex justify-end">
-                      <button
-                        onClick={() => handleDeleteSidekick(activeSidekick!.id)}
-                        className={`text-xs hover:underline ${isDemoMode ? 'text-slate-500 hover:text-slate-700' : 'text-rose-500 hover:text-rose-700'}`}
-                        disabled={deletingSidekickId === activeSidekick!.id}
-                      >
-                        {deletingSidekickId === activeSidekick!.id ? (isDemoMode ? 'Deactivating…' : 'Deleting…') : (isDemoMode ? 'Deactivate' : 'Deactivate / Delete')}
-                      </button>
-                    </div>
+                    {!hideLifecycleControls && (
+                      <div className="pt-4 border-t border-slate-100 flex justify-end">
+                        <button
+                          onClick={() => handleDeleteSidekick(activeSidekick!.id)}
+                          className={`text-xs hover:underline ${isDemoMode ? 'text-slate-500 hover:text-slate-700' : 'text-rose-500 hover:text-rose-700'}`}
+                          disabled={deletingSidekickId === activeSidekick!.id}
+                        >
+                          {deletingSidekickId === activeSidekick!.id ? (isDemoMode ? 'Deactivating…' : 'Deleting…') : (isDemoMode ? 'Deactivate' : 'Deactivate / Delete')}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             } else {
+              // FORCE ACTIVE if lifecycle controls hidden (Simulate pre-built)
+              if (hideLifecycleControls) {
+                // Auto-render active view by mocking activeSidekick temporarily or just assume it's active.
+                // Actually, if it's not in `sidekicks` array, `activeSidekick` is null.
+                // We need to allow render if hiding controls, effectively forcing the UI to 'Active' state.
+                // But `activeSidekick` object is needed for the UI above.
+                // If we are here, it means `activeSidekick` was NOT found in state. 
+                // So we must fallback to creating a dummy active sidekick from template to render the "Active" view.
+                const dummyActive = mapTemplateToSidekick(template);
+
+                return (
+                  <div key={template.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 h-full flex flex-col">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`px-2 py-0.5 rounded text-xs font-semibold tracking-wide bg-emerald-100 text-emerald-700`}>
+                        ● ACTIVE
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 mb-4">
+                      <div
+                        className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
+                        style={{ backgroundColor: dummyActive.color + '20', color: dummyActive.color }}
+                      >
+                        <span className="material-symbols-outlined">{dummyActive.icon}</span>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-slate-900">{dummyActive.name}</h3>
+                        <p className="text-sm text-slate-600">{dummyActive.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="font-medium text-slate-900 mb-2">Who I am</h4>
+                      <p className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3">
+                        {dummyActive.personality.description}
+                      </p>
+                    </div>
+
+                    {/* Simplified Actions for Prebuilt */}
+                    <div className="flex gap-2 mb-4">
+                      <button
+                        onClick={() => {
+                          // If not in state, we might need to "add" it first? 
+                          // Or simply handle edit on a phantom sidekick.
+                          // Let's just Activate it silently then open edit?
+                          handleActivateSidekick(template);
+                          // We can't open edit immediately but user will see it activate.
+                        }}
+                        className="flex-1 px-3 py-2 text-sm font-medium text-white rounded-lg transition-opacity hover:opacity-90"
+                        style={{ backgroundColor: dummyActive.color }}
+                      >
+                        Customize AI
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               // Check if it was deactivated (for Reactivate UI)
               const deactivatedSidekick = isDemoMode ? sidekicks.find(s => (s.type === template.type || (s.metadata && s.metadata.type === template.type)) && deactivatedIds.has(s.id)) : null;
 

@@ -100,7 +100,35 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     if (!isDemoMode) checkUser();
   }, [isDemoMode, navigate]);
 
-  const [activeView, setActiveView] = useState<View>('dashboard');
+  // Determine initial view from URL
+  const getInitialView = (): View => {
+    const path = window.location.pathname;
+    if (path.includes('/ai-agent')) return 'knowledge-base';
+    if (path.includes('/listings')) return 'listings';
+    if (path.includes('/leads')) return 'leads';
+    if (path.includes('/ai-card')) return 'ai-card';
+    if (path.includes('/inbox')) return 'inbox';
+    if (path.includes('/settings')) return 'settings';
+    if (path.includes('/funnel-analytics')) return 'funnel-analytics';
+    if (path.includes('/marketing-reports')) return 'marketing-reports';
+    if (path.includes('/payments')) return 'payments';
+    if (path.includes('/daily-pulse')) return 'dashboard'; // Mapped /daily-pulse to dashboard view
+    return 'dashboard';
+  };
+
+  const [activeView, setActiveView] = useState<View>(getInitialView());
+
+  // Sync state with URL changes (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveView(getInitialView());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { isImpersonating, stopImpersonating } = useImpersonation();
 
