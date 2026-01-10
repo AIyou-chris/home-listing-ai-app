@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Property, ChatMessage } from '../types';
 import { SAMPLE_SCHOOLS } from '../constants';
-import { answerPropertyQuestion } from '../services/geminiService';
+import { answerPropertyQuestion } from '../services/openaiService';
 
 // --- Reusable Modal Component ---
 const Modal: React.FC<{ title: React.ReactNode; onClose: () => void; children: React.ReactNode; }> = ({ title, onClose, children }) => (
@@ -157,7 +157,7 @@ export const VoiceAssistantModal: React.FC<{ property: Property, onClose: () => 
         setMessages(prev => [...prev, newAiMessage]);
         setStatus('idle');
     }, [status, property]);
-    
+
     const handleMicClick = () => {
         if (status === 'idle') {
             setStatus('listening');
@@ -177,14 +177,14 @@ export const VoiceAssistantModal: React.FC<{ property: Property, onClose: () => 
                 <main ref={chatContainerRef} className="flex-grow p-4 space-y-4 overflow-y-auto bg-slate-50">
                     {messages.map((msg, index) => (
                         <div key={index} className={`flex items-start gap-2.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                           <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl shadow-sm text-sm ${msg.sender === 'user' ? 'bg-primary-600 text-white' : 'bg-slate-200 text-slate-800'}`}>
-                               {msg.text}
-                           </div>
+                            <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl shadow-sm text-sm ${msg.sender === 'user' ? 'bg-primary-600 text-white' : 'bg-slate-200 text-slate-800'}`}>
+                                {msg.text}
+                            </div>
                         </div>
                     ))}
                     {status === 'processing' && <div className="px-4 py-2.5 bg-slate-200 rounded-2xl w-fit"><div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse"></div></div>}
                 </main>
-                 <footer className="p-3 bg-slate-100 border-t">
+                <footer className="p-3 bg-slate-100 border-t">
                     <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(userInput); }} className="flex items-center gap-2">
                         <button
                             type="button"
@@ -195,7 +195,7 @@ export const VoiceAssistantModal: React.FC<{ property: Property, onClose: () => 
                         >
                             <span className="material-symbols-outlined text-xl">mic</span>
                         </button>
-                        <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Type or tap mic..." className="w-full bg-white border rounded-full py-2 px-4" disabled={status !== 'idle'}/>
+                        <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Type or tap mic..." className="w-full bg-white border rounded-full py-2 px-4" disabled={status !== 'idle'} />
                         <button type="submit" className="p-2.5 rounded-full bg-primary-600 text-white disabled:bg-slate-300" disabled={!userInput.trim() || status !== 'idle'} aria-label="Send message">
                             <span className="material-symbols-outlined text-xl">send</span>
                         </button>
@@ -212,31 +212,31 @@ export const VoiceAssistantModal: React.FC<{ property: Property, onClose: () => 
 type ActiveModalType = 'schools' | 'financing' | 'schedule' | 'save' | 'share' | 'voice' | null;
 
 interface ListingAppModalsProps {
-  activeModal: ActiveModalType;
-  onClose: () => void;
-  property: Property;
+    activeModal: ActiveModalType;
+    onClose: () => void;
+    property: Property;
 }
 
 export const ListingAppModals: React.FC<ListingAppModalsProps> = ({ activeModal, onClose, property }) => {
-  if (!activeModal) {
-    return null;
-  }
+    if (!activeModal) {
+        return null;
+    }
 
-  switch (activeModal) {
-    case 'schools':
-      return <SchoolsModal onClose={onClose} />;
-    case 'financing':
-      return <FinancingModal propertyPrice={property.price} onClose={onClose} />;
-    case 'schedule':
-      return <ScheduleModal onClose={onClose} />;
-    case 'save':
-      return <SaveModal onClose={onClose} />;
-    case 'share':
-      return <ShareModal onClose={onClose} />;
-    case 'voice':
-      // Voice chat disabled
-      return null;
-    default:
-      return null;
-  }
+    switch (activeModal) {
+        case 'schools':
+            return <SchoolsModal onClose={onClose} />;
+        case 'financing':
+            return <FinancingModal propertyPrice={property.price} onClose={onClose} />;
+        case 'schedule':
+            return <ScheduleModal onClose={onClose} />;
+        case 'save':
+            return <SaveModal onClose={onClose} />;
+        case 'share':
+            return <ShareModal onClose={onClose} />;
+        case 'voice':
+            // Voice chat disabled
+            return null;
+        default:
+            return null;
+    }
 };

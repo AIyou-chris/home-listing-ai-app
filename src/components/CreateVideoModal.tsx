@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Property, MarketingVideo } from '../types';
 import Modal from './Modal';
-import { generateVideoScript } from '../services/geminiService';
+import { generateVideoScript } from '../services/openaiService';
 
 interface CreateVideoModalProps {
   properties: Property[];
@@ -27,7 +27,7 @@ const CreateVideoModal: React.FC<CreateVideoModalProps> = ({ properties, onClose
         .map(p => typeof p === 'string' ? p : URL.createObjectURL(p));
       setSelectedPhotoUrls(initialPhotos);
     } else {
-        setSelectedPhotoUrls([]);
+      setSelectedPhotoUrls([]);
     }
     setScript('');
   }, [selectedProperty]);
@@ -69,7 +69,7 @@ const CreateVideoModal: React.FC<CreateVideoModalProps> = ({ properties, onClose
     onSave(newVideo);
     onClose();
   };
-  
+
   const allPhotos = useMemo(() => {
     if (!selectedProperty || !selectedProperty.galleryPhotos) return [];
     return selectedProperty.galleryPhotos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p));
@@ -77,8 +77,8 @@ const CreateVideoModal: React.FC<CreateVideoModalProps> = ({ properties, onClose
 
   const titleNode = (
     <div className="flex items-center gap-3">
-        <span className="material-symbols-outlined w-6 h-6 text-primary-600">videocam</span>
-        <h3 className="text-xl font-bold text-slate-800">Create Social Media Video</h3>
+      <span className="material-symbols-outlined w-6 h-6 text-primary-600">videocam</span>
+      <h3 className="text-xl font-bold text-slate-800">Create Social Media Video</h3>
     </div>
   );
 
@@ -104,73 +104,73 @@ const CreateVideoModal: React.FC<CreateVideoModalProps> = ({ properties, onClose
 
           {/* Step 2: Select Photos */}
           {allPhotos.length > 0 && (
-              <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">2. Select Photos & Videos (up to 10)</label>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {allPhotos.map(url => (
-                          <button
-                              key={url}
-                              type="button"
-                              onClick={() => handlePhotoSelect(url)}
-                              className={`relative aspect-square rounded-lg overflow-hidden border-4 ${selectedPhotoUrls.includes(url) ? 'border-primary-500' : 'border-transparent'}`}
-                          >
-                              <img src={url} alt="Selectable property media" className="w-full h-full object-cover" />
-                              {selectedPhotoUrls.includes(url) && (
-                                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                      <span className="material-symbols-outlined text-white text-3xl">check_circle</span>
-                                  </div>
-                              )}
-                          </button>
-                      ))}
-                  </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">2. Select Photos & Videos (up to 10)</label>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {allPhotos.map(url => (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => handlePhotoSelect(url)}
+                    className={`relative aspect-square rounded-lg overflow-hidden border-4 ${selectedPhotoUrls.includes(url) ? 'border-primary-500' : 'border-transparent'}`}
+                  >
+                    <img src={url} alt="Selectable property media" className="w-full h-full object-cover" />
+                    {selectedPhotoUrls.includes(url) && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-white text-3xl">check_circle</span>
+                      </div>
+                    )}
+                  </button>
+                ))}
               </div>
+            </div>
           )}
 
           {/* Step 3: Script */}
           <div>
-              <label htmlFor="script" className="block text-sm font-semibold text-slate-700 mb-1.5">3. Edit Script</label>
-              <textarea
-                  id="script"
-                  rows={5}
-                  value={script}
-                  onChange={(e) => setScript(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
-                  placeholder="Video script will appear here..."
-              />
-              <button
-                  type="button"
-                  onClick={handleGenerateScript}
-                  disabled={isGeneratingScript || !selectedProperty}
-                  className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:bg-slate-400"
-              >
-                  <span className="material-symbols-outlined w-4 h-4">sparkles</span>
-                  <span>{isGeneratingScript ? 'Generating...' : 'Generate Script with AI'}</span>
-              </button>
+            <label htmlFor="script" className="block text-sm font-semibold text-slate-700 mb-1.5">3. Edit Script</label>
+            <textarea
+              id="script"
+              rows={5}
+              value={script}
+              onChange={(e) => setScript(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
+              placeholder="Video script will appear here..."
+            />
+            <button
+              type="button"
+              onClick={handleGenerateScript}
+              disabled={isGeneratingScript || !selectedProperty}
+              className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:bg-slate-400"
+            >
+              <span className="material-symbols-outlined w-4 h-4">sparkles</span>
+              <span>{isGeneratingScript ? 'Generating...' : 'Generate Script with AI'}</span>
+            </button>
           </div>
 
           {/* Step 4: Music */}
           <div>
-              <label htmlFor="music" className="block text-sm font-semibold text-slate-700 mb-1.5">4. Select Music</label>
-              <select
-                  id="music"
-                  value={music}
-                  onChange={(e) => setMusic(e.target.value)}
-                  className="w-full appearance-none bg-white px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                  <option>Uplifting</option>
-                  <option>Cinematic</option>
-                  <option>Ambient</option>
-                  <option>Upbeat Pop</option>
-              </select>
+            <label htmlFor="music" className="block text-sm font-semibold text-slate-700 mb-1.5">4. Select Music</label>
+            <select
+              id="music"
+              value={music}
+              onChange={(e) => setMusic(e.target.value)}
+              className="w-full appearance-none bg-white px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option>Uplifting</option>
+              <option>Cinematic</option>
+              <option>Ambient</option>
+              <option>Upbeat Pop</option>
+            </select>
           </div>
         </div>
         <div className="flex justify-end items-center px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-xl">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition mr-2">
-                Cancel
-            </button>
-            <button type="submit" className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition">
-                Generate Video
-            </button>
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition mr-2">
+            Cancel
+          </button>
+          <button type="submit" className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition">
+            Generate Video
+          </button>
         </div>
       </form>
     </Modal>

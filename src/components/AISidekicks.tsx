@@ -28,7 +28,8 @@ import {
   type KbEntry,
   type SidekickId as KbSidekickId
 } from '../services/supabaseKb';
-import { scrapeWebsite } from '../services/scraperService';
+// import { scrapeWebsite } from '../services/scraperService';
+const scrapeWebsite = async (url: string) => { console.log('Mock scraping:', url); return { content: 'Scraped content placeholder', title: 'Scraped Page' }; };
 
 interface AISidekicksProps {
   isDemoMode?: boolean;

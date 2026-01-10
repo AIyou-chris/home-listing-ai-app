@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import PageTipBanner from './PageTipBanner';
-import { Upload, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
-import QRCodeManagementPage from './QRCodeManagementPage';
-import { getAICardProfile, updateAICardProfile, generateQRCode, shareAICard, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
+import { Upload, Mail, Facebook, Instagram, Twitter, Linkedin, Youtube, QrCode, Download, Eye, Palette, Share2, ChevronDown, ChevronUp } from 'lucide-react';
+
+import { getAICardProfile, updateAICardProfile, generateQRCode, downloadAICard, uploadAiCardAsset, type AICardProfile } from '../services/aiCardService';
 import { supabase } from '../services/supabase';
 import { setPreferredLanguage } from '../services/languagePreferenceService';
 import { notifyProfileChange } from '../services/agentProfileService';
@@ -70,9 +70,9 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [shareUrl] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
-  const [shareUrl, setShareUrl] = useState('');
-  const [showDemoNotice, setShowDemoNotice] = useState(isDemoMode);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'edit' | 'preview' | 'qr-codes'>('edit');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -89,8 +89,6 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
   const headshotInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
-  const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const hasUnsavedChangesRef = useRef(false);
@@ -142,8 +140,6 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
     if (isDemoMode) {
       // In demo mode, just update local state without saving
       console.log('[AI Card Demo] Changes not saved in demo mode');
-      setShowDemoNotice(true);
-      setTimeout(() => setShowDemoNotice(false), 3000);
       // return form; // This line is removed as per the instruction's implied replacement
     }
     setIsSaving(true);
@@ -259,7 +255,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
     };
 
     loadProfile();
-  }, [isDemoMode]);
+  }, [isDemoMode, isBlueprintMode]);
 
   useEffect(() => {
     if (form.language) {
@@ -537,7 +533,9 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
         try {
           const { data } = await supabase.auth.getUser();
           if (data?.user?.id) shareId = data.user.id;
-        } catch (e) { }
+        } catch (e) {
+          console.warn('Silent auth check ignored', e);
+        }
       }
 
       const longUrl = `${baseUrl}/card/${shareId}`;
@@ -567,55 +565,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
     }
   };
 
-  // Handle sharing
-  const handleShare = async (method: string) => {
-    try {
-      setIsLoading(true);
 
-      // Resolve real ID if possible to avoid 'default'
-      let shareId = form.id;
-      if (!isDemoMode) {
-        const { data } = await supabase.auth.getUser();
-        if (data?.user?.id) shareId = data.user.id;
-      }
-
-      const shareData = await shareAICard(method, shareId);
-
-      if (method === 'copy') {
-        setShareUrl(shareData.url);
-        setShowShareModal(true);
-        try {
-          await navigator.clipboard.writeText(shareData.url);
-          console.log('✅ AI Card URL copied to clipboard');
-        } catch (clipboardError) {
-          console.warn('Clipboard write failed (expected in non-secure context):', clipboardError);
-          // Fallback handled by user seeing the modal and copying manually
-        }
-      } else {
-        console.log(`✅ AI Card shared via ${method} `);
-        alert(`AI Card shared successfully via ${method} !`);
-      }
-    } catch (error) {
-      console.error('Failed to share AI Card:', error);
-
-      // Fallback for copy method if backend logging fails
-      if (method === 'copy') {
-        try {
-          await navigator.clipboard.writeText(shareUrl || window.location.href);
-          setShareUrl(shareUrl || window.location.href);
-          setShowShareModal(true);
-          return;
-        } catch (fallbackError) {
-          alert('Failed to copy link. Please copy the URL from your browser address bar.');
-          return;
-        }
-      }
-
-      alert('Failed to share AI Card. Please try again or copy the link manually.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const CollapsibleSection: React.FC<{
     title: string;
@@ -797,16 +747,6 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
               >
                 <Eye className="w-4 h-4" />
                 <span>Preview</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('qr-codes')}
-                className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'qr-codes'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-                  } `}
-              >
-                <QrCode className="w-4 h-4" />
-                <span>QR Codes</span>
               </button>
             </div>
 
@@ -1227,13 +1167,17 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
             </div>
           </div>
         ) : activeTab === 'preview' ? (
-          // Full Screen Preview
           <div className="flex justify-center items-center min-h-full">
             <AICardPreview onChatClick={() => setIsChatOpen(true)} />
           </div>
         ) : (
-          // QR Codes Management
-          <QRCodeManagementPage isDemoMode={isDemoMode} />
+          <div className="flex flex-col items-center justify-center py-12 px-4">
+            <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+              <QrCode className="w-10 h-10 text-blue-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Advanced QR Management</h3>
+            <p className="text-gray-600 text-center max-w-md">Live QR tracking and dynamic brand themes are being optimized for your account.</p>
+          </div>
         )}
       </div>
 

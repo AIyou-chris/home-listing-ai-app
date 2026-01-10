@@ -13,7 +13,7 @@ import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardPage from './AICardPage';
 import MarketingReportsPage from './MarketingReportsPage';
-import PaymentsAndStorePage from './PaymentsAndStorePage';
+
 import { MarketingHub } from './MarketingHub';
 
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
@@ -865,15 +865,15 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           <SettingsPage
             userId={agentProfile.slug ?? 'blueprint-agent'}
             userProfile={agentProfile}
-            onSaveProfile={setAgentProfile}
+            onSaveProfile={async (profile) => setAgentProfile(profile)}
             notificationSettings={notificationSettings}
-            onSaveNotifications={setNotificationSettings}
+            onSaveNotifications={async (settings) => setNotificationSettings(settings)}
             emailSettings={emailSettings}
-            onSaveEmailSettings={setEmailSettings}
+            onSaveEmailSettings={async (settings) => setEmailSettings(settings)}
             calendarSettings={calendarSettings}
-            onSaveCalendarSettings={setCalendarSettings}
+            onSaveCalendarSettings={async (settings) => setCalendarSettings(settings)}
             billingSettings={billingSettings}
-            onSaveBillingSettings={setBillingSettings}
+            onSaveBillingSettings={async (settings) => setBillingSettings(settings)}
             onBackToDashboard={resetToDashboard}
             onNavigateToAICard={() => setActiveView('ai-card')}
             isDemoMode={isDemoMode}
@@ -890,13 +890,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             properties={properties}
           />
         );
-      case 'payments':
-        return (
-          <PaymentsAndStorePage
-            agentProfile={agentProfile}
-            onBackToDashboard={resetToDashboard}
-          />
-        );
+
 
       default:
         return (

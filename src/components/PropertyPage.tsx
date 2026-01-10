@@ -1,13 +1,11 @@
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Property, isAIDescription } from '../types';
-import { generatePropertyDescription } from '../services/geminiService';
+import { generatePropertyDescription } from '../services/openaiService';
 
 interface PropertyPageProps {
   property: Property;
   setProperty: (updatedProperty: Property) => void;
   onBack: () => void;
-  isDemoMode?: boolean;
   leadCount?: number;
 }
 
@@ -278,7 +276,6 @@ const PropertyStats: React.FC<{ bedrooms: number, bathrooms: number, squareFeet:
 );
 
 const AIDescriptionSection: React.FC<{ description: Property['description'], onGenerate: () => void, isGenerating: boolean }> = ({ description, onGenerate, isGenerating }) => {
-  const [isOpen, setIsOpen] = useState(true); // Default open for marketing page
   return (
     <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-6 sm:p-8 mt-8 border border-slate-100">
       <div className="flex justify-between items-center mb-5 gap-4">
@@ -344,7 +341,7 @@ const KeyFeaturesSection: React.FC<{ features: string[] }> = ({ features }) => {
   );
 };
 
-const PropertyPage: React.FC<PropertyPageProps> = ({ property, setProperty, onBack, isDemoMode = false, leadCount }) => {
+const PropertyPage: React.FC<PropertyPageProps> = ({ property, setProperty, onBack, leadCount }) => {
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
 
   const handleGenerateDescription = useCallback(async () => {

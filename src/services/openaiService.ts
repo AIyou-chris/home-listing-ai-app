@@ -18,7 +18,7 @@ interface ContinueConversationOptions {
 }
 
 export const continueConversation = async (
-  messages: Array<{ sender: string; text: string }>, 
+  messages: Array<{ sender: string; text: string }>,
   sidekick?: string,
   options?: ContinueConversationOptions
 ): Promise<string> => {
@@ -77,12 +77,12 @@ export const continueConversation = async (
  * @returns A promise that resolves to an object containing the audio URL and duration
  */
 export const generateSpeech = async (
-  text: string, 
+  text: string,
   voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova'
 ): Promise<{ audioUrl: string; duration: number; fallback?: boolean }> => {
   try {
     console.log("🎤 Generating speech with OpenAI:", { text: text.substring(0, 50) + '...', voice });
-    
+
     const apiBase = getApiBaseUrl() || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL
     const response = await fetch(`${apiBase}/api/generate-speech`, {
       method: 'POST',
@@ -95,7 +95,7 @@ export const generateSpeech = async (
     if (!response.ok) {
       const errorData = await response.json();
       console.error("❌ OpenAI speech error:", errorData);
-      
+
       // Fallback to browser speech synthesis
       return {
         audioUrl: '',
@@ -107,13 +107,13 @@ export const generateSpeech = async (
     // Create audio blob from response
     const audioBlob = await response.blob();
     const audioUrl = URL.createObjectURL(audioBlob);
-    
+
     // Estimate duration (rough calculation: ~150 words per minute)
     const wordCount = text.split(' ').length;
     const estimatedDuration = (wordCount / 150) * 60;
-    
+
     console.log("✅ OpenAI speech generated successfully");
-    
+
     return {
       audioUrl,
       duration: estimatedDuration,
@@ -121,7 +121,7 @@ export const generateSpeech = async (
     };
   } catch (error) {
     console.error("❌ Error generating OpenAI speech:", error);
-    
+
     // Fallback to browser speech synthesis
     return {
       audioUrl: '',
@@ -144,4 +144,108 @@ export const generateImage = async (
     console.error('Error generating image:', error);
     throw new Error('Failed to generate image');
   }
+};
+
+// --- Added Methods to Replace GeminiService ---
+
+import { Property, SocialPlatform, AIBlogPost } from '../types';
+
+export const generateVideoScript = async (property: Property): Promise<string> => {
+  const prompt = `Write a compelling 30-60 second video script for a real estate listing video.
+  
+  Property Details:
+  Address: ${property.address}
+  Bedrooms: ${property.bedrooms}
+  Bathrooms: ${property.bathrooms}
+  Square Feet: ${property.squareFeet}
+  Features: ${property.features.join(', ')}
+  
+  Tone: Professional, inviting, and energetic.
+  Format: separate Visual and Audio cues.`;
+
+  return await continueConversation([{ sender: 'user', text: prompt }]);
+};
+
+export const generatePropertyDescription = async (property: Property): Promise<string> => {
+  const prompt = `Write a captivating real estate listing description for the following property.
+  
+  Address: ${property.address}
+  Specs: ${property.bedrooms} beds, ${property.bathrooms} baths, ${property.squareFeet} sqft
+  Price: $${property.price.toLocaleString()}
+  Key Features: ${property.features.join(', ')}
+  
+  The description should be engaging, highlighting the best features, and clear.`;
+
+  return await continueConversation([{ sender: 'user', text: prompt }]);
+};
+
+export const generateSocialPostText = async (property: Property, platforms: SocialPlatform[]): Promise<string> => {
+  const platformNames = platforms.join(', ');
+  const prompt = `Write a social media post for ${platformNames} for this property:
+  ${property.address}
+  ${property.bedrooms} Bed / ${property.bathrooms} Bath
+  ${property.features.slice(0, 3).join(', ')}
+  
+  Include relevant hashtags and emojis. Keep it punchy.`;
+
+  return await continueConversation([{ sender: 'user', text: prompt }]);
+};
+
+export const answerPropertyQuestion = async (property: Property, question: string, history: { sender: string; text: string }[] = []): Promise<string> => {
+  const systemContext = `You are a helpful real estate assistant answering questions about a specific property at ${property.address}.
+  Property Details:
+  Price: $${property.price}
+  Size: ${property.squareFeet} sqft
+  Beds/Baths: ${property.bedrooms}/${property.bathrooms}
+  Features: ${property.features.join(', ')}
+  
+  Answer the user's question accurately based on this data. If you don't know, say so.`;
+
+  const messages = [
+    { sender: 'system', text: systemContext },
+    ...history,
+    { sender: 'user', text: question }
+  ];
+
+  return await continueConversation(messages);
+};
+
+export const generateBlogPost = async (options: {
+  topic: string;
+  keywords: string;
+  tone: string;
+  style: string;
+  audience: string;
+  cta: string;
+}): Promise<AIBlogPost> => {
+  const prompt = `Write a blog post about "${options.topic}".
+  Keywords: ${options.keywords}
+  Tone: ${options.tone}
+  Target Audience: ${options.audience}
+  Call to Action: ${options.cta}
+  
+  Return the response as a JSON object with "title" and "body" fields.`;
+
+  const response = await continueConversation([{ sender: 'user', text: prompt }]);
+
+  try {
+    // Attempt to parse JSON if the model returns it
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        title: parsed.title || `Blog Post: ${options.topic}`,
+        body: parsed.body || response,
+        topic: options.topic
+      } as AIBlogPost;
+    }
+  } catch (e) {
+    console.warn('Failed to parse blog post JSON, returning raw text');
+  }
+
+  return {
+    title: `Blog: ${options.topic}`,
+    body: response,
+    topic: options.topic
+  } as AIBlogPost;
 };

@@ -1085,6 +1085,10 @@ const App: React.FC = () => {
                             <PublicAICard />
                         </Suspense>
                     } />
+                    <Route path="/demo-dashboard" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
+                    <Route path="/dashboard-blueprint" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
+                    <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={true} isBlueprintMode={true} demoListingCount={1} />} />
+                    <Route path="/demo-showcase" element={<MultiToolShowcase />} />
 
                     {/* Demo Dashboard */}
                     <Route path="/admin" element={
@@ -1100,11 +1104,6 @@ const App: React.FC = () => {
                             <Navigate to="/" />
                         )
                     } />
-                    <Route path="/demo-dashboard" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
-                    <Route path="/dashboard-blueprint" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
-                    <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={true} isBlueprintMode={true} demoListingCount={1} />} />
-                    <Route path="/demo-showcase" element={<MultiToolShowcase />} />
-
                     <Route path="/admin-login" element={
                         <AdminLogin
                             onLogin={handleAdminLogin}
@@ -1131,7 +1130,6 @@ const App: React.FC = () => {
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
                                 (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />)
                         } />
-                        {/* New Primary Dashboard Route */}
                         <Route path="/daily-pulse" element={
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
                                 (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />)
@@ -1148,7 +1146,7 @@ const App: React.FC = () => {
                         } />
 
                         <Route path="/property" element={
-                            selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => navigate('/listings')} isDemoMode={isDemoMode} leadCount={leads.filter(l => l.interestedProperties?.includes(selectedProperty.id)).length} /> : <Navigate to="/listings" />
+                            selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => navigate('/listings')} leadCount={leads.filter(l => l.interestedProperties?.includes(selectedProperty.id)).length} /> : <Navigate to="/listings" />
                         } />
 
                         <Route path="/leads" element={
@@ -1194,15 +1192,15 @@ const App: React.FC = () => {
                             <SettingsPage
                                 userId={user?.uid ?? 'guest-agent'}
                                 userProfile={userProfile}
-                                onSaveProfile={setUserProfile}
+                                onSaveProfile={async (profile) => setUserProfile(profile)}
                                 notificationSettings={notificationSettings}
-                                onSaveNotifications={setNotificationSettings}
+                                onSaveNotifications={async (settings) => setNotificationSettings(settings)}
                                 emailSettings={emailSettings}
-                                onSaveEmailSettings={setEmailSettings}
+                                onSaveEmailSettings={async (settings) => setEmailSettings(settings)}
                                 calendarSettings={calendarSettings}
-                                onSaveCalendarSettings={setCalendarSettings}
+                                onSaveCalendarSettings={async (settings) => setCalendarSettings(settings)}
                                 billingSettings={billingSettings}
-                                onSaveBillingSettings={setBillingSettings}
+                                onSaveBillingSettings={async (settings) => setBillingSettings(settings)}
                                 onBackToDashboard={() => navigate('/dashboard')}
                                 onNavigateToAICard={() => navigate('/ai-card')}
                             />
