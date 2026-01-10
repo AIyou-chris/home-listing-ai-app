@@ -306,13 +306,12 @@ const App: React.FC = () => {
                 currentPath.includes('/demo-') ||
                 currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard');
 
-            if (isPublicRoute) {
-                console.log('🔓 Public route detected, unblocking UI immediately.');
-                setIsLoading(false);
+            // Force Blueprint Mode handling if on that route specifically
+            if (currentPath.includes('blueprint')) {
+                if (!isBlueprintMode) handleEnterBlueprintMode();
+            }
 
-                if (currentPath.startsWith('/agent-blueprint-dashboard')) {
-                    handleEnterBlueprintMode();
-                }
+            if (isPublicRoute) {
 
                 // We typically just let the router handle the view based on URL,
                 // but for compatibility we set 'view' for the old renderer if needed
@@ -487,6 +486,7 @@ const App: React.FC = () => {
             clearTimeout(safetyTimer);
             subscription.unsubscribe();
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [navigate, setView]);
 
     // --- FORCE ADMIN REDIRECT ---
