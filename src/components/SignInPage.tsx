@@ -50,12 +50,12 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                 password
             });
 
-            const timeoutPromise = new Promise<{ error: any; data?: any }>((_, reject) =>
-                setTimeout(() => reject(new Error('Sign-in timed out. Please check your connection and try again.')), 15000)
+            const timeoutPromise = new Promise<{ error: any; data?: any }>((_, reject) => // eslint-disable-line @typescript-eslint/no-explicit-any
+                setTimeout(() => reject(new Error('Sign-in timed out. Please check your connection and try again.')), 30000)
             );
 
             // Force cast to any to handle the race result mixture
-            const result = await Promise.race([signInPromise, timeoutPromise]) as any;
+            const result = await Promise.race([signInPromise, timeoutPromise]) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
             if (result.error) {
                 console.error('❌ Sign In Error:', result.error);

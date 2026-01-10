@@ -427,7 +427,18 @@ const App: React.FC = () => {
                     setUserProfile(propertiesToLoad[0].agent);
                 } else {
                     // New/Empty user
-                    console.log('🆕 No properties. Initializing empty profile.');
+                    console.log('🆕 No properties. Initializing empty profile with auth data.');
+                    const generatedSlug = currentUser.displayName
+                        ? currentUser.displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+                        : `agent-${currentUser.uid.substring(0, 8)}`;
+
+                    setUserProfile({
+                        ...SAMPLE_AGENT,
+                        name: currentUser.displayName || 'Agent',
+                        slug: generatedSlug,
+                        email: currentUser.email || '',
+                        id: currentUser.uid,
+                    });
                 }
 
             } catch (err) {
@@ -517,7 +528,7 @@ const App: React.FC = () => {
                 unsubscribe();
             };
         }
-    }, [user, isDemoMode]);
+    }, [user, isDemoMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleNavigateToSignUp = () => navigate('/signup');
     const handleNavigateToSignIn = () => navigate('/signin');
@@ -553,7 +564,8 @@ const App: React.FC = () => {
     // Load listings from backend
     const loadListingsFromBackend = async () => {
         try {
-            const response = await fetch('/api/listings');
+            if (!user?.id) return;
+            const response = await fetch(`/api/listings?userId=${user.id}`);
             if (response.ok) {
                 const data: { listings?: BackendListing[] } = await response.json();
                 // Convert backend format to frontend format
@@ -993,7 +1005,7 @@ const App: React.FC = () => {
 
     const ProtectedLayout = () => (
         <div className="flex h-screen bg-slate-50">
-            <Sidebar activeView={view} setView={setView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
             <div className="flex-1 flex flex-col overflow-hidden">
                 <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
                     <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">

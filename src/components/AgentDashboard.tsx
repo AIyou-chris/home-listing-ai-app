@@ -185,31 +185,54 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
     const loadProperties = async () => {
       setIsLoadingProperties(true);
+
+      // Safety Timeout to prevent eternal loading
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Property load timeout')), 15000)
+      );
+
       try {
-        console.log('DEBUG: loadProperties', { isDemoMode, demoListingCount, demoPropsLength: DEMO_FAT_PROPERTIES.length });
+        console.log('DEBUG: loadProperties', { isDemoMode, demoListingCount });
+
         if (isDemoMode) {
           if (isBlueprintMode) {
             setProperties(BLUEPRINT_PROPERTIES);
             return;
           }
           const sliced = DEMO_FAT_PROPERTIES.slice(0, demoListingCount);
-          console.log('DEBUG: sliced properties', sliced.length);
           setProperties(sliced.map((property, index) => cloneDemoProperty(property, index)));
           return;
         }
-        const list = await listingsService.listProperties();
+
+        // Get User ID explicitly to ensure filter works
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          console.warn("⚠️ No authenticated user found for dashboard listing load.");
+          // If no user, maybe we should not load? Or empty?
+          if (isMounted) setProperties([]);
+          return;
+        }
+
+        // Fetch with Safe Race
+        const listPromise = listingsService.listProperties(user.id);
+        const list = await Promise.race([listPromise, timeoutPromise]) as Property[];
+
         if (!isMounted) return;
-        if (list.length > 0) {
+        if (list && list.length > 0) {
           setProperties(list);
         } else {
           setProperties([]);
         }
       } catch (error) {
-        notifyApiError({
-          title: 'Could not load listings',
-          description: 'Could not load listings. Please refresh to try again.',
-          error
-        });
+        console.error("Listing Load Error:", error);
+        // Only notify if it's a real error, not just a timeout
+        if ((error as Error).message !== 'Property load timeout') {
+          notifyApiError({
+            title: 'Could not load listings',
+            description: 'Could not load listings. Please refresh to try again.',
+            error
+          });
+        }
         if (isMounted) {
           setProperties([]);
         }
@@ -907,8 +930,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       {/* Only render Sidebar in Demo/Standalone mode */}
       {!isIntegrated && (
         <Sidebar
-          activeView={activeView}
-          setView={setActiveView}
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(!isSidebarOpen)}
           isDemoMode={isDemoMode}

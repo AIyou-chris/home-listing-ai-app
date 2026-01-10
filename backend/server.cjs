@@ -3658,43 +3658,7 @@ app.get('/api/admin/users', verifyAdmin, async (req, res) => {
 });
 
 // Get all listings (Persist to DB)
-app.get('/api/listings', async (req, res) => {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('properties')
-      .select('*')
-      .order('listing_date', { ascending: false });
 
-    if (error) {
-      throw error;
-    }
-
-    // Map DB schema to frontend expected format
-    const listings = data.map(item => ({
-      id: item.id,
-      address: item.address,
-      price: parseFloat(item.price),
-      bedrooms: item.bedrooms,
-      bathrooms: item.bathrooms,
-      sqft: item.sqft,
-      propertyType: item.property_type,
-      status: item.status,
-      description: item.description,
-      listingDate: item.listing_date,
-      heroPhotos: item.hero_photos || [],
-      galleryPhotos: item.gallery_photos || [],
-      features: item.features || [],
-      marketing: item.marketing_stats,
-      agent: { id: item.user_id, name: 'Agent Name Placeholder' }, // Placeholder, ideally join with agents table
-      ownerId: item.user_id
-    }));
-
-    res.json(listings);
-  } catch (error) {
-    console.error('Get listings error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Create new listing (Persist to DB)
 app.post('/api/listings', async (req, res) => {

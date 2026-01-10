@@ -1,11 +1,9 @@
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 import { LogoWithName } from './LogoWithName';
 import { adminAuthService } from '../services/adminAuthService';
-import { View } from '../types';
 
 interface SidebarProps {
-  activeView: View;
-  setView: (view: View) => void;
   isOpen: boolean;
   onClose: () => void;
   isDemoMode?: boolean;
@@ -18,60 +16,46 @@ const Icon: React.FC<{ name: string; className?: string }> = ({ name, className 
 
 
 const NavItem: React.FC<{
-  viewName: View;
-  activeView: View;
-  setView: (view: View) => void;
+  to: string;
   icon: string;
   children: React.ReactNode;
   onClose: () => void;
-}> = ({ viewName, activeView, setView, icon, children, onClose }) => {
-  const isListingsActive = viewName === 'listings' && (activeView === 'listings' || activeView === 'property' || activeView === 'add-listing');
-  const isLeadsActive = viewName === 'leads' && activeView === 'leads';
-  const isAiCardActive = viewName === 'ai-card' && (activeView === 'ai-card' || activeView === 'inbox');
-
-  const isActive = activeView === viewName || isListingsActive || isLeadsActive || isAiCardActive;
-
+}> = ({ to, icon, children, onClose }) => {
   return (
-    <button
-      onClick={() => {
-        setView(viewName);
-        onClose();
-      }}
-      className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${isActive
+    <NavLink
+      to={to}
+      onClick={onClose}
+      className={({ isActive }) => `flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${isActive
         ? 'bg-primary-600 font-semibold text-white shadow-sm'
         : 'font-medium text-slate-600 hover:bg-slate-100'
         }`}
     >
-      <Icon name={icon} className={`transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`} />
+      <Icon name={icon} className="transition-colors" />
       <span>{children}</span>
-    </button>
+    </NavLink>
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose, isDemoMode = false, isBlueprintMode = false }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, isBlueprintMode = false }) => {
   const [isAiToolsOpen, setIsAiToolsOpen] = React.useState(false);
 
   const primaryItems = [
-    { view: 'dashboard', icon: 'home', label: 'My Daily Pulse' },
-    { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
+    { to: '/dashboard', icon: 'home', label: 'My Daily Pulse' },
+    { to: '/leads', icon: 'groups', label: 'Leads & Appointments' },
   ];
 
   const aiToolsItems = [
-    { view: 'ai-card', icon: 'badge', label: 'AI Business Card' },
-    { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Agent Buddy' },
-    { view: 'listings', icon: 'storefront', label: 'AI Listings' },
-
+    { to: '/card', icon: 'badge', label: 'AI Business Card' },
+    { to: '/dashboard/agent-training', icon: 'smart_toy', label: 'AI Agent Buddy' },
+    { to: '/listings', icon: 'storefront', label: 'AI Listings' },
   ];
 
   const communicationItems = [
-    { view: 'inbox', icon: 'bolt', label: 'AI Communication' },
+    { to: '/leads', icon: 'bolt', label: 'AI Communication' },
   ];
 
-  const handleLogoClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setView('landing');
-    window.history.pushState(null, '', '/');
-    window.dispatchEvent(new Event('popstate'));
+  const handleLogoClick = () => {
+    // Rely on router for native behavior, or keep close logic
     onClose();
   };
 
@@ -108,10 +92,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
             {/* Top Items */}
             {primaryItems.map((item) => (
               <NavItem
-                key={item.view}
-                viewName={item.view as View}
-                activeView={activeView}
-                setView={setView}
+                key={item.to}
+                to={item.to}
                 icon={item.icon}
                 onClose={onClose}
               >
@@ -136,10 +118,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
                 <div className="divide-y divide-slate-100 bg-slate-50/50">
                   {aiToolsItems.map((item) => (
                     <NavItem
-                      key={item.view}
-                      viewName={item.view as View}
-                      activeView={activeView}
-                      setView={setView}
+                      key={item.to}
+                      to={item.to}
                       icon={item.icon}
                       onClose={onClose}
                     >
@@ -153,9 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
             {/* AI Funnels (Top Level) */}
             <div className="border-t border-slate-100">
               <NavItem
-                viewName="funnel-analytics"
-                activeView={activeView}
-                setView={setView}
+                to="/funnel-analytics"
                 icon="monitoring"
                 onClose={onClose}
               >
@@ -167,10 +145,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
             <div className="border-t border-slate-100">
               {communicationItems.map((item) => (
                 <NavItem
-                  key={item.view}
-                  viewName={item.view as View}
-                  activeView={activeView}
-                  setView={setView}
+                  key={item.to}
+                  to={item.to}
                   icon={item.icon}
                   onClose={onClose}
                 >
@@ -182,9 +158,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isOpen, onClose,
             {/* Settings (Formerly Systems) */}
             <div className="border-t border-slate-100">
               <NavItem
-                viewName="settings"
-                activeView={activeView}
-                setView={setView}
+                to="/settings"
                 icon="settings"
                 onClose={onClose}
               >
