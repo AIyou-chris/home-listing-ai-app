@@ -31,7 +31,7 @@ This document explains the end‑to‑end onboarding funnel that now powers auto
 
 5. **Dashboard ready state**
    - When the returning browser hits `#/checkout/{slug}?status=success`, `CheckoutPage` polls the agent record via `pollAgentActivation`.
-   - On success, the page shows a dashboard deep-link (`https://aiyouagent.com/dashboard/{slug}`) and CTA buttons.
+   - On success, the page shows a dashboard deep-link (`https://homelistingai.com/dashboard/{slug}`) and CTA buttons.
 
 6. **Admin/test bypass**
    - `POST /api/admin/agents/activate` (requires `ADMIN_API_KEY`) marks payment as bypassed and runs the same provisioning flow for manual tests.
@@ -204,7 +204,7 @@ When creating a manual test agent (e.g., Chris Potter):
 
 1. Run `POST /api/agents/register` with the desired name/email or insert directly into `agents` with `status='admin_test'` and `payment_status='bypassed'`.
 2. Call `/api/admin/agents/activate` with the slug `Chris_Potter`.
-3. Confirm the dashboard exists at `https://aiyouagent.com/dashboard/Chris_Potter`.
+3. Confirm the dashboard exists at `https://homelistingai.com/dashboard/Chris_Potter`.
 4. Use Supabase Auth (user metadata includes `first_name`, `last_name`, and `slug`) to log in.
 5. Clean up by invoking the deletion webhook when finished so trial data is archived.
 

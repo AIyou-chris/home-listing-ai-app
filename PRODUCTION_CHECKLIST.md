@@ -4,10 +4,10 @@
 
 ### 1. Environment Variables (.env)
 - [ ] Copy `.env` to `.env.production`
-- [ ] Update `VITE_BACKEND_URL` to `https://api.aiyouagent.com`
-- [ ] Update `FRONTEND_URL` to `https://aiyouagent.com`
-- [ ] Update `VITE_API_BASE_URL` to `https://api.aiyouagent.com`
-- [ ] Update `APP_BASE_URL` to `https://aiyouagent.com`
+- [ ] Update `VITE_BACKEND_URL` to `https://api.homelistingai.com`
+- [ ] Update `FRONTEND_URL` to `https://homelistingai.com`
+- [ ] Update `VITE_API_BASE_URL` to `https://api.homelistingai.com`
+- [ ] Update `APP_BASE_URL` to `https://homelistingai.com`
 - [ ] Change `VITE_APP_ENVIRONMENT` to `production`
 
 ### 2. PayPal Configuration
@@ -32,15 +32,15 @@
 
 ### 5. Google OAuth Setup
 - [ ] Add production redirect URIs in Google Cloud Console:
-  - `https://api.aiyouagent.com/api/email/google/oauth-callback`
-  - `https://aiyouagent.com/api/email/google/oauth-callback`
+  - `https://api.homelistingai.com/api/email/google/oauth-callback`
+  - `https://homelistingai.com/api/email/google/oauth-callback`
 - [ ] Update `GOOGLE_OAUTH_REDIRECT_URI` in `.env.production`
 - [ ] Update `VITE_GOOGLE_OAUTH_REDIRECT_URI` in `.env.production`
 
 ### 6. CORS Configuration
 ✅ CORS already configured in `backend/server.cjs` with:
-- Production domain: `https://aiyouagent.com`
-- API domain: `https://api.aiyouagent.com`
+- Production domain: `https://homelistingai.com`
+- API domain: `https://api.homelistingai.com`
 - Localhost (for development)
 
 ### 7. Rate Limiting
@@ -61,7 +61,7 @@
 2. [ ] Use `.env.production` file
 3. [ ] Run `npm run build` (if applicable)
 4. [ ] Deploy to production server (Heroku, Railway, DigitalOcean, etc.)
-5. [ ] Verify health endpoint: `curl https://api.aiyouagent.com/health`
+5. [ ] Verify health endpoint: `curl https://api.homelistingai.com/health`
 6. [ ] Check logs for errors
 7. [ ] Test rate limiting with multiple requests
 
@@ -69,17 +69,17 @@
 1. [ ] Update `.env.production` with production values
 2. [ ] Run `npm run build`
 3. [ ] Deploy build folder to hosting (Netlify, Vercel, Cloudflare Pages, etc.)
-4. [ ] Verify all API calls use `https://api.aiyouagent.com`
+4. [ ] Verify all API calls use `https://api.homelistingai.com`
 5. [ ] Test user flows end-to-end
 
 ### DNS Configuration
-- [ ] Point `api.aiyouagent.com` to backend server IP
-- [ ] Point `aiyouagent.com` to frontend hosting
+- [ ] Point `api.homelistingai.com` to backend server IP
+- [ ] Point `homelistingai.com` to frontend hosting
 - [ ] Enable SSL/TLS certificates (Let's Encrypt, Cloudflare, etc.)
 - [ ] Verify HTTPS works for both domains
 
 ### Post-Deployment Verification
-- [ ] Test health endpoint: `https://api.aiyouagent.com/health`
+- [ ] Test health endpoint: `https://api.homelistingai.com/health`
 - [ ] Test user registration/login flow
 - [ ] Test PayPal payment flow (with real payment)
 - [ ] Test email sending via Mailgun
@@ -106,7 +106,7 @@
 Remaining 5%: Deploy to production infrastructure and verify all integrations.
 
 ## Production URLs
-- Frontend: https://aiyouagent.com
-- Backend API: https://api.aiyouagent.com
-- Health Check: https://api.aiyouagent.com/health
-- Admin Dashboard: https://aiyouagent.com/admin
+- Frontend: https://homelistingai.com
+- Backend API: https://api.homelistingai.com
+- Health Check: https://api.homelistingai.com/health
+- Admin Dashboard: https://homelistingai.com/admin

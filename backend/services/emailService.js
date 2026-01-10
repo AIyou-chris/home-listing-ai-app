@@ -123,7 +123,7 @@ module.exports = (supabaseAdmin) => {
   const fallbackSupportEmail = process.env.SUPPORT_EMAIL || '';
   const fromName = process.env.EMAIL_FROM_NAME || 'AI You Agent Team';
   const fromAddress =
-    process.env.EMAIL_FROM_ADDRESS || `AI You Agent Team <noreply@aiyouagent.com>`;
+    process.env.EMAIL_FROM_ADDRESS || `AI You Agent Team <noreply@homelistingai.com>`;
 
   const persistFallbackEmail = async ({ to, subject, html, cc, tags, reason }) => {
     if (!supabaseAdmin) return { queued: false };
