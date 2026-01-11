@@ -127,10 +127,10 @@ export const FeatureToggleRow: React.FC<{
     </div>
 );
 
-export const FeatureSection: React.FC<{ title: string; icon: string; children: React.ReactNode }> = ({ title, icon, children }) => (
+export const FeatureSection: React.FC<{ title: string; icon: string; children: React.ReactNode; iconClassName?: string }> = ({ title, icon, children, iconClassName }) => (
     <div className="mt-8 pt-8 border-t border-slate-200">
         <div className="flex items-center gap-3 mb-6">
-            <span className="material-symbols-outlined w-6 h-6 text-slate-500">{icon}</span>
+            <span className={`material-symbols-outlined w-6 h-6 ${iconClassName || 'text-slate-500'}`}>{icon}</span>
             <h3 className="text-xl font-bold text-slate-900">{title}</h3>
         </div>
         <div className="space-y-4">{children}</div>
