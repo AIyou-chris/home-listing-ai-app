@@ -3258,6 +3258,31 @@ app.patch('/api/security/settings/:userId', async (req, res) => {
   }
 });
 
+// --- NOTIFICATION SETTINGS ---
+
+app.get('/api/notifications/settings/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const settings = await getNotificationPreferences(userId);
+    res.json({ success: true, settings });
+  } catch (error) {
+    console.error('Error fetching notification settings:', error);
+    res.status(500).json({ success: false, error: 'Failed to load notification settings' });
+  }
+});
+
+app.patch('/api/notifications/settings/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const updates = req.body || {};
+    const settings = await updateNotificationPreferences(userId, updates);
+    res.json({ success: true, settings });
+  } catch (error) {
+    console.error('Error updating notification settings:', error);
+    res.status(500).json({ success: false, error: 'Failed to update notification settings' });
+  }
+});
+
 const loginNotificationCooldowns = new Map();
 
 app.post('/api/security/notify-login', async (req, res) => {

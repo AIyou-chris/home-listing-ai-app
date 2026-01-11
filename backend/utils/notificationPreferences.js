@@ -2,11 +2,13 @@ const { supabaseAdmin } = require('../services/supabase');
 
 const DEFAULT_NOTIFICATION_SETTINGS = {
   newLead: true,
+  leadAction: true,
   appointmentScheduled: true,
   aiInteraction: false,
   weeklySummary: true,
   appointmentReminders: true,
   taskReminders: true,
+  marketingUpdates: true,
   propertyInquiries: true,
   showingConfirmations: true,
   hotLeads: true,
@@ -14,13 +16,17 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   weekendNotifications: false,
   weeklyReport: true,
   monthlyInsights: true,
-  smsNewLeadAlerts: false,
-  notificationPhone: '',
-  smsActiveHoursStart: '08:00',
-  smsActiveHoursEnd: '21:00',
-  marketingUpdates: true,
+  smsNewLeadAlerts: true,
+  notificationPhone: '+15550000000',
+  smsActiveHoursStart: '09:00',
+  smsActiveHoursEnd: '17:00',
   priceChanges: false,
-  contractMilestones: true
+  contractMilestones: true,
+  dailyDigest: true,
+  securityAlerts: true,
+  smsConsent: false,
+  smsOptOutMsg: true,
+  timeZone: 'America/New_York'
 };
 
 const demoStore = new Map();
@@ -69,7 +75,7 @@ const updatePreferences = async (userId, updates = {}) => {
   const next = { ...current };
 
   Object.entries(updates).forEach(([key, value]) => {
-    if (Object.hasOwn(DEFAULT_NOTIFICATION_SETTINGS, key) && (typeof value === 'boolean' || typeof value === 'string')) {
+    if (Object.hasOwn(DEFAULT_NOTIFICATION_SETTINGS, key)) {
       next[key] = value;
     }
   });

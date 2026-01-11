@@ -29,6 +29,7 @@ import { leadsService, LeadPayload } from '../services/leadsService';
 import { listAppointments } from '../services/appointmentsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
 import { securitySettingsService } from '../services/securitySettingsService';
+import { notificationSettingsService } from '../services/notificationSettingsService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
 import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
@@ -266,7 +267,19 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         console.warn('Failed to load security settings', error);
       }
     };
+    const loadNotificationSettings = async () => {
+      if (isDemoMode) return;
+      try {
+        const payload = await notificationSettingsService.fetch(agentProfile.slug || agentProfile.id || 'default');
+        if (isMounted && payload?.settings) {
+          setNotificationSettings(payload.settings);
+        }
+      } catch (error) {
+        console.warn('Failed to load notification settings', error);
+      }
+    };
     loadSecuritySettings();
+    loadNotificationSettings();
     return () => { isMounted = false; };
   }, [agentProfile.slug, agentProfile.id, isDemoMode]);
 
@@ -278,6 +291,17 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       notifyApiError({ title: 'Security Settings Saved', description: 'Your security preferences have been updated.', error: null });
     } catch (error) {
       notifyApiError({ title: 'Save Failed', description: 'Could not save security settings.', error });
+    }
+  };
+
+  const handleSaveNotificationSettings = async (settings: NotificationSettings) => {
+    setNotificationSettings(settings); // Optimistic
+    if (isDemoMode) return;
+    try {
+      await notificationSettingsService.update(agentProfile.slug || agentProfile.id || 'default', settings);
+      notifyApiError({ title: 'Notification Settings Saved', description: 'Your alert preferences have been updated.', error: null });
+    } catch (error) {
+      notifyApiError({ title: 'Save Failed', description: 'Could not save notification settings.', error });
     }
   };
 
@@ -947,7 +971,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             userProfile={agentProfile}
             onSaveProfile={async (profile) => setAgentProfile(profile)}
             notificationSettings={notificationSettings}
-            onSaveNotifications={async (settings) => setNotificationSettings(settings)}
+            onSaveNotifications={handleSaveNotificationSettings}
             emailSettings={emailSettings}
             onSaveEmailSettings={async (settings) => setEmailSettings(settings)}
             calendarSettings={calendarSettings}
