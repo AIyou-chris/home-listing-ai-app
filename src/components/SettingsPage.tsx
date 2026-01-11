@@ -36,7 +36,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     billingSettings,
     onSaveBillingSettings,
     onBackToDashboard,
-    onNavigateToAICard
+    onNavigateToAICard,
+    userId
 }) => {
     const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('profile');
 
@@ -135,6 +136,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 settings={emailSettings}
                                 onSave={onSaveEmailSettings}
                                 onBack={onBackToDashboard}
+                                agentSlug={userProfile.slug || userId}
                             />
                         )}
                         {activeTab === 'calendar' && (
