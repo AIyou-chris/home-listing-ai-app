@@ -2033,14 +2033,14 @@ const SCORE_TIERS = {
 };
 
 // Calculate lead score based on rules
-function calculateLeadScore(lead) {
+function calculateLeadScore(lead, trackingData = null) {
   const breakdown = [];
   let totalScore = 0;
 
   // Apply each scoring rule
   for (const rule of LEAD_SCORING_RULES) {
     try {
-      if (rule.condition(lead)) {
+      if (rule.condition(lead, trackingData)) {
         const points = rule.points;
         totalScore += points;
         breakdown.push({
@@ -5677,7 +5677,38 @@ app.post('/api/leads/:leadId/score', async (req, res) => {
       });
     }
 
-    const score = calculateLeadScore(lead);
+    // Fetch tracking data for engagement-based scoring
+    let trackingData = null;
+    try {
+      const { data: emailData } = await supabaseAdmin
+        .from('email_tracking_events')
+        .select('*')
+        .eq('lead_id', leadId);
+
+      const { data: smsData } = await supabaseAdmin
+        .from('sms_tracking_events')
+        .select('*')
+        .eq('lead_id', leadId);
+
+      trackingData = {
+        email: {
+          sent: emailData?.length || 0,
+          opens: emailData?.filter(e => e.opened_at).length || 0,
+          clicks: emailData?.reduce((sum, e) => sum + (e.click_count || 0), 0) || 0,
+          bounces: emailData?.filter(e => e.bounced_at).length || 0
+        },
+        sms: {
+          sent: smsData?.length || 0,
+          delivered: smsData?.filter(s => s.delivered_at).length || 0,
+          failed: smsData?.filter(s => s.failed_at).length || 0
+        }
+      };
+    } catch (trackingError) {
+      console.warn('Could not fetch tracking data for scoring:', trackingError);
+      // Continue without tracking data - scoring will just use non-tracking rules
+    }
+
+    const score = calculateLeadScore(lead, trackingData);
     const clampedScore = clampScore(score.totalScore);
 
     await supabaseAdmin

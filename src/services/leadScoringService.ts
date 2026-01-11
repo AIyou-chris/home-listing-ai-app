@@ -54,11 +54,25 @@ interface LeadsPayload {
 
 type LeadValidationError = Error & { isLeadValidationError: true };
 
+export interface TrackingData {
+    email?: {
+        sent: number;
+        opens: number;
+        clicks: number;
+        bounces: number;
+    };
+    sms?: {
+        sent: number;
+        delivered: number;
+        failed: number;
+    };
+}
+
 export interface ScoringRule {
     id: string;
     name: string;
     description: string;
-    condition: (lead: Lead) => boolean;
+    condition: (lead: Lead, trackingData?: TrackingData) => boolean;
     points: number;
     category: 'engagement' | 'demographics' | 'behavior' | 'timing';
     maxOccurrences?: number; // max times this rule can apply per lead
@@ -221,6 +235,65 @@ export const LEAD_SCORING_RULES: ScoringRule[] = [
             return questionKeywords.some(keyword => message.includes(keyword));
         },
         points: 25,
+        category: 'engagement'
+    },
+
+    // EMAIL ENGAGEMENT (requires tracking data)
+    {
+        id: 'email_opened',
+        name: 'Email Engagement',
+        description: 'Lead opened at least one email from funnel',
+        condition: (lead, trackingData) => {
+            return trackingData?.email?.opens > 0;
+        },
+        points: 15,
+        category: 'engagement'
+    },
+    {
+        id: 'email_clicked',
+        name: 'Email Link Clicked',
+        description: 'Lead clicked links in emails',
+        condition: (lead, trackingData) => {
+            return trackingData?.email?.clicks > 0;
+        },
+        points: 25,
+        category: 'engagement',
+        maxOccurrences: 3 // Max 75 points for multiple clicks
+    },
+    {
+        id: 'high_email_engagement',
+        name: 'High Email Engagement',
+        description: 'Opened 50%+ of emails sent',
+        condition: (lead, trackingData) => {
+            const sent = trackingData?.email?.sent || 0;
+            const opens = trackingData?.email?.opens || 0;
+            return sent > 0 && (opens / sent) >= 0.5;
+        },
+        points: 30,
+        category: 'engagement'
+    },
+
+    // SMS ENGAGEMENT (requires tracking data)
+    {
+        id: 'sms_delivered',
+        name: 'SMS Responsive',
+        description: 'Successfully received SMS messages',
+        condition: (lead, trackingData) => {
+            return trackingData?.sms?.delivered > 0;
+        },
+        points: 10,
+        category: 'engagement'
+    },
+    {
+        id: 'sms_high_delivery',
+        name: 'SMS Highly Responsive',
+        description: '100% SMS delivery rate',
+        condition: (lead, trackingData) => {
+            const sent = trackingData?.sms?.sent || 0;
+            const delivered = trackingData?.sms?.delivered || 0;
+            return sent > 0 && delivered === sent;
+        },
+        points: 20,
         category: 'engagement'
     }
 ];
