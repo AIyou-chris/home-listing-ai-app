@@ -8,6 +8,7 @@ import { emailService } from '../services/emailService';
 import { adminLeadsService } from '../services/adminLeadsService';
 import { authService } from '../services/authService';
 import { getAICardProfile, AICardProfile } from '../services/aiCardService';
+import AdminFunnelAnalytics from './AdminFunnelAnalytics';
 
 // CONSTANTS & TYPES
 
@@ -127,6 +128,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
     const [importing, setImporting] = useState(false);
     const [previewAgent, setPreviewAgent] = useState<AICardProfile | null>(null);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'funnel' | 'analytics'>('funnel');
 
     const [customSignature, setCustomSignature] = useState<string>('');
 
@@ -898,23 +900,60 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                     </div>
                 </header>
 
-                {/* Render Single Funnel Panel */}
-                {renderFunnelPanel('universal', {
-                    badgeIcon: 'bolt',
-                    badgeClassName: 'bg-indigo-100 text-indigo-700',
-                    badgeLabel: 'Universal Sales Funnel',
-                    title: 'Agent Acquisition Sequence',
-                    description: 'Automated 5-touch drip to convert real estate agents.',
-                    iconColorClass: 'text-indigo-600',
-                    steps: programSteps,
-                    expandedIds: expandedProgramStepIds,
-                    onToggleStep: toggleProgramStep,
-                    onUpdateStep: handleUpdateProgramStep,
-                    onRemoveStep: handleRemoveProgramStep,
-                    onAddStep: handleAddProgramStep,
-                    onSave: handleSaveProgramSteps,
-                    saveLabel: 'Save Changes'
-                })}
+                {/* Tab Switcher */}
+                <div className="mb-6 border-b border-slate-200">
+                    <div className="flex gap-1">
+                        <button
+                            onClick={() => setActiveTab('funnel')}
+                            className={`px-6 py-3 font-semibold text-sm transition-all relative ${activeTab === 'funnel'
+                                    ? 'text-indigo-700 border-b-2 border-indigo-600'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            <span className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">campaign</span>
+                                Funnel Editor
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('analytics')}
+                            className={`px-6 py-3 font-semibold text-sm transition-all relative ${activeTab === 'analytics'
+                                    ? 'text-indigo-700 border-b-2 border-indigo-600'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            <span className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">query_stats</span>
+                                Funnel Analytics
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Render Funnel Editor or Analytics based on active tab */}
+                {activeTab === 'funnel' ? (
+                    renderFunnelPanel('universal', {
+                        badgeIcon: 'bolt',
+                        badgeClassName: 'bg-indigo-100 text-indigo-700',
+                        badgeLabel: 'Universal Sales Funnel',
+                        title: 'Agent Acquisition Sequence',
+                        description: 'Automated 5-touch drip to convert real estate agents.',
+                        iconColorClass: 'text-indigo-600',
+                        steps: programSteps,
+                        expandedIds: expandedProgramStepIds,
+                        onToggleStep: toggleProgramStep,
+                        onUpdateStep: handleUpdateProgramStep,
+                        onRemoveStep: handleRemoveProgramStep,
+                        onAddStep: handleAddProgramStep,
+                        onSave: handleSaveProgramSteps,
+                        saveLabel: 'Save Changes'
+                    })
+                ) : (
+                    <AdminFunnelAnalytics
+                        funnelId={UNIVERSAL_FUNNEL_ID}
+                        steps={programSteps.map(s => ({ id: s.id, title: s.title }))}
+                    />
+                )}
             </div>
             {isQuickEmailOpen && (
                 <QuickEmailModal
