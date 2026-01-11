@@ -17,7 +17,7 @@ interface SecuritySettingsProps {
 const SecuritySettingsPage: React.FC<SecuritySettingsProps> = ({
     settings,
     onSaveSettings,
-    onBack,
+    onBack: _onBack,
     isLoading = false
 }) => {
     const [passwords, setPasswords] = useState({
@@ -272,26 +272,15 @@ const SecuritySettingsPage: React.FC<SecuritySettingsProps> = ({
                 </div>
             </FeatureSection>
 
-            <div className="flex items-center justify-between pt-8 border-t border-slate-200">
-                {onBack && (
-                    <button
-                        type="button"
-                        onClick={onBack}
-                        className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
-                    >
-                        ← Back to Dashboard
-                    </button>
-                )}
-                <div className="flex gap-3">
-                    <button
-                        type="button"
-                        onClick={handleSettingsSave}
-                        disabled={isSecuritySaving || isLoading}
-                        className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ml-auto"
-                    >
-                        {isSecuritySaving ? 'Saving…' : 'Save Security Settings'}
-                    </button>
-                </div>
+            <div className="flex items-center justify-end pt-8 border-t border-slate-200">
+                <button
+                    type="button"
+                    onClick={handleSettingsSave}
+                    disabled={isSecuritySaving || isLoading}
+                    className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    {isSecuritySaving ? 'Saving…' : 'Save Security Settings'}
+                </button>
             </div>
         </div>
     );
