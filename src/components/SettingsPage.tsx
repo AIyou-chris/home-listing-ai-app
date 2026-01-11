@@ -119,6 +119,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 userProfile={userProfile}
                                 onSave={onSaveProfile}
                                 onBack={onBackToDashboard}
+                                onNavigateToAICard={onNavigateToAICard}
                             />
                         )}
                         {activeTab === 'notifications' && (
