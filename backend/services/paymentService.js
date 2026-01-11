@@ -53,5 +53,77 @@ module.exports = ({
     }
   };
 
-  return { isConfigured, listProviders, createCheckoutSession };
+  const createPortalSession = async ({ customerId, returnUrl }) => {
+    if (!isConfigured()) throw new Error('Stripe is not configured');
+    if (!customerId) throw new Error('Customer ID is required');
+
+    try {
+      const session = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: returnUrl || baseAppUrl,
+      });
+      return { url: session.url };
+    } catch (error) {
+      console.error('[Stripe] Portal Session Create Failed:', error);
+      throw error;
+    }
+  };
+
+  const listInvoices = async (customerId) => {
+    if (!isConfigured()) return [];
+    if (!customerId) return [];
+
+    try {
+      const invoices = await stripe.invoices.list({
+        customer: customerId,
+        limit: 12,
+        status: 'paid'
+      });
+
+      return invoices.data.map(inv => ({
+        id: inv.id,
+        date: new Date(inv.created * 1000).toISOString().split('T')[0],
+        amount: inv.amount_paid / 100,
+        status: inv.status.charAt(0).toUpperCase() + inv.status.slice(1),
+        description: inv.lines.data[0]?.description || 'Subscription',
+        invoiceUrl: inv.hosted_invoice_url
+      }));
+    } catch (error) {
+      console.error('[Stripe] List Invoices Failed:', error);
+      return [];
+    }
+  };
+
+  const getCustomerByEmail = async (email) => {
+    if (!isConfigured()) return null;
+    try {
+      const customers = await stripe.customers.list({ email, limit: 1 });
+      return customers.data[0] || null;
+    } catch (error) {
+      console.error('[Stripe] Get Customer Failed:', error);
+      return null;
+    }
+  };
+
+  const getSubscriptionStatus = async (customerId) => {
+    if (!isConfigured() || !customerId) return null;
+    try {
+      const subs = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 1 });
+      const sub = subs.data[0];
+      if (!sub) return null;
+
+      return {
+        status: sub.status,
+        planName: sub.items.data[0]?.price?.nickname || 'Pro Plan',
+        amount: (sub.items.data[0]?.price?.unit_amount || 0) / 100,
+        currency: sub.currency,
+        currentPeriodEnd: new Date(sub.current_period_end * 1000).toISOString()
+      };
+    } catch (error) {
+      console.error('[Stripe] Get Subscription Failed:', error);
+      return null;
+    }
+  };
+
+  return { isConfigured, listProviders, createCheckoutSession, createPortalSession, listInvoices, getCustomerByEmail, getSubscriptionStatus };
 };

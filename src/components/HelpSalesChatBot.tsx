@@ -52,6 +52,19 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
   }, [chatBot, context, initialMode]);
 
   useEffect(() => {
+    const handleOpenChat = (event: CustomEvent) => {
+      const { mode } = event.detail || {};
+      if (mode) {
+        handleModeSwitch(mode as ChatBotMode);
+      }
+    };
+
+    window.addEventListener('open-chat', handleOpenChat as EventListener);
+    return () => window.removeEventListener('open-chat', handleOpenChat as EventListener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
@@ -246,8 +259,8 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
           >
             <div
               className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.sender === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-800'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-800'
                 }`}
             >
               <p className="text-sm whitespace-pre-wrap">{message.text}</p>

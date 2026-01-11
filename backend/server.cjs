@@ -9840,7 +9840,7 @@ app.patch('/api/email/settings/:userId', async (req, res) => {
 app.get('/api/billing/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params
-    const payload = await getBillingSettings(userId)
+    const payload = await getBillingSettings(userId, paymentService)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error fetching billing settings:', error)
@@ -10002,6 +10002,51 @@ app.post('/api/payments/checkout-session', async (req, res) => {
   } catch (error) {
     console.error('Error creating checkout session:', error)
     res.status(500).json({ success: false, error: error?.message || 'Failed to create checkout session.' })
+  }
+})
+
+app.post('/api/payments/portal-session', async (req, res) => {
+  try {
+    if (!paymentService?.isConfigured?.()) {
+      return res.status(503).json({ success: false, error: 'Payment processing is not configured.' })
+    }
+
+    const { userId, slug, returnUrl } = req.body || {}
+    if (!userId && !slug) {
+      return res.status(400).json({ success: false, error: 'User ID or Slug required.' })
+    }
+
+    // Find agent
+    let query = supabaseAdmin.from('agents').select('stripe_account_id, email, id')
+    if (userId) query = query.eq('auth_user_id', userId)
+    else query = query.eq('slug', slug)
+
+    const { data: agent, error } = await query.maybeSingle()
+
+    if (error || !agent) {
+      return res.status(404).json({ success: false, error: 'Agent not found.' })
+    }
+
+    let customerId = agent.stripe_account_id
+    if (!customerId) {
+      const customer = await paymentService.getCustomerByEmail(agent.email)
+      if (customer) {
+        customerId = customer.id
+        await supabaseAdmin.from('agents').update({ stripe_account_id: customerId }).eq('id', agent.id)
+      } else {
+        return res.status(400).json({ success: false, error: 'No billing account found for this user.' })
+      }
+    }
+
+    const session = await paymentService.createPortalSession({
+      customerId,
+      returnUrl
+    })
+
+    res.json({ success: true, url: session.url })
+  } catch (err) {
+    console.error('Portal Error:', err)
+    res.status(500).json({ success: false, error: err.message || 'Failed to create portal session.' })
   }
 })
 

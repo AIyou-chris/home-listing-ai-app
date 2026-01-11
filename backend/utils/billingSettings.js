@@ -102,8 +102,62 @@ const saveEntry = async (userId, entry) => {
   }
 };
 
-const getBillingSettings = async (userId) => {
-  const entry = await getEntry(userId);
+const getBillingSettings = async (userId, paymentService) => {
+  let entry = await getEntry(userId);
+  const normId = normalizeUserId(userId);
+
+  // Sync with Stripe if paymentService is provided and it's a real user
+  if (paymentService && isUuid(normId)) {
+    try {
+      // Find agent
+      const { data: agent } = await supabaseAdmin
+        .from('agents')
+        .select('id, email, stripe_account_id')
+        .eq('auth_user_id', normId)
+        .maybeSingle();
+
+      if (agent) {
+        let stripeId = agent.stripe_account_id;
+
+        // If no ID, try to find by email
+        if (!stripeId && agent.email) {
+          const customer = await paymentService.getCustomerByEmail(agent.email);
+          if (customer) {
+            stripeId = customer.id;
+            // Save to agent record for future
+            await supabaseAdmin.from('agents').update({ stripe_account_id: stripeId }).eq('id', agent.id);
+          }
+        }
+
+        if (stripeId) {
+          // Fetch Invoices
+          const invoices = await paymentService.listInvoices(stripeId);
+          if (invoices && invoices.length > 0) {
+            entry.history = invoices;
+            // Update local cache without triggering infinite loops
+            // We bypass updateBillingSettings to avoid re-fetching
+            await saveEntry(userId, { ...entry, history: invoices });
+          }
+
+          // Fetch Status
+          const sub = await paymentService.getSubscriptionStatus(stripeId);
+          if (sub) {
+            const subData = {
+              planStatus: sub.status,
+              planName: sub.planName,
+              amount: sub.amount,
+              renewalDate: sub.currentPeriodEnd
+            };
+            entry = { ...entry, ...subData };
+            await saveEntry(userId, entry);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[BillingSettings] Stripe Sync Error:', e.message);
+    }
+  }
+
   // Ensure history exists
   if (!entry.history) entry.history = clone(DEFAULT_BILLING_SETTINGS.history);
 

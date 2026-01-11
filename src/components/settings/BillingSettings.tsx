@@ -15,6 +15,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
     onBack: _onBack,
 }) => {
     const [showBillingTips, setShowBillingTips] = useState(false);
+    const [isRedirecting, setIsRedirecting] = useState(false);
 
     const planStatusBadges: Record<string, string> = {
         active: 'bg-green-100 text-green-700 border-green-200',
@@ -30,24 +31,50 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
         trialing: 'Trial',
     };
 
-    const handleBillingCheckout = () => {
-        // Implement billing checkout logic
-        // This likely redirects to Stripe or similar
-        console.log("Redirecting to checkout...");
-        // window.location.href = ...
-    };
+    const handlePortalSession = async () => {
+        setIsRedirecting(true);
+        try {
+            const { supabase } = await import('../../services/supabase');
+            const { data: { user } } = await supabase.auth.getUser();
 
-    const handleCancelMembership = () => {
-        // Handle cancellation
-        console.log("Cancelling membership...");
+            if (!user) {
+                // Determine if we are in admin view or just lost auth
+                console.error('User not found for portal redirect');
+                // Fallback or alert
+                alert('Could not identify user. Please refresh.');
+                setIsRedirecting(false);
+                return;
+            }
+
+            const response = await fetch('/api/payments/portal-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: user.id,
+                    returnUrl: window.location.href
+                })
+            });
+
+            const data = await response.json();
+            if (data.success && data.url) {
+                window.location.href = data.url;
+            } else {
+                console.error('Portal Error:', data.error);
+                alert('Failed to redirect: ' + (data.error || 'Unknown error'));
+                setIsRedirecting(false);
+            }
+        } catch (error) {
+            console.error('Portal Request Error:', error);
+            alert('An error occurred. Please try again.');
+            setIsRedirecting(false);
+        }
     };
 
     const handleContactSupport = () => {
-        window.location.href = 'mailto:support@home-listing-ai-app.com';
+        window.dispatchEvent(new CustomEvent('open-chat', { detail: { mode: 'help' } }));
     };
 
-    const isBillingDisabled = false; // logic based on status
-    const cancelButtonDisabled = false; // logic based on status
+    const cancelButtonDisabled = isRedirecting;
 
     return (
         <div className="p-8 space-y-8 animate-fadeIn">
@@ -109,7 +136,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                         </div>
                         <div className="text-right">
                             <div className="text-3xl font-bold">
-                                {'$49.00'}
+                                {settings.amount ? `$${settings.amount.toFixed(2)}` : '$49.00'}
                                 <span className="text-lg font-medium">/mo</span>
                             </div>
                         </div>
@@ -133,16 +160,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                     <div className="mt-6 flex flex-wrap gap-3">
                         <button
                             type="button"
-                            onClick={handleBillingCheckout}
-                            disabled={isBillingDisabled}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/40 bg-white/15 text-white font-semibold shadow transition-colors ${isBillingDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/25'}`}
-                        >
-                            <span className="material-symbols-outlined text-base">account_balance</span>
-                            Manage Subscription
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleCancelMembership}
+                            onClick={handlePortalSession}
                             disabled={cancelButtonDisabled}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 bg-white/10 text-white transition-colors ${cancelButtonDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/20'}`}
                         >
@@ -159,6 +177,61 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                         </button>
                     </div>
                     <p className="mt-2 text-xs text-white/90">Changes to your subscription are managed securely through your configured payment provider.</p>
+                </div>
+            </FeatureSection>
+
+            {/* Billing History */}
+            <FeatureSection title="Billing History" icon="history">
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    {settings.history && settings.history.length > 0 ? (
+                        <table className="min-w-full divide-y divide-slate-200">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Invoice</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-slate-200">
+                                {settings.history.map((entry) => (
+                                    <tr key={entry.id}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                                            {entry.date}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 font-medium">
+                                            {entry.description || 'Subscription'}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                                            ${typeof entry.amount === 'number' ? entry.amount.toFixed(2) : entry.amount}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry.status === 'Paid' ? 'bg-green-100 text-green-800' :
+                                                entry.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                                                }`}>
+                                                {entry.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            {entry.invoiceUrl ? (
+                                                <a href={entry.invoiceUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-900 flex items-center justify-end gap-1">
+                                                    Download
+                                                    <span className="material-symbols-outlined text-sm">open_in_new</span>
+                                                </a>
+                                            ) : (
+                                                <span className="text-slate-400">Unavailable</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <div className="p-8 text-center text-slate-500">
+                            No billing history available.
+                        </div>
+                    )}
                 </div>
             </FeatureSection>
 

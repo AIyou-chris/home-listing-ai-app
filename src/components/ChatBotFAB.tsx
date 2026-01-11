@@ -46,6 +46,24 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
     }
   }, [initialOpen, isControlled]);
 
+  useEffect(() => {
+    const handleOpenChat = () => {
+      if (!isOpen) {
+        if (isControlled && onToggle) {
+          onToggle();
+        } else {
+          setInternalIsOpen(true);
+          setHasNewMessage(false);
+          setUnreadCount(0);
+        }
+      }
+      setIsVoiceView(false);
+    };
+
+    window.addEventListener('open-chat', handleOpenChat);
+    return () => window.removeEventListener('open-chat', handleOpenChat);
+  }, [isOpen, isControlled, onToggle]);
+
   // Auto-show welcome message after a delay for new visitors
   useEffect(() => {
     if (showWelcomeMessage && context.userType === 'visitor' && !context.previousInteractions) {
