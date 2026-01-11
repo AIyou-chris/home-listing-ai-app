@@ -39,8 +39,8 @@ const NavItem: React.FC<{
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, isBlueprintMode = false }) => {
   const [isAiToolsOpen, setIsAiToolsOpen] = React.useState(false);
 
-  // BASE PATH LOGIC FOR BLUEPRINT
-  const basePath = isBlueprintMode ? '/agent-blueprint-dashboard' : '';
+  // BASE PATH LOGIC FOR BLUEPRINT AND DEMO
+  const basePath = isBlueprintMode ? '/agent-blueprint-dashboard' : (isDemoMode ? '/demo-dashboard' : '');
 
   const getPath = (path: string) => `${basePath}${path}`;
 

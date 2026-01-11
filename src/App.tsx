@@ -1085,8 +1085,8 @@ const App: React.FC = () => {
                             <PublicAICard />
                         </Suspense>
                     } />
-                    <Route path="/demo-dashboard" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
-                    <Route path="/dashboard-blueprint" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
+                    <Route path="/demo-dashboard/*" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
+                    <Route path="/dashboard-blueprint/*" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
                     <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={true} isBlueprintMode={true} demoListingCount={1} />} />
                     <Route path="/demo-showcase" element={<MultiToolShowcase />} />
 
