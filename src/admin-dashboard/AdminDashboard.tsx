@@ -8,6 +8,7 @@ import AdminCommandCenter from './components/AdminCommandCenter';
 import AdminAISidekicksPage from './components/AdminAISidekicksPage';
 // import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub'; // Kept for reference if needed, but unused in new flow
 import AdminSalesFunnelPanel from '../components/AdminSalesFunnelPanel';
+import AdminMarketingFunnelsPanel from '../components/admin/AdminMarketingFunnelsPanel';
 import InteractionHubPage from '../components/InteractionHubPage';
 import AddListingPage from '../components/AddListingPage';
 import AdminListingsPage from './AdminListingsPage';
@@ -44,6 +45,7 @@ export type DashboardView =
   | 'property'
   | 'add-listing'
   | 'ai-card-builder'
+  | 'marketing-funnels'
   | 'users';
 
 const cloneDemoProperty = (property: Property, index: number): Property => {
@@ -356,6 +358,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
 
       case 'funnel-analytics':
         return <AdminSalesFunnelPanel onBackToDashboard={resetToDashboard} forcedCallType="sales" />;
+      case 'marketing-funnels':
+        return (
+          <AdminMarketingFunnelsPanel
+            onBackToDashboard={resetToDashboard}
+            title="Marketing Funnels"
+            subtitle="AI-powered marketing campaigns for HomeListingAI program"
+            variant="page"
+          />
+        );
       case 'settings':
         return (
           <AdminSettingsPage

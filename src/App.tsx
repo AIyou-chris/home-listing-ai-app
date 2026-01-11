@@ -72,7 +72,6 @@ const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public 
 import CombinedTrainingPage from './components/AgentAISidekicksPage';
 // import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
 import FunnelAnalyticsPanel from './components/FunnelAnalyticsPanel';
-import AdminMarketingFunnelsPanel from './components/admin/AdminMarketingFunnelsPanel';
 
 import { listingsService, CreatePropertyInput } from './services/listingsService';
 // Stubs removed, using real service
@@ -1133,16 +1132,6 @@ const App: React.FC = () => {
                         </Suspense>
                     } />
 
-                    {/*/admin/marketing-funnels - Admin Marketing Funnels */}
-                    <Route path="/admin/marketing-funnels" element={
-                        isAdmin ? (
-                            <AdminMarketingFunnelsPanel
-                                onBackToDashboard={() => navigate('/admin/dashboard')}
-                            />
-                        ) : (
-                            <Navigate to="/" />
-                        )
-                    } />
 
                     {/* Authenticated Admin Views (Users) */}
 
