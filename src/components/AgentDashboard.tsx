@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
@@ -86,8 +86,65 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   const isBlueprintMode = propIsBlueprintMode || window.location.pathname.includes('blueprint');
 
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // --- SUPER ADMN FAILSAFE ---
+  // Determine view from Path
+  const getViewFromPath = useCallback((path: string): View => {
+    // Split and get the last meaningful part to avoid ambiguous matches
+    const parts = path.split('/').filter(Boolean);
+    const lastPart = parts[parts.length - 1];
+
+    switch (lastPart) {
+      case 'ai-agent': return 'knowledge-base';
+      case 'listings': return 'listings';
+      case 'leads': return 'leads';
+      case 'ai-card': return 'ai-card';
+      case 'inbox': return 'inbox';
+      case 'settings': return 'settings';
+      case 'funnel-analytics': return 'funnel-analytics';
+      case 'marketing-reports': return 'marketing-reports';
+      case 'payments': return 'payments';
+      case 'daily-pulse': return 'dashboard';
+      case 'demo-dashboard': return 'dashboard';
+      case 'dashboard-blueprint': return 'dashboard';
+      case 'agent-blueprint-dashboard': return 'dashboard';
+      default: return 'dashboard';
+    }
+  }, []);
+
+  const [activeView, setActiveView] = useState<View>(getViewFromPath(location.pathname));
+
+  // Sync state with URL changes
+  useEffect(() => {
+    setActiveView(getViewFromPath(location.pathname));
+  }, [location.pathname, getViewFromPath]);
+
+  const handleViewChange = useCallback((view: View) => {
+    if (isDemoMode) {
+      const basePath = isBlueprintMode ? '/agent-blueprint-dashboard' : '/demo-dashboard';
+      let pathSuffix = '';
+      switch (view) {
+        case 'knowledge-base': pathSuffix = '/ai-agent'; break;
+        case 'listings': pathSuffix = '/listings'; break;
+        case 'leads': pathSuffix = '/leads'; break;
+        case 'ai-card': pathSuffix = '/ai-card'; break;
+        case 'inbox': pathSuffix = '/inbox'; break;
+        case 'settings': pathSuffix = '/settings'; break;
+        case 'funnel-analytics': pathSuffix = '/funnel-analytics'; break;
+        case 'marketing-reports': pathSuffix = '/marketing-reports'; break;
+        case 'payments': pathSuffix = '/payments'; break;
+        case 'dashboard': pathSuffix = '/daily-pulse'; break;
+        default: pathSuffix = ''; break;
+      }
+      if (pathSuffix) {
+        navigate(`${basePath}${pathSuffix}`);
+        return;
+      }
+    }
+    setActiveView(view);
+  }, [isDemoMode, isBlueprintMode, navigate]);
+
+  // --- SUPER ADMIN FAILSAFE ---
   // If us@homelistingai.com somehow lands here, KICK THEM OUT to admin dashboard.
   useEffect(() => {
     const checkUser = async () => {
@@ -99,33 +156,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     };
     if (!isDemoMode) checkUser();
   }, [isDemoMode, navigate]);
-
-  // Determine initial view from URL
-  const getInitialView = (): View => {
-    const path = window.location.pathname;
-    if (path.includes('/ai-agent')) return 'knowledge-base';
-    if (path.includes('/listings')) return 'listings';
-    if (path.includes('/leads')) return 'leads';
-    if (path.includes('/ai-card')) return 'ai-card';
-    if (path.includes('/inbox')) return 'inbox';
-    if (path.includes('/settings')) return 'settings';
-    if (path.includes('/funnel-analytics')) return 'funnel-analytics';
-    if (path.includes('/marketing-reports')) return 'marketing-reports';
-    if (path.includes('/payments')) return 'payments';
-    if (path.includes('/daily-pulse')) return 'dashboard'; // Mapped /daily-pulse to dashboard view
-    return 'dashboard';
-  };
-
-  const [activeView, setActiveView] = useState<View>(getInitialView());
-
-  // Sync state with URL changes (popstate)
-  useEffect(() => {
-    const handlePopState = () => {
-      setActiveView(getInitialView());
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
 
 
 
@@ -598,12 +628,12 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   };
 
   const resetToDashboard = () => {
-    setActiveView('dashboard');
+    handleViewChange('dashboard');
     setSelectedPropertyId(null);
   };
 
   const handleBackToListings = () => {
-    setActiveView('listings');
+    handleViewChange('listings');
     setSelectedPropertyId(null);
   };
 
@@ -648,7 +678,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                   <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     {/* Step 1: AI Card */}
                     <button
-                      onClick={() => setActiveView('ai-card')}
+                      onClick={() => handleViewChange('ai-card')}
                       className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
                     >
                       <div className="flex items-center justify-between mb-3">
@@ -663,7 +693,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
                     {/* Step 2: Train Brain */}
                     <button
-                      onClick={() => setActiveView('knowledge-base')}
+                      onClick={() => handleViewChange('knowledge-base')}
                       className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
                     >
                       <div className="flex items-center justify-between mb-3">
@@ -678,7 +708,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
                     {/* Step 3: Connect Email */}
                     <button
-                      onClick={() => setActiveView('settings')}
+                      onClick={() => handleViewChange('settings')}
                       className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
                     >
                       <div className="flex items-center justify-between mb-3">
@@ -693,7 +723,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
                     {/* Step 4: First Listing */}
                     <button
-                      onClick={() => setActiveView('add-listing')}
+                      onClick={() => handleViewChange('add-listing')}
                       className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
                     >
                       <div className="flex items-center justify-between mb-3">
@@ -708,7 +738,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
                     {/* Step 5: Funnels */}
                     <button
-                      onClick={() => setActiveView('funnel-analytics')}
+                      onClick={() => handleViewChange('funnel-analytics')}
                       className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
                     >
                       <div className="flex items-center justify-between mb-3">
@@ -741,7 +771,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                 onTaskAdd={handleTaskAdd}
                 onTaskDelete={handleTaskDelete}
                 onViewLeads={(leadId, action, initialTab) => {
-                  setActiveView('leads');
+                  handleViewChange('leads');
                   if (leadId) {
                     const params = new URLSearchParams();
                     params.set('tab', 'leads');
@@ -751,9 +781,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                     navigate(`?${params.toString()}`, { replace: true });
                   }
                 }}
-                onViewLogs={() => setActiveView('ai-interaction-hub')}
-                onViewListings={() => setActiveView('listings')}
-                onViewAppointments={() => setActiveView('leads')}
+                onViewLogs={() => handleViewChange('ai-interaction-hub')}
+                onViewListings={() => handleViewChange('listings')}
+                onViewAppointments={() => handleViewChange('leads')}
               />
             )}
           </div>
@@ -834,7 +864,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         );
       case 'property':
         return selectedProperty ? (
-          <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setActiveView('listings')} isDemoMode={isDemoMode} leadCount={leads.filter(l => l.interestedProperties?.includes(selectedProperty.id)).length} />
+          <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => setActiveView('listings')} leadCount={leads.filter(l => l.interestedProperties?.includes(selectedProperty.id)).length} />
         ) : (
           <ListingsPage
             properties={properties}

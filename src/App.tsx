@@ -184,8 +184,14 @@ const App: React.FC = () => {
     // PERF: Initialize loading state
     const [isLoading, setIsLoading] = useState(false); // Router handles most loading now
     const [isSettingUp] = useState(false); // Helper state for setup flows (currently unused)
-    const [isDemoMode, setIsDemoMode] = useState(false);
-    const [isBlueprintMode, setIsBlueprintMode] = useState(false);
+    const [isDemoMode, setIsDemoMode] = useState(() => {
+        const path = window.location.pathname;
+        return path.includes('/demo-') || path.includes('blueprint');
+    });
+    const [isBlueprintMode, setIsBlueprintMode] = useState(() => {
+        const path = window.location.pathname;
+        return path.includes('blueprint') || path.includes('/agent-blueprint-');
+    });
     const [isAdmin, setIsAdmin] = useState(false); // Validated Admin State
 
 
