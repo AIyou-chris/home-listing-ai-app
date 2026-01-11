@@ -402,9 +402,15 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     useEffect(() => {
         const loadFunnels = async () => {
             try {
-                // Use a default user ID if none provided (e.g. 'demo-blueprint')
-                // In a real app, this would come from auth context
-                const currentUserId = 'demo-blueprint';
+                // Get the real user ID from Supabase auth
+                const { data: { user } } = await supabase.auth.getUser();
+                const currentUserId = user?.id || (isDemoMode ? 'demo-blueprint' : '');
+
+                if (!currentUserId) {
+                    console.warn('No user ID found, using defaults');
+                    return;
+                }
+
                 const funnels = await funnelService.fetchFunnels(currentUserId);
 
                 if (funnels.welcome && funnels.welcome.length > 0) setWelcomeSteps(funnels.welcome);
@@ -416,7 +422,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             }
         };
         loadFunnels();
-    }, []);
+    }, [isDemoMode]);
 
     const togglePanel = (panel: keyof typeof panelExpanded) => {
         setPanelExpanded((prev) => ({ ...prev, [panel]: !prev[panel] }));
@@ -495,12 +501,16 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSaveWelcomeSteps = async () => {
-        if (isDemoMode) {
-            alert('Saving is disabled in demo mode.');
-            return;
-        }
         try {
-            const success = await funnelService.saveFunnelStep('demo-blueprint', 'welcome', welcomeSteps);
+            const { data: { user } } = await supabase.auth.getUser();
+            const currentUserId = user?.id || (isDemoMode ? 'demo-blueprint' : '');
+
+            if (!currentUserId) {
+                alert('Please sign in to save funnels.');
+                return;
+            }
+
+            const success = await funnelService.saveFunnelStep(currentUserId, 'welcome', welcomeSteps);
             if (success) alert('Welcome drip saved to cloud.');
             else alert('Failed to save. Please try again.');
         } catch (error) {
@@ -541,12 +551,16 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSaveBuyerSteps = async () => {
-        if (isDemoMode) {
-            alert('Saving is disabled in demo mode.');
-            return;
-        }
         try {
-            const success = await funnelService.saveFunnelStep('demo-blueprint', 'buyer', homeBuyerSteps);
+            const { data: { user } } = await supabase.auth.getUser();
+            const currentUserId = user?.id || (isDemoMode ? 'demo-blueprint' : '');
+
+            if (!currentUserId) {
+                alert('Please sign in to save funnels.');
+                return;
+            }
+
+            const success = await funnelService.saveFunnelStep(currentUserId, 'buyer', homeBuyerSteps);
             if (success) alert('Homebuyer journey saved to cloud.');
             else alert('Failed to save.');
         } catch (error) {
@@ -587,12 +601,16 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSaveListingSteps = async () => {
-        if (isDemoMode) {
-            alert('Saving is disabled in demo mode.');
-            return;
-        }
         try {
-            const success = await funnelService.saveFunnelStep('demo-blueprint', 'listing', listingSteps);
+            const { data: { user } } = await supabase.auth.getUser();
+            const currentUserId = user?.id || (isDemoMode ? 'demo-blueprint' : '');
+
+            if (!currentUserId) {
+                alert('Please sign in to save funnels.');
+                return;
+            }
+
+            const success = await funnelService.saveFunnelStep(currentUserId, 'listing', listingSteps);
             if (success) alert('Listing funnel saved to cloud.');
             else alert('Failed to save.');
         } catch (error) {
@@ -633,12 +651,16 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSavePostSteps = async () => {
-        if (isDemoMode) {
-            alert('Saving is disabled in demo mode.');
-            return;
-        }
         try {
-            const success = await funnelService.saveFunnelStep('demo-blueprint', 'post-showing', postShowingSteps);
+            const { data: { user } } = await supabase.auth.getUser();
+            const currentUserId = user?.id || (isDemoMode ? 'demo-blueprint' : '');
+
+            if (!currentUserId) {
+                alert('Please sign in to save funnels.');
+                return;
+            }
+
+            const success = await funnelService.saveFunnelStep(currentUserId, 'post-showing', postShowingSteps);
             if (success) alert('Post-showing follow-up saved to cloud.');
             else alert('Failed to save.');
         } catch (error) {
@@ -655,7 +677,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             badgeLabel,
             title,
             description,
-            iconColorClass,
+            iconColorClass: _iconColorClass,
             steps,
             expandedIds,
             onToggleStep,
