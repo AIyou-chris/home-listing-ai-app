@@ -182,6 +182,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   const [agentProfile, setAgentProfile] = useState<AgentProfile>(uiProfile);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     newLead: true,
+    leadAction: true,
     appointmentScheduled: true,
     aiInteraction: false,
     weeklySummary: true,
@@ -191,12 +192,18 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     propertyInquiries: true,
     showingConfirmations: true,
     hotLeads: true,
+    smsNewLeadAlerts: true,
+    notificationPhone: '+15550000000',
+    smsActiveHoursStart: '09:00',
+    smsActiveHoursEnd: '17:00',
     priceChanges: false,
     contractMilestones: true,
     browserNotifications: true,
     weekendNotifications: true,
+    dailyDigest: true,
     weeklyReport: true,
-    monthlyInsights: true
+    monthlyInsights: true,
+    securityAlerts: true
   });
   const [emailSettings, setEmailSettings] = useState<EmailSettings>({
     integrationType: 'oauth',
