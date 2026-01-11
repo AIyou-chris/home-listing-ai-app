@@ -92,8 +92,14 @@ class EmailAuthService {
 
     async connectGmail(): Promise<EmailConnection> {
         try {
-            // Use the existing Google OAuth service
-            const result = await googleOAuthService.authenticate(['https://www.googleapis.com/auth/gmail.send'], { context: 'gmail' });
+            // Get userId from context (you'll need to pass this in)
+            const userId = this.getUserId();
+
+            // Use the existing Google OAuth service with gmail.send scope
+            const result = await googleOAuthService.authenticate([
+                'https://www.googleapis.com/auth/gmail.send',
+                'https://www.googleapis.com/auth/gmail.readonly'
+            ], { context: 'gmail' });
 
             if (!result.success || !result.accessToken) {
                 throw new Error('Gmail authentication failed');
@@ -108,6 +114,34 @@ class EmailAuthService {
 
             const userInfo = await userInfoResponse.json();
 
+            // Create tokens object for storage
+            const tokens = {
+                access_token: result.accessToken,
+                refresh_token: null,
+                expiry_date: Date.now() + 3600000,
+                scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
+                token_type: 'Bearer'
+            };
+
+            // Store connection in backend
+            const response = await fetch('/api/gmail/oauth/store', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId,
+                    email: userInfo.email,
+                    tokens
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to store Gmail connection');
+            }
+
             const connection: EmailConnection = {
                 provider: 'gmail',
                 email: userInfo.email || 'Gmail Account',
@@ -118,15 +152,6 @@ class EmailAuthService {
                 accessToken: result.accessToken
             };
 
-            // Save to Gmail connection storage (for compatibility with emailService)
-            localStorage.setItem('gmail_connection', JSON.stringify({
-                email: connection.email,
-                accessToken: connection.accessToken,
-                connectedAt: connection.connectedAt,
-                dailyLimit: connection.dailyLimit,
-                dailySent: connection.dailySent
-            }));
-
             // Update connections list
             this.connections = this.connections.filter(c => c.provider !== 'gmail');
             this.connections.push(connection);
@@ -136,6 +161,17 @@ class EmailAuthService {
         } catch (error) {
             console.error('Error connecting Gmail:', error);
             throw error;
+        }
+    }
+
+    private async getUserId(): Promise<string> {
+        try {
+            const mod = await import('./supabase');
+            const { data } = await mod.supabase.auth.getUser();
+            return data.user?.id || 'default';
+        } catch (e) {
+            console.warn('Could not get user from Supabase, using default');
+            return 'default';
         }
     }
 

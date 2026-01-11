@@ -3283,6 +3283,206 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
   }
 });
 
+// --- GMAIL INTEGRATION ---
+
+const gmailService = require('./services/gmailService');
+
+// OAuth callback - exchange code for tokens
+app.post('/api/gmail/oauth/callback', async (req, res) => {
+  try {
+    const { code, userId } = req.body;
+
+    if (!code || !userId) {
+      return res.status(400).json({ error: 'Missing code or userId' });
+    }
+
+    // Exchange code for tokens
+    const tokens = await gmailService.exchangeCodeForTokens(code);
+
+    // Get user email
+    const userInfo = await gmailService.getUserInfo(tokens.access_token);
+
+    // Store connection
+    await gmailService.storeConnection(userId, userInfo.email, tokens);
+
+    res.json({
+      success: true,
+      email: userInfo.email,
+      connection: {
+        provider: 'gmail',
+        email: userInfo.email,
+        connectedAt: new Date().toISOString(),
+        status: 'active'
+      }
+    });
+  } catch (error) {
+    console.error('Gmail OAuth callback error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Store tokens from frontend OAuth flow
+app.post('/api/gmail/oauth/store', async (req, res) => {
+  try {
+    const { userId, email, tokens } = req.body;
+
+    if (!userId || !email || !tokens) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    await gmailService.storeConnection(userId, email, tokens);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Gmail OAuth store error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get Gmail connection status
+app.get('/api/gmail/connection/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const connection = await gmailService.getConnection(userId);
+
+    if (!connection) {
+      return res.json({ connected: false });
+    }
+
+    res.json({
+      connected: true,
+      email: connection.email,
+      connectedAt: connection.updated_at,
+      status: 'active'
+    });
+  } catch (error) {
+    console.error('Error getting Gmail connection:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Send email via Gmail
+app.post('/api/gmail/send', async (req, res) => {
+  try {
+    const { userId, to, subject, text, html } = req.body;
+
+    if (!userId || !to || !subject) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const result = await gmailService.sendEmail(userId, { to, subject, text, html });
+    res.json({ success: true, messageId: result.id });
+  } catch (error) {
+    console.error('Error sending email via Gmail:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Disconnect Gmail
+app.delete('/api/gmail/connection/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await gmailService.disconnect(userId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error disconnecting Gmail:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// --- EMAIL FORWARDING FOR LEADS ---
+
+app.post('/api/leads/email-forward', async (req, res) => {
+  try {
+    // Email forward services like SendGrid or Mailgun send email data in multipart/form-data
+    const { to, from, subject, text, html } = req.body;
+
+    // Extract agent slug from email (e.g., "chris@leads.homelistingai.com" -> "chris")
+    const toEmail = to || '';
+    const slugMatch = toEmail.match(/^([^@]+)@leads\.homelistingai\.com$/);
+
+    if (!slugMatch) {
+      console.warn('Email forwarded to invalid address:', toEmail);
+      return res.json({ success: true, message: 'Ignored - invalid recipient' });
+    }
+
+    const agentSlug = slugMatch[1];
+
+    // Parse lead information from email
+    const leadData = {
+      email: from || 'unknown@example.com',
+      name: extractNameFromEmail(from, text),
+      phone: extractPhoneFromText(text),
+      message: text || html || 'Lead inquiry via email forwarding',
+      source: `Email Forward (${subject || 'No Subject'})`,
+      agentSlug: agentSlug
+    };
+
+    console.log(`📧 Email forwarded to ${agentSlug}:`, leadData);
+
+    // Create lead in database
+    const { data: agent } = await supabaseAdmin
+      .from('agents')
+      .select('id')
+      .eq('slug', agentSlug)
+      .single();
+
+    if (!agent) {
+      console.warn(`Agent not found for slug: ${agentSlug}`);
+      return res.json({ success: true, message: 'Agent not found' });
+    }
+
+    const { data: lead, error } = await supabaseAdmin
+      .from('leads')
+      .insert({
+        user_id: agent.id,
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone,
+        source: leadData.source,
+        status: 'New',
+        last_message: leadData.message,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating lead from email:', error);
+      return res.status(500).json({ error: 'Failed to create lead' });
+    }
+
+    console.log(`✅ Created lead from forwarded email: ${lead.id}`);
+    res.json({ success: true, leadId: lead.id });
+  } catch (error) {
+    console.error('Email forward processing error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper functions for email parsing
+function extractNameFromEmail(email, text) {
+  // Try to extract name from email or message body
+  if (!email) return 'Unknown Lead';
+
+  const emailMatch = email.match(/^([^<]+)</);
+  if (emailMatch) {
+    return emailMatch[1].trim();
+  }
+
+  // Fallback to email username
+  const username = email.split('@')[0];
+  return username.replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function extractPhoneFromText(text) {
+  if (!text) return null;
+
+  // Match phone patterns
+  const phoneMatch = text.match(/(\+?1?[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}/);
+  return phoneMatch ? phoneMatch[0] : null;
+}
+
 const loginNotificationCooldowns = new Map();
 
 app.post('/api/security/notify-login', async (req, res) => {
