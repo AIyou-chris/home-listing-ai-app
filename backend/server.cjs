@@ -9669,6 +9669,71 @@ app.post('/api/properties', async (req, res) => {
   }
 })
 
+// Update property
+app.put('/api/properties/:id', async (req, res) => {
+  const requestId = crypto.randomBytes(5).toString('hex')
+  const { id } = req.params
+  const rawAgentId = req.headers['x-agent-id']
+  const agentId = typeof rawAgentId === 'string' ? rawAgentId.trim() : ''
+
+  if (!agentId) {
+    console.warn(`[${requestId}] Missing agent identity for property update request`)
+    return res.status(401).json({ error: 'Agent identity is required', requestId })
+  }
+
+  if (!id) {
+    return res.status(400).json({ error: 'Property ID is required', requestId })
+  }
+
+  const payload = req.body
+  payload.updated_at = new Date().toISOString()
+
+  console.info(`[${requestId}] Updating property`, {
+    agentId,
+    propertyId: id
+  })
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .update(payload)
+      .eq('id', id)
+      .eq('agent_id', agentId) // Ensure agent owns this property
+      .select('*')
+      .single()
+
+    if (error) {
+      console.error(`[${requestId}] Backend property update error`, error)
+      await logPropertyAudit(agentId, 'update_property_failure', {
+        propertyId: id,
+        reason: error.message,
+        code: error.code
+      }, 'warning', requestId)
+      return res.status(400).json({ error: error.message, requestId })
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Property not found or unauthorized', requestId })
+    }
+
+    await logPropertyAudit(agentId, 'update_property_success', {
+      propertyId: data.id,
+      updatedAt: payload.updated_at
+    }, 'info', requestId)
+
+    console.info(`[${requestId}] Property updated`, { agentId, propertyId: data.id })
+    return res.json({ property: data })
+  } catch (updateError) {
+    console.error(`[${requestId}] Failed to update property via backend:`, updateError)
+    await logPropertyAudit(agentId, 'update_property_failure', {
+      propertyId: id,
+      reason: updateError?.message || String(updateError),
+      stack: updateError?.stack
+    }, 'error', requestId)
+    return res.status(500).json({ error: 'Unable to update property', requestId })
+  }
+})
+
 // Admin Setup Endpoint (Local Replacement for Cloud Function)
 app.post('/api/admin/setup', async (req, res) => {
   try {

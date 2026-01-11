@@ -292,18 +292,32 @@ export const listingsService = {
       agentSnapshot: 'agent' in input ? input.agent : (input as CreatePropertyInput).agentSnapshot
     })
 
-    const { data, error } = await supabase
-      .from(PROPERTIES_TABLE)
-      .update(payload)
-      .eq('id', id)
-      .select('*')
-      .single()
-
-    if (error) {
-      throw new Error(`Failed to update property: ${error.message}`)
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    const agentId = userData?.user?.id
+    if (userError || !agentId) {
+      throw new Error('Agent must be signed in to update a property')
     }
 
-    return mapRowToProperty(data as PropertyRow)
+    const response = await fetch(buildApiUrl(`/api/properties/${id}`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-agent-id': agentId
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      const errorBody = await response.text()
+      throw new Error(`Failed to update property: ${errorBody || response.statusText}`)
+    }
+
+    const result = await response.json()
+    if (!result?.property) {
+      throw new Error('Failed to update property: missing response data')
+    }
+
+    return mapRowToProperty(result.property as PropertyRow)
   },
 
   async deleteProperty(id: string): Promise<void> {
