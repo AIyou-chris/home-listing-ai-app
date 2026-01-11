@@ -7,7 +7,6 @@ import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import AdminCommandCenter from './components/AdminCommandCenter';
 import AdminAISidekicksPage from './components/AdminAISidekicksPage';
 // import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub'; // Kept for reference if needed, but unused in new flow
-import AdminSalesFunnelPanel from '../components/AdminSalesFunnelPanel';
 import AdminMarketingFunnelsPanel from '../components/admin/AdminMarketingFunnelsPanel';
 import InteractionHubPage from '../components/InteractionHubPage';
 import AddListingPage from '../components/AddListingPage';
@@ -38,7 +37,6 @@ export type DashboardView =
   | 'ai-conversations'
   | 'listings'
   | 'knowledge-base'
-  | 'funnel-analytics'
   | 'settings'
   | 'analytics'
   | 'inbox'
@@ -356,8 +354,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       case 'knowledge-base':
         return <AdminAISidekicksPage initialTab="overview" />;
 
-      case 'funnel-analytics':
-        return <AdminSalesFunnelPanel onBackToDashboard={resetToDashboard} forcedCallType="sales" />;
       case 'marketing-funnels':
         return (
           <AdminMarketingFunnelsPanel
