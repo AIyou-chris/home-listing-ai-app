@@ -86,6 +86,9 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
 
             {activeTab === 'connect' ? (
                 <FeatureSection title="Connect Email" icon="mail">
+                    <p className="text-slate-600 mb-6">
+                        Connect your Google account to automatically sync Gmail conversations, replies, and lead notifications directly to your HomeListingAI dashboard.
+                    </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <IntegrationCard
                             icon="mail"

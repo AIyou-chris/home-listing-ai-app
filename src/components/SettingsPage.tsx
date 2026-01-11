@@ -77,14 +77,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                         </button>
                     ))}
                 </nav>
-                <div className="p-4 border-t border-slate-200">
-                    <button
-                        onClick={onBackToDashboard}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-slate-900 transition-colors rounded-lg hover:bg-slate-50"
-                    >
-                        <span className="material-symbols-outlined w-5 h-5">arrow_back</span>
-                        Back to Dashboard
-                    </button>
+                <div className="p-4 border-t border-slate-200 hidden">
+                    {/* Back button removed per user request */}
                 </div>
             </div>
 
