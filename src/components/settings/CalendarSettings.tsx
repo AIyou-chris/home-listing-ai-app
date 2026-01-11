@@ -43,8 +43,43 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
         try {
             await googleOAuthService.requestAccess({ context: 'calendar' });
             const email = await googleOAuthService.getUserEmail('calendar');
+
+            // Store tokens in backend
+            try {
+                const mod = await import('../../services/supabase');
+                const { data: userData } = await mod.supabase.auth.getUser();
+                const userId = userData.user?.id || 'default';
+
+                // Get stored credentials
+                const credentialsStr = localStorage.getItem('google_calendar_credentials');
+                if (credentialsStr) {
+                    const credentials = JSON.parse(credentialsStr);
+                    const tokens = {
+                        access_token: credentials.accessToken,
+                        refresh_token: credentials.refreshToken,
+                        expiry_date: credentials.expiryDate,
+                        scope: credentials.scope,
+                        token_type: credentials.tokenType || 'Bearer'
+                    };
+
+                    await fetch('/api/calendar/oauth/store', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            userId,
+                            email,
+                            tokens
+                        })
+                    });
+                }
+            } catch (backendError) {
+                console.warn('Failed to store tokens in backend:', backendError);
+                // Don't fail the connection if backend storage fails
+            }
+
             setUserEmail(email);
-            // Optionally update integrationType in formData/backend
             setFormData(prev => ({ ...prev, integrationType: 'google' }));
         } catch (error) {
             console.error('Failed to connect Google Calendar:', error);

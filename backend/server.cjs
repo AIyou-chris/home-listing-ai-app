@@ -3483,6 +3483,62 @@ function extractPhoneFromText(text) {
   return phoneMatch ? phoneMatch[0] : null;
 }
 
+// --- GOOGLE CALENDAR INTEGRATION ---
+
+const googleCalendarService = require('./services/googleCalendarService');
+
+// Store tokens from frontend OAuth flow
+app.post('/api/calendar/oauth/store', async (req, res) => {
+  try {
+    const { userId, email, tokens } = req.body;
+
+    if (!userId || !email || !tokens) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    await googleCalendarService.storeConnection(userId, email, tokens);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Google Calendar OAuth store error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get Google Calendar connection status
+app.get('/api/calendar/connection/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const connection = await googleCalendarService.getConnection(userId);
+
+    if (!connection) {
+      return res.json({ connected: false });
+    }
+
+    res.json({
+      connected: true,
+      email: connection.email,
+      connectedAt: connection.updated_at,
+      status: 'active'
+    });
+  } catch (error) {
+    console.error('Error getting Google Calendar connection:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Disconnect Google Calendar
+app.delete('/api/calendar/connection/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await googleCalendarService.disconnect(userId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error disconnecting Google Calendar:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const loginNotificationCooldowns = new Map();
 
 app.post('/api/security/notify-login', async (req, res) => {
@@ -8785,6 +8841,30 @@ app.post('/api/appointments', async (req, res) => {
     const agentProfile =
       (await fetchAiCardProfileForUser(agentId || ownerId)) || DEFAULT_AI_CARD_PROFILE;
     const appointment = decorateAppointmentWithAgent(mapAppointmentFromRow(data), agentProfile);
+
+    // Sync to Google Calendar if connected
+    try {
+      const gcalEvent = await googleCalendarService.createEvent(ownerId, {
+        title: `${kind}: ${contactName}`,
+        description: `${kind} with ${contactName}\nEmail: ${contactEmail}\nPhone: ${phone || 'N/A'}\n\n${notes || ''}`,
+        startTime: isoRange.startIso,
+        endTime: isoRange.endIso,
+        attendees: contactEmail ? [{ email: contactEmail }] : [],
+        createMeetLink: !!meetLink
+      });
+
+      if (gcalEvent?.id) {
+        // Store Google Calendar event ID with appointment
+        await supabaseAdmin
+          .from('appointments')
+          .update({ google_calendar_event_id: gcalEvent.id })
+          .eq('id', data.id);
+        console.log(`🗓️ Synced appointment to Google Calendar: ${gcalEvent.id}`);
+      }
+    } catch (gcalError) {
+      console.warn('Failed to sync to Google Calendar:', gcalError.message);
+      // Don't fail the appointment creation if sync fails
+    }
 
     console.log(
       `📅 Created appointment (${appointment.type}) with ${appointment.leadName} on ${appointment.date} at ${appointment.time}`
