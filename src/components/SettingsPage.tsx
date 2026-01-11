@@ -35,7 +35,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     onSaveCalendarSettings,
     billingSettings,
     onSaveBillingSettings,
-    onBackToDashboard
+    onBackToDashboard,
+    onNavigateToAICard
 }) => {
     const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('profile');
 
