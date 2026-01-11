@@ -3531,31 +3531,99 @@ app.get('/api/leads/:leadId/tracking-stats', async (req, res) => {
 
     if (emailError) {
       console.error('Error fetching email tracking data:', emailError);
-      return res.status(500).json({ error: 'Failed to fetch tracking data' });
     }
 
+    // Get SMS tracking data
+    const { data: smsData, error: smsError } = await supabaseAdmin
+      .from('sms_tracking_events')
+      .select('*')
+      .eq('lead_id', leadId);
+
+    if (smsError) {
+      console.error('Error fetching SMS tracking data:', smsError);
+    }
+
+    // Email metrics
     const emailsSent = emailData?.length || 0;
     const emailOpens = emailData?.filter(e => e.opened_at).length || 0;
     const emailClicks = emailData?.reduce((sum, e) => sum + (e.click_count || 0), 0) || 0;
     const emailBounces = emailData?.filter(e => e.bounced_at).length || 0;
-    const uniqueOpens = emailData?.filter(e => e.opened_at).length || 0;
+
+    // SMS metrics
+    const smsSent = smsData?.length || 0;
+    const smsDelivered = smsData?.filter(s => s.delivered_at).length || 0;
+    const smsFailed = smsData?.filter(s => s.failed_at).length || 0;
 
     res.json({
       email: {
         sent: emailsSent,
         opens: emailOpens,
-        uniqueOpens,
+        uniqueOpens: emailOpens,
         clicks: emailClicks,
         bounces: emailBounces,
         openRate: emailsSent > 0 ? ((emailOpens / emailsSent) * 100).toFixed(1) : '0.0',
         clickRate: emailsSent > 0 ? ((emailClicks / emailsSent) * 100).toFixed(1) : '0.0',
         bounceRate: emailsSent > 0 ? ((emailBounces / emailsSent) * 100).toFixed(1) : '0.0'
       },
-      events: emailData || []
+      sms: {
+        sent: smsSent,
+        delivered: smsDelivered,
+        failed: smsFailed,
+        deliveryRate: smsSent > 0 ? ((smsDelivered / smsSent) * 100).toFixed(1) : '0.0',
+        failureRate: smsSent > 0 ? ((smsFailed / smsSent) * 100).toFixed(1) : '0.0'
+      },
+      events: {
+        email: emailData || [],
+        sms: smsData || []
+      }
     });
   } catch (error) {
     console.error('Error in tracking stats endpoint:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// --- SMS TRACKING ENDPOINTS ---
+
+// SMS status webhook (from Twilio or other SMS provider)
+app.post('/api/track/sms/status', async (req, res) => {
+  try {
+    // Twilio sends these parameters
+    const { MessageSid, MessageStatus, ErrorCode, To, From } = req.body;
+
+    if (!MessageSid) {
+      return res.status(400).json({ error: 'MessageSid required' });
+    }
+
+    const update = {
+      updated_at: new Date().toISOString()
+    };
+
+    // Map Twilio status to our tracking fields
+    if (MessageStatus === 'delivered') {
+      update.delivered_at = new Date().toISOString();
+    } else if (MessageStatus === 'failed' || MessageStatus === 'undelivered') {
+      update.failed_at = new Date().toISOString();
+      update.failure_reason = ErrorCode
+        ? `Twilio Error ${ErrorCode}`
+        : `Status: ${MessageStatus}`;
+    }
+
+    const { error } = await supabaseAdmin
+      .from('sms_tracking_events')
+      .update(update)
+      .eq('message_sid', MessageSid);
+
+    if (error) {
+      console.error('Error updating SMS tracking:', error);
+      return res.status(500).json({ error: 'Failed to update SMS tracking' });
+    }
+
+    console.log(`📱 SMS status update: ${MessageSid} - ${MessageStatus}`);
+    res.sendStatus(200); // Twilio expects 200 OK
+  } catch (error) {
+    console.error('Error in SMS status webhook:', error);
+    res.sendStatus(200); // Still return 200 to prevent retries
   }
 });
 
