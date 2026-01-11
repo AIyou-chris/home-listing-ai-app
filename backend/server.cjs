@@ -4514,12 +4514,13 @@ app.post('/api/webhooks/incoming-lead', async (req, res) => {
 
     // Trigger notification logic
     try {
-      const prefs = await getNotificationPreferences(assignedUserId);
-      if (prefs.smsNewLeadAlerts && prefs.notificationPhone) {
-        const msg = `🔥 New Lead Alert!\nName: ${mappedLead.name}\nContact: ${mappedLead.phone || mappedLead.email || 'N/A'}\nSource: ${mappedLead.source}`;
-        // Verify phone number format? sendSms handles it usually.
-        await sendSms(prefs.notificationPhone, msg);
-        console.log(`📱 Sent SMS alert to Agent at ${prefs.notificationPhone}`);
+      if (await shouldSendNotification(assignedUserId, 'sms', 'smsNewLeadAlerts')) {
+        const prefs = await getNotificationPreferences(assignedUserId);
+        if (prefs.notificationPhone) {
+          const msg = `🔥 New Lead Alert!\nName: ${mappedLead.name}\nContact: ${mappedLead.phone || mappedLead.email || 'N/A'}\nSource: ${mappedLead.source}`;
+          await sendSms(prefs.notificationPhone, msg);
+          console.log(`📱 Sent SMS alert to Agent at ${prefs.notificationPhone}`);
+        }
       }
     } catch (notifyErr) {
       console.warn('Failed to send SMS alert:', notifyErr.message);
@@ -4716,8 +4717,8 @@ app.post('/api/webhooks/telnyx/inbound', async (req, res) => {
             return;
           }
 
-          // Check preferences ?
-          const shouldAutoReply = true;
+          // Check preferences
+          const shouldAutoReply = await shouldSendNotification(lead.user_id, 'sms', 'aiInteraction');
 
           if (shouldAutoReply) {
             // Fetch History
@@ -4893,7 +4894,11 @@ app.post('/api/admin/leads', async (req, res) => {
 
               console.log(`[Funnel] Triggering immediate SMS to ${phone} for funnel ${funnelId}`);
 
-              sendSms(phone, content, mediaUrls).catch(err => console.error(`[Funnel] Failed to send SMS to ${phone}`, err));
+              if (await shouldSendNotification(lead.user_id, 'sms', 'aiInteraction')) {
+                sendSms(phone, content, mediaUrls).catch(err => console.error(`[Funnel] Failed to send SMS to ${phone}`, err));
+              } else {
+                console.log(`[Funnel] SMS suppressed by preferences for User ${lead.user_id}`);
+              }
             }
           }
 
@@ -5433,34 +5438,12 @@ app.post('/api/leads', async (req, res) => {
 
     // 2. SMS Notifications
     if (agentId) {
-      const prefs = await getNotificationPreferences(agentId);
+      try {
+        if (await shouldSendNotification(agentId, 'sms', 'smsNewLeadAlerts')) {
+          const prefs = await getNotificationPreferences(agentId);
+          let agentPhone = prefs.notificationPhone;
 
-      if (prefs.smsNewLeadAlerts) {
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinutes = now.getMinutes();
-        const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
-
-        const start = prefs.smsActiveHoursStart || '08:00';
-        const end = prefs.smsActiveHoursEnd || '21:00';
-
-        let isWithin = false;
-        if (start <= end) {
-          // Standard day range (e.g. 08:00 to 21:00)
-          isWithin = currentTime >= start && currentTime <= end;
-        } else {
-          // Overnight range (e.g. 21:00 to 08:00)
-          isWithin = currentTime >= start || currentTime <= end;
-        }
-
-        if (isWithin) {
-          console.log(`🔔 Sending SMS Alert for Agent ${agentId} at ${currentTime}`);
-
-          // Fetch Agent Phone
-          // If we can't fetch from DB, we might check a local store or fallback.
-          let agentPhone = null;
-
-          if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+          if (!agentPhone && process.env.SUPABASE_SERVICE_ROLE_KEY) {
             const { data: agent } = await supabaseAdmin
               .from('agents')
               .select('phone')
@@ -5469,18 +5452,16 @@ app.post('/api/leads', async (req, res) => {
             if (agent) agentPhone = agent.phone;
           }
 
-          // Fallback mechanism if no DB agent phone (e.g. for demo with your specific number)
-          // For now, if no agent phone found, we log warning.
-
           if (agentPhone) {
             const smsMessage = `New Lead Alert: ${name} just signed up! 📞 ${phone || 'No phone'} 📧 ${email}`;
             await sendSms(agentPhone, smsMessage);
+            console.log(`🔔 Sent SMS Alert for Agent ${agentId} to ${agentPhone}`);
           } else {
             console.warn(`⚠️ SMS Alert skipped: No phone number found for Agent ${agentId}`);
           }
-        } else {
-          console.log(`🔕 SMS Alert muted: Current time ${currentTime} is outside active hours (${start}-${end})`);
         }
+      } catch (notifyErr) {
+        console.warn('Failed to send lead SMS notification:', notifyErr.message);
       }
     }
 

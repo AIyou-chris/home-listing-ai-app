@@ -17,18 +17,8 @@ const normalizePhoneNumber = (num) => {
 
 const checkSafetyRules = (destination) => {
     const now = new Date();
-    const hour = now.getHours(); // 0-23 (Server Time)
 
-    // 1. SLEEP MODE (Safe Hours: 8 AM - 9 PM)
-    // Prevents waking people up or violating TCPA night-time rules
-    const START_HOUR = 8;
-    const END_HOUR = 21;
-    if (hour < START_HOUR || hour >= END_HOUR) {
-        console.warn(`🌙 [Safety] Blocked SMS to ${destination}: Outside safe hours (${hour}:00).`);
-        return { safe: false, reason: 'Outside safe hours (Sleep Mode)' };
-    }
-
-    // 2. FREQUENCY GUARD (Rate Limit)
+    // 1. FREQUENCY GUARD (Rate Limit)
     // Limit: Max 1 message every 10 seconds to the same number (Antispam)
     const lastSent = messageHistory.get(destination);
     if (lastSent) {

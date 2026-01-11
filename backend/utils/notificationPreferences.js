@@ -107,17 +107,51 @@ const updatePreferences = async (userId, updates = {}) => {
 const shouldSend = async (userId, channel, eventKey) => {
   const settings = await getPreferences(userId);
 
-  if (channel !== 'email') {
-    return true;
+  // 1. CHANNEL TOGGLE CHECK
+  if (eventKey && Object.hasOwn(settings, eventKey)) {
+    if (!settings[eventKey]) return false;
   }
 
-  if (!eventKey) {
-    return true;
-  }
+  // 2. CHANNEL-SPECIFIC RULES
+  if (channel === 'sms') {
+    // Check SMS Consent
+    if (!settings.smsConsent) {
+      console.warn(`🛑 [Notifications] Blocked SMS to User ${userId}: No SMS Consent.`);
+      return false;
+    }
 
-  const normalizedKey = String(eventKey);
-  if (Object.hasOwn(settings, normalizedKey)) {
-    return Boolean(settings[normalizedKey]);
+    // Check Quiet Hours
+    const now = new Date();
+    // Simple timezone conversion if timezone is set (e.g. "America/New_York")
+    let localTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+
+    if (settings.timeZone) {
+      try {
+        localTimeStr = now.toLocaleTimeString('en-US', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: settings.timeZone
+        });
+      } catch (e) {
+        console.warn(`⚠️ [Notifications] Invalid timezone ${settings.timeZone}. Using server time.`);
+      }
+    }
+
+    const start = settings.smsActiveHoursStart || '09:00';
+    const end = settings.smsActiveHoursEnd || '17:00';
+
+    let isWithin = false;
+    if (start <= end) {
+      isWithin = localTimeStr >= start && localTimeStr <= end;
+    } else {
+      isWithin = localTimeStr >= start || localTimeStr <= end;
+    }
+
+    if (!isWithin) {
+      console.log(`🔕 [Notifications] SMS Blocked: ${localTimeStr} is outside active hours (${start}-${end}) for User ${userId}`);
+      return false;
+    }
   }
 
   return true;
