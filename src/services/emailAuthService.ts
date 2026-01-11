@@ -33,7 +33,7 @@ class EmailAuthService {
             if (stored) {
                 this.connections = JSON.parse(stored);
             }
-            
+
             // Also check for Gmail connection from googleOAuthService
             const gmailConnection = this.getGmailConnectionFromStorage();
             if (gmailConnection && !this.connections.find(c => c.provider === 'gmail')) {
@@ -86,15 +86,15 @@ class EmailAuthService {
                 this.connections.push(gmailConnection);
             }
         }
-        
+
         return [...this.connections];
     }
 
     async connectGmail(): Promise<EmailConnection> {
         try {
             // Use the existing Google OAuth service
-            const result = await googleOAuthService.authenticate(['https://www.googleapis.com/auth/gmail.send']);
-            
+            const result = await googleOAuthService.authenticate(['https://www.googleapis.com/auth/gmail.send'], { context: 'gmail' });
+
             if (!result.success || !result.accessToken) {
                 throw new Error('Gmail authentication failed');
             }
@@ -105,7 +105,7 @@ class EmailAuthService {
                     'Authorization': `Bearer ${result.accessToken}`
                 }
             });
-            
+
             const userInfo = await userInfoResponse.json();
 
             const connection: EmailConnection = {
@@ -144,9 +144,9 @@ class EmailAuthService {
             // Outlook OAuth implementation would go here
             // For now, show a placeholder message
             alert('Outlook integration coming soon! Currently, only Gmail is supported.');
-            
+
             throw new Error('Outlook integration not yet implemented');
-            
+
             // When implemented, it would look like:
             /*
             const connection: EmailConnection = {

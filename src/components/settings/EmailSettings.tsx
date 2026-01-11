@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { EmailSettings } from '../../types';
-import { googleOAuthService } from '../../services/googleOAuthService';
+import { emailAuthService, EmailConnection } from '../../services/emailAuthService';
 import { IntegrationCard, FeatureSection } from './SettingsCommon';
 
 interface EmailSettingsProps {
     settings: EmailSettings;
-    onSave: (settings: EmailSettings) => Promise<void>; // Used for general save or updates
+    onSave: (settings: EmailSettings) => Promise<void>;
     onBack?: () => void;
     isLoading?: boolean;
 }
@@ -15,36 +15,36 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     onSave,
     onBack,
 }) => {
+    const [gmailConnection, setGmailConnection] = useState<EmailConnection | undefined>(
+        emailAuthService.getConnection('gmail')
+    );
 
-    // If settings has info about connection, we use it. 
-    // Assuming settings.gmailConnected or similar exists. 
-    // Since I don't see the exact type definition of EmailSettings in the snippet, 
-    // I will infer from standard usage or previous file content. 
-    // If settings has 'gmail' object or similar.
-    // Making a safe guess based on context.
+    useEffect(() => {
+        setGmailConnection(emailAuthService.getConnection('gmail'));
+    }, []);
 
-    // In the original file, it seemed to track `emailConnection` state separately?
-    // Let's assume passed settings has the necessary connection info.
-
-    // For now, I'll assume we can trigger the OAuth flow.
     const handleConnectEmail = async (provider: 'gmail' | 'outlook') => {
         if (provider === 'gmail') {
             try {
-                await googleOAuthService.authenticate();
+                const connection = await emailAuthService.connectGmail();
+                setGmailConnection(connection);
+                await onSave({ ...settings, integrationType: 'oauth' });
             } catch (error) {
                 console.error('Failed to initiate Google Auth:', error);
-                // In a real app we'd show a toast here
             }
         } else {
-            // Outlook not implemented yet logic
             alert("Outlook integration coming soon!");
         }
     };
 
-    const handleDisconnectEmail = async () => {
-        // Use proper fields as defined in EmailSettings type
-        const newSettings: EmailSettings = { ...settings, integrationType: 'forwarding', fromEmail: undefined };
-        await onSave(newSettings);
+    const handleDisconnectEmail = async (provider: 'gmail' | 'outlook') => {
+        try {
+            await emailAuthService.disconnect(provider);
+            setGmailConnection(undefined);
+            await onSave({ ...settings, integrationType: 'forwarding' });
+        } catch (error) {
+            console.error(`Failed to disconnect ${provider}:`, error);
+        }
     };
 
     return (
@@ -57,15 +57,17 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
             <FeatureSection title="Connect Email" icon="mail">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <IntegrationCard
-                        icon="mail" // 'mail' implies Gmail logo if we had one, or use generic
+                        icon="mail"
                         title="Gmail"
-                        description="Connect your Google Workspace or Gmail account to sync emails."
-                        tags={[
+                        description={gmailConnection ? `Connected as ${gmailConnection.email}` : "Connect your Google Workspace or Gmail account to sync emails."}
+                        tags={gmailConnection ? [
+                            { label: 'Connected', color: 'green' }
+                        ] : [
                             { label: 'Popular', color: 'green' },
                             { label: 'Recommended', color: 'blue' }
                         ]}
-                        isSelected={settings.integrationType === 'oauth'}
-                        onClick={() => (settings.integrationType === 'oauth') ? handleDisconnectEmail() : handleConnectEmail('gmail')}
+                        isSelected={!!gmailConnection}
+                        onClick={() => gmailConnection ? handleDisconnectEmail('gmail') : handleConnectEmail('gmail')}
                     />
                     <IntegrationCard
                         icon="mail_outline"

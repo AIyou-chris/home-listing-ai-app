@@ -33,6 +33,28 @@ const NOTIFICATION_GROUPS: Array<{
             ]
         },
         {
+            title: 'SMS & Phone Alerts',
+            icon: 'sms',
+            items: [
+                {
+                    key: 'smsNewLeadAlerts',
+                    label: 'New Lead SMS Alerts',
+                    description: 'Receive a text message when a high-priority lead arrives'
+                }
+            ]
+        },
+        {
+            title: 'Voice & Robo-call Alerts',
+            icon: 'call',
+            items: [
+                {
+                    key: 'hotLeads',
+                    label: 'Rapid Response Robo-calls',
+                    description: 'Automatically trigger an AI call to you for hot leads'
+                }
+            ]
+        },
+        {
             title: 'Email Reports',
             icon: 'mail',
             items: [
@@ -85,6 +107,11 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
         setLocalSettings(prev => ({ ...prev, [key]: enabled }));
     };
 
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setLocalSettings(prev => ({ ...prev, [name]: value }));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
@@ -105,6 +132,25 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
             {NOTIFICATION_GROUPS.map((group) => (
                 <FeatureSection key={group.title} title={group.title} icon={group.icon}>
                     <div className="space-y-4">
+                        {group.title === 'SMS & Phone Alerts' && (
+                            <div className="mb-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                                <label htmlFor="notificationPhone" className="block text-sm font-medium text-blue-900 mb-1">
+                                    Alert Phone Number
+                                </label>
+                                <input
+                                    type="tel"
+                                    id="notificationPhone"
+                                    name="notificationPhone"
+                                    value={localSettings.notificationPhone || ''}
+                                    onChange={handleInputChange}
+                                    placeholder="+1 (555) 000-0000"
+                                    className="w-full px-3 py-2 bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-slate-900"
+                                />
+                                <p className="text-xs text-blue-700 mt-2">
+                                    This number will be used for all SMS and voice alerts.
+                                </p>
+                            </div>
+                        )}
                         {group.items.map((item) => (
                             <div key={item.key} className="flex justify-between items-center p-4 bg-slate-50 rounded-lg">
                                 <div>
@@ -112,7 +158,7 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                                     <p className="text-sm text-slate-500">{item.description}</p>
                                 </div>
                                 <ToggleSwitch
-                                    enabled={localSettings[item.key] || false}
+                                    enabled={!!localSettings[item.key]}
                                     onChange={(val) => handleToggle(item.key, val)}
                                     disabled={isLoading || isSaving}
                                 />
@@ -143,5 +189,6 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
         </form>
     );
 };
+
 
 export default NotificationSettingsPage;

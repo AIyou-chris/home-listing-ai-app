@@ -6,7 +6,7 @@ interface AuthResult {
   reason?: string
 }
 
-type OAuthContext = 'calendar'
+type OAuthContext = 'calendar' | 'gmail'
 
 interface StoredCredentials {
   accessToken: string | null
@@ -26,6 +26,7 @@ interface RequestOptions {
 
 const DEFAULT_USER_ID = 'blueprint-agent'
 const CALENDAR_STORAGE_KEY = 'google_calendar_credentials'
+const GMAIL_STORAGE_KEY = 'google_gmail_credentials'
 const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
 
 class GoogleOAuthService {
@@ -33,6 +34,7 @@ class GoogleOAuthService {
 
   private popup: Window | null = null
   private calendarCredentials: StoredCredentials | null = null
+  private gmailCredentials: StoredCredentials | null = null
   private pending: Partial<Record<OAuthContext, {
     resolve(value: boolean): void
     reject(reason?: unknown): void
@@ -43,11 +45,12 @@ class GoogleOAuthService {
   constructor() {
     this.isAvailable = this.computeAvailability()
     if (this.isBrowser()) {
-      this.calendarCredentials = this.loadStoredCredentials()
+      this.calendarCredentials = this.loadStoredCredentials('calendar')
+      this.gmailCredentials = this.loadStoredCredentials('gmail')
       this.messageHandler = this.handleMessage.bind(this)
       window.addEventListener('message', this.messageHandler)
     } else {
-      this.messageHandler = () => {}
+      this.messageHandler = () => { }
     }
   }
 
@@ -80,11 +83,12 @@ class GoogleOAuthService {
     return undefined
   }
 
-  private loadStoredCredentials(): StoredCredentials | null {
+  private loadStoredCredentials(context: OAuthContext): StoredCredentials | null {
     if (!this.isBrowser()) return null
 
+    const key = context === 'calendar' ? CALENDAR_STORAGE_KEY : GMAIL_STORAGE_KEY
     try {
-      const raw = window.localStorage.getItem(CALENDAR_STORAGE_KEY)
+      const raw = window.localStorage.getItem(key)
       if (!raw) return null
 
       const parsed = JSON.parse(raw) as StoredCredentials
@@ -100,24 +104,25 @@ class GoogleOAuthService {
         }
       }
     } catch (error) {
-      console.warn('Failed to load Google Calendar credentials:', error)
+      console.warn(`Failed to load Google ${context} credentials:`, error)
     }
 
     return null
   }
 
-  private saveCredentials(credentials: StoredCredentials | null): void {
+  private saveCredentials(context: OAuthContext, credentials: StoredCredentials | null): void {
     if (!this.isBrowser()) return
 
+    const key = context === 'calendar' ? CALENDAR_STORAGE_KEY : GMAIL_STORAGE_KEY
     if (!credentials) {
-      window.localStorage.removeItem(CALENDAR_STORAGE_KEY)
+      window.localStorage.removeItem(key)
       return
     }
 
     try {
-      window.localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(credentials))
+      window.localStorage.setItem(key, JSON.stringify(credentials))
     } catch (error) {
-      console.warn('Failed to persist Google Calendar credentials:', error)
+      console.warn(`Failed to persist Google ${context} credentials:`, error)
     }
   }
 
@@ -145,7 +150,11 @@ class GoogleOAuthService {
       return
     }
 
-    if (type === 'calendar-oauth-success') {
+    const isCalendar = type === 'calendar-oauth-success'
+    const isGmail = type === 'gmail-oauth-success'
+
+    if (isCalendar || isGmail) {
+      const context: OAuthContext = isCalendar ? 'calendar' : 'gmail'
       const data = payload as {
         tokens?: {
           accessToken?: string | null
@@ -161,7 +170,7 @@ class GoogleOAuthService {
       const tokens = data.tokens || {}
       const expiry = this.normalizeExpiry(tokens.expiryDate ?? null)
 
-      this.calendarCredentials = {
+      const credentials: StoredCredentials = {
         accessToken: tokens.accessToken || null,
         refreshToken: tokens.refreshToken || null,
         expiryDate: expiry,
@@ -171,14 +180,21 @@ class GoogleOAuthService {
         receivedAt: Date.now()
       }
 
-      this.saveCredentials(this.calendarCredentials)
-      this.finishPending('calendar', true)
+      if (context === 'calendar') {
+        this.calendarCredentials = credentials
+      } else {
+        this.gmailCredentials = credentials
+      }
+
+      this.saveCredentials(context, credentials)
+      this.finishPending(context, true)
       this.closePopup()
       return
     }
 
-    if (type === 'calendar-oauth-error') {
-      this.finishPending('calendar', false, (payload as { reason?: unknown }).reason)
+    if (type === 'calendar-oauth-error' || type === 'gmail-oauth-error') {
+      const context: OAuthContext = type === 'calendar-oauth-error' ? 'calendar' : 'gmail'
+      this.finishPending(context, false, (payload as { reason?: unknown }).reason)
       this.closePopup()
       return
     }
@@ -213,7 +229,7 @@ class GoogleOAuthService {
   }
 
   isAuthenticated(context: OAuthContext = 'calendar'): boolean {
-    const credentials = context === 'calendar' ? this.calendarCredentials : null
+    const credentials = context === 'calendar' ? this.calendarCredentials : this.gmailCredentials
     if (!credentials || !credentials.accessToken) {
       return false
     }
@@ -233,11 +249,13 @@ class GoogleOAuthService {
       return null
     }
 
-    return context === 'calendar' ? this.calendarCredentials?.accessToken || null : null
+    const credentials = context === 'calendar' ? this.calendarCredentials : this.gmailCredentials
+    return credentials?.accessToken || null
   }
 
   getUserEmail(context: OAuthContext = 'calendar'): string | null {
-    return context === 'calendar' ? this.calendarCredentials?.email || null : null
+    const credentials = context === 'calendar' ? this.calendarCredentials : this.gmailCredentials
+    return credentials?.email || null
   }
 
   async requestAccess(options: RequestOptions = {}): Promise<boolean> {
@@ -316,8 +334,10 @@ class GoogleOAuthService {
   logout(context: OAuthContext = 'calendar'): void {
     if (context === 'calendar') {
       this.calendarCredentials = null
-      this.saveCredentials(null)
+    } else {
+      this.gmailCredentials = null
     }
+    this.saveCredentials(context, null)
   }
 
   async forceReAuth(options: RequestOptions = {}): Promise<boolean> {

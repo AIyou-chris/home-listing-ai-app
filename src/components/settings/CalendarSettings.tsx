@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CalendarSettings } from '../../types';
-import { FeatureSection } from './SettingsCommon';
+import { FeatureSection, ToggleSwitch } from './SettingsCommon';
+import { googleOAuthService } from '../../services/googleOAuthService';
 
 interface CalendarSettingsProps {
     settings: CalendarSettings;
@@ -17,6 +18,8 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
 }) => {
     const [formData, setFormData] = useState<CalendarSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
+    const [userEmail, setUserEmail] = useState<string | null>(null);
 
     useEffect(() => {
         if (settings) {
@@ -24,15 +27,45 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
         }
     }, [settings]);
 
+    useEffect(() => {
+        const checkAuth = async () => {
+            const authed = await googleOAuthService.isAuthenticated('calendar');
+            if (authed) {
+                const email = await googleOAuthService.getUserEmail('calendar');
+                setUserEmail(email);
+            }
+        };
+        checkAuth();
+    }, []);
+
+    const handleConnectGoogle = async () => {
+        setIsConnecting(true);
+        try {
+            await googleOAuthService.requestAccess({ context: 'calendar' });
+            const email = await googleOAuthService.getUserEmail('calendar');
+            setUserEmail(email);
+            // Optionally update integrationType in formData/backend
+            setFormData(prev => ({ ...prev, integrationType: 'google' }));
+        } catch (error) {
+            console.error('Failed to connect Google Calendar:', error);
+        } finally {
+            setIsConnecting(false);
+        }
+    };
+
+    const handleDisconnectGoogle = async () => {
+        try {
+            await googleOAuthService.logout('calendar');
+            setUserEmail(null);
+            setFormData(prev => ({ ...prev, integrationType: null }));
+        } catch (error) {
+            console.error('Failed to disconnect Google Calendar:', error);
+        }
+    };
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => {
-            // Check if nested property update is needed (e.g. workingHours)
-            // Simplified handling for flat check, but assuming structure:
-            // settings.workingHours.start, etc.
-
-            // This needs to be robust.
-            // If name is 'startTime', update workingHours.start
             if (name === 'startTime') {
                 return { ...prev, workingHours: { ...prev.workingHours, start: value } };
             }
@@ -76,6 +109,48 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                 <p className="text-slate-500 mt-1">Configure your availability and booking preferences.</p>
             </div>
 
+            <FeatureSection title="Google Calendar Connection" icon="link">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="material-symbols-outlined text-white w-6 h-6">calendar_today</span>
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Google Calendar Integration</h3>
+                            <p className="text-sm text-slate-600 mb-4">
+                                Sync your consultations with Google Calendar to avoid double bookings and automatically generate Meet links for clients.
+                            </p>
+
+                            {userEmail ? (
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 text-green-700 font-medium">
+                                        <span className="material-symbols-outlined text-base">check_circle</span>
+                                        <span>Connected as {userEmail}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleDisconnectGoogle}
+                                        className="text-sm text-red-600 hover:text-red-700 font-semibold underline"
+                                    >
+                                        Disconnect Google Calendar
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={handleConnectGoogle}
+                                    disabled={isConnecting}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-base">link</span>
+                                    {isConnecting ? 'Connecting...' : 'Connect Google Calendar'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </FeatureSection>
+
             <FeatureSection title="Booking Preferences" icon="tune">
                 <div className="space-y-6">
                     <div>
@@ -89,7 +164,7 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                                     id="calendar-start-time"
                                     value={formData.workingHours?.start || '09:00'}
                                     onChange={handleInputChange}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-slate-900"
                                 />
                             </div>
                             <div>
@@ -100,7 +175,7 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                                     id="calendar-end-time"
                                     value={formData.workingHours?.end || '17:00'}
                                     onChange={handleInputChange}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-slate-900"
                                 />
                             </div>
                         </div>
@@ -131,7 +206,7 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                             id="calendar-default-duration"
                             value={formData.defaultDuration || 30}
                             onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-slate-900"
                         >
                             <option value={15}>15 minutes</option>
                             <option value={30}>30 minutes</option>
@@ -146,23 +221,31 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
 
             <FeatureSection title="Calendar Notifications" icon="notifications">
                 <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                         <div>
-                            <h4 className="font-medium text-slate-900">Email Reminders</h4>
+                            <h4 className="font-semibold text-slate-800">Email Reminders</h4>
                             <p className="text-sm text-slate-500">Send automatic email reminders to clients</p>
                         </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={formData.emailReminders !== false}
-                                onChange={(e) => handleToggle('emailReminders', e.target.checked)}
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                        </label>
+                        <ToggleSwitch
+                            enabled={formData.emailReminders !== false}
+                            onChange={(val) => handleToggle('emailReminders', val)}
+                            disabled={isLoading || isSaving}
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <div>
+                            <h4 className="font-semibold text-slate-800">SMS Reminders</h4>
+                            <p className="text-sm text-slate-500">Send text message reminders before appointments</p>
+                        </div>
+                        <ToggleSwitch
+                            enabled={!!formData.smsReminders}
+                            onChange={(val) => handleToggle('smsReminders', val)}
+                            disabled={isLoading || isSaving}
+                        />
                     </div>
                 </div>
             </FeatureSection>
+
 
             <div className="flex items-center justify-between pt-8 border-t border-slate-200">
                 {onBack && (
