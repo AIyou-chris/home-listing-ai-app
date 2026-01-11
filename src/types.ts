@@ -479,6 +479,9 @@ export interface NotificationSettings {
     leadAction?: boolean;
     dailyDigest?: boolean;
     securityAlerts?: boolean;
+    smsConsent?: boolean;
+    smsOptOutMsg?: boolean;
+    timeZone?: string;
 }
 
 export type CalendarIntegrationType = 'google' | 'outlook' | 'apple' | null;
