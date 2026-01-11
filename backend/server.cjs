@@ -68,6 +68,7 @@ const {
 } = require('./utils/calendarSettings');
 const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
+const emailTrackingService = require('./services/emailTrackingService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
 const { scrapeUrl } = require('./services/scraperService');
 const { sendSms, validatePhoneNumber } = require('./services/smsService');
@@ -3387,6 +3388,174 @@ app.delete('/api/gmail/connection/:userId', async (req, res) => {
   } catch (error) {
     console.error('Error disconnecting Gmail:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// --- EMAIL TRACKING ENDPOINTS ---
+
+// Track email opens (1x1 transparent pixel)
+app.get('/api/track/email/open/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    if (!messageId) {
+      return res.status(400).send('Message ID required');
+    }
+
+    // Update tracking record
+    const { error } = await supabaseAdmin
+      .from('email_tracking_events')
+      .update({
+        opened_at: supabaseAdmin.raw('COALESCE(opened_at, NOW())'), // Only set if not already set
+        open_count: supabaseAdmin.raw('open_count + 1'),
+        updated_at: new Date().toISOString()
+      })
+      .eq('message_id', messageId);
+
+    if (error) {
+      console.error('Error tracking email open:', error);
+    }
+
+    // Return 1x1 transparent GIF
+    const pixel = Buffer.from(
+      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+      'base64'
+    );
+
+    res.writeHead(200, {
+      'Content-Type': 'image/gif',
+      'Content-Length': pixel.length,
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache'
+    });
+    res.end(pixel);
+  } catch (error) {
+    console.error('Error in email open tracking:', error);
+    // Still return pixel even on error
+    const pixel = Buffer.from(
+      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+      'base64'
+    );
+    res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': pixel.length });
+    res.end(pixel);
+  }
+});
+
+// Track email link clicks
+app.get('/api/track/email/click/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { url } = req.query;
+
+    if (!messageId || !url) {
+      return res.status(400).send('Message ID and URL required');
+    }
+
+    // Update tracking record
+    const { error } = await supabaseAdmin
+      .from('email_tracking_events')
+      .update({
+        clicked_at: supabaseAdmin.raw('COALESCE(clicked_at, NOW())'), // Only set first click time
+        click_count: supabaseAdmin.raw('click_count + 1'),
+        updated_at: new Date().toISOString()
+      })
+      .eq('message_id', messageId);
+
+    if (error) {
+      console.error('Error tracking email click:', error);
+    }
+
+    // Redirect to actual URL
+    res.redirect(decodeURIComponent(url));
+  } catch (error) {
+    console.error('Error in email click tracking:', error);
+    // Redirect anyway on error
+    const { url } = req.query;
+    if (url) {
+      res.redirect(decodeURIComponent(url));
+    } else {
+      res.status(400).send('URL required');
+    }
+  }
+});
+
+// Bounce webhook (from email provider like SendGrid, Mailgun, etc.)
+app.post('/api/track/email/bounce', async (req, res) => {
+  try {
+    const { messageId, reason, bounceType, email } = req.body;
+
+    if (!messageId) {
+      return res.status(400).json({ error: 'Message ID required' });
+    }
+
+    const bounceReason = bounceType
+      ? `${bounceType}: ${reason || 'Unknown'}`
+      : (reason || 'Bounce detected');
+
+    const { error } = await supabaseAdmin
+      .from('email_tracking_events')
+      .update({
+        bounced_at: new Date().toISOString(),
+        bounce_reason: bounceReason,
+        updated_at: new Date().toISOString()
+      })
+      .eq('message_id', messageId);
+
+    if (error) {
+      console.error('Error recording email bounce:', error);
+      return res.status(500).json({ error: 'Failed to record bounce' });
+    }
+
+    console.log(`📧 Email bounce recorded: ${messageId} - ${bounceReason}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error in bounce webhook:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get tracking stats for a lead
+app.get('/api/leads/:leadId/tracking-stats', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID required' });
+    }
+
+    // Get email tracking data
+    const { data: emailData, error: emailError } = await supabaseAdmin
+      .from('email_tracking_events')
+      .select('*')
+      .eq('lead_id', leadId);
+
+    if (emailError) {
+      console.error('Error fetching email tracking data:', emailError);
+      return res.status(500).json({ error: 'Failed to fetch tracking data' });
+    }
+
+    const emailsSent = emailData?.length || 0;
+    const emailOpens = emailData?.filter(e => e.opened_at).length || 0;
+    const emailClicks = emailData?.reduce((sum, e) => sum + (e.click_count || 0), 0) || 0;
+    const emailBounces = emailData?.filter(e => e.bounced_at).length || 0;
+    const uniqueOpens = emailData?.filter(e => e.opened_at).length || 0;
+
+    res.json({
+      email: {
+        sent: emailsSent,
+        opens: emailOpens,
+        uniqueOpens,
+        clicks: emailClicks,
+        bounces: emailBounces,
+        openRate: emailsSent > 0 ? ((emailOpens / emailsSent) * 100).toFixed(1) : '0.0',
+        clickRate: emailsSent > 0 ? ((emailClicks / emailsSent) * 100).toFixed(1) : '0.0',
+        bounceRate: emailsSent > 0 ? ((emailBounces / emailsSent) * 100).toFixed(1) : '0.0'
+      },
+      events: emailData || []
+    });
+  } catch (error) {
+    console.error('Error in tracking stats endpoint:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
