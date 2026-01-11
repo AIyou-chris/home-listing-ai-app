@@ -66,6 +66,7 @@ const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
 
 import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
+import { securitySettingsService } from './services/securitySettingsService';
 import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
 import CombinedTrainingPage from './components/AgentAISidekicksPage';
@@ -478,6 +479,11 @@ const App: React.FC = () => {
                     }
 
                     await loadUserData(currentUser);
+
+                    // Security Notification (Non-blocking)
+                    if (currentUser.email) {
+                        void securitySettingsService.notifyLogin(currentUser.id, currentUser.email);
+                    }
                 }
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
@@ -1209,6 +1215,8 @@ const App: React.FC = () => {
                                 onSaveBillingSettings={async (settings) => setBillingSettings(settings)}
                                 onBackToDashboard={() => navigate('/dashboard')}
                                 onNavigateToAICard={() => navigate('/ai-card')}
+                                securitySettings={{}}
+                                onSaveSecuritySettings={async () => { }}
                             />
                         } />
                     </Route>

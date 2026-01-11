@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings } from '../types';
+import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, SecuritySettings } from '../types';
 import ProfileSettings from './settings/ProfileSettings';
 import NotificationSettingsPage from './settings/NotificationSettings';
 import EmailSettingsPage from './settings/EmailSettings';
@@ -19,6 +19,8 @@ interface SettingsPageProps {
     onSaveCalendarSettings: (settings: CalendarSettings) => Promise<void>;
     billingSettings: BillingSettings;
     onSaveBillingSettings: (settings: BillingSettings) => Promise<void>;
+    securitySettings: SecuritySettings;
+    onSaveSecuritySettings: (settings: SecuritySettings) => Promise<void>;
     onBackToDashboard: () => void;
     onNavigateToAICard?: () => void;
     isDemoMode?: boolean;
@@ -35,6 +37,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     onSaveCalendarSettings,
     billingSettings,
     onSaveBillingSettings,
+    securitySettings,
+    onSaveSecuritySettings,
     onBackToDashboard,
     onNavigateToAICard,
     userId
@@ -142,14 +146,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                         )}
                         {activeTab === 'security' && (
                             <SecuritySettingsPage
-                                settings={{
-                                    loginNotifications: true,
-                                    sessionTimeout: 24,
-                                    analyticsEnabled: true
-                                }}
-                                onSaveSettings={async (newSettings) => {
-                                    console.log("Saving security settings", newSettings);
-                                }}
+                                settings={securitySettings}
+                                onSaveSettings={onSaveSecuritySettings}
                                 onBack={onBackToDashboard}
                             />
                         )}

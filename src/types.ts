@@ -537,6 +537,13 @@ export interface BillingSettings {
     history: BillingHistoryEntry[];
 }
 
+export interface SecuritySettings {
+    loginNotifications?: boolean;
+    sessionTimeout?: number; // hours
+    analyticsEnabled?: boolean;
+    twoFactorEnabled?: boolean;
+}
+
 export type FollowUpHistoryEventType =
     | 'enroll'
     | 'email-sent'

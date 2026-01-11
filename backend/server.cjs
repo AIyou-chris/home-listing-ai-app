@@ -3258,6 +3258,50 @@ app.patch('/api/security/settings/:userId', async (req, res) => {
   }
 });
 
+const loginNotificationCooldowns = new Map();
+
+app.post('/api/security/notify-login', async (req, res) => {
+  const { userId, email, ip, userAgent } = req.body;
+  if (!userId || !email) return res.status(400).json({ error: 'Missing userId or email' });
+
+  const lastSent = loginNotificationCooldowns.get(userId);
+  if (lastSent && Date.now() - lastSent < 15 * 60 * 1000) {
+    return res.json({ success: true, skipped: 'rate-limit' });
+  }
+
+  try {
+    const settings = await getSecuritySettings(userId);
+    if (settings.loginNotifications) {
+      const html = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>New Login Detected</h2>
+          <p>We detected a new login to your HomeListingAI account.</p>
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+            <p style="margin: 5px 0;"><strong>IP Address:</strong> ${ip || 'Unknown'}</p>
+            <p style="margin: 5px 0;"><strong>Device:</strong> ${userAgent || 'Unknown'}</p>
+          </div>
+          <p>If this was you, no action is needed.</p>
+        </div>
+      `;
+
+      await emailService.sendEmail({
+        to: email,
+        subject: 'New Login to Your Account',
+        html,
+        tags: { type: 'security-alert' }
+      });
+
+      loginNotificationCooldowns.set(userId, Date.now());
+      return res.json({ success: true, sent: true });
+    }
+    return res.json({ success: true, sent: false, reason: 'disabled' });
+  } catch (error) {
+    console.error('Login notification error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Write audit log
 app.post('/api/security/audit', async (req, res) => {
   try {

@@ -23,10 +23,12 @@ import {
   BLUEPRINT_APPOINTMENTS,
   BLUEPRINT_SEQUENCES
 } from '../constants/agentBlueprintData';
+import { SecuritySettings } from '../types';
 import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
 import { listAppointments } from '../services/appointmentsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
+import { securitySettingsService } from '../services/securitySettingsService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
 import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
@@ -237,6 +239,47 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       { id: 'inv-123', date: '2024-07-15', amount: 49, status: 'Paid', description: 'Complete AI Solution - Monthly' }
     ]
   });
+
+  // Security Settings State
+  const [securitySettings, setSecuritySettings] = useState<{
+    loginNotifications?: boolean;
+    sessionTimeout?: number;
+    analyticsEnabled?: boolean;
+    twoFactorEnabled?: boolean;
+  }>({
+    loginNotifications: true,
+    sessionTimeout: 24,
+    analyticsEnabled: true,
+    twoFactorEnabled: false
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSecuritySettings = async () => {
+      if (isDemoMode) return;
+      try {
+        const payload = await securitySettingsService.fetch(agentProfile.slug || agentProfile.id || 'default');
+        if (isMounted && payload?.settings) {
+          setSecuritySettings(payload.settings);
+        }
+      } catch (error) {
+        console.warn('Failed to load security settings', error);
+      }
+    };
+    loadSecuritySettings();
+    return () => { isMounted = false; };
+  }, [agentProfile.slug, agentProfile.id, isDemoMode]);
+
+  const handleSaveSecuritySettings = async (settings: SecuritySettings) => {
+    setSecuritySettings(settings); // Optimistic
+    if (isDemoMode) return;
+    try {
+      await securitySettingsService.update(agentProfile.slug || agentProfile.id || 'default', settings);
+      notifyApiError({ title: 'Security Settings Saved', description: 'Your security preferences have been updated.', error: null });
+    } catch (error) {
+      notifyApiError({ title: 'Save Failed', description: 'Could not save security settings.', error });
+    }
+  };
 
   const [isSetupDismissed, setIsSetupDismissed] = useState(false);
 
@@ -911,6 +954,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             onSaveCalendarSettings={async (settings) => setCalendarSettings(settings)}
             billingSettings={billingSettings}
             onSaveBillingSettings={async (settings) => setBillingSettings(settings)}
+            securitySettings={securitySettings}
+            onSaveSecuritySettings={handleSaveSecuritySettings}
             onBackToDashboard={resetToDashboard}
             onNavigateToAICard={() => setActiveView('ai-card')}
             isDemoMode={isDemoMode}
