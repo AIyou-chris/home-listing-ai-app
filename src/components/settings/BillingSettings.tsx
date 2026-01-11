@@ -12,7 +12,7 @@ interface BillingSettingsProps {
 const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
     settings,
     onSave: _onSave,
-    onBack,
+    onBack: _onBack,
 }) => {
     const [showBillingTips, setShowBillingTips] = useState(false);
 
@@ -109,7 +109,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                         </div>
                         <div className="text-right">
                             <div className="text-3xl font-bold">
-                                {'$29.00'} {/* Placeholder for plan amount */}
+                                {'$49.00'}
                                 <span className="text-lg font-medium">/mo</span>
                             </div>
                         </div>
@@ -162,17 +162,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                 </div>
             </FeatureSection>
 
-            <div className="flex items-center justify-between pt-8 border-t border-slate-200">
-                {onBack && (
-                    <button
-                        type="button"
-                        onClick={onBack}
-                        className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
-                    >
-                        ← Back to Dashboard
-                    </button>
-                )}
-            </div>
+            {/* Footer removed as per consistency update */}
         </div>
     );
 };
