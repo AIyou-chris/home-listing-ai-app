@@ -14,7 +14,7 @@ interface EmailSettingsProps {
 const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     settings,
     onSave,
-    onBack,
+    onBack: _onBack,
     agentSlug
 }) => {
     const [activeTab, setActiveTab] = useState<'connect' | 'forwarding'>('connect');
@@ -37,8 +37,6 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
             } catch (error) {
                 console.error('Failed to initiate Google Auth:', error);
             }
-        } else {
-            alert("Outlook integration coming soon!");
         }
     };
 
@@ -102,16 +100,6 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
                             isSelected={!!gmailConnection}
                             onClick={() => gmailConnection ? handleDisconnectEmail('gmail') : handleConnectEmail('gmail')}
                         />
-                        <IntegrationCard
-                            icon="mail_outline"
-                            title="Outlook"
-                            description="Connect your Microsoft Outlook account (Coming Soon)."
-                            tags={[
-                                { label: 'Coming Soon', color: 'yellow' }
-                            ]}
-                            isSelected={false}
-                            onClick={() => handleConnectEmail('outlook')}
-                        />
                     </div>
                 </FeatureSection>
             ) : (
@@ -160,18 +148,6 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
                     </div>
                 </FeatureSection>
             )}
-
-            <div className="flex items-center justify-between pt-8 border-t border-slate-200">
-                {onBack && (
-                    <button
-                        type="button"
-                        onClick={onBack}
-                        className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
-                    >
-                        ← Back to Dashboard
-                    </button>
-                )}
-            </div>
         </div>
     );
 };
