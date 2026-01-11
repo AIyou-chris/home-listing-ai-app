@@ -11,7 +11,7 @@ interface ProfileSettingsProps {
 }
 
 const ProfileSettings: React.FC<ProfileSettingsProps> = ({
-    onBack,
+    onBack: _onBack,
     onNavigateToAICard
 }) => {
     return (
@@ -47,17 +47,6 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                 </div>
             </FeatureSection>
 
-            <div className="flex items-center justify-between pt-8 border-t border-slate-200">
-                {onBack && (
-                    <button
-                        type="button"
-                        onClick={onBack}
-                        className="px-6 py-2 text-slate-600 hover:text-slate-800 transition-colors"
-                    >
-                        ← Back to Dashboard
-                    </button>
-                )}
-            </div>
         </div>
     );
 };
