@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../services/supabase';
+// import { supabase } from '../services/supabase'; // Removed unused import
 import { useImpersonation } from '../context/ImpersonationContext';
 import { AuthService } from '../services/authService';
 
@@ -11,6 +11,9 @@ interface AgentUser {
     email: string;
     status: string;
     created_at: string;
+    voice_minutes_used?: number;
+    voice_allowance_monthly?: number;
+    sms_sent_monthly?: number;
 }
 
 const AdminUsersPage: React.FC = () => {
@@ -40,9 +43,10 @@ const AdminUsersPage: React.FC = () => {
 
             // The API returns an array directly now
             setUsers(Array.isArray(data) ? data : (data.users || []));
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Error fetching users:', err);
-            setError(err.message || 'Failed to load users');
+            const errorMessage = err instanceof Error ? err.message : 'Failed to load users';
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -74,9 +78,10 @@ const AdminUsersPage: React.FC = () => {
 
             // Refresh list
             fetchUsers();
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Delete error:', err);
-            setError(err.message);
+            const errorMessage = err instanceof Error ? err.message : 'Failed to delete user';
+            setError(errorMessage);
             setLoading(false);
         }
     };
@@ -123,6 +128,12 @@ const AdminUsersPage: React.FC = () => {
                                             Status
                                         </th>
                                         <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                            Voice Usage
+                                        </th>
+                                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                            SMS Usage
+                                        </th>
+                                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                                             Joined
                                         </th>
                                         <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
@@ -131,39 +142,68 @@ const AdminUsersPage: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 bg-white">
-                                    {users.map((user) => (
-                                        <tr key={user.id}>
-                                            <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                                                {user.first_name} {user.last_name}
-                                            </td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                                {user.email}
-                                            </td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                                <span className={`inline - flex rounded - full px - 2 text - xs font - semibold leading - 5 ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                                                    } `}>
-                                                    {user.status}
-                                                </span>
-                                            </td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                                {new Date(user.created_at).toLocaleDateString()}
-                                            </td>
-                                            <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                                <button
-                                                    onClick={() => handleImpersonate(user.auth_user_id)}
-                                                    className="text-primary-600 hover:text-primary-900 font-semibold"
-                                                >
-                                                    Impersonate<span className="sr-only">, {user.first_name}</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(user.auth_user_id || user.id)}
-                                                    className="ml-4 text-red-600 hover:text-red-900 font-semibold"
-                                                >
-                                                    Delete<span className="sr-only">, {user.first_name}</span>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {users.map((user) => {
+                                        // Usage calculations
+                                        const voiceUsed = user.voice_minutes_used || 0;
+                                        const voiceLimit = user.voice_allowance_monthly || 60;
+                                        const voicePercent = Math.min((voiceUsed / voiceLimit) * 100, 100);
+                                        const voiceColor = voicePercent >= 90 ? 'bg-red-500' : (voicePercent >= 70 ? 'bg-amber-500' : 'bg-emerald-500');
+
+                                        const smsSent = user.sms_sent_monthly || 0;
+
+                                        return (
+                                            <tr key={user.id}>
+                                                <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                                                    {user.first_name} {user.last_name}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                                    {user.email}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                                    <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                                        } `}>
+                                                        {user.status}
+                                                    </span>
+                                                </td>
+                                                {/* Voice Usage Column */}
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 align-middle">
+                                                    <div className="w-full max-w-[140px]">
+                                                        <div className="flex justify-between text-xs mb-1">
+                                                            <span className={voiceUsed > voiceLimit ? "text-red-600 font-bold" : ""}>{voiceUsed} min</span>
+                                                            <span className="text-gray-400">/ {voiceLimit}</span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                                            <div className={`h-1.5 rounded-full ${voiceColor}`} style={{ width: `${voicePercent}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                {/* SMS Usage Column */}
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 align-middle">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="font-medium text-gray-900">{smsSent}</span>
+                                                        <span className="text-gray-400 text-xs">segments</span>
+                                                    </div>
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                                    {new Date(user.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                                    <button
+                                                        onClick={() => handleImpersonate(user.auth_user_id)}
+                                                        className="text-primary-600 hover:text-primary-900 font-semibold"
+                                                    >
+                                                        Impersonate<span className="sr-only">, {user.first_name}</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(user.auth_user_id || user.id)}
+                                                        className="ml-4 text-red-600 hover:text-red-900 font-semibold"
+                                                    >
+                                                        Delete<span className="sr-only">, {user.first_name}</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
                                 </tbody>
                             </table>
                         </div>

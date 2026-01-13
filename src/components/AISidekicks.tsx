@@ -264,7 +264,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, hideLifec
   const [isAddingKnowledge, setIsAddingKnowledge] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
-  const [isCreatingSidekick, setIsCreatingSidekick] = useState(false);
+  // const [isCreatingSidekick, setIsCreatingSidekick] = useState(false); // Removed unused state
 
   // Voice sample playback state
   const [playingVoiceSample, setPlayingVoiceSample] = useState<string | null>(null);
@@ -1493,20 +1493,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, hideLifec
                           Reactivate Sidekick
                         </button>
                       ) : (
-                        <button
-                          onClick={() => handleActivateSidekick(template)}
-                          disabled={isCreatingSidekick}
-                          className="w-full py-2 px-4 bg-white border-2 border-slate-200 text-slate-700 rounded-lg font-medium hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2 group"
-                        >
-                          {isCreatingSidekick ? (
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                          ) : (
-                            <>
-                              <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
-                              Activate Sidekick
-                            </>
-                          )}
-                        </button>
+                        null
                       )}
                     </div>
                   </div>

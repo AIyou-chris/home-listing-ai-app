@@ -7,44 +7,18 @@ type HealthResponse = {
   uptimePercent: number
   lastChecked: string
   alerts?: Array<{ type: string; message: string }>
+  recentFailures?: Array<{ id: string; timestamp: string; method: string; path: string; statusCode: number; error: unknown }>
 }
 
-type SecurityResponse = {
-  openRisks: string[]
-  lastLogin: { ip: string; device: string; at: string }
-  anomalies: Array<{ type: string; detail: string; at: string }>
-}
-
-type SupportResponse = {
-  openChats: number
-  openTickets: number
-  openErrors: number
-  items: Array<{ id: string; type: string; title: string; severity: string }>
-}
-
-type MetricsResponse = {
-  leadsToday: number
-  leadsThisWeek: number
-  appointmentsNext7: number
-  messagesSent: number
-  leadsSpark: number[]
-  apptSpark: number[]
-  statuses: {
-    aiLatencyMs: number
-    emailBounceRate: number
-    fileQueueStuck: number
-  }
-  recentLeads?: Array<{ id: string; name: string; status: string; source?: string; at?: string }>
-}
-
-const Card: React.FC<{ title: string; value: React.ReactNode; subtitle?: string; tone?: 'default' | 'warn' | 'error' }> = ({ title, value, subtitle, tone = 'default' }) => {
+const Card: React.FC<{ title: string; value: React.ReactNode; subtitle?: string; tone?: 'default' | 'warn' | 'error'; onClick?: () => void }> = ({ title, value, subtitle, tone = 'default', onClick }) => {
   const toneClass = tone === 'error' ? 'border-rose-200 bg-rose-50' : tone === 'warn' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'
+  const Component = onClick ? 'button' : 'div'
   return (
-    <div className={`rounded-xl border ${toneClass} p-4 shadow-sm`}>
+    <Component onClick={onClick} className={`rounded-xl border ${toneClass} p-4 shadow-sm text-left w-full transition-all ${onClick ? 'hover:scale-[1.02] hover:shadow-md cursor-pointer' : ''}`}>
       <div className='text-xs text-slate-500 uppercase tracking-wide'>{title}</div>
       <div className='text-2xl font-semibold text-slate-900 mt-1'>{value}</div>
       {subtitle && <div className='text-xs text-slate-500 mt-1'>{subtitle}</div>}
-    </div>
+    </Component>
   )
 }
 
@@ -69,6 +43,7 @@ const AdminCommandCenter: React.FC = () => {
   const [support, setSupport] = useState<SupportResponse | null>(null)
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedLogView, setSelectedLogView] = useState<'failures' | null>(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -130,7 +105,12 @@ const AdminCommandCenter: React.FC = () => {
         </div>
         <div className='grid grid-cols-1 sm:grid-cols-4 gap-3'>
           <Card title='API Calls (Today)' value={health?.totalApiCalls ?? '—'} />
-          <Card title='Failed (24h)' value={health?.failedApiCalls ?? '—'} tone={(health?.failedApiCalls ?? 0) > 20 ? 'warn' : 'default'} />
+          <Card
+            title='Failed (24h)'
+            value={health?.failedApiCalls ?? '—'}
+            tone={(health?.failedApiCalls ?? 0) > 20 ? 'warn' : 'default'}
+            onClick={() => setSelectedLogView('failures')}
+          />
           <Card title='Avg Response Time' value={health ? `${health.avgResponseTimeMs} ms` : '—'} tone={(health?.avgResponseTimeMs ?? 0) > 1000 ? 'warn' : 'default'} />
           <Card title='Uptime' value={health ? `${health.uptimePercent}%` : '—'} />
         </div>
@@ -242,6 +222,61 @@ const AdminCommandCenter: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Failure Log Modal */}
+      {selectedLogView === 'failures' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-900">Recent API Failures</h3>
+              <button
+                onClick={() => setSelectedLogView(null)}
+                className="rounded-full p-1 hover:bg-slate-100 transition"
+              >
+                <span className="material-symbols-outlined text-slate-500">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+              {health?.recentFailures && health.recentFailures.length > 0 ? (
+                health.recentFailures.map((fail) => (
+                  <div key={fail.id} className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-red-700">{fail.method}</span>
+                        <span className="font-mono text-slate-700">{fail.path}</span>
+                      </div>
+                      <span className="rounded bg-red-200 px-1.5 py-0.5 text-xs font-bold text-red-800">
+                        {fail.statusCode}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-red-600/80 mt-1">
+                      <span className="font-mono truncate max-w-[400px]">
+                        {typeof fail.error === 'string' ? fail.error : JSON.stringify(fail.error)}
+                      </span>
+                      <span>{new Date(fail.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+                  <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">check_circle</span>
+                  <p>No recent failures recorded.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setSelectedLogView(null)}
+                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

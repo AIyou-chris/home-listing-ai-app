@@ -5,6 +5,7 @@ import { VariableHighlighter } from './VariableHighlighter'
 import { ValidationBanner } from './ValidationBanner'
 import { StylePresetPicker } from './StylePresetPicker'
 import { MessagePreview } from './MessagePreview'
+import { CallScriptSelector } from './CallScriptSelector'
 
 interface FunnelStepEditorProps {
   allowedVariables: string[]
@@ -70,6 +71,17 @@ export const FunnelStepEditor: React.FC<FunnelStepEditorProps> = ({
       <ValidationBanner missing={validation.missing} malformed={validation.malformed} />
 
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+
+        {/* Call Template Selector */}
+        {['call', 'ai call', 'ai-call', 'ai_call'].includes((draft.original.type || '').toLowerCase()) && (
+          <CallScriptSelector
+            onSelect={(script) => {
+              updateDraftMessage(activeStepId, script);
+              // Ideally update subject too but state store might need specific action. 
+              // For now, focusing on script content as primary value.
+            }}
+          />
+        )}
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-2" htmlFor="funnel-step-message">
             Message content
@@ -107,9 +119,8 @@ export const FunnelStepEditor: React.FC<FunnelStepEditorProps> = ({
           type="button"
           onClick={() => onSaveDraft(activeStepId, draft.draftMessage)}
           disabled={disableSave}
-          className={`px-4 py-2 text-sm font-semibold rounded-lg text-white transition ${
-            disableSave ? 'bg-slate-300 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700'
-          }`}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg text-white transition ${disableSave ? 'bg-slate-300 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700'
+            }`}
         >
           Save changes
         </button>

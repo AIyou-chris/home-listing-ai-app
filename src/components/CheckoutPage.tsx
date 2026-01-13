@@ -219,8 +219,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                         disabled={isCreatingSession}
                         className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold shadow ${isCreatingSession ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-500'}`}
                       >
-                        <span className="material-symbols-outlined text-base">account_balance</span>
-                        {isCreatingSession ? 'Opening checkout...' : 'Subscribe with Card'}
+                        <span className="material-symbols-outlined text-base">rocket_launch</span>
+                        {isCreatingSession ? 'Opening checkout...' : 'Start 7-Day Free Trial'}
                       </button>
                       <div className="mt-4 flex flex-col items-center justify-center gap-1.5 opacity-80">
                         <div className="flex items-center gap-2 text-slate-500">
@@ -229,15 +229,19 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                           <StripeLogo className="h-4 text-slate-600 mb-0.5" />
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-2 text-center text-balance leading-tight px-4">
+                      <div className="mt-3 text-center">
+                        <p className="text-sm font-medium text-slate-700">7 days free, then $69/mo</p>
+                        <p className="text-xs text-slate-500">Cancel anytime before trial ends and you won't be charged.</p>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-4 text-center text-balance leading-tight px-4">
                         Prices subject to change without notice. Existing customers will receive a 30-day written notice of any price adjustments.
                       </p>
                       <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
                         <span className="material-symbols-outlined text-green-600 text-xl mt-0.5">verified_user</span>
                         <div>
-                          <p className="text-xs font-bold text-green-800">60-Day Money-Back Guarantee</p>
+                          <p className="text-xs font-bold text-green-800">30-Day Money-Back Guarantee</p>
                           <p className="text-xs text-green-700 mt-0.5">
-                            Try HomeListingAI risk-free. If you're not completely satisfied within 60 days, we'll refund your payment in full.
+                            Try HomeListingAI risk-free. If you're not completely satisfied within 30 days, we'll refund your payment in full.
                           </p>
                         </div>
                       </div>

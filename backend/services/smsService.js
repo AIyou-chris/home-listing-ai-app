@@ -74,9 +74,13 @@ const validatePhoneNumber = async (phoneNumber) => {
     }
 };
 
-const sendSms = async (to, message, mediaUrls = []) => {
+// (Deleted orphaned code)
+
+// Updated signature to accept userId for billing
+const sendSms = async (to, message, mediaUrls = [], userId = null) => {
     const apiKey = process.env.VITE_TELNYX_API_KEY;
     const fromNumber = process.env.VITE_TELNYX_PHONE_NUMBER;
+    const { supabaseAdmin } = require('../supabase'); // Ensure we have DB access
 
     if (!apiKey) {
         console.warn('⚠️ [SMS] Telnyx API Key not configured (VITE_TELNYX_API_KEY).');
@@ -90,7 +94,7 @@ const sendSms = async (to, message, mediaUrls = []) => {
 
     const destination = normalizePhoneNumber(to);
     if (!destination) {
-        console.error(`❌ [SMS] Invalid destination phone number: ${to}`);
+        console.error(`❌ [SMS] Invalid destination phone number: ${destination}`);
         return false;
     }
 
@@ -134,7 +138,24 @@ const sendSms = async (to, message, mediaUrls = []) => {
         );
 
         console.log('✅ [SMS] Sent successfully:', response.data);
-        // Return full response so we can track Message ID
+
+        // BILLING: Increment Usage if userId is provided
+        if (userId && supabaseAdmin) {
+            try {
+                // Determine cost (segments). 1 segment ~ 160 chars.
+                const segments = Math.ceil(message.length / 160);
+
+                // Fetch current
+                const { data: agent } = await supabaseAdmin.from('agents').select('sms_sent_monthly').eq('id', userId).single();
+                const current = agent?.sms_sent_monthly || 0;
+
+                await supabaseAdmin.from('agents').update({ sms_sent_monthly: current + segments }).eq('id', userId);
+                console.log(`💰 [Billing] Incremented SMS usage for ${userId} by ${segments} segments.`);
+            } catch (billingErr) {
+                console.warn('⚠️ [Billing] Failed to update SMS usage:', billingErr.message);
+            }
+        }
+
         return response.data;
     } catch (error) {
         console.error('❌ [SMS] Failed to send:', error.response ? error.response.data : error.message);

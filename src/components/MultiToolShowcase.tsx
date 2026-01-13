@@ -274,13 +274,13 @@ export const MultiToolShowcase: React.FC = () => {
 
                 {/* Global CTA Buttons */}
                 <div className="mt-16 flex flex-col sm:flex-row justify-center items-center gap-6 relative z-10 animate-fade-in-up animation-delay-200">
-                    <button onClick={() => navigate('/signup')} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-blue-700 transition-all transform hover:scale-105 active:scale-95 hover:shadow-blue-500/25 ring-offset-2 focus:ring-2 ring-blue-500">
-                        <span className="material-symbols-outlined animate-pulse">auto_awesome</span>
-                        Get Started Now
+                    <button onClick={() => navigate('/agent-blueprint-dashboard')} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-blue-700 transition-all transform hover:scale-105 active:scale-95 hover:shadow-blue-500/25 ring-offset-2 focus:ring-2 ring-blue-500">
+                        <span className="material-symbols-outlined animate-pulse">visibility</span>
+                        See Demo
                     </button>
-                    <button onClick={() => navigate('/agent-blueprint-dashboard')} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-purple-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-purple-700 transition-all transform hover:scale-105 active:scale-95 hover:shadow-purple-500/25 ring-offset-2 focus:ring-2 ring-purple-500">
+                    <button onClick={() => navigate('/signup')} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-purple-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-purple-700 transition-all transform hover:scale-105 active:scale-95 hover:shadow-purple-500/25 ring-offset-2 focus:ring-2 ring-purple-500">
                         <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
-                        Explore the Live Dashboard
+                        Start Your 7-Day Free Trial
                     </button>
                 </div>
             </div>

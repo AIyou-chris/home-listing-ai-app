@@ -22,7 +22,7 @@ export interface PhoneLogPayload {
 const LEADS_TABLE = 'leads'
 const PHONE_LOGS_TABLE = 'lead_phone_logs'
 
-const VALID_STATUSES: LeadStatus[] = ['New', 'Qualified', 'Contacted', 'Showing', 'Lost']
+const VALID_STATUSES: LeadStatus[] = ['New', 'Qualified', 'Contacted', 'Showing', 'Lost', 'Bounced']
 const VALID_FUNNEL_TYPES: LeadFunnelType[] = ['universal_sales', 'homebuyer', 'seller', 'postShowing']
 
 const getCurrentUserId = async (): Promise<string | null> => {
@@ -149,6 +149,60 @@ export const leadsService = {
     return mapLeadRow(data)
   },
 
+  async bulkImport(leads: Partial<LeadPayload>[], assignment: { assignee: string; funnel?: LeadFunnelType; tag?: string }) {
+    const userId = await getCurrentUserId()
+    if (!userId) throw new Error('Not authenticated')
+
+    // Filter valid leads (must have name)
+    const validLeads = leads.filter(l => l.name?.trim())
+    if (validLeads.length === 0) return { imported: 0, failed: 0 }
+
+    // Initial score for imported leads (e.g., 10 points for being manually added)
+    const initialScore = {
+      totalScore: 10,
+      tier: 'Cold' as const, // Default to Cold until they engage
+      lastUpdated: new Date().toISOString(),
+      scoreHistory: [
+        {
+          id: `score-${Date.now()}`,
+          eventType: 'Lead Import',
+          points: 10,
+          description: 'Initial import via Admin Dashboard',
+          timestamp: new Date().toISOString()
+        }
+      ]
+    }
+
+    const insertPayloads = validLeads.map(lead => ({
+      user_id: userId,
+      name: lead.name!,
+      email: lead.email || null,
+      phone: lead.phone || null,
+      status: 'New',
+      source: 'Import',
+      notes: `${assignment.tag ? `[Tag: ${assignment.tag}]` : ''} Imported via Admin`,
+      funnel_type: assignment.funnel || null,
+      created_at: new Date().toISOString(),
+      score: initialScore // Store JSONB score column
+    }))
+
+    // Supabase allows bulk insert
+    const { data, error } = await supabase
+      .from(LEADS_TABLE)
+      .insert(insertPayloads)
+      .select('id')
+
+    if (error) {
+      console.error('Bulk import error:', error)
+      throw error
+    }
+
+    return {
+      imported: data?.length || 0,
+      total: leads.length
+    }
+  },
+
   async findByEmail(email: string) {
     const normalizedEmail = email?.trim().toLowerCase()
     if (!normalizedEmail) return null
@@ -208,6 +262,21 @@ export const leadsService = {
     const { error } = await supabase.from(LEADS_TABLE).delete().eq('id', leadId).eq('user_id', userId)
     if (error) throw error
     return { success: true }
+  },
+
+  async deleteBouncedLeads() {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not authenticated');
+
+    const { data, error } = await supabase
+      .from(LEADS_TABLE)
+      .delete()
+      .eq('user_id', userId)
+      .eq('status', 'Bounced')
+      .select('id');
+
+    if (error) throw error;
+    return { deletedCount: data?.length || 0 };
   },
 
   async stats() {

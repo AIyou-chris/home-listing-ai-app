@@ -136,7 +136,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                         </div>
                         <div className="text-right">
                             <div className="text-3xl font-bold">
-                                {settings.amount ? `$${settings.amount.toFixed(2)}` : '$49.00'}
+                                {settings.amount ? `$${settings.amount.toFixed(2)}` : '$69.00'}
                                 <span className="text-lg font-medium">/mo</span>
                             </div>
                         </div>

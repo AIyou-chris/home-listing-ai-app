@@ -15,6 +15,7 @@ import AICardPage from './AICardPage';
 import MarketingReportsPage from './MarketingReportsPage';
 
 import { MarketingHub } from './MarketingHub';
+import { UsageStatsCard } from './dashboard/UsageStatsCard';
 
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
 import {
@@ -230,14 +231,14 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   });
   const [billingSettings, setBillingSettings] = useState<BillingSettings>({
     planName: 'Complete AI Solution',
-    planStatus: 'active',
-    amount: 49,
+    planStatus: 'trialing',
+    amount: 69,
     currency: 'USD',
     managedBy: 'paypal',
     renewalDate: null,
     cancellationRequestedAt: null,
     history: [
-      { id: 'inv-123', date: '2024-07-15', amount: 49, status: 'Paid', description: 'Complete AI Solution - Monthly' }
+      { id: 'inv-123', date: '2024-07-15', amount: 69, status: 'Paid', description: 'Complete AI Solution - Monthly' }
     ]
   });
 
@@ -795,40 +796,41 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                       <p className="text-xs text-indigo-100 leading-relaxed">Sync your Gmail so your AI can draft replies and book meetings.</p>
                     </button>
 
-                    {/* Step 4: First Listing */}
+                    {/* Step 5: Activate */}
                     <button
-                      onClick={() => handleViewChange('add-listing')}
-                      className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
-                          4
-                        </div>
-                        <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">10 min</span>
-                      </div>
-                      <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">4. Add Listing</h3>
-                      <p className="text-xs text-indigo-100 leading-relaxed">Create your first AI-powered property listing to see the magic.</p>
-                    </button>
-
-                    {/* Step 5: Funnels */}
-                    <button
-                      onClick={() => handleViewChange('funnel-analytics')}
+                      onClick={() => handleViewChange('listings')}
                       className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
                           5
                         </div>
-                        <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">5 min</span>
+                        <span className="text-xs font-medium bg-emerald-400/20 px-2 py-0.5 rounded text-emerald-100 border border-emerald-400/30">Finish</span>
                       </div>
-                      <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">5. Review Funnels</h3>
-                      <p className="text-xs text-indigo-100 leading-relaxed">Check your automated follow-up sequences and customize them.</p>
+                      <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">5. Go Live!</h3>
+                      <p className="text-xs text-indigo-100 leading-relaxed">Activate your "AI Receptionist". Now you're free to sell houses.</p>
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* Main Stats Grid */}
+            <Dashboard
+              isDemoMode={isDemoMode}
+              properties={properties}
+              leads={leads}
+              appointments={appointments}
+              tasks={tasks}
+              interactions={interactions}
+              agentProfile={agentProfile}
+            />
+
+            {/* Usage Stats - Mobile Responsive Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <UsageStatsCard profile={agentProfile} />
+              {/* Placeholders or other widgets could go here */}
+            </div>
             {isLoadingProperties && properties.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
                 Loading listings…

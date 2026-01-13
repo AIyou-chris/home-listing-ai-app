@@ -18,6 +18,9 @@ export interface AgentProfile {
     location?: string;
     stripe_account_id?: string;
     plan?: string;
+    voice_minutes_used?: number;
+    voice_allowance_monthly?: number;
+    sms_sent_monthly?: number;
 }
 
 export interface AIDescription {
@@ -189,7 +192,7 @@ export interface BlogPost {
     };
 }
 
-export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost';
+export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost' | 'Bounced';
 
 export type LeadFunnelType = 'universal_sales' | 'homebuyer' | 'seller' | 'postShowing';
 
@@ -645,6 +648,9 @@ export interface User {
     company?: string;
     subscriptionStatus: 'active' | 'trial' | 'expired' | 'cancelled';
     renewalDate: string;
+    voice_minutes_used?: number;
+    voice_allowance_monthly?: number;
+    sms_sent_monthly?: number;
 }
 
 // Admin Settings Collection

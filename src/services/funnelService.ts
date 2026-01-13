@@ -69,5 +69,34 @@ export const funnelService = {
             console.error(`Error saving ${funnelType} funnel:`, error);
             return false;
         }
+    },
+
+    async fetchSignature(userId: string): Promise<string> {
+        try {
+            const funnels = await this.fetchFunnels(userId);
+            if (funnels.settings && funnels.settings.length > 0) {
+                // Find the signature step
+                const sigStep = funnels.settings.find(s => s.id === 'signature');
+                return sigStep ? sigStep.content : '';
+            }
+            return '';
+        } catch (error) {
+            console.error('Error fetching signature:', error);
+            return '';
+        }
+    },
+
+    async saveSignature(userId: string, signature: string): Promise<boolean> {
+        const settingsSteps: EditableStep[] = [{
+            id: 'signature',
+            title: 'Global Signature',
+            description: 'Agent email signature',
+            icon: 'badge',
+            delay: '0',
+            type: 'setting',
+            subject: 'Signature',
+            content: signature
+        }];
+        return this.saveFunnelStep(userId, 'settings', settingsSteps);
     }
 };

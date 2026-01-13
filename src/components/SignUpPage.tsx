@@ -133,13 +133,13 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                     <span className="flex items-center gap-1">Secure checkout via <StripeLogo className="h-4 text-slate-600 mb-0.5" /></span>
                                 </div>
                                 <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> Cancel anytime</div>
-                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> 60-Day Money-Back Guarantee</div>
+                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-green-500">check</span> 30-Day Money-Back Guarantee</div>
                             </div>
                         </div>
 
                         {/* Right Column */}
                         <div className="bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-200/70">
-                            <h2 className="text-xl font-bold text-slate-800">Create Your Account</h2>
+                            <h2 className="text-xl font-bold text-slate-800">Start Your 7-Day Free Trial</h2>
                             <p className="text-sm text-slate-500 mt-1">Get started in less than 30 seconds</p>
 
                             <form className="mt-8 space-y-6" onSubmit={handleSignUp}>
@@ -169,7 +169,9 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                         <span className="material-symbols-outlined w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5">info</span>
                                         <div>
                                             <h4 className="font-semibold">How onboarding works</h4>
-                                            <p className="text-xs mt-1">After checkout we instantly generate your dashboard, email you a secure temporary password, and preload your AI funnels. We offer a 60-day money-back guarantee because we want you to use the app in your marketing risk-free. If it doesn't work out, we'll refund you—no questions asked.</p>
+                                            <p className="text-xs mt-1">
+                                                Start with a <strong>7-Day Free Trial</strong>. After checkout, we instantly generate your dashboard and preload your AI funnels. We offer a <strong>30-day money-back guarantee</strong> so you can use the app risk-free. If it doesn't work out, we'll refund you—no questions asked.
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -179,7 +181,9 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                         <span className="material-symbols-outlined w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5">gavel</span>
                                         <div>
                                             <h4 className="font-semibold">Important Legal Notice</h4>
-                                            <p className="text-xs mt-1">AI You Agent provides tools and automations only. You are responsible for all marketing content, communications, and compliance with real estate laws and regulations. Please review our Terms of Service and Privacy Policy.</p>
+                                            <p className="text-xs mt-1">
+                                                AI You Agent provides tools and automations only. You are responsible for all marketing content, communications, and compliance with real estate laws (including TCPA & RESPA). Please review our Terms of Service and Privacy Policy before proceeding.
+                                            </p>
                                         </div>
                                     </div>
                                 </div>

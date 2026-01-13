@@ -266,6 +266,23 @@ app.use((req, res, next) => {
 
       if (res.statusCode >= 400 && res.statusCode !== 404) {
         adminCommandCenter.health.failedApiCalls++;
+
+        // Circular buffer log
+        const errorLog = {
+          id: `err-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          timestamp: new Date().toISOString(),
+          method: req.method,
+          path: req.path,
+          statusCode: res.statusCode,
+          // Try to capture error message from response body if possible
+          error: typeof args[0] === 'string' && args[0].length < 200 ? args[0] : 'Check logs'
+        };
+
+        adminCommandCenter.health.recentFailures.unshift(errorLog);
+        // Keep last 50
+        if (adminCommandCenter.health.recentFailures.length > 50) {
+          adminCommandCenter.health.recentFailures.pop();
+        }
       }
 
       return originalSend.apply(this, args);
@@ -287,6 +304,46 @@ app.post('/api/scrape', async (req, res) => {
   } catch (error) {
     console.error('Scraping endpoint error:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/vapi/webhook', async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    // 1. Log Event
+    if (message && message.type) {
+      // console.log(`[Vapi Webhook] Received event: ${message.type}`);
+    }
+
+    // 2. Billing: Handle End-of-Call Report
+    if (message && message.type === 'end-of-call-report') {
+      // Extract Agent ID from Assistant Overrides Metadata
+      const agentId = message.call?.analysis?.assistantOverrides?.metadata?.agentId
+        || message.call?.assistantOverrides?.metadata?.agentId
+        || message.call?.metadata?.agentId; // Vapi formats vary
+
+      const durationSeconds = message.durationSeconds || message.duration || (message.artifact ? message.artifact.durationSeconds : 0) || 0;
+
+      if (agentId && durationSeconds > 0) {
+        const minutes = Math.ceil(durationSeconds / 60);
+        console.log(`💰 [Billing] Agent ${agentId} call ended. Duration: ${durationSeconds}s (${minutes} min). Charging account.`);
+
+        // Fetch current usage
+        const { data: currentAgent } = await supabaseAdmin.from('agents').select('voice_minutes_used').eq('id', agentId).single();
+        const newUsage = (currentAgent?.voice_minutes_used || 0) + minutes;
+
+        await supabaseAdmin.from('agents').update({ voice_minutes_used: newUsage }).eq('id', agentId);
+      }
+    }
+
+    // 3. Calendar Check Logic (if applicable)
+    // ... (handled by separate endpoint usually, but if Vapi sends function calls here, delegate)
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Vapi Webhook Error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1509,8 +1566,7 @@ const computeAppointmentIsoRange = (dateValue, timeLabel, durationMinutes = 30) 
   };
 };
 
-const APPOINTMENT_SELECT_FIELDS =
-  'id, user_id, lead_id, property_id, property_address, kind, name, email, phone, date, time_label, start_iso, end_iso, meet_link, notes, status, remind_agent, remind_client, agent_reminder_minutes_before, client_reminder_minutes_before, created_at, updated_at';
+'id, user_id, lead_id, property_id, kind, name, email, phone, date, time_label, start_iso, end_iso, meet_link, notes, status, remind_agent, remind_client, agent_reminder_minutes_before, client_reminder_minutes_before, created_at, updated_at';
 
 const mapAppointmentFromRow = (row) => {
   if (!row) return null;
@@ -2493,7 +2549,8 @@ const adminCommandCenter = {
     failedApiCalls: 0,
     totalResponseTimeMs: 0,
     startTime: Date.now(),
-    lastChecked: new Date().toISOString()
+    lastChecked: new Date().toISOString(),
+    recentFailures: [] // Log of last 50 failed calls
   },
   security: {
     openRisks: [],
@@ -6033,7 +6090,7 @@ app.get('/api/admin/analytics/funnel-calendar', (_req, res) => {
 
 // Admin command center endpoints (health, security, support, metrics)
 app.get('/api/admin/system/health', (_req, res) => {
-  const { totalApiCalls, failedApiCalls, totalResponseTimeMs, startTime } = adminCommandCenter.health;
+  const { totalApiCalls, failedApiCalls, totalResponseTimeMs, startTime, recentFailures } = adminCommandCenter.health;
   const avgResponseTimeMs = totalApiCalls > 0 ? Math.round(totalResponseTimeMs / totalApiCalls) : 0;
   const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000); // Process uptime
 
@@ -6051,6 +6108,7 @@ app.get('/api/admin/system/health', (_req, res) => {
     avgResponseTimeMs,
     uptimePercent: 100, // Always 100% since we are running
     lastChecked: new Date().toISOString(),
+    recentFailures: recentFailures || [],
     alerts
   });
 });
@@ -10105,125 +10163,22 @@ app.post('/api/admin/setup', async (req, res) => {
 // VAPI CALL ENDPOINT
 app.post('/api/vapi/call', async (req, res) => {
   try {
-    const { leadId, agentId, propertyId, script, leadName, leadPhone } = req.body;
+    const { leadId, agentId, propertyId, script, leadName, leadPhone, callType } = req.body;
 
-    if (!process.env.VAPI_PRIVATE_KEY) {
-      console.error('VAPI_PRIVATE_KEY missing');
-      return res.status(500).json({ error: 'Server configuration error: VAPI_PRIVATE_KEY missing' });
-    }
+    // Delegate to shared service
+    const { initiateCall } = require('./services/voiceService');
 
-    // 1. Fetch Context (if not fully provided)
-    let targetPhone = leadPhone;
-    let contextData = {};
-    let agentContext = {};
-
-    // Get Lead Details
-    if (leadId) {
-      const { data: lead, error: leadError } = await supabaseAdmin.from('leads').select('*').eq('id', leadId).single();
-      if (lead && !leadError) {
-        targetPhone = lead.phone || targetPhone;
-        contextData.leadName = lead.name;
-        contextData.leadEmail = lead.email;
-      }
-    }
-
-    // Get Property Details
-    if (propertyId) {
-      const { data: p } = await supabaseAdmin.from('properties').select('*').eq('id', propertyId).single();
-      if (p) {
-        contextData.propertyAddress = p.address;
-        contextData.propertyPrice = p.price;
-        contextData.propertyBedrooms = p.bedrooms;
-      }
-    }
-
-    // Get Agent Details (for dynamic agent name/context)
-    if (agentId) {
-      const { data: a } = await supabaseAdmin.from('agents').select('*').eq('id', agentId).single();
-      if (a) {
-        agentContext.name = `${a.first_name} ${a.last_name}`;
-        agentContext.company = a.company || 'HomeListingAI';
-      }
-    }
-
-    // 2. Prepare Vapi Call Payload
-    const phoneNumberId = req.body.callType === 'sales'
-      ? process.env.VAPI_SALES_PHONE_NUMBER_ID
-      : process.env.VAPI_PHONE_NUMBER_ID;
-
-    if (!phoneNumberId) {
-      return res.status(500).json({ error: 'Server configuration error: VAPI phone number ID missing' });
-    }
-
-    const assistantId = req.body.callType === 'sales' && process.env.VAPI_SALES_ASSISTANT_ID
-      ? process.env.VAPI_SALES_ASSISTANT_ID
-      : process.env.VAPI_ASSISTANT_ID;
-
-    const payload = {
-      phoneNumberId: phoneNumberId,
-      customer: {
-        number: targetPhone,
-        name: leadName || contextData.leadName || 'Valued Lead'
-      },
-      assistant: {
-        ...(assistantId ? { assistantId: assistantId } : {}),
-
-        variableValues: {
-          leadName: leadName || contextData.leadName || 'there',
-          agentName: agentContext.name || 'Agent',
-          companyName: agentContext.company || 'our agency',
-          propertyAddress: contextData.propertyAddress || 'the property',
-          ...contextData
-        },
-        firstMessage: script || undefined,
-        // SMART VOICEMAIL: If a machine picks up, say this execution-optimized message
-        voicemailMessage: `Hi, this is ${agentContext.name || 'the assistant'} with ${agentContext.company || 'HomeListingAI'}. I was calling about your property inquiry. I'll send you a text message shortly. Thanks!`
-      },
-      // META DATA for Webhook identification
-      analysis: {
-        successEvaluationPrompt: "Did the AI successfully answer the user's questions or set an appointment?",
-        structuredDataSchema: {
-          type: "object",
-          properties: {
-            summary: { type: "string" },
-            appointmentScheduled: { type: "boolean" },
-            userSentiment: { type: "string" }
-          }
-        }
-      },
-      assistantOverrides: {
-        metadata: {
-          agentId,
-          leadId,
-          propertyId,
-          source: 'funnel_automation'
-        }
-      }
-    };
-    // STEP: Validate Number before calling
-    const isPhoneValid = await validatePhoneNumber(targetPhone);
-    if (!isPhoneValid) {
-      console.warn(`🛑 [Vapi] Aborted call to invalid number: ${targetPhone}`);
-      return res.status(400).json({ error: 'Invalid phone number (rejected by verification)' });
-    }
-    console.log(`📞 Initiating Vapi Call to ${targetPhone} [Lead: ${contextData.leadName}] [Agent: ${agentContext.name}]`);
-
-    const vapiRes = await fetch('https://api.vapi.ai/call/phone', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+    const result = await initiateCall({
+      leadId,
+      agentId,
+      propertyId,
+      script,
+      leadName,
+      leadPhone,
+      callType
     });
 
-    if (!vapiRes.ok) {
-      const errText = await vapiRes.text();
-      throw new Error(`Vapi API Error: ${errText}`);
-    }
-
-    const data = await vapiRes.json();
-    res.json({ success: true, callId: data.id });
+    res.json(result);
 
   } catch (error) {
     console.error('Vapi Call Error:', error.message);
@@ -11074,11 +11029,17 @@ const checkFunnelFollowUps = async () => {
 
               if (lead) {
                 // Execute Step
-                await executeDelayedStep(userId, lead, stepToExecute, sequenceSignature);
+                const result = await executeDelayedStep(userId, lead, stepToExecute, sequenceSignature);
 
-                // Advance to Next Step
+                // Advance to Next Step (Always, even if skipped)
                 const nextIndex = item.currentStepIndex + 1;
                 const nextStep = steps[nextIndex];
+
+                // Determine history description
+                let executionDesc = 'Executed Step ' + item.currentStepIndex + ': ' + stepToExecute.type;
+                if (result && result.skipped) {
+                  executionDesc = `Skipped Step ${item.currentStepIndex}: ${stepToExecute.type} (${result.reason})`;
+                }
 
                 if (nextStep) {
                   let delayMs = 24 * 60 * 60 * 1000;
@@ -11091,14 +11052,25 @@ const checkFunnelFollowUps = async () => {
 
                   item.history.push({
                     id: 'exc-' + Date.now(),
-                    type: 'execution',
+                    type: result && result.skipped ? 'skipped' : 'execution',
                     stepId: stepToExecute.id,
-                    description: 'Executed Step ' + item.currentStepIndex + ': ' + stepToExecute.type,
+                    description: executionDesc,
                     date: now.toISOString()
                   });
                 } else {
+                  item.currentStepIndex = nextIndex; // Move index past end
                   item.status = 'completed';
                   item.nextStepDate = null;
+
+                  // Log the final execution status
+                  item.history.push({
+                    id: 'exc-' + Date.now(),
+                    type: result && result.skipped ? 'skipped' : 'execution',
+                    stepId: stepToExecute.id,
+                    description: executionDesc,
+                    date: now.toISOString()
+                  });
+
                   item.history.push({ type: 'complete', date: now.toISOString() });
                 }
                 hasUpdates = true;
@@ -11140,6 +11112,10 @@ const executeDelayedStep = async (userId, lead, step, signature) => {
       const mediaUrls = step.mediaUrl ? [step.mediaUrl] : [];
       console.log('[Scheduler] Sending Delayed SMS to ' + phone);
       await sendSms(phone, content, mediaUrls);
+      return { success: true };
+    } else {
+      console.log(`[Scheduler] Skipping SMS for lead ${lead.id}: No phone number`);
+      return { success: false, skipped: true, reason: 'No phone number' };
     }
   }
   // Email
@@ -11156,8 +11132,41 @@ const executeDelayedStep = async (userId, lead, step, signature) => {
         from: process.env.MAILGUN_FROM_EMAIL || 'noreply@homelistingai.app',
         tags: ['delayed-funnel']
       });
+      return { success: true };
+    } else {
+      console.log(`[Scheduler] Skipping Email for lead ${lead.id}: No email address`);
+      return { success: false, skipped: true, reason: 'No email address' };
     }
   }
+  // AI Voice Call
+  else if (type === 'call' || type === 'ai call' || type === 'ai-call') {
+    const phone = lead.phone;
+    if (phone) {
+      console.log('[Scheduler] Triggering Automated AI Voice Call to ' + phone);
+      const { initiateCall } = require('./services/voiceService');
+
+      try {
+        await initiateCall({
+          leadId: lead.id,
+          agentId: userId, // userId passed to this function is the agent/owner
+          leadPhone: phone,
+          leadName: lead.name,
+          script: content, // The step content is the "First Message" prompt
+          callType: 'nurture' // Default to nurture context
+        });
+        console.log('[Scheduler] AI Call initiated successfully');
+        return { success: true };
+      } catch (err) {
+        console.error('[Scheduler] Failed to trigger AI call:', err.message);
+        return { success: false, error: err.message };
+      }
+    } else {
+      console.log(`[Scheduler] Skipping AI Call for lead ${lead.id}: No phone number`);
+      return { success: false, skipped: true, reason: 'No phone number' };
+    }
+  }
+
+  return { success: false, reason: 'Unknown step type' };
 };
 
 // Start Scheduler (Every 60 seconds)

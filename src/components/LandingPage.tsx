@@ -52,7 +52,7 @@ const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () 
                     </div>
                     <div className="hidden lg:flex items-center gap-4">
                         <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
-                            🛡️ 60-Day Money-Back Guarantee
+                            🛡️ 30-Day Money-Back Guarantee
                         </span>
                         <button onClick={onNavigateToSignIn} className="text-sm font-semibold text-slate-700 hover:text-primary-600 transition-colors">Login</button>
                         <button onClick={onNavigateToSignUp} className="px-5 py-2.5 bg-blue-600 text-white font-semibold text-sm rounded-lg shadow-md hover:bg-blue-700 transition-all">
@@ -83,187 +83,9 @@ const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () 
     );
 };
 
-const DashboardShowcaseSection: React.FC<{ onEnterDemoMode: () => void; onNavigateToSignUp: () => void }> = ({ onEnterDemoMode, onNavigateToSignUp }) => {
-    const features = [
-        { icon: 'track_changes', title: 'Never Lose a Lead', description: 'Watch in real-time as every inquiry—from your website, ads, or QR codes—populates your dashboard instantly.' },
-        { icon: 'psychology', title: 'Know Who to Call Next', description: 'Our AI doesn\'t just capture leads; it qualifies them. See who is pre-approved and ready to talk, so you can focus on the hottest prospects.' },
-        { icon: 'autoplay', title: 'Follow-Up on Autopilot', description: 'Launch powerful, multi-step follow-up sequences—including our AI Call System—with a single click. Nurture every lead perfectly without lifting a finger.' },
-        { icon: 'language', title: 'AI App Listing', description: "Transform each property into an interactive, AI-powered mobile app that buyers can engage with 24/7. It's your always-on open house." },
-        { icon: 'translate', title: '12 Languages, Zero Barriers', description: 'AI automatically detects and responds in 12 languages. Connect with international buyers and expand your market reach effortlessly.' },
-        { icon: 'insights', title: 'Actionable Analytics', description: 'See which marketing channels are working and get insights to optimize your strategy, budget, and ROI.' },
-    ];
-
-    return (
-        <section className="py-20 bg-slate-50 relative overflow-hidden">
-            {/* Background Elements */}
-            <div className="absolute inset-0 pointer-events-none">
-                {/* Floating Icons */}
-                <div className="absolute top-20 left-10 opacity-5 animate-float">
-                    <span className="material-symbols-outlined text-5xl text-blue-500">dashboard</span>
-                </div>
-                <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
-                    <span className="material-symbols-outlined text-4xl text-green-500">analytics</span>
-                </div>
-                <div className="absolute bottom-20 left-1/3 opacity-5 animate-float-slower">
-                    <span className="material-symbols-outlined text-3xl text-purple-500">trending_up</span>
-                </div>
-
-                {/* Geometric Shapes */}
-                <div className="absolute top-60 right-1/4 opacity-5 animate-pulse">
-                    <div className="w-20 h-20 border-2 border-blue-300 rounded-full"></div>
-                </div>
-                <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
-                    <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
-                </div>
-
-                {/* Dots Pattern */}
-                <div className="absolute top-0 left-0 w-full h-full opacity-3">
-                    <div className="grid grid-cols-20 gap-4 w-full h-full">
-                        {Array.from({ length: 80 }).map((_, i) => (
-                            <div key={i} className="w-1 h-1 bg-slate-400 rounded-full animate-pulse"
-                                style={{
-                                    animationDelay: `${i * 0.15}s`,
-                                    animationDuration: `${2 + Math.random() * 2}s`
-                                }}></div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Gradient Orbs */}
-                <div className="absolute top-1/3 left-1/4 w-28 h-28 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
-                <div className="absolute bottom-1/3 right-1/4 w-20 h-20 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
-            </div>
-
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight animate-fade-in-up">Your Mission Control for Closing More Deals</h2>
-                <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
-                    The AI Listing App is just the beginning. The real power is your dashboard—a command center designed to turn leads into sales and make you the hero of every transaction.
-                </p>
-
-                <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-left animate-fade-in-up animation-delay-400">
-                    {features.map((feature, index) => (
-                        <div key={feature.title} className="flex items-start gap-4 p-6 bg-white rounded-xl shadow-md border border-slate-200/60 transform hover:scale-105 transition-all duration-300 hover-lift animate-fade-in-up"
-                            style={{ animationDelay: `${index * 100}ms` }}>
-                            <div className="flex-shrink-0 w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center animate-pulse">
-                                <span className="material-symbols-outlined text-3xl text-primary-600">{feature.icon}</span>
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800">{feature.title}</h3>
-                                <p className="mt-1 text-slate-600">{feature.description}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="mt-12 animate-fade-in-up animation-delay-800 flex flex-col lg:flex-row justify-center gap-4 items-center px-4 lg:px-0">
-                    <button onClick={onNavigateToSignUp} className="w-full lg:w-auto px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg shadow-lg hover:bg-blue-700 transition-all text-lg transform hover:scale-105 btn-animate">
-                        <span className="flex items-center justify-center gap-2">
-                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
-                            Get Started Now
-                        </span>
-                    </button>
-                    <button onClick={onEnterDemoMode} className="w-full lg:w-auto px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg transform hover:scale-105 btn-animate">
-                        <span className="flex items-center justify-center gap-2">
-                            <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
-                            Explore the Live Dashboard
-                        </span>
-                    </button>
-                </div>
-            </div>
-        </section>
-    );
-};
-
-const AIAppShowcaseSection: React.FC = () => {
-    const highlights = [
-        { icon: 'smart_toy', title: 'Your 24/7 AI Assistant', description: 'Engage buyers instantly with an AI that answers questions, provides details, and captures leads around the clock.' },
-        { icon: 'touch_app', title: 'Interactive Buyer Tools', description: 'Empower buyers with built-in mortgage calculators, school information, and one-tap showing requests.' },
-        { icon: 'filter_alt', title: 'Seamless Lead Capture', description: 'Every interaction is a qualified lead. All conversations and contact info are sent directly to your agent dashboard.' },
-        { icon: 'explore', title: 'A Pressure-Free Discovery', description: "Buyers can explore properties on their own terms. The AI offers a private, no-pressure environment to ask any question, any time, leading to a more comfortable and informed journey." },
-        { icon: 'palette', title: 'Your Brand, Your App', description: "Every listing app is fully branded to you. Your logo, your colors, your photo. Reinforce your brand with every interaction and stand out from the competition." }
-    ];
-
-    return (
-        <section id="how-it-works" className="py-20 bg-white relative overflow-hidden">
-            {/* Background Elements */}
-            <div className="absolute inset-0 pointer-events-none">
-                {/* Floating Icons */}
-                <div className="absolute top-20 left-10 opacity-5 animate-float">
-                    <span className="material-symbols-outlined text-6xl text-blue-500">smartphone</span>
-                </div>
-                <div className="absolute top-40 right-20 opacity-5 animate-float-slow">
-                    <span className="material-symbols-outlined text-5xl text-green-500">touch_app</span>
-                </div>
-                <div className="absolute bottom-20 left-1/4 opacity-5 animate-float-slower">
-                    <span className="material-symbols-outlined text-4xl text-purple-500">smart_toy</span>
-                </div>
-
-                {/* Geometric Shapes */}
-                <div className="absolute top-60 right-1/3 opacity-5 animate-pulse">
-                    <div className="w-24 h-24 border-2 border-blue-300 rounded-full"></div>
-                </div>
-                <div className="absolute bottom-40 right-10 opacity-5 animate-bounce">
-                    <div className="w-20 h-20 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg transform rotate-45"></div>
-                </div>
-
-                {/* Dots Pattern */}
-                <div className="absolute top-0 left-0 w-full h-full opacity-3">
-                    <div className="grid grid-cols-20 gap-4 w-full h-full">
-                        {Array.from({ length: 60 }).map((_, i) => (
-                            <div key={i} className="w-1 h-1 bg-blue-300 rounded-full animate-pulse"
-                                style={{
-                                    animationDelay: `${i * 0.2}s`,
-                                    animationDuration: `${2 + Math.random() * 2}s`
-                                }}></div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Gradient Orbs */}
-                <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
-                <div className="absolute bottom-1/4 left-1/4 w-24 h-24 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-5 animate-pulse blur-xl"></div>
-            </div>
-
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                <div className="text-center">
-                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 animate-fade-in-up">From Home To Lead Machine</h2>
-                    <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
-                        Transform your listings into lead magnets! Build your AI listing app in minutes, then watch as your home becomes a powerful lead generation machine.
-                    </p>
-                </div>
-                <div className="mt-16 grid lg:grid-cols-2 gap-16 items-center animate-fade-in-up animation-delay-400">
-                    {/* Left Column - Listing App Preview */}
-                    <div className="flex justify-center lg:justify-end animate-fade-in-left">
-                        <div className="w-full max-w-md transform hover:scale-105 transition-all duration-300">
-                            {/* Property Image */}
-                            <img
-                                src="/demo/silverlake-app.png"
-                                alt="AI Listing App Preview"
-                                className="w-full h-auto drop-shadow-2xl"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Right Column - Features */}
-                    <div className="space-y-8 animate-fade-in-right">
-                        {highlights.map((item, index) => (
-                            <div key={item.title} className="flex items-start gap-5 transform hover:scale-105 transition-all duration-300 animate-fade-in-up"
-                                style={{ animationDelay: `${index * 150}ms` }}>
-                                <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center animate-pulse">
-                                    <span className="material-symbols-outlined text-3xl text-blue-600">{item.icon}</span>
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-slate-800">{item.title}</h3>
-                                    <p className="mt-1 text-slate-600">{item.description}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </section>
-    );
-};
+// Unused components removed to fix lint errors.
+// const DashboardShowcaseSection ...
+// const AIAppShowcaseSection ...
 
 
 const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultationModal: () => void }> = ({ onNavigateToSignUp, onOpenConsultationModal }) => {
@@ -333,7 +155,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                                 </p>
                                 <div className="mt-6 pt-6 border-t-2 border-dashed border-slate-300">
                                     <p className="text-slate-800 font-semibold text-xl" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
-                                        👉 Normally $129/month, but right now, you can get it for just <span className="text-primary-700">$49/month</span>.
+                                        👉 Normally $149/month, but right now, you can get it for just <span className="text-primary-700">$69/month</span>.
                                     </p>
                                 </div>
                                 <p className="text-slate-800 font-medium mt-8" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
@@ -353,75 +175,75 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                             <h3 className="text-2xl font-bold text-white text-center">Complete AI Solution</h3>
                             <p className="mt-2 text-slate-300 text-center">Everything you need to dominate your market, impress clients, and close more deals — automatically.</p>
                             <p className="mt-6 text-center">
-                                <span className="text-5xl font-extrabold text-white">$49</span>
+                                <span className="text-5xl font-extrabold text-white">$69</span>
                                 <span className="text-xl font-medium text-slate-300">/mo</span>
                             </p>
-                            <p className="mt-2 text-slate-300 line-through text-sm text-center">Regular price: $129/mo</p>
+                            <p className="mt-2 text-slate-300 line-through text-sm text-center">Regular price: $149/mo</p>
 
                             <ul className="mt-10 grid md:grid-cols-2 gap-x-12 gap-y-6 text-left">
                                 {/* LEFT COLUMN */}
                                 <li className="flex items-start gap-3">
                                     <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">smart_toy</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">AI Call Bot</span>
-                                        <p className="text-sm text-slate-300 mt-1">Automated voice calls that qualify leads instantly and handle objections.</p>
+                                        <span className="text-slate-100 font-bold text-lg">24/7 AI Voice Appt Setter</span>
+                                        <p className="text-sm text-slate-300 mt-1">Automated calls that confirm showings and qualify leads instantly.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
                                     <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">chat</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">Unlimited AI conversations</span>
+                                        <span className="text-slate-100 font-bold text-lg">Unlimited AI Chat & Text</span>
                                         <p className="text-sm text-slate-300 mt-1">Your leads can ask anything, anytime — your AI responds instantly.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
                                     <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">phonelink_setup</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">Up to 3 active AI-powered listings</span>
-                                        <p className="text-sm text-slate-300 mt-1">Every listing becomes its own interactive mobile app with a trained AI sidekick.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Your Own AI Listing Agent</span>
+                                        <p className="text-sm text-slate-300 mt-1">A dedicated phone number that texts and talks to leads 24/7.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">mark_email_read</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">sms</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">300 automated emails per month</span>
-                                        <p className="text-sm text-slate-300 mt-1">Smart follow-up sequences that nurture leads without lifting a finger.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Smart Nurture (SMS)</span>
+                                        <p className="text-sm text-slate-300 mt-1">Intelligent follow-up sequences that turn *your* inquiries into appointments.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
                                     <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">psychology</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">Your own trained GPT</span>
-                                        <p className="text-sm text-slate-300 mt-1">Fully customized to your tone, branding, and communication style.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Custom AI Personality</span>
+                                        <p className="text-sm text-slate-300 mt-1">Fully trained on your voice, your hours, and your specific rules.</p>
                                     </div>
                                 </li>
 
                                 {/* RIGHT COLUMN */}
                                 <li className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">autoplay</span>
+                                    <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">bolt</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">Automated follow-up funnels</span>
-                                        <p className="text-sm text-slate-300 mt-1">Includes welcome sequence, reminders, and lead scoring.</p>
+                                        <span className="text-slate-100 font-bold text-lg">Instant Lead Response (5s)</span>
+                                        <p className="text-sm text-slate-300 mt-1">Never lose a lead to "speed-to-lead" again. We reply in seconds.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
                                     <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">language</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">12-language auto-detect AI</span>
+                                        <span className="text-slate-100 font-bold text-lg">12-Language Auto-Detect</span>
                                         <p className="text-sm text-slate-300 mt-1">Your AI instantly responds in your lead’s preferred language.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
                                     <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">monitoring</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">Advanced analytics dashboard</span>
+                                        <span className="text-slate-100 font-bold text-lg">Command Center Dashboard</span>
                                         <p className="text-sm text-slate-300 mt-1">Track conversations, engagement, and lead intent ratings in real time.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
                                     <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">handshake</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">Tools built to close deals</span>
+                                        <span className="text-slate-100 font-bold text-lg">Tools Built to Close Deals</span>
                                         <p className="text-sm text-slate-300 mt-1">Scheduling, instant notifications, transcripts, and warm lead routing.</p>
                                     </div>
                                 </li>
@@ -438,15 +260,18 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                             onClick={onNavigateToSignUp}
                             className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-all duration-300 bg-white text-primary-700 shadow-lg hover:bg-slate-200 transform hover:scale-[1.02]"
                         >
-                            Lock In This Price Now
+                            Start Your 7-Day Free Trial
                         </button>
                         <p className="text-center text-xs text-slate-300 mt-3 opacity-90">
                             Price may increase at any time. Secure your lifetime rate today.
                         </p>
+                        <p className="text-center text-xs text-slate-300 mt-1 opacity-90">
+                            Includes Unlimited AI Chat • 60 Voice Mins/mo • 1,000 SMS/mo
+                        </p>
                         <div className="mt-6 pt-6 border-t border-white/20 text-center">
                             <div className="inline-flex items-center justify-center gap-3 bg-white/10 rounded-full px-6 py-2.5 mb-2 border border-white/20 backdrop-blur-sm shadow-sm ring-1 ring-white/10">
                                 <span className="material-symbols-outlined text-yellow-300 text-2xl animate-pulse">verified_user</span>
-                                <span className="text-lg sm:text-xl font-bold text-white tracking-wide">60-Day Money-Back Guarantee</span>
+                                <span className="text-lg sm:text-xl font-bold text-white tracking-wide">30-Day Money-Back Guarantee</span>
                             </div>
                             <p className="text-sm text-slate-100 mt-2 font-medium">If you're not satisfied, get a full refund. No questions asked.</p>
                             <div className="mt-4 flex flex-col items-center justify-center gap-1 opacity-80 pt-3 border-t border-white/10">
@@ -786,7 +611,7 @@ const FaqSection: React.FC = () => {
         { q: "Can I change the AI's personality?", a: "Absolutely. You can choose from pre-defined personalities (e.g., 'Professional,' 'Friendly,' 'Enthusiastic') or create a custom one. This allows you to fine-tune the AI's tone and style to match your brand, making every interaction feel authentic to you." },
         { q: "How quickly can I get started?", a: "You can build your first AI-powered listing app in under 10 minutes. Our guided system makes it incredibly simple—no technical skills required." },
         { q: "What makes this different from other lead tools?", a: "Instead of just being a contact form, we create an interactive experience for each listing. This engages buyers more deeply, pre-qualifies them, and delivers a much higher quality lead directly to you. You get the full conversation transcript, giving you valuable context to start a meaningful conversation." },
-        { q: "Is there really a 60-day money-back guarantee?", a: "Yes! We are so confident you'll love the results that we offer a no-questions-asked, 60-day money-back guarantee. If you don't get value, you don't pay." },
+        { q: "Is there really a 30-day money-back guarantee?", a: "Yes! We are so confident you'll love the results that we offer a no-questions-asked, 30-day money-back guarantee. If you don't get value, you don't pay." },
         { q: "Is my and my client's data secure?", a: "Yes, security is our top priority. All data is encrypted in transit and at rest using enterprise-grade security protocols. We are compliant with data privacy regulations, and you retain full ownership of your data. For trial accounts, all data is automatically purged after 7 days for your peace of mind." },
         { q: "What kind of support do you offer if I get stuck?", a: "We offer comprehensive support to all our users. This includes a detailed knowledge base, email support for all plans, and priority support for our Pro Team subscribers. We're here to ensure you get the most out of the platform." },
         { q: "How are these leads different from Zillow or Realtor.com?", a: "The leads you get from HomeListingAI are significantly warmer. Instead of just a name and email from a form, you get a contact who has actively engaged with your property, asked specific questions, and been pre-qualified by the AI. You receive the full conversation transcript, giving you valuable context to start a meaningful conversation." },
@@ -1005,15 +830,15 @@ const FinalCtaNew: React.FC<{ onNavigateToSignUp: () => void; onEnterDemoMode: (
                     onClick={onNavigateToSignUp}
                     className="flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-yellow-400 via-orange-400 to-purple-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all text-lg transform hover:scale-105 btn-animate"
                 >
-                    <span className="material-symbols-outlined animate-pulse">bolt</span>
-                    Start Your App Today
+                    <span className="material-symbols-outlined animate-pulse">rocket_launch</span>
+                    Start Your 7-Day Free Trial
                 </button>
                 <button
                     onClick={onEnterDemoMode}
-                    className="flex items-center justify-center gap-2 px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-all text-lg transform hover:scale-105 btn-animate"
+                    className="flex items-center justify-center gap-2 px-8 py-4 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 transition-all text-lg transform hover:scale-105 btn-animate"
                 >
-                    <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
-                    Explore the Live Dashboard
+                    <span className="material-symbols-outlined animate-pulse">visibility</span>
+                    See Demo
                 </button>
             </div>
             <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-slate-300 animate-fade-in-up animation-delay-600">
@@ -1133,13 +958,13 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                         It never sleeps, always follows up, and sounds just like you... <a href="#what-you-get" className="font-semibold text-primary-600 hover:underline">and so much more</a>.
                     </p>
                     <div className="mt-8 flex flex-col lg:flex-row justify-center lg:justify-start items-center gap-4 animate-fade-in-up animation-delay-400 px-4 lg:px-0">
-                        <button onClick={onNavigateToSignUp} className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all transform hover:scale-105 btn-animate">
-                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">auto_awesome</span>
-                            Get Started Now
+                        <button onClick={onEnterDemoMode} className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all transform hover:scale-105 btn-animate">
+                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">visibility</span>
+                            See Demo
                         </button>
-                        <button onClick={onEnterDemoMode} className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
+                        <button onClick={onNavigateToSignUp} className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
-                            Explore the Live Dashboard
+                            Start Your 7-Day Free Trial
                         </button>
                     </div>
                     <div className="mt-4 flex justify-center lg:justify-start animate-fade-in-up animation-delay-500">

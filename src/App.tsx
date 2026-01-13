@@ -271,7 +271,7 @@ const App: React.FC = () => {
         smsReminders: true,
         newAppointmentAlerts: true
     });
-    const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Solo Agent', history: [{ id: 'inv-123', date: '07/15/2024', amount: 59.00, status: 'Paid' }] });
+    const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Complete AI Solution', history: [{ id: 'inv-123', date: '07/15/2024', amount: 69.00, status: 'Paid' }] });
     // Removed unused state variables
 
 
@@ -353,10 +353,16 @@ const App: React.FC = () => {
 
                     setUser(currentUser);
 
-                    // 2. Non-blocking Admin/Data Check
-                    // We DO NOT await this before allowing the user to see the dashboard.
-                    // Instead, we let the dashboard load and upgrade the user permissions/data context asynchronously.
-                    loadUserData(currentUser);
+                    // 2. Admin Check Priority
+                    // If we are attempting to access an Admin route, we MUST wait for the admin check
+                    // otherwise the route protection will kick us out (isAdmin defaults to false).
+                    if (currentPath.startsWith('/admin')) {
+                        console.log('⏳ Awaiting admin check for admin route...');
+                        await loadUserData(currentUser);
+                    } else {
+                        // For regular dashboard, load async to unblock UI
+                        loadUserData(currentUser);
+                    }
 
                     // Route Protection Logic
                     if (currentPath === '/signin' || currentPath === '/signup' || currentPath === '/') {

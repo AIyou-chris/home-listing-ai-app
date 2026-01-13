@@ -31,6 +31,9 @@ module.exports = ({
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: finalPriceId, quantity: 1 }],
         mode: 'subscription',
+        subscription_data: {
+          trial_period_days: 7,
+        },
         success_url: sUrl,
         cancel_url: cUrl,
         customer_email: email,

@@ -36,7 +36,8 @@ const LeadStatusBadge: React.FC<{ status: LeadStatus }> = ({ status }) => {
         'Qualified': 'bg-emerald-50 text-emerald-600 border-emerald-100',
         'Contacted': 'bg-amber-50 text-amber-600 border-amber-100',
         'Showing': 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100',
-        'Lost': 'bg-slate-50 text-slate-500 border-slate-100'
+        'Lost': 'bg-slate-50 text-slate-500 border-slate-100',
+        'Bounced': 'bg-red-50 text-red-600 border-red-100'
     };
     return (
         <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border shadow-sm ${statusStyles[status]}`}>{status}</span>
@@ -48,7 +49,8 @@ const statusColorMap: Record<LeadStatus, string> = {
     'Qualified': 'bg-emerald-500',
     'Contacted': 'bg-amber-500',
     'Showing': 'bg-fuchsia-500',
-    'Lost': 'bg-slate-400'
+    'Lost': 'bg-slate-400',
+    'Bounced': 'bg-red-500'
 };
 
 const funnelOptions: Array<{ id: LeadFunnelType; label: string; description: string; icon: string; accent: string }> = [
@@ -448,7 +450,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     const [schedulingLead, setSchedulingLead] = useState<Lead | null>(null);
     const [contactingLead, setContactingLead] = useState<Lead | null>(null);
     const [initialContactTab, setInitialContactTab] = useState<'email' | 'call' | 'sms' | 'note' | undefined>(undefined);
-    const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+    // const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false); // Removed unused state
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
     const [syncAgeSeconds, setSyncAgeSeconds] = useState(0);
     const [leadFunnels, setLeadFunnels] = useState<Record<string, LeadFunnelType | null>>(() => {

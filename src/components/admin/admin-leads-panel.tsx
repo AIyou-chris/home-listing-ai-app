@@ -50,7 +50,8 @@ const statusStyles: Record<LeadStatus, string> = {
   Qualified: 'bg-green-100 text-green-700',
   Contacted: 'bg-yellow-100 text-yellow-700',
   Showing: 'bg-purple-100 text-purple-700',
-  Lost: 'bg-red-100 text-red-700'
+  Lost: 'bg-red-100 text-red-700',
+  Bounced: 'bg-red-50 text-red-600'
 }
 
 const getLeadStatusStyle = (status: LeadStatus) => statusStyles[status]
@@ -290,15 +291,13 @@ const StatCard: React.FC<{ icon: string; value: number; label: string; colorClas
 const TabButton: React.FC<{ icon: string; label: string; count: number; isActive: boolean; onClick: () => void }> = ({ icon, label, count, isActive, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${
-      isActive ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-    }`}
+    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 ${isActive ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+      }`}
   >
     <span className="material-symbols-outlined w-5 h-5">{icon}</span>
     <span>{label}</span>
-    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-      isActive ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'
-    }`}
+    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'
+      }`}
     >
       {count}
     </span>
@@ -719,9 +718,8 @@ const ContactLeadModal: React.FC<ContactLeadModalProps> = ({
 const ContactTabButton: React.FC<{ label: string; icon: string; isActive: boolean; onClick: () => void }> = ({ label, icon, isActive, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
-      isActive ? 'bg-primary-600 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-    }`}
+    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${isActive ? 'bg-primary-600 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+      }`}
   >
     <span className="material-symbols-outlined text-base">{icon}</span>
     {label}

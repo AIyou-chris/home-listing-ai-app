@@ -7,6 +7,8 @@ import SequenceFeedbackPanel from '../SequenceFeedbackPanel';
 import { funnelService } from '../../services/funnelService';
 import { supabase } from '../../services/supabase';
 import PageTipBanner from '../PageTipBanner';
+import LeadImportModal from './LeadImportModal';
+import OutreachTemplatesModal from './OutreachTemplatesModal';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -62,269 +64,124 @@ export type EditableStep = {
     mediaUrl?: string;
 };
 
-const initialWelcomeSteps: EditableStep[] = [
+const initialBlankSteps: EditableStep[] = [
     {
-        id: 'welcome-ai',
-        title: 'Instant AI Welcome',
-        description: 'Chatbot fires a warm intro email + SMS within 2 minutes.',
-        icon: 'thunderstorm',
+        id: '1',
+        title: 'Draft Step',
+        description: 'Start building your sequence.',
+        icon: 'edit',
         delay: '0 min',
         type: 'Email',
-        subject: 'Welcome aboard, {{lead.name}}!',
-        content: `Hi {{lead.name}},
-
-Great to meet you! I built a quick concierge just for you — it highlights {{lead.interestAddress || "the homes we're short‑listing"}} and answers questions 24/7.
-
-Take a peek here: {{agent.aiCardUrl || agent.website}}
-
-Talk soon,
-{{agent.name}} · {{agent.phone}}`
-    },
-    {
-        id: 'welcome-checkin',
-        title: 'Day 1 Check-In',
-        description: 'Bot shares quick resources and asks for timeline + budget so you can prioritize.',
-        icon: 'draft',
-        delay: '+24 hrs',
-        type: 'Email',
-        subject: 'Quick check-in + next steps',
-        content: `Hi {{lead.name}},
-
-Want me to line up tours for {{lead.interestAddress || 'any favorite homes'}}?
-
-Drop me your target move-in date + ideal payment range and I’ll tailor alerts that match perfectly.`
-    },
-    {
-        id: 'welcome-task',
-        title: 'Agent Task',
-        description: 'Reminder for a human touch — call/text with next steps.',
-        icon: 'call',
-        delay: '+48 hrs',
-        type: 'Task',
-        subject: 'Agent task',
-        content: `Task: Call {{lead.name}} about {{lead.interestAddress || 'their top picks'}}.
-
-Goal: confirm financing path + invite to a live strategy session.`
+        subject: 'Subject Line',
+        content: 'Your content here...'
     }
 ];
 
-const initialHomeBuyerSteps: EditableStep[] = [
+const initialAgentSalesSteps: EditableStep[] = [
     {
-        id: 'buyer-intake',
-        title: 'Lead Qualification',
-        description: 'AI concierge confirms price range, move timeline, and pre-approval status.',
-        icon: 'assignment',
+        id: 'sales-reality',
         delay: '0 min',
         type: 'Email',
-        subject: 'Let’s dial in your wishlist',
-        content: `Hey {{lead.name}},
+        title: 'The Reality Check',
+        description: 'Hard-hitting problem awareness to snap them out of denial.',
+        icon: 'warning',
+        subject: 'Is your pipeline leaking?',
+        content: `Hi {{lead.name}},
 
-Quick lightning round so I can curate listings for you:
-- Ideal price range?
-- Must-haves (beds, neighborhood, vibes)?
-- Target move date?
+The market isn't what it was two years ago. Every buyer is gold.
 
-Reply here and I’ll handle the rest.`
+If a warm lead texts you about a listing while you're at dinner, and you don't reply for 2 hours... they're gone.
+
+Our AI replies in 5 seconds. 24/7. It answers questions, handles objections, and books appointments.
+
+Don't let the next commission slip through your fingers.
+
+---
+To stop receiving these emails, please reply UNSUBSCRIBE.`
     },
     {
-        id: 'buyer-matches',
-        title: 'Curated Matches',
-        description: 'Send 3 tailored MLS matches that fit the captured wishlist.',
-        icon: 'home',
-        delay: '+6 hrs',
-        type: 'Email',
-        subject: 'Hand-picked homes to preview',
-        content: `Based on your wishlist, here are three homes that hit the mark:
-1. {{lead.matchOne || 'Palm Oasis · $890k · Pool + ADU'}}
-2. {{lead.matchTwo || 'Vista Row · $815k · Walkable to everything'}}
-3. {{lead.matchThree || 'Sierra Modern · $925k · Views for days'}}
-
-Want me to unlock more details or line up a private tour?`
-    },
-    {
-        id: 'buyer-tour',
-        title: 'Tour Offer',
-        description: 'Invite the buyer to pick a tour window or book a virtual walk-through.',
-        icon: 'calendar_add_on',
+        id: 'sales-identity',
         delay: '+1 day',
         type: 'Email',
-        subject: 'Ready to tour this week?',
-        content: `I can stack back-to-back showings or drop you into a private FaceTime walk-through.
+        title: 'Stop Being an Admin',
+        description: 'Challenges their self-image to force a perspective shift.',
+        icon: 'psychology',
+        subject: 'Stop being a glorified assistant',
+        content: `You got into real estate to close deals, not to sit at a laptop writing follow-up emails until midnight.
 
-Tap a window that works: {{agent.aiCardUrl}}/schedule`
+Stop doing $15/hr work.
+
+Let the AI handle the grunt work (nurture, qualification, scheduling) so you can do the $500/hr work (negotiating and closing).
+
+---
+To stop receiving these emails, please reply UNSUBSCRIBE.`
     },
     {
-        id: 'buyer-checkin',
-        title: 'Agent Check-In',
-        description: 'Task reminder for the agent to text/call with additional recommendations.',
-        icon: 'phone_in_talk',
+        id: 'sales-roi',
         delay: '+2 days',
-        type: 'Task',
-        subject: 'Agent task',
-        content: `Task: Text {{lead.name}} with 2 fresh ideas + invite to co-build a shortlist.
-Mention {{lead.interestAddress || 'their top property'}} and confirm financing route.`
+        type: 'SMS',
+        title: 'The ROI Math',
+        description: 'Simple logic punch delivered via text for high open rate.',
+        icon: 'calculate',
+        subject: 'Quick math',
+        content: `Quick math {{lead.name}}:
+One closed deal = $15k commission.
+Our AI Sidekick = $69/mo.
+
+If it saves you just ONE deal a year, it paid for itself for the next 20 years.
+Ready to stop losing money? {{agent.website}}
+
+(Reply STOP to opt out)`
     },
     {
-        id: 'buyer-finance',
-        title: 'Financing Boost',
-        description: 'Share lender resources or payment calculators to keep momentum.',
-        icon: 'savings',
-        delay: '+4 days',
-        type: 'Email',
-        subject: 'Lower payment options?',
-        content: `Here’s a calculator tuned to the neighborhoods you like: {{agent.website}}/payments
-
-Need a warm intro to my lender partners? Happy to connect you.`
-    }
-];
-
-const initialListingSteps: EditableStep[] = [
-    {
-        id: 'listing-intake',
-        title: 'AI Story Intake',
-        description: 'Seller completes a quick form; AI turns the notes into a lifestyle narrative.',
-        icon: 'stylus',
-        delay: '0 min',
-        type: 'Email',
-        subject: 'Let’s make your home talk',
-        content: `Thanks for the details on {{lead.interestAddress || 'your property'}}.
-I’m feeding them into our AI storyteller so buyers feel the lifestyle on the first touch.`
-    },
-    {
-        id: 'listing-draft',
-        title: 'Interactive Listing Draft',
-        description: 'System builds the AI-powered property page with concierge + talking points.',
-        icon: 'dynamic_feed',
-        delay: '+30 min',
-        type: 'Email',
-        subject: 'Preview your interactive listing',
-        content: `Here’s the first pass of your AI listing experience:
-{{agent.website}}/listing-preview
-
-The concierge already knows how to answer buyer questions 24/7.`
-    },
-    {
-        id: 'listing-voice',
-        title: 'Home Speaks Preview',
-        description: 'Share a preview link so sellers hear how the home “talks” to buyers.',
-        icon: 'record_voice_over',
-        delay: '+2 hrs',
-        type: 'Email',
-        subject: 'Hear your home talk to buyers',
-        content: `Play this preview — our AI concierge walks buyers through every highlight:
-{{agent.aiCardUrl}}/listing-preview
-
-Send me any details you want it to emphasize.`
-    },
-    {
-        id: 'listing-launch',
-        title: 'Launch Boost',
-        description: 'Kick off marketing: QR codes, reels, email nurtures referencing the story.',
-        icon: 'rocket_launch',
-        delay: '+1 day',
-        type: 'Email',
-        subject: 'Launch plan locked',
-        content: `We’re launching with:
-- Interactive listing + AI concierge
-- QR codes for signage
-- Social reels + nurture emails
-
-Go-live date: {{lead.timeline || 'this Friday'}}.`
-    },
-    {
-        id: 'listing-feedback',
-        title: 'Feedback Loop',
-        description: 'AI summarizes buyer questions from the concierge for fine-tuning.',
-        icon: 'insights',
+        id: 'sales-2am',
         delay: '+3 days',
         type: 'Email',
-        subject: 'Buyer feedback recap',
-        content: `AI pulled the top buyer questions so far:
-- {{lead.questionOne || 'Do utilities include solar credits?'}}
-- {{lead.questionTwo || 'Can we convert the loft?'}}
+        title: 'The 2 AM Test',
+        description: 'Proof of capability that humans cannot match.',
+        icon: 'nightlight',
+        subject: 'Can you do this?',
+        content: `It's 2:14 AM. A buyer just found your listing on Zillow. They have a question.
 
-Let’s adjust staging/pricing based on this intel.`
-    }
-];
+You're asleep.
+Our AI is awake.
 
-const initialPostShowingSteps: EditableStep[] = [
+It greets them, answers their question about the school district, and schedules a viewing for Tuesday at 10 AM.
+
+By the time you wake up, the appointment is on your calendar.
+That is the difference between "hustling" and "scaling".
+
+---
+To stop receiving these emails, please reply UNSUBSCRIBE.`
+    },
     {
-        id: 'post-thanks',
-        title: 'Immediate Thanks',
-        description: 'AI concierge sends a recap minutes after the showing with highlights and next steps.',
-        icon: 'handshake',
-        delay: '0 min',
+        id: 'sales-ultimatum',
+        delay: '+5 days',
         type: 'Email',
-        subject: 'Thanks for touring {{lead.interestAddress}}',
-        content: `Hi {{lead.name}},
+        title: 'Sink or Swim',
+        description: 'Final urgency push. The market is moving on.',
+        icon: 'directions_boat',
+        subject: 'The market doesn\'t care',
+        content: `Your competitors are already using AI. They are responding faster, nurturing better, and closing more.
 
-Loved walking you through {{lead.interestAddress}}. Here’s a quick recap + next steps.
+You can cling to the old ways and "hope" for referrals, or you can arm yourself with the best tools on the planet.
 
-Want a second look or details on similar homes? I’m on standby.`
-    },
-    {
-        id: 'post-feedback',
-        title: 'Feedback Pulse',
-        description: 'Ask the buyer to rate interest level and capture objections via chatbot survey.',
-        icon: 'rate_review',
-        delay: '+2 hrs',
-        type: 'Text',
-        subject: 'Mind sharing quick feedback?',
-        content: `Drop a 30-second response so I can tailor our next steps:
-{{agent.aiCardUrl}}/feedback`
-    },
-    {
-        id: 'post-agent-touch',
-        title: 'Agent Touch',
-        description: 'Schedule a personal text or call reminder so the agent can address objections.',
-        icon: 'sms',
-        delay: '+1 day',
-        type: 'Task',
-        subject: 'Agent task',
-        content: `Task: Text {{lead.name}} to address objections + offer alternates.
-Include quick notes from the showing.`
-    },
-    {
-        id: 'post-comps',
-        title: 'Comparables Drop',
-        description: 'Share two similar homes with smart commentary to keep the buyer engaged with you.',
-        icon: 'real_estate_agent',
-        delay: '+2 days',
-        type: 'Email',
-        subject: 'Two smart alternates to compare',
-        content: `Based on what you loved, here are two matches:
-1. {{lead.matchOne || 'Maple Modern – turnkey + office nook'}}
-2. {{lead.matchTwo || 'Canyon Ridge – same vibe, bigger yard'}}
+7-Day Free Trial. No risk.
+If it doesn't blow your mind, cancel it.
 
-Want me to unlock either?`
-    },
-    {
-        id: 'post-nudge',
-        title: 'Offer Nudge',
-        description: 'AI watches market activity and sends a gentle urgency nudge if interest remains high.',
-        icon: 'notifications_active',
-        delay: '+4 days',
-        type: 'Email',
-        subject: 'Market update: pace picked up',
-        content: `Contracts jumped 12% this week for homes like {{lead.interestAddress}}.
-If you’re still interested, I can prep numbers + offer strategy anytime.`
+Start here: {{agent.website}}
+
+---
+To stop receiving these emails, please reply UNSUBSCRIBE.`
     }
 ];
 
 const initPanelState = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-        return {
-            welcome: false,
-            buyer: false,
-            listing: false,
-            post: false
-        };
-    }
     return {
-        welcome: true,
-        buyer: true,
-        listing: true,
-        post: true
+        agentSales: true,
+        custom1: true,
+        custom2: true,
+        custom3: true
     };
 };
 
@@ -339,42 +196,43 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     // Admin-only: Hardcode userId for marketing funnels
     const ADMIN_MARKETING_USER_ID = 'admin-marketing';
     const isEmbedded = variant === 'embedded';
-    const [welcomeSteps, setWelcomeSteps] = useState<EditableStep[]>(initialWelcomeSteps);
-    const [homeBuyerSteps, setHomeBuyerSteps] = useState<EditableStep[]>(initialHomeBuyerSteps);
-    const [listingSteps, setListingSteps] = useState<EditableStep[]>(initialListingSteps);
-    const [postShowingSteps, setPostShowingSteps] = useState<EditableStep[]>(initialPostShowingSteps);
+
+    const [agentSalesSteps, setAgentSalesSteps] = useState<EditableStep[]>(initialAgentSalesSteps);
+    const [custom1Steps, setCustom1Steps] = useState<EditableStep[]>(initialBlankSteps);
+    const [custom2Steps, setCustom2Steps] = useState<EditableStep[]>(initialBlankSteps);
+    const [custom3Steps, setCustom3Steps] = useState<EditableStep[]>(initialBlankSteps);
+
+    const [expandedAgentSalesStepIds, setExpandedAgentSalesStepIds] = useState<string[]>([]);
+    const [expandedCustom1Ids, setExpandedCustom1Ids] = useState<string[]>([]);
+    const [expandedCustom2Ids, setExpandedCustom2Ids] = useState<string[]>([]);
+    const [expandedCustom3Ids, setExpandedCustom3Ids] = useState<string[]>([]);
+
+    // Remaining Helpers
     const [isQuickEmailOpen, setIsQuickEmailOpen] = useState(false);
-    const [expandedStepIds, setExpandedStepIds] = useState<string[]>([]);
-    const [expandedBuyerStepIds, setExpandedBuyerStepIds] = useState<string[]>([]);
-    const [expandedListingStepIds, setExpandedListingStepIds] = useState<string[]>([]);
-    const [expandedPostStepIds, setExpandedPostStepIds] = useState<string[]>([]);
     const [panelExpanded, setPanelExpanded] = useState(initPanelState);
     const [activeSection, setActiveSection] = useState<'funnels' | 'scoring' | 'feedback'>('funnels');
     const [sendingTestId, setSendingTestId] = useState<string | null>(null);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const [customSignature, setCustomSignature] = useState<string>('');
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
 
     const handleSendTestEmail = async (step: EditableStep) => {
         if (sendingTestId) return;
         setSendingTestId(step.id);
-
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user || !user.email) {
                 alert('Could not find your email address to send the test to.');
                 return;
             }
-
             const subject = mergeTokens(step.subject);
             // Replace newlines with <br/> for HTML email body
             const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
-
             const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
             const response = await fetch(`${apiUrl}/api/admin/email/quick-send`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     to: user.email,
                     subject: `[TEST] ${subject}`,
@@ -382,12 +240,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     text: mergeTokens(step.content)
                 })
             });
-
-            if (response.ok) {
-                alert(`Test email sent to ${user.email}`);
-            } else {
-                throw new Error('Failed to send test email');
-            }
+            if (response.ok) alert(`Test email sent to ${user.email}`);
+            else throw new Error('Failed to send test email');
         } catch (error) {
             console.error(error);
             alert('Failed to send test email. Check console for details.');
@@ -407,16 +261,33 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 // Admin-only: Use hardcoded marketing user ID
                 const funnels = await funnelService.fetchFunnels(ADMIN_MARKETING_USER_ID);
 
-                if (funnels.welcome && funnels.welcome.length > 0) setWelcomeSteps(funnels.welcome);
-                if (funnels.buyer && funnels.buyer.length > 0) setHomeBuyerSteps(funnels.buyer);
-                if (funnels.listing && funnels.listing.length > 0) setListingSteps(funnels.listing);
-                if (funnels['post-showing'] && funnels['post-showing'].length > 0) setPostShowingSteps(funnels['post-showing']);
+                if (funnels.agentSales && funnels.agentSales.length > 0) setAgentSalesSteps(funnels.agentSales);
+                if (funnels.custom1 && funnels.custom1.length > 0) setCustom1Steps(funnels.custom1);
+                if (funnels.custom2 && funnels.custom2.length > 0) setCustom2Steps(funnels.custom2);
+                if (funnels.custom3 && funnels.custom3.length > 0) setCustom3Steps(funnels.custom3);
+
+                // Load saved signature
+                if (funnels.settings && funnels.settings.length > 0) {
+                    const sigStep = funnels.settings.find(s => s.id === 'signature');
+                    if (sigStep && sigStep.content) setCustomSignature(sigStep.content);
+                }
             } catch (error) {
                 console.error('Failed to load funnels:', error);
             }
         };
         loadFunnels();
     }, [ADMIN_MARKETING_USER_ID]);
+
+    const handleSaveCustomFunnel = async (type: string, steps: EditableStep[]) => {
+        try {
+            const success = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, type, steps);
+            if (success) alert('Funnel saved!');
+            else alert('Failed to save.');
+        } catch (error) {
+            console.error('Failed to save funnel', error);
+            alert('Unable to save right now.');
+        }
+    };
 
     const togglePanel = (panel: keyof typeof panelExpanded) => {
         setPanelExpanded((prev) => ({ ...prev, [panel]: !prev[panel] }));
@@ -443,7 +314,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         }),
         []
     );
-    const COMMON_TOKEN_HINTS = ['{{lead.name}}', '{{lead.interestAddress}}', '{{agent.name}}', '{{agent.phone}}', '{{agent.aiCardUrl}}'];
+    const COMMON_TOKEN_HINTS = ['{{lead.name}}', '{{lead.interestAddress}}', '{{agent.name}}', '{{agent.phone}}', '{{agent.aiCardUrl}}', '{{agent.signature}}'];
 
     const mergeTokens = (template: string) => {
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
@@ -463,177 +334,43 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         });
     };
 
-    const handleUpdateStep = (id: string, field: keyof EditableStep, value: string) => {
-        setWelcomeSteps((prev) =>
-            prev.map((step) => (step.id === id ? { ...step, [field]: value } : step))
-        );
-    };
 
-    const handleAddWelcomeStep = () => {
-        const newStep: EditableStep = {
-            id: `welcome-${Date.now()}`,
-            title: 'New Step',
-            description: 'Describe what this touchpoint does.',
-            icon: 'forward_to_inbox',
-            delay: '+1 day',
-            type: 'Custom',
-            subject: 'Subject line',
-            content: 'Write the message here. Use variables like {{lead.name}} and {{agent.name}}.'
-        };
-        setWelcomeSteps((prev) => [...prev, newStep]);
-    };
 
-    const handleRemoveWelcomeStep = (id: string) => {
-        setWelcomeSteps((prev) => prev.filter((step) => step.id !== id));
-        setExpandedStepIds((prev) => prev.filter((stepId) => stepId !== id));
-    };
 
-    const toggleStep = (id: string) => {
-        setExpandedStepIds((prev) =>
-            prev.includes(id) ? prev.filter((stepId) => stepId !== id) : [...prev, id]
-        );
-    };
 
-    const handleSaveWelcomeSteps = async () => {
+
+
+    const handleSaveAgentSalesSteps = async () => {
         try {
-            // Admin-only: Use hardcoded marketing user ID
-            const success = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, 'welcome', welcomeSteps);
-            if (success) alert('Welcome drip saved to cloud.');
-            else alert('Failed to save. Please try again.');
-        } catch (error) {
-            console.error('Failed to save welcome funnel', error);
-            alert('Unable to save right now.');
-        }
-    };
-
-    const handleUpdateBuyerStep = (id: string, field: keyof EditableStep, value: string) => {
-        setHomeBuyerSteps((prev) =>
-            prev.map((step) => (step.id === id ? { ...step, [field]: value } : step))
-        );
-    };
-
-    const handleAddBuyerStep = () => {
-        const newStep: EditableStep = {
-            id: `buyer-${Date.now()}`,
-            title: 'New Step',
-            description: 'Describe what this touchpoint does.',
-            icon: 'bolt',
-            delay: '+1 day',
-            type: 'Custom',
-            subject: 'Subject line',
-            content: 'Write the message here. Use tokens like {{lead.name}}.'
-        };
-        setHomeBuyerSteps((prev) => [...prev, newStep]);
-    };
-
-    const handleRemoveBuyerStep = (id: string) => {
-        setHomeBuyerSteps((prev) => prev.filter((step) => step.id !== id));
-        setExpandedBuyerStepIds((prev) => prev.filter((stepId) => stepId !== id));
-    };
-
-    const toggleBuyerStep = (id: string) => {
-        setExpandedBuyerStepIds((prev) =>
-            prev.includes(id) ? prev.filter((stepId) => stepId !== id) : [...prev, id]
-        );
-    };
-
-    const handleSaveBuyerSteps = async () => {
-        try {
-            // Admin-only: Use hardcoded marketing user ID
-            const success = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, 'buyer', homeBuyerSteps);
-            if (success) alert('Homebuyer journey saved to cloud.');
+            const success = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, 'agentSales', agentSalesSteps);
+            if (success) alert('Recruitment funnel saved!');
             else alert('Failed to save.');
         } catch (error) {
-            console.error('Failed to save homebuyer funnel', error);
+            console.error('Failed to save recruitment funnel', error);
             alert('Unable to save right now.');
         }
     };
 
-    const handleUpdateListingStep = (id: string, field: keyof EditableStep, value: string) => {
-        setListingSteps((prev) =>
-            prev.map((step) => (step.id === id ? { ...step, [field]: value } : step))
-        );
+    // Generic Handlers (Agent Sales)
+    const toggleAgentSalesStep = (id: string) => {
+        setExpandedAgentSalesStepIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+    const handleUpdateAgentSalesStep = (id: string, field: keyof EditableStep, value: string) => {
+        setAgentSalesSteps(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+    };
+    const handleRemoveAgentSalesStep = (id: string) => {
+        if (window.confirm('Remove this step?')) setAgentSalesSteps(prev => prev.filter(s => s.id !== id));
+    };
+    const handleAddAgentSalesStep = () => {
+        const newId = Date.now().toString();
+        setAgentSalesSteps(prev => [...prev, { id: newId, delay: '+1 day', type: 'Email', title: 'New Sales Step', description: 'Persuasion point', icon: 'campaign', content: '', subject: 'New Subject' }]);
+        setExpandedAgentSalesStepIds(prev => [...prev, newId]);
     };
 
-    const handleAddListingStep = () => {
-        const newStep: EditableStep = {
-            id: `listing-${Date.now()}`,
-            title: 'New Step',
-            description: 'Describe how this seller touchpoint works.',
-            icon: 'auto_fix_high',
-            delay: '+1 day',
-            type: 'Custom',
-            subject: 'Subject line',
-            content: 'Message body with {{lead.name}} / {{agent.name}} tokens.'
-        };
-        setListingSteps((prev) => [...prev, newStep]);
-    };
 
-    const handleRemoveListingStep = (id: string) => {
-        setListingSteps((prev) => prev.filter((step) => step.id !== id));
-        setExpandedListingStepIds((prev) => prev.filter((stepId) => stepId !== id));
-    };
 
-    const toggleListingStep = (id: string) => {
-        setExpandedListingStepIds((prev) =>
-            prev.includes(id) ? prev.filter((stepId) => stepId !== id) : [...prev, id]
-        );
-    };
+    // QR Code Generator
 
-    const handleSaveListingSteps = async () => {
-        try {
-            // Admin-only: Use hardcoded marketing user ID
-            const success = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, 'listing', listingSteps);
-            if (success) alert('Listing funnel saved to cloud.');
-            else alert('Failed to save.');
-        } catch (error) {
-            console.error('Failed to save listing funnel', error);
-            alert('Unable to save right now.');
-        }
-    };
-
-    const handleUpdatePostStep = (id: string, field: keyof EditableStep, value: string) => {
-        setPostShowingSteps((prev) =>
-            prev.map((step) => (step.id === id ? { ...step, [field]: value } : step))
-        );
-    };
-
-    const handleAddPostStep = () => {
-        const newStep: EditableStep = {
-            id: `post-${Date.now()}`,
-            title: 'New Step',
-            description: 'Describe the follow-up touch.',
-            icon: 'mail',
-            delay: '+1 day',
-            type: 'Custom',
-            subject: 'Subject line',
-            content: 'Message body with {{lead.name}} tokens.'
-        };
-        setPostShowingSteps((prev) => [...prev, newStep]);
-    };
-
-    const handleRemovePostStep = (id: string) => {
-        setPostShowingSteps((prev) => prev.filter((step) => step.id !== id));
-        setExpandedPostStepIds((prev) => prev.filter((stepId) => stepId !== id));
-    };
-
-    const togglePostStep = (id: string) => {
-        setExpandedPostStepIds((prev) =>
-            prev.includes(id) ? prev.filter((stepId) => stepId !== id) : [...prev, id]
-        );
-    };
-
-    const handleSavePostSteps = async () => {
-        try {
-            // Admin-only: Use hardcoded marketing user ID
-            const success = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, 'post-showing', postShowingSteps);
-            if (success) alert('Post-showing follow-up saved to cloud.');
-            else alert('Failed to save.');
-        } catch (error) {
-            console.error('Failed to save post-showing funnel', error);
-            alert('Unable to save right now.');
-        }
-    };
 
     const renderFunnelPanel = (
         panelKey: keyof typeof panelExpanded,
@@ -1140,12 +877,23 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
-                                onClick={() => setIsQuickEmailOpen(true)}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                                onClick={() => setIsImportModalOpen(true)}
+                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
                             >
-                                <span className="material-symbols-outlined text-base">outgoing_mail</span>
-                                Open Email Library
+                                <span className="material-symbols-outlined text-base">upload_file</span>
+                                Import Leads
                             </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsTemplatesModalOpen(true)}
+                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-white border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50"
+                            >
+                                <span className="material-symbols-outlined text-base">library_books</span>
+                                Agent Templates
+                            </button>
+
+                            {/* REMOVED: Open House QR & Email Library for Admin */}
                             <button
                                 onClick={() => setIsSignatureModalOpen(true)}
                                 className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-50 shadow-sm transition-colors"
@@ -1220,78 +968,90 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                 {activeSection === 'funnels' && (
                     <div className="space-y-8">
-                        {renderFunnelPanel('welcome', {
-                            badgeIcon: 'filter_alt',
-                            badgeClassName: 'bg-emerald-50 text-emerald-700',
-                            badgeLabel: 'Default Funnel',
-                            title: 'Universal Welcome Drip',
-                            description:
-                                'Every new chatbot lead lands here automatically. Edit the copy, delays, or add extra steps whenever you’re ready.',
-                            iconColorClass: 'text-primary-600',
-                            steps: welcomeSteps,
-                            expandedIds: expandedStepIds,
-                            onToggleStep: toggleStep,
-                            onUpdateStep: handleUpdateStep,
-                            onRemoveStep: handleRemoveWelcomeStep,
-                            onAddStep: handleAddWelcomeStep,
-                            onSave: handleSaveWelcomeSteps,
-                            saveLabel: 'Save Welcome Drip',
+                        {renderFunnelPanel('agentSales', {
+                            badgeIcon: 'rocket_launch',
+                            badgeClassName: 'bg-rose-50 text-rose-700',
+                            badgeLabel: 'Recruitment & Sales',
+                            title: 'The "In Your Face" Closer',
+                            description: 'A 5-step aggressive campaign to convert Realtors into paid subscribers. Uses the "Leak-Proof Bucket" strategy.',
+                            iconColorClass: 'text-rose-600',
+                            steps: agentSalesSteps,
+                            expandedIds: expandedAgentSalesStepIds,
+                            onToggleStep: toggleAgentSalesStep,
+                            onUpdateStep: handleUpdateAgentSalesStep,
+                            onRemoveStep: handleRemoveAgentSalesStep,
+                            onAddStep: handleAddAgentSalesStep,
+                            onSave: handleSaveAgentSalesSteps,
+                            saveLabel: 'Save Recruitment Funnel',
                             onSendTest: handleSendTestEmail
                         })}
 
-                        {renderFunnelPanel('buyer', {
-                            badgeIcon: 'hub',
-                            badgeClassName: 'bg-blue-50 text-blue-700',
-                            badgeLabel: '5-Step Journey',
-                            title: 'AI-Powered Homebuyer Journey',
-                            description:
-                                'Guide serious buyers from first chat to offer-ready with schedulers, automations, and personal touches.',
-                            iconColorClass: 'text-blue-600',
-                            steps: homeBuyerSteps,
-                            expandedIds: expandedBuyerStepIds,
-                            onToggleStep: toggleBuyerStep,
-                            onUpdateStep: handleUpdateBuyerStep,
-                            onRemoveStep: handleRemoveBuyerStep,
-                            onAddStep: handleAddBuyerStep,
-                            onSave: handleSaveBuyerSteps,
-                            saveLabel: 'Save Buyer Journey',
+                        {/* Custom Funnel 1 */}
+                        {renderFunnelPanel('custom1', {
+                            badgeIcon: 'edit_square',
+                            badgeClassName: 'bg-slate-100 text-slate-600',
+                            badgeLabel: 'Draft',
+                            title: 'Custom Funnel #1',
+                            description: 'Empty canvas for a new marketing sequence.',
+                            iconColorClass: 'text-slate-500',
+                            steps: custom1Steps,
+                            expandedIds: expandedCustom1Ids,
+                            onToggleStep: (id) => setExpandedCustom1Ids(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]),
+                            onUpdateStep: (id, field, val) => setCustom1Steps(prev => prev.map(s => s.id === id ? { ...s, [field]: val } : s)),
+                            onRemoveStep: (id) => setCustom1Steps(prev => prev.filter(s => s.id !== id)),
+                            onAddStep: () => {
+                                const newId = Date.now().toString();
+                                setCustom1Steps(prev => [...prev, { id: newId, delay: '+1 day', type: 'Email', title: 'New Step', description: 'Step description...', icon: 'mail', content: '', subject: 'New Subject' }]);
+                                setExpandedCustom1Ids(prev => [...prev, newId]);
+                            },
+                            onSave: () => handleSaveCustomFunnel('custom1', custom1Steps),
+                            saveLabel: 'Save Custom Funnel 1',
                             onSendTest: handleSendTestEmail
                         })}
 
-                        {renderFunnelPanel('listing', {
-                            badgeIcon: 'campaign',
-                            badgeClassName: 'bg-orange-50 text-orange-700',
-                            badgeLabel: 'Seller Storytelling',
-                            title: 'AI-Powered Seller Funnel',
-                            description:
-                                'Show clients how the concierge tells their story, tracks interest, and keeps the listing talking all week.',
-                            iconColorClass: 'text-orange-600',
-                            steps: listingSteps,
-                            expandedIds: expandedListingStepIds,
-                            onToggleStep: toggleListingStep,
-                            onUpdateStep: handleUpdateListingStep,
-                            onRemoveStep: handleRemoveListingStep,
-                            onAddStep: handleAddListingStep,
-                            onSave: handleSaveListingSteps,
-                            saveLabel: 'Save Seller Funnel',
+                        {/* Custom Funnel 2 */}
+                        {renderFunnelPanel('custom2', {
+                            badgeIcon: 'edit_square',
+                            badgeClassName: 'bg-slate-100 text-slate-600',
+                            badgeLabel: 'Draft',
+                            title: 'Custom Funnel #2',
+                            description: 'Empty canvas for a new marketing sequence.',
+                            iconColorClass: 'text-slate-500',
+                            steps: custom2Steps,
+                            expandedIds: expandedCustom2Ids,
+                            onToggleStep: (id) => setExpandedCustom2Ids(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]),
+                            onUpdateStep: (id, field, val) => setCustom2Steps(prev => prev.map(s => s.id === id ? { ...s, [field]: val } : s)),
+                            onRemoveStep: (id) => setCustom2Steps(prev => prev.filter(s => s.id !== id)),
+                            onAddStep: () => {
+                                const newId = Date.now().toString();
+                                setCustom2Steps(prev => [...prev, { id: newId, delay: '+1 day', type: 'Email', title: 'New Step', description: 'Step description...', icon: 'mail', content: '', subject: 'New Subject' }]);
+                                setExpandedCustom2Ids(prev => [...prev, newId]);
+                            },
+                            onSave: () => handleSaveCustomFunnel('custom2', custom2Steps),
+                            saveLabel: 'Save Custom Funnel 2',
                             onSendTest: handleSendTestEmail
                         })}
 
-                        {renderFunnelPanel('post', {
-                            badgeIcon: 'mail',
-                            badgeClassName: 'bg-purple-50 text-purple-700',
-                            badgeLabel: 'Post-Showing',
-                            title: 'After-Showing Follow-Up',
-                            description: 'Spin up smart follow-ups with surveys, urgency nudges, and agent reminders in one place.',
-                            iconColorClass: 'text-purple-600',
-                            steps: postShowingSteps,
-                            expandedIds: expandedPostStepIds,
-                            onToggleStep: togglePostStep,
-                            onUpdateStep: handleUpdatePostStep,
-                            onRemoveStep: handleRemovePostStep,
-                            onAddStep: handleAddPostStep,
-                            onSave: handleSavePostSteps,
-                            saveLabel: 'Save Follow-Up',
+                        {/* Custom Funnel 3 */}
+                        {renderFunnelPanel('custom3', {
+                            badgeIcon: 'edit_square',
+                            badgeClassName: 'bg-slate-100 text-slate-600',
+                            badgeLabel: 'Draft',
+                            title: 'Custom Funnel #3',
+                            description: 'Empty canvas for a new marketing sequence.',
+                            iconColorClass: 'text-slate-500',
+                            steps: custom3Steps,
+                            expandedIds: expandedCustom3Ids,
+                            onToggleStep: (id) => setExpandedCustom3Ids(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]),
+                            onUpdateStep: (id, field, val) => setCustom3Steps(prev => prev.map(s => s.id === id ? { ...s, [field]: val } : s)),
+                            onRemoveStep: (id) => setCustom3Steps(prev => prev.filter(s => s.id !== id)),
+                            onAddStep: () => {
+                                const newId = Date.now().toString();
+                                setCustom3Steps(prev => [...prev, { id: newId, delay: '+1 day', type: 'Email', title: 'New Step', description: 'Step description...', icon: 'mail', content: '', subject: 'New Subject' }]);
+                                setExpandedCustom3Ids(prev => [...prev, newId]);
+                            },
+                            onSave: () => handleSaveCustomFunnel('custom3', custom3Steps),
+                            saveLabel: 'Save Custom Funnel 3',
                             onSendTest: handleSendTestEmail
                         })}
                     </div>
@@ -1329,37 +1089,58 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     </div>
                 )}
             </div>
+            {/* Modals */}
+            <LeadImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={(leads, assignment) => {
+                    console.log('Importing leads:', leads, assignment);
+                    alert(`Successfully queued ${leads.length} leads for import to ${assignment.funnel}!`);
+                }}
+            />
+
+            <OutreachTemplatesModal
+                isOpen={isTemplatesModalOpen}
+                onClose={() => setIsTemplatesModalOpen(false)}
+            />
+
             {isQuickEmailOpen && <QuickEmailModal onClose={() => setIsQuickEmailOpen(false)} isDemoMode={isDemoMode} />}
 
             <SignatureEditorModal
                 isOpen={isSignatureModalOpen}
                 onClose={() => setIsSignatureModalOpen(false)}
                 initialSignature={customSignature || `Best regards,<br/><strong>${sampleMergeData.agent.name}</strong><br/>${sampleMergeData.agent.phone}`}
-                onSave={setCustomSignature}
+                onSave={(newSig) => {
+                    setCustomSignature(newSig);
+                    funnelService.saveSignature(ADMIN_MARKETING_USER_ID, newSig)
+                        .then(ok => ok ? console.log('Signature saved') : alert('Failed to save signature'));
+                }}
             />
             {/* Mobile Fixed Navigation Bar */}
-            {!isEmbedded && (
-                <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 md:hidden flex justify-around items-center px-2 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                    {highlightCards.map((card) => {
-                        const isActive = activeSection === card.targetSection;
-                        return (
-                            <button
-                                key={card.id}
-                                onClick={() => setActiveSection(card.targetSection)}
-                                className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all ${isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                <span className={`material-symbols-outlined text-2xl mb-0.5 ${isActive ? 'filled' : ''}`}>
-                                    {card.icon}
-                                </span>
-                                <span className="text-[10px] font-medium leading-none">
-                                    {card.title.replace('Live ', '').replace('Engine', '').replace('Sequence ', '')}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
+            {
+                !isEmbedded && (
+                    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 md:hidden flex justify-around items-center px-2 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                        {highlightCards.map((card) => {
+                            const isActive = activeSection === card.targetSection;
+                            return (
+                                <button
+                                    key={card.id}
+                                    onClick={() => setActiveSection(card.targetSection)}
+                                    className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all ${isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <span className={`material-symbols-outlined text-2xl mb-0.5 ${isActive ? 'filled' : ''}`}>
+                                        {card.icon}
+                                    </span>
+                                    <span className="text-[10px] font-medium leading-none">
+                                        {card.title.replace('Live ', '').replace('Engine', '').replace('Sequence ', '')}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )
+            }
+        </div >
     );
 };
 
