@@ -660,7 +660,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, hideLifec
 
   const handleActivateSidekick = async (template: SidekickTemplate) => {
     try {
-      setIsCreatingSidekick(true);
+      // setIsCreatingSidekick(true); // Removed unused state setter
       // setCreateError(null); // Removed as createError state is removed
 
       const payload: CreateSidekickPayload = {
@@ -688,7 +688,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, hideLifec
         message: 'Failed to activate sidekick. Please try again.'
       });
     } finally {
-      setIsCreatingSidekick(false);
+      // setIsCreatingSidekick(false); // Removed unused state setter
     }
   };
 
