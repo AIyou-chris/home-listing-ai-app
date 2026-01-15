@@ -24,8 +24,40 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
         return result;
     };
 
+    // --- CHECK: Evaluate Condition ---
+    const evaluateCondition = async (step, lead) => {
+        try {
+            if (step.condition_type === 'email_opens') {
+                const { data, error } = await supabaseAdmin
+                    .from('email_tracking_events')
+                    .select('open_count')
+                    .eq('lead_id', lead.id);
+
+                if (error) {
+                    console.error('[FunnelExecutor] Condition Check Error:', error);
+                    return false;
+                }
+
+                const totalOpens = data.reduce((sum, row) => sum + (row.open_count || 0), 0);
+                const threshold = step.value || 1;
+
+                console.log(`[FunnelExecutor] Condition Check: Lead ${lead.id} has ${totalOpens} opens. Threshold: ${threshold}`);
+
+                if (step.operator === 'gte') return totalOpens >= threshold;
+                if (step.operator === 'gt') return totalOpens > threshold;
+                if (step.operator === 'eq') return totalOpens === threshold;
+                if (step.operator === 'lt') return totalOpens < threshold;
+                return totalOpens >= 1; // Default "has opened"
+            }
+            return false;
+        } catch (err) {
+            console.error('[FunnelExecutor] Condition Exception:', err);
+            return false;
+        }
+    };
+
     // --- ACTION: Execute a single step ---
-    const executeStep = async (step, lead, agent) => {
+    const executeStep = async (step, lead, agent, allSteps) => { // Added allSteps
         console.log(`[FunnelExecutor] Running Step: ${step.type} for Lead ${lead.name || lead.email}`);
 
         const context = {
@@ -35,24 +67,36 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
         };
 
         try {
-            if (step.type === 'email') {
-                const subject = mergeTokens(step.subject, lead, agent);
-                const content = mergeTokens(step.content || step.body, lead, agent); // handle content/body naming
+            if (step.type === 'condition') {
+                const isMet = await evaluateCondition(step, lead);
+                context.details = { condition_met: isMet, type: step.condition_type };
 
-                // Check if template_key is used (TODO: Implement template fetching if needed, for now assuming inline)
-                // If functionality requires fetching template from DB, add here.
+                const targetKey = isMet ? step.target_step_key_true : step.target_step_key_false;
+
+                // Find index of the target step
+                const targetIndex = allSteps.findIndex(s => s.step_key === targetKey);
+
+                if (targetIndex !== -1) {
+                    context.nextIndex = targetIndex;
+                    console.log(`[FunnelExecutor] Condition Result: ${isMet}. Jumping to step key '${targetKey}' (Index ${targetIndex})`);
+                } else {
+                    console.warn(`[FunnelExecutor] Target step key '${targetKey}' not found. Continuing linearly.`);
+                }
+
+            } else if (step.type === 'email') {
+                const subject = mergeTokens(step.subject, lead, agent);
+                const content = mergeTokens(step.content || step.body, lead, agent);
 
                 const result = await emailService.sendEmail({
                     to: lead.email,
                     subject: subject,
-                    html: content.replace(/\n/g, '<br>'), // Simple specific formatting
+                    html: content.replace(/\n/g, '<br>'),
                     tags: { funnel_step: step.step_key }
                 });
                 context.details = result;
                 if (!result.sent && !result.queued) throw new Error('Email failed to send');
 
             } else if (step.type === 'sms' || step.type === 'Text') {
-                // Check if SMS enabled
                 if (process.env.VITE_ENABLE_SMS === 'false') {
                     context.status = 'skipped';
                     context.details = { reason: 'SMS Disabled via Feature Flag' };
@@ -63,11 +107,9 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
                 await smsService.sendSms(lead.phone, message, step.mediaUrl);
 
             } else if (step.type === 'task') {
-                // TODO: Create task in CRM
                 context.details = { note: 'Task creation not yet implemented' };
             } else if (step.type === 'wait') {
-                // Wait steps shouldn't strictly be "executed" per se, but if they are treated as an action:
-                // Do nothing.
+                // Do nothing
             } else {
                 console.warn('Unknown step type:', step.type);
             }
@@ -110,12 +152,11 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
 
             if (!funnelDef || !funnelDef.steps) {
                 console.warn(`[FunnelExecutor] Missing funnel def for enrollment ${enrollment.id}`);
-                // Mark failed?
                 await supabaseAdmin.from('funnel_enrollments').update({ status: 'failed' }).eq('id', enrollment.id);
                 continue;
             }
 
-            const steps = funnelDef.steps; // Assume JSON Array
+            const steps = funnelDef.steps;
             const currentIndex = enrollment.current_step_index;
             const currentStep = steps[currentIndex];
 
@@ -126,7 +167,7 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
             }
 
             // Execute Action
-            const result = await executeStep(currentStep, lead, agent);
+            const result = await executeStep(currentStep, lead, agent, steps); // Pass allSteps
 
             // Log it
             await supabaseAdmin.from('funnel_logs').insert({
@@ -139,7 +180,12 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
             });
 
             // Determine Next State
-            const nextIndex = currentIndex + 1;
+            let nextIndex = currentIndex + 1; // Default linear
+
+            // Branching Override
+            if (result.nextIndex !== undefined) {
+                nextIndex = result.nextIndex;
+            }
 
             if (nextIndex < steps.length) {
                 const nextStep = steps[nextIndex];
@@ -152,14 +198,14 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
                     updated_at: new Date().toISOString()
                 }).eq('id', enrollment.id);
 
-                console.log(`[FunnelExecutor] Advanced ${lead.first_name} to Step ${nextIndex}. Next run: ${nextRun}`);
+                console.log(`[FunnelExecutor] Advanced ${lead.name || lead.email} to Step ${nextIndex}. Next run: ${nextRun}`);
             } else {
                 // Completed
                 await supabaseAdmin.from('funnel_enrollments').update({
                     status: 'completed',
                     updated_at: new Date().toISOString()
                 }).eq('id', enrollment.id);
-                console.log(`[FunnelExecutor] Completed funnel for ${lead.first_name}`);
+                console.log(`[FunnelExecutor] Completed funnel for ${lead.name || lead.email}`);
             }
         }
     };

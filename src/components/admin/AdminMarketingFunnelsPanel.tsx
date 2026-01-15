@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import AnalyticsPage from '../AnalyticsPage';
 import QuickEmailModal from '../QuickEmailModal';
 import SignatureEditorModal from '../SignatureEditorModal';
-import { EmailEditor } from '../EmailEditor';
 import SequenceFeedbackPanel from '../SequenceFeedbackPanel';
 import { funnelService } from '../../services/funnelService';
 import { supabase } from '../../services/supabase';
@@ -63,6 +62,11 @@ export type EditableStep = {
     subject: string;
     content: string;
     mediaUrl?: string;
+    // Condition Logic
+    conditionRule?: string; // e.g., 'email_opened', 'link_clicked'
+    conditionValue?: string; // e.g., '1', 'true'
+    trueNextStepId?: string;
+    falseNextStepId?: string;
 };
 
 const initialBlankSteps: EditableStep[] = [

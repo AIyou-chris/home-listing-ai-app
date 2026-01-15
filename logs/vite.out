@@ -20408,3 +20408,34 @@ Port 5173 is in use, trying another one...
 1:28:21 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
 1:28:25 PM [vite] (client) ✨ new dependencies optimized: qrcode
 1:28:25 PM [vite] (client) ✨ optimized dependencies changed. reloading
+
+  VITE v7.2.2  ready in 2193 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.28:5173/
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+9:29:01 AM [vite] (client) hmr update /src/components/AgentDashboard.tsx, /src/index.css
+9:29:37 AM [vite] (client) hmr update /src/components/AgentDashboard.tsx, /src/index.css
+1:15:35 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+1:15:37 PM [vite] (client) hmr update /src/index.css, /src/components/UniversalFunnelPanel.tsx
+1:24:16 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+1:24:16 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+1:24:39 PM [vite] (client) hmr update /src/index.css, /src/components/UniversalFunnelPanel.tsx
+1:24:40 PM [vite] (client) hmr update /src/index.css, /src/components/UniversalFunnelPanel.tsx
+2:56:06 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+2:57:23 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+2:58:10 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+3:30:29 PM [vite] (client) hmr update /src/components/admin/FunnelPanel.tsx, /src/index.css
+3:43:19 PM [vite] (client) hmr update /src/components/admin/FunnelPanel.tsx, /src/index.css
+3:46:59 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+3:47:01 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+3:47:01 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+3:49:42 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+3:49:43 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+3:56:17 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+3:56:19 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+3:56:19 PM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx
+4:16:44 PM [vite] (client) hmr update /src/components/admin/FunnelPanel.tsx, /src/index.css
+4:16:45 PM [vite] (client) hmr update /src/components/admin/FunnelPanel.tsx, /src/index.css
+9:13:47 AM [vite] .env changed, restarting server...
+9:13:48 AM [vite] server restarted.

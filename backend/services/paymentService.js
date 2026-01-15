@@ -13,7 +13,7 @@ module.exports = ({
 
   const listProviders = () => isConfigured() ? ['stripe'] : [];
 
-  const createCheckoutSession = async ({ priceId, slug, email, successUrl, cancelUrl }) => {
+  const createCheckoutSession = async ({ priceId, slug, email, successUrl, cancelUrl, trialPeriodDays = 7, discounts = [] }) => {
     if (!isConfigured()) throw new Error('Stripe is not configured');
 
     // Default to the provided Plan Price ID from env if none specified
@@ -25,14 +25,14 @@ module.exports = ({
     const sUrl = successUrl || `${baseAppUrl}/checkout/${slug}?status=success`;
     const cUrl = cancelUrl || `${baseAppUrl}/checkout/${slug}?status=cancelled`;
 
-    console.log(`[Stripe] Creating session for ${email} (${slug}) using price ${finalPriceId}`);
+    console.log(`[Stripe] Creating session for ${email} (${slug}) using price ${finalPriceId}. Trial: ${trialPeriodDays} days.`);
 
     try {
-      const session = await stripe.checkout.sessions.create({
+      const sessionConfig = {
         line_items: [{ price: finalPriceId, quantity: 1 }],
         mode: 'subscription',
         subscription_data: {
-          trial_period_days: 7,
+          trial_period_days: trialPeriodDays,
         },
         success_url: sUrl,
         cancel_url: cUrl,
@@ -43,7 +43,16 @@ module.exports = ({
           source: 'homelistingai_app'
         },
         allow_promotion_codes: true, // Allow promo codes in Stripe UI
-      });
+      };
+
+      // If specific discounts are passed (like a coupon code), add them
+      // Note: allow_promotion_codes cannot be true if discounts are explicitly applied
+      if (discounts && discounts.length > 0) {
+        sessionConfig.discounts = discounts;
+        sessionConfig.allow_promotion_codes = false;
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionConfig);
 
       return {
         url: session.url,

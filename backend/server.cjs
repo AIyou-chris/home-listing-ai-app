@@ -10606,7 +10606,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
 
     const { data: agent, error: agentError } = await supabaseAdmin
       .from('agents')
-      .select('email, slug, status, payment_status')
+      .select('email, slug, status, payment_status, stripe_account_id')
       .eq('slug', slug)
       .maybeSingle()
 
@@ -10619,8 +10619,9 @@ app.post('/api/payments/checkout-session', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Agent not found.' })
     }
 
-    // Promo Code Logic
     const normalizedPromoCode = (promoCode || '').toString().trim().toUpperCase();
+
+    // 1. FREE LIFETIME / FRIENDS & FAMILY
     if (normalizedPromoCode === 'FRIENDS30' || normalizedPromoCode === 'LIFETIME') {
       const paymentStatus = 'awaiting_payment';
 
@@ -10655,27 +10656,34 @@ app.post('/api/payments/checkout-session', async (req, res) => {
       }
     }
 
-    // Generic Coupon Logic (DB)
-    let finalAmountCents = amountCents;
-    if (promoCode && promoCode !== 'FRIENDS30' && promoCode !== 'LIFETIME') {
+    // 2. 3-DAY OFFER ($10 Immediate / No Trial)
+    // We expect the promo code to match a Coupon in Stripe or our DB that reduces first price to $10.
+    // If it's a specific "PAY NOW" code, we remove the trial.
+    let trialDays = 7;
+    let explicitDiscounts = [];
+
+    // Check custom "Pay Now" codes here
+    const PAY_NOW_CODES = ['3DAY_OFFER', 'OFFER_10', 'UPGRADE_NOW'];
+    if (PAY_NOW_CODES.includes(normalizedPromoCode)) {
+      console.log(`[Checkout] Applying Pay Now logic for code: ${normalizedPromoCode}`);
+      trialDays = 0; // Immediate charge.
+      // We pass the code to Stripe as a coupon. 
+      // Stripe Coupon must be configured as "$10 OFF" (reducing $69 -> $59).
+      explicitDiscounts = [{ coupon: normalizedPromoCode }];
+    }
+
+    // 3. Generic Coupon Logic (Database Check for validity before sending to Stripe)
+    if (promoCode && !PAY_NOW_CODES.includes(normalizedPromoCode) && normalizedPromoCode !== 'FRIENDS30' && normalizedPromoCode !== 'LIFETIME') {
       try {
         const { data: coupon } = await supabaseAdmin.from('coupons').select('*').eq('code', promoCode).single();
         if (coupon) {
+          // Verify limits etc (logic kept from previous implementation)
           const now = new Date();
           const expires = coupon.expires_at ? new Date(coupon.expires_at) : null;
-          const limit = coupon.usage_limit;
-          const count = coupon.usage_count || 0;
-
-          if ((!expires || expires > now) && (!limit || count < limit)) {
-            const base = typeof amountCents === 'number' ? amountCents : 4900; // Default $49.00
-            let discount = 0;
-            if (coupon.discount_type === 'percent') {
-              discount = Math.round(base * (Number(coupon.amount) / 100));
-            } else {
-              discount = Math.round(Number(coupon.amount) * 100); // fixed amount in dollars to cents
-            }
-            finalAmountCents = Math.max(0, base - discount);
-            console.log(`Applying coupon ${promoCode}: Base ${base} -> ${finalAmountCents}`);
+          // If valid, apply it to the session
+          if ((!expires || expires > now)) {
+            // For subscriptions, we pass the coupon code to Stripe
+            explicitDiscounts = [{ coupon: promoCode }];
           }
         }
       } catch (err) {
@@ -10686,8 +10694,11 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     const session = await paymentService.createCheckoutSession({
       slug,
       email: agent.email,
+      customerId: agent.stripe_account_id, // Pass existing customer ID if we have it
       provider,
-      amountCents: finalAmountCents
+      amountCents: 4900, // This is ignored by subscription mode in favor of priceId, but kept for signature
+      trialPeriodDays: trialDays,
+      discounts: explicitDiscounts
     })
 
     if (!session?.url) {
@@ -11247,6 +11258,134 @@ const executeDelayedStep = async (userId, lead, step, signature) => {
   return { success: false, reason: 'Unknown step type' };
 };
 
+
+// 48-Hour Offer Email Automation
+const check48HourOffers = async () => {
+  if (!supabaseAdmin) return;
+  try {
+    // 1. Find agents created > 48h ago, still on trial, who haven't received the offer.
+    // 48h = 2 days. Let's look for agents created between 48h and 72h ago to avoid processing ancient records,
+    // although the 'offer_sent_48h = false' check handles that too.
+    const fortyEightHoursAgo = new Date(Date.now() - (48 * 60 * 60 * 1000)).toISOString();
+
+    // We want agents created BEFORE 48h ago. 
+    const { data: candidates, error } = await supabaseAdmin
+      .from('agents')
+      .select('id, email, first_name, created_at')
+      .lt('created_at', fortyEightHoursAgo)
+      .eq('payment_status', 'trialing')
+      .eq('offer_sent_48h', false)
+      .limit(50); // Batch size
+
+    if (error) {
+      // console.warn('[Scheduler] Offer Query Error', error.message);
+      return;
+    }
+
+    if (candidates && candidates.length > 0) {
+      console.log(`[Scheduler] Found ${candidates.length} agents eligible for 48h offer.`);
+      const emailService = require('./services/emailService');
+
+      for (const agent of candidates) {
+        // Send Email
+        const offerHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; }
+              .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+              .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; }
+              .logo { width: 48px; height: 48px; background-color: white; border-radius: 8px; padding: 4px; margin-bottom: 16px; object-fit: contain; }
+              .header-title { color: white; font-size: 24px; font-weight: bold; margin: 0; }
+              .content { padding: 32px 24px; }
+              .greeting { font-size: 20px; font-weight: 600; margin-bottom: 24px; color: #0f172a; }
+              .hero-text { font-size: 16px; line-height: 1.6; margin-bottom: 24px; color: #475569; }
+              .offer-box { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center; }
+              .offer-title { color: #0284c7; font-size: 20px; font-weight: bold; margin-top: 0; margin-bottom: 12px; }
+              .offer-details { font-size: 16px; color: #334155; margin-bottom: 16px; line-height: 1.5; }
+              .code-box { background-color: white; border: 2px dashed #bae6fd; padding: 8px 16px; border-radius: 8px; display: inline-block; font-family: monospace; font-size: 18px; font-weight: bold; color: #0284c7; margin-bottom: 24px; }
+              .btn { background-color: #0284c7; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); transition: transform 0.2s; }
+              .footer { background-color: #f1f5f9; padding: 24px; text-align: center; font-size: 13px; color: #64748b; }
+            </style>
+          </head>
+          <body>
+            <div style="padding: 24px;">
+              <div class="container">
+                <div class="header">
+                  <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" class="logo">
+                  <h1 class="header-title">Unlock Your Full Potential</h1>
+                </div>
+                
+                <div class="content">
+                  <h2 class="greeting">Wait... ${agent.first_name || 'there'}! 👋</h2>
+                  <p class="hero-text">
+                    You've been experiencing the power of HomeListingAI for 2 days now. We've seen great agents become top producers with the right tools.
+                  </p>
+                  <p class="hero-text">
+                    We want to make sure you have everything you need to succeed, so we're making you a <strong>special one-time offer</strong>.
+                  </p>
+        
+                  <div class="offer-box">
+                    <h3 class="offer-title">Upgrade Today & Save $10/mo Forever</h3>
+                    <p class="offer-details">
+                      Skip the rest of your trial and lock in our Pro Plan at a discounted rate.
+                      <br>
+                      <strong>$59/mo</strong> <span style="text-decoration: line-through; color: #94a3b8; font-size: 14px;">$69/mo</span>
+                    </p>
+                    <div class="code-box">CODE: 3DAY_OFFER</div>
+                    <br>
+                    <a href="${process.env.APP_BASE_URL}/billing?promo=3DAY_OFFER" class="btn">Claim $10 Off Now</a>
+                  </div>
+
+                  <p class="hero-text" style="text-align: center; font-size: 14px;">
+                    This offer is valid for the next 24 hours only. Don't let your commission slip away.
+                  </p>
+                </div>
+        
+                <div class="footer">
+                  <p>Sent with 💙 by the HomeListingAI Team</p>
+                  <p style="margin-top: 12px; font-size: 12px;">© ${new Date().getFullYear()} HomeListingAI. All rights reserved.</p>
+                </div>
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+
+        try {
+          await emailService.sendEmail({
+            to: agent.email,
+            subject: 'Special Offer: Upgrade now and save $10/mo',
+            html: offerHtml,
+            text: `Upgrade now and save $10/mo forever! Use code 3DAY_OFFER at checkout. ${process.env.APP_BASE_URL}/billing?promo=3DAY_OFFER`,
+            from: process.env.MAILGUN_FROM_EMAIL || 'hello@homelistingai.app',
+            tags: ['automation', '48h-offer']
+          });
+
+          // Mark as sent
+          await supabaseAdmin
+            .from('agents')
+            .update({ offer_sent_48h: true })
+            .eq('id', agent.id);
+
+          console.log(`[Scheduler] Sent 48h offer to ${agent.email}`);
+
+        } catch (sendErr) {
+          console.error(`[Scheduler] Failed to send offer to ${agent.email}`, sendErr.message);
+        }
+      }
+    }
+
+  } catch (err) {
+    console.error('[Scheduler] Error in check48HourOffers:', err);
+  }
+};
+
 // Start Scheduler (Every 60 seconds)
-setInterval(checkFunnelFollowUps, 60 * 1000);
+setInterval(() => {
+  checkFunnelFollowUps();
+  check48HourOffers();
+}, 60 * 1000);
 

@@ -40,17 +40,21 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
     badgeLabel,
     title,
     description,
-    iconColorClass,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    iconColorClass: _iconColorClass,
     steps,
     expandedIds,
     onToggleStep,
     onUpdateStep,
-    onRemoveStep,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    onRemoveStep: _onRemoveStep,
     onAddStep,
     onSave,
-    saveLabel,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    saveLabel: _saveLabel,
     onSendTest,
-    mergeTokens,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mergeTokens: _mergeTokens,
     COMMON_TOKEN_HINTS
 }) => {
     return (
@@ -172,13 +176,64 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                             >
                                                                 <option value="Email">Email</option>
                                                                 <option value="Call">AI Call</option>
-                                                                <option value="Task">Task</option>
                                                                 <option value="SMS">SMS</option>
+                                                                <option value="Task">Task</option>
+                                                                <option value="Wait">Wait</option>
+                                                                <option value="Condition">Condition</option>
                                                             </select>
                                                         </div>
                                                     </div>
 
-                                                    {step.type === 'Call' || step.type === 'AI Call' ? (
+                                                    {step.type === 'Condition' ? (
+                                                        <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-6">
+                                                            <div className="flex items-start gap-4 mb-4">
+                                                                <div className="p-3 bg-white rounded-full shadow-sm text-indigo-600">
+                                                                    <span className="material-symbols-outlined text-2xl">call_split</span>
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className="text-indigo-900 font-bold text-lg mb-1">Decision Diamond</h4>
+                                                                    <p className="text-indigo-700/80 text-sm leading-relaxed max-w-md">
+                                                                        Branch the funnel based on lead behavior. If the condition is met (True), we proceed to the next step. If not (False), we skip one step.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                <div>
+                                                                    <label className="block text-xs font-semibold text-indigo-800 mb-1">Condition Rule</label>
+                                                                    <select
+                                                                        className="w-full bg-white border-indigo-200 rounded-lg p-2.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                        value={step.conditionRule || 'email_opened'}
+                                                                        onChange={(e) => onUpdateStep(step.id, 'conditionRule', e.target.value)}
+                                                                    >
+                                                                        <option value="email_opened">Has Opened Email</option>
+                                                                        <option value="link_clicked">Has Clicked Link</option>
+                                                                        <option value="replied">Has Replied</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-xs font-semibold text-indigo-800 mb-1">Threshold Value</label>
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            type="number"
+                                                                            className="w-full bg-white border-indigo-200 rounded-lg p-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                            placeholder="1"
+                                                                            value={step.conditionValue || '1'}
+                                                                            onChange={(e) => onUpdateStep(step.id, 'conditionValue', e.target.value)}
+                                                                        />
+                                                                        <div className="absolute right-3 top-2.5 text-xs text-slate-400 font-medium">times</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="mt-4 p-3 bg-white/50 rounded-lg border border-indigo-100 flex items-center gap-3">
+                                                                <span className="material-symbols-outlined text-indigo-400">info</span>
+                                                                <p className="text-xs text-indigo-700/70 font-medium">
+                                                                    <strong>Logic:</strong> If <code>{step.conditionRule || 'Opened'}</code> &ge; <code>{step.conditionValue || '1'}</code> &rarr; Go to Next Step. Else &rarr; Skip Next Step.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ) : step.type === 'Call' || step.type === 'AI Call' ? (
                                                         <div className="rounded-xl bg-blue-50 border border-blue-100 p-6 flex items-start gap-4">
                                                             <div className="p-3 bg-white rounded-full shadow-sm text-blue-600">
                                                                 <span className="material-symbols-outlined text-2xl">support_agent</span>

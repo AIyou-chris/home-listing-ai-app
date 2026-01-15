@@ -1,7 +1,7 @@
-[dotenv@17.2.3] injecting env (0) from .env.local -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
-[dotenv@17.2.3] injecting env (46) from .env -- tip: ⚙️  override existing env vars with { override: true }
-[dotenv@17.2.3] injecting env (0) from backend/.env.local -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
-[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+[dotenv@17.2.3] injecting env (0) from ../.env.local -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (56) from ../.env -- tip: ⚙️  suppress all logs with { quiet: true }
+[dotenv@17.2.3] injecting env (0) from .env.local -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
 [server] has service role? true
 [Server] Registering AI Sidekick routes
 🚀 AI Server running on http://0.0.0.0:3002
@@ -82,81 +82,164 @@
    GET  /api/admin/listings
    POST /api/admin/listings
    DELETE /api/admin/listings/:id
-[Leads] Cache primed with 1 record(s).
-🔍 GET /api/admin/listings hit
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🎴 AI Card profile not found for cbe4d568-3254-4af4-aa8d-3fe12d4848c3, returning default.
-🎴 AI Card profile not found for cbe4d568-3254-4af4-aa8d-3fe12d4848c3, returning default.
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🎴 AI Card profile not found for 08b92370-7c6e-491c-abe0-286bf6a76ec0, returning default.
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🎴 AI Card profile not found for 08b92370-7c6e-491c-abe0-286bf6a76ec0, returning default.
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🎴 AI Card profile not found for cbe4d568-3254-4af4-aa8d-3fe12d4848c3, returning default.
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🎴 AI Card profile not found for cbe4d568-3254-4af4-aa8d-3fe12d4848c3, returning default.
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🔍 GET /api/admin/listings hit
-🔍 GET /api/admin/listings hit
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🎴 AI Card profile not found for cbe4d568-3254-4af4-aa8d-3fe12d4848c3, returning default.
-🎴 AI Card profile not found for cbe4d568-3254-4af4-aa8d-3fe12d4848c3, returning default.
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
-🏠 Retrieved 0 listings
+[Leads] Cache primed with 0 record(s).
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
