@@ -1,0 +1,745 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import AnalyticsPage from './AnalyticsPage';
+import QuickEmailModal from './QuickEmailModal';
+import SignatureEditorModal from './SignatureEditorModal';
+import { EmailEditor } from './EmailEditor';
+import SequenceFeedbackPanel from './SequenceFeedbackPanel';
+import { funnelService } from '../services/funnelService';
+import { supabase } from '../services/supabase';
+import PageTipBanner from './PageTipBanner';
+import LeadImportModal from './admin/LeadImportModal';
+import OutreachTemplatesModal from './admin/OutreachTemplatesModal';
+
+// --- Types ---
+
+export type EditableStep = {
+    id: string;
+    title: string;
+    description: string;
+    icon: string;
+    delay: string;
+    type: string;
+    subject: string;
+    content: string;
+    mediaUrl?: string;
+};
+
+export interface FunnelSectionConfig {
+    key: string;
+    badgeIcon: string;
+    badgeClassName: string;
+    badgeLabel: string;
+    title: string;
+    description: string;
+    iconColorClass: string;
+    initialSteps: EditableStep[];
+    saveLabel: string;
+}
+
+export interface UniversalFunnelPanelProps {
+    userId: string;
+    funnelSections: FunnelSectionConfig[];
+    onBackToDashboard?: () => void;
+    variant?: 'page' | 'embedded';
+    title?: string;
+    subtitle?: string;
+    hideBackButton?: boolean;
+    isDemoMode?: boolean;
+    showLeadScoring?: boolean;
+    showSequenceFeedback?: boolean;
+}
+
+// --- Constants ---
+
+const highlightCards = [
+    {
+        id: 'health',
+        icon: 'insights',
+        title: 'AI Funnel',
+        body: 'Track how many leads are captured, contacted, qualified, and booked straight from the dashboard.',
+        targetSection: 'funnels' as const,
+        bgClass: 'bg-sky-50',
+        borderClass: 'border-sky-200',
+        iconClass: 'text-sky-600 bg-white'
+    },
+    {
+        id: 'scoring',
+        icon: 'workspace_premium',
+        title: 'Lead Scoring Engine',
+        body: 'See the rules, tiers, and point gains that determine which prospects graduate to Hot or stay in nurture.',
+        targetSection: 'scoring' as const,
+        bgClass: 'bg-indigo-50',
+        borderClass: 'border-indigo-200',
+        iconClass: 'text-indigo-600 bg-white'
+    },
+    {
+        id: 'sequence',
+        icon: 'auto_fix_high',
+        title: 'Sequence Feedback',
+        body: 'Compare which automations spark responses so you know when to duplicate, pause, or remix a funnel.',
+        targetSection: 'feedback' as const,
+        bgClass: 'bg-emerald-50',
+        borderClass: 'border-emerald-200',
+        iconClass: 'text-emerald-600 bg-white'
+    }
+] as const;
+
+// --- Component ---
+
+const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
+    userId,
+    funnelSections,
+    onBackToDashboard,
+    variant = 'page',
+    title = 'Marketing Funnels',
+    subtitle = 'AI-powered marketing campaigns',
+    hideBackButton = false,
+    isDemoMode = false,
+    showLeadScoring = true,
+    showSequenceFeedback = true,
+}) => {
+    const isEmbedded = variant === 'embedded';
+
+    // State: Map of funnelKey -> steps array
+    const [funnelSteps, setFunnelSteps] = useState<Record<string, EditableStep[]>>({});
+
+    // State: Map of funnelKey -> boolean (is panel expanded)
+    const [panelExpanded, setPanelExpanded] = useState<Record<string, boolean>>({});
+
+    // State: Map of funnelKey -> array of expanded step IDs
+    const [expandedStepIds, setExpandedStepIds] = useState<Record<string, string[]>>({});
+
+    // UI Helpers
+    const [activeSection, setActiveSection] = useState<'funnels' | 'scoring' | 'feedback'>('funnels');
+    const [sendingTestId, setSendingTestId] = useState<string | null>(null);
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+    const [customSignature, setCustomSignature] = useState<string>('');
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+    const [isQuickEmailOpen, setIsQuickEmailOpen] = useState(false);
+
+    // Initialize state from config
+    useEffect(() => {
+        const initialStepsMap: Record<string, EditableStep[]> = {};
+        const initialPanelState: Record<string, boolean> = {};
+        const initialExpandedIds: Record<string, string[]> = {};
+
+        funnelSections.forEach(section => {
+            initialStepsMap[section.key] = section.initialSteps;
+            // Default first panel open or all open depending on preference. 
+            // Let's default all open for desktop, closed for mobile? 
+            // Or just open first one.
+            initialPanelState[section.key] = true;
+            initialExpandedIds[section.key] = [];
+        });
+
+        setFunnelSteps(prev => ({ ...initialStepsMap, ...prev })); // Preserve loaded if any
+        setPanelExpanded(prev => ({ ...initialPanelState, ...prev }));
+        setExpandedStepIds(prev => ({ ...initialExpandedIds, ...prev }));
+    }, [funnelSections]); // Only runs if config changes (or on mount)
+
+    // Load Data
+    useEffect(() => {
+        const loadFunnels = async () => {
+            if (!userId) return;
+            try {
+                const fetchedFunnels = await funnelService.fetchFunnels(userId);
+
+                // Update state for each known section
+                const updates: Record<string, EditableStep[]> = {};
+                funnelSections.forEach(section => {
+                    if (fetchedFunnels[section.key] && fetchedFunnels[section.key].length > 0) {
+                        updates[section.key] = fetchedFunnels[section.key];
+                    }
+                });
+
+                if (Object.keys(updates).length > 0) {
+                    setFunnelSteps(prev => ({ ...prev, ...updates }));
+                }
+
+                // Load saved signature
+                if (fetchedFunnels.settings && fetchedFunnels.settings.length > 0) {
+                    const sigStep = fetchedFunnels.settings.find(s => s.id === 'signature');
+                    if (sigStep && sigStep.content) setCustomSignature(sigStep.content);
+                }
+            } catch (error) {
+                console.error('Failed to load funnels:', error);
+            }
+        };
+        loadFunnels();
+    }, [userId, funnelSections]);
+
+    // Handlers
+
+    const handleSaveFunnel = async (key: string) => {
+        try {
+            const steps = funnelSteps[key] || [];
+            const success = await funnelService.saveFunnelStep(userId, key, steps);
+            if (success) alert('Funnel saved!');
+            else alert('Failed to save.');
+        } catch (error) {
+            console.error(`Failed to save funnel ${key}`, error);
+            alert('Unable to save right now.');
+        }
+    };
+
+    const handleTogglePanel = (key: string) => {
+        setPanelExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const handleToggleStep = (funnelKey: string, stepId: string) => {
+        setExpandedStepIds(prev => {
+            const current = prev[funnelKey] || [];
+            const updated = current.includes(stepId)
+                ? current.filter(id => id !== stepId)
+                : [...current, stepId];
+            return { ...prev, [funnelKey]: updated };
+        });
+    };
+
+    const handleUpdateStep = (funnelKey: string, stepId: string, field: keyof EditableStep, value: string) => {
+        setFunnelSteps(prev => ({
+            ...prev,
+            [funnelKey]: prev[funnelKey].map(s => s.id === stepId ? { ...s, [field]: value } : s)
+        }));
+    };
+
+    const handleRemoveStep = (funnelKey: string, stepId: string) => {
+        if (window.confirm('Remove this step?')) {
+            setFunnelSteps(prev => ({
+                ...prev,
+                [funnelKey]: prev[funnelKey].filter(s => s.id !== stepId)
+            }));
+            // Also cleanup expanded ids
+            setExpandedStepIds(prev => ({
+                ...prev,
+                [funnelKey]: prev[funnelKey].filter(id => id !== stepId)
+            }));
+        }
+    };
+
+    const handleAddStep = (funnelKey: string) => {
+        const newId = Date.now().toString();
+        const newStep: EditableStep = {
+            id: newId,
+            delay: '+1 day',
+            type: 'Email',
+            title: 'New Step',
+            description: 'New touchpoint',
+            icon: 'mail',
+            content: '',
+            subject: 'New Subject'
+        };
+
+        setFunnelSteps(prev => ({
+            ...prev,
+            [funnelKey]: [...(prev[funnelKey] || []), newStep]
+        }));
+        setExpandedStepIds(prev => ({
+            ...prev,
+            [funnelKey]: [...(prev[funnelKey] || []), newId]
+        }));
+    };
+
+    const handleSendTestEmail = async (step: EditableStep) => {
+        if (sendingTestId) return;
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const defaultEmail = user?.email || '';
+
+            // Handle SMS steps
+            if (step.type === 'Text' || step.type === 'sms' || step.type === 'SMS') {
+                const targetPhone = window.prompt('Where should we send the test SMS? (e.g. +1555...)', '');
+                if (!targetPhone) return;
+
+                setSendingTestId(step.id);
+                const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+
+                const response = await fetch(`${apiUrl}/api/admin/sms/quick-send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: targetPhone,
+                        message: mergeTokens(step.content),
+                        mediaUrls: step.mediaUrl ? [step.mediaUrl] : []
+                    })
+                });
+
+                if (response.ok) alert(`Test SMS sent to ${targetPhone}`);
+                else throw new Error('Failed to send test SMS');
+                return;
+            }
+
+            const targetEmail = window.prompt('Where should we send the test email?', defaultEmail);
+            if (!targetEmail) return; // User cancelled
+
+            setSendingTestId(step.id);
+
+            const subject = mergeTokens(step.subject);
+            // Replace newlines with <br/> for HTML email body
+            const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
+            const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+            const response = await fetch(`${apiUrl}/api/admin/email/quick-send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: targetEmail,
+                    subject: `[TEST] ${subject}`,
+                    html: body,
+                    text: mergeTokens(step.content)
+                })
+            });
+            if (response.ok) alert(`Test email sent to ${targetEmail}`);
+            else throw new Error('Failed to send test email');
+        } catch (error) {
+            console.error(error);
+            alert('Failed to send test email. Check console for details.');
+        } finally {
+            setSendingTestId(null);
+        }
+    };
+
+    // --- Token Logic ---
+
+    const sampleMergeData = useMemo(() => ({
+        lead: {
+            name: 'Jamie Carter',
+            interestAddress: '123 Palm Ave',
+            timeline: '45 days',
+            matchOne: 'Palm Oasis · $890k · Pool + ADU',
+            matchTwo: 'Vista Row · $815k · Walkable lifestyle',
+            matchThree: 'Sierra Modern · $925k · Canyon views',
+            questionOne: 'Does the solar system transfer?',
+            questionTwo: 'Can we convert the loft into a 4th bedroom?'
+        },
+        agent: {
+            name: 'Jordan Lee',
+            phone: '(555) 987-6543',
+            website: 'https://homelistingai.app/jordan',
+            aiCardUrl: 'https://homelistingai.app/card/jordan'
+        }
+    }), []);
+
+    const COMMON_TOKEN_HINTS = ['{{lead.name}}', '{{lead.interestAddress}}', '{{agent.name}}', '{{agent.phone}}', '{{agent.aiCardUrl}}', '{{agent.signature}}'];
+
+    const mergeTokens = (template: string) => {
+        return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
+            if (path === 'agent.signature' && customSignature) {
+                return customSignature;
+            }
+            const [bucket, key] = path.split('.');
+            if (!bucket || !key || !(bucket in sampleMergeData)) return '';
+            // @ts-ignore
+            return sampleMergeData[bucket][key] || '';
+        });
+    };
+
+    // --- Render Helpers ---
+
+    return (
+        <div className={isEmbedded ? '' : 'bg-slate-50 min-h-full pb-24 md:pb-0'}>
+            <div className={`${isEmbedded ? '' : 'mx-auto max-w-screen-2xl'} ${isEmbedded ? 'py-6' : 'py-10'} px-0 md:px-6 lg:px-8`}>
+                {!hideBackButton && onBackToDashboard && (
+                    <button
+                        type="button"
+                        onClick={onBackToDashboard}
+                        className="mb-6 flex items-center space-x-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-800 px-4 md:px-0"
+                    >
+                        <span className="material-symbols-outlined w-5 h-5">chevron_left</span>
+                        <span>Back to Dashboard</span>
+                    </button>
+                )}
+
+                <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-4 md:px-0">
+                    <div className="space-y-2">
+                        <p className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700">
+                            <span className="material-symbols-outlined text-base">monitoring</span>
+                            AI Funnel
+                        </p>
+                        <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
+                        <p className="text-sm text-slate-500 sm:text-base">
+                            {subtitle}
+                        </p>
+                    </div>
+                    {activeSection === 'funnels' && (
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setIsImportModalOpen(true)}
+                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                            >
+                                <span className="material-symbols-outlined text-base">upload_file</span>
+                                Import Leads
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsTemplatesModalOpen(true)}
+                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-white border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50"
+                            >
+                                <span className="material-symbols-outlined text-base">library_books</span>
+                                Templates
+                            </button>
+
+                            <button
+                                onClick={() => setIsSignatureModalOpen(true)}
+                                className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-50 shadow-sm transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-indigo-600">badge</span>
+                                Edit Signature
+                                {customSignature && (
+                                    <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800">
+                                        Active
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    )}
+                </header>
+
+                <div className="mb-8 px-4 md:px-0">
+                    <PageTipBanner
+                        pageKey="ai-funnels"
+                        expandedContent={
+                            <div className="space-y-4">
+                                <div>
+                                    <h4 className="font-semibold text-slate-900 mb-2">🚀 Power Up Your AI Funnels:</h4>
+                                    <ul className="space-y-2 text-slate-700">
+                                        <li className="flex items-start">
+                                            <span className="mr-2">✏️</span>
+                                            <span><strong>Complete Control:</strong> Edit any step to customize the voice. You can mix emails, texts, and task reminders.</span>
+                                        </li>
+                                        <li className="flex items-start">
+                                            <span className="mr-2">💬</span>
+                                            <span><strong>Multi-Channel Magic:</strong> Set up automated text sequences that feel personal.</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        }
+                    />
+                </div>
+
+                <div className="hidden md:grid mb-8 grid-cols-1 gap-4 md:grid-cols-3">
+                    {highlightCards.map((card) => {
+                        // Skip logic if features disabled
+                        if (card.targetSection === 'scoring' && !showLeadScoring) return null;
+                        if (card.targetSection === 'feedback' && !showSequenceFeedback) return null;
+
+                        const isActive = activeSection === card.targetSection;
+                        return (
+                            <button
+                                key={card.title}
+                                type="button"
+                                onClick={() => setActiveSection(card.targetSection)}
+                                className={`flex items-start gap-3 rounded-2xl border px-4 py-4 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${card.bgClass
+                                    } ${card.borderClass} ${isActive ? 'ring-2 ring-offset-1 ring-blue-200' : 'hover:border-blue-200'} `}
+                            >
+                                <div className={`rounded-full p-2 shadow-sm ${card.iconClass}`}>
+                                    <span className="material-symbols-outlined text-xl">{card.icon}</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-slate-800">{card.title}</h3>
+                                    <p className="mt-1 text-xs leading-relaxed text-slate-600">{card.body}</p>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {activeSection === 'funnels' && (
+                    <div className="space-y-8">
+                        {funnelSections.map((section) => (
+                            <FunnelSectionRenderer
+                                key={section.key}
+                                config={section}
+                                steps={funnelSteps[section.key] || section.initialSteps}
+                                isOpen={panelExpanded[section.key]}
+                                expandedStepIds={expandedStepIds[section.key] || []}
+                                onTogglePanel={() => handleTogglePanel(section.key)}
+                                onToggleStep={(stepId) => handleToggleStep(section.key, stepId)}
+                                onUpdateStep={(stepId, field, val) => handleUpdateStep(section.key, stepId, field, val)}
+                                onRemoveStep={(stepId) => handleRemoveStep(section.key, stepId)}
+                                onAddStep={() => handleAddStep(section.key)}
+                                onSave={() => handleSaveFunnel(section.key)}
+                                onSendTest={handleSendTestEmail}
+                                sampleMergeData={sampleMergeData}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {activeSection === 'scoring' && showLeadScoring && (
+                    <div className="bg-white border-y border-slate-200 md:border md:rounded-2xl p-6 shadow-sm">
+                        <div className="mb-6 space-y-2">
+                            <p className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
+                                <span className="material-symbols-outlined text-base">workspace_premium</span>
+                                Lead Scoring Engine
+                            </p>
+                            <h2 className="text-2xl font-bold text-slate-900">Scoring Rules & Tiers</h2>
+                        </div>
+                        <AnalyticsPage isDemoMode={isDemoMode} />
+                    </div>
+                )}
+
+                {activeSection === 'feedback' && showSequenceFeedback && (
+                    <div className="bg-white border-y border-slate-200 md:border md:rounded-2xl p-6 shadow-sm">
+                        <div className="mb-6 space-y-2">
+                            <p className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                                <span className="material-symbols-outlined text-base">auto_fix_high</span>
+                                Sequence Feedback
+                            </p>
+                            <h2 className="text-2xl font-bold text-slate-900">Automation Performance</h2>
+                        </div>
+                        <SequenceFeedbackPanel isDemoMode={isDemoMode} />
+                    </div>
+                )}
+            </div>
+
+            {/* Modals */}
+            <LeadImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={(leads, assignment) => {
+                    alert(`Successfully queued ${leads.length} leads for import to ${assignment.funnel}!`);
+                }}
+            />
+
+            <OutreachTemplatesModal
+                isOpen={isTemplatesModalOpen}
+                onClose={() => setIsTemplatesModalOpen(false)}
+            />
+
+            {isQuickEmailOpen && <QuickEmailModal onClose={() => setIsQuickEmailOpen(false)} isDemoMode={isDemoMode} />}
+
+            <SignatureEditorModal
+                isOpen={isSignatureModalOpen}
+                onClose={() => setIsSignatureModalOpen(false)}
+                initialSignature={customSignature || `Best regards,<br/><strong>${sampleMergeData.agent.name}</strong><br/>${sampleMergeData.agent.phone}`}
+                onSave={(newSig) => {
+                    setCustomSignature(newSig);
+                    funnelService.saveSignature(userId, newSig)
+                        .then(ok => ok ? console.log('Signature saved') : alert('Failed to save signature'));
+                }}
+            />
+        </div>
+    );
+};
+
+// --- Sub-Components ---
+
+const FunnelSectionRenderer: React.FC<{
+    config: FunnelSectionConfig;
+    steps: EditableStep[];
+    isOpen: boolean;
+    expandedStepIds: string[];
+    onTogglePanel: () => void;
+    onToggleStep: (id: string) => void;
+    onUpdateStep: (id: string, field: keyof EditableStep, value: string) => void;
+    onRemoveStep: (id: string) => void;
+    onAddStep: () => void;
+    onSave: () => void;
+    onSendTest: (step: EditableStep) => void;
+    sampleMergeData: any;
+}> = ({
+    config, steps, isOpen, expandedStepIds,
+    onTogglePanel, onToggleStep, onUpdateStep, onRemoveStep,
+    onAddStep, onSave, onSendTest, sampleMergeData
+}) => {
+        return (
+            <section className="bg-white border-y border-slate-200 md:border md:rounded-2xl shadow-sm p-6 space-y-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-2">
+                        <p className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${config.badgeClassName}`}>
+                            <span className="material-symbols-outlined text-base">{config.badgeIcon}</span>
+                            {config.badgeLabel}
+                        </p>
+                        <div className="space-y-1">
+                            <h2 className="text-2xl font-bold text-slate-900">{config.title}</h2>
+                            <p className="text-sm text-slate-500 leading-relaxed">{config.description}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-start">
+                        <button
+                            type="button"
+                            onClick={onTogglePanel}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:bg-slate-50"
+                        >
+                            <span className="material-symbols-outlined text-base">
+                                {isOpen ? 'expand_less' : 'expand_more'}
+                            </span>
+                            {isOpen ? 'Collapse' : 'Expand'}
+                        </button>
+                    </div>
+                </div>
+
+                {isOpen && (
+                    <>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-500">
+                            <span className="font-semibold text-slate-600">Tokens:</span>
+                            {['{{lead.name}}', '{{lead.interestAddress}}', '{{agent.name}}'].map((token) => (
+                                <span key={token} className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{token}</span>
+                            ))}
+                        </div>
+
+                        <div className="space-y-0 relative">
+                            {steps.map((step, index) => {
+                                const stepIsOpen = expandedStepIds.includes(step.id);
+                                const isLast = index === steps.length - 1;
+
+                                return (
+                                    <div key={step.id} className="relative pl-8 pb-6">
+                                        {/* Timeline Line */}
+                                        {!isLast && (
+                                            <div className="absolute left-[11px] top-8 bottom-0 w-0.5 bg-indigo-100" />
+                                        )}
+
+                                        {/* Timeline Dot */}
+                                        <div className={`absolute left-0 top-3 w-6 h-6 rounded-full border-2 flex items-center justify-center z-10 bg-white ${stepIsOpen ? 'border-indigo-600 text-indigo-600' : 'border-slate-300 text-slate-400'}`}>
+                                            <div className={`w-2 h-2 rounded-full ${stepIsOpen ? 'bg-indigo-600' : 'bg-slate-300'}`} />
+                                        </div>
+
+                                        <article className={`transition-all duration-200 border rounded-2xl ${stepIsOpen ? 'bg-white border-indigo-200 shadow-lg ring-1 ring-indigo-50/50' : 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-md cursor-pointer'}`}>
+                                            {/* Header */}
+                                            <div role="button" onClick={() => onToggleStep(step.id)} className="flex items-center justify-between p-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`p-2 rounded-xl ${stepIsOpen ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
+                                                        <span className="material-symbols-outlined">{step.icon}</span>
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-0.5">
+                                                            <h3 className={`text-sm font-bold ${stepIsOpen ? 'text-indigo-900' : 'text-slate-700'}`}>{step.title}</h3>
+                                                            {!stepIsOpen && <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{step.delay}</span>}
+                                                        </div>
+                                                        <p className="text-xs text-slate-500 font-medium max-w-[300px] truncate">{step.description}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    {stepIsOpen ? (
+                                                        <span className="material-symbols-outlined text-indigo-400">expand_less</span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">{step.type}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Expanded Content */}
+                                            {stepIsOpen && (
+                                                <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
+                                                    <div className="pt-4 border-t border-slate-100">
+                                                        {/* Quick Config Row */}
+                                                        <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                            <div className="flex-1">
+                                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Timing</label>
+                                                                <input className="w-full bg-transparent text-sm font-bold text-slate-700 focus:outline-none" value={step.delay} onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)} />
+                                                            </div>
+                                                            <div className="w-px h-8 bg-slate-200" />
+                                                            <div className="flex-1">
+                                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Action Type</label>
+                                                                <select className="w-full bg-transparent text-sm font-bold text-indigo-600 focus:outline-none cursor-pointer" value={step.type} onChange={(e) => onUpdateStep(step.id, 'type', e.target.value)}>
+                                                                    <option value="Email">Email</option>
+                                                                    <option value="Call">AI Call</option>
+                                                                    <option value="Task">Task</option>
+                                                                    <option value="SMS">SMS</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Editors based on Type */}
+                                                        {(step.type === 'Text' || step.type === 'sms' || step.type === 'SMS') ? (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                                                                <div className="space-y-4">
+                                                                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
+                                                                        <textarea
+                                                                            className="w-full h-32 rounded-lg border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                                            placeholder="Type your text message here..."
+                                                                            value={step.content}
+                                                                            onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
+                                                                        />
+                                                                        <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-slate-200">
+                                                                            <button onClick={() => onSendTest(step)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm">Send Test</button>
+                                                                            <button onClick={onSave} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700">Save Changes</button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Phone Preview */}
+                                                                <div className="flex flex-col items-center">
+                                                                    <h4 className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">Lead's Phone Preview</h4>
+                                                                    <div className="relative w-[280px] h-[500px] bg-slate-900 rounded-[3rem] shadow-2xl p-3 ring-4 ring-slate-100">
+                                                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-20"></div>
+                                                                        <div className="w-full h-full bg-slate-50 rounded-[2.2rem] overflow-hidden flex flex-col relative z-10">
+                                                                            {/* Mock UI */}
+                                                                            <div className="h-10 w-full bg-slate-100/80 backdrop-blur flex justify-between items-end px-6 pb-2 text-[10px] font-bold text-slate-900">
+                                                                                <span>9:41</span>
+                                                                            </div>
+                                                                            <div className="h-12 border-b border-slate-200 bg-slate-50/80 backdrop-blur flex flex-col items-center justify-center">
+                                                                                <span className="text-[10px] text-slate-500 font-medium">{sampleMergeData.agent.name}</span>
+                                                                            </div>
+                                                                            <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-white">
+                                                                                <div className="flex justify-end">
+                                                                                    <div className="bg-blue-500 text-white rounded-2xl rounded-tr-sm px-3 py-2 max-w-[85%] text-xs leading-relaxed shadow-sm">
+                                                                                        {step.content || <span className="opacity-50 italic">Typing...</span>}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            // Fallback for Email/Task/etc (simplified for brevity, can duplicate full EmailEditor if needed)
+                                                            <div className="space-y-4">
+                                                                <div className="rounded-xl bg-violet-50 border border-violet-100 p-5">
+                                                                    <input
+                                                                        className="w-full text-base font-bold text-slate-900 placeholder:text-slate-300 border border-violet-200 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white shadow-sm mb-4"
+                                                                        placeholder="Subject Line"
+                                                                        value={step.subject}
+                                                                        onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
+                                                                    />
+                                                                    <div className="border border-violet-200 rounded-lg overflow-hidden shadow-sm bg-white">
+                                                                        <EmailEditor
+                                                                            value={step.content}
+                                                                            onChange={(val) => onUpdateStep(step.id, 'content', val)}
+                                                                            placeholder="Type your message..."
+                                                                            className="min-h-[300px]"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-violet-200/50">
+                                                                        <button onClick={() => onSendTest(step)} className="px-3 py-1.5 bg-white border border-violet-200 rounded-lg text-xs font-semibold text-violet-700 hover:bg-violet-50 shadow-sm">Send Test</button>
+                                                                        <button onClick={onSave} className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-violet-700">Save Changes</button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="mt-4 flex justify-between items-end">
+                                                            <button onClick={() => onRemoveStep(step.id)} className="text-xs text-red-400 hover:text-red-500 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">Remove Step</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </article>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                            <button type="button" onClick={onAddStep} className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                                <span className="material-symbols-outlined text-base">add</span>
+                                Add Step
+                            </button>
+                            <button type="button" onClick={onSave} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700">
+                                <span className="material-symbols-outlined text-base">save</span>
+                                {config.saveLabel}
+                            </button>
+                        </div>
+                    </>
+                )}
+            </section>
+        );
+    };
+
+export default UniversalFunnelPanel;

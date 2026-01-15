@@ -33,7 +33,8 @@ import { securitySettingsService } from '../services/securitySettingsService';
 import { notificationSettingsService } from '../services/notificationSettingsService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
-import FunnelAnalyticsPanel from './FunnelAnalyticsPanel';
+import UniversalFunnelPanel from './UniversalFunnelPanel';
+import { initialWelcomeSteps, initialHomeBuyerSteps, initialListingSteps, initialPostShowingSteps } from './constants/funnelDefaults';
 import { useAgentBranding } from '../hooks/useAgentBranding';
 import {
   Property,
@@ -957,13 +958,56 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         return <AgentAISidekicksPage sidekickTemplatesOverride={blueprintSidekickTemplates} isDemoMode={isDemoMode} />;
       case 'funnel-analytics':
         return (
-          <FunnelAnalyticsPanel
-            onBackToDashboard={resetToDashboard}
-            title="AI Funnel"
-            subtitle="Homebuyer, Seller, and Showing funnels for every lead"
-            variant="page"
+          <UniversalFunnelPanel
+            userId={agentProfile.id || 'demo-agent'}
             isDemoMode={isDemoMode}
-            hideBackButton={true}
+            onBackToDashboard={resetToDashboard}
+            funnelSections={[
+              {
+                key: 'welcome',
+                badgeIcon: 'thunderstorm',
+                badgeClassName: 'bg-teal-50 text-teal-700',
+                badgeLabel: 'New Lead Welcome',
+                title: 'Instant AI Welcome',
+                description: 'Chatbot fires a warm intro email + SMS within 2 minutes.',
+                iconColorClass: 'text-teal-600',
+                initialSteps: initialWelcomeSteps,
+                saveLabel: 'Save Welcome Sequence'
+              },
+              {
+                key: 'buyer',
+                badgeIcon: 'bolt',
+                badgeClassName: 'bg-indigo-50 text-indigo-700',
+                badgeLabel: 'Buyer Nurture',
+                title: 'Buyer Journey',
+                description: 'Automated check-ins to qualify buyers and book tours.',
+                iconColorClass: 'text-indigo-600',
+                initialSteps: initialHomeBuyerSteps,
+                saveLabel: 'Save Buyer Journey'
+              },
+              {
+                key: 'listing',
+                badgeIcon: 'auto_fix_high',
+                badgeClassName: 'bg-purple-50 text-purple-700',
+                badgeLabel: 'Seller Nurture',
+                title: 'Listing Prep & Story',
+                description: 'Guide sellers through the "Home Story" process.',
+                iconColorClass: 'text-purple-600',
+                initialSteps: initialListingSteps,
+                saveLabel: 'Save Seller Flow'
+              },
+              {
+                key: 'post-showing',
+                badgeIcon: 'mail',
+                badgeClassName: 'bg-amber-50 text-amber-700',
+                badgeLabel: 'Showing Follow-Up',
+                title: 'Post-Showing Feedback',
+                description: 'Auto-chase buyers for feedback after a tour.',
+                iconColorClass: 'text-amber-600',
+                initialSteps: initialPostShowingSteps,
+                saveLabel: 'Save Follow-Up'
+              }
+            ]}
           />
         );
       case 'settings':

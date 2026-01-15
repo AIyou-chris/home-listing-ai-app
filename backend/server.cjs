@@ -117,139 +117,169 @@ app.use(helmet({
   contentSecurityPolicy: false // Disable CSP for demo flexibility
 }));
 
-// URL SHORTENER STORE (File-based)
-const SHORT_LINKS_FILE = path.join(__dirname, 'data', 'shortLinks.json');
-const loadShortLinks = () => {
-  try {
-    if (fs.existsSync(SHORT_LINKS_FILE)) {
-      return JSON.parse(fs.readFileSync(SHORT_LINKS_FILE, 'utf8'));
-    }
-  } catch (e) {
-    console.error('Failed to load short links:', e);
-  }
-  return {};
-};
-const saveShortLinks = (links) => {
-  try {
-    fs.writeFileSync(SHORT_LINKS_FILE, JSON.stringify(links, null, 2));
-  } catch (e) {
-    console.error('Failed to save short links:', e);
-  }
-};
+// URL SHORTENER & ANALYTICS (Supabase-based)
+// No local files anymore.
 
-// ANALYTICS STORE (File-based for Views)
-const ANALYTICS_FILE = path.join(__dirname, 'data', 'propertyAnalytics.json');
-const loadAnalytics = () => {
-  try {
-    if (fs.existsSync(ANALYTICS_FILE)) {
-      return JSON.parse(fs.readFileSync(ANALYTICS_FILE, 'utf8'));
-    }
-  } catch (e) {
-    console.error('Failed to load analytics:', e);
-  }
-  return {};
-};
-const saveAnalytics = (data) => {
-  try {
-    fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error('Failed to save analytics:', e);
-  }
-};
+
+// Analytics now handled via Supabase directly
+
 
 // URL SHORTENER ROUTES
-app.get('/s/:slug', (req, res) => {
+app.get('/s/:slug', async (req, res) => {
   const { slug } = req.params;
-  const links = loadShortLinks();
-  const target = links[slug];
 
-  if (target) {
-    // Track click (basic)
-    console.log(`🔀 Redirecting short link /s/${slug} -> ${target.url}`);
-    if (target.clicks !== undefined) {
-      target.clicks++;
-      target.lastClicked = new Date().toISOString();
-      saveShortLinks(links);
+  try {
+    const { data: link, error } = await supabaseAdmin
+      .from('short_links')
+      .select('*')
+      .eq('slug', slug)
+      .single();
+
+    if (error || !link) {
+      return res.status(404).send('Link not found');
     }
-    return res.redirect(target.url);
-  }
 
-  res.status(404).send('Link not found');
+    // Track click (fire and forget update)
+    // We increment clicks and update last_clicked
+    const { error: updateError } = await supabaseAdmin
+      .from('short_links')
+      .update({
+        clicks: (link.clicks || 0) + 1,
+        last_clicked: new Date().toISOString()
+      })
+      .eq('slug', slug);
+
+    if (updateError) console.error('Failed to track click:', updateError);
+
+    return res.redirect(link.url);
+  } catch (err) {
+    console.error('Short link redirect error:', err);
+    res.status(500).send('Server Error');
+  }
 });
 
-app.post('/api/shorten', (req, res) => {
+app.post('/api/shorten', async (req, res) => {
   const { url, customSlug } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
-  const links = loadShortLinks();
+  try {
+    // If strict dup-check needed: query by url first. 
+    // For now, simpler: generate slug.
 
-  // Check duplicates
-  for (const [slug, data] of Object.entries(links)) {
-    if (data.url === url) {
-      return res.json({ success: true, slug, shortUrl: `${process.env.APP_BASE_URL || req.protocol + '://' + req.get('host')}/s/${slug}` });
-    }
-  }
+    let slug = customSlug;
 
-  let slug = customSlug;
-  if (!slug) {
-    // Generate 6-char slug
-    slug = crypto.randomBytes(3).toString('hex');
-    while (links[slug]) {
+    if (!slug) {
+      // Generate 6-char slug
       slug = crypto.randomBytes(3).toString('hex');
+      // Collision check loop (basic)
+      const { data: existing } = await supabaseAdmin.from('short_links').select('slug').eq('slug', slug).single();
+      if (existing) {
+        slug = crypto.randomBytes(3).toString('hex'); // simple retry once
+      }
+    } else {
+      // Check validity/availability of custom slug
+      const { data: existing } = await supabaseAdmin.from('short_links').select('slug').eq('slug', slug).single();
+      if (existing) {
+        return res.status(400).json({ error: 'Custom slug already taken' });
+      }
     }
-  } else if (links[slug]) {
-    return res.status(400).json({ error: 'Custom slug already taken' });
+
+    const { error } = await supabaseAdmin
+      .from('short_links')
+      .insert({
+        slug,
+        url,
+        clicks: 0
+      });
+
+    if (error) throw error;
+
+    const shortUrl = `${process.env.APP_BASE_URL || req.protocol + '://' + req.get('host')}/s/${slug}`;
+    res.json({ success: true, slug, shortUrl });
+  } catch (err) {
+    console.error('Shorten API Error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  links[slug] = {
-    url,
-    created: new Date().toISOString(),
-    clicks: 0
-  };
-  saveShortLinks(links);
-
-  const shortUrl = `${process.env.APP_BASE_URL || req.protocol + '://' + req.get('host')}/s/${slug}`;
-  res.json({ success: true, slug, shortUrl });
 });
 
 // ANALYTICS ROUTES
-app.get('/api/analytics/link-stats/:slug', (req, res) => {
+app.get('/api/analytics/link-stats/:slug', async (req, res) => {
   const { slug } = req.params;
-  const links = loadShortLinks();
-  const target = links[slug];
+  try {
+    const { data: link, error } = await supabaseAdmin
+      .from('short_links')
+      .select('*')
+      .eq('slug', slug)
+      .single();
 
-  if (target) {
+    if (error || !link) {
+      return res.status(404).json({ success: false, error: 'Link not found' });
+    }
+
     res.json({
       success: true,
-      clicks: target.clicks || 0,
-      lastClicked: target.lastClicked || null
+      clicks: link.clicks || 0,
+      lastClicked: link.last_clicked || null
     });
-  } else {
-    res.status(404).json({ success: false, error: 'Link not found' });
+  } catch (err) {
+    console.error('Link stats error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
-app.post('/api/analytics/view', (req, res) => {
+app.post('/api/analytics/view', async (req, res) => {
   const { propertyId } = req.body;
   if (!propertyId) return res.status(400).json({ error: 'Property ID required' });
 
-  const analytics = loadAnalytics();
-  if (!analytics[propertyId]) {
-    analytics[propertyId] = { views: 0 };
+  try {
+    // Check if record exists
+    const { data: record } = await supabaseAdmin
+      .from('property_analytics')
+      .select('views')
+      .eq('property_id', propertyId)
+      .single();
+
+    let newViews = 1;
+    if (record) {
+      newViews = (record.views || 0) + 1;
+      await supabaseAdmin
+        .from('property_analytics')
+        .update({
+          views: newViews,
+          last_viewed: new Date().toISOString()
+        })
+        .eq('property_id', propertyId);
+    } else {
+      await supabaseAdmin
+        .from('property_analytics')
+        .insert({
+          property_id: propertyId,
+          views: 1,
+          last_viewed: new Date().toISOString()
+        });
+    }
+
+    res.json({ success: true, views: newViews });
+  } catch (err) {
+    console.error('Analytics view error:', err);
+    res.status(500).json({ success: false, error: 'Server Error' });
   }
-
-  analytics[propertyId].views++;
-  analytics[propertyId].lastViewed = new Date().toISOString();
-  saveAnalytics(analytics);
-
-  res.json({ success: true, views: analytics[propertyId].views });
 });
 
-app.get('/api/analytics/view-stats/:propertyId', (req, res) => {
+app.get('/api/analytics/view-stats/:propertyId', async (req, res) => {
   const { propertyId } = req.params;
-  const analytics = loadAnalytics();
-  const data = analytics[propertyId] || { views: 0 };
-  res.json({ success: true, views: data.views });
+  try {
+    const { data: record } = await supabaseAdmin
+      .from('property_analytics')
+      .select('views')
+      .eq('property_id', propertyId)
+      .single();
+
+    res.json({ success: true, views: record ? record.views : 0 });
+  } catch (err) {
+    console.error('View stats error:', err);
+    res.status(500).json({ success: false, error: 'Server Error' });
+  }
 });
 
 // Request Tracking Middleware
@@ -389,9 +419,8 @@ app.post('/api/webhooks/stripe', async (req, res) => {
   let event;
 
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
-    console.warn('⚠️ STRIPE_WEBHOOK_SECRET not set. Skipping verification (DEV ONLY) or Failing.');
-    // In production, you MUST fail here. For now, let's fail if missing.
-    return res.status(400).send('Webhook Error: Missing Valid Secret');
+    console.error('🚨 STRIPE_WEBHOOK_SECRET is missing. Rejecting webhook for security.');
+    return res.status(500).send('Webhook Error: Server Misconfiguration');
   }
 
   try {
@@ -3433,6 +3462,39 @@ app.post('/api/gmail/send', async (req, res) => {
   } catch (error) {
     console.error('Error sending email via Gmail:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Send email via Gmail
+app.post('/api/admin/email/quick-send', async (req, res) => {
+  const { to, subject, html, text } = req.body;
+  if (!to || !subject || !html) return res.status(400).json({ error: 'Missing required fields' });
+  try {
+    const result = await emailService.sendEmail({ to, subject, html, text: text || 'Please enable HTML to view this email.' });
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error('Test email failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Quick Send SMS Endpoint (Admin/Test)
+app.post('/api/admin/sms/quick-send', async (req, res) => {
+  const { to, message, mediaUrls } = req.body;
+  if (!to || !message) return res.status(400).json({ error: 'Missing required fields' });
+
+  try {
+    const { sendSms } = require('./services/smsService');
+    const result = await sendSms(to, message, mediaUrls);
+
+    if (result) {
+      res.json({ success: true, result });
+    } else {
+      res.status(500).json({ error: 'Failed to send SMS (Provider rejected or safety block)' });
+    }
+  } catch (error) {
+    console.error('Test SMS failed:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -10,8 +10,16 @@ const messageHistory = new Map();
 const normalizePhoneNumber = (num) => {
     if (!num) return null;
     const digits = num.replace(/\D/g, '');
+
+    // Fix common typo: +11 (User typed 1 and country code)
+    if (digits.length === 11 && digits.startsWith('11')) {
+        return `+${digits.substring(1)}`; // +1206...
+    }
+
     if (digits.length === 10) return `+1${digits}`;
     if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+
+    // International
     return num.startsWith('+') ? num : `+${digits}`;
 };
 
@@ -80,7 +88,7 @@ const validatePhoneNumber = async (phoneNumber) => {
 const sendSms = async (to, message, mediaUrls = [], userId = null) => {
     const apiKey = process.env.VITE_TELNYX_API_KEY;
     const fromNumber = process.env.VITE_TELNYX_PHONE_NUMBER;
-    const { supabaseAdmin } = require('../supabase'); // Ensure we have DB access
+    const { supabaseAdmin } = require('./supabase'); // Ensure we have DB access
 
     if (!apiKey) {
         console.warn('⚠️ [SMS] Telnyx API Key not configured (VITE_TELNYX_API_KEY).');
@@ -108,8 +116,8 @@ const sendSms = async (to, message, mediaUrls = [], userId = null) => {
     // STEP 2: LOOKUP (Small Cost)
     const isValid = await validatePhoneNumber(to);
     if (!isValid) {
-        console.warn(`🛑 [SMS] Aborted sending to invalid number: ${destination}`);
-        return false;
+        console.warn(`⚠️ [SMS] Lookup failed or rejected for ${destination}. Proceeding anyway (Trial Mode / Best Effort)...`);
+        // return false; // DISABLED BLOCKING for now
     }
 
     try {

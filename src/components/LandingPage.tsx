@@ -1,13 +1,14 @@
 import React from 'react';
 import { LogoWithName } from './LogoWithName';
 import ChatBotFAB from './ChatBotFAB';
+import { AIContactOverlay } from './AIContactOverlay';
 import SEO from './SEO';
 import { StripeLogo } from './StripeLogo';
 import { MultiToolShowcase } from './MultiToolShowcase';
 
 // --- New Components for the Redesigned Page ---
 
-const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () => void; onEnterDemoMode: () => void; onNavigateToShowcase?: () => void; onOpenConsultationModal: () => void; }> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onNavigateToShowcase, onOpenConsultationModal }) => {
+const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () => void; onEnterDemoMode: () => void; onNavigateToShowcase?: () => void; onOpenContact: () => void; }> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onNavigateToShowcase, onOpenContact }) => {
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
     const navLinks = [
         { name: "Price", href: "#pricing" },
@@ -25,7 +26,7 @@ const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () 
                 onEnterDemoMode();
             }
         } else if (targetId === '#contact') {
-            onOpenConsultationModal();
+            onOpenContact();
         }
         else {
             const element = document.getElementById(targetId.substring(1));
@@ -88,7 +89,7 @@ const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () 
 // const AIAppShowcaseSection ...
 
 
-const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultationModal: () => void }> = ({ onNavigateToSignUp, onOpenConsultationModal }) => {
+const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact: () => void }> = ({ onNavigateToSignUp, onOpenContact }) => {
 
 
     return (
@@ -285,7 +286,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
                 {/* Team/Office Programs Note */}
                 <div className="mt-8 text-center animate-fade-in-up animation-delay-600">
                     <p className="text-slate-600 text-lg">
-                        Need something more custom? No worries. <button onClick={onOpenConsultationModal} className="text-primary-600 hover:text-primary-700 font-semibold underline">Just reach out</button> →
+                        Need something more custom? No worries. <button onClick={onOpenContact} className="text-primary-600 hover:text-primary-700 font-semibold underline">Just reach out</button> →
                     </p>
                 </div>
             </div>
@@ -293,7 +294,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenConsultat
     );
 };
 
-const WhiteLabelSection: React.FC<{ onOpenConsultationModal: () => void; }> = ({ onOpenConsultationModal }) => {
+const WhiteLabelSection: React.FC<{ onOpenContact: () => void; }> = ({ onOpenContact }) => {
 
     const ServiceItem: React.FC<{ icon: string, title: string, iconClass?: string, children: React.ReactNode }> = ({ icon, title, iconClass, children }) => (
         <div>
@@ -370,7 +371,7 @@ const WhiteLabelSection: React.FC<{ onOpenConsultationModal: () => void; }> = ({
 
                     <div className="mt-16 animate-fade-in-up animation-delay-600">
                         <button
-                            onClick={onOpenConsultationModal}
+                            onClick={onOpenContact}
                             className="inline-flex items-center gap-2 px-6 py-3 text-base font-bold text-white bg-gradient-to-r from-green-400 to-primary-500 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 btn-animate"
                         >
                             <span className="material-symbols-outlined animate-pulse">calendar_today</span>
@@ -1029,16 +1030,15 @@ interface LandingPageProps {
 
 const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
     const [isChatOpen, setIsChatOpen] = React.useState(false);
+    const [isAIContactOpen, setIsAIContactOpen] = React.useState(false);
 
     const handleOpenChatBot = () => {
         setIsChatOpen(true);
     };
 
-
-
-    // ... (existing imports)
-
-    // ... (inside LandingPage component)
+    const handleOpenAIContact = () => {
+        setIsAIContactOpen(true);
+    };
 
     return (
         <div className="bg-white font-sans">
@@ -1063,7 +1063,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 onNavigateToSignUp={onNavigateToSignUp}
                 onNavigateToSignIn={onNavigateToSignIn}
                 onEnterDemoMode={onEnterDemoMode}
-                onOpenConsultationModal={onOpenConsultationModal}
+                onOpenContact={handleOpenAIContact}
                 onNavigateToShowcase={onNavigateToShowcase}
             />
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
@@ -1075,10 +1075,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <WhatYouGetSectionNew />
                 <TestimonialsSection />
 
-                <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenConsultationModal={onOpenConsultationModal} />
+                <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenContact={handleOpenAIContact} />
 
                 <AboutUsSection />
-                <WhiteLabelSection onOpenConsultationModal={onOpenConsultationModal} />
+                <WhiteLabelSection onOpenContact={handleOpenAIContact} />
 
                 <FaqSection />
                 <FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
@@ -1103,6 +1103,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 }}
                 position="bottom-right"
                 initialOpen={isChatOpen}
+            />
+
+            <AIContactOverlay
+                isOpen={isAIContactOpen}
+                onClose={() => setIsAIContactOpen(false)}
             />
         </div>
     );

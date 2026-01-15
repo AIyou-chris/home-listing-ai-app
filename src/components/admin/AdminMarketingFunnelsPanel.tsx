@@ -9,6 +9,7 @@ import { supabase } from '../../services/supabase';
 import PageTipBanner from '../PageTipBanner';
 import LeadImportModal from './LeadImportModal';
 import OutreachTemplatesModal from './OutreachTemplatesModal';
+import { FunnelPanel } from './FunnelPanel';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -217,15 +218,70 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
 
+    // Test Config State
+    const [testPhone, setTestPhone] = useState('');
+    const [testEmail, setTestEmail] = useState('');
+
     const handleSendTestEmail = async (step: EditableStep) => {
-        if (sendingTestId) return;
-        setSendingTestId(step.id);
+        console.log('handleSendTestEmail called for step:', step);
+        if (sendingTestId) {
+            console.log('Already sending test, ignoring click.');
+            return;
+        }
+
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user || !user.email) {
-                alert('Could not find your email address to send the test to.');
+            let targetEmail = testEmail;
+            let targetPhone = testPhone;
+
+            // If no test config, try to get user session as fallback (but this is what was hanging)
+            if (!targetEmail && !targetPhone) {
+                console.log('No test config found, attempting to get session...');
+                const { data: { session } } = await supabase.auth.getSession();
+                const user = session?.user;
+                if (user?.email) targetEmail = user.email;
+                console.log('User session retrieved (or failed), default email:', targetEmail);
+            }
+
+            // Handle SMS steps
+            if (step.type === 'Text' || step.type === 'sms' || step.type === 'SMS') {
+                console.log('Handling SMS step...');
+
+                if (!targetPhone) {
+                    targetPhone = window.prompt('Where should we send the test SMS? (e.g. +1555...)', '') || '';
+                }
+
+                if (!targetPhone) {
+                    console.log('No phone number provided.');
+                    return;
+                }
+
+                setSendingTestId(step.id);
+                const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+
+                const response = await fetch(`${apiUrl}/api/admin/sms/quick-send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: targetPhone,
+                        message: mergeTokens(step.content),
+                        mediaUrls: step.mediaUrl ? [step.mediaUrl] : []
+                    })
+                });
+
+                if (response.ok) alert(`Test SMS sent to ${targetPhone}`);
+                else throw new Error('Failed to send test SMS');
                 return;
             }
+
+            // Handle Email steps
+            if (!targetEmail) {
+                targetEmail = window.prompt('Where should we send the test email?', '') || '';
+            }
+
+            if (!targetEmail) return; // User cancelled
+
+            setSendingTestId(step.id);
+
             const subject = mergeTokens(step.subject);
             // Replace newlines with <br/> for HTML email body
             const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
@@ -234,17 +290,17 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    to: user.email,
+                    to: targetEmail,
                     subject: `[TEST] ${subject}`,
                     html: body,
                     text: mergeTokens(step.content)
                 })
             });
-            if (response.ok) alert(`Test email sent to ${user.email}`);
+            if (response.ok) alert(`Test email sent to ${targetEmail}`);
             else throw new Error('Failed to send test email');
         } catch (error) {
             console.error(error);
-            alert('Failed to send test email. Check console for details.');
+            alert('Failed to send test. Check console for details.');
         } finally {
             setSendingTestId(null);
         }
@@ -317,6 +373,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const COMMON_TOKEN_HINTS = ['{{lead.name}}', '{{lead.interestAddress}}', '{{agent.name}}', '{{agent.phone}}', '{{agent.aiCardUrl}}', '{{agent.signature}}'];
 
     const mergeTokens = (template: string) => {
+        if (!template) return '';
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
             // Special handling for signature override
             if (path === 'agent.signature' && customSignature) {
@@ -372,481 +429,6 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     // QR Code Generator
 
 
-    const renderFunnelPanel = (
-        panelKey: keyof typeof panelExpanded,
-        {
-            badgeIcon,
-            badgeClassName,
-            badgeLabel,
-            title,
-            description,
-            iconColorClass: _iconColorClass,
-            steps,
-            expandedIds,
-            onToggleStep,
-            onUpdateStep,
-            onRemoveStep,
-            onAddStep,
-            onSave,
-            saveLabel,
-            onSendTest
-        }: {
-            badgeIcon: string;
-            badgeClassName: string;
-            badgeLabel: string;
-            title: string;
-            description: string;
-            iconColorClass: string;
-            steps: EditableStep[];
-            expandedIds: string[];
-            onToggleStep: (id: string) => void;
-            onUpdateStep: (id: string, field: keyof EditableStep, value: string) => void;
-            onRemoveStep: (id: string) => void;
-            onAddStep: () => void;
-            onSave: () => void;
-            saveLabel: string;
-            onSendTest: (step: EditableStep) => void;
-        }
-    ) => {
-        const isOpen = panelExpanded[panelKey];
-        return (
-            <section key={`panel-${panelKey}`} className="bg-white border-y border-slate-200 md:border md:rounded-2xl shadow-sm p-6 space-y-6">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
-                        <p className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${badgeClassName}`}>
-                            <span className="material-symbols-outlined text-base">{badgeIcon}</span>
-                            {badgeLabel}
-                        </p>
-                        <div className="space-y-1">
-                            <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
-                            <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 self-start">
-
-                        <button
-                            type="button"
-                            onClick={() => togglePanel(panelKey)}
-                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:bg-slate-50"
-                        >
-                            <span className="material-symbols-outlined text-base">
-                                {isOpen ? 'expand_less' : 'expand_more'}
-                            </span>
-                            {isOpen ? 'Collapse' : 'Expand'}
-                        </button>
-                    </div>
-                </div>
-                {
-                    isOpen && (
-                        <>
-                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-500">
-                                <span className="font-semibold text-slate-600">Tokens:</span>
-                                {COMMON_TOKEN_HINTS.map((token) => (
-                                    <span
-                                        key={`${panelKey}-${token}`}
-                                        className="rounded-full bg-slate-100 px-2 py-1 text-slate-600"
-                                    >
-                                        {token}
-                                    </span>
-                                ))}
-                            </div>
-                            <div className="space-y-0 relative">
-                                {steps.map((step, index) => {
-                                    const stepIsOpen = expandedIds.includes(step.id);
-
-                                    // Timeline connector logic
-                                    const isLast = index === steps.length - 1;
-
-                                    return (
-                                        <div key={step.id} className="relative pl-8 pb-6">
-                                            {/* Timeline Line */}
-                                            {!isLast && (
-                                                <div className="absolute left-[11px] top-8 bottom-0 w-0.5 bg-indigo-100" />
-                                            )}
-
-                                            {/* Timeline Dot */}
-                                            <div className={`absolute left-0 top-3 w-6 h-6 rounded-full border-2 flex items-center justify-center z-10 bg-white ${stepIsOpen ? 'border-indigo-600 text-indigo-600' : 'border-slate-300 text-slate-400'}`}>
-                                                <div className={`w-2 h-2 rounded-full ${stepIsOpen ? 'bg-indigo-600' : 'bg-slate-300'}`} />
-                                            </div>
-
-                                            <article
-                                                className={`transition-all duration-200 border rounded-2xl ${stepIsOpen
-                                                    ? 'bg-white border-indigo-200 shadow-lg ring-1 ring-indigo-50/50'
-                                                    : 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-md cursor-pointer'
-                                                    }`}
-                                            >
-                                                {/* Header (Always Visible) */}
-                                                <div
-                                                    role="button"
-                                                    onClick={() => onToggleStep(step.id)}
-                                                    className="flex items-center justify-between p-4"
-                                                >
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`p-2 rounded-xl ${stepIsOpen ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
-                                                            <span className="material-symbols-outlined">{step.icon}</span>
-                                                        </div>
-                                                        <div>
-                                                            <div className="flex items-center gap-2 mb-0.5">
-                                                                <h3 className={`text-sm font-bold ${stepIsOpen ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                                                    {step.title}
-                                                                </h3>
-                                                                {!stepIsOpen && (
-                                                                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
-                                                                        {step.delay}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-xs text-slate-500 font-medium max-w-[300px] truncate">
-                                                                {step.description}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-3">
-                                                        {stepIsOpen ? (
-                                                            <span className="material-symbols-outlined text-indigo-400">expand_less</span>
-                                                        ) : (
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">
-                                                                    {step.type}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Expanded Content */}
-                                                {stepIsOpen && (
-                                                    <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
-                                                        <div className="pt-4 border-t border-slate-100">
-                                                            {/* Quick Config Row */}
-                                                            <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                                                <div className="flex-1">
-                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Timing</label>
-                                                                    <input
-                                                                        className="w-full bg-transparent text-sm font-bold text-slate-700 focus:outline-none"
-                                                                        value={step.delay}
-                                                                        onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)}
-                                                                    />
-                                                                </div>
-                                                                <div className="w-px h-8 bg-slate-200" />
-                                                                <div className="flex-1">
-                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Action Type</label>
-                                                                    <select
-                                                                        className="w-full bg-transparent text-sm font-bold text-indigo-600 focus:outline-none cursor-pointer"
-                                                                        value={step.type}
-                                                                        onChange={(e) => onUpdateStep(step.id, 'type', e.target.value)}
-                                                                    >
-                                                                        <option value="Email">Email</option>
-                                                                        <option value="Call">AI Call</option>
-                                                                        <option value="Task">Task</option>
-                                                                        <option value="SMS">SMS</option>
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Condition: AI Call vs Text vs Standard Editor */}
-                                                            {step.type === 'Call' || step.type === 'AI Call' ? (
-                                                                <div className="rounded-xl bg-blue-50 border border-blue-100 p-6 flex items-start gap-4">
-                                                                    <div className="p-3 bg-white rounded-full shadow-sm text-blue-600">
-                                                                        <span className="material-symbols-outlined text-2xl">support_agent</span>
-                                                                    </div>
-                                                                    <div>
-                                                                        <h4 className="text-blue-900 font-bold text-lg mb-1">AI Call Configured</h4>
-                                                                        <p className="text-blue-700/80 text-sm leading-relaxed max-w-md">
-                                                                            Your AI Agent will give them a friendly call to remind them about the appointment. You'll get the transcript right here in your dashboard.
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (step.type === 'Text' || step.type === 'sms' || step.type === 'SMS') ? (
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                                                                    {/* Left: Editor */}
-                                                                    <div className="space-y-4">
-                                                                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-                                                                            <div className="flex items-center gap-2 mb-2">
-                                                                                <span className="material-symbols-outlined text-slate-500">sms</span>
-                                                                                <h4 className="text-sm font-bold text-slate-700">SMS Content</h4>
-                                                                            </div>
-                                                                            <textarea
-                                                                                className="w-full h-32 rounded-lg border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
-                                                                                placeholder="Type your text message here... (e.g. Hi {{lead.name}})"
-                                                                                value={step.content}
-                                                                                onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
-                                                                            />
-                                                                            <div className="flex justify-between items-center mt-1">
-                                                                                <span className="text-[10px] text-slate-400">
-                                                                                    {step.content?.length || 0} characters
-                                                                                </span>
-                                                                            </div>
-                                                                            <div className="mt-3">
-                                                                                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                                                                                    Attach Image URL (MMS)
-                                                                                </label>
-                                                                                <div className="flex gap-2">
-                                                                                    <input
-                                                                                        className="flex-1 rounded-lg border-slate-200 text-xs text-slate-700 bg-white"
-                                                                                        placeholder="https://..."
-                                                                                        value={step.mediaUrl || ''}
-                                                                                        onChange={(e) => onUpdateStep(step.id, 'mediaUrl', e.target.value)}
-                                                                                    />
-                                                                                    {step.mediaUrl && <div className="w-8 h-8 rounded bg-slate-100 bg-cover bg-center border border-slate-200 shrink-0" style={{ backgroundImage: `url(${step.mediaUrl})` }}></div>}
-                                                                                </div>
-                                                                            </div>
-
-                                                                            <p className="text-xs text-slate-400 mt-2">
-                                                                                Tokens like <code className="bg-slate-200 px-1 rounded text-slate-600">{'{{lead.name}}'}</code> are supported.
-                                                                            </p>
-                                                                            <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-slate-200">
-                                                                                <button
-                                                                                    onClick={() => onSendTest(step)}
-                                                                                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm"
-                                                                                >
-                                                                                    Send Test
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={onSave}
-                                                                                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700"
-                                                                                >
-                                                                                    Save Changes
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Right: Phone Preview (WYSIWYG) */}
-                                                                    <div className="flex flex-col items-center">
-                                                                        <h4 className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">Lead's Phone Preview</h4>
-                                                                        <div className="relative w-[280px] h-[500px] bg-slate-900 rounded-[3rem] shadow-2xl p-3 ring-4 ring-slate-100">
-                                                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-20"></div>
-                                                                            <div className="w-full h-full bg-slate-50 rounded-[2.2rem] overflow-hidden flex flex-col relative z-10">
-                                                                                {/* Status Bar */}
-                                                                                <div className="h-10 w-full bg-slate-100/80 backdrop-blur flex justify-between items-end px-6 pb-2 text-[10px] font-bold text-slate-900">
-                                                                                    <span>9:41</span>
-                                                                                    <div className="flex gap-1">
-                                                                                        <span className="material-symbols-outlined text-[12px]">signal_cellular_alt</span>
-                                                                                        <span className="material-symbols-outlined text-[12px]">wifi</span>
-                                                                                        <span className="material-symbols-outlined text-[12px]">battery_full</span>
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                {/* Header */}
-                                                                                <div className="h-12 border-b border-slate-200 bg-slate-50/80 backdrop-blur flex flex-col items-center justify-center">
-                                                                                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] text-indigo-700 font-bold mb-0.5">
-                                                                                        {sampleMergeData.agent.name.split(' ').map(n => n[0]).join('')}
-                                                                                    </div>
-                                                                                    <span className="text-[10px] text-slate-500 font-medium">{sampleMergeData.agent.name}</span>
-                                                                                </div>
-
-                                                                                {/* Messages */}
-                                                                                <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-white">
-                                                                                    <div className="text-[10px] text-center text-slate-400 font-medium">Today 9:41 AM</div>
-
-                                                                                    {step.mediaUrl && (
-                                                                                        <div className="flex justify-end">
-                                                                                            <div className="bg-blue-500 p-1 rounded-2xl rounded-tr-sm max-w-[85%] shadow-sm">
-                                                                                                <img src={step.mediaUrl} alt="MMS" className="rounded-xl w-full h-auto object-cover" />
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    )}
-
-                                                                                    <div className="flex justify-end">
-                                                                                        <div className="bg-blue-500 text-white rounded-2xl rounded-tr-sm px-3 py-2 max-w-[85%] text-xs leading-relaxed shadow-sm">
-                                                                                            {step.content || <span className="opacity-50 italic">Typing...</span>}
-                                                                                        </div>
-                                                                                    </div>
-
-                                                                                    {/* Delivery Status */}
-                                                                                    <div className="flex justify-end">
-                                                                                        <span className="text-[9px] text-slate-400 font-medium">Delivered</span>
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                {/* Input Area (Mock) */}
-                                                                                <div className="h-12 border-t border-slate-200 bg-slate-50 px-2 flex items-center gap-2">
-                                                                                    <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
-                                                                                        <span className="material-symbols-outlined text-[14px]">add</span>
-                                                                                    </div>
-                                                                                    <div className="flex-1 h-8 rounded-full border border-slate-300 bg-white"></div>
-                                                                                    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white">
-                                                                                        <span className="material-symbols-outlined text-[14px]">arrow_upward</span>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            ) : step.type === 'Task' ? (
-                                                                <div className="space-y-4">
-                                                                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-5">
-                                                                        <div className="flex items-center gap-2 mb-4">
-                                                                            <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
-                                                                                <span className="material-symbols-outlined">assignment_turned_in</span>
-                                                                            </div>
-                                                                            <div>
-                                                                                <h4 className="text-sm font-bold text-emerald-900">Agent Task</h4>
-                                                                                <p className="text-xs text-emerald-700/80">A dedicated reminder for you to take action.</p>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <label className="block text-xs font-semibold text-emerald-800 mb-1">
-                                                                            Task Title
-                                                                        </label>
-                                                                        <input
-                                                                            className="w-full text-sm font-bold text-slate-900 placeholder:text-slate-400 border-emerald-200 rounded-lg p-2.5 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-white mb-3"
-                                                                            placeholder="e.g. Call Lead..."
-                                                                            value={step.subject}
-                                                                            onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
-                                                                        />
-
-                                                                        <label className="block text-xs font-semibold text-emerald-800 mb-1">
-                                                                            Instructions / Details
-                                                                        </label>
-                                                                        <textarea
-                                                                            className="w-full h-24 rounded-lg border-emerald-200 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-sm"
-                                                                            placeholder="Describe what needs to be done..."
-                                                                            value={step.content}
-                                                                            onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
-                                                                        />
-
-                                                                        <div className="mt-4">
-                                                                            <label className="block text-[10px] uppercase font-bold text-emerald-600/70 mb-2 tracking-wide">
-                                                                                Quick Ideas
-                                                                            </label>
-                                                                            <div className="flex flex-wrap gap-2">
-                                                                                {[
-                                                                                    { emoji: '📞', label: 'Call Lead', title: 'Call Lead', desc: 'Call {{lead.name}} and ask about their timeline.' },
-                                                                                    { emoji: '📝', label: 'Personal Note', title: 'Send Handwritten Note', desc: 'Write a personal card thanking {{lead.name}}.' },
-                                                                                    { emoji: '📊', label: 'Prepare CMA', title: 'Prepare CMA', desc: 'Run comps for {{lead.interestAddress}} and send video review.' },
-                                                                                    { emoji: '🤝', label: 'Social Connect', title: 'Connect on Social', desc: 'Find {{lead.name}} on LinkedIn/IG and follow up.' }
-                                                                                ].map((idea) => (
-                                                                                    <button
-                                                                                        key={idea.label}
-                                                                                        onClick={() => {
-                                                                                            onUpdateStep(step.id, 'subject', idea.title);
-                                                                                            onUpdateStep(step.id, 'content', idea.desc);
-                                                                                        }}
-                                                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-200 rounded-full text-xs font-semibold text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition-all hover:scale-105 shadow-sm"
-                                                                                    >
-                                                                                        <span>{idea.emoji}</span>
-                                                                                        {idea.label}
-                                                                                    </button>
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-emerald-200/50">
-                                                                            <button
-                                                                                onClick={onSave}
-                                                                                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-emerald-700"
-                                                                            >
-                                                                                Save Changes
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="space-y-4">
-                                                                    <div className="rounded-xl bg-violet-50 border border-violet-100 p-5">
-                                                                        <div className="flex items-center gap-2 mb-4">
-                                                                            <div className="p-2 bg-violet-100 text-violet-600 rounded-lg">
-                                                                                <span className="material-symbols-outlined">mail</span>
-                                                                            </div>
-                                                                            <div>
-                                                                                <h4 className="text-sm font-bold text-violet-900">Email Content</h4>
-                                                                                <p className="text-xs text-violet-700/80">Design your automated email message.</p>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <label className="block text-xs font-semibold text-violet-800/90 mb-1">
-                                                                            Subject Line
-                                                                        </label>
-                                                                        <input
-                                                                            className="w-full text-base font-bold text-slate-900 placeholder:text-slate-300 border border-violet-200 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white shadow-sm mb-4"
-                                                                            placeholder="e.g. following up on our chat..."
-                                                                            value={step.subject}
-                                                                            onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
-                                                                        />
-
-                                                                        <div className="relative">
-                                                                            <div className="flex items-center justify-between mb-2">
-                                                                                <label className="text-xs font-semibold text-violet-800/90">Message Body</label>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[10px] font-bold shadow-sm hover:shadow-md transition-all hover:scale-105"
-                                                                                >
-                                                                                    <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                                                                                    AI Magic
-                                                                                </button>
-                                                                            </div>
-                                                                            <div className="border border-violet-200 rounded-lg overflow-hidden shadow-sm bg-white">
-                                                                                <EmailEditor
-                                                                                    value={step.content}
-                                                                                    onChange={(val) => onUpdateStep(step.id, 'content', val)}
-                                                                                    placeholder="Type your message..."
-                                                                                    className="min-h-[300px]"
-                                                                                />
-                                                                            </div>
-                                                                            <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-violet-200/50">
-                                                                                <button
-                                                                                    onClick={() => onSendTest(step)}
-                                                                                    className="px-3 py-1.5 bg-white border border-violet-200 rounded-lg text-xs font-semibold text-violet-700 hover:bg-violet-50 shadow-sm"
-                                                                                >
-                                                                                    Send Test
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={onSave}
-                                                                                    className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-violet-700"
-                                                                                >
-                                                                                    Save Changes
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                            )}
-                                                        </div>
-
-                                                        <div className="mt-4 flex justify-between items-end">
-                                                            <button
-                                                                onClick={() => onRemoveStep(step.id)}
-                                                                className="text-xs text-red-400 hover:text-red-500 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                                                            >
-                                                                Remove Step
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </article>
-                                        </div>
-                                    );
-                                })}
-
-                            </div >
-                            <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                                <button
-                                    type="button"
-                                    onClick={onAddStep}
-                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                                >
-                                    <span className="material-symbols-outlined text-base">add</span>
-                                    Add Step
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={onSave}
-                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
-                                >
-                                    <span className="material-symbols-outlined text-base">save</span>
-                                    {saveLabel}
-                                </button>
-                            </div>
-                        </>
-                    )
-                }
-            </section >
-        );
-    };
 
     return (
         <div className={isEmbedded ? '' : 'bg-slate-50 min-h-full pb-24 md:pb-0'}>
@@ -910,6 +492,41 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     )}
                 </header>
 
+                {/* Test Configuration Card */}
+                <div className="mb-8 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                        <span className="material-symbols-outlined text-indigo-600">science</span>
+                        <h3 className="text-sm font-bold text-slate-800">Test Configuration</h3>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        {import.meta.env.VITE_ENABLE_SMS !== 'false' && (
+                            <div className="flex-1">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Test Phone Number (for SMS)</label>
+                                <input
+                                    type="text"
+                                    placeholder="+15550000000"
+                                    className="w-full text-sm border-slate-200 rounded-lg"
+                                    value={testPhone}
+                                    onChange={(e) => setTestPhone(e.target.value)}
+                                />
+                            </div>
+                        )}
+                        <div className="flex-1">
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Test Email Address</label>
+                            <input
+                                type="email"
+                                placeholder="you@example.com"
+                                className="w-full text-sm border-slate-200 rounded-lg"
+                                value={testEmail}
+                                onChange={(e) => setTestEmail(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2">
+                        * Enter details here to skip prompts when clicking "Send Test".
+                    </p>
+                </div>
+
                 <div className="mb-8 px-4 md:px-0">
                     <PageTipBanner
                         pageKey="ai-funnels"
@@ -968,92 +585,112 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                 {activeSection === 'funnels' && (
                     <div className="space-y-8">
-                        {renderFunnelPanel('agentSales', {
-                            badgeIcon: 'rocket_launch',
-                            badgeClassName: 'bg-rose-50 text-rose-700',
-                            badgeLabel: 'Recruitment & Sales',
-                            title: 'The "In Your Face" Closer',
-                            description: 'A 5-step aggressive campaign to convert Realtors into paid subscribers. Uses the "Leak-Proof Bucket" strategy.',
-                            iconColorClass: 'text-rose-600',
-                            steps: agentSalesSteps,
-                            expandedIds: expandedAgentSalesStepIds,
-                            onToggleStep: toggleAgentSalesStep,
-                            onUpdateStep: handleUpdateAgentSalesStep,
-                            onRemoveStep: handleRemoveAgentSalesStep,
-                            onAddStep: handleAddAgentSalesStep,
-                            onSave: handleSaveAgentSalesSteps,
-                            saveLabel: 'Save Recruitment Funnel',
-                            onSendTest: handleSendTestEmail
-                        })}
+                        <FunnelPanel
+                            panelKey="agentSales"
+                            isOpen={panelExpanded.agentSales}
+                            onTogglePanel={() => togglePanel('agentSales')}
+                            badgeIcon="rocket_launch"
+                            badgeClassName="bg-rose-50 text-rose-700"
+                            badgeLabel="Recruitment & Sales"
+                            title="The &quot;In Your Face&quot; Closer"
+                            description="A 5-step aggressive campaign to convert Realtors into paid subscribers. Uses the &quot;Leak-Proof Bucket&quot; strategy."
+                            iconColorClass="text-rose-600"
+                            steps={agentSalesSteps}
+                            expandedIds={expandedAgentSalesStepIds}
+                            onToggleStep={toggleAgentSalesStep}
+                            onUpdateStep={handleUpdateAgentSalesStep}
+                            onRemoveStep={handleRemoveAgentSalesStep}
+                            onAddStep={handleAddAgentSalesStep}
+                            onSave={handleSaveAgentSalesSteps}
+                            saveLabel="Save Recruitment Funnel"
+                            onSendTest={handleSendTestEmail}
+                            mergeTokens={mergeTokens}
+                            COMMON_TOKEN_HINTS={COMMON_TOKEN_HINTS}
+                        />
 
                         {/* Custom Funnel 1 */}
-                        {renderFunnelPanel('custom1', {
-                            badgeIcon: 'edit_square',
-                            badgeClassName: 'bg-slate-100 text-slate-600',
-                            badgeLabel: 'Draft',
-                            title: 'Custom Funnel #1',
-                            description: 'Empty canvas for a new marketing sequence.',
-                            iconColorClass: 'text-slate-500',
-                            steps: custom1Steps,
-                            expandedIds: expandedCustom1Ids,
-                            onToggleStep: (id) => setExpandedCustom1Ids(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]),
-                            onUpdateStep: (id, field, val) => setCustom1Steps(prev => prev.map(s => s.id === id ? { ...s, [field]: val } : s)),
-                            onRemoveStep: (id) => setCustom1Steps(prev => prev.filter(s => s.id !== id)),
-                            onAddStep: () => {
+                        <FunnelPanel
+                            panelKey="custom1"
+                            isOpen={panelExpanded.custom1}
+                            onTogglePanel={() => togglePanel('custom1')}
+                            badgeIcon="edit_square"
+                            badgeClassName="bg-slate-100 text-slate-600"
+                            badgeLabel="Draft"
+                            title="Custom Funnel #1"
+                            description="Empty canvas for a new marketing sequence."
+                            iconColorClass="text-slate-500"
+                            steps={custom1Steps}
+                            expandedIds={expandedCustom1Ids}
+                            onToggleStep={(id) => setExpandedCustom1Ids(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                            onUpdateStep={(id, field, val) => setCustom1Steps(prev => prev.map(s => s.id === id ? { ...s, [field]: val } : s))}
+                            onRemoveStep={(id) => setCustom1Steps(prev => prev.filter(s => s.id !== id))}
+                            onAddStep={() => {
                                 const newId = Date.now().toString();
                                 setCustom1Steps(prev => [...prev, { id: newId, delay: '+1 day', type: 'Email', title: 'New Step', description: 'Step description...', icon: 'mail', content: '', subject: 'New Subject' }]);
                                 setExpandedCustom1Ids(prev => [...prev, newId]);
-                            },
-                            onSave: () => handleSaveCustomFunnel('custom1', custom1Steps),
-                            saveLabel: 'Save Custom Funnel 1',
-                            onSendTest: handleSendTestEmail
-                        })}
+                            }}
+                            onSave={() => handleSaveCustomFunnel('custom1', custom1Steps)}
+                            saveLabel="Save Custom Funnel 1"
+                            onSendTest={handleSendTestEmail}
+                            mergeTokens={mergeTokens}
+                            COMMON_TOKEN_HINTS={COMMON_TOKEN_HINTS}
+                        />
 
                         {/* Custom Funnel 2 */}
-                        {renderFunnelPanel('custom2', {
-                            badgeIcon: 'edit_square',
-                            badgeClassName: 'bg-slate-100 text-slate-600',
-                            badgeLabel: 'Draft',
-                            title: 'Custom Funnel #2',
-                            description: 'Empty canvas for a new marketing sequence.',
-                            iconColorClass: 'text-slate-500',
-                            steps: custom2Steps,
-                            expandedIds: expandedCustom2Ids,
-                            onToggleStep: (id) => setExpandedCustom2Ids(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]),
-                            onUpdateStep: (id, field, val) => setCustom2Steps(prev => prev.map(s => s.id === id ? { ...s, [field]: val } : s)),
-                            onRemoveStep: (id) => setCustom2Steps(prev => prev.filter(s => s.id !== id)),
-                            onAddStep: () => {
+                        <FunnelPanel
+                            panelKey="custom2"
+                            isOpen={panelExpanded.custom2}
+                            onTogglePanel={() => togglePanel('custom2')}
+                            badgeIcon="edit_square"
+                            badgeClassName="bg-slate-100 text-slate-600"
+                            badgeLabel="Draft"
+                            title="Custom Funnel #2"
+                            description="Empty canvas for a new marketing sequence."
+                            iconColorClass="text-slate-500"
+                            steps={custom2Steps}
+                            expandedIds={expandedCustom2Ids}
+                            onToggleStep={(id) => setExpandedCustom2Ids(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                            onUpdateStep={(id, field, val) => setCustom2Steps(prev => prev.map(s => s.id === id ? { ...s, [field]: val } : s))}
+                            onRemoveStep={(id) => setCustom2Steps(prev => prev.filter(s => s.id !== id))}
+                            onAddStep={() => {
                                 const newId = Date.now().toString();
                                 setCustom2Steps(prev => [...prev, { id: newId, delay: '+1 day', type: 'Email', title: 'New Step', description: 'Step description...', icon: 'mail', content: '', subject: 'New Subject' }]);
                                 setExpandedCustom2Ids(prev => [...prev, newId]);
-                            },
-                            onSave: () => handleSaveCustomFunnel('custom2', custom2Steps),
-                            saveLabel: 'Save Custom Funnel 2',
-                            onSendTest: handleSendTestEmail
-                        })}
+                            }}
+                            onSave={() => handleSaveCustomFunnel('custom2', custom2Steps)}
+                            saveLabel="Save Custom Funnel 2"
+                            onSendTest={handleSendTestEmail}
+                            mergeTokens={mergeTokens}
+                            COMMON_TOKEN_HINTS={COMMON_TOKEN_HINTS}
+                        />
 
                         {/* Custom Funnel 3 */}
-                        {renderFunnelPanel('custom3', {
-                            badgeIcon: 'edit_square',
-                            badgeClassName: 'bg-slate-100 text-slate-600',
-                            badgeLabel: 'Draft',
-                            title: 'Custom Funnel #3',
-                            description: 'Empty canvas for a new marketing sequence.',
-                            iconColorClass: 'text-slate-500',
-                            steps: custom3Steps,
-                            expandedIds: expandedCustom3Ids,
-                            onToggleStep: (id) => setExpandedCustom3Ids(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]),
-                            onUpdateStep: (id, field, val) => setCustom3Steps(prev => prev.map(s => s.id === id ? { ...s, [field]: val } : s)),
-                            onRemoveStep: (id) => setCustom3Steps(prev => prev.filter(s => s.id !== id)),
-                            onAddStep: () => {
+                        <FunnelPanel
+                            panelKey="custom3"
+                            isOpen={panelExpanded.custom3}
+                            onTogglePanel={() => togglePanel('custom3')}
+                            badgeIcon="edit_square"
+                            badgeClassName="bg-slate-100 text-slate-600"
+                            badgeLabel="Draft"
+                            title="Custom Funnel #3"
+                            description="Empty canvas for a new marketing sequence."
+                            iconColorClass="text-slate-500"
+                            steps={custom3Steps}
+                            expandedIds={expandedCustom3Ids}
+                            onToggleStep={(id) => setExpandedCustom3Ids(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                            onUpdateStep={(id, field, val) => setCustom3Steps(prev => prev.map(s => s.id === id ? { ...s, [field]: val } : s))}
+                            onRemoveStep={(id) => setCustom3Steps(prev => prev.filter(s => s.id !== id))}
+                            onAddStep={() => {
                                 const newId = Date.now().toString();
                                 setCustom3Steps(prev => [...prev, { id: newId, delay: '+1 day', type: 'Email', title: 'New Step', description: 'Step description...', icon: 'mail', content: '', subject: 'New Subject' }]);
                                 setExpandedCustom3Ids(prev => [...prev, newId]);
-                            },
-                            onSave: () => handleSaveCustomFunnel('custom3', custom3Steps),
-                            saveLabel: 'Save Custom Funnel 3',
-                            onSendTest: handleSendTestEmail
-                        })}
+                            }}
+                            onSave={() => handleSaveCustomFunnel('custom3', custom3Steps)}
+                            saveLabel="Save Custom Funnel 3"
+                            onSendTest={handleSendTestEmail}
+                            mergeTokens={mergeTokens}
+                            COMMON_TOKEN_HINTS={COMMON_TOKEN_HINTS}
+                        />
                     </div>
                 )}
 
