@@ -75,40 +75,63 @@ const initiateCall = async ({ leadId, agentId, propertyId, script, leadName, lea
                 number: targetPhone,
                 name: customerName
             },
-            assistant: {
-                ...(assistantId ? { assistantId: assistantId } : {}),
-
-                variableValues: {
-                    leadName: customerName,
-                    agentName: agentContext.name || 'Agent',
-                    companyName: agentContext.company || 'our agency',
-                    propertyAddress: contextData.propertyAddress || 'the property',
-                    ...contextData
-                },
-                firstMessage: script || undefined,
-                // SMART VOICEMAIL: If a machine picks up, say this execution-optimized message
-                voicemailMessage: `Hi, this is ${agentContext.name || 'the assistant'} with ${agentContext.company || 'HomeListingAI'}. I was calling about your property inquiry. I'll send you a text message shortly. Thanks!`
-            },
-            // META DATA for Webhook identification
-            analysis: {
-                successEvaluationPrompt: "Did the AI successfully answer the user's questions or set an appointment?",
-                structuredDataSchema: {
-                    type: "object",
-                    properties: {
-                        summary: { type: "string" },
-                        appointmentScheduled: { type: "boolean" },
-                        userSentiment: { type: "string" }
+            // Option A: Use existing Assistant ID + Overrides
+            ...(assistantId ? {
+                assistantId: assistantId,
+                assistantOverrides: {
+                    variableValues: {
+                        leadName: customerName,
+                        agentName: agentContext.name || 'Agent',
+                        companyName: agentContext.company || 'our agency',
+                        propertyAddress: contextData.propertyAddress || 'the property',
+                        ...contextData
+                    },
+                    model: {
+                        provider: 'openai',
+                        model: 'gpt-4',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: script || "You are a helpful real estate assistant. Ask the lead if they have any questions."
+                            }
+                        ]
+                    },
+                    firstMessage: script || "Hi, this is " + (agentContext.name || "the assistant") + ". I saw you checked out the property link. Did you have any questions?",
+                    voicemailMessage: `Hi, this is ${agentContext.name || 'the assistant'} with ${agentContext.company || 'HomeListingAI'}. I was calling about your property inquiry. I'll send you a text message shortly. Thanks!`,
+                    metadata: {
+                        agentId,
+                        leadId,
+                        propertyId,
+                        source: 'funnel_automation'
                     }
                 }
-            },
-            assistantOverrides: {
-                metadata: {
-                    agentId,
-                    leadId,
-                    propertyId,
-                    source: 'funnel_automation'
+            } : {
+                // Option B: Transient Assistant (No ID provided)
+                assistant: {
+                    model: {
+                        provider: 'openai',
+                        model: 'gpt-4',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: script || "You are a helpful real estate assistant. Ask the lead if they have any questions."
+                            }
+                        ]
+                    },
+                    firstMessage: script || "Hi, this is " + (agentContext.name || "the assistant") + ". I saw you checked out the property link. Did you have any questions?",
+                    variableValues: {
+                        leadName: customerName,
+                        agentName: agentContext.name || 'Agent',
+                        companyName: agentContext.company || 'our agency',
+                        propertyAddress: contextData.propertyAddress || 'the property',
+                        ...contextData
+                    }
                 }
-            }
+            }),
+
+            // Analysis block removed as it caused 400 error and might be deprecated or misplaced. 
+            // If needed, it usually goes inside 'assistant' or 'assistantOverrides' depending on Vapi version.
+            // For now, removing to ensure call works.
         };
 
         // STEP: Validate Number before calling

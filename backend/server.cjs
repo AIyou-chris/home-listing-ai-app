@@ -346,15 +346,23 @@ app.post('/api/vapi/webhook', async (req, res) => {
       // console.log(`[Vapi Webhook] Received event: ${message.type}`);
     }
 
-    // 2. Billing: Handle End-of-Call Report
+    // 2. Billing & Transcripts: Handle End-of-Call Report
     if (message && message.type === 'end-of-call-report') {
-      // Extract Agent ID from Assistant Overrides Metadata
-      const agentId = message.call?.analysis?.assistantOverrides?.metadata?.agentId
-        || message.call?.assistantOverrides?.metadata?.agentId
-        || message.call?.metadata?.agentId; // Vapi formats vary
+      // Extract Metadata
+      // Vapi payload structure for metadata can vary based on overrides
+      const callObj = message.call || {};
+      const metadata = callObj.assistantOverrides?.metadata || callObj.metadata || {};
+      const agentId = metadata.agentId;
+      const leadId = metadata.leadId;
+
+      // Extract Content
+      const transcript = message.transcript || callObj.transcript || "";
+      const summary = message.summary || message.analysis?.summary || callObj.analysis?.summary || "";
+      const recordingUrl = message.recordingUrl || callObj.recordingUrl || "";
 
       const durationSeconds = message.durationSeconds || message.duration || (message.artifact ? message.artifact.durationSeconds : 0) || 0;
 
+      // A. BILLING LOGIC
       if (agentId && durationSeconds > 0) {
         const minutes = Math.ceil(durationSeconds / 60);
         console.log(`💰 [Billing] Agent ${agentId} call ended. Duration: ${durationSeconds}s (${minutes} min). Charging account.`);
@@ -364,6 +372,76 @@ app.post('/api/vapi/webhook', async (req, res) => {
         const newUsage = (currentAgent?.voice_minutes_used || 0) + minutes;
 
         await supabaseAdmin.from('agents').update({ voice_minutes_used: newUsage }).eq('id', agentId);
+      }
+
+      // B. TRANSCRIPT STORAGE LOGIC
+      if (agentId && (transcript || summary)) {
+        console.log(`📝 [Vapi] Saving transcript for Agent ${agentId}, Lead ${leadId || 'Active Call'}`);
+
+        try {
+          let conversationId = null;
+
+          // 1. Find or Create Conversation
+          if (leadId) {
+            // Check for existing conversation with this lead
+            const { data: existingConv } = await supabaseAdmin
+              .from('ai_conversations')
+              .select('id')
+              .eq('user_id', agentId)
+              .eq('lead_id', leadId)
+              .maybeSingle();
+
+            if (existingConv) {
+              conversationId = existingConv.id;
+            } else {
+              // Create new conversation
+              const { data: lead } = await supabaseAdmin.from('leads').select('*').eq('id', leadId).single();
+
+              const title = lead ? `Call with ${lead.name}` : 'Voice Call';
+              const phone = lead ? lead.phone : null;
+
+              const { data: newConv, error: createError } = await supabaseAdmin
+                .from('ai_conversations')
+                .insert({
+                  user_id: agentId,
+                  lead_id: leadId,
+                  title: title,
+                  contact_phone: phone,
+                  status: 'active',
+                  type: 'voice',
+                  last_message_at: new Date().toISOString()
+                })
+                .select('id')
+                .single();
+
+              if (!createError && newConv) conversationId = newConv.id;
+            }
+          }
+
+          // 2. Insert Message
+          if (conversationId) {
+            const content = `📞 **Voice Call Ended** (${durationSeconds}s)\n\n**Summary:** ${summary || "No summary available."}\n\n**Transcript:**\n${transcript || "[No transcript available]"}`;
+
+            await supabaseAdmin.from('ai_conversation_messages').insert({
+              conversation_id: conversationId,
+              user_id: agentId,
+              sender: 'ai', // AI context
+              channel: 'voice',
+              content: content,
+              metadata: {
+                recordingUrl: recordingUrl,
+                vapiCallId: message.call?.id
+              }
+            });
+            console.log(`✅ [Vapi] Transcript saved to Conversation ${conversationId}`);
+
+          } else {
+            console.warn(`⚠️ [Vapi] Could not save transcript: No conversation found/created (LeadId: ${leadId})`);
+          }
+
+        } catch (transcriptError) {
+          console.error(`❌ [Vapi] Failed to save transcript: ${transcriptError.message}`);
+        }
       }
     }
 
