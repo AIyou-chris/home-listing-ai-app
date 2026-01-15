@@ -721,6 +721,22 @@ const agentOnboardingService = createAgentOnboardingService({
   dashboardBaseUrl: process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com/#'
 });
 
+// --- FUNNEL ENGINE (PHASE 1) ---
+const createFunnelService = require('./services/funnelExecutionService');
+const funnelService = createFunnelService({
+  supabaseAdmin,
+  emailService,
+  smsService: { sendSms, validatePhoneNumber }
+});
+
+// Run Funnel Engine every 60 seconds
+setInterval(() => {
+  funnelService.processBatch()
+    .catch(err => console.error('Funnel Engine Loop Error:', err));
+}, 60000);
+
+console.log('⚡ [Funnel Engine] Scheduler started (60s interval).');
+
 // Agent Onboarding Endpoints
 app.post('/api/agents/register', async (req, res) => {
   try {
