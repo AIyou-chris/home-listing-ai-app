@@ -15,6 +15,8 @@ const PropertyMarketingManager: React.FC<{ property: Property, leadCount?: numbe
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState({ views: 0, clicks: 0, lastActivity: null });
 
+  const [hasCopied, setHasCopied] = useState(false);
+
   // Auto-generate short link on mount
   useEffect(() => {
     const generateAssetsAndStats = async () => {
@@ -82,7 +84,8 @@ const PropertyMarketingManager: React.FC<{ property: Property, leadCount?: numbe
   const handleCopyLink = () => {
     if (shortUrl) {
       navigator.clipboard.writeText(shortUrl);
-      alert('Marketing link copied to clipboard!');
+      setHasCopied(true);
+      setTimeout(() => setHasCopied(false), 2000);
     }
   };
 
@@ -121,10 +124,11 @@ const PropertyMarketingManager: React.FC<{ property: Property, leadCount?: numbe
               </div>
               <button
                 onClick={handleCopyLink}
-                className="px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition flex items-center gap-2"
+                className={`px-4 text-white rounded-lg font-medium transition flex items-center gap-2 ${hasCopied ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
               >
-                <span className="material-symbols-outlined">content_copy</span>
-                Copy
+                <span className="material-symbols-outlined">{hasCopied ? 'check' : 'content_copy'}</span>
+                {hasCopied ? 'Copied!' : 'Copy'}
               </button>
             </div>
             <p className="text-xs text-slate-500 mt-2">

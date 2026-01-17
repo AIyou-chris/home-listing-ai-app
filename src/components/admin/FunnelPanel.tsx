@@ -1,11 +1,7 @@
 
 import React from 'react';
-import { EditableStep } from './AdminMarketingFunnelsPanel'; // We will need to export EditableStep type
-import { EmailEditor } from '../EmailEditor'; // Assuming this path, need to verify
-// If EmailEditor is not exported or path is different, we might need to adjust.
-// Let's first just copy the logic and then fix imports.
-// Actually, EmailEditor is likely in the same folder or one up.
-// Let's assume standard import for now and fix if needed.
+import { EditableStep } from './AdminMarketingFunnelsPanel';
+import { EmailEditor } from '../EmailEditor';
 
 type FunnelPanelProps = {
     panelKey: string;
@@ -40,20 +36,16 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
     badgeLabel,
     title,
     description,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     iconColorClass: _iconColorClass,
     steps,
     expandedIds,
     onToggleStep,
     onUpdateStep,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onRemoveStep: _onRemoveStep,
     onAddStep,
     onSave,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     saveLabel: _saveLabel,
     onSendTest,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     mergeTokens: _mergeTokens,
     COMMON_TOKEN_HINTS
 }) => {
@@ -66,8 +58,8 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                         {badgeLabel}
                     </p>
                     <div className="space-y-1">
-                        <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
-                        <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
+                        <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+                        <p className="text-xs text-slate-500 leading-relaxed">{description}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 self-start">
@@ -85,7 +77,7 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
             </div>
             {isOpen && (
                 <>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-500">
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-wide text-slate-500">
                         <span className="font-semibold text-slate-600">Tokens:</span>
                         {COMMON_TOKEN_HINTS.map((token) => (
                             <span
@@ -127,11 +119,11 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2 mb-0.5">
-                                                        <h3 className={`text-sm font-bold ${stepIsOpen ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                                        <h3 className={`text-xs font-bold ${stepIsOpen ? 'text-indigo-900' : 'text-slate-700'}`}>
                                                             {step.title}
                                                         </h3>
                                                         {!stepIsOpen && (
-                                                            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
+                                                            <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
                                                                 {step.delay}
                                                             </span>
                                                         )}
@@ -146,7 +138,7 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                     <span className="material-symbols-outlined text-indigo-400">expand_less</span>
                                                 ) : (
                                                     <div className="flex items-center gap-2">
-                                                        <span className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">
+                                                        <span className="px-2 py-1 rounded text-xs font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">
                                                             {step.type}
                                                         </span>
                                                     </div>
@@ -159,18 +151,18 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                 <div className="pt-4 border-t border-slate-100">
                                                     <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                         <div className="flex-1">
-                                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Timing</label>
+                                                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Timing</label>
                                                             <input
-                                                                className="w-full bg-transparent text-sm font-bold text-slate-700 focus:outline-none"
+                                                                className="w-full bg-transparent text-xs font-bold text-slate-700 focus:outline-none"
                                                                 value={step.delay}
                                                                 onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)}
                                                             />
                                                         </div>
                                                         <div className="w-px h-8 bg-slate-200" />
                                                         <div className="flex-1">
-                                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Action Type</label>
+                                                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Action Type</label>
                                                             <select
-                                                                className="w-full bg-transparent text-sm font-bold text-indigo-600 focus:outline-none cursor-pointer"
+                                                                className="w-full bg-transparent text-xs font-bold text-indigo-600 focus:outline-none cursor-pointer"
                                                                 value={step.type}
                                                                 onChange={(e) => onUpdateStep(step.id, 'type', e.target.value)}
                                                             >
@@ -191,8 +183,8 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                     <span className="material-symbols-outlined text-2xl">call_split</span>
                                                                 </div>
                                                                 <div>
-                                                                    <h4 className="text-indigo-900 font-bold text-lg mb-1">Decision Diamond</h4>
-                                                                    <p className="text-indigo-700/80 text-sm leading-relaxed max-w-md">
+                                                                    <h4 className="text-indigo-900 font-bold text-sm mb-1">Decision Diamond</h4>
+                                                                    <p className="text-indigo-700/80 text-xs leading-relaxed max-w-md">
                                                                         Branch the funnel based on lead behavior. If the condition is met (True), we proceed to the next step. If not (False), we skip one step.
                                                                     </p>
                                                                 </div>
@@ -202,7 +194,7 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                 <div>
                                                                     <label className="block text-xs font-semibold text-indigo-800 mb-1">Condition Rule</label>
                                                                     <select
-                                                                        className="w-full bg-white border-indigo-200 rounded-lg p-2.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                        className="w-full bg-white border-indigo-200 rounded-lg p-2.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                                         value={step.conditionRule || 'email_opened'}
                                                                         onChange={(e) => onUpdateStep(step.id, 'conditionRule', e.target.value)}
                                                                     >
@@ -216,7 +208,7 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                     <div className="relative">
                                                                         <input
                                                                             type="number"
-                                                                            className="w-full bg-white border-indigo-200 rounded-lg p-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                            className="w-full bg-white border-indigo-200 rounded-lg p-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                                             placeholder="1"
                                                                             value={step.conditionValue || '1'}
                                                                             onChange={(e) => onUpdateStep(step.id, 'conditionValue', e.target.value)}
@@ -239,8 +231,8 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                 <span className="material-symbols-outlined text-2xl">support_agent</span>
                                                             </div>
                                                             <div>
-                                                                <h4 className="text-blue-900 font-bold text-lg mb-1">AI Call Configured</h4>
-                                                                <p className="text-blue-700/80 text-sm leading-relaxed max-w-md">
+                                                                <h4 className="text-blue-900 font-bold text-sm mb-1">AI Call Configured</h4>
+                                                                <p className="text-blue-700/80 text-xs leading-relaxed max-w-md">
                                                                     Your AI Agent will call them to remind about the appointment. Transcript will be here.
                                                                 </p>
                                                             </div>
@@ -266,10 +258,10 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                     <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
                                                                         <div className="flex items-center gap-2 mb-2">
                                                                             <span className="material-symbols-outlined text-slate-500">sms</span>
-                                                                            <h4 className="text-sm font-bold text-slate-700">SMS Content</h4>
+                                                                            <h4 className="text-xs font-bold text-slate-700">SMS Content</h4>
                                                                         </div>
                                                                         <textarea
-                                                                            className="w-full h-32 rounded-lg border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                                            className="w-full h-32 rounded-lg border-slate-200 bg-white p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
                                                                             placeholder="Type your text message here... (e.g. Hi {{lead.name}})"
                                                                             value={step.content}
                                                                             onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
@@ -359,8 +351,8 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                 <span className="material-symbols-outlined text-2xl">timer</span>
                                                             </div>
                                                             <div>
-                                                                <h4 className="text-yellow-900 font-bold text-lg mb-1">Wait Step Configured</h4>
-                                                                <p className="text-yellow-700/80 text-sm leading-relaxed max-w-md">
+                                                                <h4 className="text-yellow-900 font-bold text-sm mb-1">Wait Step Configured</h4>
+                                                                <p className="text-yellow-700/80 text-xs leading-relaxed max-w-md">
                                                                     This step will pause the funnel for the specified duration before proceeding.
                                                                 </p>
                                                             </div>
@@ -373,7 +365,7 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                         <span className="material-symbols-outlined">mail</span>
                                                                     </div>
                                                                     <div>
-                                                                        <h4 className="text-sm font-bold text-violet-900">Email Content</h4>
+                                                                        <h4 className="text-xs font-bold text-violet-900">Email Content</h4>
                                                                         <p className="text-xs text-violet-700/80">Design your automated email message.</p>
                                                                     </div>
                                                                 </div>
@@ -382,7 +374,7 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                     Subject Line
                                                                 </label>
                                                                 <input
-                                                                    className="w-full text-base font-bold text-slate-900 placeholder:text-slate-300 border border-violet-200 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white shadow-sm mb-4"
+                                                                    className="w-full text-xs font-bold text-slate-900 placeholder:text-slate-300 border border-violet-200 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white shadow-sm mb-4"
                                                                     placeholder="e.g. following up on our chat..."
                                                                     value={step.subject}
                                                                     onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}

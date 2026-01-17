@@ -22,6 +22,8 @@ export type EditableStep = {
     subject: string;
     content: string;
     mediaUrl?: string;
+    conditionRule?: string;
+    conditionValue?: string;
 };
 
 export interface FunnelSectionConfig {
@@ -321,7 +323,7 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
         }
     }), []);
 
-    const COMMON_TOKEN_HINTS = ['{{lead.name}}', '{{lead.interestAddress}}', '{{agent.name}}', '{{agent.phone}}', '{{agent.aiCardUrl}}', '{{agent.signature}}'];
+    // const COMMON_TOKEN_HINTS = ['{{lead.name}}', '{{lead.interestAddress}}', '{{agent.name}}', '{{agent.phone}}', '{{agent.aiCardUrl}}', '{{agent.signature}}'];
 
     const mergeTokens = (template: string) => {
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
@@ -330,8 +332,8 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
             }
             const [bucket, key] = path.split('.');
             if (!bucket || !key || !(bucket in sampleMergeData)) return '';
-            // @ts-ignore
-            return sampleMergeData[bucket][key] || '';
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (sampleMergeData as any)[bucket]?.[key] || '';
         });
     };
 
@@ -413,6 +415,10 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
                                         <li className="flex items-start">
                                             <span className="mr-2">💬</span>
                                             <span><strong>Multi-Channel Magic:</strong> Set up automated text sequences that feel personal.</span>
+                                        </li>
+                                        <li className="flex items-start">
+                                            <span className="mr-2">🧠</span>
+                                            <span><strong>Smart Decisions:</strong> Add "Wait" steps for natural timing and "Conditions" to branch your funnel based on how leads engage.</span>
                                         </li>
                                     </ul>
                                 </div>
@@ -541,7 +547,7 @@ const FunnelSectionRenderer: React.FC<{
     onAddStep: () => void;
     onSave: () => void;
     onSendTest: (step: EditableStep) => void;
-    sampleMergeData: any;
+    sampleMergeData: Record<string, Record<string, string>>;
 }> = ({
     config, steps, isOpen, expandedStepIds,
     onTogglePanel, onToggleStep, onUpdateStep, onRemoveStep,
@@ -628,6 +634,28 @@ const FunnelSectionRenderer: React.FC<{
                                             {stepIsOpen && (
                                                 <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
                                                     <div className="pt-4 border-t border-slate-100">
+                                                        {/* Step Label & Description Editor */}
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Step Name</label>
+                                                                <input
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                                                                    value={step.title}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'title', e.target.value)}
+                                                                    placeholder="e.g. Instant AI Welcome"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Description</label>
+                                                                <input
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                                                                    value={step.description}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'description', e.target.value)}
+                                                                    placeholder="Briefly describe this step..."
+                                                                />
+                                                            </div>
+                                                        </div>
+
                                                         {/* Quick Config Row */}
                                                         <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                             <div className="flex-1">
@@ -641,7 +669,8 @@ const FunnelSectionRenderer: React.FC<{
                                                                     <option value="Email">Email</option>
                                                                     <option value="Call">AI Call</option>
                                                                     <option value="Task">Task</option>
-                                                                    <option value="SMS">SMS</option>
+                                                                    <option value="Wait">Wait</option>
+                                                                    <option value="Condition">Condition</option>
                                                                 </select>
                                                             </div>
                                                         </div>
@@ -675,7 +704,7 @@ const FunnelSectionRenderer: React.FC<{
                                                                                 <span>9:41</span>
                                                                             </div>
                                                                             <div className="h-12 border-b border-slate-200 bg-slate-50/80 backdrop-blur flex flex-col items-center justify-center">
-                                                                                <span className="text-[10px] text-slate-500 font-medium">{sampleMergeData.agent.name}</span>
+                                                                                <span className="text-[10px] text-slate-500 font-medium">{sampleMergeData['agent']?.['name']}</span>
                                                                             </div>
                                                                             <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-white">
                                                                                 <div className="flex justify-end">
@@ -686,6 +715,67 @@ const FunnelSectionRenderer: React.FC<{
                                                                             </div>
                                                                         </div>
                                                                     </div>
+                                                                </div>
+                                                            </div>
+                                                        ) : step.type === 'Condition' ? (
+                                                            <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-6">
+                                                                <div className="flex items-start gap-4 mb-4">
+                                                                    <div className="p-3 bg-white rounded-full shadow-sm text-indigo-600">
+                                                                        <span className="material-symbols-outlined text-2xl">call_split</span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <h4 className="text-indigo-900 font-bold text-sm mb-1">Decision Diamond</h4>
+                                                                        <p className="text-indigo-700/80 text-xs leading-relaxed max-w-md">
+                                                                            Branch the funnel based on lead behavior. If the condition is met (True), we proceed to the next step. If not (False), we skip one step.
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                    <div>
+                                                                        <label className="block text-xs font-semibold text-indigo-800 mb-1">Condition Rule</label>
+                                                                        <select
+                                                                            className="w-full bg-white border-indigo-200 rounded-lg p-2.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                            value={step.conditionRule || 'email_opened'}
+                                                                            onChange={(e) => onUpdateStep(step.id, 'conditionRule', e.target.value)}
+                                                                        >
+                                                                            <option value="email_opened">Has Opened Email</option>
+                                                                            <option value="link_clicked">Has Clicked Link</option>
+                                                                            <option value="replied">Has Replied</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-xs font-semibold text-indigo-800 mb-1">Threshold Value</label>
+                                                                        <div className="relative">
+                                                                            <input
+                                                                                type="number"
+                                                                                className="w-full bg-white border-indigo-200 rounded-lg p-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                                placeholder="1"
+                                                                                value={step.conditionValue || '1'}
+                                                                                onChange={(e) => onUpdateStep(step.id, 'conditionValue', e.target.value)}
+                                                                            />
+                                                                            <div className="absolute right-3 top-2.5 text-xs text-slate-400 font-medium">times</div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="mt-4 p-3 bg-white/50 rounded-lg border border-indigo-100 flex items-center gap-3">
+                                                                    <span className="material-symbols-outlined text-indigo-400">info</span>
+                                                                    <p className="text-xs text-indigo-700/70 font-medium">
+                                                                        <strong>Logic:</strong> If <code>{step.conditionRule || 'Opened'}</code> &ge; <code>{step.conditionValue || '1'}</code> &rarr; Go to Next Step. Else &rarr; Skip Next Step.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ) : step.type === 'Wait' ? (
+                                                            <div className="rounded-xl bg-yellow-50 border border-yellow-100 p-6 flex items-start gap-4">
+                                                                <div className="p-3 bg-white rounded-full shadow-sm text-yellow-600">
+                                                                    <span className="material-symbols-outlined text-2xl">timer</span>
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className="text-yellow-900 font-bold text-sm mb-1">Wait Step Configured</h4>
+                                                                    <p className="text-yellow-700/80 text-xs leading-relaxed max-w-md">
+                                                                        This step will pause the funnel for the specified duration before proceeding.
+                                                                    </p>
                                                                 </div>
                                                             </div>
                                                         ) : (

@@ -145,12 +145,12 @@ const AdminFunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [expandedProgramStepIds, setExpandedProgramStepIds] = useState<string[]>([]);
     const [panelExpanded, setPanelExpanded] = useState(initPanelState);
     const [importStatus, setImportStatus] = useState<string | null>(null);
-    const [isImportingCsv, setIsImportingCsv] = useState(false);
+    // const [isImportingCsv, setIsImportingCsv] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const [, setIsLoading] = useState(true);
     const [, setIsSaving] = useState(false);
-    const [, setError] = useState<string | null>(null);
+    // const [, setError] = useState<string | null>(null);
     // const [scoringSummary, setScoringSummary] = useState({
     //     totalLeads: 0,
     //     conversionRate: 0,
@@ -180,7 +180,7 @@ const AdminFunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
             const [bucket, key] = path.split('.');
             if (!bucket || !key) return '';
-            return (sampleMergeData as Record<string, any>)[bucket]?.[key] ?? '';
+            return (sampleMergeData as Record<string, Record<string, string>>)[bucket]?.[key] ?? '';
         });
     };
 
@@ -234,6 +234,7 @@ const AdminFunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 }
 
                 const data = await response.json();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const steps = (data.sequence?.steps || data.steps || []).map((s: any, i: number) => ({
                     id: s.id || `${UNIVERSAL_FUNNEL_ID}-${i}`,
                     title: s.subject || `Touch ${i + 1}`,

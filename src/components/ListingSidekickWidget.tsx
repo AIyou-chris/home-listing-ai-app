@@ -66,7 +66,7 @@ const ListingSidekickWidget: React.FC<ListingSidekickWidgetProps> = ({ property 
   const [showKnowledgeEditor, setShowKnowledgeEditor] = useState(false)
   const [knowledgeStatus, setKnowledgeStatus] = useState<string | null>(null)
   const [knowledgeError, setKnowledgeError] = useState<string | null>(null)
-  const [knowledgeLoading, setKnowledgeLoading] = useState({
+  const [, setKnowledgeLoading] = useState({
     text: false,
     file: false,
     url: false

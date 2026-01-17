@@ -18,13 +18,7 @@ export const ConnectOnboarding: React.FC<ConnectOnboardingProps> = ({ userId, em
     // For simplicity, let's assume we don't have it yet, or we fetch status if we do.
     const [accountId, setAccountId] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (accountId) {
-            checkStatus();
-        }
-    }, [accountId]);
-
-    const checkStatus = async () => {
+    const checkStatus = React.useCallback(async () => {
         if (!accountId) return;
         try {
             const statusData = await connectService.getAccountStatus(accountId);
@@ -32,7 +26,13 @@ export const ConnectOnboarding: React.FC<ConnectOnboardingProps> = ({ userId, em
         } catch (err) {
             console.error('Failed to get status', err);
         }
-    };
+    }, [accountId]);
+
+    useEffect(() => {
+        if (accountId) {
+            checkStatus();
+        }
+    }, [accountId, checkStatus]);
 
     const handleOnboard = async () => {
         setLoading(true);

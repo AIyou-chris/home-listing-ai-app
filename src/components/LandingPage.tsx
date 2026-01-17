@@ -1028,7 +1028,7 @@ interface LandingPageProps {
     onNavigateToShowcase?: () => void;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal: _onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
     const [isChatOpen, setIsChatOpen] = React.useState(false);
     const [isAIContactOpen, setIsAIContactOpen] = React.useState(false);
 

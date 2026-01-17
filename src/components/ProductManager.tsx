@@ -15,11 +15,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ accountId }) => 
     const [description, setDescription] = useState('');
     const [price, setPrice] = useState(''); // input string, convert to cents later
 
-    useEffect(() => {
-        loadProducts();
-    }, [accountId]);
-
-    const loadProducts = async () => {
+    const loadProducts = React.useCallback(async () => {
         setLoading(true);
         try {
             const list = await connectService.listProducts(accountId);
@@ -29,7 +25,11 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ accountId }) => 
         } finally {
             setLoading(false);
         }
-    };
+    }, [accountId]);
+
+    useEffect(() => {
+        loadProducts();
+    }, [loadProducts]);
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Property } from '../types';
 import PageTipBanner from './PageTipBanner';
+import { PublicSidekickModal } from './PublicSidekickModal';
 
 interface PropertyCardProps {
     property: Property;
@@ -14,7 +15,7 @@ interface PropertyCardProps {
 interface ContactFormModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: any) => void;
+    onSubmit: (data: Record<string, string>) => void;
     propertyName: string;
 }
 
@@ -75,18 +76,12 @@ const MarketingModal: React.FC<MarketingModalProps> = ({ isOpen, onClose, proper
     const [isLoading, setIsLoading] = useState(false);
     const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
-    React.useEffect(() => {
-        if (isOpen && !shortUrl) {
-            generateShortLink();
-        }
-    }, [isOpen]);
-
-    const generateShortLink = async () => {
+    const generateShortLink = React.useCallback(async () => {
         setIsLoading(true);
         const baseUrl = window.location.origin;
         const longUrl = `${baseUrl}/listings/${property.id}`;
         try {
-            // 1. Get Short Link
+            // 1. Get short Link
             const res = await fetch(`${baseUrl}/api/shorten`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -107,7 +102,15 @@ const MarketingModal: React.FC<MarketingModalProps> = ({ isOpen, onClose, proper
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [property.id]);
+
+    React.useEffect(() => {
+        if (isOpen && !shortUrl) {
+            generateShortLink();
+        }
+    }, [isOpen, shortUrl, generateShortLink]);
+
+
 
     const handleCopyLink = () => {
         if (shortUrl) {
@@ -206,7 +209,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
     property,
     onSelect,
     onDelete,
-    onOpenMarketing,
+    onOpenMarketing: _onOpenMarketing,
     onOpenBuilder: _onOpenBuilder, // Unused
     onEdit
 }) => {
@@ -218,6 +221,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
     };
     const [showContactForm, setShowContactForm] = useState(false);
     const [showMarketing, setShowMarketing] = useState(false);
+    const [showChat, setShowChat] = useState(false);
 
     // Fallback image if property.imageUrl is missing or broken
     const displayImage = property.imageUrl || property.heroPhotos?.[0] || 'https://images.unsplash.com/photo-1600596542815-27b88e31e976?q=80&w=2000&auto-format&fit=crop';
@@ -288,6 +292,14 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
                 onGoToMarketing={() => onSelect()}
             />
 
+            {showChat && (
+                <PublicSidekickModal
+                    property={property}
+                    onClose={() => setShowChat(false)}
+                    initialMode="chat"
+                />
+            )}
+
             {/* Status Badge & Edit Button */}
             <div className="absolute top-6 right-6 flex gap-2">
                 <button
@@ -311,8 +323,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
-                        // always opens sidekick regardless of bottom contact mode
-                        if (onOpenMarketing) onOpenMarketing();
+                        setShowChat(true);
                     }}
                     className="relative group/btn mb-8 px-8 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.5)] border border-white/20 flex items-center gap-3 transition-all active:scale-95 hover:shadow-[0_0_30px_rgba(139,92,246,0.6)]"
                 >
@@ -458,29 +469,41 @@ const ListingsPage: React.FC<ListingsPageProps> = ({
                 <PageTipBanner
                     pageKey="ai-listings"
                     expandedContent={
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                             <div>
-                                <h4 className="font-semibold text-slate-900 mb-2">🏡 Master Your AI Listings:</h4>
-                                <ul className="space-y-2 text-slate-700">
-                                    <li className="flex items-start">
-                                        <span className="mr-2">➕</span>
-                                        <span><strong>Add Property:</strong> Click "Add Listing" to input property details. The system instantly spins up a dedicated AI agent for that specific home.</span>
+                                <h4 className="text-lg font-bold text-slate-900 mb-3">🏡 Master Your AI Listings: The Ultimate Guide</h4>
+                                <ul className="space-y-4 text-slate-700">
+                                    <li className="flex items-start gap-3">
+                                        <span className="text-xl">🛡️</span>
+                                        <div>
+                                            <strong className="block text-slate-900">Zero Lead Leakage</strong>
+                                            <span>Every listing gets a dedicated AI agent that knows every detail (from HOA fees to floor types) and answers buyers instantly, 24/7. Never miss another inquiry.</span>
+                                        </div>
                                     </li>
-                                    <li className="flex items-start">
-                                        <span className="mr-2">🤖</span>
-                                        <span><strong>Its Own Listing Agent:</strong> Every property gets its own expert AI that knows every detail (from HOA fees to floor type), ready to answer buyer questions 24/7.</span>
+                                    <li className="flex items-start gap-3">
+                                        <span className="text-xl">💬</span>
+                                        <div>
+                                            <strong className="block text-slate-900">Test It Yourself</strong>
+                                            <span>Click the <span className="font-bold text-indigo-600">"Talk to the Home"</span> button on any card to see your AI in action. Ask it tough questions—it's ready to impress!</span>
+                                        </div>
                                     </li>
-                                    <li className="flex items-start">
-                                        <span className="mr-2">🚀</span>
-                                        <span><strong>Instant Marketing:</strong> Use the "Marketing" tools to generate descriptions, emails, and social posts in seconds using the property's unique data.</span>
+                                    <li className="flex items-start gap-3">
+                                        <span className="text-xl">🚀</span>
+                                        <div>
+                                            <strong className="block text-slate-900">Instant Marketing</strong>
+                                            <span>Click the <span className="inline-flex items-center justify-center w-5 h-5 bg-slate-100 rounded text-slate-600"><span className="material-symbols-outlined text-[14px]">qr_code_2</span></span> icon to generate a smart link and QR code. Share this on social media, flyers, and yard signs to drive potential buyers directly to your AI agent.</span>
+                                        </div>
                                     </li>
                                 </ul>
                             </div>
-                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-100">
-                                <h4 className="font-semibold text-indigo-900 mb-2">💡 Why This Matters:</h4>
-                                <p className="text-indigo-800">
-                                    Buyers expect instant answers. By giving each listing its own "Agent", you ensure zero lead leakage and provide a premium, 24/7 concierge experience that sellers love—without you lifting a finger.
-                                </p>
+                            <div className="bg-gradient-to-br from-indigo-50 to-violet-50 p-5 rounded-xl border border-indigo-100 flex items-start gap-3">
+                                <span className="text-2xl">💡</span>
+                                <div>
+                                    <h4 className="font-bold text-indigo-900 mb-1">Work Smarter, Not Harder</h4>
+                                    <p className="text-indigo-800 text-sm leading-relaxed">
+                                        Buyers expect instant answers. By empowering each listing with its own "Agent", you provide a premium concierge experience that sellers love, while freeing yourself up to focus on closing deals.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     }

@@ -235,7 +235,6 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 <PublicPropertyApp
                     property={generatePreviewProperty()}
                     onExit={() => setIsPreviewing(false)}
-                    onTalkToHome={() => { }}
                 />
             )}
             <div className="bg-slate-50 min-h-screen pb-24">
@@ -259,7 +258,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                                 disabled={isSaving}
                                 className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-semibold text-sm hover:bg-slate-800 transition shadow-md disabled:bg-slate-400"
                             >
-                                {isSaving ? 'Saving...' : 'Publish Listing'}
+                                {isSaving ? 'Saving...' : 'Save'}
                             </button>
                         </div>
                     </div>
@@ -287,7 +286,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                                             </li>
                                             <li className="flex items-start">
                                                 <span className="mr-2">🤖</span>
-                                                <span><strong>Instant Sidekick:</strong> As soon as you hit publish, a dedicated AI agent is created specifically for this property.</span>
+                                                <span><strong>Instant Sidekick:</strong> As soon as you save, a dedicated AI agent is created specifically for this property.</span>
                                             </li>
                                         </ul>
                                     </div>

@@ -12,37 +12,37 @@ export const StorefrontPage: React.FC = () => {
     const [accountId, setAccountId] = useState<string | null>(null);
 
     useEffect(() => {
+        const loadStore = async () => {
+            try {
+                // 1. Resolve Agent Slug to Account ID
+                // In a real app, the Agent public record should have the 'stripe_account_id' exposed.
+                // We might need to update 'agentOnboardingService.getAgentBySlug' to return this field if public.
+                // For this demo, let's assume getAgentBySlug returns it or we fetch it from a specific endpoint.
+                const agent = await agentOnboardingService.getAgentBySlug(slug!);
+
+                if (agent) {
+                    setAgentName(`${agent.first_name} ${agent.last_name}`);
+                    // Use the updated interface
+                    const accId = (agent as unknown as AgentProfile).stripe_account_id;
+
+                    if (accId) {
+                        setAccountId(accId);
+                        // 2. Load Products
+                        const list = await connectService.listProducts(accId);
+                        setProducts(list);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load store', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
         if (slug) {
             loadStore();
         }
     }, [slug]);
-
-    const loadStore = async () => {
-        try {
-            // 1. Resolve Agent Slug to Account ID
-            // In a real app, the Agent public record should have the 'stripe_account_id' exposed.
-            // We might need to update 'agentOnboardingService.getAgentBySlug' to return this field if public.
-            // For this demo, let's assume getAgentBySlug returns it or we fetch it from a specific endpoint.
-            const agent = await agentOnboardingService.getAgentBySlug(slug!);
-
-            if (agent) {
-                setAgentName(`${agent.first_name} ${agent.last_name}`);
-                // Use the updated interface
-                const accId = (agent as unknown as AgentProfile).stripe_account_id;
-
-                if (accId) {
-                    setAccountId(accId);
-                    // 2. Load Products
-                    const list = await connectService.listProducts(accId);
-                    setProducts(list);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to load store', err);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleBuy = async (priceId: string) => {
         if (!accountId) return;

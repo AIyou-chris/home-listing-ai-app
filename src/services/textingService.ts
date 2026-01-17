@@ -1,9 +1,6 @@
 
-const API_URL = 'https://api.telnyx.com/v2/messages';
 
-interface SendSmsOptions {
-    from?: string; // Optional override
-}
+
 
 class TextingService {
     private static instance: TextingService;
@@ -22,7 +19,7 @@ class TextingService {
     /**
      * Sends an SMS message using Telnyx API (via native fetch).
      */
-    async sendSms(to: string, message: string, options: SendSmsOptions = {}): Promise<boolean> {
+    async sendSms(to: string, message: string): Promise<boolean> {
         // No client-side API key check needed (handled by backend)
 
         // Normalize destination (US-centric default)

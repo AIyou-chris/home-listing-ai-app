@@ -249,3 +249,31 @@ export const generateBlogPost = async (options: {
     topic: options.topic
   } as AIBlogPost;
 };
+
+export const continueAgentConversation = async (
+  messages: Array<{ sender: string; text: string }>,
+  agentProfile: Record<string, unknown>
+): Promise<string> => {
+  try {
+    const response = await fetch(buildApiUrl('/api/ai/agent-chat'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages,
+        agentProfile
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.response || data.text || 'No response received';
+  } catch (error) {
+    console.error('Error continuing agent conversation:', error);
+    return "I'm having trouble connecting right now. Please try again later.";
+  }
+};

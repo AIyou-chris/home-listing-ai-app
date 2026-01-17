@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import Head from 'react-helmet';
-import { HelpSalesChatBot, ChatBotContext, ChatBotMode, createHelpSalesChatBot } from '../services/helpSalesChatBot';
+// import Head from 'react-helmet';
+import { ChatBotContext, ChatBotMode, createHelpSalesChatBot } from '../services/helpSalesChatBot';
 import { ChatMessage } from '../types';
 
 interface AIContactOverlayProps {
     isOpen: boolean;
     onClose: () => void;
     context?: ChatBotContext;
-    onLeadGenerated?: (lead: any) => void;
+    onLeadGenerated?: (lead: unknown) => void;
 }
 
 export const AIContactOverlay: React.FC<AIContactOverlayProps> = ({
@@ -18,7 +18,7 @@ export const AIContactOverlay: React.FC<AIContactOverlayProps> = ({
         currentPage: 'landing',
         previousInteractions: 0
     },
-    onLeadGenerated
+    onLeadGenerated: _onLeadGenerated
 }) => {
     const [chatBot] = useState(() => createHelpSalesChatBot(context));
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -37,10 +37,10 @@ export const AIContactOverlay: React.FC<AIContactOverlayProps> = ({
         }
     }, [isOpen, hasStarted]);
 
-    const handleAIResponse = async (text: string, mode: ChatBotMode) => {
+    const handleAIResponse = async (text: string, _mode: ChatBotMode) => {
         setIsTyping(true);
         // Simulate typing delay based on length
-        const delay = Math.min(1000 + text.length * 20, 3000);
+        // const _delay = Math.min(1000 + text.length * 20, 3000);
 
         // In a real implementation, we'd add the message after delay
         // For now, we'll just add it immediately for responsiveness in this demo
@@ -146,8 +146,8 @@ export const AIContactOverlay: React.FC<AIContactOverlayProps> = ({
                         >
                             <div
                                 className={`max-w-[80%] p-4 rounded-2xl backdrop-blur-sm text-sm leading-relaxed shadow-sm ${msg.sender === 'user'
-                                        ? 'bg-blue-600/90 text-white rounded-br-none'
-                                        : 'bg-white/10 text-white border border-white/10 rounded-bl-none'
+                                    ? 'bg-blue-600/90 text-white rounded-br-none'
+                                    : 'bg-white/10 text-white border border-white/10 rounded-bl-none'
                                     }`}
                             >
                                 {msg.text}

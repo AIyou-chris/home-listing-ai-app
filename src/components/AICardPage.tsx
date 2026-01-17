@@ -6,7 +6,8 @@ import { getAICardProfile, updateAICardProfile, generateQRCode, downloadAICard, 
 import { supabase } from '../services/supabase';
 import { setPreferredLanguage } from '../services/languagePreferenceService';
 import { notifyProfileChange } from '../services/agentProfileService';
-import ChatBotFAB from './ChatBotFAB';
+// import ChatBotFAB from './ChatBotFAB';
+import { AgentSidekickModal } from './AgentSidekickModal';
 import { DEMO_AI_CARD_PROFILE } from '../constants';
 import { BLUEPRINT_AGENT } from '../constants/agentBlueprintData';
 
@@ -1244,27 +1245,14 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
       }
 
       {/* Chat Bot Integration */}
-      <ChatBotFAB
-        isOpen={isChatOpen}
-        onToggle={() => setIsChatOpen(prev => !prev)}
-        initialMode="agent"
-        context={{
-          userType: 'prospect',
-          userInfo: {
-            name: 'Visitor'
-          },
-          currentPage: 'AI Card Preview',
-          agentProfile: {
-            name: form.fullName,
-            title: form.professionalTitle,
-            company: form.company,
-            bio: form.bio,
-            tone: 'Professional and helpful'
-          }
-        }}
-        showWelcomeMessage={false}
-      />
-    </div >
+      {isChatOpen && (
+        <AgentSidekickModal
+          agentProfile={form}
+          onClose={() => setIsChatOpen(false)}
+          initialMode="chat"
+        />
+      )}
+    </div>
   );
 };
 

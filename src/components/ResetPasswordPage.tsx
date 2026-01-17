@@ -17,7 +17,7 @@ const ResetPasswordPage: React.FC = () => {
     const [debugSessionStatus, setDebugSessionStatus] = useState<string>('Initializing...');
 
     // Helper to get tokens from URL
-    const getTokensFromUrl = () => {
+    const getTokensFromUrl = React.useCallback(() => {
         const hashParams = new URLSearchParams(location.hash.substring(1));
         return {
             accessToken: hashParams.get('access_token'),
@@ -25,7 +25,7 @@ const ResetPasswordPage: React.FC = () => {
             errorCode: hashParams.get('error_code'),
             errorDescription: hashParams.get('error_description')
         };
-    };
+    }, [location.hash]);
 
     // Initial Setup
     useEffect(() => {
@@ -77,7 +77,7 @@ const ResetPasswordPage: React.FC = () => {
             }
         };
         init();
-    }, [location]);
+    }, [getTokensFromUrl]);
 
     const formatErrorMessage = (code: string | null, desc: string | null): string => {
         if (code === 'otp_expired') return 'This link has expired. Please request a new one.';
@@ -126,11 +126,11 @@ const ResetPasswordPage: React.FC = () => {
             console.log('🔄 Calling updateUser...');
             const updatePromise = supabase.auth.updateUser({ password });
 
-            const timeoutPromise = new Promise<{ error: any; data?: any }>((_, reject) =>
+            const timeoutPromise = new Promise<{ error: unknown; data?: unknown }>((_, reject) =>
                 setTimeout(() => reject(new Error('Update timed out. The server did not respond in time.')), 10000)
             );
 
-            const result = await Promise.race([updatePromise, timeoutPromise]) as any;
+            const result = await Promise.race([updatePromise, timeoutPromise]) as { error: unknown; data?: unknown };
 
             if (result.error) {
                 console.error('❌ Update failed:', result.error);

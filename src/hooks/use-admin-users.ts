@@ -130,7 +130,7 @@ export const useAdminUsers = (): UseAdminUsersResult => {
 
     try {
       const response = await AuthService.getInstance().makeAuthenticatedRequest(
-        'http://localhost:5001/home-listing-ai/us-central1/api/admin/users'
+        '/api/admin/users'
       )
 
       if (!response.ok) {
@@ -161,7 +161,7 @@ export const useAdminUsers = (): UseAdminUsersResult => {
     }
 
     didInitialFetch.current = true
-    refreshUsers().catch(() => {})
+    refreshUsers().catch(() => { })
   }, [refreshUsers])
 
   const addUser = useCallback(

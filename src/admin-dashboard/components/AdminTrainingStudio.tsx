@@ -12,7 +12,9 @@ interface AdminTrainingStudioProps {
 // Extend Window interface for Web Speech API
 declare global {
     interface Window {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         webkitSpeechRecognition: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         SpeechRecognition: any;
     }
 }
@@ -29,6 +31,7 @@ const AdminTrainingStudio: React.FC<AdminTrainingStudioProps> = ({ demoMode = fa
 
     // Voice Input State
     const [isListening, setIsListening] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognitionRef = useRef<any>(null);
 
     // Feedback State
@@ -85,10 +88,12 @@ const AdminTrainingStudio: React.FC<AdminTrainingStudioProps> = ({ demoMode = fa
 
         recognition.onstart = () => setIsListening(true);
         recognition.onend = () => setIsListening(false);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         recognition.onerror = (event: any) => {
             console.error('Speech recognition error', event.error);
             setIsListening(false);
         };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
             setInputMessage(prev => (prev ? `${prev} ${transcript}` : transcript));

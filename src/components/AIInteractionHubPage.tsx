@@ -57,6 +57,8 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
 }) => {
     const [searchParams, setSearchParams] = useSearchParams();
     // State
+    // State
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [conversations, setConversations] = useState<any[]>([]);
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
     const [selectedItemType, setSelectedItemType] = useState<HubItemType>('inquiry');
@@ -65,6 +67,7 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
     const [filterType, setFilterType] = useState<'all' | 'inquiry' | 'conversation'>('all');
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
     const [leadInitialData, setLeadInitialData] = useState<{ name: string; message: string } | undefined>(undefined);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [messages, setMessages] = useState<any[]>([]);
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
@@ -136,6 +139,14 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
         });
     }, [interactions, conversations, searchQuery, filterType]);
 
+    const handleSelectItem = useCallback((id: string, type: HubItemType) => {
+        setSelectedItemId(id);
+        setSelectedItemType(type);
+        if (type === 'inquiry') {
+            setInteractions(prev => prev.map(i => i.id === id ? { ...i, isRead: true } : i));
+        }
+    }, [setInteractions]);
+
     // Auto-select first item or handle deep link
     useEffect(() => {
         if (!loading && hubItems.length > 0) {
@@ -163,7 +174,7 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
                 setSelectedItemType(hubItems[0].type);
             }
         }
-    }, [hubItems, selectedItemId, loading, searchParams]);
+    }, [hubItems, selectedItemId, loading, searchParams, handleSelectItem]);
 
     // Load Messages for Conversations
     useEffect(() => {
@@ -186,13 +197,7 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
         }
     }, [selectedItemId, selectedItemType, isDemoMode]);
 
-    const handleSelectItem = useCallback((id: string, type: HubItemType) => {
-        setSelectedItemId(id);
-        setSelectedItemType(type);
-        if (type === 'inquiry') {
-            setInteractions(prev => prev.map(i => i.id === id ? { ...i, isRead: true } : i));
-        }
-    }, [setInteractions]);
+
 
     const handleCreateLead = () => {
         const item = hubItems.find(i => i.id === selectedItemId);
@@ -242,9 +247,10 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
 
             setNewMessage('');
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Send failed:", error);
-            alert(`Failed to send: ${error.message || 'Unknown error'}`);
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            alert(`Failed to send: ${msg}`);
         }
     };
 
@@ -253,7 +259,7 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
         ? properties.find(p => p.id === selectedItem.relatedPropertyId)
         : undefined;
 
-    const sourceIcons: Record<string, any> = {
+    const sourceIcons: Record<string, React.ElementType> = {
         'listing-inquiry': Home,
         'marketing-reply': Megaphone,
         'chat-bot-session': Sparkles,

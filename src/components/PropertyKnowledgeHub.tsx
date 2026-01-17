@@ -124,7 +124,7 @@ export const PropertyKnowledgeHub: React.FC<PropertyKnowledgeHubProps> = ({ prop
         }
     };
 
-    const updateAiConfig = (key: string, value: any) => {
+    const updateAiConfig = (key: string, value: string) => {
         if (!property || !setProperty || isDemoMode) return;
         setProperty({
             ...property,

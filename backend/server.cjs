@@ -6442,6 +6442,66 @@ INSTRUCTIONS:
   }
 });
 
+// AI Agent Chat Endpoint (for Business Card)
+app.post('/api/ai/agent-chat', async (req, res) => {
+  const { agentProfile, messages } = req.body;
+
+  if (!agentProfile || !messages) {
+    return res.status(400).json({ success: false, error: 'Agent profile and messages are required' });
+  }
+
+  try {
+    // 1. Build System Prompt
+    const systemPrompt = `You are the AI Assistant for ${agentProfile.fullName}, a real estate professional.
+    
+AGENT DETAILS:
+Name: ${agentProfile.fullName}
+Title: ${agentProfile.professionalTitle}
+Company: ${agentProfile.company}
+Bio: ${agentProfile.bio || 'Not provided'}
+Phone: ${agentProfile.phone}
+Email: ${agentProfile.email}
+Website: ${agentProfile.website}
+
+    GOAL:
+    Your goal is to engage visitors, answer their questions about ${agentProfile.fullName}, and encourage them to connect directly.
+
+    INSTRUCTIONS:
+    - Tone: Professional, warm, enthusiastic, and approachable. Speak as if you are a helpful member of ${agentProfile.fullName}'s team.
+    - Core Capabilities: Answer questions about the agent's background, services, coverage area, and how to get in touch.
+    - Listings: If asked about specific listings, explain that you can help with general inquiries but for specific property details, they should visit the website or contact ${agentProfile.fullName} directly.
+    - Scheduling: If a user wants to book a meeting or showing, provide the agent's phone number (${agentProfile.phone}) and email (${agentProfile.email}) and encourage them to reach out immediately.
+    - "What can you do?": If asked what you can do, say: "I can tell you more about ${agentProfile.fullName}'s experience, discuss their real estate services, or help you get in touch with them."
+    - Be Concise: Keep responses brief (2-3 sentences max usually) to keep the chat flowing.
+    `;
+
+    // 2. Call OpenAI
+    // Filter out any system messages from the client history to avoid conflicts, then prepend our authoritative system prompt
+    const cleanHistory = messages.filter(m => m.sender !== 'system').map(m => ({
+      role: m.sender === 'user' ? 'user' : 'assistant',
+      content: m.text
+    }));
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...cleanHistory
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    });
+
+    const answer = completion.choices[0].message.content;
+
+    res.json({ success: true, text: answer, response: answer });
+
+  } catch (error) {
+    console.error('[AI Agent Chat] Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to generate answer' });
+  }
+});
+
 // AI Listing Generation Endpoint
 app.post('/api/ai/generate-listing', async (req, res) => {
   try {

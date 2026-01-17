@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Appointment } from '../types';
 
 interface CalendarViewProps {
@@ -9,16 +9,7 @@ interface CalendarViewProps {
 const CalendarView: React.FC<CalendarViewProps> = ({ appointments }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
 
-    const appointmentDates = useMemo(() => {
-        const dateSet = new Set<string>();
-        appointments.forEach(appt => {
-            const date = new Date(appt.date);
-            if (!isNaN(date.getTime())) {
-                dateSet.add(date.toISOString().split('T')[0]); // Store as YYYY-MM-DD
-            }
-        });
-        return dateSet;
-    }, [appointments]);
+
 
     const changeMonth = (amount: number) => {
         setCurrentDate(prevDate => {

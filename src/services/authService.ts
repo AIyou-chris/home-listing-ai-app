@@ -509,9 +509,15 @@ export class AuthService {
                     const raw = localStorage.getItem(sbKey);
                     if (raw) {
                         const parsed = JSON.parse(raw);
-                        token = parsed.access_token;
-                        userId = parsed.user?.id;
-                        console.log('[AuthDebug] ⚡️ Optimistic Token Found in LocalStorage');
+                        // Check expiration (expires_at is in seconds)
+                        const now = Math.floor(Date.now() / 1000);
+                        if (parsed.expires_at && parsed.expires_at > now + 30) {
+                            token = parsed.access_token;
+                            userId = parsed.user?.id;
+                            console.log('[AuthDebug] ⚡️ Optimistic Token Found in LocalStorage (Valid)');
+                        } else {
+                            console.warn('[AuthDebug] ⚠️ Optimistic Token Found but EXPIRED. Ignoring.');
+                        }
                     }
                 }
             } catch (e) {
@@ -520,8 +526,8 @@ export class AuthService {
 
             if (!token) {
                 try {
-                    // Increased timeout to 30s (was 10s) for slow devices/network
-                    const { data } = await withTimeout(supabase.auth.getSession(), 30000, 'Obtain Session');
+                    // Reduced timeout to 5s for better UX
+                    const { data } = await withTimeout(supabase.auth.getSession(), 5000, 'Obtain Session');
                     token = data.session?.access_token;
                     userId = data.session?.user?.id;
                 } catch (err) {
@@ -536,7 +542,7 @@ export class AuthService {
             // Fallback: getUser (verifies with server) ONLY if we still don't have a token/user
             if (!token && !userId) {
                 try {
-                    const { data: userData } = await withTimeout(supabase.auth.getUser(), 30000, 'Obtain User (Fallback)');
+                    const { data: userData } = await withTimeout(supabase.auth.getUser(), 5000, 'Obtain User (Fallback)');
                     userId = userData.user?.id;
 
                     // If we have a user but no session token, we might have trouble with Bearer auth, 
