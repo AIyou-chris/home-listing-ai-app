@@ -375,72 +375,101 @@ app.post('/api/vapi/webhook', async (req, res) => {
       }
 
       // B. TRANSCRIPT STORAGE LOGIC
+      // We process legal transcripts even if leadId is missing (Generic Call)
       if (agentId && (transcript || summary)) {
-        console.log(`📝 [Vapi] Saving transcript for Agent ${agentId}, Lead ${leadId || 'Active Call'}`);
+        console.log(`📝 [Vapi] Processing transcript for Agent ${agentId} (Lead: ${leadId || 'Unknown/Generic'})`);
 
         try {
           let conversationId = null;
 
-          // 1. Find or Create Conversation
+          // 1. Find Existing Conversation (Only if Lead ID exists)
           if (leadId) {
-            // Check for existing conversation with this lead
             const { data: existingConv } = await supabaseAdmin
               .from('ai_conversations')
               .select('id')
               .eq('user_id', agentId)
               .eq('lead_id', leadId)
+              .eq('status', 'active') // Optional: restart if archived? For now, append to active.
+              .order('last_message_at', { ascending: false })
+              .limit(1)
               .maybeSingle();
 
             if (existingConv) {
               conversationId = existingConv.id;
-            } else {
-              // Create new conversation
-              const { data: lead } = await supabaseAdmin.from('leads').select('*').eq('id', leadId).single();
-
-              const title = lead ? `Call with ${lead.name}` : 'Voice Call';
-              const phone = lead ? lead.phone : null;
-
-              const { data: newConv, error: createError } = await supabaseAdmin
-                .from('ai_conversations')
-                .insert({
-                  user_id: agentId,
-                  lead_id: leadId,
-                  title: title,
-                  contact_phone: phone,
-                  status: 'active',
-                  type: 'voice',
-                  last_message_at: new Date().toISOString()
-                })
-                .select('id')
-                .single();
-
-              if (!createError && newConv) conversationId = newConv.id;
             }
           }
 
-          // 2. Insert Message
-          if (conversationId) {
-            const content = `📞 **Voice Call Ended** (${durationSeconds}s)\n\n**Summary:** ${summary || "No summary available."}\n\n**Transcript:**\n${transcript || "[No transcript available]"}`;
+          // 2. Create New Conversation if needed
+          if (!conversationId) {
+            let title = 'Voice Call';
+            let phone = null;
 
-            await supabaseAdmin.from('ai_conversation_messages').insert({
+            if (leadId) {
+              const { data: lead } = await supabaseAdmin.from('leads').select('*').eq('id', leadId).single();
+              if (lead) {
+                title = `Call with ${lead.name}`;
+                phone = lead.phone;
+              }
+            } else {
+              title = `Voice Call - ${new Date().toLocaleString()}`;
+            }
+
+            const { data: newConv, error: createError } = await supabaseAdmin
+              .from('ai_conversations')
+              .insert({
+                user_id: agentId,
+                lead_id: leadId || null, // Explicit null if undefined
+                title: title,
+                contact_phone: phone,
+                status: 'active',
+                type: 'voice',
+                last_message_at: new Date().toISOString()
+              })
+              .select('id')
+              .single();
+
+            if (createError) {
+              console.error('Failed to create conversation:', createError);
+            } else if (newConv) {
+              conversationId = newConv.id;
+            }
+          }
+
+          // 3. Insert Message/Transcript
+          if (conversationId) {
+            const content = `📞 **Voice Call Ended** (${durationSeconds}s)\n\n**Summary:** ${summary || "No summary."}\n\n**Transcript:**\n${transcript || "[No transcript]"}`;
+
+            const { error: msgError } = await supabaseAdmin.from('ai_conversation_messages').insert({
               conversation_id: conversationId,
               user_id: agentId,
-              sender: 'ai', // AI context
+              sender: 'ai',
               channel: 'voice',
               content: content,
               metadata: {
                 recordingUrl: recordingUrl,
-                vapiCallId: message.call?.id
+                vapiCallId: message.call?.id,
+                durationSeconds: durationSeconds,
+                cost: message.cost || 0
               }
             });
-            console.log(`✅ [Vapi] Transcript saved to Conversation ${conversationId}`);
+
+            if (msgError) {
+              console.error('Failed to insert transcript message:', msgError);
+            } else {
+              // Update parent timestamp
+              await supabaseAdmin.from('ai_conversations')
+                .update({ last_message_at: new Date().toISOString() })
+                .eq('id', conversationId);
+
+              console.log(`✅ [Vapi] Transcript saved to Conversation ${conversationId}`);
+            }
 
           } else {
-            console.warn(`⚠️ [Vapi] Could not save transcript: No conversation found/created (LeadId: ${leadId})`);
+            console.warn(`⚠️ [Vapi] Dropped transcript: Could not create conversation for Agent ${agentId}`);
           }
 
         } catch (transcriptError) {
-          console.error(`❌ [Vapi] Failed to save transcript: ${transcriptError.message}`);
+          console.error(`❌ [Vapi] Exception saving transcript: ${transcriptError.message}`);
         }
       }
     }
