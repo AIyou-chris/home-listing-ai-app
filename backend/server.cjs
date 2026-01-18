@@ -383,32 +383,38 @@ app.post('/api/vapi/webhook', async (req, res) => {
           let conversationId = null;
 
           // 1. Find Existing Conversation (Only if Lead ID exists)
+          let existingConv = null;
           if (leadId) {
-            const { data: existingConv } = await supabaseAdmin
+            const { data: foundConv } = await supabaseAdmin
               .from('ai_conversations')
-              .select('id')
+              .select('id, message_count, voice_transcript')
               .eq('user_id', agentId)
               .eq('lead_id', leadId)
-              .eq('status', 'active') // Optional: restart if archived? For now, append to active.
+              .eq('status', 'active')
               .order('last_message_at', { ascending: false })
               .limit(1)
               .maybeSingle();
 
-            if (existingConv) {
-              conversationId = existingConv.id;
+            if (foundConv) {
+              existingConv = foundConv;
+              conversationId = foundConv.id;
             }
           }
 
           // 2. Create New Conversation if needed
           if (!conversationId) {
             let title = 'Voice Call';
-            let phone = null;
+            let contactName = 'Unknown';
+            let contactPhone = null;
+            let contactEmail = null;
 
             if (leadId) {
               const { data: lead } = await supabaseAdmin.from('leads').select('*').eq('id', leadId).single();
               if (lead) {
                 title = `Call with ${lead.name}`;
-                phone = lead.phone;
+                contactName = lead.name;
+                contactPhone = lead.phone;
+                contactEmail = lead.email;
               }
             } else {
               title = `Voice Call - ${new Date().toLocaleString()}`;
@@ -420,9 +426,14 @@ app.post('/api/vapi/webhook', async (req, res) => {
                 user_id: agentId,
                 lead_id: leadId || null, // Explicit null if undefined
                 title: title,
-                contact_phone: phone,
+                contact_name: contactName,
+                contact_phone: contactPhone,
+                contact_email: contactEmail,
                 status: 'active',
                 type: 'voice',
+                voice_transcript: transcript,
+                last_message: summary || "Voice call ended",
+                message_count: 1,
                 last_message_at: new Date().toISOString()
               })
               .select('id')
@@ -456,9 +467,24 @@ app.post('/api/vapi/webhook', async (req, res) => {
             if (msgError) {
               console.error('Failed to insert transcript message:', msgError);
             } else {
-              // Update parent timestamp
+              // Update parent timestamp and metadata
+              const updatePayload = {
+                last_message_at: new Date().toISOString(),
+                last_message: summary || "Voice call ended"
+              };
+
+              // Update transcript if provided (concatenate or replace? Replace usually for full call report)
+              if (transcript) {
+                updatePayload.voice_transcript = transcript;
+              }
+
+              // Increment message count
+              if (existingConv) {
+                updatePayload.message_count = (existingConv.message_count || 0) + 1;
+              }
+
               await supabaseAdmin.from('ai_conversations')
-                .update({ last_message_at: new Date().toISOString() })
+                .update(updatePayload)
                 .eq('id', conversationId);
 
               console.log(`✅ [Vapi] Transcript saved to Conversation ${conversationId}`);
