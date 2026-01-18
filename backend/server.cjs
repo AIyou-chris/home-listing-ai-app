@@ -11423,17 +11423,49 @@ const checkTrialWarnings = async () => {
 
       for (const agent of candidates) {
         const warningHtml = `
-          <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2>Your Free Trial Ends in 3 Days ⏳</h2>
-            <p>Hi ${agent.first_name || 'Verified Agent'},</p>
-            <p>Just a friendly heads-up that your 7-day free trial of HomeListingAI is ending soon.</p>
-            <p>You've had access to our premium AI tools, and we hope you're seeing the value.</p>
-            <p><strong>Don't lose momentum.</strong> Secure your rate now to keep generating listings without interruption.</p>
-            <br>
-            <a href="${process.env.APP_BASE_URL}/billing" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Upgrade to Pro Now</a>
-            <br><br>
-            <p style="font-size: 12px; color: #666;">If you have questions, reply to this email. We're here to help.</p>
-          </div>
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155;">
+            <div style="padding: 24px;">
+              <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center;">
+                  <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" style="width: 48px; height: 48px; background-color: white; border-radius: 8px; padding: 4px; margin-bottom: 16px; object-fit: contain;">
+                  <h1 style="color: white; font-size: 24px; font-weight: bold; margin: 0;">Trial Expires in 3 Days</h1>
+                </div>
+                
+                <div style="padding: 32px 24px;">
+                  <p style="font-size: 16px; line-height: 1.6; color: #334155;">Hi ${agent.first_name || 'Verified Agent'},</p>
+                  <p style="font-size: 16px; line-height: 1.6; color: #334155;">
+                    Just a friendly heads-up that your 7-day free trial of HomeListingAI is ending soon.
+                  </p>
+                  
+                  <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; margin: 24px 0;">
+                    <h3 style="color: #1e3a8a; font-size: 16px; margin-top: 0; margin-bottom: 12px; font-weight: bold;">⚠️ Don't Lose Your Momentum</h3>
+                    <p style="font-size: 14px; color: #1e3a8a; margin-bottom: 12px;">If your trial expires, your AI Agents will be paused. You may lose access to:</p>
+                    <ul style="margin: 0; padding-left: 20px; color: #1e40af; font-size: 14px;">
+                      <li style="margin-bottom: 6px;">Active Property Listings</li>
+                      <li style="margin-bottom: 6px;">Generated Leads & Insights</li>
+                      <li style="margin-bottom: 6px;">Your Personalized Agent Twin</li>
+                    </ul>
+                  </div>
+
+                  <div style="text-align: center; margin: 32px 0;">
+                    <a href="${process.env.APP_BASE_URL}/billing" style="background-color: #2563eb; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+                      Keep My Account Active
+                    </a>
+                  </div>
+                </div>
+        
+                <div style="background-color: #f1f5f9; padding: 24px; text-align: center; font-size: 13px; color: #64748b;">
+                  <p>Sent with 💙 by the HomeListingAI Team</p>
+                </div>
+              </div>
+            </div>
+          </body>
+          </html>
         `;
 
         try {
@@ -11486,17 +11518,49 @@ const checkExpiredTrials = async () => {
 
       for (const agent of candidates) {
         const recoveryHtml = `
-          <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2>We Miss You Already! 💙</h2>
-            <p>Hi ${agent.first_name || 'there'},</p>
-            <p>It looks like your free trial has officially ended.</p>
-            <p>We know life as an agent gets busy. Maybe you didn't get a chance to fully explore the platform, or maybe the timing just wasn't right.</p>
-            <p><strong>It's not too late.</strong> Your account data is safe, but you'll need to upgrade to continue creating AI listings.</p>
-            <br>
-            <a href="${process.env.APP_BASE_URL}/billing" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Reactivate My Account</a>
-            <br><br>
-            <p>Need more time or have questions? Just reply and let us know.</p>
-          </div>
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155;">
+            <div style="padding: 24px;">
+              <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center;">
+                   <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" style="width: 48px; height: 48px; background-color: white; border-radius: 8px; padding: 4px; margin-bottom: 16px; object-fit: contain;">
+                  <h1 style="color: white; font-size: 24px; font-weight: bold; margin: 0;">We Miss You Already!</h1>
+                </div>
+                
+                <div style="padding: 32px 24px;">
+                  <p style="font-size: 16px; line-height: 1.6; color: #334155;">Hi ${agent.first_name || 'there'},</p>
+                  <p style="font-size: 16px; line-height: 1.6; color: #334155;">
+                    It looks like your free trial has officially ended. We know life as an agent gets busy.
+                  </p>
+                  
+                  <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin: 24px 0;">
+                    <h3 style="color: #991b1b; font-size: 16px; margin-top: 0; margin-bottom: 12px; font-weight: bold;">⛔ Your Account is Paused</h3>
+                    <p style="font-size: 14px; color: #991b1b; margin-bottom: 12px;">To prevent permanent data archiving, please reactivate soon. Currently inactive:</p>
+                    <ul style="margin: 0; padding-left: 20px; color: #b91c1c; font-size: 14px;">
+                      <li style="margin-bottom: 6px;">[Paused] Smart Listings</li>
+                      <li style="margin-bottom: 6px;">[Paused] Lead Follow-ups</li>
+                      <li style="margin-bottom: 6px;">[Paused] Market Analytics</li>
+                    </ul>
+                  </div>
+
+                  <div style="text-align: center; margin: 32px 0;">
+                    <a href="${process.env.APP_BASE_URL}/billing" style="background-color: #2563eb; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+                      Reactivate My Account
+                    </a>
+                  </div>
+                </div>
+        
+                <div style="background-color: #f1f5f9; padding: 24px; text-align: center; font-size: 13px; color: #64748b;">
+                  <p>Sent with 💙 by the HomeListingAI Team</p>
+                </div>
+              </div>
+            </div>
+          </body>
+          </html>
         `;
 
         try {
