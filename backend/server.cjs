@@ -11397,133 +11397,139 @@ const executeDelayedStep = async (userId, lead, step, signature) => {
 };
 
 
-// 48-Hour Offer Email Automation
-const check48HourOffers = async () => {
+// 48-Hour Offer Email Automation (DISABLED)
+// const check48HourOffers = async () => { ... }
+
+// 3-Day Warning Email (Sent on Day 4 of 7)
+const checkTrialWarnings = async () => {
   if (!supabaseAdmin) return;
   try {
-    // 1. Find agents created > 48h ago, still on trial, who haven't received the offer.
-    // 48h = 2 days. Let's look for agents created between 48h and 72h ago to avoid processing ancient records,
-    // although the 'offer_sent_48h = false' check handles that too.
-    const fortyEightHoursAgo = new Date(Date.now() - (48 * 60 * 60 * 1000)).toISOString();
+    // Find agents created > 4 days ago (so they have ~3 days left)
+    const fourDaysAgo = new Date(Date.now() - (4 * 24 * 60 * 60 * 1000)).toISOString();
 
-    // We want agents created BEFORE 48h ago. 
     const { data: candidates, error } = await supabaseAdmin
       .from('agents')
       .select('id, email, first_name, created_at')
-      .lt('created_at', fortyEightHoursAgo)
+      .lt('created_at', fourDaysAgo)
       .eq('payment_status', 'trialing')
-      .eq('offer_sent_48h', false)
-      .limit(50); // Batch size
+      .eq('trial_warning_sent', false) // Requires new column
+      .limit(50);
 
-    if (error) {
-      // console.warn('[Scheduler] Offer Query Error', error.message);
-      return;
-    }
+    if (error) return;
 
     if (candidates && candidates.length > 0) {
-      console.log(`[Scheduler] Found ${candidates.length} agents eligible for 48h offer.`);
+      console.log(`[Scheduler] Found ${candidates.length} agents due for trial warning.`);
       const emailService = require('./services/emailService');
 
       for (const agent of candidates) {
-        // Send Email
-        const offerHtml = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; }
-              .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-              .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; }
-              .logo { width: 48px; height: 48px; background-color: white; border-radius: 8px; padding: 4px; margin-bottom: 16px; object-fit: contain; }
-              .header-title { color: white; font-size: 24px; font-weight: bold; margin: 0; }
-              .content { padding: 32px 24px; }
-              .greeting { font-size: 20px; font-weight: 600; margin-bottom: 24px; color: #0f172a; }
-              .hero-text { font-size: 16px; line-height: 1.6; margin-bottom: 24px; color: #475569; }
-              .offer-box { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center; }
-              .offer-title { color: #0284c7; font-size: 20px; font-weight: bold; margin-top: 0; margin-bottom: 12px; }
-              .offer-details { font-size: 16px; color: #334155; margin-bottom: 16px; line-height: 1.5; }
-              .code-box { background-color: white; border: 2px dashed #bae6fd; padding: 8px 16px; border-radius: 8px; display: inline-block; font-family: monospace; font-size: 18px; font-weight: bold; color: #0284c7; margin-bottom: 24px; }
-              .btn { background-color: #0284c7; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); transition: transform 0.2s; }
-              .footer { background-color: #f1f5f9; padding: 24px; text-align: center; font-size: 13px; color: #64748b; }
-            </style>
-          </head>
-          <body>
-            <div style="padding: 24px;">
-              <div class="container">
-                <div class="header">
-                  <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" class="logo">
-                  <h1 class="header-title">Unlock Your Full Potential</h1>
-                </div>
-                
-                <div class="content">
-                  <h2 class="greeting">Wait... ${agent.first_name || 'there'}! 👋</h2>
-                  <p class="hero-text">
-                    You've been experiencing the power of HomeListingAI for 2 days now. We've seen great agents become top producers with the right tools.
-                  </p>
-                  <p class="hero-text">
-                    We want to make sure you have everything you need to succeed, so we're making you a <strong>special one-time offer</strong>.
-                  </p>
-        
-                  <div class="offer-box">
-                    <h3 class="offer-title">Upgrade Today & Save $10/mo Forever</h3>
-                    <p class="offer-details">
-                      Skip the rest of your trial and lock in our Pro Plan at a discounted rate.
-                      <br>
-                      <strong>$59/mo</strong> <span style="text-decoration: line-through; color: #94a3b8; font-size: 14px;">$69/mo</span>
-                    </p>
-                    <div class="code-box">CODE: 3DAY_OFFER</div>
-                    <br>
-                    <a href="${process.env.APP_BASE_URL}/billing?promo=3DAY_OFFER" class="btn">Claim $10 Off Now</a>
-                  </div>
-
-                  <p class="hero-text" style="text-align: center; font-size: 14px;">
-                    This offer is valid for the next 24 hours only. Don't let your commission slip away.
-                  </p>
-                </div>
-        
-                <div class="footer">
-                  <p>Sent with 💙 by the HomeListingAI Team</p>
-                  <p style="margin-top: 12px; font-size: 12px;">© ${new Date().getFullYear()} HomeListingAI. All rights reserved.</p>
-                </div>
-              </div>
-            </div>
-          </body>
-          </html>
+        const warningHtml = `
+          <div style="font-family: sans-serif; padding: 20px; color: #333;">
+            <h2>Your Free Trial Ends in 3 Days ⏳</h2>
+            <p>Hi ${agent.first_name || 'Verified Agent'},</p>
+            <p>Just a friendly heads-up that your 7-day free trial of HomeListingAI is ending soon.</p>
+            <p>You've had access to our premium AI tools, and we hope you're seeing the value.</p>
+            <p><strong>Don't lose momentum.</strong> Secure your rate now to keep generating listings without interruption.</p>
+            <br>
+            <a href="${process.env.APP_BASE_URL}/billing" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Upgrade to Pro Now</a>
+            <br><br>
+            <p style="font-size: 12px; color: #666;">If you have questions, reply to this email. We're here to help.</p>
+          </div>
         `;
 
         try {
           await emailService.sendEmail({
             to: agent.email,
-            subject: 'Special Offer: Upgrade now and save $10/mo',
-            html: offerHtml,
-            text: `Upgrade now and save $10/mo forever! Use code 3DAY_OFFER at checkout. ${process.env.APP_BASE_URL}/billing?promo=3DAY_OFFER`,
+            subject: '⚠️ Your HomeListingAI Trial Ending Soon',
+            html: warningHtml,
+            text: `Your trial ends in 3 days. Upgrade now: ${process.env.APP_BASE_URL}/billing`,
             from: process.env.MAILGUN_FROM_EMAIL || 'hello@homelistingai.app',
-            tags: ['automation', '48h-offer']
           });
 
           // Mark as sent
           await supabaseAdmin
             .from('agents')
-            .update({ offer_sent_48h: true })
+            .update({ trial_warning_sent: true })
             .eq('id', agent.id);
 
-          console.log(`[Scheduler] Sent 48h offer to ${agent.email}`);
-
-        } catch (sendErr) {
-          console.error(`[Scheduler] Failed to send offer to ${agent.email}`, sendErr.message);
+          console.log(`[Scheduler] Sent validation warning to ${agent.email}`);
+        } catch (err) {
+          console.error(`[Scheduler] Failed warning email for ${agent.email}`, err.message);
         }
       }
     }
-
   } catch (err) {
-    console.error('[Scheduler] Error in check48HourOffers:', err);
+    console.error('[Scheduler] Error in checkTrialWarnings:', err);
+  }
+};
+
+// Post-Trial Recovery Email (Sent on Day 8)
+const checkExpiredTrials = async () => {
+  if (!supabaseAdmin) return;
+  try {
+    // Find agents created > 7.5 days ago (Trial expired)
+    // Adding 0.5 buffer to ensure we don't send it the exact second it expires
+    const eightDaysAgo = new Date(Date.now() - (8 * 24 * 60 * 60 * 1000)).toISOString();
+
+    const { data: candidates, error } = await supabaseAdmin
+      .from('agents')
+      .select('id, email, first_name, created_at')
+      .lt('created_at', eightDaysAgo)
+      .eq('payment_status', 'trialing') // Still trialing means they didn't pay
+      .eq('recovery_email_sent', false) // Requires new column
+      .limit(50);
+
+    if (error) return;
+
+    if (candidates && candidates.length > 0) {
+      console.log(`[Scheduler] Found ${candidates.length} expired trials for recovery.`);
+      const emailService = require('./services/emailService');
+
+      for (const agent of candidates) {
+        const recoveryHtml = `
+          <div style="font-family: sans-serif; padding: 20px; color: #333;">
+            <h2>We Miss You Already! 💙</h2>
+            <p>Hi ${agent.first_name || 'there'},</p>
+            <p>It looks like your free trial has officially ended.</p>
+            <p>We know life as an agent gets busy. Maybe you didn't get a chance to fully explore the platform, or maybe the timing just wasn't right.</p>
+            <p><strong>It's not too late.</strong> Your account data is safe, but you'll need to upgrade to continue creating AI listings.</p>
+            <br>
+            <a href="${process.env.APP_BASE_URL}/billing" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Reactivate My Account</a>
+            <br><br>
+            <p>Need more time or have questions? Just reply and let us know.</p>
+          </div>
+        `;
+
+        try {
+          await emailService.sendEmail({
+            to: agent.email,
+            subject: 'Your Free Trial Has Ended',
+            html: recoveryHtml,
+            text: `Your trial has ended. Reactivate here: ${process.env.APP_BASE_URL}/billing`,
+            from: process.env.MAILGUN_FROM_EMAIL || 'hello@homelistingai.app',
+          });
+
+          // Mark as sent
+          await supabaseAdmin
+            .from('agents')
+            .update({ recovery_email_sent: true })
+            .eq('id', agent.id);
+
+          console.log(`[Scheduler] Sent recovery email to ${agent.email}`);
+        } catch (err) {
+          console.error(`[Scheduler] Failed recovery email for ${agent.email}`, err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Scheduler] Error in checkExpiredTrials:', err);
   }
 };
 
 // Start Scheduler (Every 60 seconds)
 setInterval(() => {
   checkFunnelFollowUps();
-  check48HourOffers();
+  // check48HourOffers(); // DISABLED
+  checkTrialWarnings();
+  checkExpiredTrials();
 }, 60 * 1000);
 
