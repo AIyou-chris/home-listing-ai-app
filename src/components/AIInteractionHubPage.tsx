@@ -316,29 +316,48 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
                 <PageTipBanner
                     pageKey="ai-hub"
                     expandedContent={
-                        <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div>
-                                <h4 className="font-semibold text-slate-900 mb-2">🧠 Your AI Command Center:</h4>
-                                <ul className="space-y-2 text-slate-700">
-                                    <li className="flex items-start">
-                                        <span className="mr-2">👀</span>
-                                        <span><strong>Centralized Feed:</strong> View every active conversation across all channels (SMS, Web Chat, Email) in one unified stream.</span>
+                                <h4 className="font-bold text-indigo-900 mb-3 text-lg">🧠 Omnichannel Command Center</h4>
+                                <p className="text-slate-600 mb-4 text-sm leading-relaxed">
+                                    Every conversation your AI generates—across SMS, email, and web chat—lands here. It's your single source of truth for what's happening in your business.
+                                </p>
+
+                                <div className="space-y-4">
+                                    <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1">How It Works</h5>
+                                    <ul className="space-y-3 text-slate-700 text-sm">
+                                        <li className="flex items-start gap-3">
+                                            <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                                                <span className="material-symbols-outlined text-sm">visibility</span>
+                                            </div>
+                                            <span><strong>Active Monitoring:</strong> Watch conversations unfold in real-time. The list updates instantly when a lead replies to your AI.</span>
+                                        </li>
+                                        <li className="flex items-start gap-3">
+                                            <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                                                <span className="material-symbols-outlined text-sm">hand_gesture</span>
+                                            </div>
+                                            <span><strong>Human Handoff:</strong> If a lead asks a complex question, type a reply yourself. The AI will pause and let you drive, then pick back up when you're done.</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div className="bg-white/50 rounded-xl p-4 border border-indigo-50">
+                                <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1 mb-3">Workflow Success Tips</h5>
+                                <ul className="space-y-3 text-slate-700 text-sm">
+                                    <li className="flex items-start gap-3">
+                                        <span className="mr-1 text-lg">🕵️</span>
+                                        <span><strong>Context is King:</strong> Before you call a lead, read their chat history here to see exactly what they told the AI about their budget and timeline.</span>
                                     </li>
-                                    <li className="flex items-start">
-                                        <span className="mr-2">🦸</span>
-                                        <span><strong>Jump In Anytime:</strong> The AI handles the nurturing, but you can take over instantly if a conversation gets hot or complex.</span>
+                                    <li className="flex items-start gap-3">
+                                        <span className="mr-1 text-lg">📣</span>
+                                        <span><strong>The "Create Lead" Hack:</strong> See an anonymous inquiry that looks promising? Click "Create Lead" to instantly move them into your main CRM pipeline.</span>
                                     </li>
-                                    <li className="flex items-start">
-                                        <span className="mr-2">📝</span>
-                                        <span><strong>Full Context:</strong> See the entire history—from first hello to latest objection—before you even say a word.</span>
+                                    <li className="flex items-start gap-3">
+                                        <span className="mr-1 text-lg">📥</span>
+                                        <span><strong>Export Weekly:</strong> Use the "Export Logs" button to download a CSV of all conversations for your compliance records or team review.</span>
                                     </li>
                                 </ul>
-                            </div>
-                            <div className="bg-gradient-to-r from-violet-50 to-purple-50 p-4 rounded-lg border border-violet-100">
-                                <h4 className="font-semibold text-violet-900 mb-2">💡 Pro Tip:</h4>
-                                <p className="text-violet-800">
-                                    Use "Create Lead" on any anonymous inquiry to instantly promote them to your pipeline and assign them to a nurture campaign.
-                                </p>
                             </div>
                         </div>
                     }

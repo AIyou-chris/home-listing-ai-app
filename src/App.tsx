@@ -5,12 +5,7 @@ import { Property, View, AgentProfile, NotificationSettings, EmailSettings, Cale
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
 import {
-    BLUEPRINT_AGENT,
-    BLUEPRINT_PROPERTIES,
-    BLUEPRINT_LEADS,
-    BLUEPRINT_APPOINTMENTS,
-    BLUEPRINT_INTERACTIONS,
-    BLUEPRINT_SEQUENCES
+    BLUEPRINT_AGENT
 } from './constants/agentBlueprintData';
 import LandingPage from './components/LandingPage';
 import NewLandingPage from './components/NewLandingPage';
@@ -22,6 +17,7 @@ import CheckoutPage from './components/CheckoutPage';
 import { getRegistrationContext } from './services/agentOnboardingService';
 
 import AgentDashboard from './components/AgentDashboard';
+import NotificationSystem from './components/NotificationSystem';
 
 import Sidebar from './components/Sidebar';
 import PropertyPage from './components/PropertyPage';
@@ -187,7 +183,7 @@ const App: React.FC = () => {
     const [isSettingUp] = useState(false); // Helper state for setup flows (currently unused)
     const [isDemoMode, setIsDemoMode] = useState(() => {
         const path = window.location.pathname;
-        return path.includes('/demo-') || path.includes('blueprint');
+        return path.includes('/demo-');
     });
     const [isBlueprintMode, setIsBlueprintMode] = useState(() => {
         const path = window.location.pathname;
@@ -647,16 +643,18 @@ const App: React.FC = () => {
     };
 
     const handleEnterBlueprintMode = () => {
-        setIsDemoMode(true);
+        setIsDemoMode(false);
         setIsBlueprintMode(true);
-        setProperties(BLUEPRINT_PROPERTIES);
-        setLeads(BLUEPRINT_LEADS);
-        setAppointments(BLUEPRINT_APPOINTMENTS);
-        setInteractions(BLUEPRINT_INTERACTIONS);
 
-        setSequences(BLUEPRINT_SEQUENCES);
+        // Clear mock data to ensure "Blank Slate" / "Live" experience
+        setProperties([]); // Or keep BLUEPRINT_PROPERTIES if user wants to see Listings? User focused on Lead Scoring.
+        setLeads([]);
+        setAppointments([]);
+        setInteractions([]);
+        setSequences([]);
+
+        // Keep the Blueprint Agent profile for context/sidebar branding
         setUserProfile(BLUEPRINT_AGENT);
-        // We stay on this route, Dashboard will render with this data
     };
 
     const handleNavigateToAdmin = () => {
@@ -1023,18 +1021,28 @@ const App: React.FC = () => {
     };
 
     const ProtectedLayout = () => (
-        <div className="flex h-screen bg-slate-50">
+        <div className="flex h-screen bg-slate-50 relative">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                {/* Mobile Header */}
+                <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm z-20">
                     <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
                         <span className="material-symbols-outlined text-xl">menu</span>
                     </button>
                     <div className="flex-1 flex justify-center">
                         <LogoWithName />
                     </div>
+                    <div>
+                        {user && <NotificationSystem userId={user.uid} />}
+                    </div>
                 </header>
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+
+                {/* Desktop Notification Bell (Absolute Top-Right) */}
+                <div className="hidden md:block absolute top-6 right-8 z-50">
+                    {user && <NotificationSystem userId={user.uid} />}
+                </div>
+
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
                     <Outlet />
                 </main>
             </div>
@@ -1105,7 +1113,7 @@ const App: React.FC = () => {
                     } />
                     <Route path="/demo-dashboard/*" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
                     <Route path="/dashboard-blueprint/*" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
-                    <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={true} isBlueprintMode={true} demoListingCount={1} />} />
+                    <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={false} isBlueprintMode={true} demoListingCount={1} />} />
                     <Route path="/demo-showcase" element={<MultiToolShowcase />} />
 
                     {/* Demo Dashboard */}

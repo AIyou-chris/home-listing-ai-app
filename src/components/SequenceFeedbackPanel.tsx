@@ -70,44 +70,7 @@ const INITIAL_SNAPSHOTS: SequenceSnapshot[] = [
     }
 ];
 
-const stepInsights: StepInsight[] = [
-    {
-        id: 'matches',
-        label: 'Curated Matches',
-        channel: 'AI Email',
-        replyRate: 48,
-        conversionRate: 19,
-        avgResponseMinutes: 34,
-        tags: ['buyer journey', 'personalized']
-    },
-    {
-        id: 'listing-preview',
-        label: 'Interactive Listing Draft',
-        channel: 'AI Builder',
-        replyRate: 37,
-        conversionRate: 26,
-        avgResponseMinutes: 47,
-        tags: ['seller funnel', 'ai narrative']
-    },
-    {
-        id: 'post-feedback',
-        label: 'Feedback Pulse SMS',
-        channel: 'Survey',
-        replyRate: 29,
-        conversionRate: 12,
-        avgResponseMinutes: 21,
-        tags: ['post showing', 'survey']
-    },
-    {
-        id: 'task-call',
-        label: 'Agent Task: Live Call',
-        channel: 'Task',
-        replyRate: 61,
-        conversionRate: 33,
-        avgResponseMinutes: 12,
-        tags: ['human touch']
-    }
-];
+
 
 const TrendIcon: React.FC<{ trend: SequenceSnapshot['trend'] }> = ({ trend }) => {
     const icon = trend === 'up' ? 'trending_up' : trend === 'down' ? 'trending_down' : 'trending_flat';
@@ -122,8 +85,9 @@ const TrendIcon: React.FC<{ trend: SequenceSnapshot['trend'] }> = ({ trend }) =>
 
 import { DEMO_SEQUENCE_SNAPSHOTS } from '../demoConstants';
 
-const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) => {
-    const [snapshots, setSnapshots] = useState<SequenceSnapshot[]>(INITIAL_SNAPSHOTS);
+const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }> = ({ isDemoMode = false, userId }) => {
+    const [snapshots, setSnapshots] = useState<SequenceSnapshot[]>(INITIAL_SNAPSHOTS.map(s => ({ ...s, replyRate: 0, openRate: 0, meetings: 0, trend: 'flat', lastAdjust: 'Never', bestStep: 'None' })));
+    const [stepInsights, setStepInsights] = useState<StepInsight[]>([]);
     const [loading, setLoading] = useState(true);
 
     const loadAnalytics = useCallback(async () => {
@@ -132,32 +96,96 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode 
         if (isDemoMode) {
             // Simulate network delay
             await new Promise(resolve => setTimeout(resolve, 800));
-            // Cast to any to avoid strict type checking against the local type if needed, 
-            // but the shape should match.
             setSnapshots(DEMO_SEQUENCE_SNAPSHOTS as unknown as SequenceSnapshot[]);
+            setStepInsights([
+                {
+                    id: 'matches',
+                    label: 'Curated Matches',
+                    channel: 'AI Email',
+                    replyRate: 48,
+                    conversionRate: 19,
+                    avgResponseMinutes: 34,
+                    tags: ['buyer journey', 'personalized']
+                },
+                {
+                    id: 'listing-preview',
+                    label: 'Interactive Listing Draft',
+                    channel: 'AI Builder',
+                    replyRate: 37,
+                    conversionRate: 26,
+                    avgResponseMinutes: 47,
+                    tags: ['seller funnel', 'ai narrative']
+                },
+                {
+                    id: 'post-feedback',
+                    label: 'Feedback Pulse SMS',
+                    channel: 'Survey',
+                    replyRate: 29,
+                    conversionRate: 12,
+                    avgResponseMinutes: 21,
+                    tags: ['post showing', 'survey']
+                },
+                {
+                    id: 'task-call',
+                    label: 'Agent Task: Live Call',
+                    channel: 'Task',
+                    replyRate: 61,
+                    conversionRate: 33,
+                    avgResponseMinutes: 12,
+                    tags: ['human touch']
+                }
+            ]);
             setLoading(false);
             return;
         }
 
-        const data = await feedbackService.fetchAnalytics('demo-blueprint');
+        if (!userId) {
+            setLoading(false);
+            return;
+        }
+
+        const [data, stepStats] = await Promise.all([
+            feedbackService.fetchAnalytics(userId),
+            feedbackService.fetchStepPerformance(userId)
+        ]);
 
         const updatedSnapshots = INITIAL_SNAPSHOTS.map(snap => {
             const stats = data[snap.id] || { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
             const openRate = stats.sent > 0 ? Math.round((stats.opened / stats.sent) * 100) : 0;
-            // Using clicks as a proxy for engagement/replies for now since we don't track inbound replies yet
             const replyRate = stats.sent > 0 ? Math.round((stats.clicked / stats.sent) * 100) : 0;
 
             return {
                 ...snap,
                 openRate,
                 replyRate,
-                meetings: 0 // Placeholder
+                meetings: 0, // Placeholder
+                trend: 'flat' as const,
+                lastAdjust: 'Never',
+                bestStep: '-'
             };
         });
 
         setSnapshots(updatedSnapshots);
+
+        if (stepStats && stepStats.length > 0) {
+            const mappedInsights: StepInsight[] = stepStats.map(s => ({
+                id: s.stepId,
+                label: s.stepId, // In future, map this to funnel step name
+                channel: 'Email',
+                replyRate: s.sent > 0 ? Math.round((s.replied / s.sent) * 100) : 0,
+                conversionRate: s.sent > 0 ? Math.round((s.clicked / s.sent) * 100) : 0,
+                avgResponseMinutes: 0,
+                tags: []
+            }));
+            // Sort by reply rate descending
+            mappedInsights.sort((a, b) => b.replyRate - a.replyRate);
+            setStepInsights(mappedInsights);
+        } else {
+            setStepInsights([]);
+        }
+
         setLoading(false);
-    }, [isDemoMode]);
+    }, [isDemoMode, userId]);
 
     useEffect(() => {
         loadAnalytics();
@@ -165,34 +193,47 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode 
 
     return (
         <div className="space-y-8">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Top Performing Step</p>
-                    <h3 className="mt-2 text-lg font-bold text-slate-900">Curated Matches</h3>
-                    <p className="text-sm text-slate-500">48% reply rate • 19% tour conversion</p>
-                    <div className="mt-4 h-2 rounded-full bg-slate-100">
-                        <div className="h-2 w-3/4 rounded-full bg-blue-500" />
+            {/* Top performing cards - Hide or show empty if no data */}
+            {stepInsights.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Top Performing Step</p>
+                        <h3 className="mt-2 text-lg font-bold text-slate-900">{stepInsights[0]?.label || '-'}</h3>
+                        <p className="text-sm text-slate-500">{stepInsights[0]?.replyRate || 0}% reply rate</p>
+                        <div className="mt-4 h-2 rounded-full bg-slate-100">
+                            <div className="h-2 rounded-full bg-blue-500" style={{ width: `${stepInsights[0]?.replyRate || 0}%` }} />
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sequences Needing Love</p>
+                        <h3 className="mt-2 text-lg font-bold text-slate-900">None</h3>
+                        <p className="text-sm text-slate-500">All systems operational</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fastest Replies</p>
+                        <h3 className="mt-2 text-lg font-bold text-slate-900">-</h3>
+                        <p className="text-sm text-slate-500">No data yet</p>
                     </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sequences Needing Love</p>
-                    <h3 className="mt-2 text-lg font-bold text-slate-900">After-Showing Follow-Up</h3>
-                    <p className="text-sm text-rose-600">Reply rate trending down 6% week over week.</p>
-                    <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">
-                        <span className="material-symbols-outlined text-base">warning</span>
-                        Review Step 3 copy
+            ) : (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm opacity-60">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Top Performing Step</p>
+                        <h3 className="mt-2 text-lg font-bold text-slate-900">No Data</h3>
+                        <p className="text-sm text-slate-500">Waiting for live traffic...</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm opacity-60">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sequences Needing Love</p>
+                        <h3 className="mt-2 text-lg font-bold text-slate-900">No Data</h3>
+                        <p className="text-sm text-slate-500">Waiting for live traffic...</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm opacity-60">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fastest Replies</p>
+                        <h3 className="mt-2 text-lg font-bold text-slate-900">No Data</h3>
+                        <p className="text-sm text-slate-500">Waiting for live traffic...</p>
                     </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fastest Replies</p>
-                    <h3 className="mt-2 text-lg font-bold text-slate-900">Agent Task: Live Call</h3>
-                    <p className="text-sm text-slate-500">Average reply in 12 minutes once you log a call touch.</p>
-                    <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                        <span className="material-symbols-outlined text-base">call</span>
-                        Keep human touches in the mix
-                    </div>
-                </div>
-            </div>
+            )}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -249,55 +290,67 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode 
                         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Step Performance</p>
                         <h3 className="text-2xl font-bold text-slate-900">Where Replies Spike</h3>
                     </div>
-                    <button
-                        type="button"
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                        <span className="material-symbols-outlined text-base">download</span>
-                        Export Report
-                    </button>
+                    {/* Export button hidden if empty */}
+                    {stepInsights.length > 0 && (
+                        <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                            <span className="material-symbols-outlined text-base">download</span>
+                            Export Report
+                        </button>
+                    )}
                 </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {stepInsights.map((step) => (
-                        <article key={step.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <div className="flex items-center justify-between gap-4">
-                                <div>
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.channel}</p>
-                                    <h4 className="text-lg font-semibold text-slate-900">{step.label}</h4>
+
+                {stepInsights.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400">
+                        <span className="material-symbols-outlined text-4xl mb-2">bar_chart</span>
+                        <p>No step performance data available yet.</p>
+                        <p className="text-xs">Once your funnels are active, insights will appear here.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {stepInsights.map((step) => (
+                            <article key={step.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.channel}</p>
+                                        <h4 className="text-lg font-semibold text-slate-900">{step.label}</h4>
+                                    </div>
+                                    <span className="material-symbols-outlined text-base text-slate-400">bar_chart</span>
                                 </div>
-                                <span className="material-symbols-outlined text-base text-slate-400">bar_chart</span>
-                            </div>
-                            <div className="mt-4 space-y-3">
-                                <div>
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reply Rate</p>
-                                    <div className="mt-1 flex items-center gap-3">
-                                        <div className="h-2 flex-1 rounded-full bg-white">
-                                            <div className="h-2 rounded-full bg-blue-500" style={{ width: `${step.replyRate}%` }} />
+                                <div className="mt-4 space-y-3">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reply Rate</p>
+                                        <div className="mt-1 flex items-center gap-3">
+                                            <div className="h-2 flex-1 rounded-full bg-white">
+                                                <div className="h-2 rounded-full bg-blue-500" style={{ width: `${step.replyRate}%` }} />
+                                            </div>
+                                            <span className="text-sm font-semibold text-slate-900">{step.replyRate}%</span>
                                         </div>
-                                        <span className="text-sm font-semibold text-slate-900">{step.replyRate}%</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 text-center text-xs text-slate-500">
+                                        <div className="rounded-lg bg-white p-3 shadow-sm">
+                                            <p className="font-semibold text-slate-600">Conversions</p>
+                                            <p className="text-lg font-bold text-slate-900">{step.conversionRate}%</p>
+                                        </div>
+                                        <div className="rounded-lg bg-white p-3 shadow-sm">
+                                            <p className="font-semibold text-slate-600">Avg Response</p>
+                                            <p className="text-lg font-bold text-slate-900">{step.avgResponseMinutes}m</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                        {step.tags.map((tag) => (
+                                            <span key={`${step.id}-${tag}`} className="rounded-full bg-white px-2 py-1 text-slate-600">
+                                                {tag}
+                                            </span>
+                                        ))}
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 text-center text-xs text-slate-500">
-                                    <div className="rounded-lg bg-white p-3 shadow-sm">
-                                        <p className="font-semibold text-slate-600">Conversions</p>
-                                        <p className="text-lg font-bold text-slate-900">{step.conversionRate}%</p>
-                                    </div>
-                                    <div className="rounded-lg bg-white p-3 shadow-sm">
-                                        <p className="font-semibold text-slate-600">Avg Response</p>
-                                        <p className="text-lg font-bold text-slate-900">{step.avgResponseMinutes}m</p>
-                                    </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                    {step.tags.map((tag) => (
-                                        <span key={`${step.id}-${tag}`} className="rounded-full bg-white px-2 py-1 text-slate-600">
-                                            {tag}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        </article>
-                    ))}
-                </div>
+                            </article>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

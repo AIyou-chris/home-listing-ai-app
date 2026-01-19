@@ -1,27 +1,28 @@
 // DatabaseService removed - using Supabase alternatives
 import { UserNotification, BroadcastMessage, SystemAlert } from '../types';
+import { supabase } from './supabase';
 
 // Additional types for extended notification functionality
 export interface EmailTemplate {
-  subject: string;
-  body: string;
-  variables?: Record<string, string>;
+    subject: string;
+    body: string;
+    variables?: Record<string, string>;
 }
 
 export interface PushNotification {
-  title: string;
-  body: string;
-  data?: Record<string, unknown>;
-  badge?: number;
+    title: string;
+    body: string;
+    data?: Record<string, unknown>;
+    badge?: number;
 }
 
 export interface ScheduledEmail {
-  id: string;
-  to: string;
-  subject: string;
-  body: string;
-  scheduledFor: string;
-  status: 'pending' | 'sent' | 'failed';
+    id: string;
+    to: string;
+    subject: string;
+    body: string;
+    scheduledFor: string;
+    status: 'pending' | 'sent' | 'failed';
 }
 
 const notificationStore = new Map<string, UserNotification[]>();
@@ -30,7 +31,10 @@ const systemAlertStore: SystemAlert[] = [];
 const scheduledEmailStore: ScheduledEmail[] = [];
 
 export default class NotificationService {
-    // Send notification to a single user
+    // In-memory store for demo users and subscribers
+    static demoSubscribers = new Map<string, ((notifications: UserNotification[]) => void)[]>();
+
+    // Database - Supabase Integration
     static async sendNotificationToUser(
         userId: string,
         title: string,
@@ -39,23 +43,51 @@ export default class NotificationService {
         priority: UserNotification['priority'] = 'medium',
         expiresAt?: string
     ): Promise<string> {
-        const id = `notif_${Date.now()}`;
-        const notification: UserNotification = {
-            id,
-            userId,
-            title,
-            content,
-            type,
-            priority,
-            read: false,
-            createdAt: new Date().toISOString(),
-            expiresAt
-        };
+        // Handle Demo Users
+        if (userId.startsWith('demo-') || userId === 'blueprint-agent') {
+            const newNotification: UserNotification = {
+                id: `demo_notif_${Date.now()}`,
+                userId,
+                title,
+                content,
+                type,
+                priority,
+                read: false,
+                createdAt: new Date().toISOString(),
+                expiresAt,
+            };
 
-        const existing = notificationStore.get(userId) ?? [];
-        notificationStore.set(userId, [...existing, notification]);
+            const userNotifs = notificationStore.get(userId) || [];
+            userNotifs.unshift(newNotification);
+            notificationStore.set(userId, userNotifs);
 
-        return id;
+            // Notify subscribers
+            const subscribers = this.demoSubscribers.get(userId) || [];
+            subscribers.forEach(cb => cb([...userNotifs]));
+
+            return newNotification.id;
+        }
+
+        const { data, error } = await supabase
+            .from('notifications')
+            .insert({
+                user_id: userId,
+                title,
+                content,
+                type,
+                priority,
+                expires_at: expiresAt,
+                is_read: false
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error sending notification:', error);
+            throw error;
+        }
+
+        return data.id;
     }
 
     static async sendNotificationToMultipleUsers(
@@ -65,52 +97,155 @@ export default class NotificationService {
         type: UserNotification['type'] = 'broadcast',
         priority: UserNotification['priority'] = 'medium'
     ): Promise<string[]> {
-        const notificationIds: string[] = [];
-        
+        // Handle mixed or demo users request - split them if needed, but for now simplistic approach
+        // If any user is demo, handle all as demo logic isn't easily compatible with batch insert return types nicely without complex logic.
+        // For simplicity, iterate.
+        const results: string[] = [];
+        const realUserIds: string[] = [];
+
         for (const userId of userIds) {
-            const id = await this.sendNotificationToUser(userId, title, content, type, priority);
-            notificationIds.push(id);
+            if (userId.startsWith('demo-') || userId === 'blueprint-agent') {
+                results.push(await this.sendNotificationToUser(userId, title, content, type, priority));
+            } else {
+                realUserIds.push(userId);
+            }
         }
-        
-        return notificationIds;
+
+        if (realUserIds.length > 0) {
+            const notifications = realUserIds.map(userId => ({
+                user_id: userId,
+                title,
+                content,
+                type,
+                priority,
+                is_read: false
+            }));
+
+            const { data, error } = await supabase
+                .from('notifications')
+                .insert(notifications)
+                .select();
+
+            if (error) {
+                console.error('Error sending multiple notifications:', error);
+                throw error;
+            }
+            results.push(...data.map((n: { id: string }) => n.id));
+        }
+
+        return results;
     }
 
     static async getUserNotifications(userId: string, read?: boolean): Promise<UserNotification[]> {
-        const notifications = notificationStore.get(userId) ?? [];
-        if (typeof read === 'boolean') {
-            return notifications.filter(notification => notification.read === read);
+        if (userId.startsWith('demo-') || userId === 'blueprint-agent') {
+            let notifs = notificationStore.get(userId) || [];
+            if (typeof read === 'boolean') {
+                notifs = notifs.filter(n => n.read === read);
+            }
+            return notifs;
         }
-        return [...notifications];
+
+        let query = supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+        if (typeof read === 'boolean') {
+            query = query.eq('is_read', read ? true : false);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            console.error('Error fetching notifications:', error);
+            return [];
+        }
+
+        return data.map((n: Record<string, unknown>) => ({
+            id: n.id,
+            userId: n.user_id,
+            title: n.title,
+            content: n.content,
+            type: n.type,
+            priority: n.priority,
+            read: n.is_read,
+            createdAt: n.created_at,
+            expiresAt: n.expires_at,
+            link: n.link
+        }));
     }
 
     static async markNotificationAsRead(notificationId: string): Promise<void> {
-        for (const [userId, notifications] of notificationStore.entries()) {
-            const updated = notifications.map(notification =>
-                notification.id === notificationId
-                    ? { ...notification, read: true, readAt: new Date().toISOString() }
-                    : notification
-            );
-            notificationStore.set(userId, updated);
+        // Simple heuristic for demo IDs
+        if (notificationId.startsWith('demo_notif_')) {
+            // Since we don't look up by ID across all users deeply efficiently here, iterate store?
+            // Or assume modifying the object in the array in memory works if references are kept.
+            // But Map stores array of objects.
+            for (const [userId, notifs] of notificationStore.entries()) {
+                const notif = notifs.find(n => n.id === notificationId);
+                if (notif) {
+                    notif.read = true;
+                    // trigger update
+                    const subscribers = this.demoSubscribers.get(userId) || [];
+                    subscribers.forEach(cb => cb([...notifs]));
+                    return;
+                }
+            }
+            return;
+        }
+
+        const { error } = await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('id', notificationId);
+
+        if (error) {
+            console.error('Error marking notification as read:', error);
         }
     }
 
     static async markAllNotificationsAsRead(userId: string): Promise<void> {
-        const notifications = notificationStore.get(userId);
-        if (!notifications) return;
+        if (userId.startsWith('demo-') || userId === 'blueprint-agent') {
+            const notifs = notificationStore.get(userId) || [];
+            notifs.forEach(n => n.read = true);
+            notificationStore.set(userId, [...notifs]); // Trigger re-render if needed by forcing new array ref
+            // Notify subscribers
+            const subscribers = this.demoSubscribers.get(userId) || [];
+            subscribers.forEach(cb => cb([...notifs]));
+            return;
+        }
 
-        notificationStore.set(
-            userId,
-            notifications.map(notification => ({
-                ...notification,
-                read: true,
-                readAt: new Date().toISOString()
-            }))
-        );
+        const { error } = await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('user_id', userId)
+            .eq('is_read', false);
+
+        if (error) {
+            console.error('Error marking all notifications as read:', error);
+        }
     }
 
     static async getUnreadNotificationCount(userId: string): Promise<number> {
-        const notifications = notificationStore.get(userId) ?? [];
-        return notifications.filter(notification => !notification.read).length;
+        if (userId.startsWith('demo-') || userId === 'blueprint-agent') {
+            const notifs = notificationStore.get(userId) || [];
+            return notifs.filter(n => !n.read).length;
+        }
+
+        // Use count aggregation for performance
+        const { count, error } = await supabase
+            .from('notifications')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('is_read', false);
+
+        if (error) {
+            console.error('Error counting unread notifications:', error);
+            return 0;
+        }
+
+        return count || 0;
     }
 
     // Broadcast Messages
@@ -326,10 +461,10 @@ export default class NotificationService {
     }
 
     static async sendSubscriptionExpiryNotification(userId: string, daysUntilExpiry: number): Promise<string> {
-        const title = daysUntilExpiry === 0 
+        const title = daysUntilExpiry === 0
             ? 'Your subscription has expired'
             : `Your subscription expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}`;
-        
+
         const content = daysUntilExpiry === 0
             ? 'Your subscription has expired. Please renew to continue using all features.'
             : `Your subscription will expire in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}. Please renew to avoid service interruption.`;
@@ -349,7 +484,7 @@ export default class NotificationService {
         priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium'
     ): Promise<string> {
         const userIds = Array.from(notificationStore.keys());
-        
+
         const messageId = await this.createBroadcastMessage(
             title,
             content,
@@ -370,15 +505,55 @@ export default class NotificationService {
         return messageId;
     }
 
-    // Real-time subscriptions (no-op implementations)
+    // Real-time subscriptions
     static subscribeToUserNotifications(userId: string, callback: (notifications: UserNotification[]) => void) {
-        callback(notificationStore.get(userId) ?? []);
-        return () => {};
+        // Handle Demo Users
+        if (userId.startsWith('demo-') || userId === 'blueprint-agent') {
+            // Initial load
+            const initialNotifs = notificationStore.get(userId) || [];
+            callback(initialNotifs);
+
+            // Add to subscribers
+            const userSubscribers = this.demoSubscribers.get(userId) || [];
+            userSubscribers.push(callback);
+            this.demoSubscribers.set(userId, userSubscribers);
+
+            return () => {
+                const subs = this.demoSubscribers.get(userId) || [];
+                this.demoSubscribers.set(userId, subs.filter(cb => cb !== callback));
+            };
+        }
+
+        // Initial load
+        this.getUserNotifications(userId).then(callback);
+
+        // Subscribe to changes
+        const subscription = supabase
+            .channel(`public:notifications:user_id=eq.${userId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'notifications',
+                    filter: `user_id=eq.${userId}`
+                },
+                async () => {
+                    // Reload all notifications on any change for simplicity
+                    const notifications = await this.getUserNotifications(userId);
+                    callback(notifications);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(subscription);
+        };
     }
 
     static subscribeToSystemAlerts(callback: (alerts: SystemAlert[]) => void) {
         callback([...systemAlertStore]);
-        return () => {};
+        return () => { };
     }
 
     // Email template helpers
@@ -394,7 +569,7 @@ export default class NotificationService {
 
     static createSubscriptionExpiryEmailTemplate(userName: string, daysUntilExpiry: number): EmailTemplate {
         const isExpired = daysUntilExpiry <= 0;
-        const subject = isExpired 
+        const subject = isExpired
             ? 'Your Home Listing AI subscription has expired'
             : `Your subscription expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}`;
 
@@ -416,7 +591,7 @@ export default class NotificationService {
     static createNewLeadPushNotification(leadName: string, propertyAddress?: string): PushNotification {
         return {
             title: 'New Lead Received!',
-            body: propertyAddress 
+            body: propertyAddress
                 ? `${leadName} is interested in ${propertyAddress}`
                 : `You have a new lead from ${leadName}`,
             data: {

@@ -33,5 +33,25 @@ export const feedbackService = {
             console.error('Error fetching feedback analytics:', error);
             return {};
         }
+    },
+
+    async fetchStepPerformance(userId: string): Promise<StepPerformance[]> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/analytics/step-performance/${userId}`);
+            if (!response.ok) throw new Error('Failed to fetch step performance');
+            const data = await response.json();
+            return data.steps || [];
+        } catch (error) {
+            console.error('Error fetching step performance:', error);
+            return [];
+        }
     }
 };
+
+export interface StepPerformance {
+    stepId: string;
+    sent: number;
+    opened: number;
+    clicked: number;
+    replied: number;
+}

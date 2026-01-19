@@ -72,6 +72,7 @@ const emailTrackingService = require('./services/emailTrackingService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
 const { scrapeUrl } = require('./services/scraperService');
 const { sendSms, validatePhoneNumber } = require('./services/smsService');
+const { initiateCall } = require('./services/voiceService');
 
 const app = express();
 
@@ -743,6 +744,46 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
 });
 
 // Feedback Analytics Endpoints
+app.get('/api/analytics/step-performance/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.json({ success: true, steps: [] });
+    }
+
+    // Fetch email events for this user
+    const { data: events, error } = await supabaseAdmin
+      .from('email_events')
+      .select('message_id, event_type, campaign_id')
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    // Aggregate by message_id (Step)
+    // We assume message_id maps to a Step ID in the funnel
+    const stepMap = {};
+
+    (events || []).forEach(ev => {
+      const stepId = ev.message_id || 'unknown_step';
+      if (!stepMap[stepId]) {
+        stepMap[stepId] = { stepId, sent: 0, opened: 0, clicked: 0, replied: 0 };
+      }
+
+      if (ev.event_type === 'delivered' || ev.event_type === 'accepted') stepMap[stepId].sent++;
+      else if (ev.event_type === 'opened') stepMap[stepId].opened++;
+      else if (ev.event_type === 'clicked') stepMap[stepId].clicked++;
+      else if (ev.event_type === 'replied') stepMap[stepId].replied++;
+    });
+
+    res.json({ success: true, steps: Object.values(stepMap) });
+
+  } catch (error) {
+    console.error('Step performance error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load step performance' });
+  }
+});
+
 app.get('/api/analytics/feedback/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -860,6 +901,28 @@ const funnelService = createFunnelService({
   supabaseAdmin,
   emailService,
   smsService: { sendSms, validatePhoneNumber }
+});
+
+// ENROLL LEAD IN FUNNEL
+app.post('/api/funnels/assign', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No authorization header' });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) return res.status(401).json({ error: 'Invalid token' });
+
+    const { leadId, funnelType } = req.body;
+    if (!leadId || !funnelType) return res.status(400).json({ error: 'Missing leadId or funnelType' });
+
+    const enrollment = await funnelService.enrollLead(user.id, leadId, funnelType);
+    res.json(enrollment);
+  } catch (error) {
+    console.error('Enrollment Error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Run Funnel Engine every 60 seconds
@@ -6171,8 +6234,28 @@ app.post('/api/leads/score-all', async (req, res) => {
 });
 
 // Get scoring rules
-app.get('/api/leads/scoring-rules', (req, res) => {
+// Get scoring rules
+app.get('/api/leads/scoring-rules', async (req, res) => {
   try {
+    // Try to fetch from DB
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const { data, error } = await supabaseAdmin.from('scoring_rules').select('*');
+      if (!error && data && data.length > 0) {
+        return res.json({
+          success: true,
+          rules: data.map(rule => ({
+            id: rule.id,
+            name: rule.name,
+            description: rule.description,
+            points: rule.points,
+            category: rule.category
+          })),
+          tiers: SCORE_TIERS
+        });
+      }
+    }
+
+    // Fallback to constants
     res.json({
       success: true,
       rules: LEAD_SCORING_RULES.map(rule => ({
@@ -6185,8 +6268,103 @@ app.get('/api/leads/scoring-rules', (req, res) => {
       tiers: SCORE_TIERS
     });
   } catch (error) {
-    console.error('Get scoring rules error:', error);
-    res.status(500).json({ error: error.message });
+    console.warn('Scoring rules fetch error, using defaults:', error);
+    // Fallback to constants on error
+    res.json({
+      success: true,
+      rules: LEAD_SCORING_RULES.map(rule => ({
+        id: rule.id,
+        name: rule.name,
+        description: rule.description,
+        points: rule.points,
+        category: rule.category
+      })),
+      tiers: SCORE_TIERS
+    });
+  }
+});
+
+// Get lead stats (aggregated)
+app.get('/api/leads/stats', async (req, res) => {
+  try {
+    const { userId } = req.query; // Optional filter if needed, though leadsService usually passes user context
+
+    // In a real app with auth middleware, we'd use req.user.id
+    // Here we might need to rely on query param or just return stats for the "demo" user context
+    // For Blueprint, we'll assume the caller passes ?userId=...
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.json({
+        success: true,
+        stats: { total: 0, new: 0, qualified: 0, contacted: 0, showing: 0, lost: 0, conversionRate: 0, scoreStats: { averageScore: 0, highestScore: 0 } }
+      });
+    }
+
+    let query = supabaseAdmin.from('leads').select('status, score, user_id');
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data: leads, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    // Aggregate
+    const stats = {
+      total: leads.length,
+      new: 0,
+      qualified: 0,
+      contacted: 0,
+      showing: 0,
+      lost: 0,
+      conversionRate: 0,
+      scoreStats: {
+        averageScore: 0,
+        highestScore: 0,
+        qualified: 0,
+        hot: 0,
+        warm: 0,
+        cold: 0
+      }
+    };
+
+    let totalScore = 0;
+
+    leads.forEach(lead => {
+      const s = (lead.status || 'New');
+      if (stats.hasOwnProperty(s.toLowerCase())) {
+        stats[s.toLowerCase()]++; // map 'New' -> 'new'
+      } else if (s === 'New') stats.new++;
+      else if (s === 'Qualified') stats.qualified++;
+      else if (s === 'Contacted') stats.contacted++;
+      else if (s === 'Showing') stats.showing++;
+      else if (s === 'Lost') stats.lost++;
+
+      // Score stats
+      const scoreVal = (lead.score && typeof lead.score === 'object') ? lead.score.totalScore : 0;
+      totalScore += scoreVal;
+      if (scoreVal > stats.scoreStats.highestScore) stats.scoreStats.highestScore = scoreVal;
+
+      // Tiers approximation (could also read from lead.score.tier)
+      if (scoreVal >= 80) stats.scoreStats.hot++;
+      else if (scoreVal >= 50) stats.scoreStats.warm++;
+      else stats.scoreStats.cold++;
+
+      if (s === 'Qualified') stats.scoreStats.qualified++; // Reuse
+    });
+
+    if (stats.total > 0) {
+      stats.conversionRate = Number(((stats.qualified / stats.total) * 100).toFixed(2));
+      stats.scoreStats.averageScore = Math.round(totalScore / stats.total);
+    }
+
+    res.json({ success: true, ...stats });
+
+  } catch (error) {
+    console.error('Lead stats error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch stats' });
   }
 });
 
@@ -6409,11 +6587,26 @@ app.get('/api/admin/analytics/overview', async (_req, res) => {
       at: l.created_at
     }));
 
+    // 6. Voice Usage
+    const agentId = resolveMarketingOwnerId(req);
+    let voiceMinutesUsed = 0;
+
+    if (agentId) {
+      const { data: agentData } = await supabaseAdmin
+        .from('agents')
+        .select('voice_minutes_used')
+        .eq('id', agentId)
+        .single();
+
+      voiceMinutesUsed = agentData?.voice_minutes_used || 0;
+    }
+
     res.json({
       leadsToday: leadsToday || 0,
       leadsThisWeek: leadsWeek || 0,
       appointmentsNext7: apptsNext7 || 0,
       messagesSent: msgs || 0,
+      voiceMinutesUsed,
       leadsSpark: [], // Keep empty or calculate daily histo
       apptSpark: [],
       statuses: {
@@ -7112,25 +7305,43 @@ app.post('/api/admin/email/quick-send', async (req, res) => {
     // Basic validation
     if (!to || !subject) return res.status(400).json({ error: 'Missing to or subject' });
 
-    const result = await emailService.sendEmail({
+    await createEmailService().sendEmail({
       to,
       subject,
-      html: html || text, // Fallback
+      html: html || text,
       text,
       from,
       tags: ['admin-quick-send']
     });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Quick Email Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/voice/quick-send', async (req, res) => {
+  try {
+    const { to, script } = req.body;
+
+    // Initiate test call
+    const result = await initiateCall({
+      leadPhone: to,
+      script: script,
+      callType: 'test'
+    });
+
     res.json(result);
-  } catch (err) {
-    console.error('Quick send error:', err);
-    res.status(500).json({ error: 'Failed to send email', details: err.message });
+  } catch (error) {
+    console.error('Quick Call Error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
 // Notification preferences
 app.get('/api/notifications/preferences/:userId', async (req, res) => {
   try {
-    const { userId } = req.params
+    const { userId } = req.params;
     const preferences = await getNotificationPreferences(userId)
     res.json({ success: true, preferences })
   } catch (error) {
@@ -7184,9 +7395,81 @@ app.post('/api/language/detect', async (req, res) => {
     })
   } catch (error) {
     console.error('Error detecting language:', error)
-    res.status(500).json({ error: 'Failed to detect language' })
+    res.status(500).json({ error: 'Language detection failed' })
   }
 })
+
+// EMAIL TRACKING ROUTES
+app.get('/api/track/email/open/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    // Fetch current count
+    const { data: current } = await supabaseAdmin
+      .from('email_tracking_events')
+      .select('open_count, opened_at')
+      .eq('message_id', messageId)
+      .single();
+
+    if (current) {
+      await supabaseAdmin
+        .from('email_tracking_events')
+        .update({
+          open_count: (current.open_count || 0) + 1,
+          opened_at: current.opened_at || new Date().toISOString()
+        })
+        .eq('message_id', messageId);
+    }
+
+    // Return 1x1 transparent pixel
+    const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+    res.writeHead(200, {
+      'Content-Type': 'image/gif',
+      'Content-Length': pixel.length,
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+    });
+    res.end(pixel);
+  } catch (error) {
+    console.error('Tracking Pixel Error:', error);
+    const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+    res.writeHead(200, { 'Content-Type': 'image/gif' });
+    res.end(pixel);
+  }
+});
+
+app.get('/api/track/email/click/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { url } = req.query;
+
+    if (!url) return res.status(400).send('Missing URL');
+
+    // Fetch current count
+    const { data: current } = await supabaseAdmin
+      .from('email_tracking_events')
+      .select('click_count, clicked_at')
+      .eq('message_id', messageId)
+      .single();
+
+    if (current) {
+      await supabaseAdmin
+        .from('email_tracking_events')
+        .update({
+          click_count: (current.click_count || 0) + 1,
+          clicked_at: current.clicked_at || new Date().toISOString()
+        })
+        .eq('message_id', messageId);
+    }
+
+    // Redirect
+    res.redirect(url);
+  } catch (error) {
+    console.error('Tracking Click Error:', error);
+    if (req.query.url) return res.redirect(req.query.url);
+    res.status(500).send('Tracking Error');
+  }
+});
+
 
 app.patch('/api/notifications/preferences/:userId', async (req, res) => {
   try {

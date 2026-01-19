@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { EditableStep } from '../../types';
 import AnalyticsPage from '../AnalyticsPage';
 import QuickEmailModal from '../QuickEmailModal';
 import SignatureEditorModal from '../SignatureEditorModal';
@@ -52,22 +53,7 @@ const highlightCards = [
     }
 ] as const;
 
-export type EditableStep = {
-    id: string;
-    title: string;
-    description: string;
-    icon: string;
-    delay: string;
-    type: string;
-    subject: string;
-    content: string;
-    mediaUrl?: string;
-    // Condition Logic
-    conditionRule?: string; // e.g., 'email_opened', 'link_clicked'
-    conditionValue?: string; // e.g., '1', 'true'
-    trueNextStepId?: string;
-    falseNextStepId?: string;
-};
+
 
 const initialBlankSteps: EditableStep[] = [
     {
@@ -244,6 +230,38 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 const user = session?.user;
                 if (user?.email) targetEmail = user.email;
                 console.log('User session retrieved (or failed), default email:', targetEmail);
+            }
+
+            // Handle Voice Call steps
+            if (step.type === 'Call' || step.type === 'AI Call') {
+                console.log('Handling Call step...');
+
+                if (!targetPhone) {
+                    targetPhone = window.prompt('Where should we send the test call? (e.g. +1555...)', '') || '';
+                }
+
+                if (!targetPhone) {
+                    console.log('No phone number provided.');
+                    return;
+                }
+
+                setSendingTestId(step.id);
+                const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+
+                const scriptToSend = mergeTokens(step.content || "This is a test call from your AI assistant.");
+
+                const response = await fetch(`${apiUrl}/api/admin/voice/quick-send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: targetPhone,
+                        script: scriptToSend
+                    })
+                });
+
+                if (response.ok) alert(`Test call initiated to ${targetPhone}`);
+                else throw new Error('Failed to initiate test call');
+                return;
             }
 
             // Handle SMS steps
@@ -503,18 +521,19 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         <h3 className="text-sm font-bold text-slate-800">Test Configuration</h3>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-4">
-                        {import.meta.env.VITE_ENABLE_SMS !== 'false' && (
-                            <div className="flex-1">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Test Phone Number (for SMS)</label>
-                                <input
-                                    type="text"
-                                    placeholder="+15550000000"
-                                    className="w-full text-sm border-slate-200 rounded-lg"
-                                    value={testPhone}
-                                    onChange={(e) => setTestPhone(e.target.value)}
-                                />
-                            </div>
-                        )}
+                        <div className="flex-1">
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Test Phone Number (for SMS & Voice)</label>
+                            <input
+                                type="text"
+                                placeholder="+15550000000"
+                                className="w-full text-sm border-slate-200 rounded-lg"
+                                value={testPhone}
+                                onChange={(e) => setTestPhone(e.target.value)}
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1">
+                                Format: E.164 (e.g. +12125551212)
+                            </p>
+                        </div>
                         <div className="flex-1">
                             <label className="block text-xs font-semibold text-slate-500 mb-1">Test Email Address</label>
                             <input

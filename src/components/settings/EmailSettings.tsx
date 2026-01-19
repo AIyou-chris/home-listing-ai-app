@@ -17,7 +17,7 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     onBack: _onBack,
     agentSlug
 }) => {
-    const [activeTab, setActiveTab] = useState<'connect' | 'forwarding'>('connect');
+    // Consolidated View: No tabs.
     const [gmailConnection, setGmailConnection] = useState<EmailConnection | undefined>(
         emailAuthService.getConnection('gmail')
     );
@@ -56,101 +56,83 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     };
 
     return (
-        <div className="p-8 space-y-8 animate-fadeIn">
+        <div className="p-8 space-y-12 animate-fadeIn">
             <div>
                 <h2 className="text-2xl font-bold text-slate-900">📧 Email Integration</h2>
                 <p className="text-slate-500 mt-1">Connect your email to sync conversations and leads.</p>
             </div>
 
-            {/* Method Selection Tabs */}
-            <div className="flex p-1 bg-slate-100 rounded-lg w-fit">
-                <button
-                    onClick={() => setActiveTab('connect')}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'connect'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900'
-                        }`}
-                >
-                    Connect Account
-                </button>
-                <button
-                    onClick={() => setActiveTab('forwarding')}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'forwarding'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900'
-                        }`}
-                >
-                    Email Forwarding
-                </button>
-            </div>
+            {/* SECTION 1: CONNECT ACCOUNT */}
+            <FeatureSection title="Connect Email" icon="mail">
+                <p className="text-slate-600 mb-6">
+                    Connect your Google account to automatically sync Gmail conversations, replies, and lead notifications directly to your HomeListingAI dashboard.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <IntegrationCard
+                        icon="mail"
+                        title="Gmail"
+                        description={gmailConnection ? `Connected as ${gmailConnection.email}` : "Connect your Google Workspace or Gmail account to sync emails."}
+                        tags={gmailConnection ? [
+                            { label: 'Connected', color: 'green' }
+                        ] : [
+                            { label: 'Popular', color: 'green' },
+                            { label: 'Recommended', color: 'blue' }
+                        ]}
+                        isSelected={!!gmailConnection}
+                        onClick={() => gmailConnection ? handleDisconnectEmail('gmail') : handleConnectEmail('gmail')}
+                    />
+                </div>
+            </FeatureSection>
 
-            {activeTab === 'connect' ? (
-                <FeatureSection title="Connect Email" icon="mail">
-                    <p className="text-slate-600 mb-6">
-                        Connect your Google account to automatically sync Gmail conversations, replies, and lead notifications directly to your HomeListingAI dashboard.
+            {/* SECTION 2: FORWARDING */}
+            <FeatureSection title="Inbound Lead Forwarding" icon="forward_to_inbox">
+                <div className="space-y-6">
+                    <p className="text-slate-600">
+                        Alternatively, forward leads from external portals directly to your AI dashboard.
                     </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <IntegrationCard
-                            icon="mail"
-                            title="Gmail"
-                            description={gmailConnection ? `Connected as ${gmailConnection.email}` : "Connect your Google Workspace or Gmail account to sync emails."}
-                            tags={gmailConnection ? [
-                                { label: 'Connected', color: 'green' }
-                            ] : [
-                                { label: 'Popular', color: 'green' },
-                                { label: 'Recommended', color: 'blue' }
-                            ]}
-                            isSelected={!!gmailConnection}
-                            onClick={() => gmailConnection ? handleDisconnectEmail('gmail') : handleConnectEmail('gmail')}
-                        />
-                    </div>
-                </FeatureSection>
-            ) : (
-                <FeatureSection title="Inbound Lead Forwarding" icon="forward_to_inbox">
-                    <div className="space-y-6">
-                        <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-indigo-900 mb-2">Your Dedicated Lead Address</h3>
-                            <p className="text-indigo-700 mb-6 max-w-xl">
-                                Use this unique email address to forward leads from Zillow, Realtor.com, Redfin, and other portals directly to your AI dashboard.
-                            </p>
 
-                            <div className="flex items-center gap-2 max-w-md">
-                                <code className="flex-1 block p-4 bg-white border border-indigo-200 rounded-lg text-indigo-600 font-mono text-lg font-bold text-center select-all">
-                                    {inboundEmail}
-                                </code>
-                                <button
-                                    onClick={copyToClipboard}
-                                    className="p-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
-                                    title="Copy to clipboard"
-                                >
-                                    <span className="material-symbols-outlined">content_copy</span>
-                                </button>
-                            </div>
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-6">
+                        <h3 className="text-lg font-semibold text-indigo-900 mb-2">Your Dedicated Lead Address</h3>
+                        <p className="text-indigo-700 mb-6 max-w-xl">
+                            Use this unique email address to forward leads from Zillow, Realtor.com, Redfin, and other portals directly to your AI dashboard.
+                        </p>
+
+                        <div className="flex items-center gap-2 max-w-md">
+                            <code className="flex-1 block p-4 bg-white border border-indigo-200 rounded-lg text-indigo-600 font-mono text-lg font-bold text-center select-all">
+                                {inboundEmail}
+                            </code>
+                            <button
+                                onClick={copyToClipboard}
+                                className="p-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                                title="Copy to clipboard"
+                            >
+                                <span className="material-symbols-outlined">content_copy</span>
+                            </button>
                         </div>
+                    </div>
 
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                            <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-slate-400">help</span>
-                                How to set this up?
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="space-y-2">
-                                    <div className="font-medium text-slate-900">1. Copy Address</div>
-                                    <p className="text-sm text-slate-500">Click the copy button above to grab your unique forwarding address.</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <div className="font-medium text-slate-900">2. Update Portals</div>
-                                    <p className="text-sm text-slate-500">Log in to your lead sources (Zillow, Website, etc.) and find "Notification Email" settings.</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <div className="font-medium text-slate-900">3. Paste & Save</div>
-                                    <p className="text-sm text-slate-500">Paste your <strong>leads.homelistingai.com</strong> address and save. Leads will now appear instantly!</p>
-                                </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                        <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-slate-400">help</span>
+                            How to set this up?
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="space-y-2">
+                                <div className="font-medium text-slate-900">1. Copy Address</div>
+                                <p className="text-sm text-slate-500">Click the copy button above to grab your unique forwarding address.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="font-medium text-slate-900">2. Update Portals</div>
+                                <p className="text-sm text-slate-500">Log in to your lead sources (Zillow, Website, etc.) and find "Notification Email" settings.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="font-medium text-slate-900">3. Paste & Save</div>
+                                <p className="text-sm text-slate-500">Paste your <strong>leads.homelistingai.com</strong> address and save. Leads will now appear instantly!</p>
                             </div>
                         </div>
                     </div>
-                </FeatureSection>
-            )}
+                </div>
+            </FeatureSection>
         </div>
     );
 };

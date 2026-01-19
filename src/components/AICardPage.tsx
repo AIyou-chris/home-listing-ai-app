@@ -801,29 +801,48 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
           <PageTipBanner
             pageKey="ai-card"
             expandedContent={
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                  <h4 className="font-semibold text-slate-900 mb-2">🆔 Your Digital Identity:</h4>
-                  <ul className="space-y-2 text-slate-700">
-                    <li className="flex items-start">
-                      <span className="mr-2">🎨</span>
-                      <span><strong>Brand consistency:</strong> Upload your headshot, logo, and pick a brand color so the card mirrors your print and web collateral.</span>
+                  <h4 className="font-bold text-indigo-900 mb-3 text-lg">🆔 Your Digital Identity System</h4>
+                  <p className="text-slate-600 mb-4 text-sm leading-relaxed">
+                    This isn't just a business card—it's an interactive landing page that lives on your clients' phones. It captures leads even when you're sleeping.
+                  </p>
+
+                  <div className="space-y-4">
+                    <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1">How It Works</h5>
+                    <ul className="space-y-3 text-slate-700 text-sm">
+                      <li className="flex items-start gap-3">
+                        <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                          <span className="material-symbols-outlined text-sm">share</span>
+                        </div>
+                        <span><strong>One Link, Everywhere:</strong> Put your card's link in your Instagram bio, email signature, and text it to every new contact.</span>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                          <span className="material-symbols-outlined text-sm">smart_toy</span>
+                        </div>
+                        <span><strong>Integrated Assistant:</strong> The "Ask my Assistant" button connects leads to your AI, which can answer questions about you or your listings 24/7.</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-white/50 rounded-xl p-4 border border-indigo-50">
+                  <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1 mb-3">Workflow Success Tips</h5>
+                  <ul className="space-y-3 text-slate-700 text-sm">
+                    <li className="flex items-start gap-3">
+                      <span className="mr-1 text-lg">🤝</span>
+                      <span><strong>The "Text Back" Play:</strong> When you meet someone, don't just hand a paper card. Say "Let me text you my digital card" and send them this link. You get their number, they get your AI.</span>
                     </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">🔗</span>
-                      <span><strong>Bio & links:</strong> Keep the story tight (2–3 sentences) and make sure social URLs point to active accounts clients can browse.</span>
+                    <li className="flex items-start gap-3">
+                      <span className="mr-1 text-lg">📸</span>
+                      <span><strong>QR Code Strategy:</strong> Download your QR code and add it to your Open House sign-in sheet. Visitors scan to get your info and start chatting with your AI.</span>
                     </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">💬</span>
-                      <span><strong>AI Chat:</strong> Use the preview chat to confirm the AI introduces you correctly and handles common questions smoothly.</span>
+                    <li className="flex items-start gap-3">
+                      <span className="mr-1 text-lg">🎨</span>
+                      <span><strong>Stay On Brand:</strong> Update your headshot and brand color here. It instantly updates everywhere—no reprinting required.</span>
                     </li>
                   </ul>
-                </div>
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
-                  <h4 className="font-semibold text-blue-900 mb-2">💡 Pro Tip:</h4>
-                  <p className="text-blue-800">
-                    Pair the AI card QR with a "Talk to my AI concierge" CTA—buyers love the novelty and you capture more late-night inquiries.
-                  </p>
                 </div>
               </div>
             }

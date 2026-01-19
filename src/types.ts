@@ -739,3 +739,27 @@ export interface UserNotification {
     createdAt: string;
     expiresAt?: string;
 }
+
+export interface EditableStep {
+    id: string;
+    title: string;
+    description: string;
+    icon: string;
+    delay: string;
+    type: string;
+    subject: string;
+    content: string;
+    mediaUrl?: string;
+    // AI Voice Call specific fields
+    voiceId?: string;
+    script?: string;
+    transferNumber?: string;
+
+    // Automation & Logic
+    conditionRule?: string;
+    conditionValue?: string | number;
+
+    // Email Specific
+    plainText?: string; // 'true' | 'false'
+    includeUnsubscribe?: string; // 'true' | 'false'
+}

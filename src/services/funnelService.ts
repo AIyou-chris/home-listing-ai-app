@@ -1,5 +1,5 @@
 import { authService } from './authService';
-import { EditableStep } from '../components/FunnelAnalyticsPanel';
+import { EditableStep } from '../types';
 
 const API_BASE = '/api/funnels';
 

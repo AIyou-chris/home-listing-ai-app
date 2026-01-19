@@ -1,6 +1,5 @@
 import { supabase } from './supabase'
 import { Lead, LeadStatus, LeadFunnelType } from '../types'
-import { SAMPLE_LEADS } from '../constants'
 
 export interface LeadPayload {
   name: string
@@ -90,11 +89,11 @@ export const leadsService = {
   async list(status?: string, search?: string) {
     const userId = await getCurrentUserId()
     if (!userId) {
-      const stats = buildStatusStats(SAMPLE_LEADS)
+      // Return empty state instead of sample leads
       return {
-        leads: SAMPLE_LEADS,
-        total: SAMPLE_LEADS.length,
-        stats
+        leads: [],
+        total: 0,
+        stats: {}
       }
     }
 
@@ -280,26 +279,66 @@ export const leadsService = {
   },
 
   async stats() {
-    const { leads, stats } = await leadsService.list()
-    const statusCounts = {
-      new: stats['New'] ?? 0,
-      qualified: stats['Qualified'] ?? 0,
-      contacted: stats['Contacted'] ?? 0,
-      showing: stats['Showing'] ?? 0,
-      lost: stats['Lost'] ?? 0
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return {
+        total: 0,
+        new: 0,
+        qualified: 0,
+        contacted: 0,
+        showing: 0,
+        lost: 0,
+        conversionRate: 0,
+        scoreStats: {
+          averageScore: 0,
+          qualified: 0,
+          hot: 0,
+          warm: 0,
+          cold: 0,
+          highestScore: 0
+        }
+      }
     }
 
-    const total = leads.length
-    const conversionRate = total > 0 ? Number(((statusCounts.qualified / total) * 100).toFixed(2)) : 0
+    try {
+      // Use the newly created backend endpoint
+      const response = await fetch(`/api/leads/stats?userId=${userId}`);
+      const data = await response.json();
+
+      if (data.success) {
+        // The backend returns { success: true, ...stats } so we return the whole object
+        // but we might want to strip success/error fields if strict typing matters.
+        // For now, spreading data is fine as it contains all the keys we need.
+        return {
+          total: data.total || 0,
+          new: data.new || 0,
+          qualified: data.qualified || 0,
+          contacted: data.contacted || 0,
+          showing: data.showing || 0,
+          lost: data.lost || 0,
+          conversionRate: data.conversionRate || 0,
+          scoreStats: {
+            averageScore: data.scoreStats?.averageScore || 0,
+            qualified: data.scoreStats?.qualified || 0,
+            hot: data.scoreStats?.hot || 0,
+            warm: data.scoreStats?.warm || 0,
+            cold: data.scoreStats?.cold || 0,
+            highestScore: data.scoreStats?.highestScore || 0
+          }
+        };
+      }
+    } catch (e) {
+      console.warn('Backend stats fetch failed, falling back to empty:', e);
+    }
 
     return {
-      total,
-      new: statusCounts.new,
-      qualified: statusCounts.qualified,
-      contacted: statusCounts.contacted,
-      showing: statusCounts.showing,
-      lost: statusCounts.lost,
-      conversionRate,
+      total: 0,
+      new: 0,
+      qualified: 0,
+      contacted: 0,
+      showing: 0,
+      lost: 0,
+      conversionRate: 0,
       scoreStats: {
         averageScore: 0,
         qualified: 0,

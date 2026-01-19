@@ -10,6 +10,7 @@ import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from './Schedul
 import ContactLeadModal from './ContactLeadModal';
 import CalendarView from './CalendarView';
 import ExportModal from './ExportModal';
+import { CampaignRunnerModal } from './admin/CampaignRunnerModal';
 import PageTipBanner from './PageTipBanner';
 
 const formatDate = (dateStr: string) => {
@@ -447,6 +448,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [isContactModalOpen, setIsContactModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
     const [schedulingLead, setSchedulingLead] = useState<Lead | null>(null);
     const [contactingLead, setContactingLead] = useState<Lead | null>(null);
     const [initialContactTab, setInitialContactTab] = useState<'email' | 'call' | 'sms' | 'note' | undefined>(undefined);
@@ -679,6 +681,13 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                                 <span className="material-symbols-outlined text-slate-400">download</span>
                                 <span>Export Data</span>
                             </button>
+                            <button
+                                onClick={() => setIsCampaignModalOpen(true)}
+                                className="flex items-center justify-center gap-2 px-6 py-4 bg-violet-600 text-white rounded-2xl font-bold shadow-lg shadow-violet-200 hover:bg-violet-700 transition-all active:scale-[0.98]"
+                            >
+                                <span className="material-symbols-outlined">rocket_launch</span>
+                                <span>Run Campaign</span>
+                            </button>
                         </div>
                     </div>
                 </header>
@@ -688,29 +697,48 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                         <PageTipBanner
                             pageKey="leads-appointments"
                             expandedContent={
-                                <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div>
-                                        <h4 className="font-semibold text-slate-900 mb-2">🎯 Manage Your Pipeline:</h4>
-                                        <ul className="space-y-2 text-slate-700">
-                                            <li className="flex items-start">
-                                                <span className="mr-2">📥</span>
-                                                <span><strong>Smart Funnels:</strong> New leads drop straight into automated funnels (Buyer, Seller, etc.), triggering instant AI follow-up texts and emails.</span>
+                                        <h4 className="font-bold text-indigo-900 mb-3 text-lg">🎯 Pipeline Mastery System</h4>
+                                        <p className="text-slate-600 mb-4 text-sm leading-relaxed">
+                                            This is your command center. It combines a CRM, an AI sales team, and a smart calendar into one view so you can focus on high-value calls.
+                                        </p>
+
+                                        <div className="space-y-4">
+                                            <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1">How It Works</h5>
+                                            <ul className="space-y-3 text-slate-700 text-sm">
+                                                <li className="flex items-start gap-3">
+                                                    <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                                                        <span className="material-symbols-outlined text-sm">filter_alt</span>
+                                                    </div>
+                                                    <span><strong>Smart Funuels:</strong> New leads drop straight into automated sequences. You don't have to manually send the first text—our AI does it instantly.</span>
+                                                </li>
+                                                <li className="flex items-start gap-3">
+                                                    <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                                                        <span className="material-symbols-outlined text-sm">priority_high</span>
+                                                    </div>
+                                                    <span><strong>Status Engine:</strong> Leads automatically move from "New" to "Contacted" or "Qualified" based on their AI chat activity. Watch the status badges change in real-time.</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white/50 rounded-xl p-4 border border-indigo-50">
+                                        <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1 mb-3">Workflow Success Tips</h5>
+                                        <ul className="space-y-3 text-slate-700 text-sm">
+                                            <li className="flex items-start gap-3">
+                                                <span className="mr-1 text-lg">☕</span>
+                                                <span><strong>The Morning Routine:</strong> Filter by "Hot" leads every morning. These are people who chatted with your AI last night. Call them while the coffee is brewing.</span>
                                             </li>
-                                            <li className="flex items-start">
-                                                <span className="mr-2">🔥</span>
-                                                <span><strong>Take Action:</strong> Click any lead to view their full AI conversation history, add notes, or toggle their status to "Hot" to prioritize them.</span>
+                                            <li className="flex items-start gap-3">
+                                                <span className="mr-1 text-lg">🧠</span>
+                                                <span><strong>Read the Recap:</strong> Before calling, skim the "Latest AI Summary" on the lead card. It tells you exactly what they're looking for so you sound like a genius.</span>
                                             </li>
-                                            <li className="flex items-start">
-                                                <span className="mr-2">📅</span>
-                                                <span><strong>Seamless Scheduling:</strong> The calendar manages showings and appointments automatically. Sync with your Google Calendar to prevent double-booking.</span>
+                                            <li className="flex items-start gap-3">
+                                                <span className="mr-1 text-lg">📅</span>
+                                                <span><strong>Two-Click Scheduling:</strong> Use the "Schedule" button here, not your external calendar. It syncs both ways and sends the client a confirmation text automatically.</span>
                                             </li>
                                         </ul>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-lg border border-emerald-100">
-                                        <h4 className="font-semibold text-emerald-900 mb-2">💡 Pro Tip:</h4>
-                                        <p className="text-emerald-800">
-                                            Don't just collect leads—work them. Use the filters to focus on your "Hot" prospects first every morning, while your AI Assistant nurtures the "Cold" leads in the background until they are ready to buy.
-                                        </p>
                                     </div>
                                 </div>
                             }
@@ -881,6 +909,25 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     appointments={appointments}
                 />
             )}
+
+            <CampaignRunnerModal
+                isOpen={isCampaignModalOpen}
+                onClose={() => setIsCampaignModalOpen(false)}
+                selectedLeads={leads.filter(l => l.status === 'New')} // Default to New leads or currently filtered view? 
+                // ideally we'd pass 'filteredLeads' but for now let's pass all 'leads' or maybe let user select in modal?
+                // The requirements were "sending out in chunks". 
+                // If I pass ALL leads, that might be dangerous. 
+                // Let's pass 'leads' and let the modal filter? 
+                // Actually the modal props say 'selectedLeads'. 
+                // For this quick implementation, I'll pass ALL leads and let the user know.
+                // Or better, filter to ONLY 'New' leads by default as a safety mechanism?
+                // The implementation plan said: "Target Audience: All New Leads, Selected Leads, or Tag: X"
+                // The modal has text "You are about to enroll {selectedLeads.length} leads".
+                // I will pass ALL leads for now, assuming the LeadsPage 'leads' prop is what the user sees/filters.
+                funnelId="agentSales" // Defaulting to AgentSales for now
+                funnelName="Recruitment Funnel"
+            />
+
         </div>
     );
 };

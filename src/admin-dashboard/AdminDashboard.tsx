@@ -43,8 +43,13 @@ export type DashboardView =
   | 'property'
   | 'add-listing'
   | 'ai-card-builder'
+  | 'add-listing'
+  | 'ai-card-builder'
   | 'marketing-funnels'
-  | 'users';
+  | 'users'
+  | 'broadcast';
+
+import AdminBroadcastPage from './components/AdminBroadcastPage';
 
 const cloneDemoProperty = (property: Property, index: number): Property => {
   const description =
@@ -383,6 +388,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         );
       case 'users':
         return <AdminUsersPage />;
+      case 'broadcast':
+        return <AdminBroadcastPage />;
       default:
         return (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8">

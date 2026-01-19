@@ -1,7 +1,8 @@
 
 import React from 'react';
-import { EditableStep } from './AdminMarketingFunnelsPanel';
+import { EditableStep } from '../../types';
 import { EmailEditor } from '../EmailEditor';
+
 
 type FunnelPanelProps = {
     panelKey: string;
@@ -149,30 +150,52 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                         {stepIsOpen && (
                                             <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
                                                 <div className="pt-4 border-t border-slate-100">
-                                                    <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                                        <div className="flex-1">
-                                                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Timing</label>
-                                                            <input
-                                                                className="w-full bg-transparent text-xs font-bold text-slate-700 focus:outline-none"
-                                                                value={step.delay}
-                                                                onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)}
-                                                            />
+                                                    <div className="grid grid-cols-1 gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b border-slate-200">
+                                                            <div>
+                                                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Step Name</label>
+                                                                <input
+                                                                    className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                                    value={step.title}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'title', e.target.value)}
+                                                                    placeholder="e.g. The Reality Check"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Description</label>
+                                                                <input
+                                                                    className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs font-medium text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                                    value={step.description}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'description', e.target.value)}
+                                                                    placeholder="Brief explanation of this step"
+                                                                />
+                                                            </div>
                                                         </div>
-                                                        <div className="w-px h-8 bg-slate-200" />
-                                                        <div className="flex-1">
-                                                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Action Type</label>
-                                                            <select
-                                                                className="w-full bg-transparent text-xs font-bold text-indigo-600 focus:outline-none cursor-pointer"
-                                                                value={step.type}
-                                                                onChange={(e) => onUpdateStep(step.id, 'type', e.target.value)}
-                                                            >
-                                                                <option value="Email">Email</option>
-                                                                <option value="Call">AI Call</option>
-                                                                <option value="SMS">SMS</option>
-                                                                <option value="Task">Task</option>
-                                                                <option value="Wait">Wait</option>
-                                                                <option value="Condition">Condition</option>
-                                                            </select>
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="flex-1">
+                                                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Timing</label>
+                                                                <input
+                                                                    className="w-full bg-transparent text-xs font-bold text-slate-700 focus:outline-none"
+                                                                    value={step.delay}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="w-px h-8 bg-slate-200" />
+                                                            <div className="flex-1">
+                                                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Action Type</label>
+                                                                <select
+                                                                    className="w-full bg-transparent text-xs font-bold text-indigo-600 focus:outline-none cursor-pointer"
+                                                                    value={step.type}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'type', e.target.value)}
+                                                                >
+                                                                    <option value="Email">Email</option>
+                                                                    <option value="Call">AI Call</option>
+                                                                    <option value="SMS">SMS</option>
+                                                                    <option value="Task">Task</option>
+                                                                    <option value="Wait">Wait</option>
+                                                                    <option value="Condition">Condition</option>
+                                                                </select>
+                                                            </div>
                                                         </div>
                                                     </div>
 
@@ -226,15 +249,52 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                             </div>
                                                         </div>
                                                     ) : step.type === 'Call' || step.type === 'AI Call' ? (
-                                                        <div className="rounded-xl bg-blue-50 border border-blue-100 p-6 flex items-start gap-4">
-                                                            <div className="p-3 bg-white rounded-full shadow-sm text-blue-600">
-                                                                <span className="material-symbols-outlined text-2xl">support_agent</span>
+                                                        <div className="rounded-xl bg-blue-50 border border-blue-100 p-6 flex flex-col gap-4">
+                                                            <div className="flex items-start gap-4">
+                                                                <div className="p-3 bg-white rounded-full shadow-sm text-blue-600">
+                                                                    <span className="material-symbols-outlined text-2xl">support_agent</span>
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className="text-blue-900 font-bold text-sm mb-1">AI Call Configuration</h4>
+                                                                    <p className="text-blue-700/80 text-xs leading-relaxed max-w-md">
+                                                                        Configure the script your AI Agent will use. The call will be triggered automatically.
+                                                                    </p>
+                                                                </div>
                                                             </div>
-                                                            <div>
-                                                                <h4 className="text-blue-900 font-bold text-sm mb-1">AI Call Configured</h4>
-                                                                <p className="text-blue-700/80 text-xs leading-relaxed max-w-md">
-                                                                    Your AI Agent will call them to remind about the appointment. Transcript will be here.
-                                                                </p>
+
+                                                            <div className="w-full">
+                                                                <label className="block text-xs font-semibold text-blue-800 mb-1">
+                                                                    Call Script / Prompt
+                                                                </label>
+                                                                <textarea
+                                                                    className="w-full h-32 rounded-lg border-blue-200 bg-white p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
+                                                                    placeholder="Hi, this is {{agent.name}}'s assistant. I saw you were interested in {{lead.interestAddress}}..."
+                                                                    value={step.content || ''}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
+                                                                />
+                                                                <div className="flex justify-between items-center mt-1">
+                                                                    <span className="text-[10px] text-blue-400">
+                                                                        {step.content?.length || 0} characters
+                                                                    </span>
+                                                                    <p className="text-[10px] text-blue-400">
+                                                                        Tokens supported: <code>{'{{lead.name}}'}</code>
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-blue-200/50">
+                                                                <button
+                                                                    onClick={() => onSendTest(step)}
+                                                                    className="px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-semibold text-blue-700 hover:bg-blue-50 shadow-sm"
+                                                                >
+                                                                    Send Test Call
+                                                                </button>
+                                                                <button
+                                                                    onClick={onSave}
+                                                                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-blue-700"
+                                                                >
+                                                                    Save Changes
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     ) : (step.type === 'Text' || step.type === 'sms' || step.type === 'SMS') ? (
@@ -413,6 +473,37 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                         >
                                                                             Save Changes
                                                                         </button>
+                                                                    </div>
+
+                                                                    <div className="mt-4 flex flex-col gap-3">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                id={`plaintext-${step.id}`}
+                                                                                className="rounded text-violet-600 focus:ring-violet-500"
+                                                                                checked={!!step.plainText}
+                                                                                onChange={(e) => onUpdateStep(step.id, 'plainText', e.target.checked ? 'true' : 'false')}
+                                                                            />
+                                                                            <label htmlFor={`plaintext-${step.id}`} className="text-xs font-semibold text-slate-600">
+                                                                                Send as Plain Text (Better Deliverability)
+                                                                            </label>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                id={`unsub-${step.id}`}
+                                                                                className="rounded text-violet-600 focus:ring-violet-500"
+                                                                                checked={step.includeUnsubscribe !== 'false'}
+                                                                                onChange={(e) => onUpdateStep(step.id, 'includeUnsubscribe', e.target.checked ? 'true' : 'false')}
+                                                                            />
+                                                                            <label htmlFor={`unsub-${step.id}`} className="text-xs font-semibold text-slate-600">
+                                                                                Include Unsubscribe Link
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="mt-2 text-[10px] text-slate-400">
+                                                                        💡 Tip: Use Spintax for variations: <code>{`{Hi|Hello|Hey} there`}</code>
                                                                     </div>
                                                                 </div>
                                                             </div>

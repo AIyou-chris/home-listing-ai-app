@@ -91,7 +91,11 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
                     to: lead.email,
                     subject: subject,
                     html: content.replace(/\n/g, '<br>'),
-                    tags: { funnel_step: step.step_key }
+                    tags: {
+                        funnel_step: step.step_key,
+                        lead_id: lead.id,
+                        user_id: agent.id
+                    }
                 });
                 context.details = result;
                 if (!result.sent && !result.queued) throw new Error('Email failed to send');

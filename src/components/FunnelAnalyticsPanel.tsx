@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { EditableStep } from '../types';
 import AnalyticsPage from './AnalyticsPage';
 import QuickEmailModal from './QuickEmailModal';
 import SignatureEditorModal from './SignatureEditorModal';
@@ -50,17 +51,7 @@ const highlightCards = [
     }
 ] as const;
 
-export type EditableStep = {
-    id: string;
-    title: string;
-    description: string;
-    icon: string;
-    delay: string;
-    type: string;
-    subject: string;
-    content: string;
-    mediaUrl?: string;
-};
+
 
 const initialWelcomeSteps: EditableStep[] = [
     {
@@ -352,17 +343,61 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const [customSignature, setCustomSignature] = useState<string>('');
 
-    const handleSendTestEmail = async (step: EditableStep) => {
+    const [testPhone, setTestPhone] = useState<string>('');
+    const [testEmail, setTestEmail] = useState<string>('');
+    const [isTestPhoneValid, setIsTestPhoneValid] = useState(true);
+
+    // Validate phone on change
+    useEffect(() => {
+        const phoneRegex = /^\+[1-9]\d{10,14}$/;
+        setIsTestPhoneValid(testPhone === '' || phoneRegex.test(testPhone));
+    }, [testPhone]);
+
+    const handleSendTest = async (step: EditableStep) => {
         if (sendingTestId) return;
         setSendingTestId(step.id);
 
         try {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user || !user.email) {
+            if (!user || (!user.email && !isDemoMode)) {
                 alert('Could not find your email address to send the test to.');
                 return;
             }
 
+            // Handle Voice/Call Steps
+            if (step.type === 'Call' || step.type === 'AI Call' || step.type === 'Voice') {
+                if (!testPhone) {
+                    alert('Please enter a test phone number first.');
+                    return;
+                }
+                if (!isTestPhoneValid) {
+                    alert('Please enter a valid E.164 phone number (e.g. +14155552671).');
+                    return;
+                }
+
+                const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+                const response = await fetch(`${apiUrl}/api/admin/voice/quick-send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${user?.id}` // Pass ID if needed by generic middleware
+                    },
+                    body: JSON.stringify({
+                        to: testPhone,
+                        script: step.content // Send the script template
+                    })
+                });
+
+                if (response.ok) {
+                    alert(`Test call initiated to ${testPhone}`);
+                } else {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to initiate call');
+                }
+                return;
+            }
+
+            // Handle Email Steps
             const subject = mergeTokens(step.subject);
             // Replace newlines with <br/> for HTML email body
             const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
@@ -374,7 +409,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    to: user.email,
+                    to: testEmail || user?.email || 'test@example.com',
                     subject: `[TEST] ${subject}`,
                     html: body,
                     text: mergeTokens(step.content)
@@ -382,13 +417,13 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             });
 
             if (response.ok) {
-                alert(`Test email sent to ${user.email}`);
+                alert(`Test email sent to ${testEmail || user?.email || 'test@example.com'}`);
             } else {
                 throw new Error('Failed to send test email');
             }
         } catch (error) {
             console.error(error);
-            alert('Failed to send test email. Check console for details.');
+            alert(`Failed to send test: ${(error as Error).message}`);
         } finally {
             setSendingTestId(null);
         }
@@ -843,16 +878,32 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                             </div>
 
                                                             {/* Condition: AI Call vs Text vs Standard Editor */}
-                                                            {step.type === 'Call' || step.type === 'AI Call' ? (
-                                                                <div className="rounded-xl bg-blue-50 border border-blue-100 p-6 flex items-start gap-4">
-                                                                    <div className="p-3 bg-white rounded-full shadow-sm text-blue-600">
-                                                                        <span className="material-symbols-outlined text-2xl">support_agent</span>
+                                                            {step.type === 'Call' || step.type === 'AI Call' || step.type === 'Voice' ? (
+                                                                <div className="space-y-4">
+                                                                    <div className="rounded-xl bg-blue-50 border border-blue-100 p-6 flex items-start gap-4">
+                                                                        <div className="p-3 bg-white rounded-full shadow-sm text-blue-600">
+                                                                            <span className="material-symbols-outlined text-2xl">support_agent</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <h4 className="text-blue-900 font-bold text-lg mb-1">AI Call Configured</h4>
+                                                                            <p className="text-blue-700/80 text-sm leading-relaxed max-w-md">
+                                                                                Your AI Agent will give them a friendly call to remind them about the appointment. You'll get the transcript right here in your dashboard.
+                                                                            </p>
+                                                                        </div>
                                                                     </div>
-                                                                    <div>
-                                                                        <h4 className="text-blue-900 font-bold text-lg mb-1">AI Call Configured</h4>
-                                                                        <p className="text-blue-700/80 text-sm leading-relaxed max-w-md">
-                                                                            Your AI Agent will give them a friendly call to remind them about the appointment. You'll get the transcript right here in your dashboard.
-                                                                        </p>
+
+                                                                    <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                                        <div>
+                                                                            <label className="block text-xs font-semibold text-slate-500 mb-1">Voice Script Preview</label>
+                                                                            <p className="text-sm text-slate-700 font-medium italic">"{step.content || "Standard admission script..."}"</p>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => onSendTest(step)}
+                                                                            className="flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 text-blue-700 rounded-lg text-xs font-bold shadow-sm hover:bg-blue-50 transition-colors"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-sm">call</span>
+                                                                            Send Test Call
+                                                                        </button>
                                                                     </div>
                                                                 </div>
                                                             ) : (step.type === 'Text' || step.type === 'sms' || step.type === 'SMS') ? (
@@ -1196,6 +1247,10 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     )}
                 </header>
 
+
+
+
+
                 <div className="mb-8 px-4 md:px-0">
                     <PageTipBanner
                         pageKey="ai-funnels"
@@ -1254,6 +1309,52 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                 {activeSection === 'funnels' && (
                     <div className="space-y-8">
+                        <div className="mb-8 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                            <div className="flex items-center gap-2 mb-4">
+                                <span className="material-symbols-outlined text-indigo-600">science</span>
+                                <h3 className="text-sm font-bold text-slate-800">Test Configuration</h3>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <div className="flex-1 max-w-md">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Test Phone Number (for SMS & Voice)</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="+15550000000"
+                                            className={`w-full text-sm border rounded-lg pl-9 p-2.5 ${!isTestPhoneValid && testPhone ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-indigo-200'}`}
+                                            value={testPhone}
+                                            onChange={(e) => setTestPhone(e.target.value)}
+                                        />
+                                        <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-slate-400 text-[18px]">smartphone</span>
+                                    </div>
+                                    {!isTestPhoneValid && testPhone && (
+                                        <p className="text-[10px] text-red-500 mt-1">
+                                            Please use E.164 format (e.g. +12125551212)
+                                        </p>
+                                    )}
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        Enter your mobile number to receive test calls and texts from your AI.
+                                    </p>
+                                </div>
+                                <div className="flex-1 max-w-md">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Test Email Address</label>
+                                    <div className="relative">
+                                        <input
+                                            type="email"
+                                            placeholder="you@example.com"
+                                            className="w-full text-sm border border-slate-200 rounded-lg pl-9 p-2.5 focus:ring-indigo-200 focus:border-indigo-500"
+                                            value={testEmail}
+                                            onChange={(e) => setTestEmail(e.target.value)}
+                                        />
+                                        <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-slate-400 text-[18px]">email</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        Enter an email to receive your test blasts (defaults to your login email).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         {renderFunnelPanel('welcome', {
                             badgeIcon: 'filter_alt',
                             badgeClassName: 'bg-emerald-50 text-emerald-700',
@@ -1270,7 +1371,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             onAddStep: handleAddWelcomeStep,
                             onSave: handleSaveWelcomeSteps,
                             saveLabel: 'Save Welcome Drip',
-                            onSendTest: handleSendTestEmail
+                            onSendTest: handleSendTest
                         })}
 
                         {renderFunnelPanel('buyer', {
@@ -1289,7 +1390,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             onAddStep: handleAddBuyerStep,
                             onSave: handleSaveBuyerSteps,
                             saveLabel: 'Save Buyer Journey',
-                            onSendTest: handleSendTestEmail
+                            onSendTest: handleSendTest
                         })}
 
                         {renderFunnelPanel('listing', {
@@ -1308,7 +1409,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             onAddStep: handleAddListingStep,
                             onSave: handleSaveListingSteps,
                             saveLabel: 'Save Seller Funnel',
-                            onSendTest: handleSendTestEmail
+                            onSendTest: handleSendTest
                         })}
 
                         {renderFunnelPanel('post', {
@@ -1326,7 +1427,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             onAddStep: handleAddPostStep,
                             onSave: handleSavePostSteps,
                             saveLabel: 'Save Follow-Up',
-                            onSendTest: handleSendTestEmail
+                            onSendTest: handleSendTest
                         })}
                     </div>
                 )}
@@ -1372,28 +1473,30 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 onSave={setCustomSignature}
             />
             {/* Mobile Fixed Navigation Bar */}
-            {!isEmbedded && (
-                <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 md:hidden flex justify-around items-center px-2 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                    {highlightCards.map((card) => {
-                        const isActive = activeSection === card.targetSection;
-                        return (
-                            <button
-                                key={card.id}
-                                onClick={() => setActiveSection(card.targetSection)}
-                                className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all ${isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                <span className={`material-symbols-outlined text-2xl mb-0.5 ${isActive ? 'filled' : ''}`}>
-                                    {card.icon}
-                                </span>
-                                <span className="text-[10px] font-medium leading-none">
-                                    {card.title.replace('Live ', '').replace('Engine', '').replace('Sequence ', '')}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
+            {
+                !isEmbedded && (
+                    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 md:hidden flex justify-around items-center px-2 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                        {highlightCards.map((card) => {
+                            const isActive = activeSection === card.targetSection;
+                            return (
+                                <button
+                                    key={card.id}
+                                    onClick={() => setActiveSection(card.targetSection)}
+                                    className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all ${isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <span className={`material-symbols-outlined text-2xl mb-0.5 ${isActive ? 'filled' : ''}`}>
+                                        {card.icon}
+                                    </span>
+                                    <span className="text-[10px] font-medium leading-none">
+                                        {card.title.replace('Live ', '').replace('Engine', '').replace('Sequence ', '')}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )
+            }
+        </div >
     );
 };
 

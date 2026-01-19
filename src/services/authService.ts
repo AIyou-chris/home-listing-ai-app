@@ -526,8 +526,8 @@ export class AuthService {
 
             if (!token) {
                 try {
-                    // Reduced timeout to 5s for better UX
-                    const { data } = await withTimeout(supabase.auth.getSession(), 5000, 'Obtain Session');
+                    // Increased timeout to 10s for better stability
+                    const { data } = await withTimeout(supabase.auth.getSession(), 10000, 'Obtain Session');
                     token = data.session?.access_token;
                     userId = data.session?.user?.id;
                 } catch (err) {
@@ -542,7 +542,7 @@ export class AuthService {
             // Fallback: getUser (verifies with server) ONLY if we still don't have a token/user
             if (!token && !userId) {
                 try {
-                    const { data: userData } = await withTimeout(supabase.auth.getUser(), 5000, 'Obtain User (Fallback)');
+                    const { data: userData } = await withTimeout(supabase.auth.getUser(), 10000, 'Obtain User (Fallback)');
                     userId = userData.user?.id;
 
                     // If we have a user but no session token, we might have trouble with Bearer auth, 
@@ -555,8 +555,31 @@ export class AuthService {
                 } catch (fallbackErr) {
                     // If we already have a token (optimistic), we don't care about this error.
                     if (!token) {
-                        console.error('[AuthDebug] CRITICAL: Both session and user retrieval failed/timed out.', fallbackErr);
-                        throw new Error('Unable to verify login session. Please check your internet connection.');
+                        // FIX: In development, allow expired tokens if we can't reach the server
+                        // This prevents "Unable to verify login session" when offline/slow in dev
+                        if (import.meta.env.DEV) {
+                            try {
+                                const sbKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+                                if (sbKey) {
+                                    const raw = localStorage.getItem(sbKey);
+                                    if (raw) {
+                                        const parsed = JSON.parse(raw);
+                                        if (parsed.access_token) {
+                                            token = parsed.access_token;
+                                            userId = parsed.user?.id;
+                                            console.warn('[AuthDebug] ⚠️ Network Auth Failed. Using EXPIRED token (Allowed in DEV).');
+                                        }
+                                    }
+                                }
+                            } catch (devFallbackErr) {
+                                console.warn('[AuthDebug] Dev fallback failed', devFallbackErr);
+                            }
+                        }
+
+                        if (!token) {
+                            console.error('[AuthDebug] CRITICAL: Both session and user retrieval failed/timed out.', fallbackErr);
+                            throw new Error('Unable to verify login session. Please check your internet connection.');
+                        }
                     }
                 }
             }

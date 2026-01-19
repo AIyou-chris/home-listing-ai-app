@@ -13,6 +13,8 @@ import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardPage from './AICardPage';
 import MarketingReportsPage from './MarketingReportsPage';
+import NotificationSystem from './NotificationSystem';
+import PWAInstallModal from './settings/PWAInstallModal';
 
 import { MarketingHub } from './MarketingHub';
 import { UsageStatsCard } from './dashboard/UsageStatsCard';
@@ -87,7 +89,7 @@ interface AgentDashboardProps {
 
 const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoMode = false, isBlueprintMode: propIsBlueprintMode = false, demoListingCount = 2 }) => {
   // Setup Failsafe: Force Demo Mode if URL implies it
-  const isDemoMode = propIsDemoMode || window.location.pathname.includes('blueprint') || window.location.pathname.includes('demo');
+  const isDemoMode = propIsDemoMode || window.location.pathname.includes('demo');
   const isBlueprintMode = propIsBlueprintMode || window.location.pathname.includes('blueprint');
 
   const navigate = useNavigate();
@@ -118,6 +120,18 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   }, []);
 
   const [activeView, setActiveView] = useState<View>(getViewFromPath(location.pathname));
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+      } else if (isDemoMode || window.location.pathname.includes('blueprint')) {
+        // Fallback for Blueprint/Demo mode testing
+        setCurrentUserId('blueprint-agent');
+      }
+    });
+  }, [isDemoMode]);
 
   // Sync state with URL changes
   useEffect(() => {
@@ -184,6 +198,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
   const notifyApiError = useApiErrorNotifier();
   const { uiProfile } = useAgentBranding();
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [agentProfile, setAgentProfile] = useState<AgentProfile>(uiProfile);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     newLead: true,
@@ -308,6 +323,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   };
 
   const [isSetupDismissed, setIsSetupDismissed] = useState(false);
+  const [showPWAInstall, setShowPWAInstall] = useState(false);
 
   useEffect(() => {
     // Only set profile from UI context, never force Sarah Johnson
@@ -751,7 +767,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     {/* Step 1: AI Card */}
                     <button
                       onClick={() => handleViewChange('ai-card')}
@@ -811,6 +827,21 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                       <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">5. Go Live!</h3>
                       <p className="text-xs text-indigo-100 leading-relaxed">Activate your "AI Receptionist". Now you're free to sell houses.</p>
                     </button>
+
+                    {/* Step 6: Install App */}
+                    <button
+                      onClick={() => setShowInstallGuide(true)}
+                      className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                          6
+                        </div>
+                        <span className="text-xs font-medium bg-white/20 px-2 py-0.5 rounded text-white">5 min</span>
+                      </div>
+                      <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">Install App</h3>
+                      <p className="text-xs text-indigo-100 leading-relaxed">Get the best experience on your phone.</p>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -818,13 +849,19 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
             {/* Main Stats Grid */}
             <Dashboard
-              isDemoMode={isDemoMode}
+              agentProfile={agentProfile}
               properties={properties}
               leads={leads}
               appointments={appointments}
               tasks={tasks}
-              interactions={interactions}
-              agentProfile={agentProfile}
+              onSelectProperty={handleSelectProperty}
+              onTaskUpdate={handleTaskUpdate}
+              onTaskAdd={(t) => handleTaskAdd(t as AgentTask)}
+              onTaskDelete={handleTaskDelete}
+              onViewLeads={() => handleViewChange('leads')}
+              onViewLogs={() => handleViewChange('dashboard')}
+              onViewListings={() => handleViewChange('listings')}
+              onViewAppointments={() => handleViewChange('leads')}
             />
 
             {/* Usage Stats - Mobile Responsive Grid */}
@@ -1054,7 +1091,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     }
   };
 
-  const isIntegrated = !isDemoMode;
+  const isIntegrated = !isDemoMode && !isBlueprintMode;
 
 
   // Navigation handlers that adapt to mode
@@ -1142,10 +1179,16 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             </h1>
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2 text-slate-400 hover:text-slate-600 relative">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-            </button>
+            {currentUserId ? (
+              <div className="relative z-50">
+                <NotificationSystem userId={currentUserId} />
+              </div>
+            ) : (
+              <button className="p-2 text-slate-400 hover:text-slate-600 relative">
+                <span className="material-symbols-outlined">notifications</span>
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+              </button>
+            )}
             <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-slate-900">{agentProfile.name || 'Agent'}</p>
@@ -1276,10 +1319,31 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                           <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">5. Review Funnels</h3>
                           <p className="text-xs text-indigo-100 leading-relaxed">Check your automated follow-up sequences and customize them.</p>
                         </button>
+
+                        {/* Step 6: Install App */}
+                        <button
+                          onClick={() => setShowPWAInstall(true)}
+                          className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/20 text-left transition-all group"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border border-white/30">
+                              6
+                            </div>
+                            <span className="text-xs font-medium bg-emerald-400/20 px-2 py-0.5 rounded text-emerald-100 border border-emerald-400/30">Finish</span>
+                          </div>
+                          <h3 className="font-bold text-white mb-1 group-hover:text-indigo-200 transition-colors">6. Install App</h3>
+                          <p className="text-xs text-indigo-100 leading-relaxed">Get the app on your phone for instant lead alerts.</p>
+                        </button>
                       </div>
                     </div>
                   </div>
                 )}
+
+                {/* PWA Install Modal for Dashboard Step */}
+                <PWAInstallModal
+                  isOpen={showPWAInstall}
+                  onClose={() => setShowPWAInstall(false)}
+                />
 
                 {isLoadingProperties && properties.length === 0 ? (
                   <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
@@ -1310,6 +1374,10 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             )}
           </div>
         </main>
+        <PWAInstallModal
+          isOpen={showInstallGuide}
+          onClose={() => setShowInstallGuide(false)}
+        />
       </div>
     </div>
   );

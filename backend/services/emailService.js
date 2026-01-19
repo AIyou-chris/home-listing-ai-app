@@ -299,14 +299,36 @@ module.exports = (supabaseAdmin) => {
     return { sent: true, provider: 'mailgun' };
   };
 
+  const emailTrackingService = require('./emailTrackingService');
+
   const sendEmail = async ({ to, subject, html, cc = [], tags }) => {
     try {
+      // 1. Prepare Tracking (if context available)
+      let finalHtml = html;
+      let messageId = null;
+
+      if (tags && tags.user_id && tags.lead_id) {
+        messageId = emailTrackingService.generateMessageId();
+        finalHtml = emailTrackingService.injectTracking(html, messageId);
+
+        // Async create record (don't block sending)
+        emailTrackingService.createTrackingRecord(supabaseAdmin, {
+          messageId,
+          userId: tags.user_id,
+          leadId: tags.lead_id,
+          funnelType: tags.funnel_step, // or derive funnel type
+          stepId: tags.funnel_step,
+          subject,
+          recipientEmail: Array.isArray(to) ? to[0] : to
+        }).catch(err => console.error('[EmailService] Tracking Record Error:', err));
+      }
+
       // Prioritize Mailgun if available, then others
       const attempts = [sendViaMailgun, sendViaResend, sendViaPostmark, sendViaSendgrid];
       for (const attempt of attempts) {
-        const result = await attempt({ to, subject, html, cc, tags });
+        const result = await attempt({ to, subject, html: finalHtml, cc, tags });
         if (result.sent) {
-          return { sent: true, provider: result.provider };
+          return { sent: true, provider: result.provider, messageId };
         }
       }
 
@@ -314,12 +336,12 @@ module.exports = (supabaseAdmin) => {
       const fallBackResult = await persistFallbackEmail({
         to,
         subject,
-        html,
+        html: finalHtml,
         cc,
         tags,
         reason: 'No transactional email provider configured'
       });
-      return { sent: false, queued: fallBackResult.queued };
+      return { sent: false, queued: fallBackResult.queued, messageId };
     } catch (error) {
       console.error('[EmailService] Failed to send email', error);
       await persistFallbackEmail({

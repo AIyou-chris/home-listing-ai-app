@@ -46,6 +46,7 @@ interface ConversationSummary {
   language?: string;
   voiceTranscript?: string;
   followUpTask?: string;
+  recordingUrl?: string;
 }
 
 interface ConversationMessage {
@@ -62,6 +63,7 @@ interface ConversationMessage {
 
 interface ConversationMetadata extends Record<string, unknown> {
   duration?: string | null;
+  recordingUrl?: string | null;
 }
 
 interface MessageTranslation {
@@ -75,13 +77,17 @@ const parseConversationMetadata = (metadata: unknown): ConversationMetadata => {
   }
 
   const record = { ...(metadata as Record<string, unknown>) };
-  const durationValue = record.duration;
-  if (typeof durationValue === 'string' || durationValue === null) {
-    return { ...record, duration: durationValue as string | null };
-  }
 
-  delete (record as { duration?: unknown }).duration;
-  return record as ConversationMetadata;
+  // Extract known fields
+  const duration = typeof record.duration === 'string' ? record.duration : null;
+  const recordingUrl = typeof record.recordingUrl === 'string' ? record.recordingUrl :
+    (record.call as { recordingUrl?: string })?.recordingUrl;
+
+  return {
+    ...record,
+    duration,
+    recordingUrl: recordingUrl || null
+  };
 };
 
 const parseMessageTranslation = (translation: unknown): MessageTranslation | undefined => {
@@ -140,7 +146,8 @@ const mapConversationRowToSummary = (row: ConversationRow): ConversationSummary 
     intent: row.intent || undefined,
     language: row.language || undefined,
     voiceTranscript: row.voice_transcript || undefined,
-    followUpTask: row.follow_up_task || undefined
+    followUpTask: row.follow_up_task || undefined,
+    recordingUrl: metadata.recordingUrl || undefined
   };
 };
 
@@ -195,6 +202,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
   const [syncAgeSeconds, setSyncAgeSeconds] = useState(0);
 
   const loadConversations = useCallback(async () => {
+    // FORCE REAL DATA: Only use demo if explicitly passed, otherwise ignore default props if we want live
     if (isDemoMode) {
       setConversations(DEMO_CONVERSATIONS as unknown as ConversationSummary[]);
       if (DEMO_CONVERSATIONS.length && !selectedConversationId) {
@@ -771,6 +779,13 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                           <p className="font-medium text-slate-700 flex items-center gap-2">
                             <Volume2 className="w-4 h-4" /> Voice Transcript
                           </p>
+                          {selectedConversationSummary.recordingUrl && (
+                            <div className="mt-2 mb-3">
+                              <audio controls className="w-full h-8" src={selectedConversationSummary.recordingUrl}>
+                                Your browser does not support the audio element.
+                              </audio>
+                            </div>
+                          )}
                           <p className="mt-1 text-slate-600 whitespace-pre-wrap">
                             {selectedConversationSummary.voiceTranscript}
                           </p>

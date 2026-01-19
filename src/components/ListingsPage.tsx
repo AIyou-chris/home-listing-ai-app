@@ -469,41 +469,48 @@ const ListingsPage: React.FC<ListingsPageProps> = ({
                 <PageTipBanner
                     pageKey="ai-listings"
                     expandedContent={
-                        <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div>
-                                <h4 className="text-lg font-bold text-slate-900 mb-3">🏡 Master Your AI Listings: The Ultimate Guide</h4>
-                                <ul className="space-y-4 text-slate-700">
+                                <h4 className="font-bold text-indigo-900 mb-3 text-lg">🏡 AI Listings: Your 24/7 Open House</h4>
+                                <p className="text-slate-600 mb-4 text-sm leading-relaxed">
+                                    Imagine if every "For Sale" sign had an agent standing next to it, ready to answer questions instantly. That's what this tool does digitally.
+                                </p>
+
+                                <div className="space-y-4">
+                                    <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1">How It Works</h5>
+                                    <ul className="space-y-3 text-slate-700 text-sm">
+                                        <li className="flex items-start gap-3">
+                                            <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                                                <span className="material-symbols-outlined text-sm">psychology</span>
+                                            </div>
+                                            <span><strong>Deep Knowledge:</strong> We train a dedicated AI on every detail of this home (schools, floor type, fees). It knows the property better than a rookie agent.</span>
+                                        </li>
+                                        <li className="flex items-start gap-3">
+                                            <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                                                <span className="material-symbols-outlined text-sm">campaign</span>
+                                            </div>
+                                            <span><strong>Instant Marketing Suite:</strong> Click the <span className="inline-flex items-center justify-center w-5 h-5 bg-slate-100 rounded text-slate-600"><span className="material-symbols-outlined text-[10px]">qr_code_2</span></span> icon to generate a QR and Short Link for flyers and social posts.</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div className="bg-white/50 rounded-xl p-4 border border-indigo-50">
+                                <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1 mb-3">Workflow Success Tips</h5>
+                                <ul className="space-y-3 text-slate-700 text-sm">
                                     <li className="flex items-start gap-3">
-                                        <span className="text-xl">🛡️</span>
-                                        <div>
-                                            <strong className="block text-slate-900">Zero Lead Leakage</strong>
-                                            <span>Every listing gets a dedicated AI agent that knows every detail (from HOA fees to floor types) and answers buyers instantly, 24/7. Never miss another inquiry.</span>
-                                        </div>
+                                        <span className="mr-1 text-lg">🛑</span>
+                                        <span><strong>Stop the "Info" Calls:</strong> Put the AI link/QR on the yard sign rider ("Scan for Price & Photos"). Lookie-loos get answers, you get the lead info without picking up the phone.</span>
                                     </li>
                                     <li className="flex items-start gap-3">
-                                        <span className="text-xl">💬</span>
-                                        <div>
-                                            <strong className="block text-slate-900">Test It Yourself</strong>
-                                            <span>Click the <span className="font-bold text-indigo-600">"Talk to the Home"</span> button on any card to see your AI in action. Ask it tough questions—it's ready to impress!</span>
-                                        </div>
+                                        <span className="mr-1 text-lg">🛋️</span>
+                                        <span><strong>The "Silent" Tour Guide:</strong> Print the QR code and frame it inside the house during Open Houses. Introverted buyers often prefer asking AI questions they're too shy to ask you.</span>
                                     </li>
                                     <li className="flex items-start gap-3">
-                                        <span className="text-xl">🚀</span>
-                                        <div>
-                                            <strong className="block text-slate-900">Instant Marketing</strong>
-                                            <span>Click the <span className="inline-flex items-center justify-center w-5 h-5 bg-slate-100 rounded text-slate-600"><span className="material-symbols-outlined text-[14px]">qr_code_2</span></span> icon to generate a smart link and QR code. Share this on social media, flyers, and yard signs to drive potential buyers directly to your AI agent.</span>
-                                        </div>
+                                        <span className="mr-1 text-lg">✨</span>
+                                        <span><strong>Seller Delight:</strong> Show your seller the "Talk to the Home" feature. It proves you're using cutting-edge tech to sell their property.</span>
                                     </li>
                                 </ul>
-                            </div>
-                            <div className="bg-gradient-to-br from-indigo-50 to-violet-50 p-5 rounded-xl border border-indigo-100 flex items-start gap-3">
-                                <span className="text-2xl">💡</span>
-                                <div>
-                                    <h4 className="font-bold text-indigo-900 mb-1">Work Smarter, Not Harder</h4>
-                                    <p className="text-indigo-800 text-sm leading-relaxed">
-                                        Buyers expect instant answers. By empowering each listing with its own "Agent", you provide a premium concierge experience that sellers love, while freeing yourself up to focus on closing deals.
-                                    </p>
-                                </div>
                             </div>
                         </div>
                     }

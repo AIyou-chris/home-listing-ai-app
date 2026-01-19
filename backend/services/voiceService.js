@@ -86,17 +86,19 @@ const initiateCall = async ({ leadId, agentId, propertyId, script, leadName, lea
                         propertyAddress: contextData.propertyAddress || 'the property',
                         ...contextData
                     },
-                    model: {
-                        provider: 'openai',
-                        model: 'gpt-4',
-                        messages: [
-                            {
-                                role: 'system',
-                                content: script || "You are a helpful real estate assistant. Ask the lead if they have any questions."
-                            }
-                        ]
-                    },
-                    firstMessage: script || "Hi, this is " + (agentContext.name || "the assistant") + ". I saw you checked out the property link. Did you have any questions?",
+                    ...(script ? {
+                        model: {
+                            provider: 'openai',
+                            model: 'gpt-4',
+                            messages: [
+                                {
+                                    role: 'system',
+                                    content: script
+                                }
+                            ]
+                        },
+                        firstMessage: script,
+                    } : {}),
                     voicemailMessage: `Hi, this is ${agentContext.name || 'the assistant'} with ${agentContext.company || 'HomeListingAI'}. I was calling about your property inquiry. I'll send you a text message shortly. Thanks!`,
                     metadata: {
                         agentId,

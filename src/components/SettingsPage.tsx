@@ -6,6 +6,7 @@ import EmailSettingsPage from './settings/EmailSettings';
 import CalendarSettingsPage from './settings/CalendarSettings';
 import SecuritySettingsPage from './settings/SecuritySettings';
 import BillingSettingsPage from './settings/BillingSettings';
+import { ColdEmailSettings } from './settings/ColdEmailSettings';
 
 interface SettingsPageProps {
     userId: string;
@@ -43,12 +44,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     onNavigateToAICard,
     userId
 }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'deliverability' | 'calendar' | 'security' | 'billing'>('profile');
 
     const tabs = [
         { id: 'profile', label: 'Profile', icon: 'person' },
         { id: 'notifications', label: 'Notifications', icon: 'notifications' },
         { id: 'email', label: 'Email Integration', icon: 'mail' },
+        { id: 'deliverability', label: 'Deliverability', icon: 'mark_email_read' },
         { id: 'calendar', label: 'Calendar', icon: 'calendar_month' },
         { id: 'security', label: 'Security', icon: 'security' },
         { id: 'billing', label: 'Billing', icon: 'receipt_long' },
@@ -68,7 +70,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing')}
+                            onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'email' | 'deliverability' | 'calendar' | 'security' | 'billing')}
                             className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === tab.id
                                 ? 'bg-primary-50 text-primary-700'
                                 : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -101,7 +103,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing')}
+                                    onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'email' | 'deliverability' | 'calendar' | 'security' | 'billing')}
                                     className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap ${activeTab === tab.id
                                         ? 'bg-primary-600 text-white'
                                         : 'bg-slate-100 text-slate-600'
@@ -136,6 +138,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 onBack={onBackToDashboard}
                                 agentSlug={userProfile.slug || userId}
                             />
+                        )}
+                        {activeTab === 'deliverability' && (
+                            <ColdEmailSettings />
                         )}
                         {activeTab === 'calendar' && (
                             <CalendarSettingsPage

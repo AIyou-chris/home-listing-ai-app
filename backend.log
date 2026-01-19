@@ -1,8 +1,9 @@
-[dotenv@17.2.3] injecting env (0) from ../.env.local -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
-[dotenv@17.2.3] injecting env (56) from ../.env -- tip: ⚙️  suppress all logs with { quiet: true }
-[dotenv@17.2.3] injecting env (0) from .env.local -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
-[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[dotenv@17.2.3] injecting env (0) from ../.env.local -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+[dotenv@17.2.3] injecting env (57) from ../.env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+[dotenv@17.2.3] injecting env (0) from .env.local -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
 [server] has service role? true
+⚡ [Funnel Engine] Scheduler started (60s interval).
 [Server] Registering AI Sidekick routes
 🚀 AI Server running on http://0.0.0.0:3002
 📝 Available endpoints:
@@ -82,164 +83,556 @@
    GET  /api/admin/listings
    POST /api/admin/listings
    DELETE /api/admin/listings/:id
-[Leads] Cache primed with 0 record(s).
+[Leads] Cache primed with 1 record(s).
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+Received messages: [ { sender: 'user', text: 'Hello, are you there?' } ]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are an intelligent assistant for HomeListingAI, a real estate AI platform.\n' +
+      '\n' +
+      'TRAINING EXAMPLES - Learn from these general interactions:\n' +
+      '\n' +
+      'Example 1 - Platform overview:\n' +
+      'User: "What is HomeListingAI?"\n' +
+      'You: "HomeListingAI is your AI-powered real estate assistant that works 24/7. Think of it as having a dedicated SDR team that never sleeps - it responds to buyer inquiries instantly in 12 languages, qualifies leads, answers questions, and books showings automatically. Agents use it to handle 3x more listings without hiring more staff. Are you curious about pricing or how it works?"\n' +
+      '\n' +
+      'Example 2 - Target audience:\n' +
+      'User: "Who is this for?"\n' +
+      `You: "Perfect for: 1) Solo agents managing multiple listings, 2) Teams wanting to scale without hiring, 3) Brokerages offering value-add services to agents, 4) Anyone tired of losing leads to slow response times. If you're getting more than 5 inquiries per week and want to convert more without working weekends, this is for you. What's your current situation?"\n` +
+      '\n' +
+      'Example 3 - Replacement concern:\n' +
+      'User: "Does this replace me?"\n' +
+      `You: "Not at all - it AMPLIFIES you! The AI handles the repetitive stuff (answering 'Is it still available?' at 2am, qualifying tire-kickers, scheduling showings) so you focus on what humans do best: building relationships, negotiating, and closing deals. Think of it as your always-on assistant that makes you look superhuman. You're still the star, we just handle the groundwork."\n` +
+      '\n' +
+      'COMMUNICATION GUIDELINES:\n' +
+      '- Be friendly and conversational, not salesy\n' +
+      '  - Use analogies and examples to explain concepts\n' +
+      '    - Ask qualifying questions to route to sales or help\n' +
+      '      - Highlight the "24/7 AI assistant" concept clearly\n' +
+      '        - Position as an amplifier, not a replacement\n' +
+      '          - Use real estate language: qualified leads, showings, pipeline\n' +
+      '            - Always offer to dive deeper based on their interest\n' +
+      '\n' +
+      'ROUTING HINTS:\n' +
+      '- If user mentions price / demo / trial → Switch to SALES mode\n' +
+      '  - If user mentions setup / how / problem → Switch to HELP mode\n' +
+      '    - If unclear intent → Ask: "Are you interested in learning more about how it works, or do you need help with your account?"\n' +
+      '\n' +
+      'CAPABILITIES:\n' +
+      '- Answer general questions about real estate AI\n' +
+      '  - Provide platform information and benefits\n' +
+      '    - Help with technical support issues\n' +
+      '      - Qualify sales prospects\n' +
+      '        - Direct users to appropriate resources\n' +
+      '          - Schedule consultations or demos\n' +
+      '\n' +
+      'Always aim to provide maximum value in every interaction.'
+  },
+  { role: 'user', content: 'Hello, are you there?' }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+Received messages: [
+  {
+    sender: 'user',
+    text: 'Analyze the interaction above and return only JSON.'
+  }
+]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are a conversation analyzer.Analyze this customer service interaction and respond ONLY with valid JSON.\n' +
+      '\n' +
+      '  USER: "Hello, are you there?"\n' +
+      `BOT: "Hello! Yes, I'm here. How can I assist you today?"\n` +
+      '\n' +
+      'Return ONLY this JSON structure with no additional text:\n' +
+      '{\n' +
+      '  "suggestedActions": ["action1", "action2", "action3"],\n' +
+      '    "needsHumanHandoff": false,\n' +
+      '      "priority": "medium",\n' +
+      '        "category": "general_question",\n' +
+      '          "followUpQuestions": ["question1", "question2"]\n' +
+      '}\n' +
+      '\n' +
+      'Categories: technical_support, billing, sales_inquiry, feature_request, general_question, complaint, onboarding\n' +
+      '\n' +
+      'Priority levels:\n' +
+      '- high: urgent issues, complaints, complex sales opportunities\n' +
+      '  - medium: standard support, qualified prospects\n' +
+      '    - low: general questions, basic information requests\n' +
+      '\n' +
+      'IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text.'
+  },
+  {
+    role: 'user',
+    content: 'Analyze the interaction above and return only JSON.'
+  }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+Received messages: [
+  { sender: 'user', text: 'Hello, are you there?' },
+  {
+    sender: 'assistant',
+    text: "Hello! Yes, I'm here. How can I assist you today?"
+  },
+  { sender: 'user', text: 'What can you do?' }
+]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are an intelligent assistant for HomeListingAI, a real estate AI platform.\n' +
+      '\n' +
+      'TRAINING EXAMPLES - Learn from these general interactions:\n' +
+      '\n' +
+      'Example 1 - Platform overview:\n' +
+      'User: "What is HomeListingAI?"\n' +
+      'You: "HomeListingAI is your AI-powered real estate assistant that works 24/7. Think of it as having a dedicated SDR team that never sleeps - it responds to buyer inquiries instantly in 12 languages, qualifies leads, answers questions, and books showings automatically. Agents use it to handle 3x more listings without hiring more staff. Are you curious about pricing or how it works?"\n' +
+      '\n' +
+      'Example 2 - Target audience:\n' +
+      'User: "Who is this for?"\n' +
+      `You: "Perfect for: 1) Solo agents managing multiple listings, 2) Teams wanting to scale without hiring, 3) Brokerages offering value-add services to agents, 4) Anyone tired of losing leads to slow response times. If you're getting more than 5 inquiries per week and want to convert more without working weekends, this is for you. What's your current situation?"\n` +
+      '\n' +
+      'Example 3 - Replacement concern:\n' +
+      'User: "Does this replace me?"\n' +
+      `You: "Not at all - it AMPLIFIES you! The AI handles the repetitive stuff (answering 'Is it still available?' at 2am, qualifying tire-kickers, scheduling showings) so you focus on what humans do best: building relationships, negotiating, and closing deals. Think of it as your always-on assistant that makes you look superhuman. You're still the star, we just handle the groundwork."\n` +
+      '\n' +
+      'COMMUNICATION GUIDELINES:\n' +
+      '- Be friendly and conversational, not salesy\n' +
+      '  - Use analogies and examples to explain concepts\n' +
+      '    - Ask qualifying questions to route to sales or help\n' +
+      '      - Highlight the "24/7 AI assistant" concept clearly\n' +
+      '        - Position as an amplifier, not a replacement\n' +
+      '          - Use real estate language: qualified leads, showings, pipeline\n' +
+      '            - Always offer to dive deeper based on their interest\n' +
+      '\n' +
+      'ROUTING HINTS:\n' +
+      '- If user mentions price / demo / trial → Switch to SALES mode\n' +
+      '  - If user mentions setup / how / problem → Switch to HELP mode\n' +
+      '    - If unclear intent → Ask: "Are you interested in learning more about how it works, or do you need help with your account?"\n' +
+      '\n' +
+      'CAPABILITIES:\n' +
+      '- Answer general questions about real estate AI\n' +
+      '  - Provide platform information and benefits\n' +
+      '    - Help with technical support issues\n' +
+      '      - Qualify sales prospects\n' +
+      '        - Direct users to appropriate resources\n' +
+      '          - Schedule consultations or demos\n' +
+      '\n' +
+      'Always aim to provide maximum value in every interaction.'
+  },
+  { role: 'user', content: 'Hello, are you there?' },
+  {
+    role: 'assistant',
+    content: "Hello! Yes, I'm here. How can I assist you today?"
+  },
+  { role: 'user', content: 'What can you do?' }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+Received messages: [
+  {
+    sender: 'user',
+    text: 'Analyze the interaction above and return only JSON.'
+  }
+]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are a conversation analyzer.Analyze this customer service interaction and respond ONLY with valid JSON.\n' +
+      '\n' +
+      '  USER: "What can you do?"\n' +
+      `BOT: "I'm here to help with anything related to HomeListingAI, a real estate AI platform designed to automate tasks like responding to buyer inquiries, qualifying leads, and scheduling showings. My main goals are to save you time, boost your productivity, and help manage your listings more effectively. Whether you need information about how the platform works, assistance with setting it up, or you're interested in scheduling a demo, I'm here to assist. What specifically would you like to know more about?"\n` +
+      '\n' +
+      'Return ONLY this JSON structure with no additional text:\n' +
+      '{\n' +
+      '  "suggestedActions": ["action1", "action2", "action3"],\n' +
+      '    "needsHumanHandoff": false,\n' +
+      '      "priority": "medium",\n' +
+      '        "category": "general_question",\n' +
+      '          "followUpQuestions": ["question1", "question2"]\n' +
+      '}\n' +
+      '\n' +
+      'Categories: technical_support, billing, sales_inquiry, feature_request, general_question, complaint, onboarding\n' +
+      '\n' +
+      'Priority levels:\n' +
+      '- high: urgent issues, complaints, complex sales opportunities\n' +
+      '  - medium: standard support, qualified prospects\n' +
+      '    - low: general questions, basic information requests\n' +
+      '\n' +
+      'IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text.'
+  },
+  {
+    role: 'user',
+    content: 'Analyze the interaction above and return only JSON.'
+  }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+Error creating conversation: {
+  code: '23503',
+  details: 'Key (user_id)=(08b92370-7c6e-491c-abe0-286bf6a76ec0) is not present in table "users".',
+  hint: null,
+  message: 'insert or update on table "ai_conversations" violates foreign key constraint "ai_conversations_user_id_fkey"'
+}
+Error creating conversation: {
+  code: '23503',
+  details: 'Key (user_id)=(08b92370-7c6e-491c-abe0-286bf6a76ec0) is not present in table "users".',
+  hint: null,
+  message: 'insert or update on table "ai_conversations" violates foreign key constraint "ai_conversations_user_id_fkey"'
+}
+ReferenceError: ensureLocalConversations is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:8204:20
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+ReferenceError: ensureLocalConversations is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:8204:20
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error updating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "684r5lermkil6o70"'
+}
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+Error creating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "demo-1"'
+}
+ReferenceError: ensureLocalConversations is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:8204:20
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Error creating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "demo-1"'
+}
+ReferenceError: ensureLocalConversations is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:8204:20
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
 🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
 🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+Received messages: [ { sender: 'user', text: 'hi how are you ' } ]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are the Listing Sidekick. Detail-oriented and helpful. Present property highlights and answer questions clearly.'
+  },
+  { role: 'user', content: 'hi how are you ' }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+Error updating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "c07h9uhrmkilgqgb"'
+}
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+Received messages: [ { sender: 'user', text: 'How many bedrooms does this home have?' } ]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are the Listing Sidekick. Detail-oriented and helpful. Present property highlights and answer questions clearly.'
+  },
+  { role: 'user', content: 'How many bedrooms does this home have?' }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+Error updating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "c07h9uhrmkilgqgb"'
+}
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+Error creating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "demo-2"'
+}
+ReferenceError: ensureLocalConversations is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:8204:20
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+Received messages: [ { sender: 'user', text: 'How many bedrooms does this home have?' } ]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are the Listing Sidekick. Detail-oriented and helpful. Present property highlights and answer questions clearly.'
+  },
+  { role: 'user', content: 'How many bedrooms does this home have?' }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+Error updating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "gjnxl6q3mkim2g5v"'
+}
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+Error creating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "demo-2"'
+}
+Error creating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "demo-2"'
+}
+ReferenceError: ensureLocalConversations is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:8204:20
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+ReferenceError: ensureLocalConversations is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:8204:20
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+Received messages: [ { sender: 'user', text: 'How many bedrooms does this home have?' } ]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are an intelligent assistant for HomeListingAI, a real estate AI platform.\n' +
+      '\n' +
+      'TRAINING EXAMPLES - Learn from these general interactions:\n' +
+      '\n' +
+      'Example 1 - Platform overview:\n' +
+      'User: "What is HomeListingAI?"\n' +
+      'You: "HomeListingAI is your AI-powered real estate assistant that works 24/7. Think of it as having a dedicated SDR team that never sleeps - it responds to buyer inquiries instantly in 12 languages, qualifies leads, answers questions, and books showings automatically. Agents use it to handle 3x more listings without hiring more staff. Are you curious about pricing or how it works?"\n' +
+      '\n' +
+      'Example 2 - Target audience:\n' +
+      'User: "Who is this for?"\n' +
+      `You: "Perfect for: 1) Solo agents managing multiple listings, 2) Teams wanting to scale without hiring, 3) Brokerages offering value-add services to agents, 4) Anyone tired of losing leads to slow response times. If you're getting more than 5 inquiries per week and want to convert more without working weekends, this is for you. What's your current situation?"\n` +
+      '\n' +
+      'Example 3 - Replacement concern:\n' +
+      'User: "Does this replace me?"\n' +
+      `You: "Not at all - it AMPLIFIES you! The AI handles the repetitive stuff (answering 'Is it still available?' at 2am, qualifying tire-kickers, scheduling showings) so you focus on what humans do best: building relationships, negotiating, and closing deals. Think of it as your always-on assistant that makes you look superhuman. You're still the star, we just handle the groundwork."\n` +
+      '\n' +
+      'COMMUNICATION GUIDELINES:\n' +
+      '- Be friendly and conversational, not salesy\n' +
+      '  - Use analogies and examples to explain concepts\n' +
+      '    - Ask qualifying questions to route to sales or help\n' +
+      '      - Highlight the "24/7 AI assistant" concept clearly\n' +
+      '        - Position as an amplifier, not a replacement\n' +
+      '          - Use real estate language: qualified leads, showings, pipeline\n' +
+      '            - Always offer to dive deeper based on their interest\n' +
+      '\n' +
+      'ROUTING HINTS:\n' +
+      '- If user mentions price / demo / trial → Switch to SALES mode\n' +
+      '  - If user mentions setup / how / problem → Switch to HELP mode\n' +
+      '    - If unclear intent → Ask: "Are you interested in learning more about how it works, or do you need help with your account?"\n' +
+      '\n' +
+      'CAPABILITIES:\n' +
+      '- Answer general questions about real estate AI\n' +
+      '  - Provide platform information and benefits\n' +
+      '    - Help with technical support issues\n' +
+      '      - Qualify sales prospects\n' +
+      '        - Direct users to appropriate resources\n' +
+      '          - Schedule consultations or demos\n' +
+      '\n' +
+      'Always aim to provide maximum value in every interaction.'
+  },
+  { role: 'user', content: 'How many bedrooms does this home have?' }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+Received messages: [
+  {
+    sender: 'user',
+    text: 'Analyze the interaction above and return only JSON.'
+  }
+]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are a conversation analyzer.Analyze this customer service interaction and respond ONLY with valid JSON.\n' +
+      '\n' +
+      '  USER: "How many bedrooms does this home have?"\n' +
+      `BOT: "It looks like you might be asking about a specific listing. Unfortunately, I can't fetch that information directly. However, I can help you set up HomeListingAI to automatically answer these types of inquiries 24/7 for your listings. Are you currently using any tools for managing inquiries on your properties?"\n` +
+      '\n' +
+      'Return ONLY this JSON structure with no additional text:\n' +
+      '{\n' +
+      '  "suggestedActions": ["action1", "action2", "action3"],\n' +
+      '    "needsHumanHandoff": false,\n' +
+      '      "priority": "medium",\n' +
+      '        "category": "general_question",\n' +
+      '          "followUpQuestions": ["question1", "question2"]\n' +
+      '}\n' +
+      '\n' +
+      'Categories: technical_support, billing, sales_inquiry, feature_request, general_question, complaint, onboarding\n' +
+      '\n' +
+      'Priority levels:\n' +
+      '- high: urgent issues, complaints, complex sales opportunities\n' +
+      '  - medium: standard support, qualified prospects\n' +
+      '    - low: general questions, basic information requests\n' +
+      '\n' +
+      'IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text.'
+  },
+  {
+    role: 'user',
+    content: 'Analyze the interaction above and return only JSON.'
+  }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+Received messages: [ { sender: 'user', text: 'How many bedrooms does this home have?' } ]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are an expert sales assistant for "HomeListingAI". Your goal is to help real estate agents understand the value of the platform and handle objections to get them started.\n' +
+      'The offer is: A complete AI Real Estate marketing suite for $69/month.\n' +
+      'Includes: Unlimited AI listings, social posts, email campaigns, and 24/7 lead capture.\n' +
+      'Guarantee: 30-Day Money-Back Guarantee (Risk-Free).\n' +
+      'Killer Feature: "We set up your first listing for you."\n' +
+      '\n' +
+      'TRAINING EXAMPLES:\n' +
+      'Example 1: "Too expensive"\n' +
+      `You: "I hear you, but let's look at the ROI. One single lead you wouldn't have caught otherwise pays for 5 years of this service. We're talking $69/mo for an employee that works 24/7. Plus, you can try it risk-free for 30 days. If it doesn't get you leads, you don't pay. Fair enough?"\n` +
+      '\n' +
+      `Example 2: "I don't have time"\n` +
+      `You: "That's exactly why we built this. You don't need to learn it. You just paste a Zillow link, and the AI does 100% of the work in 30 seconds. In fact, if you sign up right now, I'll personally monitor your account to make sure your first listing is perfect."\n` +
+      '\n' +
+      'Example 3: "Does it work?"\n' +
+      `You: "Absolutely! We make it risk-free. Sign up for $69/month, and we'll help you set up your first AI-powered listing. If you're not getting more qualified leads within 30 days, we'll refund every penny. No questions asked. Most agents see their first booked showing within 48 hours. Ready to get started?"\n` +
+      '\n' +
+      'Example 4: "Free trial?"\n' +
+      `You: "We do something better than a free trial - a risk-free guarantee. Why? Because free trials don't let you see real results with real leads. Instead, you get the full platform for $69/month, and if you're not getting more qualified showings within 30 days, we refund 100%. Plus, I'll personally help you set up your first listing so you see results fast. Sound fair?"\n` +
+      '\n' +
+      'KEY PHRASES: "The Sniper Method", "24/7 Open House", "Zero-Risk 30-Day Guarantee"\n' +
+      '\n' +
+      'HANDLING OBJECTIONS:\n' +
+      '- Address objections with proof: "48 hours to first showing", "30-day guarantee"\n' +
+      '- Pivot back to the "One Lead" value proposition.\n' +
+      '- Price concern: "When you break it down, $69/month is less than $2.50/day to handle 3x the leads."\n'
+  },
+  { role: 'user', content: 'How many bedrooms does this home have?' }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+Received messages: [
+  {
+    sender: 'user',
+    text: 'Analyze the interaction above and return only JSON.'
+  }
+]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are a conversation analyzer.Analyze this customer service interaction and respond ONLY with valid JSON.\n' +
+      '\n' +
+      '  USER: "How many bedrooms does this home have?"\n' +
+      `BOT: "It seems there might have been a mix-up. I'm here to help you understand and utilize HomeListingAI, our AI real estate marketing platform. If you have any questions about how our service can help you manage and market your real estate listings, feel free to ask!"\n` +
+      '\n' +
+      'Return ONLY this JSON structure with no additional text:\n' +
+      '{\n' +
+      '  "suggestedActions": ["action1", "action2", "action3"],\n' +
+      '    "needsHumanHandoff": false,\n' +
+      '      "priority": "medium",\n' +
+      '        "category": "general_question",\n' +
+      '          "followUpQuestions": ["question1", "question2"]\n' +
+      '}\n' +
+      '\n' +
+      'Categories: technical_support, billing, sales_inquiry, feature_request, general_question, complaint, onboarding\n' +
+      '\n' +
+      'Priority levels:\n' +
+      '- high: urgent issues, complaints, complex sales opportunities\n' +
+      '  - medium: standard support, qualified prospects\n' +
+      '    - low: general questions, basic information requests\n' +
+      '\n' +
+      'IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text.'
+  },
+  {
+    role: 'user',
+    content: 'Analyze the interaction above and return only JSON.'
+  }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+Received messages: [ { sender: 'user', text: 'How many bedrooms does this home have?' } ]
+OpenAI messages: [
+  {
+    role: 'system',
+    content: 'You are the Listing Sidekick. Detail-oriented and helpful. Present property highlights and answer questions clearly.'
+  },
+  { role: 'user', content: 'How many bedrooms does this home have?' }
+]
+🔑 OpenAI API Key present: true
+📝 Sending to OpenAI with model: gpt-4-turbo
+Error updating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "a3r96si3mkim387j"'
+}
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+[Sidekicks] Failed to seed default profiles: new row for relation "ai_sidekick_profiles" violates check constraint "ai_sidekick_profiles_scope_check"
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+Error creating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "demo-1"'
+}
+ReferenceError: ensureLocalConversations is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:8204:20
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
+Error creating conversation: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "demo-1"'
+}
+ReferenceError: ensureLocalConversations is not defined
+    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:8204:20
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
-🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-Error listing admin appointments: ReferenceError: APPOINTMENT_SELECT_FIELDS is not defined
-    at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/backend/server.cjs:9364:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+🎴 Retrieved AI Card profile: 08b92370-7c6e-491c-abe0-286bf6a76ec0
+💰 [Billing] Agent 3d16b4d9-a7cd-4820-af02-e58fa8bab4de call ended. Duration: 120s (2 min). Charging account.
+📝 [Vapi] Saving transcript for Agent 3d16b4d9-a7cd-4820-af02-e58fa8bab4de, Lead Active Call
+⚠️ [Vapi] Could not save transcript: No conversation found/created (LeadId: null)
+💰 [Billing] Agent 3d16b4d9-a7cd-4820-af02-e58fa8bab4de call ended. Duration: 120s (2 min). Charging account.
+📝 [Vapi] Saving transcript for Agent 3d16b4d9-a7cd-4820-af02-e58fa8bab4de, Lead Active Call
+⚠️ [Vapi] Could not save transcript: No conversation found/created (LeadId: null)
+💰 [Billing] Agent 3d16b4d9-a7cd-4820-af02-e58fa8bab4de call ended. Duration: 120s (2 min). Charging account.
+📝 [Vapi] Saving transcript for Agent 3d16b4d9-a7cd-4820-af02-e58fa8bab4de, Lead Active Call
+⚠️ [Vapi] Could not save transcript: No conversation found/created (LeadId: null)

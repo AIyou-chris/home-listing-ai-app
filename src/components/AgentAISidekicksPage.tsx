@@ -89,29 +89,48 @@ const AgentAISidekicksPage: React.FC<AgentAISidekicksPageProps> = ({
                             <PageTipBanner
                                 pageKey="ai-training"
                                 expandedContent={
-                                    <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div>
-                                            <h4 className="font-semibold text-slate-900 mb-2">🎓 How to Train Your AI Business Partner:</h4>
-                                            <ul className="space-y-2 text-slate-700">
-                                                <li className="flex items-start">
-                                                    <span className="mr-2">💬</span>
-                                                    <span><strong>Chat Naturally:</strong> Ask questions or give commands just like you would to a human assistant (e.g., "Write a listing description").</span>
+                                            <h4 className="font-bold text-indigo-900 mb-3 text-lg">🎓 AI Training Studio</h4>
+                                            <p className="text-slate-600 mb-4 text-sm leading-relaxed">
+                                                Your AI is smart, but it doesn't know your specific business yet. This studio is where you teach it to sound like you.
+                                            </p>
+
+                                            <div className="space-y-4">
+                                                <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1">How It Works</h5>
+                                                <ul className="space-y-3 text-slate-700 text-sm">
+                                                    <li className="flex items-start gap-3">
+                                                        <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                                                            <span className="material-symbols-outlined text-sm">chat</span>
+                                                        </div>
+                                                        <span><strong>Roleplay Mode:</strong> Chat with your AI as if you were a difficult lead. Test how it handles objections about commission or market timing.</span>
+                                                    </li>
+                                                    <li className="flex items-start gap-3">
+                                                        <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
+                                                            <span className="material-symbols-outlined text-sm">thumb_down</span>
+                                                        </div>
+                                                        <span><strong>Feedback Loop:</strong> If the AI says something generic, click <span className="material-symbols-outlined text-[10px] bg-slate-100 p-0.5 rounded">thumb_down</span> and type the correct answer. It updates its long-term memory instantly.</span>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white/50 rounded-xl p-4 border border-indigo-50">
+                                            <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1 mb-3">Workflow Success Tips</h5>
+                                            <ul className="space-y-3 text-slate-700 text-sm">
+                                                <li className="flex items-start gap-3">
+                                                    <span className="mr-1 text-lg">⏱️</span>
+                                                    <span><strong>The 15-Minute Sprint:</strong> Spend just 15 minutes a week here. Pick one topic (e.g., "Why buy now?") and drill the AI until it's perfect.</span>
                                                 </li>
-                                                <li className="flex items-start">
-                                                    <span className="mr-2">👍</span>
-                                                    <span><strong>Give Feedback:</strong> Use the Thumbs Up/Down buttons on every response. This is the #1 way the AI learns your preferences.</span>
+                                                <li className="flex items-start gap-3">
+                                                    <span className="mr-1 text-lg">📄</span>
+                                                    <span><strong>Upload Your Brain:</strong> Don't just type. Paste your existing scripts, FAQ docs, or past email threads into the chat and say "Learn this style."</span>
                                                 </li>
-                                                <li className="flex items-start">
-                                                    <span className="mr-2">✏️</span>
-                                                    <span><strong>Correct Mistakes:</strong> If a response isn't right, click Thumbs Down and provide the "Better Answer". The AI updates its memory instantly.</span>
+                                                <li className="flex items-start gap-3">
+                                                    <span className="mr-1 text-lg">🚀</span>
+                                                    <span><strong>Trust But Verify:</strong> Once you trust the AI in this safe sandbox, you can let it run on autopilot with real leads confidently.</span>
                                                 </li>
                                             </ul>
-                                        </div>
-                                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
-                                            <h4 className="font-semibold text-blue-900 mb-2">💎 The Payoff:</h4>
-                                            <p className="text-blue-800">
-                                                Spending just 15 minutes training your AI on your scripts and style can save you 10+ hours a week. A well-trained AI can handle 80% of routine inquiries autonomously, sounding exactly like you.
-                                            </p>
                                         </div>
                                     </div>
                                 }
