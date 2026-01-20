@@ -6181,15 +6181,22 @@ app.post('/api/admin/leads/import', async (req, res) => {
     const { data: { user }, error: tokenError } = await supabase.auth.getUser(token);
 
     if (tokenError || !user) {
+      console.error('Import Auth Error:', tokenError);
       return res.status(401).json({ error: 'Invalid token' });
     }
 
     const { leads: rawLeads, assignment } = req.body;
+    console.log('[Import Debug] User:', user.id);
+    console.log('[Import Debug] Assignment:', JSON.stringify(assignment));
+    console.log('[Import Debug] Raw Leads Count:', rawLeads?.length);
+
     if (!rawLeads || !Array.isArray(rawLeads)) {
       return res.status(400).json({ error: 'Invalid leads data' });
     }
 
     const validLeads = rawLeads.filter(l => l.name && l.name.trim());
+    console.log('[Import Debug] Valid Leads:', validLeads.length);
+
     if (validLeads.length === 0) {
       return res.json({ imported: 0, failed: 0 });
     }
