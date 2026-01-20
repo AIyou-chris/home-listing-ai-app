@@ -6722,7 +6722,7 @@ app.get('/api/admin/support/summary', async (_req, res) => {
   }
 });
 
-app.get('/api/admin/analytics/overview', async (_req, res) => {
+app.get('/api/admin/analytics/overview', async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
