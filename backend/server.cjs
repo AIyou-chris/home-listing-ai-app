@@ -8932,22 +8932,7 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
     res.json(mapAiConversationMessageFromRow(messageRow));
   } catch (error) {
     console.error('Error adding message:', error);
-    if (!useLocalConversationStore) {
-      const fallbackMessage = {
-        id: `${conversationId}-msg-fallback-${Date.now()}`,
-        conversation_id: conversationId,
-        user_id: userId || 'demo-user',
-        sender: role === 'user' ? 'agent' : 'ai',
-        channel: channel || 'chat',
-        content: content || '',
-        translation: translation || null,
-        metadata: metadata || {},
-        created_at: now,
-        updated_at: now
-      };
-      respondWithLocalMessage(conversationId, res, fallbackMessage);
-      return;
-    }
+    // Fallback logic for local store removed as it is deprecated
     res.status(500).json({ error: 'Failed to add message' });
   }
 });
@@ -9376,11 +9361,13 @@ app.post('/api/paypal/webhook', async (req, res) => {
         severity: 'info',
         details: { type: event?.event_type, resource: event?.resource?.id || null }
       });
-    } catch { }
+    } catch {
+      // Ignore logging errors
+    }
     // If capture completed, flip plan if we can resolve user by reference_id
     if (event?.event_type === 'CHECKOUT.ORDER.APPROVED' || event?.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
       const pu = event?.resource?.purchase_units?.[0];
-      const slug = pu?.reference_id || pu?.custom_id;
+      // const slug = pu?.reference_id || pu?.custom_id;
       // If you maintain a slug->user map, update here. Placeholder shown:
       // const { data: mapped } = await supabaseAdmin.from('agent_slugs').select('user_id').eq('slug', slug).maybeSingle();
       // if (mapped?.user_id) await supabaseAdmin.from('ai_card_profiles').update({ plan: 'Solo Agent', subscription_status: 'active' }).eq('user_id', mapped.user_id);
