@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Lead } from '../../types';
 import { authService } from '../../services/authService';
+import notificationService from '../../services/notificationService';
+import { supabase } from '../../services/supabase';
 
 
 interface CampaignRunnerModalProps {
@@ -42,6 +44,13 @@ export const CampaignRunnerModal: React.FC<CampaignRunnerModalProps> = ({
         setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
     };
 
+
+    // --- SAFETY CHECK: Filter out leads that should not be emailed ---
+    // Safe statuses: 'New', 'Qualified', 'Contacted', 'Showing', 'Lost', etc.
+    // Unsafe statuses: 'Bounced', 'Unsubscribed'
+    const safeLeads = selectedLeads.filter(l => l.status !== 'Bounced' && l.status !== 'Unsubscribed');
+    const skippedCount = selectedLeads.length - safeLeads.length;
+
     const runCampaign = async () => {
         if (isRunning) return;
         setIsRunning(true);
@@ -52,13 +61,25 @@ export const CampaignRunnerModal: React.FC<CampaignRunnerModalProps> = ({
 
         abortControllerRef.current = new AbortController();
 
-        addLog(`Starting campaign "${funnelName}" for ${selectedLeads.length} leads.`);
+        addLog(`Initialize campaign "${funnelName}"...`);
+        if (skippedCount > 0) {
+            addLog(`⚠️ SAFETY: Automatically skipping ${skippedCount} leads (Bounced/Unsubscribed).`);
+        }
+        addLog(`Targeting ${safeLeads.length} valid leads.`);
         addLog(`Throttling: ${batchSize} leads every ${throttleSeconds} seconds.`);
 
+        if (safeLeads.length === 0) {
+            addLog('No valid leads to process. Campaign finished.');
+            setIsRunning(false);
+            return;
+        }
+
         let processed = 0;
+        let successCount = 0;
+        let failureCount = 0;
 
         // Process loop
-        for (let i = 0; i < selectedLeads.length; i += batchSize) {
+        for (let i = 0; i < safeLeads.length; i += batchSize) {
             if (abortControllerRef.current?.signal.aborted) {
                 addLog('Campaign aborted by user.');
                 break;
@@ -69,15 +90,12 @@ export const CampaignRunnerModal: React.FC<CampaignRunnerModalProps> = ({
                 if (abortControllerRef.current?.signal.aborted) break;
             }
 
-            const batch = selectedLeads.slice(i, i + batchSize);
+            const batch = safeLeads.slice(i, i + batchSize);
             addLog(`Processing batch ${Math.floor(i / batchSize) + 1} (${batch.length} leads)...`);
 
             // Process batch in parallel
             await Promise.all(batch.map(async (lead) => {
                 try {
-                    // Trigger the funnel for this lead
-                    // identifying exact endpoint may vary, assuming a flexible funnel trigger
-                    // For now, we simulate or call a generic 'assign funnel' endpoint
                     await authService.makeAuthenticatedRequest(`/api/funnels/assign`, {
                         method: 'POST',
                         body: JSON.stringify({
@@ -85,25 +103,42 @@ export const CampaignRunnerModal: React.FC<CampaignRunnerModalProps> = ({
                             funnelType: funnelId
                         })
                     });
-
-                    // Also generic 'start' if needed, but assigning usually starts it
+                    successCount++;
                 } catch (err: unknown) {
-                    // addLog(`Error for ${lead.email}: ${err.message}`); 
-                    // Silent fail to keep batch moving?
+                    failureCount++;
+                    // Optional: addLog(`Error for ${lead.email}`); 
                 }
             }));
 
             processed += batch.length;
-            setProgress(Math.round((processed / selectedLeads.length) * 100));
+            setProgress(Math.round((processed / safeLeads.length) * 100));
             setCurrentIndex(processed);
 
-            if (processed < selectedLeads.length) {
+            if (processed < safeLeads.length) {
                 addLog(`Waiting ${throttleSeconds}s before next batch...`);
                 await new Promise(resolve => setTimeout(resolve, throttleSeconds * 1000));
             }
         }
 
         addLog('Campaign finished!');
+        addLog(`Summary: ${successCount} sent, ${failureCount} failed, ${skippedCount} skipped.`);
+
+        // Notify User
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                await notificationService.sendNotificationToUser(
+                    user.id,
+                    'Campaign Completed',
+                    `Campaign "${funnelName}" finished. Sent: ${successCount}, Failed: ${failureCount}, Skipped: ${skippedCount} (Safety).`,
+                    'system',
+                    'high'
+                );
+            }
+        } catch (error) {
+            console.error('Failed to notify user', error);
+        }
+
         setIsRunning(false);
         setPaused(false);
     };

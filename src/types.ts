@@ -192,7 +192,7 @@ export interface BlogPost {
     };
 }
 
-export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost' | 'Bounced';
+export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost' | 'Bounced' | 'Unsubscribed';
 
 export type LeadFunnelType = 'universal_sales' | 'homebuyer' | 'seller' | 'postShowing';
 

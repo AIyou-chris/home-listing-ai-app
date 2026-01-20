@@ -793,35 +793,160 @@ app.get('/api/analytics/feedback/:userId', async (req, res) => {
       return res.json({ success: true, analytics: {} });
     }
 
-    const { data: events, error } = await supabaseAdmin
       .from('email_events')
       .select('campaign_id, event_type, message_id')
       .eq('user_id', normalizedUserId);
 
+
     if (error) {
-      console.warn('[Analytics] Failed to load email events:', error);
-      return res.status(500).json({ success: false, error: 'Failed to load analytics' });
+      // if we can't fetch real data, return empty object
+      return res.json({ success: true, analytics: {} });
     }
 
-    const analytics = (events || []).reduce((acc, event) => {
-      const campaign = event.campaign_id || 'unknown';
-      if (!acc[campaign]) {
-        acc[campaign] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
-      }
+    const analytics = {
+      totalLeads: 0,
+      emailsSent: 0,
+      emailsOpened: 0,
+      emailsClicked: 0,
+      responsesReceived: 0,
+      openRate: 0,
+      clickRate: 0,
+      responseRate: 0
+    };
 
-      if (event.event_type === 'delivered' || event.event_type === 'accepted') acc[campaign].sent++;
-      if (event.event_type === 'opened') acc[campaign].opened++;
-      if (event.event_type === 'clicked') acc[campaign].clicked++;
-      if (event.event_type === 'bounced') acc[campaign].bounced++;
+    // Calculate basic funnel stats
+    (events || []).forEach(ev => {
+      if (ev.event_type === 'delivered' || ev.event_type === 'accepted') analytics.emailsSent++;
+      if (ev.event_type === 'opened') analytics.emailsOpened++;
+      if (ev.event_type === 'clicked') analytics.emailsClicked++;
+      if (ev.event_type === 'replied') analytics.responsesReceived++;
+    });
 
-      return acc;
-    }, {});
+    if (analytics.emailsSent > 0) {
+      analytics.openRate = Math.round((analytics.emailsOpened / analytics.emailsSent) * 100);
+      analytics.clickRate = Math.round((analytics.emailsClicked / analytics.emailsSent) * 100);
+      analytics.responseRate = Math.round((analytics.responsesReceived / analytics.emailsSent) * 100);
+    }
 
     res.json({ success: true, analytics });
+
   } catch (error) {
-    console.error('[Analytics] Error fetching feedback:', error);
+    console.error('Feedback analytics error:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
+});
+
+// --- UNSUBSCRIBE & SAFETY ENDPOINTS ---
+
+// 1. Unsubscribe Endpoint (Public)
+app.get('/api/leads/unsubscribe/:leadId', async (req, res) => {
+  const { leadId } = req.params;
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return res.send('<h1>Unsubscribe Service Unavailable</h1><p>Please contact support.</p>');
+  }
+
+  try {
+    // Update Lead Status to 'Unsubscribed'
+    const { error } = await supabaseAdmin
+      .from('leads')
+      .update({ status: 'Unsubscribed', notes: 'Unsubscribed via link' })
+      .eq('id', leadId);
+
+    if (error) throw error;
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Unsubscribed</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #334155; }
+          .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+          h1 { color: #0f172a; margin-bottom: 16px; font-size: 24px; }
+          p { margin-bottom: 24px; line-height: 1.5; }
+          .icon { font-size: 48px; margin-bottom: 16px; display: block; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <span class="icon">✅</span>
+          <h1>Unsubscribed</h1>
+          <p>You have been successfully removed from our mailing list. You will no longer receive updates from this agent.</p>
+        </div>
+      </body>
+      </html>
+    `);
+
+  } catch (err) {
+    console.error('Unsubscribe error:', err);
+    res.status(500).send('<h1>Error</h1><p>Could not process unsubscribe request. Please try again later.</p>');
+  }
+});
+
+// 2. Email Webhook (Bounce/Spam Handling) - Generic Support
+app.post('/api/webhooks/email', async (req, res) => {
+  const event = req.body;
+
+  // Basic logging
+  console.log('[Email Webhook] Received:', event.type || 'unknown event');
+
+  // Logic to handle Bounce/Spam
+  // This depends on provider payload format (Postmark, SendGrid, Mailgun)
+  // We'll implemented a generic detector based on common fields: 'Type', 'RecordType', 'event'
+
+  const type = (event.Type || event.event || event.recordType || '').toLowerCase();
+  const email = (event.Email || event.recipient || event.to || '').toLowerCase();
+
+  // If bounce or spam complaint, mark lead as Bounced
+  if ((type.includes('bounce') || type.includes('spam')) && email) {
+    console.log(`[Email Webhook] Processing BAD email: ${email} (${type})`);
+
+    try {
+      // Find lead by email (across users? Or do we need user context? 
+      // Ideally we invalidate for specific user, but Bounced is usually universal reachability.
+      // For safety, we update ALL leads with this email to 'Bounced'.
+      const { error } = await supabaseAdmin
+        .from('leads')
+        .update({ status: 'Bounced' })
+        .eq('email', email); // Updates all matching
+
+      if (error) console.error('Failed to mark bounced lead:', error);
+      else console.log(`✅ Marked ${email} as Bounced.`);
+
+    } catch (err) {
+      console.error('Webhook processing error:', err);
+    }
+  }
+
+  res.json({ received: true });
+});
+
+if (error) {
+  console.warn('[Analytics] Failed to load email events:', error);
+  return res.status(500).json({ success: false, error: 'Failed to load analytics' });
+}
+
+const analytics = (events || []).reduce((acc, event) => {
+  const campaign = event.campaign_id || 'unknown';
+  if (!acc[campaign]) {
+    acc[campaign] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
+  }
+
+  if (event.event_type === 'delivered' || event.event_type === 'accepted') acc[campaign].sent++;
+  if (event.event_type === 'opened') acc[campaign].opened++;
+  if (event.event_type === 'clicked') acc[campaign].clicked++;
+  if (event.event_type === 'bounced') acc[campaign].bounced++;
+
+  return acc;
+}, {});
+
+res.json({ success: true, analytics });
+  } catch (error) {
+  console.error('[Analytics] Error fetching feedback:', error);
+  res.status(500).json({ success: false, error: 'Internal server error' });
+}
 });
 
 
