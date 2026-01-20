@@ -40,6 +40,10 @@ const upload = multer({
 });
 const { parseISO, addMinutes, isBefore, isAfter } = require('date-fns');
 
+const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
+const APP_URL = process.env.VITE_APP_URL || process.env.APP_URL || 'http://localhost:5173';
+
+
 const {
   getPreferences: getNotificationPreferences,
   updatePreferences: updateNotificationPreferences,
@@ -3566,12 +3570,13 @@ app.post('/api/continue-conversation', async (req, res) => {
     console.log('OpenAI messages:', openaiMessages);
 
     let response;
+    let completion;
 
     try {
       console.log('🔑 OpenAI API Key present:', !!process.env.OPENAI_API_KEY);
       console.log('📝 Sending to OpenAI with model: gpt-4-turbo');
 
-      const completion = await openai.chat.completions.create({
+      completion = await openai.chat.completions.create({
         model: 'gpt-4-turbo', // Use available model
         messages: openaiMessages,
         max_completion_tokens: 1024
@@ -5903,10 +5908,10 @@ app.post('/api/admin/leads', async (req, res) => {
 
               console.log(`[Funnel] Triggering immediate SMS to ${phone} for funnel ${funnelId}`);
 
-              if (await shouldSendNotification(lead.user_id, 'sms', 'aiInteraction')) {
+              if (await shouldSendNotification(assignedUserId, 'sms', 'aiInteraction')) {
                 sendSms(phone, content, mediaUrls).catch(err => console.error(`[Funnel] Failed to send SMS to ${phone}`, err));
               } else {
-                console.log(`[Funnel] SMS suppressed by preferences for User ${lead.user_id}`);
+                console.log(`[Funnel] SMS suppressed by preferences for User ${assignedUserId}`);
               }
             }
           }
