@@ -44,6 +44,23 @@ const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 const APP_URL = process.env.VITE_APP_URL || process.env.APP_URL || 'http://localhost:5173';
 
 
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  console.warn('⚠️  Supabase URL or Service Role Key missing. Admin functions may fail.');
+}
+
+// Initialize standard client and admin client
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+
 const {
   getPreferences: getNotificationPreferences,
   updatePreferences: updateNotificationPreferences,
