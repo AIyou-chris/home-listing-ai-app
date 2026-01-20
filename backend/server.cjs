@@ -59,7 +59,25 @@ const {
 const {
   getSecuritySettings,
   updateSecuritySettings
-} = require('./utils/securitySettings');
+} = require('./utils/utils/securitySettings'); // Adjust path based on your folder structure
+
+const APPOINTMENT_SELECT_FIELDS = `
+  id,
+  title,
+  start_time,
+  end_time,
+  status,
+  notes,
+  location_type,
+  meeting_link,
+  client_name,
+  client_email,
+  client_phone,
+  property_address,
+  lead_id,
+  user_id,
+  created_at
+`;
 const {
   getCalendarSettings,
   updateCalendarSettings: updateCalendarPreferences,
@@ -1424,24 +1442,6 @@ let users = [];
 
 // DEPRECATED: In-memory listings replaced by Supabase 'properties' table
 const listings = [];
-
-const APPOINTMENT_SELECT_FIELDS = `
-  id,
-  title,
-  start_time,
-  end_time,
-  status,
-  notes,
-  location_type,
-  meeting_link,
-  client_name,
-  client_email,
-  client_phone,
-  property_address,
-  lead_id,
-  user_id,
-  created_at
-`;
 
 const DEFAULT_LEAD_USER_ID =
   process.env.DEFAULT_LEAD_USER_ID || '75114b93-e1c8-4d54-9e43-dd557d9e3ad9';
