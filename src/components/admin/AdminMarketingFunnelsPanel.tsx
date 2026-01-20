@@ -184,8 +184,16 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     hideBackButton = false,
     isDemoMode = false
 }) => {
-    // Admin-only: Hardcode userId for marketing funnels
-    const ADMIN_MARKETING_USER_ID = 'admin-marketing';
+    // Admin-only: Use real user ID (so DB foreign key works) or fallback to 'admin-marketing' if testing
+    const [userId, setUserId] = useState('admin-marketing');
+
+    useEffect(() => {
+        authService.getCurrentAgentProfile().then(profile => {
+            if (profile?.id) setUserId(profile.id);
+        });
+    }, []);
+
+    const ADMIN_MARKETING_USER_ID = userId;
     const isEmbedded = variant === 'embedded';
 
     const [agentSalesSteps, setAgentSalesSteps] = useState<EditableStep[]>(initialAgentSalesSteps);

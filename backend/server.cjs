@@ -722,6 +722,8 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
       return res.json({ success: true, saved: false });
     }
 
+    console.log(`[Funnels] Saving ${funnelType} for ${userId}. Steps:`, steps ? steps.length : 'null');
+
     const { error } = await supabaseAdmin
       .from('funnel_steps')
       .upsert({
@@ -733,13 +735,13 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
 
     if (error) {
       console.error('[Funnels] Failed to save funnel steps:', error);
-      return res.status(500).json({ success: false, error: 'Failed to save funnel' });
+      return res.status(500).json({ success: false, error: 'Failed to save funnel', details: error });
     }
 
     res.json({ success: true });
   } catch (error) {
     console.error('[Funnels] Error saving funnel:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res.status(500).json({ success: false, error: 'Internal server error', details: error.message });
   }
 });
 
