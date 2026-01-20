@@ -5,6 +5,7 @@ import QuickEmailModal from '../QuickEmailModal';
 import SignatureEditorModal from '../SignatureEditorModal';
 import SequenceFeedbackPanel from '../SequenceFeedbackPanel';
 import { funnelService } from '../../services/funnelService';
+import { authService } from '../../services/authService';
 import { supabase } from '../../services/supabase';
 import PageTipBanner from '../PageTipBanner';
 import LeadImportModal from './LeadImportModal';
