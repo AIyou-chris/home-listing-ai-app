@@ -29,7 +29,7 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
     const [importProgress, setImportProgress] = useState(0); // Added progress state
     const [assignment, setAssignment] = useState({
         assignee: 'admin',
-        funnel: 'agentSales',
+        funnel: 'universal_sales',
         tag: 'cold-import'
     });
 
