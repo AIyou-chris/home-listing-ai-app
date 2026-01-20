@@ -158,6 +158,9 @@ export const leadsService = {
       const API_BASE = 'https://home-listing-ai-backend.onrender.com';
       console.log('🔌 Connecting to Backend Import:', API_BASE);
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 Second Timeout
+
       const response = await fetch(`${API_BASE}/api/admin/leads/import`, {
         method: 'POST',
         headers: {
@@ -167,8 +170,10 @@ export const leadsService = {
         body: JSON.stringify({
           leads,
           assignment
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json();
