@@ -258,10 +258,10 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                                             value={assignment.funnel}
                                             onChange={(e) => setAssignment({ ...assignment, funnel: e.target.value })}
                                         >
-                                            <option value="agentSales">Recruitment (In Your Face)</option>
-                                            <option value="welcome">Universal Welcome</option>
-                                            <option value="buyer">Buyer Journey</option>
-                                            <option value="listing">Seller Story</option>
+                                            <option value="universal_sales">Recruitment (In Your Face)</option>
+                                            <option value="universal_sales">Universal Welcome</option>
+                                            <option value="homebuyer">Buyer Journey</option>
+                                            <option value="seller">Seller Story</option>
                                         </select>
                                     </div>
                                     <div>
