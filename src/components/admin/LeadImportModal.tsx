@@ -146,20 +146,28 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
 
     const handleImport = async () => {
         setIsImporting(true);
+        setImportProgress(0);
         try {
             const result = await leadsService.bulkImport(parsedLeads, {
                 assignee: assignment.assignee,
                 funnel: assignment.funnel as LeadFunnelType,
                 tag: assignment.tag
+            }, (count) => {
+                setImportProgress(count);
             });
 
-            alert(`Successfully imported ${result.imported} leads!`);
-            onImport(parsedLeads, assignment); // Notify parent (just for logging/refresh)
-            onClose();
-            // Reset state
-            setStep('upload');
-            setRawText('');
-            setParsedLeads([]);
+            // Small delay to show 100% completion
+            setTimeout(() => {
+                alert(`Successfully imported ${result.imported} leads!`);
+                onImport(parsedLeads, assignment);
+                onClose();
+                // Reset state
+                setStep('upload');
+                setRawText('');
+                setParsedLeads([]);
+                setImportProgress(0);
+            }, 500);
+
         } catch (error) {
             console.error('Import failed', error);
             alert('Import failed. Please check the format and try again.');
@@ -325,12 +333,19 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                             <button
                                 onClick={handleImport}
                                 disabled={isImporting}
-                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px] justify-center relative overlow-hidden"
                             >
                                 {isImporting ? (
                                     <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                        Importing...
+                                        {/* Progress Bar Background */}
+                                        <div
+                                            className="absolute left-0 top-0 bottom-0 bg-indigo-500 transition-all duration-300 z-0"
+                                            style={{ width: `${(importProgress / parsedLeads.length) * 100}%` }}
+                                        />
+                                        <div className="relative z-10 flex items-center gap-2">
+                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                            <span>{importProgress} / {parsedLeads.length}</span>
+                                        </div>
                                     </>
                                 ) : (
                                     <>

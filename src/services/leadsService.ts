@@ -149,7 +149,7 @@ export const leadsService = {
     return mapLeadRow(data)
   },
 
-  async bulkImport(leads: Partial<LeadPayload>[], assignment: { assignee: string; funnel?: LeadFunnelType; tag?: string }) {
+  async bulkImport(leads: Partial<LeadPayload>[], assignment: { assignee: string; funnel?: LeadFunnelType; tag?: string }, onProgress?: (count: number) => void) {
     const userId = await getCurrentUserId()
     if (!userId) throw new Error('Not authenticated')
 
@@ -212,6 +212,7 @@ export const leadsService = {
 
       if (data) {
         totalImported += data.length
+        if (onProgress) onProgress(totalImported)
       }
     }
 
