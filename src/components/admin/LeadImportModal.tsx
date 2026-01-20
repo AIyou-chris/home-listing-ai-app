@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { leadsService } from '../../services/leadsService';
-import { LeadFunnelType } from '../../types';
+import { supabase } from '../../services/supabase'; // Corrected Path
 
 interface ImportedLead {
     name: string;
@@ -26,7 +25,8 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
     const [rawText, setRawText] = useState('');
     const [parsedLeads, setParsedLeads] = useState<ImportedLead[]>([]);
     const [isImporting, setIsImporting] = useState(false);
-    const [importProgress, setImportProgress] = useState(0); // Added progress state
+    // const [importProgress, setImportProgress] = useState(0); // Removed unused
+    const [activityLog, setActivityLog] = useState<string[]>([]); // New Log State
     const [assignment, setAssignment] = useState({
         assignee: 'admin',
         funnel: 'universal_sales',
@@ -145,42 +145,79 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
         setStep('preview');
     };
 
+    // DIRECT IMPORT LOGIC (Bypassing Service Layer)
+    // DIRECT IMPORT LOGIC (Bypassing Service Layer)
+    const addToLog = (msg: string) => setActivityLog(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg}`]);
+
     const handleImport = async () => {
         setIsImporting(true);
-        setImportProgress(0);
-        try {
-            const result = await leadsService.bulkImport(parsedLeads, {
-                assignee: assignment.assignee,
-                funnel: assignment.funnel as LeadFunnelType,
-                tag: assignment.tag
-            }, (count) => {
-                setImportProgress(count);
-            });
+        setActivityLog([]); // Clear log
+        addToLog('🚀 Starting Import Process...');
 
-            // Small delay to show 100% completion
-            setTimeout(() => {
-                if ('error' in result && result.error) {
-                    alert(`Import Error: ${JSON.stringify(result.error)}\nPartial Success: ${result.imported} leads imported.`);
-                } else {
-                    alert(`Successfully imported ${result.imported} leads!`);
-                    onImport(parsedLeads, assignment);
-                    onClose();
+        try {
+            const API_URL = 'https://home-listing-ai-backend.onrender.com/api/admin/leads/import';
+            addToLog(`🔗 Target URL: ${API_URL}`);
+
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('No active session found');
+            addToLog('🔑 Auth Token Acquired');
+
+            addToLog(`📦 Preparing Payload: ${parsedLeads.length} leads`);
+            const payload = {
+                leads: parsedLeads,
+                assignment: {
+                    assignee: assignment.assignee,
+                    funnel: assignment.funnel,
+                    tag: assignment.tag
                 }
-                // Reset state
-                // Reset state
-                setStep('upload');
-                setRawText('');
-                setParsedLeads([]);
-                setImportProgress(0);
+            };
+
+            // TIMEOUT TIMER (15s)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            addToLog('⏱️ 15s Timeout Timer Started');
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            addToLog(`📡 Server Status: ${response.status} ${response.statusText}`);
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`Server Error: ${errText}`);
+            }
+
+            const result = await response.json();
+            addToLog(`✅ Success! Imported: ${result.imported}`);
+
+            // Success State
+            setTimeout(() => {
+                alert(`SUCCESS: Imported ${result.imported} leads.`);
+                onImport(parsedLeads, assignment as unknown as ImportAssignment);
+                onClose();
             }, 500);
 
         } catch (error) {
-            console.error('Import failed', error);
-            alert('Import failed. Please check the format and try again.');
+            console.error('Import Error:', error);
+            const err = error as Error;
+            addToLog(`❌ ERROR: ${err.message}`);
+            if (err.name === 'AbortError') {
+                addToLog('⛔ Request Timed Out (Backend did not respond in 15s)');
+            }
         } finally {
             setIsImporting(false);
         }
     };
+
+
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
@@ -339,20 +376,20 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                             <button
                                 onClick={handleImport}
                                 disabled={isImporting}
-                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px] justify-center relative overlow-hidden"
+                                className={`px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isImporting ? 'w-full' : 'min-w-[140px] justify-center'}`}
                             >
                                 {isImporting ? (
-                                    <>
-                                        {/* Progress Bar Background */}
-                                        <div
-                                            className="absolute left-0 top-0 bottom-0 bg-indigo-500 transition-all duration-300 z-0"
-                                            style={{ width: `${(importProgress / parsedLeads.length) * 100}%` }}
-                                        />
-                                        <div className="relative z-10 flex items-center gap-2">
-                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                            <span>{importProgress} / {parsedLeads.length}</span>
-                                        </div>
-                                    </>
+                                    <div className="w-full text-left font-mono text-xs p-1">
+                                        {activityLog.length > 0 ? (
+                                            <div className="flex flex-col gap-1">
+                                                {activityLog.slice(-3).map((log, i) => (
+                                                    <div key={i} className="whitespace-nowrap overflow-hidden text-ellipsis">{log}</div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <span>Starting...</span>
+                                        )}
+                                    </div>
                                 ) : (
                                     <>
                                         <span className="material-symbols-outlined text-lg">upload</span>
