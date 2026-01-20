@@ -189,9 +189,19 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [userId, setUserId] = useState('admin-marketing');
 
     useEffect(() => {
+        // Initial check
         authService.getCurrentAgentProfile().then(profile => {
             if (profile?.id) setUserId(profile.id);
         });
+
+        // Reactive listener for race conditions
+        const unsubscribe = authService.addAuthStateListener((state) => {
+            if (state.user?.uid) {
+                setUserId(state.user.uid);
+            }
+        });
+
+        return () => unsubscribe();
     }, []);
 
     const ADMIN_MARKETING_USER_ID = userId;
@@ -365,14 +375,19 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         loadFunnels();
     }, [ADMIN_MARKETING_USER_ID]);
 
-    const handleSaveCustomFunnel = async (type: string, steps: EditableStep[]) => {
+    const handleSaveCustomFunnel = async (funnelId: string, steps: EditableStep[]) => {
         try {
-            const success = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, type, steps);
-            if (success) alert('Funnel saved!');
-            else alert('Failed to save.');
-        } catch (error) {
-            console.error('Failed to save funnel', error);
-            alert('Unable to save right now.');
+            const result = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, funnelId, steps);
+            if (result.success) {
+                alert('Custom funnel saved!');
+            } else {
+                console.error('Save failed:', result);
+                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+            }
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error('Failed to save custom funnel', err);
+            alert(`Unable to save: ${err.message}`);
         }
     };
 
@@ -430,12 +445,17 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     const handleSaveAgentSalesSteps = async () => {
         try {
-            const success = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, 'agentSales', agentSalesSteps);
-            if (success) alert('Recruitment funnel saved!');
-            else alert('Failed to save.');
-        } catch (error) {
-            console.error('Failed to save recruitment funnel', error);
-            alert('Unable to save right now.');
+            const result = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, 'agentSales', agentSalesSteps);
+            if (result.success) {
+                alert('Recruitment funnel saved!');
+            } else {
+                console.error('Save failed:', result);
+                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+            }
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error('Failed to save recruitment funnel', err);
+            alert(`Unable to save: ${err.message}`);
         }
     };
 

@@ -64,10 +64,17 @@ export const funnelService = {
                 method: 'POST',
                 body: JSON.stringify({ steps })
             });
-            return response.ok;
-        } catch (error) {
-            console.error(`Error saving ${funnelType} funnel:`, error);
-            return false;
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error(`Error saving ${funnelType} funnel:`, errorData);
+                return { success: false, error: errorData.error || response.statusText, details: errorData.details };
+            }
+
+            return { success: true };
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error(`Error saving ${funnelType} funnel:`, err);
+            return { success: false, error: err.message };
         }
     },
 
