@@ -194,8 +194,7 @@ export const leadsService = {
 
       if (error) {
         console.error('Batch import error:', error)
-        // Continue with other chunks even if one fails
-        continue
+        return { imported: totalImported, failed: insertPayloads.length - totalImported, error } // Return error to UI
       }
 
       if (data) {

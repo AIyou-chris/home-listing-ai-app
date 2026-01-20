@@ -159,9 +159,14 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
 
             // Small delay to show 100% completion
             setTimeout(() => {
-                alert(`Successfully imported ${result.imported} leads!`);
-                onImport(parsedLeads, assignment);
-                onClose();
+                if ('error' in result && result.error) {
+                    alert(`Import Error: ${JSON.stringify(result.error)}\nPartial Success: ${result.imported} leads imported.`);
+                } else {
+                    alert(`Successfully imported ${result.imported} leads!`);
+                    onImport(parsedLeads, assignment);
+                    onClose();
+                }
+                // Reset state
                 // Reset state
                 setStep('upload');
                 setRawText('');

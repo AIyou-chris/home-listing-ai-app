@@ -21,24 +21,17 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 async function debugImport() {
     console.log('🚀 Starting Debug Import...');
 
-    // 1. Get a valid user ID (grab the first one found in agents/users)
-    const { data: users } = await supabaseAdmin.from('agents').select('id').limit(1);
-    const userId = users?.[0]?.id;
+    // 1. Get a valid user ID from AUTH.USERS
+    const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
 
-    if (!userId) {
-        console.error('❌ No users found to assign lead to.');
+    if (error || !users || users.length === 0) {
+        console.error('❌ No AUTH users found to assign lead to.', error);
         return;
     }
-    console.log(`👤 Using User ID: ${userId}`);
+    const userId = users[0].id; // Use the first found user
+    console.log(`👤 Using AUTH User ID: ${userId}`);
 
-    // 2. Prepare Payload (Matching leadsService.ts)
-    const initialScore = {
-        totalScore: 10,
-        tier: 'Cold',
-        lastUpdated: new Date().toISOString(),
-        scoreHistory: []
-    };
-
+    // 2. Prepare Payload (With Integer Score)
     const payload = {
         user_id: userId,
         name: "Debug Lead " + Date.now(),
@@ -47,21 +40,20 @@ async function debugImport() {
         status: 'New',
         source: 'Import',
         notes: "Company: Test Corp\n[Tag: debug] Imported via Script",
-        // funnel_type: null, // Optional, leaving null
         created_at: new Date().toISOString(),
-        score: initialScore
+        score: 10 // INTEGER, not object
     };
 
     console.log('📦 Payload:', JSON.stringify(payload, null, 2));
 
     // 3. Attempt Insert
-    const { data, error } = await supabaseAdmin
+    const { data, error: insertError } = await supabaseAdmin
         .from('leads')
         .insert([payload])
         .select();
 
-    if (error) {
-        console.error('❌ INSERT FAILED:', error);
+    if (insertError) {
+        console.error('❌ INSERT FAILED:', insertError);
     } else {
         console.log('✅ Insert Success!', data);
     }
