@@ -158,20 +158,8 @@ export const leadsService = {
     if (validLeads.length === 0) return { imported: 0, failed: 0 }
 
     // Initial score for imported leads (e.g., 10 points for being manually added)
-    const initialScore = {
-      totalScore: 10,
-      tier: 'Cold' as const, // Default to Cold until they engage
-      lastUpdated: new Date().toISOString(),
-      scoreHistory: [
-        {
-          id: `score-${Date.now()}`,
-          eventType: 'Lead Import',
-          points: 10,
-          description: 'Initial import via Admin Dashboard',
-          timestamp: new Date().toISOString()
-        }
-      ]
-    }
+    // Initial score for imported leads (e.g., 10 points for being manually added)
+    // const initialScore = { ... } // Removed to pass lint, using simple integer 10
 
     const insertPayloads = validLeads.map(lead => ({
       user_id: userId,
@@ -184,7 +172,7 @@ export const leadsService = {
       notes: `${lead.company ? `Company: ${lead.company}\n` : ''}${assignment.tag ? `[Tag: ${assignment.tag}]` : ''} Imported via Admin`,
       funnel_type: assignment.funnel || null,
       created_at: new Date().toISOString(),
-      score: initialScore // Store JSONB score column
+      score: 10 // Fixed: Schema expects integer, not JSON object
     }))
 
     // Batch processing to avoid Supabase payload limits
