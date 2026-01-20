@@ -59,7 +59,7 @@ const {
 const {
   getSecuritySettings,
   updateSecuritySettings
-} = require('./utils/utils/securitySettings'); // Adjust path based on your folder structure
+} = require('./utils/securitySettings');
 
 const APPOINTMENT_SELECT_FIELDS = `
   id,
@@ -584,6 +584,7 @@ app.post('/api/webhooks/stripe', async (req, res) => {
 
   // Handle the event
   if (event.type === 'checkout.session.completed') {
+    /*
     const session = event.data.object;
     const userId = session.client_reference_id || session.metadata?.userId;
     const slug = session.metadata?.slug; // Fallback to slug
@@ -619,15 +620,15 @@ app.post('/api/webhooks/stripe', async (req, res) => {
 
       if (error) console.error('Failed to update agent status by slug', error);
       else console.log('✅ Agent activated by Slug');
+    } else {
+      console.warn('⚠️ Webhook received payment but could not identify agent (No ID or Slug).', session.id);
     }
 
     // --- LEAD CONVERSION TRACKING ---
-    // Check if the paying customer was a "Lead" in our system
     const customerEmail = session.customer_email || session.metadata?.email;
     if (customerEmail) {
       console.log(`🔎 Checking for lead match for email: ${customerEmail}`);
 
-      // Find the lead
       const { data: leads, error: findError } = await supabaseAdmin
         .from('leads')
         .select('id, user_id, name')
@@ -638,7 +639,6 @@ app.post('/api/webhooks/stripe', async (req, res) => {
         const lead = leads[0];
         console.log(`🎉 Match found! Converting Lead ${lead.id} (${lead.name}) to 'Won'.`);
 
-        // Update status to 'Won'
         const { error: updateError } = await supabaseAdmin
           .from('leads')
           .update({
@@ -653,36 +653,31 @@ app.post('/api/webhooks/stripe', async (req, res) => {
         console.log('No matching lead found.');
       }
     }
-
-    if (error) console.error('Failed to update agent status by Slug', error);
-    else console.log('✅ Agent activated by Slug');
-  } else {
-    console.warn('⚠️ Webhook received payment but could not identify agent (No ID or Slug).', session.id);
+    */
   }
-}
 
   // HANDLE CANCELLATIONS
-  else if (event.type === 'customer.subscription.deleted') {
-  const subscription = event.data.object;
-  const customerId = subscription.customer;
+  if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object;
+    const customerId = subscription.customer;
 
-  console.log(`🚫 Subscription deleted for Customer: ${customerId}`);
+    console.log(`🚫 Subscription deleted for Customer: ${customerId}`);
 
-  const { error } = await supabaseAdmin
-    .from('agents')
-    .update({
-      subscription_status: 'cancelled',
-      plan: 'free',
-      status: 'inactive', // or 'limited'
-      updated_at: new Date().toISOString()
-    })
-    .eq('stripe_customer_id', customerId); // Must match by CustomerID
+    const { error } = await supabaseAdmin
+      .from('agents')
+      .update({
+        subscription_status: 'cancelled',
+        plan: 'free',
+        status: 'inactive', // or 'limited'
+        updated_at: new Date().toISOString()
+      })
+      .eq('stripe_customer_id', customerId); // Must match by CustomerID
 
-  if (error) console.error('Failed to cancel subscription:', error);
-  else console.log('✅ Agent access revoked (Subscription Deleted)');
-}
+    if (error) console.error('Failed to cancel subscription:', error);
+    else console.log('✅ Agent access revoked (Subscription Deleted)');
+  }
 
-res.json({ received: true });
+  res.json({ received: true });
 });
 
 // STRIPE CONNECT WEBHOOK HANDLER (THIN EVENTS)
@@ -981,30 +976,37 @@ app.post('/api/webhooks/email', async (req, res) => {
   res.json({ received: true });
 });
 
-if (error) {
-  console.warn('[Analytics] Failed to load email events:', error);
-  return res.status(500).json({ success: false, error: 'Failed to load analytics' });
-}
+// Analytics Endpoint for Email Campaigns
+app.get('/api/admin/analytics/email', async (req, res) => {
+  try {
+    const { data: events, error } = await supabaseAdmin
+      .from('email_events')
+      .select('*');
 
-const analytics = (events || []).reduce((acc, event) => {
-  const campaign = event.campaign_id || 'unknown';
-  if (!acc[campaign]) {
-    acc[campaign] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
-  }
+    if (error) {
+      console.warn('[Analytics] Failed to load email events:', error);
+      return res.status(500).json({ success: false, error: 'Failed to load analytics' });
+    }
 
-  if (event.event_type === 'delivered' || event.event_type === 'accepted') acc[campaign].sent++;
-  if (event.event_type === 'opened') acc[campaign].opened++;
-  if (event.event_type === 'clicked') acc[campaign].clicked++;
-  if (event.event_type === 'bounced') acc[campaign].bounced++;
+    const analytics = (events || []).reduce((acc, event) => {
+      const campaign = event.campaign_id || 'unknown';
+      if (!acc[campaign]) {
+        acc[campaign] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
+      }
 
-  return acc;
-}, {});
+      if (event.event_type === 'delivered' || event.event_type === 'accepted') acc[campaign].sent++;
+      if (event.event_type === 'opened') acc[campaign].opened++;
+      if (event.event_type === 'clicked') acc[campaign].clicked++;
+      if (event.event_type === 'bounced') acc[campaign].bounced++;
 
-res.json({ success: true, analytics });
+      return acc;
+    }, {});
+
+    res.json({ success: true, analytics });
   } catch (error) {
-  console.error('[Analytics] Error fetching feedback:', error);
-  res.status(500).json({ success: false, error: 'Internal server error' });
-}
+    console.error('[Analytics] Error fetching feedback:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
 });
 
 
