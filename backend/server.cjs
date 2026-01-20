@@ -91,9 +91,9 @@ const APPOINTMENT_SELECT_FIELDS = `
   notes,
   location_type,
   meeting_link,
-  client_name,
-  client_email,
-  client_phone,
+  name as client_name,
+  email as client_email,
+  phone as client_phone,
   property_address,
   lead_id,
   user_id,
@@ -1067,22 +1067,12 @@ const openai = new OpenAI({
 });
 
 // Supabase (uses env when provided; falls back to client values for dev)
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yocchddxdsaldgsibmmc.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvY2NoZGR4ZHNhbGRnc2libW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1ODEwNDgsImV4cCI6MjA3MjE1NzA0OH0.02jE3WPLnb-DDexNqSnfIPfmPZldsby1dPOu5-BlSDw';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
-const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
 
 // DEBUG ENDPOINT: Verify Server Configuration
 app.get('/api/admin/debug-config-check', (req, res) => {
   // Basic obscuration
-  const anon = SUPABASE_ANON_KEY || '';
-  const service = SUPABASE_SERVICE_ROLE_KEY || '';
+  const anon = supabaseAnonKey || '';
+  const service = supabaseServiceRoleKey || '';
 
   res.json({
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -1092,6 +1082,7 @@ app.get('/api/admin/debug-config-check', (req, res) => {
     envServiceRoleKeyFound: Object.keys(process.env).includes('SUPABASE_SERVICE_ROLE_KEY')
   });
 });
+
 console.log('[server] has service role?', Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY));
 
 const emailService = createEmailService(supabaseAdmin);
@@ -6209,7 +6200,8 @@ app.post('/api/admin/leads/import', async (req, res) => {
       name: lead.name,
       email: lead.email || null,
       phone: lead.phone || null,
-      company: lead.company || null,
+      phone: lead.phone || null,
+      // company: lead.company || null, // Removed: Column does not exist in DB schema
       status: 'New',
       source: 'Import',
       notes: `${lead.company ? `Company: ${lead.company}\n` : ''}${assignment.tag ? `[Tag: ${assignment.tag}]` : ''} Imported via Admin`,
