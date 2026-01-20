@@ -150,62 +150,42 @@ export const leadsService = {
   },
 
   async bulkImport(leads: Partial<LeadPayload>[], assignment: { assignee: string; funnel?: LeadFunnelType; tag?: string }, onProgress?: (count: number) => void) {
-    const userId = await getCurrentUserId()
-    if (!userId) throw new Error('Not authenticated')
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
 
-    // Filter valid leads (must have name)
-    const validLeads = leads.filter(l => l.name?.trim())
-    if (validLeads.length === 0) return { imported: 0, failed: 0 }
+    try {
+      const response = await fetch('/api/admin/leads/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          leads,
+          assignment
+        })
+      });
 
-    // Initial score for imported leads (e.g., 10 points for being manually added)
-    // Initial score for imported leads (e.g., 10 points for being manually added)
-    // const initialScore = { ... } // Removed to pass lint, using simple integer 10
-
-    const insertPayloads = validLeads.map(lead => ({
-      user_id: userId,
-      name: lead.name!,
-      email: lead.email || null,
-      phone: lead.phone || null,
-      // company: lead.company || null, // Schema not ready, fallback to notes
-      status: 'New',
-      source: 'Import',
-      notes: `${lead.company ? `Company: ${lead.company}\n` : ''}${assignment.tag ? `[Tag: ${assignment.tag}]` : ''} Imported via Admin`,
-      funnel_type: ['homebuyer', 'seller', 'postShowing'].includes(assignment.funnel as string) ? assignment.funnel : null,
-      created_at: new Date().toISOString(),
-      score: 10 // Fixed: Schema expects integer, not JSON object
-    }))
-
-    // Batch processing to avoid Supabase payload limits
-    const BATCH_SIZE = 50
-    const chunks = []
-
-    for (let i = 0; i < insertPayloads.length; i += BATCH_SIZE) {
-      chunks.push(insertPayloads.slice(i, i + BATCH_SIZE))
-    }
-
-    let totalImported = 0
-
-    // Process chunks sequentially to avoid rate limiting
-    for (const chunk of chunks) {
-      const { data, error } = await supabase
-        .from(LEADS_TABLE)
-        .insert(chunk)
-        .select('id')
-
-      if (error) {
-        console.error('Batch import error:', error)
-        return { imported: totalImported, failed: insertPayloads.length - totalImported, error } // Return error to UI
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Import failed');
       }
 
-      if (data) {
-        totalImported += data.length
-        if (onProgress) onProgress(totalImported)
-      }
-    }
+      const result = await response.json();
 
-    return {
-      imported: totalImported,
-      total: leads.length
+      if (onProgress) {
+        onProgress(result.imported);
+      }
+
+      return {
+        imported: result.imported,
+        total: result.total,
+        failed: result.total - result.imported
+      };
+
+    } catch (error) {
+      console.error('Frontend Import Error:', error);
+      throw error;
     }
   },
 

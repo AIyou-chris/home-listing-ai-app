@@ -6163,6 +6163,74 @@ app.post('/api/admin/leads/:leadId/phone-logs', async (req, res) => {
   }
 });
 
+// ===== BULK IMPORT ENDPOINT =====
+app.post('/api/admin/leads/import', async (req, res) => {
+  try {
+    // SECURITY: Authenticate User
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: tokenError } = await supabase.auth.getUser(token);
+
+    if (tokenError || !user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const { leads: rawLeads, assignment } = req.body;
+    if (!rawLeads || !Array.isArray(rawLeads)) {
+      return res.status(400).json({ error: 'Invalid leads data' });
+    }
+
+    const validLeads = rawLeads.filter(l => l.name && l.name.trim());
+    if (validLeads.length === 0) {
+      return res.json({ imported: 0, failed: 0 });
+    }
+
+    // Prepare payload with safe defaults
+    const insertPayloads = validLeads.map(lead => ({
+      user_id: user.id,
+      name: lead.name,
+      email: lead.email || null,
+      phone: lead.phone || null,
+      company: lead.company || null,
+      status: 'New',
+      source: 'Import',
+      notes: `${lead.company ? `Company: ${lead.company}\n` : ''}${assignment.tag ? `[Tag: ${assignment.tag}]` : ''} Imported via Admin`,
+      // Safe Funnel Mapping: Only allow specific known values, otherwise NULL
+      funnel_type: ['homebuyer', 'seller', 'postShowing'].includes(assignment.funnel) ? assignment.funnel : null,
+      created_at: new Date().toISOString(),
+      score: 10
+    }));
+
+    // Batch Insert using Service Role (Bypass RLS)
+    const { data, error } = await supabaseAdmin
+      .from('leads')
+      .insert(insertPayloads)
+      .select('id');
+
+    if (error) {
+      console.error('Backend Import Error:', error);
+      throw error; // Will be caught by catch block
+    }
+
+    // Invalidate Cache
+    await refreshLeadsCache(true);
+
+    res.json({
+      success: true,
+      imported: data ? data.length : 0,
+      total: rawLeads.length
+    });
+
+  } catch (error) {
+    console.error('Import Endpoint Failed:', error);
+    res.status(500).json({
+      error: 'Import failed',
+      details: error.message
+    });
+  }
+});
+
 // ===== LEAD SCORING API ENDPOINTS =====
 
 // Calculate and get lead score
