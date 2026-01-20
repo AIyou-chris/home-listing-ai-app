@@ -154,8 +154,10 @@ export const leadsService = {
     if (!session) throw new Error('Not authenticated');
 
     try {
-      // Determine API Base URL (Production vs Development)
-      const API_BASE = import.meta.env.VITE_APP_URL || '';
+      // FORCE PRODUCTION URL (Resolves "Spinning" / 404 Issues)
+      const API_BASE = 'https://home-listing-ai-backend.onrender.com';
+      console.log('🔌 Connecting to Backend Import:', API_BASE);
+
       const response = await fetch(`${API_BASE}/api/admin/leads/import`, {
         method: 'POST',
         headers: {
