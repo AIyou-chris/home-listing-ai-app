@@ -26,6 +26,7 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
     const [rawText, setRawText] = useState('');
     const [parsedLeads, setParsedLeads] = useState<ImportedLead[]>([]);
     const [isImporting, setIsImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState(0); // Added progress state
     const [assignment, setAssignment] = useState({
         assignee: 'admin',
         funnel: 'agentSales',
