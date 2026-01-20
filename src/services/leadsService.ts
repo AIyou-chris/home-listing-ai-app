@@ -154,7 +154,9 @@ export const leadsService = {
     if (!session) throw new Error('Not authenticated');
 
     try {
-      const response = await fetch('/api/admin/leads/import', {
+      // Determine API Base URL (Production vs Development)
+      const API_BASE = import.meta.env.VITE_APP_URL || '';
+      const response = await fetch(`${API_BASE}/api/admin/leads/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
