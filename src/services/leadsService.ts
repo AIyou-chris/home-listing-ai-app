@@ -178,10 +178,10 @@ export const leadsService = {
       name: lead.name!,
       email: lead.email || null,
       phone: lead.phone || null,
-      company: lead.company || null,
+      // company: lead.company || null, // Schema not ready, fallback to notes
       status: 'New',
       source: 'Import',
-      notes: `${assignment.tag ? `[Tag: ${assignment.tag}]` : ''} Imported via Admin`,
+      notes: `${lead.company ? `Company: ${lead.company}\n` : ''}${assignment.tag ? `[Tag: ${assignment.tag}]` : ''} Imported via Admin`,
       funnel_type: assignment.funnel || null,
       created_at: new Date().toISOString(),
       score: initialScore // Store JSONB score column

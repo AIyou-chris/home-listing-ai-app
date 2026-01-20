@@ -143,7 +143,7 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
             .from('funnel_enrollments')
             .select(`
             id, lead_id, agent_id, funnel_id, current_step_index,
-            leads ( id, name, email, phone ),
+            leads ( id, name, email, phone, status ),
             agents ( id, first_name, last_name, email ),
             funnels ( id, steps )
         `)
@@ -163,6 +163,9 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
         // 2. Loop & Execute
         for (const enrollment of enrollments) {
             const { leads: lead, agents: agent, funnels: funnelDef } = enrollment;
+
+            // Debug Log
+            console.log(`[FunnelExecutor] Checking Lead ${lead.id} Status: '${lead.status}'`);
 
             if (!funnelDef || !funnelDef.steps) {
                 console.warn(`[FunnelExecutor] Missing funnel def for enrollment ${enrollment.id}`);

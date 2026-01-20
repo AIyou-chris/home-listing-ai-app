@@ -279,6 +279,7 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                                                 <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Name</th>
                                                 <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Email</th>
                                                 <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Phone</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Company</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-white divide-y divide-slate-200">
@@ -287,6 +288,7 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                                                     <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-900">{lead.name || '-'}</td>
                                                     <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500">{lead.email || '-'}</td>
                                                     <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500">{lead.phone || '-'}</td>
+                                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500">{lead.company || '-'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
