@@ -10058,7 +10058,7 @@ app.get('/api/admin/appointments', async (req, res) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: tokenError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: tokenError } = await supabaseAdmin.auth.getUser(token);
     if (tokenError || !user) return res.status(401).json({ error: 'Invalid token' });
 
     const { data, error } = await supabaseAdmin
@@ -10068,16 +10068,24 @@ app.get('/api/admin/appointments', async (req, res) => {
 
     if (error) throw error;
 
-    const appointments = (data || []).map(row => {
-      // Retrieve agent profile if needed, or just map basic fields
-      // For list view, we might not need full agent profile decoration for performance,
-      // or we can do it if `user_id` is present.
-      // We'll use a simplified mapping or the existing mapAppointmentFromRow.
-      return mapAppointmentFromRow(row);
-    });
-
-    // Note: decorateAppointmentWithAgent might be expensive to run for ALL appointments 
-    // if it fetches profile for each. For now, returning basic mapped data.
+    const appointments = (data || []).map(row => ({
+      id: row.id,
+      type: row.kind,
+      date: row.date,
+      time: row.time_label,
+      leadId: row.lead_id,
+      status: row.status,
+      name: row.name,
+      email: row.email,
+      phone: row.phone,
+      propertyAddress: row.property_address,
+      notes: row.notes,
+      startIso: row.start_iso,
+      endIso: row.end_iso,
+      meetLink: row.meet_link,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
 
     res.json(appointments);
   } catch (error) {
