@@ -440,6 +440,16 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                     onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
                                                                 />
 
+                                                                <label className="block text-xs font-semibold text-violet-800/90 mb-1">
+                                                                    Preview Text <span className="text-violet-400 font-normal">(Shown in inbox list view)</span>
+                                                                </label>
+                                                                <input
+                                                                    className="w-full text-xs font-medium text-slate-700 placeholder:text-slate-300 border border-violet-200 rounded-lg p-2.5 focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white shadow-sm mb-4"
+                                                                    placeholder="e.g. You won't believe what happened..."
+                                                                    value={step.previewText || ''}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'previewText', e.target.value)}
+                                                                />
+
                                                                 <div className="relative">
                                                                     <div className="flex items-center justify-between mb-2">
                                                                         <label className="text-xs font-semibold text-violet-800/90">Message Body</label>

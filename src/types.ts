@@ -762,4 +762,5 @@ export interface EditableStep {
     // Email Specific
     plainText?: string; // 'true' | 'false'
     includeUnsubscribe?: string; // 'true' | 'false'
+    previewText?: string;
 }

@@ -87,10 +87,20 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
                 const subject = mergeTokens(step.subject, lead, agent);
                 const content = mergeTokens(step.content || step.body, lead, agent);
 
+                // --- PREVIEW TEXT INJECTION (Client-side Gmail/Outlook Hack) ---
+                let finalHtml = content.replace(/\n/g, '<br>');
+                if (step.previewText) {
+                    const previewHtml = `<div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+                        ${mergeTokens(step.previewText, lead, agent)}
+                        ${'&nbsp;&zwnj;'.repeat(100)} 
+                    </div>`; // &nbsp;&zwnj; repeat pushes actual body text out of view
+                    finalHtml = previewHtml + finalHtml;
+                }
+
                 const result = await emailService.sendEmail({
                     to: lead.email,
                     subject: subject,
-                    html: content.replace(/\n/g, '<br>'),
+                    html: finalHtml,
                     tags: {
                         funnel_step: step.step_key,
                         lead_id: lead.id,
