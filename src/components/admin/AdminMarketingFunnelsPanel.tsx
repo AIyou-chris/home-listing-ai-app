@@ -377,7 +377,13 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     const handleSaveCustomFunnel = async (funnelId: string, steps: EditableStep[]) => {
         try {
-            const result = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, funnelId, steps);
+            // Prepare steps with delayMinutes
+            const stepsWithMinutes = steps.map(step => ({
+                ...step,
+                delayMinutes: parseDelay(step.delay)
+            }));
+
+            const result = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, funnelId, stepsWithMinutes);
             if (result.success) {
                 alert('Custom funnel saved!');
             } else {
@@ -443,9 +449,24 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
 
 
+    const parseDelay = (delayStr: string): number => {
+        if (!delayStr) return 0;
+        const normalized = delayStr.toLowerCase().trim();
+        if (normalized.includes('min')) return parseInt(normalized) || 0;
+        if (normalized.includes('hour')) return (parseInt(normalized) || 0) * 60;
+        if (normalized.includes('day')) return (parseInt(normalized) || 0) * 1440;
+        return parseInt(normalized) || 0;
+    };
+
     const handleSaveAgentSalesSteps = async () => {
         try {
-            const result = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, 'agentSales', agentSalesSteps);
+            // Prepare steps with delayMinutes
+            const stepsWithMinutes = agentSalesSteps.map(step => ({
+                ...step,
+                delayMinutes: parseDelay(step.delay)
+            }));
+
+            const result = await funnelService.saveFunnelStep(ADMIN_MARKETING_USER_ID, 'agentSales', stepsWithMinutes);
             if (result.success) {
                 alert('Recruitment funnel saved!');
             } else {

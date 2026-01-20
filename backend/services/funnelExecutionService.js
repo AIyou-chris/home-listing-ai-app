@@ -170,6 +170,26 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
                 continue;
             }
 
+            // --- SAFETY CHECK: STOP IF WON ---
+            if (lead.status === 'Won') {
+                console.log(`[FunnelExecutor] Lead ${lead.id} is WON. Stopping funnel execution.`);
+                await supabaseAdmin
+                    .from('funnel_enrollments')
+                    .update({ status: 'completed' }) // Gracefully complete
+                    .eq('id', enrollment.id);
+
+                // Log the stop
+                await supabaseAdmin.from('funnel_logs').insert({
+                    enrollment_id: enrollment.id,
+                    agent_id: agent.id,
+                    step_index: enrollment.current_step_index,
+                    action_type: 'stop_won',
+                    status: 'skipped',
+                    result_details: { reason: 'Lead converted (Won). Funnel stopped.' }
+                });
+                continue;
+            }
+
             const steps = funnelDef.steps;
             const currentIndex = enrollment.current_step_index;
             const currentStep = steps[currentIndex];

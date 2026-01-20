@@ -33,7 +33,8 @@ const statusStyles: Record<LeadStatus, string> = {
   Qualified: 'bg-green-100 text-green-700',
   Contacted: 'bg-yellow-100 text-yellow-700',
   Showing: 'bg-purple-100 text-purple-700',
-  Lost: 'bg-red-100 text-red-700'
+  Lost: 'bg-red-100 text-red-700',
+  Won: 'bg-teal-100 text-teal-700'
 };
 
 const StatCard: React.FC<{ icon: string; value: number; label: string; colorClass: string; iconColor: string }> = ({
@@ -113,7 +114,6 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
       const matchesQuery =
         !query ||
         (appt.leadName ?? '').toLowerCase().includes(query) ||
-        (appt.name ?? '').toLowerCase().includes(query) ||
         (appt.propertyAddress ?? '').toLowerCase().includes(query);
       const matchesDate = !appointmentFilters.date || appt.date === appointmentFilters.date;
       return matchesQuery && matchesDate;
@@ -144,7 +144,7 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
   };
 
   const appointmentToFormData = (appt: Appointment): ScheduleAppointmentFormData => ({
-    name: appt.leadName ?? appt.name ?? '',
+    name: appt.leadName ?? '',
     email: appt.email ?? '',
     phone: appt.phone ?? '',
     date: appt.date ?? '',
@@ -154,7 +154,8 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
     remindAgent: appt.remindAgent ?? true,
     remindClient: appt.remindClient ?? true,
     agentReminderMinutes: appt.agentReminderMinutes ?? 60,
-    clientReminderMinutes: appt.clientReminderMinutes ?? 1440
+    clientReminderMinutes: appt.clientReminderMinutes ?? 1440,
+    location: 'Phone'
   });
 
   return (
@@ -195,32 +196,28 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
           <nav className="flex space-x-2">
             <button
               onClick={() => setActiveTab('leads')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
-                activeTab === 'leads' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-slate-500 hover:text-slate-800'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${activeTab === 'leads' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-slate-500 hover:text-slate-800'
+                }`}
             >
               <span className="material-symbols-outlined w-5 h-5">group</span>
               <span>Leads</span>
               <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                  activeTab === 'leads' ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'
-                }`}
+                className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'leads' ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'
+                  }`}
               >
                 {leads.length}
               </span>
             </button>
-              <button
-                onClick={() => setActiveTab('appointments')}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
-                  activeTab === 'appointments' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-slate-500 hover:text-slate-800'
+            <button
+              onClick={() => setActiveTab('appointments')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${activeTab === 'appointments' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-slate-500 hover:text-slate-800'
                 }`}
             >
               <span className="material-symbols-outlined w-5 h-5">calendar_today</span>
               <span>Appointments</span>
               <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                  activeTab === 'appointments' ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'
-                }`}
+                className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'appointments' ? 'bg-primary-100 text-primary-700' : 'bg-slate-200 text-slate-600'
+                  }`}
               >
                 {stats.appointmentsCount}
               </span>
@@ -447,7 +444,7 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                       <span className="material-symbols-outlined text-base text-primary-500">event</span>
-                      {appt.leadName ?? appt.name ?? 'Appointment'}
+                      {appt.leadName ?? 'Appointment'}
                     </p>
                     <p className="text-xs text-slate-500 flex items-center gap-2">
                       <span className="material-symbols-outlined text-base text-slate-400">calendar_today</span>
@@ -521,7 +518,7 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
                 {appointments.map((appt) => (
                   <div key={appt.id} className="rounded-lg border border-slate-200 px-4 py-3 bg-slate-50">
                     <div className="flex items-center justify-between text-sm font-semibold text-slate-800">
-                      <span>{appt.leadName ?? appt.name ?? 'Appointment'}</span>
+                      <span>{appt.leadName ?? 'Appointment'}</span>
                       <span className="text-xs text-slate-500">{appt.status ?? 'Scheduled'}</span>
                     </div>
                     <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">

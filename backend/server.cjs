@@ -599,35 +599,72 @@ app.post('/api/webhooks/stripe', async (req, res) => {
         })
         .eq('slug', slug);
 
-      if (error) console.error('Failed to update agent status by Slug', error);
+      if (error) console.error('Failed to update agent status by slug', error);
       else console.log('✅ Agent activated by Slug');
-    } else {
-      console.warn('⚠️ Webhook received payment but could not identify agent (No ID or Slug).', session.id);
     }
+
+    // --- LEAD CONVERSION TRACKING ---
+    // Check if the paying customer was a "Lead" in our system
+    const customerEmail = session.customer_email || session.metadata?.email;
+    if (customerEmail) {
+      console.log(`🔎 Checking for lead match for email: ${customerEmail}`);
+
+      // Find the lead
+      const { data: leads, error: findError } = await supabaseAdmin
+        .from('leads')
+        .select('id, user_id, name')
+        .eq('email', customerEmail)
+        .limit(1);
+
+      if (leads && leads.length > 0) {
+        const lead = leads[0];
+        console.log(`🎉 Match found! Converting Lead ${lead.id} (${lead.name}) to 'Won'.`);
+
+        // Update status to 'Won'
+        const { error: updateError } = await supabaseAdmin
+          .from('leads')
+          .update({
+            status: 'Won',
+            notes: `Auto-Converted: Signed up for Pro Plan via Stripe on ${new Date().toLocaleDateString()}`
+          })
+          .eq('id', lead.id);
+
+        if (updateError) console.error('Failed to convert lead', updateError);
+        else console.log('✅ Lead marked as WON.');
+      } else {
+        console.log('No matching lead found.');
+      }
+    }
+
+    if (error) console.error('Failed to update agent status by Slug', error);
+    else console.log('✅ Agent activated by Slug');
+  } else {
+    console.warn('⚠️ Webhook received payment but could not identify agent (No ID or Slug).', session.id);
   }
+}
 
   // HANDLE CANCELLATIONS
   else if (event.type === 'customer.subscription.deleted') {
-    const subscription = event.data.object;
-    const customerId = subscription.customer;
+  const subscription = event.data.object;
+  const customerId = subscription.customer;
 
-    console.log(`🚫 Subscription deleted for Customer: ${customerId}`);
+  console.log(`🚫 Subscription deleted for Customer: ${customerId}`);
 
-    const { error } = await supabaseAdmin
-      .from('agents')
-      .update({
-        subscription_status: 'cancelled',
-        plan: 'free',
-        status: 'inactive', // or 'limited'
-        updated_at: new Date().toISOString()
-      })
-      .eq('stripe_customer_id', customerId); // Must match by CustomerID
+  const { error } = await supabaseAdmin
+    .from('agents')
+    .update({
+      subscription_status: 'cancelled',
+      plan: 'free',
+      status: 'inactive', // or 'limited'
+      updated_at: new Date().toISOString()
+    })
+    .eq('stripe_customer_id', customerId); // Must match by CustomerID
 
-    if (error) console.error('Failed to cancel subscription:', error);
-    else console.log('✅ Agent access revoked (Subscription Deleted)');
-  }
+  if (error) console.error('Failed to cancel subscription:', error);
+  else console.log('✅ Agent access revoked (Subscription Deleted)');
+}
 
-  res.json({ received: true });
+res.json({ received: true });
 });
 
 // STRIPE CONNECT WEBHOOK HANDLER (THIN EVENTS)
