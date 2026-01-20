@@ -6,6 +6,7 @@ interface ImportedLead {
     name: string;
     email: string;
     phone: string;
+    company?: string;
 }
 
 interface ImportAssignment {
@@ -109,10 +110,16 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                 return idx !== -1 ? values[idx] : '';
             };
 
+            const getCompany = () => {
+                const idx = headers.findIndex(h => h === 'company' || h === 'organization' || h === 'business');
+                return idx !== -1 ? values[idx] : '';
+            };
+
             const lead = {
                 name: getName(),
                 email: getEmail(),
-                phone: getPhone()
+                phone: getPhone(),
+                company: getCompany()
             };
 
             // Enhanced Validation: Must have name AND valid email format

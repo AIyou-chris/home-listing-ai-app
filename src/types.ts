@@ -202,6 +202,7 @@ export interface Lead {
     status: LeadStatus;
     email: string;
     phone: string;
+    company?: string;
     date: string;
     lastMessage: string;
     source?: string;

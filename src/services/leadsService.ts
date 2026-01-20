@@ -5,6 +5,7 @@ export interface LeadPayload {
   name: string
   email: string
   phone?: string
+  company?: string
   status?: string
   source?: string
   notes?: string
@@ -177,6 +178,7 @@ export const leadsService = {
       name: lead.name!,
       email: lead.email || null,
       phone: lead.phone || null,
+      company: lead.company || null,
       status: 'New',
       source: 'Import',
       notes: `${assignment.tag ? `[Tag: ${assignment.tag}]` : ''} Imported via Admin`,
@@ -185,19 +187,36 @@ export const leadsService = {
       score: initialScore // Store JSONB score column
     }))
 
-    // Supabase allows bulk insert
-    const { data, error } = await supabase
-      .from(LEADS_TABLE)
-      .insert(insertPayloads)
-      .select('id')
+    // Batch processing to avoid Supabase payload limits
+    const BATCH_SIZE = 50
+    const chunks = []
 
-    if (error) {
-      console.error('Bulk import error:', error)
-      throw error
+    for (let i = 0; i < insertPayloads.length; i += BATCH_SIZE) {
+      chunks.push(insertPayloads.slice(i, i + BATCH_SIZE))
+    }
+
+    let totalImported = 0
+
+    // Process chunks sequentially to avoid rate limiting
+    for (const chunk of chunks) {
+      const { data, error } = await supabase
+        .from(LEADS_TABLE)
+        .insert(chunk)
+        .select('id')
+
+      if (error) {
+        console.error('Batch import error:', error)
+        // Continue with other chunks even if one fails
+        continue
+      }
+
+      if (data) {
+        totalImported += data.length
+      }
     }
 
     return {
-      imported: data?.length || 0,
+      imported: totalImported,
       total: leads.length
     }
   },
