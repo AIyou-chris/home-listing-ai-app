@@ -35,40 +35,100 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
 
     if (!isOpen) return null;
 
+    // Helper: Robust CSV Line Parser (handles quotes)
+    const parseCSVLine = (text: string) => {
+        const result = [];
+        let start = 0;
+        let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            if (text[i] === '"') {
+                inQuotes = !inQuotes;
+            } else if (text[i] === ',' && !inQuotes) {
+                let field = text.substring(start, i).trim();
+                // Remove surrounding quotes if present
+                if (field.startsWith('"') && field.endsWith('"')) {
+                    field = field.substring(1, field.length - 1).replace(/""/g, '"');
+                }
+                result.push(field);
+                start = i + 1;
+            }
+        }
+        // Last field
+        let lastField = text.substring(start).trim();
+        if (lastField.startsWith('"') && lastField.endsWith('"')) {
+            lastField = lastField.substring(1, lastField.length - 1).replace(/""/g, '"');
+        }
+        result.push(lastField);
+        return result;
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target?.result as string;
+            if (text) setRawText(text);
+        };
+        reader.readAsText(file);
+    };
+
     const handleParse = () => {
-        // Simple CSV parser: assumes header row + comma separated
-        const lines = rawText.trim().split('\n');
+        const lines = rawText.trim().split(/\r?\n/);
         if (lines.length < 2) {
             alert('Please enter at least one header row and one data row.');
             return;
         }
 
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        // Parse headers using the robust parser
+        const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         let skipped = 0;
-        const data = [];
+        const data: ImportedLead[] = [];
 
         for (let i = 1; i < lines.length; i++) {
-            const line = lines[i];
-            const values = line.split(',').map(v => v.trim());
-            const obj: Record<string, string> = {};
-            headers.forEach((h, idx) => {
-                obj[h] = values[idx] || '';
-            });
+            const line = lines[i].trim();
+            if (!line) continue;
 
-            // Normalize
+            const values = parseCSVLine(line);
+
+            // Map headers to logic
+            // We search for our target keys in the header list
+            const getName = () => {
+                const idx = headers.findIndex(h => h === 'name' || h === 'first name' || h === 'first_name' || h === 'full name');
+                return idx !== -1 ? values[idx] : '';
+            };
+            const getEmail = () => {
+                const idx = headers.findIndex(h => h === 'email' || h === 'e-mail' || h === 'mail');
+                return idx !== -1 ? values[idx] : '';
+            };
+            const getPhone = () => {
+                const idx = headers.findIndex(h => h === 'phone' || h === 'cell' || h === 'mobile' || h === 'number');
+                return idx !== -1 ? values[idx] : '';
+            };
+
             const lead = {
-                name: obj.name || obj.first_name || obj['first name'] || '',
-                email: obj.email || obj['e-mail'] || '',
-                phone: obj.phone || obj['cell'] || obj['mobile'] || ''
+                name: getName(),
+                email: getEmail(),
+                phone: getPhone()
             };
 
             // Enhanced Validation: Must have name AND valid email format
-            if (lead.name && lead.email && emailRegex.test(lead.email)) {
+            // Also allow imports without email if they have phone, or vice versa?
+            // Current rule: Name is mandatory. Email OR Phone is required? 
+            // Original logic was stricter on email. Let's keep it rigorous for now.
+            if (lead.name && (lead.email && emailRegex.test(lead.email))) {
                 data.push(lead);
             } else {
-                skipped++;
+                // Try looser: Name + Phone is okay too if email is missing?
+                if (lead.name && lead.phone && (!lead.email || lead.email.trim() === '')) {
+                    // Accept name+phone only leads
+                    data.push(lead);
+                } else {
+                    skipped++;
+                }
             }
         }
 
@@ -114,12 +174,36 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                 <div className="p-6 overflow-y-auto flex-1">
                     {step === 'upload' ? (
                         <div className="space-y-6">
+                            {/* File Upload Section */}
+                            <div className="p-6 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 text-center hover:bg-slate-100 transition-colors relative">
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    onChange={handleFileUpload}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                />
+                                <div className="space-y-2 pointer-events-none">
+                                    <span className="material-symbols-outlined text-4xl text-slate-400">upload_file</span>
+                                    <p className="text-sm font-medium text-slate-700">Click to upload CSV file</p>
+                                    <p className="text-xs text-slate-500">or drag and drop here</p>
+                                </div>
+                            </div>
+
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-slate-200"></div>
+                                </div>
+                                <div className="relative flex justify-center text-sm">
+                                    <span className="bg-white px-2 text-slate-500">or paste text</span>
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Paste CSV Data (Name, Email, Phone)
                                 </label>
                                 <textarea
-                                    className="w-full h-48 rounded-xl border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm"
+                                    className="w-full h-32 rounded-xl border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm"
                                     placeholder="name,email,phone&#10;John Doe,john@example.com,555-0100"
                                     value={rawText}
                                     onChange={(e) => setRawText(e.target.value)}
