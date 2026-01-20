@@ -170,7 +170,7 @@ export const leadsService = {
       status: 'New',
       source: 'Import',
       notes: `${lead.company ? `Company: ${lead.company}\n` : ''}${assignment.tag ? `[Tag: ${assignment.tag}]` : ''} Imported via Admin`,
-      funnel_type: assignment.funnel || 'universal_sales',
+      funnel_type: ['universal_sales', 'homebuyer', 'seller', 'postShowing'].includes(assignment.funnel as string) ? assignment.funnel : 'universal_sales',
       created_at: new Date().toISOString(),
       score: 10 // Fixed: Schema expects integer, not JSON object
     }))
