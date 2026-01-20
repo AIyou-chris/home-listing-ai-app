@@ -535,6 +535,15 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         );
     };
 
+    const parseDelay = (delayStr: string): number => {
+        if (!delayStr) return 0;
+        const normalized = delayStr.toLowerCase().trim();
+        if (normalized.includes('min')) return parseInt(normalized) || 0;
+        if (normalized.includes('hour')) return (parseInt(normalized) || 0) * 60;
+        if (normalized.includes('day')) return (parseInt(normalized) || 0) * 1440;
+        return parseInt(normalized) || 0;
+    };
+
     const handleSaveWelcomeSteps = async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
@@ -545,12 +554,23 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 return;
             }
 
-            const success = await funnelService.saveFunnelStep(currentUserId, 'welcome', welcomeSteps);
-            if (success) alert('Welcome drip saved to cloud.');
-            else alert('Failed to save. Please try again.');
-        } catch (error) {
-            console.error('Failed to save welcome funnel', error);
-            alert('Unable to save right now.');
+            // Prepare steps with delayMinutes
+            const stepsWithMinutes = welcomeSteps.map(step => ({
+                ...step,
+                delayMinutes: parseDelay(step.delay)
+            }));
+
+            const result = await funnelService.saveFunnelStep(currentUserId, 'welcome', stepsWithMinutes);
+            if (result.success) {
+                alert('Welcome drip saved to cloud.');
+            } else {
+                console.error('Save failed:', result);
+                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+            }
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error('Failed to save welcome funnel', err);
+            alert(`Unable to save: ${err.message}`);
         }
     };
 
@@ -595,12 +615,22 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 return;
             }
 
-            const success = await funnelService.saveFunnelStep(currentUserId, 'buyer', homeBuyerSteps);
-            if (success) alert('Homebuyer journey saved to cloud.');
-            else alert('Failed to save.');
+            const stepsWithMinutes = homeBuyerSteps.map(step => ({
+                ...step,
+                delayMinutes: parseDelay(step.delay)
+            }));
+
+            const result = await funnelService.saveFunnelStep(currentUserId, 'buyer', stepsWithMinutes);
+            if (result.success) {
+                alert('Homebuyer journey saved to cloud.');
+            } else {
+                console.error('Save failed:', result);
+                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+            }
         } catch (error) {
-            console.error('Failed to save homebuyer funnel', error);
-            alert('Unable to save right now.');
+            const err = error as Error;
+            console.error('Failed to save homebuyer funnel', err);
+            alert(`Unable to save: ${err.message}`);
         }
     };
 
@@ -645,12 +675,22 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 return;
             }
 
-            const success = await funnelService.saveFunnelStep(currentUserId, 'listing', listingSteps);
-            if (success) alert('Listing funnel saved to cloud.');
-            else alert('Failed to save.');
+            const stepsWithMinutes = listingSteps.map(step => ({
+                ...step,
+                delayMinutes: parseDelay(step.delay)
+            }));
+
+            const result = await funnelService.saveFunnelStep(currentUserId, 'listing', stepsWithMinutes);
+            if (result.success) {
+                alert('Listing funnel saved to cloud.');
+            } else {
+                console.error('Save failed:', result);
+                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+            }
         } catch (error) {
-            console.error('Failed to save listing funnel', error);
-            alert('Unable to save right now.');
+            const err = error as Error;
+            console.error('Failed to save listing funnel', err);
+            alert(`Unable to save: ${err.message}`);
         }
     };
 
@@ -695,12 +735,22 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 return;
             }
 
-            const success = await funnelService.saveFunnelStep(currentUserId, 'post-showing', postShowingSteps);
-            if (success) alert('Post-showing follow-up saved to cloud.');
-            else alert('Failed to save.');
+            const stepsWithMinutes = postShowingSteps.map(step => ({
+                ...step,
+                delayMinutes: parseDelay(step.delay)
+            }));
+
+            const result = await funnelService.saveFunnelStep(currentUserId, 'post-showing', stepsWithMinutes);
+            if (result.success) {
+                alert('Post-showing follow-up saved to cloud.');
+            } else {
+                console.error('Save failed:', result);
+                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+            }
         } catch (error) {
-            console.error('Failed to save post-showing funnel', error);
-            alert('Unable to save right now.');
+            const err = error as Error;
+            console.error('Failed to save post-showing funnel', err);
+            alert(`Unable to save: ${err.message}`);
         }
     };
 
