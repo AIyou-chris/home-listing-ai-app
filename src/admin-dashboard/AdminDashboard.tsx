@@ -130,7 +130,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
     [properties, selectedPropertyId]
   );
 
-  const { leads, isLoading: isLeadsLoading, error: leadsError, refreshLeads, addLead, deleteLead, addNote, fetchNotesForLead, notesByLeadId } =
+  const { leads, isLoading: isLeadsLoading, error: leadsError, refreshLeads, addLead, updateLead, deleteLead, addNote, fetchNotesForLead, notesByLeadId } =
     useAdminLeads();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>(SAMPLE_INTERACTIONS);
@@ -202,6 +202,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       };
       await refreshLeads().catch(() => undefined);
       return fallbackLead;
+    }
+  };
+
+  const handleUpdateAdminLead = async (leadId: string, leadData: { name: string; email: string; phone: string; message: string; source: string }) => {
+    try {
+      await updateLead({
+        id: leadId,
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone,
+        source: leadData.source,
+        notes: leadData.message
+      });
+    } catch (error) {
+      console.error('Failed to update admin lead', error);
     }
   };
 
@@ -310,6 +325,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
             error={leadsError}
             onRefreshLeads={refreshLeads}
             onAddLead={handleAddNewLead}
+            onUpdateLead={handleUpdateAdminLead}
             onDeleteLead={deleteLead}
             onCreateAppointment={(payload, lead) => handleCreateAdminAppointment(payload, lead)}
             onUpdateAppointment={(id, payload, lead) => handleUpdateAdminAppointment(id, payload, lead)}

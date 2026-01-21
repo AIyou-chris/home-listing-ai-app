@@ -18,6 +18,7 @@ interface AdminLeadsPageProps {
   error?: string | null;
   onRefreshLeads: () => Promise<void>;
   onAddLead: (payload: { name: string; email: string; phone: string; message: string; source: string }) => Promise<Lead>;
+  onUpdateLead: (leadId: string, payload: { name: string; email: string; phone: string; message: string; source: string }) => Promise<void>;
   onDeleteLead: (leadId: string) => Promise<void>;
   onCreateAppointment: (payload: ScheduleAppointmentFormData, lead?: Lead | null) => Promise<Appointment | null>;
   onUpdateAppointment: (id: string, payload: ScheduleAppointmentFormData, lead?: Lead | null) => Promise<Appointment | null>;
@@ -34,7 +35,9 @@ const statusStyles: Record<LeadStatus, string> = {
   Contacted: 'bg-yellow-100 text-yellow-700',
   Showing: 'bg-purple-100 text-purple-700',
   Lost: 'bg-red-100 text-red-700',
-  Won: 'bg-teal-100 text-teal-700'
+  Won: 'bg-teal-100 text-teal-700',
+  Bounced: 'bg-red-100 text-red-700',
+  Unsubscribed: 'bg-slate-100 text-slate-700'
 };
 
 const StatCard: React.FC<{ icon: string; value: number; label: string; colorClass: string; iconColor: string }> = ({
@@ -62,6 +65,7 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
   error,
   onRefreshLeads,
   onAddLead,
+  onUpdateLead,
   onDeleteLead,
   onCreateAppointment,
   onUpdateAppointment,
@@ -78,6 +82,7 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
@@ -294,6 +299,12 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
                               {lead.source}
                             </span>
                           )}
+                          {lead.funnelType && (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-600">
+                              <span className="material-symbols-outlined text-sm">auto_fix</span>
+                              {lead.funnelType.replace('_', ' ')}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -306,6 +317,13 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
                           <span className="material-symbols-outlined text-sm">open_in_new</span>
                           View Dashboard
                         </a>
+                        <button
+                          onClick={() => setEditingLead(lead)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100"
+                        >
+                          <span className="material-symbols-outlined text-sm">edit</span>
+                          Edit
+                        </button>
                         <button
                           onClick={() => {
                             setSelectedLead(lead);
@@ -542,6 +560,24 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
             const lead = await onAddLead(leadData);
             setSelectedLead(lead);
             setIsAddLeadModalOpen(false);
+          }}
+        />
+      )}
+
+      {editingLead && (
+        <AddLeadModal
+          isEditing
+          initialData={{
+            name: editingLead.name,
+            email: editingLead.email,
+            phone: editingLead.phone || '',
+            message: editingLead.notes || '',
+            source: editingLead.source || 'Manual Entry'
+          }}
+          onClose={() => setEditingLead(null)}
+          onAddLead={async (leadData) => {
+            await onUpdateLead(editingLead.id, leadData);
+            setEditingLead(null);
           }}
         />
       )}

@@ -1897,6 +1897,7 @@ const mapLeadFromRow = (row) => {
     lastContactAt: row.last_contact_at,
     manualFollowUp: row.manual_follow_up || false,
     followUpSequenceId: row.follow_up_sequence_id || null,
+    funnelType: row.funnel_type || null,
     date: row.created_at
   };
 
