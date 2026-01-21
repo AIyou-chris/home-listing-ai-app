@@ -6414,17 +6414,23 @@ app.post('/api/admin/leads/import', async (req, res) => {
     const errors = [];
 
     // Map incoming funnel to valid DB types
-    // The DB constraint only allows specific funnel types.
+    // The DB constraint only allows specific funnel types (legacy).
     // We must include 'universal_sales' (Recruitment) and 'welcome' to support all frontend options.
-    const DB_ALLOWED_FUNNELS = ['homebuyer', 'seller', 'postShowing', 'universal_sales', 'welcome'];
-    const safeFunnel = (f) => DB_ALLOWED_FUNNELS.includes(f) ? f : null;
+
+    // 1. STRICT DB CONSTRAINT (For 'leads' table 'funnel_type' column)
+    const DB_CONSTRAINT_FUNNELS = ['homebuyer', 'seller', 'postShowing'];
+    const safeDbFunnel = (f) => DB_CONSTRAINT_FUNNELS.includes(f) ? f : null;
+
+    // 2. APP SUPPORTED FUNNELS (For 'funnels' table lookup & enrollment)
+    const APP_SUPPORTED_FUNNELS = ['homebuyer', 'seller', 'postShowing', 'universal_sales', 'welcome'];
+    const isEnrollable = (f) => APP_SUPPORTED_FUNNELS.includes(f);
 
     const intendedFunnel = assignment?.funnel;
 
     // BATCH INSERT (Chunk size 50)
     const CLEAN_LEADS = leads.map(l => {
       // intendedFunnel is now available here from outer scope
-      const dbFunnel = safeFunnel(intendedFunnel);
+      const dbFunnel = safeDbFunnel(intendedFunnel); // Will be null for 'universal_sales', which is CORRECT for DB Schema
 
       return {
         user_id: user.id,
@@ -6433,7 +6439,7 @@ app.post('/api/admin/leads/import', async (req, res) => {
         phone: l.phone || null,
         source: 'csv_import',
         status: 'New',
-        funnel_type: dbFunnel,
+        funnel_type: dbFunnel, // Safe for DB (either 'homebuyer', 'seller', or NULL)
         notes: l.notes || (dbFunnel === null && intendedFunnel ? `Intended Funnel: ${intendedFunnel}` : null),
         score: 10, // Default score to ensure visibility
         created_at: new Date().toISOString(),
@@ -6462,7 +6468,8 @@ app.post('/api/admin/leads/import', async (req, res) => {
         // If a valid funnel was requested, we must create enrollments.
         // We do this PER CHUNK.
 
-        if (intendedFunnel && safeFunnel(intendedFunnel)) {
+        // CHECK: Use strict enrollment check, NOT DB constraint check
+        if (intendedFunnel && isEnrollable(intendedFunnel)) {
           try {
             // 1. Get Funnel ID (once per batch ideally, but safe here)
             const { data: funnelData } = await supabaseAdmin
