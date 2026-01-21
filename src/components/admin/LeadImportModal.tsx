@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { supabase } from '../../services/supabase'; // Corrected Path
-import type { Session } from '@supabase/supabase-js';
 
 interface ImportedLead {
     name: string;
@@ -146,32 +145,43 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
         setStep('preview');
     };
 
-    // DIRECT IMPORT LOGIC (Bypassing Service Layer)
-    // DIRECT IMPORT LOGIC (Bypassing Service Layer)
-    const addToLog = (msg: string) => setActivityLog(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg}`]);
-
     const handleImport = async () => {
         setIsImporting(true);
         setActivityLog([]); // Clear log
-        addToLog('🚀 Starting Import Process...');
+
+        const log = (msg: string) => {
+            console.log(`[Import] ${msg}`);
+            setActivityLog(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg}`]);
+        };
+
+        log('🚀 Starting Import Process...');
 
         try {
             const API_URL = 'https://home-listing-ai-backend.onrender.com/api/admin/leads/import';
-            addToLog(`🔗 Target URL: ${API_URL}`);
+            log(`🔗 Target URL: ${API_URL}`);
 
+            if (!supabase) {
+                throw new Error('Supabase client is missing/undefined');
+            }
+            log('🛰️ Supabase Client Found');
 
-            addToLog('🔑 Attempting to get Auth Session...');
-            // AUTH TIMEOUT (3s max to get session)
-            const sessionPromise = supabase.auth.getSession();
-            const sessionTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth Session Timeout')), 3000));
+            log('🔑 Verifying Login Session...');
+            // We use a manual promise to ensure we don't hang forever
+            const sessionResult = await Promise.race([
+                supabase.auth.getSession(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Auth Timeout (3s)')), 3000))
+            ]) as { data: { session: unknown } | null };
 
-            const raceResult = await Promise.race([sessionPromise, sessionTimeout]) as { data: { session: Session | null } };
-            const session = raceResult.data.session;
+            const sessionData = sessionResult?.data?.session as { access_token: string } | null;
 
-            if (!session) throw new Error('No active session found. Are you logged in?');
-            addToLog('✅ Auth Token Acquired');
+            if (!sessionData) {
+                log('❌ No session found. Checking fallback...');
+                throw new Error('Please log out and log back in. Your session is stale or blocked.');
+            }
 
-            addToLog(`📦 Preparing Payload: ${parsedLeads.length} leads`);
+            log('✅ Auth Token Acquired');
+
+            log(`📦 Preparing Payload (${parsedLeads.length} leads)`);
             const payload = {
                 leads: parsedLeads,
                 assignment: {
@@ -181,45 +191,44 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                 }
             };
 
-            // TIMEOUT TIMER (15s)
+            log('📡 Sending to Server...');
+            // 20-second timeout for the actual upload
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
-            addToLog('⏱️ 15s Timeout Timer Started');
+            const fetchTimeout = setTimeout(() => controller.abort(), 20000);
 
             const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`
+                    'Authorization': `Bearer ${sessionData.access_token}`
                 },
                 body: JSON.stringify(payload),
                 signal: controller.signal
             });
-            clearTimeout(timeoutId);
 
-            addToLog(`📡 Server Status: ${response.status} ${response.statusText}`);
+            clearTimeout(fetchTimeout);
+            log(`📡 Server Status: ${response.status}`);
 
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(`Server Error: ${errText}`);
+                throw new Error(`Server Error (${response.status}): ${errText}`);
             }
 
             const result = await response.json();
-            addToLog(`✅ Success! Imported: ${result.imported}`);
+            log(`🎉 SUCCESS! Imported: ${result.imported}`);
 
-            // Success State
             setTimeout(() => {
-                alert(`SUCCESS: Imported ${result.imported} leads.`);
+                alert(`SUCCESS: Imported ${result.imported} leads!`);
                 onImport(parsedLeads, assignment as unknown as ImportAssignment);
                 onClose();
-            }, 500);
+            }, 800);
 
         } catch (error) {
-            console.error('Import Error:', error);
+            console.error('[CRITICAL] Import Failed:', error);
             const err = error as Error;
-            addToLog(`❌ ERROR: ${err.message}`);
+            log(`❌ FAILED: ${err.message}`);
             if (err.name === 'AbortError') {
-                addToLog('⛔ Request Timed Out (Backend did not respond in 15s)');
+                log('⛔ TIMEOUT: Server took too long to respond.');
             }
         } finally {
             setIsImporting(false);

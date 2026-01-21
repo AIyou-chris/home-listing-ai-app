@@ -10156,24 +10156,24 @@ app.get('/api/admin/appointments', async (req, res) => {
     const { data, error } = await supabaseAdmin
       .from('appointments')
       .select(APPOINTMENT_SELECT_FIELDS)
-      .order('date', { ascending: false });
+      .order('start_time', { ascending: false });
 
     if (error) throw error;
 
     const appointments = (data || []).map(row => ({
       id: row.id,
       type: row.kind,
-      date: row.date,
-      time: row.time_label,
+      date: row.start_time ? new Date(row.start_time).toLocaleDateString() : null,
+      time: row.start_time ? new Date(row.start_time).toLocaleTimeString() : null,
       leadId: row.lead_id,
       status: row.status,
-      name: row.name,
-      email: row.email,
-      phone: row.phone,
+      name: row.client_name,
+      email: row.client_email,
+      phone: row.client_phone,
       propertyAddress: row.property_address,
       notes: row.notes,
-      startIso: row.start_iso,
-      endIso: row.end_iso,
+      startIso: row.start_time,
+      endIso: row.end_time,
       meetLink: row.meet_link,
       createdAt: row.created_at,
       updatedAt: row.updated_at
