@@ -84,19 +84,20 @@ const {
 
 const APPOINTMENT_SELECT_FIELDS = `
   id,
-  title,
-  start_time,
-  end_time,
-  status,
-  notes,
-  location_type,
-  meeting_link,
-  name as client_name,
-  email as client_email,
-  phone as client_phone,
-  property_address,
-  lead_id,
   user_id,
+  lead_id,
+  property_id,
+  kind,
+  name,
+  email,
+  phone,
+  date,
+  time_label,
+  start_iso,
+  end_iso,
+  meet_link,
+  notes,
+  status,
   created_at
 `;
 const {
@@ -6206,7 +6207,7 @@ app.post('/api/admin/leads/import', async (req, res) => {
     const errors = [];
 
     // Map incoming funnel to valid DB types
-    const VALID_FUNNEL_TYPES = ['homebuyer', 'seller', 'universal_sales', 'postShowing'];
+    const VALID_FUNNEL_TYPES = ['homebuyer', 'seller', 'universal_sales', 'postShowing', 'agentSales', 'custom1', 'custom2', 'custom3'];
     const safeFunnel = (f) => VALID_FUNNEL_TYPES.includes(f) ? f : null;
 
     // BATCH INSERT (Chunk size 50)
@@ -6235,7 +6236,7 @@ app.post('/api/admin/leads/import', async (req, res) => {
 
       if (error) {
         console.error('❌ [IMPORT ERROR] Batch failed:', error);
-        errors.push(error.message);
+        errors.push(`SQL Error: ${error.message} (Detail: ${error.details || 'None'})`);
       } else {
         successCount += (data?.length || 0);
       }
@@ -10160,27 +10161,26 @@ app.get('/api/admin/appointments', async (req, res) => {
     const { data, error } = await supabaseAdmin
       .from('appointments')
       .select(APPOINTMENT_SELECT_FIELDS)
-      .order('start_time', { ascending: false });
+      .order('start_iso', { ascending: false });
 
     if (error) throw error;
 
     const appointments = (data || []).map(row => ({
       id: row.id,
       type: row.kind,
-      date: row.start_time ? new Date(row.start_time).toLocaleDateString() : null,
-      time: row.start_time ? new Date(row.start_time).toLocaleTimeString() : null,
+      date: row.date || (row.start_iso ? new Date(row.start_iso).toLocaleDateString() : null),
+      time: row.time_label || (row.start_iso ? new Date(row.start_iso).toLocaleTimeString() : null),
       leadId: row.lead_id,
       status: row.status,
-      name: row.client_name,
-      email: row.client_email,
-      phone: row.client_phone,
-      propertyAddress: row.property_address,
+      name: row.name,
+      email: row.email,
+      phone: row.phone,
+      propertyAddress: row.property_id, // We'll show ID or a placeholder if address isn't in main table
       notes: row.notes,
-      startIso: row.start_time,
-      endIso: row.end_time,
+      startIso: row.start_iso,
+      endIso: row.end_iso,
       meetLink: row.meet_link,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
+      createdAt: row.created_at
     }));
 
     res.json(appointments);

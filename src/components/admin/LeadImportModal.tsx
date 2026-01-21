@@ -238,9 +238,18 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
             log(`🎉 SUCCESS! Imported: ${result.imported}`);
 
             setTimeout(() => {
-                alert(`SUCCESS: Imported ${result.imported} leads!`);
-                onImport(parsedLeads, assignment as unknown as ImportAssignment);
-                onClose();
+                if (result.error) {
+                    log(`❌ SERVER ERROR: ${result.error}`);
+                    alert(`IMPORT FAILED: ${result.error}`);
+                } else if (result.imported === 0) {
+                    log('⚠️ WARNING: 0 leads were imported. This might be due to duplicate entries or empty data.');
+                    alert('WARNING: 0 leads were imported. Please check your file data.');
+                } else {
+                    log(`🎉 SUCCESS! Imported: ${result.imported}`);
+                    alert(`SUCCESS: Imported ${result.imported} leads!`);
+                    onImport(parsedLeads, assignment as unknown as ImportAssignment);
+                    onClose();
+                }
             }, 800);
 
         } catch (error) {
