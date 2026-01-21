@@ -6419,9 +6419,11 @@ app.post('/api/admin/leads/import', async (req, res) => {
     const DB_ALLOWED_FUNNELS = ['homebuyer', 'seller', 'postShowing', 'universal_sales', 'welcome'];
     const safeFunnel = (f) => DB_ALLOWED_FUNNELS.includes(f) ? f : null;
 
+    const intendedFunnel = assignment?.funnel;
+
     // BATCH INSERT (Chunk size 50)
     const CLEAN_LEADS = leads.map(l => {
-      const intendedFunnel = assignment?.funnel || 'None';
+      // intendedFunnel is now available here from outer scope
       const dbFunnel = safeFunnel(intendedFunnel);
 
       return {
@@ -6432,7 +6434,7 @@ app.post('/api/admin/leads/import', async (req, res) => {
         source: 'csv_import',
         status: 'New',
         funnel_type: dbFunnel,
-        notes: l.notes || (dbFunnel === null ? `Intended Funnel: ${intendedFunnel}` : null),
+        notes: l.notes || (dbFunnel === null && intendedFunnel ? `Intended Funnel: ${intendedFunnel}` : null),
         score: 10, // Default score to ensure visibility
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
