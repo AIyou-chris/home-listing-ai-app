@@ -6452,9 +6452,11 @@ app.post('/api/admin/leads/import', async (req, res) => {
     for (let i = 0; i < CLEAN_LEADS.length; i += CHUNK_SIZE) {
       const chunk = CLEAN_LEADS.slice(i, i + CHUNK_SIZE);
 
+      // Use UPSERT with ignoreDuplicates to skip existing emails silently.
+      // 'leads_email_unique_ci' constraint will trigger the conflict on 'email'.
       const { data, error } = await supabaseAdmin
         .from('leads')
-        .insert(chunk)
+        .upsert(chunk, { onConflict: 'email', ignoreDuplicates: true })
         .select('id');
 
       if (error) {
