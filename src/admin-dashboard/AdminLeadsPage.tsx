@@ -92,6 +92,7 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
   const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set());
 
   const toggleLeadExpanded = (leadId: string) => {
+    console.log('toggleLeadExpanded', leadId); // Debug
     setExpandedLeadIds((prev) => {
       const next = new Set(prev);
       if (next.has(leadId)) {
@@ -104,6 +105,7 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
   };
 
   useEffect(() => {
+    console.log("🚀 Leads Page Loaded: v1.2.0 (Collapsible Update)");
     onRefreshLeads().catch((err) => console.error('Failed to refresh admin leads', err));
   }, [onRefreshLeads]);
 
