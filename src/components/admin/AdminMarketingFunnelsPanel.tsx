@@ -11,6 +11,7 @@ import PageTipBanner from '../PageTipBanner';
 import LeadImportModal from './LeadImportModal';
 import OutreachTemplatesModal from './OutreachTemplatesModal';
 import { FunnelPanel } from './FunnelPanel';
+import { useLeadAnalyticsStore } from '../../state/useLeadAnalyticsStore';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -230,6 +231,10 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     // Test Config State
     const [testPhone, setTestPhone] = useState('');
     const [testEmail, setTestEmail] = useState('');
+
+    // Analytics Refresh
+    const refreshAnalytics = useLeadAnalyticsStore((state) => state.refresh);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const handleSendTestEmail = async (step: EditableStep) => {
         console.log('handleSendTestEmail called for step:', step);
@@ -538,6 +543,16 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                 Import Leads
                             </button>
 
+                            <LeadImportModal
+                                isOpen={isImportModalOpen}
+                                onClose={() => setIsImportModalOpen(false)}
+                                onImport={(leads, assignment) => {
+                                    alert(`Successfully queued ${leads.length} leads for import to ${assignment.funnel}!`);
+                                    refreshAnalytics();
+                                    setRefreshKey(prev => prev + 1);
+                                }}
+                            />
+
                             <button
                                 type="button"
                                 onClick={() => setIsTemplatesModalOpen(true)}
@@ -779,7 +794,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                 See the rules, tiers, and point gains that determine which prospects graduate to Hot or stay in nurture.
                             </p>
                         </div>
-                        <AnalyticsPage isDemoMode={isDemoMode} />
+                        <AnalyticsPage key={refreshKey} isDemoMode={isDemoMode} />
                     </div>
                 )}
 
@@ -795,7 +810,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                 Compare reply rates, openings, and meeting bookings for every drip so you know where to iterate next.
                             </p>
                         </div>
-                        <SequenceFeedbackPanel isDemoMode={isDemoMode} />
+                        <SequenceFeedbackPanel key={refreshKey} isDemoMode={isDemoMode} />
                     </div>
                 )}
             </div>

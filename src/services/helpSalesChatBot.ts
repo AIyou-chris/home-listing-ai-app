@@ -30,6 +30,7 @@ export interface ChatBotContext {
     bio?: string;
     tone?: string; // e.g., 'professional', 'friendly', 'witty'
   };
+  sessionId?: string;
 }
 
 const HELP_SYSTEM_PROMPT = `You are a helpful customer support assistant for HomeListingAI, a real estate AI platform.
@@ -197,8 +198,27 @@ export class HelpSalesChatBot {
       }))
     ];
 
+    // Ensure we have a session ID
+    if (!this.context.sessionId) {
+      const storedSession = localStorage.getItem('chat_session_id');
+      if (storedSession) {
+        this.context.sessionId = storedSession;
+      } else {
+        const newSessionId = 'sess_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('chat_session_id', newSessionId);
+        this.context.sessionId = newSessionId;
+      }
+    }
+
     try {
-      const aiResponse = await continueConversation(messages);
+      const aiResponse = await continueConversation(messages, undefined, {
+        metadata: {
+          sessionId: this.context.sessionId,
+          userType: this.context.userType,
+          userId: this.context.userInfo?.email || 'anonymous', // Use email as ID if available
+          userInfo: this.context.userInfo
+        }
+      });
 
       // Add AI response to history
       this.conversationHistory.push({

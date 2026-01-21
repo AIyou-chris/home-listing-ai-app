@@ -3269,15 +3269,90 @@ const calculateUserStats = () => {
 // Continue conversation endpoint
 app.post('/api/continue-conversation', async (req, res) => {
   try {
-    const { messages, role, personalityId, systemPrompt, sidekick } = req.body;
-    console.log('Received messages:', messages);
+    const { messages, role, personalityId, systemPrompt, sidekick, metadata } = req.body;
+    // console.log('Received messages:', messages);
+
+    // --- BRAIN WIRING: LEAD CAPTURE LOGIC ---
+    let capturedLead = null;
+    let leadOwnerId = process.env.DEFAULT_LEAD_USER_ID; // Fallback to system admin
+
+    // 1. Identify valid user/session
+    const sessionId = metadata?.sessionId || req.headers['x-session-id'];
+    const userEmail = metadata?.userId?.includes('@') ? metadata.userId : null;
+
+    // Construct lookup key (Real Email > Session Email)
+    const lookupEmail = userEmail || (sessionId ? `visitor+${sessionId}@leads.homelisting.ai` : null);
+
+    if (lookupEmail && leadOwnerId) {
+      try {
+        // 2. Find or Create Lead
+        // Check if lead exists
+        const { data: existingLeads } = await supabaseAdmin
+          .from('leads')
+          .select('*')
+          .eq('user_id', leadOwnerId)
+          .ilike('email', lookupEmail) // Case insensitive
+          .limit(1);
+
+        const lastUserMessage = messages.length > 0 ? messages[messages.length - 1].text : '';
+        const now = new Date().toISOString();
+
+        if (existingLeads && existingLeads.length > 0) {
+          // UPDATE
+          capturedLead = existingLeads[0];
+          await supabaseAdmin
+            .from('leads')
+            .update({
+              last_message: lastUserMessage,
+              last_contact: now
+            })
+            .eq('id', capturedLead.id);
+        } else {
+          // CREATE
+          const newLeadPayload = {
+            user_id: leadOwnerId,
+            email: lookupEmail,
+            name: metadata?.userInfo?.name || 'Visitor',
+            status: 'New',
+            source: 'Home Page AI Chat',
+            last_message: lastUserMessage,
+            created_at: now,
+            aiInteractions: []
+          };
+
+          const { data: newLead } = await supabaseAdmin
+            .from('leads')
+            .insert(newLeadPayload)
+            .select()
+            .single();
+
+          capturedLead = newLead;
+        }
+      } catch (err) {
+        console.error('🧠 Brain Wiring Error (Lead Lookup):', err);
+      }
+    }
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
     }
 
+    // --- BRAIN WIRING: BLUEPRINT INJECTION ---
+    let effectiveSystemPrompt = systemPrompt;
+    if (leadOwnerId && sidekick) {
+      try {
+        const blueprintPrompt = await loadBpPrompt(leadOwnerId, sidekick);
+        if (blueprintPrompt) {
+          console.log(`🧠 Brain Wiring: Injected Blueprint Prompt for ${sidekick} (Agent: ${leadOwnerId})`);
+          effectiveSystemPrompt = blueprintPrompt;
+        }
+      } catch (bpErr) {
+        console.error('🧠 Brain Wiring Error (Blueprint Load):', bpErr);
+      }
+    }
+
     // Convert messages to OpenAI format
-    let system = systemPrompt || 'You are a helpful AI assistant for a real estate app.';
+    let system = effectiveSystemPrompt || 'You are a helpful AI assistant for a real estate app.';
 
     // --- Admin AI Training Routes ---
 
@@ -3522,6 +3597,50 @@ app.post('/api/continue-conversation', async (req, res) => {
         }
 
         const reply = completion.choices[0].message.content;
+
+        // --- BRAIN WIRING: SAVE INTERACTION ---
+        if (capturedLead) {
+          try {
+            // Fetch fresh to get current array
+            const { data: freshLead } = await supabaseAdmin
+              .from('leads')
+              .select('aiInteractions, id')
+              .eq('id', capturedLead.id)
+              .single();
+
+            if (freshLead) {
+              const interactionLog = {
+                timestamp: new Date().toISOString(),
+                summary: `User: ${messages[messages.length - 1].text.substring(0, 50)}... | AI: ${reply.substring(0, 50)}...`,
+                full_transcript: [
+                  { role: 'user', content: messages[messages.length - 1].text },
+                  { role: 'ai', content: reply }
+                ],
+                type: 'chat'
+              };
+
+              const updatedInteractions = [...(freshLead.aiInteractions || []), interactionLog];
+
+              // Check for contact info updates in message (Basic Regex)
+              const emailMatch = messages[messages.length - 1].text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
+              const updatePayload = { aiInteractions: updatedInteractions };
+
+              if (emailMatch && emailMatch[0] && capturedLead.email.startsWith('visitor+')) {
+                console.log('🧠 Brain Wiring: Captured Real Email:', emailMatch[0]);
+                updatePayload.email = emailMatch[0]; // Upgrade to real email
+                updatePayload.name = 'Identified Visitor'; // Could be smarter
+              }
+
+              await supabaseAdmin
+                .from('leads')
+                .update(updatePayload)
+                .eq('id', freshLead.id);
+            }
+          } catch (logErr) {
+            console.error('🧠 Brain Wiring Error (Log Interaction):', logErr);
+          }
+        }
+
         res.json({ response: reply });
       } catch (error) {
         console.error('OpenAI Chat Error:', error);
@@ -6253,9 +6372,9 @@ app.post('/api/admin/leads/import', async (req, res) => {
     const errors = [];
 
     // Map incoming funnel to valid DB types
-    // The DB constraint only allows: 'homebuyer', 'seller', 'postShowing'
-    // Everything else must be NULL to avoid SQL check constraint violations.
-    const DB_ALLOWED_FUNNELS = ['homebuyer', 'seller', 'postShowing'];
+    // The DB constraint only allows specific funnel types.
+    // We must include 'universal_sales' (Recruitment) and 'welcome' to support all frontend options.
+    const DB_ALLOWED_FUNNELS = ['homebuyer', 'seller', 'postShowing', 'universal_sales', 'welcome'];
     const safeFunnel = (f) => DB_ALLOWED_FUNNELS.includes(f) ? f : null;
 
     // BATCH INSERT (Chunk size 50)
@@ -7360,9 +7479,16 @@ Please represent this agent in your responses. Use their tone and branding where
       try {
         const { userId, email, firstName } = req.body; // userId from our auth system
 
-        // TODO: Look up user in DB to see if they already have a stripe_account_id
-        // const existingAgent = await supabase.from('agents').select('stripe_account_id').eq('id', userId).single();
-        // if (existingAgent.data?.stripe_account_id) return res.json({ accountId: existingAgent.data.stripe_account_id });
+        // Check if user already has a connected account
+        const { data: existingAgent } = await supabaseAdmin
+          .from('agents')
+          .select('stripe_account_id')
+          .eq('id', userId)
+          .single();
+
+        if (existingAgent?.stripe_account_id) {
+          return res.json({ accountId: existingAgent.stripe_account_id });
+        }
 
         // Create account using V2 API
         const account = await stripe.v2.core.accounts.create({
@@ -7390,8 +7516,16 @@ Please represent this agent in your responses. Use their tone and branding where
           },
         });
 
-        // TODO: Save account.id to database
-        // await supabase.from('agents').update({ stripe_account_id: account.id }).eq('id', userId);
+        // SAVE TO DATABASE
+        const { error: updateError } = await supabaseAdmin
+          .from('agents')
+          .update({ stripe_account_id: account.id })
+          .eq('id', userId);
+
+        if (updateError) {
+          console.error('Failed to save Stripe Account ID:', updateError);
+          // We might want to alert the user, but for now log it.
+        }
 
         res.json({ accountId: account.id });
       } catch (error) {
@@ -12263,8 +12397,9 @@ const checkExpiredTrials = async () => {
 };
 
 // Start Scheduler (Every 60 seconds)
+// Start Scheduler (Every 60 seconds)
 setInterval(() => {
-  checkFunnelFollowUps();
+  // checkFunnelFollowUps(); // LEGACY - Replaced by funnelService.processBatch() at top of file
   // check48HourOffers(); // DISABLED
   checkTrialWarnings();
   checkExpiredTrials();

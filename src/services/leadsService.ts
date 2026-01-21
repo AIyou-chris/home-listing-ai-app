@@ -297,8 +297,15 @@ export const leadsService = {
     }
 
     try {
-      // Use the newly created backend endpoint
-      const response = await fetch(`/api/leads/stats?userId=${userId}`);
+      // Use the newly created backend endpoint with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+      const response = await fetch(`/api/leads/stats?userId=${userId}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
       const data = await response.json();
 
       if (data.success) {

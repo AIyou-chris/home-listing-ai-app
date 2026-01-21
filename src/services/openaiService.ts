@@ -14,7 +14,8 @@ import {
 import { buildApiUrl, getApiBaseUrl } from '../lib/api'
 
 interface ContinueConversationOptions {
-  language?: string
+  language?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export const continueConversation = async (
@@ -52,7 +53,8 @@ export const continueConversation = async (
         sidekick,
         role: 'agent',
         preferredLanguage,
-        systemPrompt: combinedSystemPrompt
+        systemPrompt: combinedSystemPrompt,
+        metadata: options?.metadata
       }),
     });
 

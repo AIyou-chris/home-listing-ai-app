@@ -1,0 +1,2 @@
+LEADS: id, user_id, name, email, phone, status, source, property_interest, budget, timeline, notes, score, total_conversations, last_conversation_at, first_conversation_at, created_at, updated_at, last_contact_at, manual_follow_up, follow_up_sequence_id, last_message, interested_properties, last_contact, active_sequences, funnel_type
+APPT: id, user_id, lead_id, property_id, kind, name, email, phone, date, time_label, start_iso, end_iso, meet_link, notes, status, created_at

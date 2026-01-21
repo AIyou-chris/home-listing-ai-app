@@ -11,6 +11,8 @@ type SequenceSnapshot = {
     trend: 'up' | 'flat' | 'down';
     lastAdjust: string;
     bestStep: string;
+    sent: number;
+    bounced: number;
 };
 
 type StepInsight = {
@@ -33,7 +35,9 @@ const INITIAL_SNAPSHOTS: SequenceSnapshot[] = [
         meetings: 0,
         trend: 'flat',
         lastAdjust: '2 days ago',
-        bestStep: 'Day 1 Check-In'
+        bestStep: 'Day 1 Check-In',
+        sent: 0,
+        bounced: 0
     },
     {
         id: 'buyer',
@@ -44,7 +48,9 @@ const INITIAL_SNAPSHOTS: SequenceSnapshot[] = [
         meetings: 0,
         trend: 'flat',
         lastAdjust: '5 days ago',
-        bestStep: 'Curated Matches'
+        bestStep: 'Curated Matches',
+        sent: 0,
+        bounced: 0
     },
     {
         id: 'listing',
@@ -55,7 +61,9 @@ const INITIAL_SNAPSHOTS: SequenceSnapshot[] = [
         meetings: 0,
         trend: 'flat',
         lastAdjust: 'Yesterday',
-        bestStep: 'Interactive Listing Draft'
+        bestStep: 'Interactive Listing Draft',
+        sent: 0,
+        bounced: 0
     },
     {
         id: 'post',
@@ -66,7 +74,9 @@ const INITIAL_SNAPSHOTS: SequenceSnapshot[] = [
         meetings: 0,
         trend: 'flat',
         lastAdjust: '9 days ago',
-        bestStep: 'Comparables Drop'
+        bestStep: 'Comparables Drop',
+        sent: 0,
+        bounced: 0
     }
 ];
 
@@ -86,7 +96,7 @@ const TrendIcon: React.FC<{ trend: SequenceSnapshot['trend'] }> = ({ trend }) =>
 import { DEMO_SEQUENCE_SNAPSHOTS } from '../demoConstants';
 
 const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }> = ({ isDemoMode = false, userId }) => {
-    const [snapshots, setSnapshots] = useState<SequenceSnapshot[]>(INITIAL_SNAPSHOTS.map(s => ({ ...s, replyRate: 0, openRate: 0, meetings: 0, trend: 'flat', lastAdjust: 'Never', bestStep: 'None' })));
+    const [snapshots, setSnapshots] = useState<SequenceSnapshot[]>(INITIAL_SNAPSHOTS.map(s => ({ ...s, replyRate: 0, openRate: 0, meetings: 0, trend: 'flat', lastAdjust: 'Never', bestStep: 'None', sent: 0, bounced: 0 })));
     const [stepInsights, setStepInsights] = useState<StepInsight[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -161,7 +171,9 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }>
                 meetings: 0, // Placeholder
                 trend: 'flat' as const,
                 lastAdjust: 'Never',
-                bestStep: '-'
+                bestStep: '-',
+                sent: stats.sent,
+                bounced: stats.bounced
             };
         });
 
@@ -258,14 +270,22 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }>
                                 </div>
                                 <TrendIcon trend={sequence.trend} />
                             </div>
-                            <dl className="mt-4 grid grid-cols-3 gap-3 text-center">
+                            <dl className="mt-4 grid grid-cols-5 gap-3 text-center">
                                 <div className="rounded-lg bg-white p-3 shadow-sm">
-                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Replies (Clicks)</dt>
-                                    <dd className="text-lg font-bold text-slate-900">{sequence.replyRate}%</dd>
+                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Reach</dt>
+                                    <dd className="text-lg font-bold text-slate-900">{sequence.sent}</dd>
                                 </div>
                                 <div className="rounded-lg bg-white p-3 shadow-sm">
                                     <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Opens</dt>
                                     <dd className="text-lg font-bold text-slate-900">{sequence.openRate}%</dd>
+                                </div>
+                                <div className="rounded-lg bg-white p-3 shadow-sm">
+                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Replies</dt>
+                                    <dd className="text-lg font-bold text-slate-900">{sequence.replyRate}%</dd>
+                                </div>
+                                <div className="rounded-lg bg-white p-3 shadow-sm">
+                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Bounced</dt>
+                                    <dd className="text-lg font-bold text-rose-600">{sequence.bounced}</dd>
                                 </div>
                                 <div className="rounded-lg bg-white p-3 shadow-sm">
                                     <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Meetings</dt>
