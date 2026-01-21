@@ -6452,19 +6452,60 @@ app.post('/api/admin/leads/import', async (req, res) => {
     for (let i = 0; i < CLEAN_LEADS.length; i += CHUNK_SIZE) {
       const chunk = CLEAN_LEADS.slice(i, i + CHUNK_SIZE);
 
-      // Use UPSERT with ignoreDuplicates to skip existing emails silently.
-      // 'leads_email_unique_ci' constraint will trigger the conflict on 'email'.
-      const { data, error } = await supabaseAdmin
-        .from('leads')
-        .upsert(chunk, { onConflict: 'email', ignoreDuplicates: true })
-        .select('id');
+      // OPTIMISTIC BATCH STRATEGY
+      // 1. Try to insert the whole chunk (Fast)
+      // 2. If it fails (likely duplicate), fallback to one-by-one (Robust)
 
-      if (error) {
-        console.error('❌ [IMPORT ERROR] Batch failed:', error);
-        errors.push(`SQL Error: ${error.message} (Detail: ${error.details || 'None'})`);
-      } else {
-        const insertedLeads = data || [];
+      let insertedLeads = [];
+      let batchError = null;
+
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('leads')
+          .insert(chunk)
+          .select('id');
+
+        if (error) throw error;
+        if (data) insertedLeads = data;
+
+      } catch (err) {
+        batchError = err;
+        console.warn('⚠️ [IMPORT] Batch failed (likely duplicate), switching to individual insert for this chunk.');
+
+        // Fallback: One-by-One Insert
+        for (const lead of chunk) {
+          try {
+            const { data: singleData, error: singleError } = await supabaseAdmin
+              .from('leads')
+              .insert([lead])
+              .select('id')
+              .single();
+
+            if (singleError) {
+              // Ignore unique constraint violations (duplicates)
+              if (singleError.code === '23505') { // Postgres unique violation code
+                console.log(`ℹ️ [IMPORT] Skipped duplicate: ${lead.email}`);
+              } else {
+                throw singleError; // Rethrow real errors
+              }
+            } else if (singleData) {
+              insertedLeads.push(singleData);
+            }
+          } catch (innerErr) {
+            console.error(`❌ [IMPORT] Individual Row Error: ${innerErr.message}`);
+            errors.push(`Row Error (${lead.email}): ${innerErr.message}`);
+          }
+        }
+      }
+
+      // Check if we have anything to show for it
+      if (insertedLeads.length > 0) {
         successCount += insertedLeads.length;
+
+        // --- NEW DATA CONTEXT ---
+        // We use 'insertedLeads' for enrollment now, regardless of how we got them (batch or individual)
+        // 'data' variable is no longer key.
+        const data = insertedLeads; // Alias for legacy logic below if needed, but safer to use insertedLeads directly.
 
         // --- FIX: ENROLL LEADS IN FUNNEL ---
         // If a valid funnel was requested, we must create enrollments.
