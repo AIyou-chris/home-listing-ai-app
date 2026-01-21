@@ -6453,7 +6453,55 @@ app.post('/api/admin/leads/import', async (req, res) => {
         console.error('❌ [IMPORT ERROR] Batch failed:', error);
         errors.push(`SQL Error: ${error.message} (Detail: ${error.details || 'None'})`);
       } else {
-        successCount += (data?.length || 0);
+        const insertedLeads = data || [];
+        successCount += insertedLeads.length;
+
+        // --- FIX: ENROLL LEADS IN FUNNEL ---
+        // If a valid funnel was requested, we must create enrollments.
+        // We do this PER CHUNK.
+
+        if (intendedFunnel && safeFunnel(intendedFunnel)) {
+          try {
+            // 1. Get Funnel ID (once per batch ideally, but safe here)
+            const { data: funnelData } = await supabaseAdmin
+              .from('funnels')
+              .select('id, steps')
+              .eq('type', intendedFunnel) // Assuming 'type' column matches 'universal_sales' etc.
+              .single();
+
+            if (funnelData) {
+              const firstStep = funnelData.steps?.[0];
+              const delay = firstStep ? (firstStep.delay_minutes || 0) : 0;
+              // Prepare enrollments
+              const enrollments = insertedLeads.map(lead => ({
+                agent_id: user.id,
+                lead_id: lead.id,
+                funnel_id: funnelData.id,
+                current_step_index: 0,
+                status: 'active',
+                next_run_at: new Date(Date.now() + delay * 60000).toISOString(),
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }));
+
+              // Insert Enrollments
+              const { error: enrollError } = await supabaseAdmin
+                .from('funnel_enrollments')
+                .insert(enrollments);
+
+              if (enrollError) {
+                console.error('⚠️ [IMPORT WARNING] Leads inserted but enrollment failed:', enrollError);
+                errors.push(`Leads saved, but Funnel Enrollment failed: ${enrollError.message}`);
+              } else {
+                console.log(`✅ [IMPORT] Enrolled ${enrollments.length} leads into funnel '${intendedFunnel}'`);
+              }
+            } else {
+              console.warn(`⚠️ [IMPORT] Funnel type '${intendedFunnel}' not found in DB. Leads inserted without enrollment.`);
+            }
+          } catch (enrollErr) {
+            console.error('⚠️ [IMPORT EXCEPTION] Enrollment logic crashed:', enrollErr);
+          }
+        }
       }
     }
 
