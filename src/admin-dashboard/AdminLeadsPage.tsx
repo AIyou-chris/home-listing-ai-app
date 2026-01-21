@@ -87,7 +87,21 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [isCreateAppointmentOpen, setIsCreateAppointmentOpen] = useState(false);
+
   const [appointmentFilters, setAppointmentFilters] = useState<{ query: string; date: string }>({ query: '', date: '' });
+  const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set());
+
+  const toggleLeadExpanded = (leadId: string) => {
+    setExpandedLeadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     onRefreshLeads().catch((err) => console.error('Failed to refresh admin leads', err));
@@ -277,13 +291,19 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
 
               {filteredLeads.map((lead) => {
                 const notes = notesByLeadId[lead.id] ?? [];
+                // COLLAPSIBLE STATE: Check if this specific lead is expanded
+                const isExpanded = expandedLeadIds.has(lead.id);
+
                 return (
                   <div key={lead.id} className="bg-white rounded-xl shadow-md border border-slate-200/80 p-6 transition-all duration-300 hover:shadow-lg hover:border-slate-300">
                     <div className="flex items-center gap-4">
+                      {/* Avatar */}
                       <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl">
                         {lead.name.charAt(0)}
                       </div>
-                      <div className="min-w-0 flex-1">
+
+                      {/* Basic Info (Always Visible) */}
+                      <div className="min-w-0 flex-1 cursor-pointer" onClick={() => toggleLeadExpanded(lead.id)}>
                         <div className="flex items-center gap-3">
                           <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
                           <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${statusStyles[lead.status]}`}>{lead.status}</span>
@@ -307,15 +327,27 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
                           )}
                         </div>
                       </div>
+
+                      {/* Action Buttons */}
                       <div className="flex items-center gap-2">
+                        {/* Toggle Button */}
+                        <button
+                          onClick={() => toggleLeadExpanded(lead.id)}
+                          className={`p-2 rounded-lg border transition-colors ${isExpanded ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <span className="material-symbols-outlined">{isExpanded ? 'expand_less' : 'expand_more'}</span>
+                        </button>
+
                         <a
                           href={`/admin/leads/${lead.id}/dashboard`}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 hidden sm:inline-flex"
                         >
                           <span className="material-symbols-outlined text-sm">open_in_new</span>
-                          View Dashboard
+                          View
                         </a>
                         <button
                           onClick={() => setEditingLead(lead)}
@@ -350,68 +382,71 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 disabled:opacity-60"
                         >
                           <span className="material-symbols-outlined text-sm">delete</span>
-                          {isDeleting === lead.id ? 'Deleting…' : 'Delete'}
+                          {isDeleting === lead.id ? '...' : 'Del'}
                         </button>
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-lg border border-slate-200 p-4 bg-slate-50">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notes</p>
-                        <div className="mt-2 space-y-2">
-                          {notes.length === 0 && (
-                            <button
-                              type="button"
-                              onClick={() => loadNotesIfMissing(lead.id)}
-                              className="text-xs font-semibold text-primary-600 hover:text-primary-700"
-                            >
-                              Load notes
-                            </button>
-                          )}
-                          {notes.map((note) => (
-                            <div key={note.id} className="rounded-md bg-white border border-slate-200 p-3">
-                              <p className="text-sm text-slate-700">{note.content}</p>
-                              <p className="mt-1 text-[11px] text-slate-400">Added {new Date(note.createdAt).toLocaleString()}</p>
+                    {/* Collapsible Content */}
+                    {isExpanded && (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="rounded-lg border border-slate-200 p-4 bg-slate-50">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notes</p>
+                          <div className="mt-2 space-y-2">
+                            {notes.length === 0 && (
+                              <button
+                                type="button"
+                                onClick={() => loadNotesIfMissing(lead.id)}
+                                className="text-xs font-semibold text-primary-600 hover:text-primary-700"
+                              >
+                                Load notes
+                              </button>
+                            )}
+                            {notes.map((note) => (
+                              <div key={note.id} className="rounded-md bg-white border border-slate-200 p-3">
+                                <p className="text-sm text-slate-700">{note.content}</p>
+                                <p className="mt-1 text-[11px] text-slate-400">Added {new Date(note.createdAt).toLocaleString()}</p>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3">
+                            <textarea
+                              value={noteDrafts[lead.id] ?? ''}
+                              onChange={(e) => setNoteDrafts((prev) => ({ ...prev, [lead.id]: e.target.value }))}
+                              placeholder="Add an internal note…"
+                              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                              rows={2}
+                            />
+                            <div className="mt-2 flex justify-end">
+                              <button
+                                onClick={() => void handleAddNote(lead.id)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary-600 text-white hover:bg-primary-700"
+                              >
+                                <span className="material-symbols-outlined text-sm">add</span>
+                                Add Note
+                              </button>
                             </div>
-                          ))}
-                        </div>
-                        <div className="mt-3">
-                          <textarea
-                            value={noteDrafts[lead.id] ?? ''}
-                            onChange={(e) => setNoteDrafts((prev) => ({ ...prev, [lead.id]: e.target.value }))}
-                            placeholder="Add an internal note…"
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                            rows={2}
-                          />
-                          <div className="mt-2 flex justify-end">
-                            <button
-                              onClick={() => void handleAddNote(lead.id)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary-600 text-white hover:bg-primary-700"
-                            >
-                              <span className="material-symbols-outlined text-sm">add</span>
-                              Add Note
-                            </button>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="rounded-lg border border-slate-200 p-4">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Details</p>
-                        <div className="mt-2 text-sm text-slate-700 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-base text-slate-400">mail</span>
-                            <span>{lead.email}</span>
-                          </div>
-                          {lead.phone && (
+                        <div className="rounded-lg border border-slate-200 p-4">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Details</p>
+                          <div className="mt-2 text-sm text-slate-700 space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="material-symbols-outlined text-base text-slate-400">call</span>
-                              <span>{lead.phone}</span>
+                              <span className="material-symbols-outlined text-base text-slate-400">mail</span>
+                              <span>{lead.email}</span>
                             </div>
-                          )}
-                          {lead.notes && <p className="text-slate-600">{lead.notes}</p>}
+                            {lead.phone && (
+                              <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-base text-slate-400">call</span>
+                                <span>{lead.phone}</span>
+                              </div>
+                            )}
+                            {lead.notes && <p className="text-slate-600">{lead.notes}</p>}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
