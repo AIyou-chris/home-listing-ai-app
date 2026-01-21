@@ -165,7 +165,10 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
         log('🚀 Starting Import Process...');
 
         try {
-            const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+            // FORCE PROD URL if we are in production mode (Netlify Build)
+            const IS_PROD = import.meta.env.PROD;
+            const BASE_URL = IS_PROD ? 'https://home-listing-ai-backend.onrender.com' : 'http://localhost:3002';
+
             const API_URL = `${BASE_URL}/api/admin/leads/import`;
             log(`🔗 Target URL: ${API_URL}`);
 
