@@ -6071,6 +6071,51 @@ app.delete('/api/admin/leads/:leadId', async (req, res) => {
       return res.status(400).json({ error: 'Lead ID is required' });
     }
 
+    // 1. Get all enrollment IDs for this lead to clear logs
+    const { data: enrollments, error: enrollError } = await supabaseAdmin
+      .from('funnel_enrollments')
+      .select('id')
+      .eq('lead_id', leadId);
+
+    if (enrollError) {
+      console.warn('Could not fetch enrollments for cascading delete:', enrollError);
+    }
+
+    if (enrollments && enrollments.length > 0) {
+      const enrollmentIds = enrollments.map(e => e.id);
+
+      // 2. Delete logs for these enrollments
+      const { error: logDeleteError } = await supabaseAdmin
+        .from('funnel_logs')
+        .delete()
+        .in('enrollment_id', enrollmentIds);
+
+      if (logDeleteError) {
+        console.warn('Could not delete funnel logs:', logDeleteError);
+      }
+    }
+
+    // 3. Delete enrollments
+    const { error: enrollDeleteError } = await supabaseAdmin
+      .from('funnel_enrollments')
+      .delete()
+      .eq('lead_id', leadId);
+
+    if (enrollDeleteError) {
+      console.warn('Could not delete enrollments:', enrollDeleteError);
+    }
+
+    // 4. Delete appointments
+    const { error: apptDeleteError } = await supabaseAdmin
+      .from('appointments')
+      .delete()
+      .eq('lead_id', leadId);
+
+    if (apptDeleteError) {
+      console.warn('Could not delete appointments:', apptDeleteError);
+    }
+
+    // 5. Finally, delete the lead
     const { error, status } = await supabaseAdmin.from('leads').delete().eq('id', leadId);
     if (error && status === 406) {
       return res.status(404).json({ error: 'Lead not found' });
@@ -6083,7 +6128,7 @@ app.delete('/api/admin/leads/:leadId', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Lead deleted successfully'
+      message: 'Lead and related data deleted successfully'
     });
   } catch (error) {
     console.error('Delete lead error:', error);
