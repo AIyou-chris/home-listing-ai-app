@@ -6207,22 +6207,30 @@ app.post('/api/admin/leads/import', async (req, res) => {
     const errors = [];
 
     // Map incoming funnel to valid DB types
-    const VALID_FUNNEL_TYPES = ['homebuyer', 'seller', 'universal_sales', 'postShowing', 'agentSales', 'custom1', 'custom2', 'custom3'];
-    const safeFunnel = (f) => VALID_FUNNEL_TYPES.includes(f) ? f : null;
+    // The DB constraint only allows: 'homebuyer', 'seller', 'postShowing'
+    // Everything else must be NULL to avoid SQL check constraint violations.
+    const DB_ALLOWED_FUNNELS = ['homebuyer', 'seller', 'postShowing'];
+    const safeFunnel = (f) => DB_ALLOWED_FUNNELS.includes(f) ? f : null;
 
     // BATCH INSERT (Chunk size 50)
-    const CLEAN_LEADS = leads.map(l => ({
-      user_id: user.id,
-      name: l.name || 'Unknown Client',
-      email: l.email || null,
-      phone: l.phone || null,
-      source: 'csv_import',
-      status: 'new',
-      funnel_type: safeFunnel(assignment?.funnel),
-      score: 10, // Default score to ensure visibility
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }));
+    const CLEAN_LEADS = leads.map(l => {
+      const intendedFunnel = assignment?.funnel || 'None';
+      const dbFunnel = safeFunnel(intendedFunnel);
+
+      return {
+        user_id: user.id,
+        name: l.name || 'Unknown Client',
+        email: l.email || null,
+        phone: l.phone || null,
+        source: 'csv_import',
+        status: 'new',
+        funnel_type: dbFunnel,
+        notes: l.notes || (dbFunnel === null ? `Intended Funnel: ${intendedFunnel}` : null),
+        score: 10, // Default score to ensure visibility
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    });
 
     // Process in Chunks
     const CHUNK_SIZE = 50;
