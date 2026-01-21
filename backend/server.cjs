@@ -6268,7 +6268,7 @@ app.post('/api/admin/leads/import', async (req, res) => {
         email: l.email || null,
         phone: l.phone || null,
         source: 'csv_import',
-        status: 'new',
+        status: 'New',
         funnel_type: dbFunnel,
         notes: l.notes || (dbFunnel === null ? `Intended Funnel: ${intendedFunnel}` : null),
         score: 10, // Default score to ensure visibility
