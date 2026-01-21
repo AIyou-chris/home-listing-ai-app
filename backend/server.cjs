@@ -6205,8 +6205,11 @@ app.post('/api/admin/leads/import', async (req, res) => {
     let successCount = 0;
     const errors = [];
 
+    // Map incoming funnel to valid DB types
+    const VALID_FUNNEL_TYPES = ['homebuyer', 'seller', 'universal_sales', 'postShowing'];
+    const safeFunnel = (f) => VALID_FUNNEL_TYPES.includes(f) ? f : null;
+
     // BATCH INSERT (Chunk size 50)
-    // We strip extraneous fields to prevent SQL errors
     const CLEAN_LEADS = leads.map(l => ({
       user_id: user.id,
       name: l.name || 'Unknown Client',
@@ -6214,9 +6217,10 @@ app.post('/api/admin/leads/import', async (req, res) => {
       phone: l.phone || null,
       source: 'csv_import',
       status: 'new',
+      funnel_type: safeFunnel(assignment?.funnel),
+      score: 10, // Default score to ensure visibility
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-      // IGNORING: funnel_type, score, assignment, company (to avoid schema conflicts)
     }));
 
     // Process in Chunks

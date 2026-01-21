@@ -166,17 +166,37 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
             log('🛰️ Supabase Client Found');
 
             log('🔑 Verifying Login Session...');
-            // We use a manual promise to ensure we don't hang forever
-            const sessionResult = await Promise.race([
-                supabase.auth.getSession(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Auth Timeout (3s)')), 3000))
-            ]) as { data: { session: unknown } | null };
 
-            const sessionData = sessionResult?.data?.session as { access_token: string } | null;
+            let token: string | null = null;
+            try {
+                // Try standard way first
+                const { data } = await Promise.race([
+                    supabase.auth.getSession(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Auth Timeout')), 2500))
+                ]) as { data: { session: { access_token: string } | null } };
+                token = data?.session?.access_token || null;
+            } catch (e) {
+                log('⚠️ getSession timed out, checking LocalStorage fallback...');
+            }
 
-            if (!sessionData) {
-                log('❌ No session found. Checking fallback...');
-                throw new Error('Please log out and log back in. Your session is stale or blocked.');
+            // Fallback to LocalStorage (Direct access)
+            if (!token) {
+                const storageKey = 'sb-yocchddxdsaldgsibmmc-auth-token';
+                const stored = localStorage.getItem(storageKey);
+                if (stored) {
+                    try {
+                        const parsed = JSON.parse(stored);
+                        token = parsed?.access_token;
+                        if (token) log('📂 Found session in LocalStorage!');
+                    } catch (e) {
+                        log('❌ LocalStorage session is corrupt.');
+                    }
+                }
+            }
+
+            if (!token) {
+                log('❌ AUTH FAILED: No token found. Please referesh the whole page.');
+                throw new Error('Authentication failed. Please refresh the page and try again.');
             }
 
             log('✅ Auth Token Acquired');
@@ -186,12 +206,12 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                 leads: parsedLeads,
                 assignment: {
                     assignee: assignment.assignee,
-                    funnel: assignment.funnel,
+                    funnel: assignment.funnel, // CRITICAL: This ensures they show up on the board
                     tag: assignment.tag
                 }
             };
 
-            log('📡 Sending to Server...');
+            log(`📡 Sending to Server (${assignment.funnel || 'No Funnel'})...`);
             // 20-second timeout for the actual upload
             const controller = new AbortController();
             const fetchTimeout = setTimeout(() => controller.abort(), 20000);
@@ -200,7 +220,7 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${sessionData.access_token}`
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(payload),
                 signal: controller.signal
