@@ -99,8 +99,16 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
             // Map headers to logic
             // We search for our target keys in the header list
             const getName = () => {
-                const idx = headers.findIndex(h => h === 'name' || h === 'first name' || h === 'first_name' || h === 'full name');
-                return idx !== -1 ? values[idx] : '';
+                const fullNameIdx = headers.findIndex(h => h === 'name' || h === 'full name' || h === 'fullname');
+                if (fullNameIdx !== -1) return values[fullNameIdx] || '';
+
+                const firstNameIdx = headers.findIndex(h => h === 'first name' || h === 'first_name' || h === 'firstname' || h === 'fname');
+                const lastNameIdx = headers.findIndex(h => h === 'last name' || h === 'last_name' || h === 'lastname' || h === 'lname');
+
+                const first = firstNameIdx !== -1 ? values[firstNameIdx] : '';
+                const last = lastNameIdx !== -1 ? values[lastNameIdx] : '';
+
+                return `${first} ${last}`.trim();
             };
             const getEmail = () => {
                 const idx = headers.findIndex(h => h === 'email' || h === 'e-mail' || h === 'mail');
