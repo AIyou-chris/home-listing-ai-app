@@ -165,7 +165,8 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
         log('🚀 Starting Import Process...');
 
         try {
-            const API_URL = 'https://home-listing-ai-backend.onrender.com/api/admin/leads/import';
+            const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+            const API_URL = `${BASE_URL}/api/admin/leads/import`;
             log(`🔗 Target URL: ${API_URL}`);
 
             if (!supabase) {
