@@ -4772,11 +4772,53 @@ app.get('/api/admin/dashboard-metrics', verifyAdmin, async (req, res) => {
       console.error('Failed to calculate user stats:', statError);
     }
 
+    // --- CAMPAIGN COMMAND STATS ---
+    let campaignStats = {
+      emailsSent: 0,
+      deliveryRate: 100,
+      activeLeads: 0,
+      bounced: 0
+    };
+
+    try {
+      // 1. Count Emails Sent (Funnel Logs)
+      const { count: sentCount, error: logError } = await supabaseAdmin
+        .from('funnel_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('action_type', 'email');
+
+      // 2. Count Active Enrollments
+      const { count: activeCount, error: enrollError } = await supabaseAdmin
+        .from('funnel_enrollments')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
+
+      // 3. Count Bounced Leads
+      const { count: bouncedCount, error: leadError } = await supabaseAdmin
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Bounced');
+
+      if (!logError) campaignStats.emailsSent = sentCount || 0;
+      if (!enrollError) campaignStats.activeLeads = activeCount || 0;
+      if (!leadError) campaignStats.bounced = bouncedCount || 0;
+
+      // 4. Calculate Delivery Rate
+      if (campaignStats.emailsSent > 0) {
+        const delivered = campaignStats.emailsSent - campaignStats.bounced;
+        campaignStats.deliveryRate = parseFloat(((delivered / campaignStats.emailsSent) * 100).toFixed(1));
+      }
+
+    } catch (metricErr) {
+      console.error('Failed to fetch campaign stats:', metricErr);
+    }
+
     // Safe access to users array
     const lastUser = users && users.length > 0 ? users[users.length - 1] : null;
 
     const metrics = {
       ...userStats,
+      campaignStats,
       systemHealth: systemHealth || { overall: 'unknown', issues: ['systemHealth undefined'] },
       recentActivity: [
         {
@@ -7061,12 +7103,49 @@ app.get('/api/admin/analytics/overview', async (req, res) => {
       voiceMinutesUsed = agentData?.voice_minutes_used || 0;
     }
 
+    // --- CAMPAIGN COMMAND STATS ---
+    let campaignStats = {
+      emailsSent: 0,
+      deliveryRate: 100,
+      activeLeads: 0,
+      bounced: 0
+    };
+
+    try {
+      const { count: sentCount, error: logError } = await supabaseAdmin
+        .from('funnel_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('action_type', 'email');
+
+      const { count: activeCount, error: enrollError } = await supabaseAdmin
+        .from('funnel_enrollments')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
+
+      const { count: bouncedCount, error: leadError } = await supabaseAdmin
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Bounced');
+
+      if (!logError) campaignStats.emailsSent = sentCount || 0;
+      if (!enrollError) campaignStats.activeLeads = activeCount || 0;
+      if (!leadError) campaignStats.bounced = bouncedCount || 0;
+
+      if (campaignStats.emailsSent > 0) {
+        const delivered = campaignStats.emailsSent - campaignStats.bounced;
+        campaignStats.deliveryRate = parseFloat(((delivered / campaignStats.emailsSent) * 100).toFixed(1));
+      }
+    } catch (metricErr) {
+      console.error('Failed to fetch campaign stats:', metricErr);
+    }
+
     res.json({
       leadsToday: leadsToday || 0,
       leadsThisWeek: leadsWeek || 0,
       appointmentsNext7: apptsNext7 || 0,
       messagesSent: msgs || 0,
       voiceMinutesUsed,
+      campaignStats,
       leadsSpark: [], // Keep empty or calculate daily histo
       apptSpark: [],
       statuses: {

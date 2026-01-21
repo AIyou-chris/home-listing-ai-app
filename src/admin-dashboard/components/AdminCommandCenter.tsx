@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { CampaignStatsWidget } from './CampaignStatsWidget'
 
 type HealthResponse = {
   totalApiCalls: number
@@ -8,6 +9,41 @@ type HealthResponse = {
   lastChecked: string
   alerts?: Array<{ type: string; message: string }>
   recentFailures?: Array<{ id: string; timestamp: string; method: string; path: string; statusCode: number; error: unknown }>
+}
+
+type SecurityResponse = {
+  openRisks: string[]
+  lastLogin: { ip: string; device: string } | null
+  anomalies: string[]
+}
+
+type SupportResponse = {
+  openChats: number
+  openTickets: number
+  openErrors: number
+  items: Array<{ id: string; title: string; type: string; severity: string }>
+}
+
+type MetricsResponse = {
+  leadsToday: number
+  leadsThisWeek: number
+  appointmentsNext7: number
+  messagesSent: number
+  voiceMinutesUsed: number
+  leadsSpark: number[]
+  apptSpark: number[]
+  statuses: {
+    aiLatencyMs: number
+    emailBounceRate: number
+    fileQueueStuck: number
+  }
+  recentLeads: Array<{ id: string; name: string; status: string; source: string; at: string }>
+  campaignStats?: {
+    emailsSent: number
+    deliveryRate: number
+    activeLeads: number
+    bounced: number
+  }
 }
 
 const Card: React.FC<{ title: string; value: React.ReactNode; subtitle?: string; tone?: 'default' | 'warn' | 'error'; onClick?: () => void }> = ({ title, value, subtitle, tone = 'default', onClick }) => {
@@ -93,6 +129,8 @@ const AdminCommandCenter: React.FC = () => {
           {loading ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
+
+      <CampaignStatsWidget stats={metrics?.campaignStats ?? null} loading={loading} />
 
       {/* System Health */}
       <section className='rounded-2xl border border-slate-200 bg-white shadow-sm p-5 space-y-4'>
