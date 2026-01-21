@@ -268,6 +268,7 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
             console.error('[CRITICAL] Import Failed:', error);
             const err = error as Error;
             log(`❌ FAILED: ${err.message}`);
+            alert(`IMPORT FAILED: ${err.message}`); // Force alert so user sees it
             if (err.name === 'AbortError') {
                 log('⛔ TIMEOUT: Server took too long to respond.');
             }
@@ -409,55 +410,61 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                     )}
                 </div>
 
-                <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 rounded-b-2xl">
-                    {step === 'upload' ? (
-                        <>
-                            <button onClick={onClose} className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-200 rounded-lg transition">
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleParse}
-                                disabled={!rawText}
-                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Preview
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            <button
-                                onClick={() => setStep('upload')}
-                                disabled={isImporting}
-                                className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-200 rounded-lg transition disabled:opacity-50"
-                            >
-                                Back
-                            </button>
-                            <button
-                                onClick={handleImport}
-                                disabled={isImporting}
-                                className={`px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isImporting ? 'w-full' : 'min-w-[140px] justify-center'}`}
-                            >
-                                {isImporting ? (
-                                    <div className="w-full text-left font-mono text-xs p-1">
-                                        {activityLog.length > 0 ? (
-                                            <div className="flex flex-col gap-1">
-                                                {activityLog.slice(-3).map((log, i) => (
-                                                    <div key={i} className="whitespace-nowrap overflow-hidden text-ellipsis">{log}</div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <span>Starting...</span>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <>
-                                        <span className="material-symbols-outlined text-lg">upload</span>
-                                        Import {parsedLeads.length} Leads
-                                    </>
-                                )}
-                            </button>
-                        </>
+                <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex flex-col">
+                    {/* Persistent Activity Log */}
+                    {activityLog.length > 0 && (
+                        <div className="mb-4 p-3 bg-slate-900 rounded-lg shadow-inner max-h-32 overflow-y-auto font-mono text-xs">
+                            {activityLog.map((log, i) => (
+                                <div key={i} className={`mb-1 ${log.includes('❌') || log.includes('Failed') ? 'text-red-400' : log.includes('✅') ? 'text-green-400' : 'text-slate-300'}`}>
+                                    {log}
+                                </div>
+                            ))}
+                        </div>
                     )}
+
+                    <div className="flex justify-end gap-3">
+                        {step === 'upload' ? (
+                            <>
+                                <button onClick={onClose} className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-200 rounded-lg transition">
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleParse}
+                                    disabled={!rawText}
+                                    className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Preview
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={() => setStep('upload')}
+                                    disabled={isImporting}
+                                    className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-200 rounded-lg transition disabled:opacity-50"
+                                >
+                                    Back
+                                </button>
+                                <button
+                                    onClick={handleImport}
+                                    disabled={isImporting}
+                                    className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px] justify-center"
+                                >
+                                    {isImporting ? (
+                                        <>
+                                            <span className="animate-spin material-symbols-outlined text-lg">progress_activity</span>
+                                            <span>Importing...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="material-symbols-outlined text-lg">upload</span>
+                                            Import {parsedLeads.length} Leads
+                                        </>
+                                    )}
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
