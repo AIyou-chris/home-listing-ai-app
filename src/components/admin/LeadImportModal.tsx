@@ -224,9 +224,9 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
             };
 
             log(`📡 Sending to Server (${assignment.funnel || 'No Funnel'})...`);
-            // 20-second timeout for the actual upload
+            // 60-second timeout for the actual upload (robust mode takes longer)
             const controller = new AbortController();
-            const fetchTimeout = setTimeout(() => controller.abort(), 20000);
+            const fetchTimeout = setTimeout(() => controller.abort(), 60000);
 
             const response = await fetch(API_URL, {
                 method: 'POST',
