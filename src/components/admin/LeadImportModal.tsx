@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../services/supabase'; // Corrected Path
+import type { Session } from '@supabase/supabase-js';
 
 interface ImportedLead {
     name: string;
@@ -158,9 +159,17 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
             const API_URL = 'https://home-listing-ai-backend.onrender.com/api/admin/leads/import';
             addToLog(`🔗 Target URL: ${API_URL}`);
 
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error('No active session found');
-            addToLog('🔑 Auth Token Acquired');
+
+            addToLog('🔑 Attempting to get Auth Session...');
+            // AUTH TIMEOUT (3s max to get session)
+            const sessionPromise = supabase.auth.getSession();
+            const sessionTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth Session Timeout')), 3000));
+
+            const raceResult = await Promise.race([sessionPromise, sessionTimeout]) as { data: { session: Session | null } };
+            const session = raceResult.data.session;
+
+            if (!session) throw new Error('No active session found. Are you logged in?');
+            addToLog('✅ Auth Token Acquired');
 
             addToLog(`📦 Preparing Payload: ${parsedLeads.length} leads`);
             const payload = {
