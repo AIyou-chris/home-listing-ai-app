@@ -895,47 +895,14 @@ export const DEMO_SCORING_RULES = [
 
 export const DEMO_SEQUENCE_SNAPSHOTS = [
   {
-    id: 'welcome',
-    name: 'Universal Welcome Drip',
-    goal: 'Capture intent in first 48h',
+    id: 'agent_recruitment',
+    name: 'Agent Recruitment Sequence',
+    goal: 'Convert leads to platform users',
     replyRate: 32,
     openRate: 68,
     meetings: 5,
     trend: 'up',
     lastAdjust: '2 days ago',
-    bestStep: 'Day 1 Check-In'
-  },
-  {
-    id: 'buyer',
-    name: 'Homebuyer Journey',
-    goal: 'Move buyers to tour requests',
-    replyRate: 24,
-    openRate: 45,
-    meetings: 3,
-    trend: 'flat',
-    lastAdjust: '5 days ago',
-    bestStep: 'Curated Matches'
-  },
-  {
-    id: 'listing',
-    name: 'AI-Powered Seller Funnel',
-    goal: 'Convert CMAs to listings',
-    replyRate: 18,
-    openRate: 52,
-    meetings: 2,
-    trend: 'down',
-    lastAdjust: 'Yesterday',
-    bestStep: 'Interactive Listing Draft'
-  },
-  {
-    id: 'post',
-    name: 'After-Showing Follow-Up',
-    goal: 'Secure second tours',
-    replyRate: 41,
-    openRate: 73,
-    meetings: 8,
-    trend: 'up',
-    lastAdjust: '9 days ago',
-    bestStep: 'Comparables Drop'
+    bestStep: 'Impact Email 1'
   }
 ];

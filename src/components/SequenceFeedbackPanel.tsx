@@ -27,54 +27,15 @@ type StepInsight = {
 
 const INITIAL_SNAPSHOTS: SequenceSnapshot[] = [
     {
-        id: 'welcome',
-        name: 'Universal Welcome Drip',
-        goal: 'Capture intent in first 48h',
+        id: 'agent_recruitment',
+        name: 'Agent Recruitment Sequence',
+        goal: 'Convert leads to platform users',
         replyRate: 0,
         openRate: 0,
         meetings: 0,
         trend: 'flat',
-        lastAdjust: '2 days ago',
-        bestStep: 'Day 1 Check-In',
-        sent: 0,
-        bounced: 0
-    },
-    {
-        id: 'buyer',
-        name: 'Homebuyer Journey',
-        goal: 'Move buyers to tour requests',
-        replyRate: 0,
-        openRate: 0,
-        meetings: 0,
-        trend: 'flat',
-        lastAdjust: '5 days ago',
-        bestStep: 'Curated Matches',
-        sent: 0,
-        bounced: 0
-    },
-    {
-        id: 'listing',
-        name: 'AI-Powered Seller Funnel',
-        goal: 'Convert CMAs to listings',
-        replyRate: 0,
-        openRate: 0,
-        meetings: 0,
-        trend: 'flat',
-        lastAdjust: 'Yesterday',
-        bestStep: 'Interactive Listing Draft',
-        sent: 0,
-        bounced: 0
-    },
-    {
-        id: 'post',
-        name: 'After-Showing Follow-Up',
-        goal: 'Secure second tours',
-        replyRate: 0,
-        openRate: 0,
-        meetings: 0,
-        trend: 'flat',
-        lastAdjust: '9 days ago',
-        bestStep: 'Comparables Drop',
+        lastAdjust: 'Never',
+        bestStep: '-',
         sent: 0,
         bounced: 0
     }
@@ -159,25 +120,62 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }>
             feedbackService.fetchStepPerformance(userId)
         ]);
 
-        const updatedSnapshots = INITIAL_SNAPSHOTS.map(snap => {
-            const stats = data[snap.id] || { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
+        // Convert the dynamic map from backend into an array of snapshots
+        const dynamicSnapshots: SequenceSnapshot[] = Object.keys(data).map(campaignId => {
+            const stats = data[campaignId];
             const openRate = stats.sent > 0 ? Math.round((stats.opened / stats.sent) * 100) : 0;
-            const replyRate = stats.sent > 0 ? Math.round((stats.clicked / stats.sent) * 100) : 0;
+            const replyRate = stats.sent > 0 ? Math.round((stats.replied / stats.sent) * 100) : 0;
+
+            // Map ID to Human Name
+            let name = 'Unknown Funnel';
+            let goal = 'General Outreach';
+
+            if (campaignId === 'agent_recruitment' || campaignId === 'universal_sales') {
+                name = 'Agent Recruitment Sequence';
+                goal = 'Convert leads to platform users';
+            } else if (campaignId === 'homebuyer') {
+                name = 'Homebuyer Journey';
+                goal = 'Move buyers to tour requests';
+            } else if (campaignId === 'seller') {
+                name = 'Seller Funnel';
+                goal = 'Convert CMAs to listings';
+            } else {
+                name = campaignId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            }
 
             return {
-                ...snap,
-                openRate,
-                replyRate,
-                meetings: 0, // Placeholder
-                trend: 'flat' as const,
-                lastAdjust: 'Never',
+                id: campaignId,
+                name: name,
+                goal: goal,
+                replyRate: replyRate,
+                openRate: openRate,
+                meetings: 0, // Placeholder until meeting data is linked
+                trend: 'flat',
+                lastAdjust: 'Recently',
                 bestStep: '-',
                 sent: stats.sent,
                 bounced: stats.bounced
             };
         });
 
-        setSnapshots(updatedSnapshots);
+        // Ensure Agent Recruitment is always visible even if empty (for UX confidence)
+        if (!dynamicSnapshots.find(s => s.id === 'agent_recruitment' || s.id === 'universal_sales')) {
+            dynamicSnapshots.unshift({
+                id: 'agent_recruitment',
+                name: 'Agent Recruitment Sequence',
+                goal: 'Convert leads to platform users',
+                replyRate: 0,
+                openRate: 0,
+                meetings: 0,
+                trend: 'flat',
+                lastAdjust: 'Never',
+                bestStep: '-',
+                sent: 0,
+                bounced: 0
+            });
+        }
+
+        setSnapshots(dynamicSnapshots);
 
         if (stepStats && stepStats.length > 0) {
             const mappedInsights: StepInsight[] = stepStats.map(s => ({
