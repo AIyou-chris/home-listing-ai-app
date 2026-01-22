@@ -6456,7 +6456,7 @@ app.post('/api/admin/leads/import', async (req, res) => {
       // 1. Try to insert the whole chunk (Fast)
       // 2. If it fails (likely duplicate), fallback to one-by-one (Robust)
 
-      let insertedLeads = [];
+      let leadsToEnroll = [];
       let batchError = null;
 
       try {
@@ -6466,13 +6466,13 @@ app.post('/api/admin/leads/import', async (req, res) => {
           .select('id');
 
         if (error) throw error;
-        if (data) insertedLeads = data;
+        if (data) leadsToEnroll = data;
 
       } catch (err) {
         batchError = err;
-        console.warn('⚠️ [IMPORT] Batch failed (likely duplicate), switching to individual insert for this chunk.');
+        console.warn('⚠️ [IMPORT] Batch failed (likely duplicate), switching to individual insert/fetch for this chunk.');
 
-        // Fallback: One-by-One Insert
+        // Fallback: One-by-One Insert OR Fetch
         for (const lead of chunk) {
           try {
             const { data: singleData, error: singleError } = await supabaseAdmin
@@ -6482,14 +6482,23 @@ app.post('/api/admin/leads/import', async (req, res) => {
               .single();
 
             if (singleError) {
-              // Ignore unique constraint violations (duplicates)
-              if (singleError.code === '23505') { // Postgres unique violation code
-                console.log(`ℹ️ [IMPORT] Skipped duplicate: ${lead.email}`);
+              // Ignore unique constraint violations (duplicates) -> BUT FETCH THE ID
+              if (singleError.code === '23505') {
+                console.log(`ℹ️ [IMPORT] Lead exists: ${lead.email}. Fetching ID for enrollment.`);
+                const { data: existingLead } = await supabaseAdmin
+                  .from('leads')
+                  .select('id')
+                  .eq('email', lead.email)
+                  .single();
+
+                if (existingLead) {
+                  leadsToEnroll.push(existingLead); // Add existing lead to enrollment list
+                }
               } else {
                 throw singleError; // Rethrow real errors
               }
             } else if (singleData) {
-              insertedLeads.push(singleData);
+              leadsToEnroll.push(singleData);
             }
           } catch (innerErr) {
             console.error(`❌ [IMPORT] Individual Row Error: ${innerErr.message}`);
@@ -6499,13 +6508,13 @@ app.post('/api/admin/leads/import', async (req, res) => {
       }
 
       // Check if we have anything to show for it
-      if (insertedLeads.length > 0) {
-        successCount += insertedLeads.length;
+      if (leadsToEnroll.length > 0) {
+        successCount += leadsToEnroll.length; // Count both new and existing as "success"
 
         // --- NEW DATA CONTEXT ---
-        // We use 'insertedLeads' for enrollment now, regardless of how we got them (batch or individual)
-        // 'data' variable is no longer key.
-        const data = insertedLeads; // Alias for legacy logic below if needed, but safer to use insertedLeads directly.
+        // We use 'leadsToEnroll' for enrollment now.
+        const data = leadsToEnroll; // Alias just in case
+        const insertedLeads = leadsToEnroll; // Alias for clarity
 
         // --- FIX: ENROLL LEADS IN FUNNEL ---
         // If a valid funnel was requested, we must create enrollments.
