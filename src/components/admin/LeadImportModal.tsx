@@ -339,26 +339,21 @@ const LeadImportModal: React.FC<LeadImportModalProps> = ({ isOpen, onClose, onIm
                                     <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-1">Assign To</label>
                                         <select
-                                            className="block w-full rounded-lg border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                            value={assignment.assignee}
-                                            onChange={(e) => setAssignment({ ...assignment, assignee: e.target.value })}
+                                            className="block w-full rounded-lg border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-slate-100 cursor-not-allowed"
+                                            value="admin"
+                                            disabled
                                         >
                                             <option value="admin">Me (Admin)</option>
-                                            <option value="unassigned">Unassigned</option>
-                                            <option value="round-robin">Round Robin (Active Agents)</option>
                                         </select>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-1">Target Funnel</label>
                                         <select
-                                            className="block w-full rounded-lg border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                            value={assignment.funnel}
-                                            onChange={(e) => setAssignment({ ...assignment, funnel: e.target.value })}
+                                            className="block w-full rounded-lg border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-slate-100 cursor-not-allowed"
+                                            value="universal_sales"
+                                            disabled
                                         >
-                                            <option value="universal_sales">Recruitment (In Your Face)</option>
-                                            <option value="universal_sales">Universal Welcome</option>
-                                            <option value="homebuyer">Buyer Journey</option>
-                                            <option value="seller">Seller Story</option>
+                                            <option value="universal_sales">Agent Recruitment Funnel</option>
                                         </select>
                                     </div>
                                     <div>

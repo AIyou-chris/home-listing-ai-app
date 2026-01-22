@@ -16,7 +16,7 @@ import AdminFunnelAnalytics from './AdminFunnelAnalytics';
 // API Configuration
 const API_BASE = 'https://home-listing-ai-backend.onrender.com';
 
-const UNIVERSAL_FUNNEL_ID = 'universal_sales';
+const UNIVERSAL_FUNNEL_ID = 'agent_recruitment';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -906,8 +906,8 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                         <button
                             onClick={() => setActiveTab('funnel')}
                             className={`px-6 py-3 font-semibold text-sm transition-all relative ${activeTab === 'funnel'
-                                    ? 'text-indigo-700 border-b-2 border-indigo-600'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'text-indigo-700 border-b-2 border-indigo-600'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             <span className="flex items-center gap-2">
@@ -918,8 +918,8 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                         <button
                             onClick={() => setActiveTab('analytics')}
                             className={`px-6 py-3 font-semibold text-sm transition-all relative ${activeTab === 'analytics'
-                                    ? 'text-indigo-700 border-b-2 border-indigo-600'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'text-indigo-700 border-b-2 border-indigo-600'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             <span className="flex items-center gap-2">

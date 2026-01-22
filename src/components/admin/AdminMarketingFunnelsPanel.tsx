@@ -247,6 +247,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                 variant="embedded"
                                 title="Agent Recruitment Sequence"
                                 subtitle="The active 'In Your Face' funnel for imported leads."
+                                forcedCallType="sales"
                             />
                         </div>
                     </div>
