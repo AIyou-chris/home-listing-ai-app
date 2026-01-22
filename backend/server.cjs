@@ -1109,6 +1109,91 @@ const funnelService = createFunnelService({
   smsService: { sendSms, validatePhoneNumber }
 });
 
+// --- SEEDING: Default Funnels ---
+const CRM_DEFAULT_FUNNELS = [
+  {
+    type: 'universal_sales',
+    title: 'Agent Recruitment (Universal)',
+    trigger: 'manual_assignment',
+    description: '5-touch sales sequence to convert agents to the HomeListingAI platform.',
+    steps: [
+      {
+        id: 'universal_sales-1',
+        title: 'The Market is Changing Fast',
+        type: 'email',
+        delay_minutes: 0,
+        subject: 'The market is moving fast — here’s how to stay ahead',
+        content: 'Hi {{lead.first_name}},\n\nToday’s market rewards speed and modern tech. See how AI sidekicks keep you ahead of competitors and close faster.\n\nTake a look here: {{agent.aiCardUrl}}\n\nTalk soon,\n{{agent.signature}}',
+        condition: null
+      },
+      {
+        id: 'universal_sales-2',
+        title: 'You’re Falling Behind',
+        type: 'email',
+        delay_minutes: 2880, // 2 days
+        subject: 'Don’t let outdated tools slow you down',
+        content: 'Hi {{lead.first_name}},\n\nMost agents are stuck with old workflows. Our AI sidekicks handle follow-ups, scheduling, and responses instantly so you don’t miss a lead.\n\nCTA: Book a demo.\n\n{{agent.signature}}',
+        condition: null
+      },
+      {
+        id: 'universal_sales-3',
+        title: 'Grow Your Pipeline',
+        type: 'email',
+        delay_minutes: 5760, // 4 days
+        subject: 'Grow your pipeline without adding more tasks',
+        content: 'Hi {{lead.first_name}},\n\nAutomations, funnels, and AI sidekicks keep your pipeline active while you focus on high-value conversations.\n\nCTA: Try the lead import tool.\n\n{{agent.signature}}',
+        condition: null
+      },
+      {
+        id: 'universal_sales-4',
+        title: 'Real Results',
+        type: 'email',
+        delay_minutes: 8640, // 6 days
+        subject: 'How top agents are winning with AI (real results)',
+        content: 'Hi {{lead.first_name}},\n\nHere’s how teams are booking more appointments and closing faster with our platform. Optional: attach a case study.\n\n{{agent.signature}}',
+        condition: null
+      },
+      {
+        id: 'universal_sales-5',
+        title: 'Your AI Assistant is Waiting',
+        type: 'email',
+        delay_minutes: 11520, // 8 days
+        subject: 'Your AI assistant is ready — don’t let competitors jump ahead',
+        content: 'Hi {{lead.first_name}},\n\nEvery day you wait, someone else gets ahead. Let’s launch your AI sidekick so you never miss another opportunity.\n\nCTA: Schedule your onboarding call now.\n\n{{agent.signature}}'
+      }
+    ]
+  }
+];
+
+async function ensureDefaultFunnels() {
+  console.log('🛡️ [SEED] Checking default funnels...');
+  for (const template of CRM_DEFAULT_FUNNELS) {
+    const { data } = await supabaseAdmin
+      .from('funnels')
+      .select('id')
+      .eq('type', template.type)
+      .single();
+
+    if (!data) {
+      console.log(`✨ [SEED] Creating missing funnel: ${template.title}`);
+      await supabaseAdmin.from('funnels').insert({
+        type: template.type,
+        title: template.title,
+        description: template.description,
+        steps: template.steps,
+        is_active: true,
+        created_at: new Date().toISOString()
+      });
+    } else {
+      // Optional: Update steps if you want to force sync
+      // await supabaseAdmin.from('funnels').update({ steps: template.steps }).eq('id', data.id);
+    }
+  }
+}
+
+// Run Seed on Start (Non-blocking)
+ensureDefaultFunnels().catch(err => console.error('❌ [SEED ERROR]', err));
+
 // ENROLL LEAD IN FUNNEL
 app.post('/api/funnels/assign', async (req, res) => {
   try {
