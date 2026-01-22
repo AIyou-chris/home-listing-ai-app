@@ -41,8 +41,8 @@ import { AgentBrandingProvider } from './context/AgentBrandingContext';
 import { getProfileForDashboard, subscribeToProfileChanges } from './services/agentProfileService';
 // Lazy load admin components for better performance
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
-import AdminLogin from './components/AdminLogin';
-import AdminDashboard from './admin-dashboard/AdminDashboard';
+const AdminLogin = lazy(() => import('./components/AdminLogin'));
+const AdminDashboard = lazy(() => import('./admin-dashboard/AdminDashboard'));
 
 
 import DemoListingPage from './components/DemoListingPage';
