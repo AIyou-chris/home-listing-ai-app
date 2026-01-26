@@ -129,6 +129,7 @@ const getBillingSettings = async (userId, paymentService) => {
           }
         }
 
+
         if (stripeId) {
           // Fetch Invoices
           const invoices = await paymentService.listInvoices(stripeId);
@@ -152,6 +153,13 @@ const getBillingSettings = async (userId, paymentService) => {
             await saveEntry(userId, entry);
           }
         }
+
+        // Inject Usage Stats (Always from DB)
+        entry.usage = {
+          voiceMinutes: agent.voice_minutes_used || 0,
+          smsCount: agent.sms_sent_monthly || 0
+        };
+
       }
     } catch (e) {
       console.error('[BillingSettings] Stripe Sync Error:', e.message);

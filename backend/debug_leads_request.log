@@ -1,0 +1,55 @@
+
+[2026-01-25T00:50:35.604Z] POST /leads
+      Body UserId: blueprint-agent (string)
+      Body User_Id: undefined (undefined)
+      Header x-user-id: blueprint-agent (string)
+      Resolved AssignedID: blueprint-agent
+    
+[2026-01-25T00:53:37.646Z] POST /leads
+      Body UserId: blueprint-agent (string)
+      Body User_Id: undefined (undefined)
+      Header x-user-id: blueprint-agent (string)
+      Resolved AssignedID: blueprint-agent
+    
+[2026-01-25T01:39:50.567Z] POST /leads
+      Body UserId: undefined (undefined)
+      Body User_Id: undefined (undefined)
+      Header x-user-id: 12021f06-03bc-4046-9b9d-dbfd47eb29ee (string)
+      Resolved AssignedID: 12021f06-03bc-4046-9b9d-dbfd47eb29ee
+    
+[2026-01-25T01:48:26.865Z] POST /leads
+      Body UserId: blueprint-agent (string)
+      Body User_Id: undefined (undefined)
+      Header x-user-id: blueprint-agent (string)
+      Resolved AssignedID: blueprint-agent
+    
+[2026-01-25T01:50:18.297Z] POST /leads
+      Body UserId: blueprint-agent (string)
+      Body User_Id: undefined (undefined)
+      Header x-user-id: blueprint-agent (string)
+      Resolved AssignedID: blueprint-agent
+    
+[2026-01-25T01:57:05.181Z] POST /leads
+      Body UserId: blueprint-agent (string)
+      Body User_Id: undefined (undefined)
+      Header x-user-id: blueprint-agent (string)
+      Resolved AssignedID: blueprint-agent
+    
+[2026-01-25T02:04:12.745Z] POST /leads
+      Body UserId: blueprint-agent (string)
+      Body User_Id: undefined (undefined)
+      Header x-user-id: blueprint-agent (string)
+      Resolved AssignedID: blueprint-agent
+    
+[2026-01-25T02:09:58.922Z] POST /leads
+      Body UserId: blueprint-agent (string)
+      Body User_Id: undefined (undefined)
+      Header x-user-id: blueprint-agent (string)
+      Resolved AssignedID: blueprint-agent
+    
+[2026-01-25T02:17:38.755Z] POST /leads
+      Body UserId: blueprint-agent (string)
+      Body User_Id: undefined (undefined)
+      Header x-user-id: blueprint-agent (string)
+      Resolved AssignedID: blueprint-agent
+    

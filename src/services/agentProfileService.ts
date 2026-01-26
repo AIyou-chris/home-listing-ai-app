@@ -1,4 +1,5 @@
 import { getAICardProfile, updateAICardProfile, type AICardProfile } from './aiCardService';
+import { BLUEPRINT_AGENT } from '../constants/agentBlueprintData';
 
 // Centralized Agent Profile Service
 // Uses AI Card as the master profile source
@@ -98,6 +99,19 @@ const loadProfile = async (options: LoadOptions = {}): Promise<AgentProfile> => 
   }
 
   const execute = async () => {
+    // 0. Blueprint Agent Bypass (No Network)
+    if (options.userId === 'blueprint-agent') {
+      console.log('🏗️ Loading Blueprint Agent Profile (Local)');
+      // Map to Service AgentProfile type if needed (they match structurally mostly)
+      const profile = BLUEPRINT_AGENT as unknown as AgentProfile;
+      setCachedProfiles(profile, {
+        source: 'demo',
+        userId: 'blueprint-agent',
+        notify: true
+      });
+      return profile;
+    }
+
     if (options.source === 'demo' || options.demoProfile) {
       const demoProfile =
         options.demoProfile ??

@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { AdminDeliverabilitySettings } from './AdminDeliverabilitySettings'
+import { AuthService } from '../../services/authService'
 
 type BillingSummary = {
   plan: string
@@ -85,7 +87,7 @@ const Toggle: React.FC<{ value: boolean; onChange: (val: boolean) => void }> = (
 )
 
 const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const [activeTab, setActiveTab] = useState<'billing' | 'security' | 'analytics' | 'system'>('billing')
+  const [activeTab, setActiveTab] = useState<'billing' | 'security' | 'analytics' | 'system' | 'deliverability'>('billing')
   const [billingSummary, setBillingSummary] = useState<BillingSummary>({ plan: 'Pro', status: 'active', nextBillingDate: '' })
   const [billingUsers, setBillingUsers] = useState<BillingUser[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -121,22 +123,32 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const load = async () => {
       try {
         const [billingRes, usersRes, invoicesRes, securityRes, analyticsRes, systemRes] = await Promise.all([
-          fetch(`${apiBase}/api/admin/billing`).catch(() => null),
-          fetch(`${apiBase}/api/admin/users/billing`).catch(() => null),
-          fetch(`${apiBase}/api/admin/billing/invoices`).catch(() => null),
-          fetch(`${apiBase}/api/admin/security`).catch(() => null),
-          fetch(`${apiBase}/api/admin/analytics/overview?range=${analyticsRange}`).catch(() => null),
-          fetch(`${apiBase}/api/admin/system-settings`).catch(() => null)
+          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/billing`).catch(() => null),
+          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/users/billing`).catch(() => null),
+          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/billing/invoices`).catch(() => null),
+          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/security`).catch(() => null),
+          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/analytics/overview?range=${analyticsRange}`).catch(() => null),
+          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/system-settings`).catch(() => null)
         ])
 
-        if (billingRes?.ok) setBillingSummary(await billingRes.json())
-        if (usersRes?.ok) setBillingUsers(await usersRes.json())
-        if (invoicesRes?.ok) setInvoices(await invoicesRes.json())
-        if (securityRes?.ok) setSecurity(await securityRes.json())
-        if (analyticsRes?.ok) setAnalytics(await analyticsRes.json())
-        if (systemRes?.ok) setSystemSettings(await systemRes.json())
-        const couponsRes = await fetch(`${apiBase}/api/admin/coupons`).catch(() => null)
-        if (couponsRes?.ok) setCoupons(await couponsRes.json())
+        if (billingRes) setBillingSummary(billingRes)
+        if (usersRes) setBillingUsers(usersRes)
+        if (invoicesRes) setInvoices(invoicesRes)
+        if (securityRes) setSecurity(securityRes)
+        if (analyticsRes) {
+          // Map backend keys to frontend state
+          setAnalytics({
+            totalLeads: analyticsRes.leadsThisWeek || 0,
+            activeFunnels: analyticsRes.campaignStats?.activeLeads || 0,
+            appointments: analyticsRes.appointmentsNext7 || 0,
+            messagesSent: analyticsRes.messagesSent || 0,
+            voiceMinutesUsed: analyticsRes.voiceMinutesUsed || 0
+          })
+        }
+        if (systemRes) setSystemSettings(systemRes)
+
+        const couponsRes = await AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/coupons`).catch(() => null)
+        if (couponsRes) setCoupons(couponsRes)
       } catch (error) {
         console.warn('Failed to load admin settings', error)
       }
@@ -246,6 +258,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             { id: 'billing', label: 'Billing', icon: 'credit_card' },
             { id: 'security', label: 'Security', icon: 'shield_lock' },
             { id: 'analytics', label: 'Analytics', icon: 'insights' },
+            { id: 'deliverability', label: 'Deliverability', icon: 'mark_email_read' },
             { id: 'system', label: 'System Config', icon: 'tune' }
           ].map((tab) => (
             <button
@@ -614,6 +627,10 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </div>
             </Section>
           </div>
+        )}
+
+        {activeTab === 'deliverability' && (
+          <AdminDeliverabilitySettings />
         )}
 
         {activeTab === 'system' && (

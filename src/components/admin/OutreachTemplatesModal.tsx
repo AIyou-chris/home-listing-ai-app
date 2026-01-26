@@ -3,11 +3,12 @@ import React, { useState } from 'react';
 interface OutreachTemplatesModalProps {
     isOpen: boolean;
     onClose: () => void;
+    type?: 'recruitment' | 'real-estate';
 }
 
 type TemplateCategory = 'cold' | 'followup' | 'broker';
 
-const TEMPLATES = {
+const RECRUITMENT_TEMPLATES = {
     cold: [
         {
             title: 'Recruitment - The Reality Check',
@@ -72,10 +73,72 @@ Do you have 10 minutes next week to chat about a volume discount for your team?`
     ]
 };
 
-const OutreachTemplatesModal: React.FC<OutreachTemplatesModalProps> = ({ isOpen, onClose }) => {
+const REAL_ESTATE_TEMPLATES = {
+    cold: [
+        {
+            title: 'New Lead - The Speed to Lead',
+            subject: 'Thanks for your interest in {{lead.interestAddress}}',
+            body: `Hi {{lead.first_name}},
+
+Thanks for checking out {{lead.interestAddress}}!
+
+I'm the listing agent (or local expert) for that area. When is a good time for you to see the property? I can get us in this week.
+
+If you're just browsing, I can also send you a list of similar homes that aren't on Zillow yet.`
+        },
+        {
+            title: 'Circle Prospecting - Just Listed',
+            subject: 'Your neighbor just listed their home',
+            body: `Hi {{lead.first_name}},
+
+A home just came on the market in your neighborhood at {{lead.interestAddress}}.
+
+Properties here are moving fast. Do you know anyone looking to move into the area?
+
+Also, if you're curious about how this affects your home's value, I can send you a quick report.`
+        }
+    ],
+    followup: [
+        {
+            title: 'No Response - The "Nine Word Email"',
+            subject: 'Are you still looking?',
+            body: `Hi {{lead.first_name}},
+
+Are you still looking for a home in {{lead.city}}?`
+        },
+        {
+            title: 'Post-Showing Feedback',
+            subject: 'What did you think of the kitchen?',
+            body: `Hi {{lead.first_name}},
+
+Thanks for walking through {{lead.interestAddress}} with me.
+
+Be honest — what did you think? Is it a contender, or should we keep looking?
+
+I have two other off-market properties that might fit your criteria better.`
+        }
+    ],
+    broker: [
+        {
+            title: 'Referral Request',
+            subject: 'I have a buyer for your listing',
+            body: `Hi {{agent.name}},
+
+I have a pre-approved buyer looking for a 3bd/2ba in {{lead.city}}.
+
+I noticed you do a lot of business in the area. Do you have any coming soons that might fit?
+
+Happy to work a referral fee if we can make a deal happen.`
+        }
+    ]
+};
+
+const OutreachTemplatesModal: React.FC<OutreachTemplatesModalProps> = ({ isOpen, onClose, type = 'recruitment' }) => {
     const [category, setCategory] = useState<TemplateCategory>('cold');
 
     if (!isOpen) return null;
+
+    const TEMPLATES = type === 'real-estate' ? REAL_ESTATE_TEMPLATES : RECRUITMENT_TEMPLATES;
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);

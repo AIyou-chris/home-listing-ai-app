@@ -69,6 +69,44 @@ const initiateCall = async ({ leadId, agentId, propertyId, script, leadName, lea
         // Default "Name" fallback
         const customerName = leadName || contextData.leadName || 'Valued Lead';
 
+        const tools = [
+            {
+                type: 'function',
+                function: {
+                    name: 'checkAvailability',
+                    description: 'Check if the agent is available on a specific date.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            date: { type: 'string', description: 'ISO Date string or YYYY-MM-DD' }
+                        },
+                        required: ['date']
+                    }
+                },
+                server: {
+                    url: `${process.env.VITE_BACKEND_URL || 'http://localhost:3002'}/api/vapi/calendar/availability`
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'bookAppointment',
+                    description: 'Book an appointment/consultation for the lead.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            date: { type: 'string', description: 'ISO Date string or YYYY-MM-DD' },
+                            time: { type: 'string', description: 'Time string (e.g. 2:30 PM)' }
+                        },
+                        required: ['date', 'time']
+                    }
+                },
+                server: {
+                    url: `${process.env.VITE_BACKEND_URL || 'http://localhost:3002'}/api/vapi/calendar/book`
+                }
+            }
+        ];
+
         const payload = {
             phoneNumberId: phoneNumberId,
             customer: {
@@ -79,6 +117,9 @@ const initiateCall = async ({ leadId, agentId, propertyId, script, leadName, lea
             ...(assistantId ? {
                 assistantId: assistantId,
                 assistantOverrides: {
+                    model: {
+                        tools
+                    },
                     variableValues: {
                         leadName: customerName,
                         agentName: agentContext.name || 'Agent',
@@ -95,7 +136,8 @@ const initiateCall = async ({ leadId, agentId, propertyId, script, leadName, lea
                                     role: 'system',
                                     content: script
                                 }
-                            ]
+                            ],
+                            tools
                         },
                         firstMessage: script,
                     } : {}),
@@ -118,7 +160,8 @@ const initiateCall = async ({ leadId, agentId, propertyId, script, leadName, lea
                                 role: 'system',
                                 content: script || "You are a helpful real estate assistant. Ask the lead if they have any questions."
                             }
-                        ]
+                        ],
+                        tools
                     },
                     firstMessage: script || "Hi, this is " + (agentContext.name || "the assistant") + ". I saw you checked out the property link. Did you have any questions?",
                     variableValues: {

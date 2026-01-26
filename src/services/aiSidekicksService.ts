@@ -307,6 +307,24 @@ const DEFAULT_VOICES: Voice[] = [
 
 const DEFAULT_SIDEKICKS: AISidekick[] = [
   {
+    id: 'agent',
+    userId: 'admin',
+    type: 'agent',
+    name: 'AI Agent',
+    description: 'Your all-in-one operations partner. Handles marketing, lead follow-up, and admin tasks.',
+    color: '#4F46E5',
+    icon: 'smart_toy',
+    voiceId: 'nova',
+    knowledgeBase: [],
+    personality: {
+      description: 'You are the Agent’s primary Assistant. You are a world-class real estate assistant, marketer, and operations specialist.',
+      traits: ['professional', 'efficient', 'all-in-one'],
+      preset: 'professional'
+    },
+    stats: { totalTraining: 0, positiveFeedback: 0, improvements: 0 },
+    metadata: { type: 'agent', color: '#4F46E5', icon: 'smart_toy' }
+  },
+  {
     id: 'god',
     userId: 'admin',
     type: 'god',

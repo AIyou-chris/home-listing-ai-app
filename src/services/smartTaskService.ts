@@ -58,7 +58,7 @@ export class SmartTaskService {
       },
       target: 'lead',
       generateTask: (lead: Lead) => ({
-        id: `task-${Date.now()}-${Math.random()}`,
+        id: `task-new-lead-followup-${lead.id}`,
         text: `Follow up with ${lead.name} about their interest in ${lead.lastMessage?.includes('property') ? 'the property' : 'real estate'}`,
         isCompleted: false,
         dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -77,7 +77,7 @@ export class SmartTaskService {
       },
       target: 'lead',
       generateTask: (lead: Lead) => ({
-        id: `task-${Date.now()}-${Math.random()}`,
+        id: `task-qualified-lead-nurture-${lead.id}`,
         text: `Send personalized market update to ${lead.name} based on their interests`,
         isCompleted: false,
         dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -95,7 +95,7 @@ export class SmartTaskService {
       },
       target: 'appointment',
       generateTask: (appointment: Appointment) => ({
-        id: `task-${Date.now()}-${Math.random()}`,
+        id: `task-showing-preparation-${appointment.id}`,
         text: `Prepare showing materials for ${appointment.leadName} at ${appointment.propertyAddress}`,
         isCompleted: false,
         dueDate: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 hours before
@@ -113,7 +113,7 @@ export class SmartTaskService {
       },
       target: 'property',
       generateTask: (property: Property) => ({
-        id: `task-${Date.now()}-${Math.random()}`,
+        id: `task-listing-photo-update-${property.id}`,
         text: `Update photos for ${property.address} - listing is getting stale`,
         isCompleted: false,
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -131,7 +131,7 @@ export class SmartTaskService {
       },
       target: 'lead',
       generateTask: (lead: Lead) => ({
-        id: `task-${Date.now()}-${Math.random()}`,
+        id: `task-high-value-lead-priority-${lead.id}`,
         text: `VIP follow-up: Schedule personal consultation with ${lead.name} (High-value lead)`,
         isCompleted: false,
         dueDate: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString().split('T')[0], // 12 hours
@@ -149,7 +149,7 @@ export class SmartTaskService {
       },
       target: 'property',
       generateTask: (property: Property) => ({
-        id: `task-${Date.now()}-${Math.random()}`,
+        id: `task-market-analysis-${property.id}`,
         text: `Generate market analysis for ${property.address} - adjust pricing if needed`,
         isCompleted: false,
         dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],

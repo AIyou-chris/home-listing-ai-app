@@ -1,6 +1,6 @@
 const { addMinutes } = require('date-fns');
 
-module.exports = ({ supabaseAdmin, emailService, smsService }) => {
+module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => {
     if (!supabaseAdmin) throw new Error('Supabase admin client required');
     if (!emailService) throw new Error('Email service required');
 
@@ -119,6 +119,30 @@ module.exports = ({ supabaseAdmin, emailService, smsService }) => {
 
                 const message = mergeTokens(step.content || step.body, lead, agent);
                 await smsService.sendSms(lead.phone, message, step.mediaUrl);
+
+            } else if (step.type === 'Call' || step.type === 'call') {
+                if (process.env.VITE_ENABLE_VOICE === 'false') {
+                    context.status = 'skipped';
+                    context.details = { reason: 'Voice Disabled via Feature Flag' };
+                    return context;
+                }
+
+                let script = mergeTokens(step.content || step.body, lead, agent);
+                if (!script || script.trim() === '') {
+                    script = `Hello, this is ${agent.first_name} calling about your property interest.`;
+                }
+
+                // Initiate the AI Call
+                const callResult = await voiceService.initiateCall({
+                    leadId: lead.id,
+                    agentId: agent.id,
+                    leadPhone: lead.phone,
+                    leadName: lead.name,
+                    script: script,
+                    callType: step.callType // 'agent' or 'sales'
+                });
+
+                context.details = callResult;
 
             } else if (step.type === 'task') {
                 context.details = { note: 'Task creation not yet implemented' };

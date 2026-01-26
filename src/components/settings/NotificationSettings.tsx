@@ -63,6 +63,22 @@ const NOTIFICATION_GROUPS: Array<{
                     description: 'Important security notices about your account'
                 }
             ]
+        },
+        {
+            title: 'SMS & Mobile',
+            icon: 'smartphone',
+            items: [
+                {
+                    key: 'smsNewLeadAlerts',
+                    label: 'New Lead SMS',
+                    description: 'Receive instant text messages when a new lead is captured'
+                },
+                {
+                    key: 'browserNotifications',
+                    label: 'Browser Push',
+                    description: 'Get desktop notifications when you are online'
+                }
+            ]
         }
     ];
 

@@ -46,7 +46,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 ? [initialProperty.description.title, ...(initialProperty.description.paragraphs || [])].filter(Boolean).join('\n')
                 : ''
             )),
-        heroPhotos: (initialProperty?.heroPhotos as (File | string)[]) || [],
+        heroPhotos: (initialProperty?.id?.startsWith('blueprint-') || initialProperty?.id?.startsWith('demo-')) ? [] : ((initialProperty?.heroPhotos as (File | string)[]) || []),
         galleryPhotos: (initialProperty?.galleryPhotos as (File | string)[]) || [], // Keeping for compatibility but strictly using heroPhotos for the carousel
         ctaListingUrl: initialProperty?.ctaListingUrl || '',
         ctaContactMode: 'sidekick' as 'sidekick' | 'form', // New state for toggle
@@ -58,6 +58,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [showSuccessToast, setShowSuccessToast] = useState(false);
 
     // Sync contact mode if URL is present vs empty
     useEffect(() => {
@@ -179,6 +180,9 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         setIsSaving(true);
 
         try {
+            // Ensure we have a valid agent ID for potential backend requirements in demo mode
+            // We'll trust the service to handle auth headers, but if we need to pass it explicitly:
+            // The error 'Agent must be signed in' usually comes from the backend checking req.user or similar.
             const description: AIDescription = {
                 title: 'Property Description',
                 paragraphs: formData.description.split('\n').map(p => p.trim()).filter(Boolean)
@@ -195,8 +199,8 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 status: 'Active',
                 description,
                 features: formData.features.split(',').map(f => f.trim()).filter(Boolean),
-                heroPhotos: formData.heroPhotos,
-                galleryPhotos: formData.heroPhotos, // Keeping them in sync for this streamlined version
+                heroPhotos: formData.heroPhotos.filter(p => typeof p === 'string') as string[],
+                galleryPhotos: formData.heroPhotos.filter(p => typeof p === 'string') as string[], // Keeping them in sync for this streamlined version
                 ctaListingUrl: formData.ctaListingUrl,
                 ctaMediaUrl: '',
                 appFeatures: {
@@ -216,21 +220,40 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 agentSnapshot: formData.agent
             }
 
-            const saved = initialProperty
-                ? await listingsService.updateProperty(initialProperty.id, payload)
-                : await listingsService.createProperty(payload)
+            // DEMO MODE BYPASS: ALL SAVES GO TO REAL BACKEND NOW
+            // This ensures photos and edits persist.
 
-            onSave(saved);
+            // If it's a blueprint/demo ID, we must CREATE a new record instead of updating the fake one.
+            const isBlueprintId = initialProperty?.id?.startsWith('blueprint-') || initialProperty?.id?.startsWith('demo-');
+
+            const saved = (initialProperty && !isBlueprintId)
+                ? await listingsService.updateProperty(initialProperty.id, payload)
+                : await listingsService.createProperty(payload);
+
+            // Show Success Toast for Real Save too
+            setIsSaving(false);
+            setShowSuccessToast(true);
+            setTimeout(() => {
+                onSave(saved);
+            }, 2500);
+
         } catch (error) {
             console.error('Error saving listing:', error);
             alert('Failed to save listing.');
-        } finally {
             setIsSaving(false);
         }
     };
 
     return (
         <>
+            {showSuccessToast && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <span className="bg-emerald-500 rounded-full p-1 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-sm font-bold text-white">check</span>
+                    </span>
+                    <span className="font-semibold text-sm">Listing Saved Successfully</span>
+                </div>
+            )}
             {isPreviewing && (
                 <PublicPropertyApp
                     property={generatePreviewProperty()}
@@ -246,6 +269,17 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                             Back
                         </button>
                         <div className="flex gap-3">
+                            {initialProperty?.id && (
+                                <a
+                                    href={`/listing/${initialProperty.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-5 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 font-semibold text-sm hover:bg-indigo-100 transition shadow-sm flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-sm">public</span>
+                                    View Live
+                                </a>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => setIsPreviewing(true)}
@@ -254,6 +288,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                                 Preview App
                             </button>
                             <button
+                                type="button"
                                 onClick={handleSubmit}
                                 disabled={isSaving}
                                 className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-semibold text-sm hover:bg-slate-800 transition shadow-md disabled:bg-slate-400"

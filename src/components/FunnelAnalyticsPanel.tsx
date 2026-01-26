@@ -302,8 +302,9 @@ If you’re still interested, I can prep numbers + offer strategy anytime.`
     }
 ];
 
-const initPanelState = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+const initPanelState = (isBlueprintMode: boolean = false) => {
+    // If in blueprint mode or mobile, start closed
+    if (isBlueprintMode || (typeof window !== 'undefined' && window.innerWidth < 768)) {
         return {
             welcome: false,
             buyer: false,
@@ -311,6 +312,7 @@ const initPanelState = () => {
             post: false
         };
     }
+    // Default open for normal users
     return {
         welcome: true,
         buyer: true,
@@ -325,8 +327,9 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     title = 'Leads Funnel',
     subtitle = 'Homebuyer, Seller, and Showing funnels for every lead',
     hideBackButton = false,
-    isDemoMode = false
-}) => {
+    isDemoMode = false,
+    isBlueprintMode = false
+}: FunnelAnalyticsPanelProps & { isBlueprintMode?: boolean }) => {
     const isEmbedded = variant === 'embedded';
     const [welcomeSteps, setWelcomeSteps] = useState<EditableStep[]>(initialWelcomeSteps);
     const [homeBuyerSteps, setHomeBuyerSteps] = useState<EditableStep[]>(initialHomeBuyerSteps);
@@ -337,7 +340,20 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [expandedBuyerStepIds, setExpandedBuyerStepIds] = useState<string[]>([]);
     const [expandedListingStepIds, setExpandedListingStepIds] = useState<string[]>([]);
     const [expandedPostStepIds, setExpandedPostStepIds] = useState<string[]>([]);
-    const [panelExpanded, setPanelExpanded] = useState(initPanelState);
+    const [panelExpanded, setPanelExpanded] = useState(() => initPanelState(isBlueprintMode));
+    const [userId, setUserId] = useState<string>('');
+
+    // Collapsible states for highlight cards (Scoring, Feedback)
+    // Uses sectionExpanded to track these.
+    const [sectionExpanded, setSectionExpanded] = useState<Record<string, boolean>>({
+        funnels: true, // Keep main funnels open container, but individual panels closed
+        scoring: false,
+        feedback: false
+    });
+
+    const toggleSection = (section: string) => {
+        setSectionExpanded(prev => ({ ...prev, [section]: !prev[section] }));
+    };
     const [activeSection, setActiveSection] = useState<'funnels' | 'scoring' | 'feedback'>('funnels');
     const [sendingTestId, setSendingTestId] = useState<string | null>(null);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
@@ -445,6 +461,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     console.warn('No user ID found, using defaults');
                     return;
                 }
+                setUserId(currentUserId);
 
                 const funnels = await funnelService.fetchFunnels(currentUserId);
 
@@ -1357,196 +1374,242 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     })}
                 </div>
 
-                {activeSection === 'funnels' && (
-                    <div className="space-y-8">
-                        <div className="mb-8 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="material-symbols-outlined text-indigo-600">science</span>
-                                <h3 className="text-sm font-bold text-slate-800">Test Configuration</h3>
+                <div className="space-y-8">
+                    <div className="mb-8 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="material-symbols-outlined text-indigo-600">science</span>
+                            <h3 className="text-sm font-bold text-slate-800">Test Configuration</h3>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex-1 max-w-md">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Test Phone Number (for SMS & Voice)</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        placeholder="+15550000000"
+                                        className={`w-full text-sm border rounded-lg pl-9 p-2.5 ${!isTestPhoneValid && testPhone ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-indigo-200'}`}
+                                        value={testPhone}
+                                        onChange={(e) => setTestPhone(e.target.value)}
+                                    />
+                                    <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-slate-400 text-[18px]">smartphone</span>
+                                </div>
+                                {!isTestPhoneValid && testPhone && (
+                                    <p className="text-[10px] text-red-500 mt-1">
+                                        Please use E.164 format (e.g. +12125551212)
+                                    </p>
+                                )}
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    Enter your mobile number to receive test calls and texts from your AI.
+                                </p>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-4">
-                                <div className="flex-1 max-w-md">
-                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Test Phone Number (for SMS & Voice)</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            placeholder="+15550000000"
-                                            className={`w-full text-sm border rounded-lg pl-9 p-2.5 ${!isTestPhoneValid && testPhone ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-indigo-200'}`}
-                                            value={testPhone}
-                                            onChange={(e) => setTestPhone(e.target.value)}
-                                        />
-                                        <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-slate-400 text-[18px]">smartphone</span>
-                                    </div>
-                                    {!isTestPhoneValid && testPhone && (
-                                        <p className="text-[10px] text-red-500 mt-1">
-                                            Please use E.164 format (e.g. +12125551212)
-                                        </p>
-                                    )}
-                                    <p className="text-[10px] text-slate-400 mt-1">
-                                        Enter your mobile number to receive test calls and texts from your AI.
-                                    </p>
+                            <div className="flex-1 max-w-md">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Test Email Address</label>
+                                <div className="relative">
+                                    <input
+                                        type="email"
+                                        placeholder="you@example.com"
+                                        className="w-full text-sm border border-slate-200 rounded-lg pl-9 p-2.5 focus:ring-indigo-200 focus:border-indigo-500"
+                                        value={testEmail}
+                                        onChange={(e) => setTestEmail(e.target.value)}
+                                    />
+                                    <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-slate-400 text-[18px]">email</span>
                                 </div>
-                                <div className="flex-1 max-w-md">
-                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Test Email Address</label>
-                                    <div className="relative">
-                                        <input
-                                            type="email"
-                                            placeholder="you@example.com"
-                                            className="w-full text-sm border border-slate-200 rounded-lg pl-9 p-2.5 focus:ring-indigo-200 focus:border-indigo-500"
-                                            value={testEmail}
-                                            onChange={(e) => setTestEmail(e.target.value)}
-                                        />
-                                        <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-slate-400 text-[18px]">email</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 mt-1">
-                                        Enter an email to receive your test blasts (defaults to your login email).
-                                    </p>
-                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    Enter an email to receive your test blasts (defaults to your login email).
+                                </p>
                             </div>
                         </div>
-
-                        {renderFunnelPanel('welcome', {
-                            badgeIcon: 'filter_alt',
-                            badgeClassName: 'bg-emerald-50 text-emerald-700',
-                            badgeLabel: 'Default Funnel',
-                            title: 'Universal Welcome Drip',
-                            description:
-                                'Every new chatbot lead lands here automatically. Edit the copy, delays, or add extra steps whenever you’re ready.',
-                            iconColorClass: 'text-primary-600',
-                            steps: welcomeSteps,
-                            expandedIds: expandedStepIds,
-                            onToggleStep: toggleStep,
-                            onUpdateStep: handleUpdateStep,
-                            onRemoveStep: handleRemoveWelcomeStep,
-                            onAddStep: handleAddWelcomeStep,
-                            onSave: handleSaveWelcomeSteps,
-                            saveLabel: 'Save Welcome Drip',
-                            onSendTest: handleSendTest
-                        })}
-
-                        {renderFunnelPanel('buyer', {
-                            badgeIcon: 'hub',
-                            badgeClassName: 'bg-blue-50 text-blue-700',
-                            badgeLabel: '5-Step Journey',
-                            title: 'AI-Powered Homebuyer Journey',
-                            description:
-                                'Guide serious buyers from first chat to offer-ready with schedulers, automations, and personal touches.',
-                            iconColorClass: 'text-blue-600',
-                            steps: homeBuyerSteps,
-                            expandedIds: expandedBuyerStepIds,
-                            onToggleStep: toggleBuyerStep,
-                            onUpdateStep: handleUpdateBuyerStep,
-                            onRemoveStep: handleRemoveBuyerStep,
-                            onAddStep: handleAddBuyerStep,
-                            onSave: handleSaveBuyerSteps,
-                            saveLabel: 'Save Buyer Journey',
-                            onSendTest: handleSendTest
-                        })}
-
-                        {renderFunnelPanel('listing', {
-                            badgeIcon: 'campaign',
-                            badgeClassName: 'bg-orange-50 text-orange-700',
-                            badgeLabel: 'Seller Storytelling',
-                            title: 'AI-Powered Seller Funnel',
-                            description:
-                                'Show clients how the concierge tells their story, tracks interest, and keeps the listing talking all week.',
-                            iconColorClass: 'text-orange-600',
-                            steps: listingSteps,
-                            expandedIds: expandedListingStepIds,
-                            onToggleStep: toggleListingStep,
-                            onUpdateStep: handleUpdateListingStep,
-                            onRemoveStep: handleRemoveListingStep,
-                            onAddStep: handleAddListingStep,
-                            onSave: handleSaveListingSteps,
-                            saveLabel: 'Save Seller Funnel',
-                            onSendTest: handleSendTest
-                        })}
-
-                        {renderFunnelPanel('post', {
-                            badgeIcon: 'mail',
-                            badgeClassName: 'bg-purple-50 text-purple-700',
-                            badgeLabel: 'Post-Showing',
-                            title: 'After-Showing Follow-Up',
-                            description: 'Spin up smart follow-ups with surveys, urgency nudges, and agent reminders in one place.',
-                            iconColorClass: 'text-purple-600',
-                            steps: postShowingSteps,
-                            expandedIds: expandedPostStepIds,
-                            onToggleStep: togglePostStep,
-                            onUpdateStep: handleUpdatePostStep,
-                            onRemoveStep: handleRemovePostStep,
-                            onAddStep: handleAddPostStep,
-                            onSave: handleSavePostSteps,
-                            saveLabel: 'Save Follow-Up',
-                            onSendTest: handleSendTest
-                        })}
                     </div>
-                )}
 
-                {activeSection === 'scoring' && (
-                    <div className="bg-white border-y border-slate-200 md:border md:rounded-2xl p-6 shadow-sm">
-                        <div className="mb-6 space-y-2">
-                            <p className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
-                                <span className="material-symbols-outlined text-base">workspace_premium</span>
-                                Lead Scoring Engine
-                            </p>
-                            <h2 className="text-2xl font-bold text-slate-900">Scoring Rules & Tiers</h2>
-                            <p className="text-sm text-slate-500">
-                                See the rules, tiers, and point gains that determine which prospects graduate to Hot or stay in nurture.
-                            </p>
-                        </div>
-                        <AnalyticsPage isDemoMode={isDemoMode} />
-                    </div>
-                )}
-
-                {activeSection === 'feedback' && (
-                    <div className="bg-white border-y border-slate-200 md:border md:rounded-2xl p-6 shadow-sm">
-                        <div className="mb-6 space-y-2">
-                            <p className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                                <span className="material-symbols-outlined text-base">auto_fix_high</span>
-                                Sequence Feedback
-                            </p>
-                            <h2 className="text-2xl font-bold text-slate-900">Automation Performance</h2>
-                            <p className="text-sm text-slate-500">
-                                Compare reply rates, openings, and meeting bookings for every drip so you know where to iterate next.
-                            </p>
-                        </div>
-                        <SequenceFeedbackPanel isDemoMode={isDemoMode} />
-                    </div>
-                )}
-            </div>
-            {isQuickEmailOpen && <QuickEmailModal onClose={() => setIsQuickEmailOpen(false)} isDemoMode={isDemoMode} />}
-
-            <SignatureEditorModal
-                isOpen={isSignatureModalOpen}
-                onClose={() => setIsSignatureModalOpen(false)}
-                initialSignature={customSignature || `Best regards,<br/><strong>${sampleMergeData.agent.name}</strong><br/>${sampleMergeData.agent.phone}`}
-                onSave={setCustomSignature}
-            />
-            {/* Mobile Fixed Navigation Bar */}
-            {
-                !isEmbedded && (
-                    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 md:hidden flex justify-around items-center px-2 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                        {highlightCards.map((card) => {
-                            const isActive = activeSection === card.targetSection;
-                            return (
+                    {/* Highlight Cards - Now Collapsible Sections */}
+                    <div className="grid grid-cols-1 gap-6">
+                        {/* AI Funnels Section */}
+                        <div id="section-funnels" className="space-y-6">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-sky-50 text-sky-600 rounded-lg">
+                                        <span className="material-symbols-outlined">insights</span>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-slate-800">AI Funnels</h2>
+                                        <p className="text-sm text-slate-500">Manage your automated conversion paths.</p>
+                                    </div>
+                                </div>
                                 <button
-                                    key={card.id}
-                                    onClick={() => setActiveSection(card.targetSection)}
-                                    className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all ${isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                    onClick={() => toggleSection('funnels')}
+                                    className={`p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-transform duration-200 ${sectionExpanded['funnels'] ? 'rotate-180' : ''}`}
                                 >
-                                    <span className={`material-symbols-outlined text-2xl mb-0.5 ${isActive ? 'filled' : ''}`}>
-                                        {card.icon}
-                                    </span>
-                                    <span className="text-[10px] font-medium leading-none">
-                                        {card.title.replace('Live ', '').replace('Engine', '').replace('Sequence ', '')}
-                                    </span>
+                                    <span className="material-symbols-outlined">expand_more</span>
                                 </button>
-                            );
-                        })}
+                            </div>
+
+                            {sectionExpanded['funnels'] && (
+                                <div className="space-y-8">
+                                    {/* Funnel Panels */}
+                                    {renderFunnelPanel('welcome', {
+                                        badgeIcon: 'thunderstorm',
+                                        badgeClassName: 'bg-teal-50 text-teal-700',
+                                        badgeLabel: 'New Lead Welcome',
+                                        title: 'Instant AI Welcome',
+                                        description: 'Chatbot fires a warm intro email + SMS within 2 minutes.',
+                                        iconColorClass: 'text-teal-600',
+                                        steps: welcomeSteps,
+                                        expandedIds: expandedStepIds,
+                                        onToggleStep: toggleStep,
+                                        onUpdateStep: handleUpdateStep,
+                                        onRemoveStep: handleRemoveWelcomeStep,
+                                        onAddStep: handleAddWelcomeStep,
+                                        onSave: handleSaveWelcomeSteps,
+                                        saveLabel: 'Save Welcome Sequence',
+                                        onSendTest: handleSendTest
+                                    })}
+
+                                    {renderFunnelPanel('buyer', {
+                                        badgeIcon: 'bolt',
+                                        badgeClassName: 'bg-indigo-50 text-indigo-700',
+                                        badgeLabel: 'Buyer Nurture',
+                                        title: 'Buyer Journey',
+                                        description: 'Automated check-ins to qualify buyers and book tours.',
+                                        iconColorClass: 'text-indigo-600',
+                                        steps: homeBuyerSteps,
+                                        expandedIds: expandedBuyerStepIds,
+                                        onToggleStep: toggleBuyerStep,
+                                        onUpdateStep: handleUpdateBuyerStep,
+                                        onRemoveStep: handleRemoveBuyerStep,
+                                        onAddStep: handleAddBuyerStep,
+                                        onSave: handleSaveBuyerSteps,
+                                        saveLabel: 'Save Buyer Journey',
+                                        onSendTest: handleSendTest
+                                    })}
+
+                                    {renderFunnelPanel('listing', {
+                                        badgeIcon: 'auto_fix_high',
+                                        badgeClassName: 'bg-purple-50 text-purple-700',
+                                        badgeLabel: 'Seller Nurture',
+                                        title: 'Listing Prep & Story',
+                                        description: 'Guide sellers through the "Home Story" process.',
+                                        iconColorClass: 'text-purple-600',
+                                        steps: listingSteps,
+                                        expandedIds: expandedListingStepIds,
+                                        onToggleStep: toggleListingStep,
+                                        onUpdateStep: handleUpdateListingStep,
+                                        onRemoveStep: handleRemoveListingStep,
+                                        onAddStep: handleAddListingStep,
+                                        onSave: handleSaveListingSteps,
+                                        saveLabel: 'Save Seller Flow',
+                                        onSendTest: handleSendTest
+                                    })}
+
+                                    {renderFunnelPanel('post', {
+                                        badgeIcon: 'mail',
+                                        badgeClassName: 'bg-amber-50 text-amber-700',
+                                        badgeLabel: 'Showing Follow-Up',
+                                        title: 'Post-Showing Feedback',
+                                        description: 'Auto-chase buyers for feedback after a tour.',
+                                        iconColorClass: 'text-amber-600',
+                                        steps: postShowingSteps,
+                                        expandedIds: expandedPostStepIds,
+                                        onToggleStep: togglePostStep,
+                                        onUpdateStep: handleUpdatePostStep,
+                                        onRemoveStep: handleRemovePostStep,
+                                        onAddStep: handleAddPostStep,
+                                        onSave: handleSavePostSteps,
+                                        saveLabel: 'Save Follow-Up',
+                                        onSendTest: handleSendTest
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Lead Scoring Section */}
+                        <div id="section-scoring" className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                            <div
+                                className="flex items-center justify-between p-6 cursor-pointer hover:bg-slate-50 transition-colors"
+                                onClick={() => toggleSection('scoring')}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                                        <span className="material-symbols-outlined text-2xl">workspace_premium</span>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-slate-800">Lead Scoring Engine</h2>
+                                        <p className="text-sm text-slate-500">Rules & tiers for qualifying prospects</p>
+                                    </div>
+                                </div>
+                                <div className={`p-2 rounded-full bg-slate-100 text-slate-500 transition-transform duration-200 ${sectionExpanded['scoring'] ? 'rotate-180' : ''}`}>
+                                    <span className="material-symbols-outlined">expand_more</span>
+                                </div>
+                            </div>
+
+                            {sectionExpanded['scoring'] && (
+                                <div className="border-t border-slate-200">
+                                    <AnalyticsPage variant="embedded" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Sequence Feedback Section */}
+                        <div id="section-feedback" className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                            <div
+                                className="flex items-center justify-between p-6 cursor-pointer hover:bg-slate-50 transition-colors"
+                                onClick={() => toggleSection('feedback')}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                                        <span className="material-symbols-outlined text-2xl">auto_fix_high</span>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-slate-800">Sequence Feedback</h2>
+                                        <p className="text-sm text-slate-500">Automation performance & reply rates</p>
+                                    </div>
+                                </div>
+                                <div className={`p-2 rounded-full bg-slate-100 text-slate-500 transition-transform duration-200 ${sectionExpanded['feedback'] ? 'rotate-180' : ''}`}>
+                                    <span className="material-symbols-outlined">expand_more</span>
+                                </div>
+                            </div>
+
+                            {sectionExpanded['feedback'] && (
+                                <div className="p-6 border-t border-slate-200">
+                                    <SequenceFeedbackPanel isDemoMode={isDemoMode} userId={userId} isBlueprintMode={isBlueprintMode} />
+                                </div>
+                            )}
+                        </div>
                     </div>
-                )
-            }
-        </div >
+                </div>
+                {isQuickEmailOpen && <QuickEmailModal onClose={() => setIsQuickEmailOpen(false)} isDemoMode={isDemoMode} />}
+
+                <SignatureEditorModal
+                    isOpen={isSignatureModalOpen}
+                    onClose={() => setIsSignatureModalOpen(false)}
+                    initialSignature={customSignature || `Best regards,<br/><strong>${sampleMergeData.agent.name}</strong><br/>${sampleMergeData.agent.phone}`}
+                    onSave={setCustomSignature}
+                />
+                {/* Mobile Fixed Navigation Bar */}
+                {
+                    !isEmbedded && (
+                        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 md:hidden flex justify-around items-center px-2 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                            {highlightCards.map((card) => {
+                                const isActive = activeSection === card.targetSection;
+                                return (
+                                    <button
+                                        key={card.id}
+                                        onClick={() => setActiveSection(card.targetSection)}
+                                        className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all ${isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <span className={`material-symbols-outlined text-2xl mb-0.5 ${isActive ? 'filled' : ''}`}>
+                                            {card.icon}
+                                        </span>
+                                        <span className="text-[10px] font-medium leading-none">
+                                            {card.title.replace('Live ', '').replace('Engine', '').replace('Sequence ', '')}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )
+                }
+            </div>
+        </div>
     );
 };
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BillingSettings } from '../../types';
+import { BillingSettings, AgentProfile } from '../../types';
 import { FeatureSection } from './SettingsCommon';
 
 interface BillingSettingsProps {
@@ -7,12 +7,16 @@ interface BillingSettingsProps {
     onSave: (settings: BillingSettings) => Promise<void>;
     onBack?: () => void;
     isLoading?: boolean;
+    isBlueprintMode?: boolean;
+    agentProfile?: AgentProfile;
 }
 
 const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
     settings,
     onSave: _onSave,
     onBack: _onBack,
+    isBlueprintMode,
+    agentProfile
 }) => {
     const [showBillingTips, setShowBillingTips] = useState(false);
     const [isRedirecting, setIsRedirecting] = useState(false);
@@ -20,19 +24,63 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
     const planStatusBadges: Record<string, string> = {
         active: 'bg-green-100 text-green-700 border-green-200',
         past_due: 'bg-red-100 text-red-700 border-red-200',
-        canceled: 'bg-slate-100 text-slate-700 border-slate-200',
+        cancelled: 'bg-slate-100 text-slate-700 border-slate-200',
         trialing: 'bg-blue-100 text-blue-700 border-blue-200',
     };
 
     const planStatusLabels: Record<string, string> = {
         active: 'Active',
         past_due: 'Past Due',
-        canceled: 'Canceled',
+        cancelled: 'Cancelled',
         trialing: 'Trial',
+    };
+
+    const handleCheckout = async (provider: string = 'stripe') => {
+        setIsRedirecting(true);
+        try {
+            const slug = agentProfile?.slug;
+
+            if (!slug) {
+                alert('Account configuration error: No slug found.');
+                setIsRedirecting(false);
+                return;
+            }
+
+            const response = await fetch('/api/payments/checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    slug: slug,
+                    provider,
+                })
+            });
+
+            const data = await response.json();
+            if (data.success && data.session?.url) {
+                window.location.href = data.session.url;
+            } else {
+                console.error('Checkout Error:', data.error);
+                alert('Failed to start checkout: ' + (data.error || 'Unknown error'));
+                setIsRedirecting(false);
+            }
+        } catch (error) {
+            console.error('Checkout Request Error:', error);
+            alert('An error occurred. Please try again.');
+            setIsRedirecting(false);
+        }
     };
 
     const handlePortalSession = async () => {
         setIsRedirecting(true);
+
+        if (isBlueprintMode) {
+            setTimeout(() => {
+                alert('This feature is a demo simulation. In production, this would redirect to the Stripe Customer Portal.');
+                setIsRedirecting(false);
+            }, 800);
+            return;
+        }
+
         try {
             const { supabase } = await import('../../services/supabase');
             const { data: { user } } = await supabase.auth.getUser();
@@ -157,16 +205,29 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                             </div>
                         ))}
                     </div>
+
                     <div className="mt-6 flex flex-wrap gap-3">
-                        <button
-                            type="button"
-                            onClick={handlePortalSession}
-                            disabled={cancelButtonDisabled}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 bg-white/10 text-white transition-colors ${cancelButtonDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/20'}`}
-                        >
-                            <span className="material-symbols-outlined text-base">cancel</span>
-                            Cancel Plan
-                        </button>
+                        {settings.planStatus === 'cancelled' || settings.planStatus === 'past_due' ? (
+                            <button
+                                type="button"
+                                onClick={() => handleCheckout('stripe')}
+                                disabled={isRedirecting}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-primary-700 font-semibold shadow hover:bg-slate-50 transition-colors ${isRedirecting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            >
+                                <span className="material-symbols-outlined text-base">rocket_launch</span>
+                                {isRedirecting ? 'Opening checkout...' : 'Re-activate Subscription'}
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={handlePortalSession}
+                                disabled={cancelButtonDisabled}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 bg-white/10 text-white transition-colors ${cancelButtonDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/20'}`}
+                            >
+                                <span className="material-symbols-outlined text-base">cancel</span>
+                                Cancel Plan
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={handleContactSupport}
@@ -177,6 +238,37 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                         </button>
                     </div>
                     <p className="mt-2 text-xs text-white/90">Changes to your subscription are managed securely through your configured payment provider.</p>
+                </div>
+            </FeatureSection>
+
+            {/* Usage Stats (New) */}
+            <FeatureSection title="Usage & Limits" icon="bar_chart">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-slate-500 text-sm font-medium">AI Voice Minutes</span>
+                            <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-semibold">
+                                {settings.usage?.voiceMinutes || 0} / ∞ used
+                            </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
+                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: '5%' }}></div>
+                        </div>
+                        <p className="text-xs text-slate-400">Unlimited minutes included in Pro Plan.</p>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-slate-500 text-sm font-medium">SMS Sent</span>
+                            <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-semibold">
+                                {settings.usage?.smsCount || 0} / ∞ used
+                            </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
+                            <div className="bg-green-500 h-2 rounded-full" style={{ width: '5%' }}></div>
+                        </div>
+                        <p className="text-xs text-slate-400">Unlimited SMS included in Pro Plan.</p>
+                    </div>
                 </div>
             </FeatureSection>
 
@@ -234,8 +326,6 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                     )}
                 </div>
             </FeatureSection>
-
-            {/* Footer removed as per consistency update */}
         </div>
     );
 };

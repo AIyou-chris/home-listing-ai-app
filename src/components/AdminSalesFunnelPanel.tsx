@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import QuickEmailModal from './QuickEmailModal';
+import EmailTemplateModal from './EmailTemplateModal';
 import { EmailEditor } from './EmailEditor';
 import SignatureEditorModal from './SignatureEditorModal';
 import { supabase } from '../services/supabase';
@@ -36,68 +37,87 @@ export type EditableStep = {
     subject: string;
     content: string;
     callType?: 'agent' | 'sales';
+    previewText?: string;
     attachments?: Array<{ id: string; name: string; url?: string }>;
 };
 
 const buildDefaultSteps = (): EditableStep[] => ([
     {
         id: `${UNIVERSAL_FUNNEL_ID}-1`,
-        title: 'The Market is Changing Fast',
-        description: 'Introduce urgency and the need for modern tech',
-        icon: 'bolt',
+        title: 'How Many 2 AM Showings Did You Have This Week?',
+        description: 'Agents are closing deals in their sleep — literally.',
+        icon: 'warning',
         delay: 'Immediate (Day 0)',
         type: 'Email',
-        subject: 'The market is moving fast — here’s how to stay ahead',
-        content:
-            'Hi {{lead.firstName}},\n\nToday’s market rewards speed and modern tech. See how AI sidekicks keep you ahead of competitors and close faster.\n\nTake a look here: {{agent.aiCardUrl}}\n\nTalk soon,\n{{agent.signature}}',
+        subject: 'How many 2 A.M. showings did you do this week? 😴',
+        previewText: 'You\'re working too hard — let AI take the night shift.',
+        content: `Hey {{LEAD.NAME}},
+
+Be honest — how many 2 A.M. showings or "just checking in" texts did you send this week?
+
+Yeah... same. The market's quiet, but your burnout's not.
+
+Meanwhile, smart agents are sleeping through the chaos while Natural Lead AI books their next clients automatically.
+
+And right now, you can try it free for 7 days — and if you love it, keep it for just $69/month.
+
+That’s less than one dead “exclusive” lead that never calls back.
+
+👉 [Start your 7-Day Free Trial – $69/month after]
+
+Talk with you soon,
+{{AGENT.NAME}}
+{{AGENT.PHONE}}
+{{AGENT.AICARDURL}}`,
         attachments: []
     },
     {
         id: `${UNIVERSAL_FUNNEL_ID}-2`,
-        title: 'You’re Falling Behind (But You Don’t Have To)',
-        description: 'Highlight outdated tools vs AI sidekicks',
-        icon: 'trending_down',
-        delay: '+2 days',
+        title: 'The Leak-Proof Bucket',
+        description: 'Explain the system logic',
+        icon: 'water_drop',
+        delay: '+1 days',
         type: 'Email',
-        subject: 'Don’t let outdated tools slow you down',
+        subject: 'Your bucket has a hole in it',
+        previewText: 'Stop losing leads to bad follow-up.',
         content:
-            'Hi {{lead.firstName}},\n\nMost agents are stuck with old workflows. Our AI sidekicks handle follow-ups, scheduling, and responses instantly so you don’t miss a lead.\n\nCTA: Book a demo.\n\n{{agent.signature}}',
+            'Hi {{lead.firstName}},\n\nYou spend thousands on leads, but 90% of them leak out of your funnel because you follow up once and give up.\n\nMy "Leak-Proof Bucket" system nurtures every single lead for 12 months automatically. It never sleeps, never takes a day off, and never forgets to call.\n\nDo you want to plug the holes? \n\nCTA: Watch the demo.\n\n{{agent.signature}}',
         attachments: []
     },
     {
         id: `${UNIVERSAL_FUNNEL_ID}-3`,
-        title: 'Grow Your Pipeline, Not Just Your To-Do List',
-        description: 'Show automation and smarter workflows',
-        icon: 'auto_awesome',
-        delay: '+4 days',
+        title: 'Aggressive Value Drop',
+        description: 'Provide undeniable proof',
+        icon: 'verified',
+        delay: '+3 days',
         type: 'Email',
-        subject: 'Grow your pipeline without adding more tasks',
+        subject: 'I did the math for you',
         content:
-            'Hi {{lead.firstName}},\n\nAutomations, funnels, and AI sidekicks keep your pipeline active while you focus on high-value conversations.\n\nCTA: Try the lead import tool.\n\n{{agent.signature}}',
+            'Hi {{lead.firstName}},\n\nI looked at your market. Agents using AI assistants are closing 30% more deals with 80% less effort.\n\nThis isn\'t magic. It\'s just superior technology.\n\nI\'m not asking you to change your brokerage. I\'m asking you to upgrade your engine.\n\nAre you ready to win?\n\n{{agent.signature}}',
         attachments: []
     },
     {
         id: `${UNIVERSAL_FUNNEL_ID}-4`,
-        title: 'Real Stories, Real Results',
-        description: 'Share success stories and optional case study',
-        icon: 'insights',
-        delay: '+6 days',
+        title: 'The Takeaway',
+        description: 'Create Fear Of Missing Out',
+        icon: 'block',
+        delay: '+5 days',
         type: 'Email',
-        subject: 'How top agents are winning with AI (real results)',
+        subject: 'Is this goodbye?',
         content:
-            'Hi {{lead.firstName}},\n\nHere’s how teams are booking more appointments and closing faster with our platform. Optional: attach a case study.\n\nCTA: Join our private user group.\n\n{{agent.signature}}',
+            'Hi {{lead.firstName}},\n\nI haven\'t heard back, so I assume you\'re content with your current conversion rates.\n\nI\'m going to focus on agents who are hungry to dominate the market this year. If you change your mind and want to stop losing leads to faster competitors, you know where to find me.\n\nBest of luck,\n{{agent.signature}}',
         attachments: []
     },
     {
         id: `${UNIVERSAL_FUNNEL_ID}-5`,
-        title: 'Your AI Assistant is Waiting',
-        description: 'Urgency to onboard now',
-        icon: 'schedule_send',
-        delay: '+8 days',
+        title: 'The Hail Mary',
+        description: 'Final attempt to re-engage',
+        icon: 'priority_high',
+        delay: '+14 days',
         type: 'Email',
-        subject: 'Your AI assistant is ready — don’t let competitors jump ahead',
+        subject: ' One last thing before I go...',
         content:
-            'Hi {{lead.firstName}},\n\nEvery day you wait, someone else gets ahead. Let’s launch your AI sidekick so you never miss another opportunity.\n\nCTA: Schedule your onboarding call now.\n\n{{agent.signature}}',
+            'Hi {{lead.firstName}},\n\nOkay, I lied. I can\'t let you leave money on the table.\n\nHere is a free case study on how a solo agent doubled their GCI in 90 days using this exact AI system.\n\nNo strings attached. Just read it.\n\n[Link to Case Study]\n\n{{agent.signature}}',
         attachments: []
     }
 ]);
@@ -129,8 +149,10 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
     const [previewAgent, setPreviewAgent] = useState<AICardProfile | null>(null);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'funnel' | 'analytics'>('funnel');
-
     const [customSignature, setCustomSignature] = useState<string>('');
+
+    // Library Modal State for EDITOR
+    const [activeStepIdForLibrary, setActiveStepIdForLibrary] = useState<string | null>(null);
 
     // Load AI Card Profile for Signature/Preview
     useEffect(() => {
@@ -246,7 +268,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                     phone: previewAgent.phone,
                     company: previewAgent.company,
                     aiCardUrl: previewAgent.website || `https://homelistingai.com/card/${user?.id || 'default'}`,
-                    signature: `Best,\n${name}\n${previewAgent.professionalTitle || ''}\n${previewAgent.company}\n${previewAgent.phone}\n${`https://homelistingai.com/card/${user?.id || 'default'}`}`
+                    signature: customSignature || `Best,\n${name}\n${previewAgent.professionalTitle || ''}\n${previewAgent.company}\n${previewAgent.phone}\n${`https://homelistingai.com/card/${user?.id || 'default'}`}`
                 };
             } else {
                 realAgentData = {
@@ -255,7 +277,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                     phone: metadata.phone || '',
                     company: metadata.company || 'HomeListingAI',
                     aiCardUrl: `https://homelistingai.com/card/${user?.id || 'default'}`,
-                    signature: `Best,\n${metadata.name || 'Admin'}\n${metadata.company || 'HomeListingAI'}\n${metadata.phone || ''}\n${`https://homelistingai.com/card/${user?.id || 'default'}`}`
+                    signature: customSignature || `Best,\n${metadata.name || 'Admin'}\n${metadata.company || 'HomeListingAI'}\n${metadata.phone || ''}\n${`https://homelistingai.com/card/${user?.id || 'default'}`}`
                 };
             }
 
@@ -392,6 +414,16 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                     } else {
                         setProgramSteps(buildDefaultSteps());
                     }
+
+                    // AUTO-UPGRADE LEGACY DEFAULT
+                    // If the database has the old "Market is Changing" default, overwrite it with the new "In Your Face" default
+                    if (visibleSteps.length > 0 && visibleSteps[0].title === 'The Market is Changing Fast') {
+                        console.log('Detected Legacy Default Funnel. Upgrading to In-Your-Face version.');
+                        const newDefaults = buildDefaultSteps();
+                        setProgramSteps(newDefaults);
+                        // Optional: Auto-save immediately or just let user save
+                    }
+
                 } else {
                     setProgramSteps(buildDefaultSteps());
                 }
@@ -445,6 +477,11 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
         setDebugMsg('Saving via Admin Proxy...');
 
         try {
+            // AUTH DEBUG: Check what we are sending
+            const token = await authService.getAuthToken();
+            const currentUser = await authService.getCurrentAgentProfile();
+            console.log('[Frontend-Save] Auth Check:', { hasToken: !!token, userId: currentUser?.id });
+
             // Prepare Steps with Metadata (Hidden Signature Step)
             const stepsToSave = [...programSteps];
             // Removed deprecated custom signature saving logic
@@ -585,6 +622,18 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                                 {/* LEFT COL: EDIT */}
                                                 <div className="space-y-4">
+
+                                                    {/* TOKENS BAR (RESTORED) */}
+                                                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-xs text-slate-500 font-mono overflow-x-auto whitespace-nowrap mb-4 flex items-center gap-2">
+                                                        <span className="font-bold text-slate-700 mr-2">TOKENS:</span>
+                                                        <span className="bg-white border rounded px-1 text-xs cursor-pointer hover:bg-indigo-50" title="Click to copy">{'{{LEAD.NAME}}'}</span>
+                                                        <span className="bg-white border rounded px-1 text-xs cursor-pointer hover:bg-indigo-50" title="Click to copy">{'{{LEAD.INTERESTADDRESS}}'}</span>
+                                                        <span className="bg-white border rounded px-1 text-xs cursor-pointer hover:bg-indigo-50" title="Click to copy">{'{{AGENT.NAME}}'}</span>
+                                                        <span className="bg-white border rounded px-1 text-xs cursor-pointer hover:bg-indigo-50" title="Click to copy">{'{{AGENT.PHONE}}'}</span>
+                                                        <span className="bg-white border rounded px-1 text-xs cursor-pointer hover:bg-indigo-50" title="Click to copy">{'{{AGENT.AICARDURL}}'}</span>
+                                                        <span className="bg-white border rounded px-1 text-xs cursor-pointer hover:bg-indigo-50" title="Click to copy">{'{{AGENT.SIGNATURE}}'}</span>
+                                                    </div>
+
                                                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Editor</h4>
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <label className="text-xs font-semibold text-slate-600">
@@ -620,13 +669,37 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                                                     </label>
 
                                                     <label className="block text-xs font-semibold text-slate-600">
-                                                        Subject Line
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span>Subject Line</span>
+                                                            {step.type !== 'Call' && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setActiveStepIdForLibrary(step.id)}
+                                                                    className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 hover:bg-indigo-100 font-medium flex items-center gap-1"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-[10px]">library_books</span>
+                                                                    Use Template
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                         <input
                                                             className={`mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${step.type === 'Call' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}
                                                             value={step.type === 'Call' ? '' : step.subject}
                                                             onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
                                                             disabled={step.type === 'Call'}
                                                             placeholder={step.type === 'Call' ? 'Not used for AI Calls' : ''}
+                                                        />
+                                                    </label>
+
+                                                    {/* Preview Text (NEW) */}
+                                                    <label className="block text-xs font-semibold text-slate-600">
+                                                        Preview Text <span className="font-normal text-slate-400">(Shown in inbox list view)</span>
+                                                        <input
+                                                            className={`mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${step.type === 'Call' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}
+                                                            value={step.type === 'Call' ? '' : (step.previewText || '')}
+                                                            onChange={(e) => onUpdateStep(step.id, 'previewText', e.target.value)}
+                                                            disabled={step.type === 'Call'}
+                                                            placeholder={step.type === 'Call' ? 'Not used for AI Calls' : 'Brief summary shown before opening...'}
                                                         />
                                                     </label>
                                                     <label className="block text-xs font-semibold text-slate-600">
@@ -900,60 +973,23 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                     </div>
                 </header>
 
-                {/* Tab Switcher */}
-                <div className="mb-6 border-b border-slate-200">
-                    <div className="flex gap-1">
-                        <button
-                            onClick={() => setActiveTab('funnel')}
-                            className={`px-6 py-3 font-semibold text-sm transition-all relative ${activeTab === 'funnel'
-                                ? 'text-indigo-700 border-b-2 border-indigo-600'
-                                : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                        >
-                            <span className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">campaign</span>
-                                Funnel Editor
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('analytics')}
-                            className={`px-6 py-3 font-semibold text-sm transition-all relative ${activeTab === 'analytics'
-                                ? 'text-indigo-700 border-b-2 border-indigo-600'
-                                : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                        >
-                            <span className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">query_stats</span>
-                                Funnel Analytics
-                            </span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Render Funnel Editor or Analytics based on active tab */}
-                {activeTab === 'funnel' ? (
-                    renderFunnelPanel('universal', {
-                        badgeIcon: 'bolt',
-                        badgeClassName: 'bg-indigo-100 text-indigo-700',
-                        badgeLabel: 'Universal Sales Funnel',
-                        title: 'Agent Acquisition Sequence',
-                        description: 'Automated 5-touch drip to convert real estate agents.',
-                        iconColorClass: 'text-indigo-600',
-                        steps: programSteps,
-                        expandedIds: expandedProgramStepIds,
-                        onToggleStep: toggleProgramStep,
-                        onUpdateStep: handleUpdateProgramStep,
-                        onRemoveStep: handleRemoveProgramStep,
-                        onAddStep: handleAddProgramStep,
-                        onSave: handleSaveProgramSteps,
-                        saveLabel: 'Save Changes'
-                    })
-                ) : (
-                    <AdminFunnelAnalytics
-                        funnelId={UNIVERSAL_FUNNEL_ID}
-                        steps={programSteps.map(s => ({ id: s.id, title: s.title }))}
-                    />
-                )}
+                {/* Render Funnel Panel Directly (No Tabs) */}
+                {renderFunnelPanel('universal', {
+                    badgeIcon: 'bolt',
+                    badgeClassName: 'bg-indigo-100 text-indigo-700',
+                    badgeLabel: 'Universal Sales Funnel',
+                    title: 'Agent Acquisition Sequence',
+                    description: 'Automated 5-touch drip to convert real estate agents.',
+                    iconColorClass: 'text-indigo-600',
+                    steps: programSteps,
+                    expandedIds: expandedProgramStepIds,
+                    onToggleStep: toggleProgramStep,
+                    onUpdateStep: handleUpdateProgramStep,
+                    onRemoveStep: handleRemoveProgramStep,
+                    onAddStep: handleAddProgramStep,
+                    onSave: handleSaveProgramSteps,
+                    saveLabel: 'Save Changes'
+                })}
             </div>
             {isQuickEmailOpen && (
                 <QuickEmailModal
@@ -972,6 +1008,25 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                 }}
                 onClose={() => setIsSignatureModalOpen(false)}
             />
+
+            {/* Step Template Library */}
+            {activeStepIdForLibrary && (
+                <EmailTemplateModal
+                    onClose={() => setActiveStepIdForLibrary(null)}
+                    onSelectTemplate={(template) => {
+                        const stepId = activeStepIdForLibrary;
+                        if (stepId) {
+                            // Update Subject
+                            handleUpdateProgramStep(stepId, 'subject', template.subject);
+                            // Update Content
+                            handleUpdateProgramStep(stepId, 'content', template.content);
+                            // Set Preview Text if available (or default to subject hint)
+                            handleUpdateProgramStep(stepId, 'previewText', template.description || '');
+                        }
+                        setActiveStepIdForLibrary(null);
+                    }}
+                />
+            )}
         </div>
     );
 };

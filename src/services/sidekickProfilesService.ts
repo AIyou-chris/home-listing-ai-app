@@ -17,7 +17,7 @@ export const getListingProfile = async (
   listingId: string
 ): Promise<SidekickProfile | null> => {
   // Skip network calls in preview/local modes
-  if (!userId || userId === 'admin_local' || listingId === 'preview-id') {
+  if (!userId || userId === 'admin_local' || listingId === 'preview-id' || listingId.startsWith('demo-') || listingId.startsWith('blueprint-')) {
     return null
   }
   // 1) try per-listing profile

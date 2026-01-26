@@ -1,166 +1,153 @@
 import React, { useState, useEffect } from 'react';
+import { authService } from '../../services/authService';
 
 export const ColdEmailSettings: React.FC = () => {
-    const [dailyLimit, setDailyLimit] = useState(50);
     const [senderName, setSenderName] = useState('');
     const [senderEmail, setSenderEmail] = useState('');
     const [replyTo, setReplyTo] = useState('');
-    const [throttleCount, setThrottleCount] = useState(10);
-    const [throttleSeconds, setThrottleSeconds] = useState(30);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Mock loading from local storage/API
+    // Load settings from API
     useEffect(() => {
-        const saved = localStorage.getItem('cold_email_settings');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            setDailyLimit(parsed.dailyLimit || 50);
-            setSenderName(parsed.senderName || '');
-            setSenderEmail(parsed.senderEmail || '');
-            setReplyTo(parsed.replyTo || '');
-            setThrottleCount(parsed.throttleCount || 10);
-            setThrottleSeconds(parsed.throttleSeconds || 30);
-        }
+        const fetchIdentity = async () => {
+            try {
+                setIsLoading(true);
+                const response = await authService.makeAuthenticatedRequest('/api/agent/identity');
+                if (response.ok) {
+                    const data = await response.json();
+                    setSenderName(data.sender_name || '');
+                    setSenderEmail(data.sender_email || '');
+                    setReplyTo(data.sender_reply_to || '');
+                } else {
+                    console.error('Failed to fetch identity settings');
+                }
+            } catch (err) {
+                console.error('Error fetching identity:', err);
+                setError('Failed to load settings from server.');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchIdentity();
     }, []);
 
-    const handleSave = () => {
-        const settings = {
-            dailyLimit,
-            senderName,
-            senderEmail,
-            replyTo,
-            throttleCount,
-            throttleSeconds
-        };
-        localStorage.setItem('cold_email_settings', JSON.stringify(settings));
-        alert('Settings saved!');
+    const handleSave = async () => {
+        try {
+            setIsSaving(true);
+            setError(null);
+
+            const response = await authService.makeAuthenticatedRequest('/api/agent/identity', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    senderName,
+                    senderEmail,
+                    replyTo
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save identity');
+            }
+
+            alert('Identity settings synchronized with platform!');
+        } catch (err) {
+            console.error('Save error:', err);
+            setError('Could not save to server. Please check your connection.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
+    if (isLoading) {
+        return (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 flex flex-col items-center justify-center space-y-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <p className="text-sm text-slate-500 font-medium">Fetching identity status...</p>
+            </div>
+        );
+    }
+
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-8 animate-fadeIn">
             <div className="border-b border-slate-100 pb-4">
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-indigo-600">mail_lock</span>
-                    Cold Email Deliverability
+                    <span className="material-symbols-outlined text-indigo-600">verified_user</span>
+                    Sender Identity
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                    Configure limits and sender identity to maintain high reputation and avoid spam filters.
+                    Configure how you appear to your leads when the AI sends emails on your behalf.
                 </p>
             </div>
 
+            {error && (
+                <div className="bg-red-50 border border-red-100 text-red-700 p-4 rounded-xl text-xs font-medium flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm">error</span>
+                    {error}
+                </div>
+            )}
+
             {/* Sender Identity */}
             <div className="space-y-4">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Sender Identity</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">From Name</label>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1 font-bold">From Name</label>
                         <input
                             type="text"
                             className="w-full rounded-lg border-slate-200 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                             placeholder="e.g. John from HomeListingAI"
                             value={senderName}
                             onChange={(e) => setSenderName(e.target.value)}
+                            disabled={isSaving}
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">From Email (Verified Domain)</label>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1 font-bold">From Email (Verified Domain)</label>
                         <input
                             type="email"
                             className="w-full rounded-lg border-slate-200 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                             placeholder="john@yourdomain.com"
                             value={senderEmail}
                             onChange={(e) => setSenderEmail(e.target.value)}
+                            disabled={isSaving}
                         />
                     </div>
                 </div>
                 <div>
-                    <label className="block text-xs font-semibold text-slate-500 mb-1">Reply-To Address</label>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1 font-bold">Reply-To Address</label>
                     <input
                         type="email"
                         className="w-full rounded-lg border-slate-200 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                         placeholder="replies@yourdomain.com"
                         value={replyTo}
                         onChange={(e) => setReplyTo(e.target.value)}
+                        disabled={isSaving}
                     />
-                </div>
-            </div>
-
-            {/* Throttling & Limits */}
-            <div className="space-y-4">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Throttling & Limits</h3>
-
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                    <div className="flex flex-col gap-4">
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-500 mb-2">Daily Send Limit (Global)</label>
-                            <div className="flex items-center gap-4">
-                                <input
-                                    type="range"
-                                    min="10"
-                                    max="5000"
-                                    step="10"
-                                    className="flex-1 accent-indigo-600"
-                                    value={dailyLimit}
-                                    onChange={(e) => setDailyLimit(Number(e.target.value))}
-                                />
-                                <span className="text-sm font-bold text-indigo-700 min-w-[60px] text-right">{dailyLimit}</span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 mt-1">Start low (50/day) and increase gradually (warm-up).</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Batch Size (Emails per burst)</label>
-                                <input
-                                    type="number"
-                                    className="w-full rounded-lg border-slate-200 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                    value={throttleCount}
-                                    onChange={(e) => setThrottleCount(Number(e.target.value))}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Delay between bursts (Seconds)</label>
-                                <input
-                                    type="number"
-                                    className="w-full rounded-lg border-slate-200 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                    value={throttleSeconds}
-                                    onChange={(e) => setThrottleSeconds(Number(e.target.value))}
-                                />
-                            </div>
-                        </div>
-                        <div className="text-xs text-slate-500 italic bg-white p-2 rounded border border-slate-100">
-                            Example: Send <strong>{throttleCount}</strong> emails, then wait <strong>{throttleSeconds}</strong> seconds.
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* DNS Checklist (Static) */}
-            <div className="space-y-4">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">DNS Configuration Checklist</h3>
-                <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-                    <div className="flex items-start gap-3">
-                        <span className="material-symbols-outlined text-amber-600">warning</span>
-                        <div className="text-sm text-amber-800">
-                            <p className="font-bold mb-1">Required for Delivery</p>
-                            <p className="mb-2">Ensure you have added these records to your domain provider (GoDaddy, Namecheap, etc.):</p>
-                            <ul className="list-disc list-inside space-y-1 text-xs">
-                                <li><strong>SPF:</strong> <code>v=spf1 include:mailgun.org ~all</code></li>
-                                <li><strong>DKIM:</strong> Add the TXT record provided by your email service.</li>
-                                <li><strong>DMARC:</strong> <code>v=DMARC1; p=none; rua=mailto:dmarc-reports@yourdomain.com</code></li>
-                            </ul>
-                        </div>
-                    </div>
                 </div>
             </div>
 
             <div className="pt-4 flex justify-end">
                 <button
                     onClick={handleSave}
-                    className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md transition active:scale-95"
+                    disabled={isSaving}
+                    className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md transition active:scale-95 disabled:opacity-50 flex items-center gap-2"
                 >
-                    Save Settings
+                    {isSaving ? (
+                        <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Synchronizing...
+                        </>
+                    ) : (
+                        <>
+                            <span className="material-symbols-outlined text-lg">sync</span>
+                            Save & Sync Identity
+                        </>
+                    )}
                 </button>
             </div>
         </div>
     );
 };
+

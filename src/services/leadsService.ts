@@ -55,6 +55,7 @@ type LeadRow = {
   last_contact?: string | null
   active_sequences?: string[] | null
   funnel_type?: string | null
+  score?: number | null
 }
 
 const mapLeadRow = (row: LeadRow): Lead => {
@@ -82,7 +83,14 @@ const mapLeadRow = (row: LeadRow): Lead => {
     createdAt: createdAt ? createdAt.toISOString() : undefined,
     lastContact: row.last_contact || undefined,
     activeSequences: row.active_sequences || undefined,
-    funnelType
+    funnelType,
+    score: typeof row.score === 'number' ? {
+      totalScore: row.score,
+      tier: row.score >= 90 ? 'Hot' : row.score >= 70 ? 'Qualified' : row.score >= 40 ? 'Warm' : 'Cold',
+      leadId: row.id,
+      lastUpdated: row.created_at || new Date().toISOString(),
+      scoreHistory: []
+    } : undefined
   }
 }
 

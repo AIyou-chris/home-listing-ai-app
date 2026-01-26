@@ -20,7 +20,9 @@ export const funnelService = {
 
         try {
             // Use authenticated request for robust connectivity
-            const response = await authService.makeAuthenticatedRequest(`${API_BASE}/${userId}`);
+            const response = await authService.makeAuthenticatedRequest(`${API_BASE}/${userId}`, {
+                headers: { 'x-user-id': userId }
+            });
             if (!response.ok) {
                 if (response.status === 404) return {}; // Handle "No funnels yet" gracefully
                 throw new Error('Failed to fetch funnels');
@@ -62,19 +64,20 @@ export const funnelService = {
             // Use authenticated request for robust connectivity
             const response = await authService.makeAuthenticatedRequest(`${API_BASE}/${userId}/${funnelType}`, {
                 method: 'POST',
-                body: JSON.stringify({ steps })
+                headers: { 'x-user-id': userId },
+                body: JSON.stringify({ steps }) // Content-Type is auto-set by authService
             });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 console.error(`Error saving ${funnelType} funnel:`, errorData);
-                return { success: false, error: errorData.error || response.statusText, details: errorData.details };
+                return false;
             }
 
-            return { success: true };
+            return true;
         } catch (error: unknown) {
             const err = error as Error;
             console.error(`Error saving ${funnelType} funnel:`, err);
-            return { success: false, error: err.message };
+            return false;
         }
     },
 

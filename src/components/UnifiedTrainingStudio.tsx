@@ -26,6 +26,10 @@ declare global {
     }
 }
 
+import { supabase } from '../services/supabase';
+
+// ... (existing helper function / variable if any) ...
+
 const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
     mode,
     sidekicks = ADMIN_SIDEKICKS,
@@ -39,6 +43,16 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
     const [savingPrompt, setSavingPrompt] = useState(false);
     const [trainingNotification, setTrainingNotification] = useState<string | null>(null);
     const [trainingError, setTrainingError] = useState<string | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+    // Fetch User ID
+    useEffect(() => {
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) setCurrentUserId(user.id);
+        };
+        getUser();
+    }, []);
 
     // Voice Input State
     const [isListening, setIsListening] = useState(false);
@@ -147,16 +161,16 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
             if (mode === 'admin') {
                 res = await fetch('/api/admin/ai-chat', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-user-id': currentUserId || ''
+                    },
                     body: JSON.stringify({
                         sidekickId: selectedSidekick,
                         sidekickType: selectedSidekick,
                         message: userMessage.content,
-                        history: [
-                            { sender: 'assistant', text: TRAINING_ARCHITECT_PROMPT },
-                            { sender: 'assistant', text: systemPrompts[selectedSidekick] || currentSidekick.systemPrompt },
-                            ...conversationHistory
-                        ]
+                        systemPrompt: systemPrompts[selectedSidekick] || currentSidekick.systemPrompt, // Pass the edited prompt!
+                        history: conversationHistory
                     })
                 });
             } else {
@@ -327,33 +341,48 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
         }
     };
 
+    // Analytics State
+    const [analytics, setAnalytics] = useState<{
+        accuracy: number;
+        positive: number;
+        negative: number;
+        recent: any[];
+    }>({ accuracy: 0, positive: 0, negative: 0, recent: [] });
+
+    // Fetch Analytics
+    useEffect(() => {
+        const fetchAnalytics = async () => {
+            if (!selectedSidekick) return;
+            try {
+                // Determine endpoint based on mode? 
+                // Currently server has /api/training/feedback/:sidekick (publicly accessible or protected?)
+                // Let's use the one we just patched.
+                const res = await fetch(`/api/training/feedback/${selectedSidekick}`, {
+                    headers: { 'x-user-id': currentUserId || '' }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+
+                const total = data.positiveCount + data.negativeCount;
+                const accuracy = total > 0 ? Math.round((data.positiveCount / total) * 100) : 0;
+
+                setAnalytics({
+                    accuracy,
+                    positive: data.positiveCount,
+                    negative: data.negativeCount,
+                    recent: data.recentFeedback || []
+                });
+            } catch (e) {
+                console.error('Failed to load training analytics', e);
+            }
+        };
+        fetchAnalytics();
+    }, [selectedSidekick, trainingNotification, currentUserId]); // Reload when feedback is given
+
     return (
         <div className="flex flex-col h-full bg-slate-50 overflow-hidden relative min-h-[500px]">
             <div className="flex-1 flex overflow-hidden relative">
-                {/* Left Sidebar: Sidekick List (Desktop Only) */}
-                <div className={`hidden md:flex w-64 bg-white border-r border-slate-200 flex-col`}>
-                    <div className="p-4 border-b border-slate-100">
-                        <h2 className="font-semibold text-slate-800">Agents</h2>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {sidekicks.map(sidekick => (
-                            <button
-                                key={sidekick.id}
-                                onClick={() => setSelectedSidekick(sidekick.id)}
-                                className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${selectedSidekick === sidekick.id
-                                    ? 'bg-primary-50 text-primary-900 ring-1 ring-primary-200'
-                                    : 'hover:bg-slate-50 text-slate-700'
-                                    }`}
-                            >
-                                <span className="material-symbols-outlined text-xl text-slate-500">{sidekick.icon}</span>
-                                <div className="flex-1 min-w-0">
-                                    <div className="font-medium text-sm truncate">{sidekick.name}</div>
-                                    <div className="text-xs text-slate-500 truncate">{sidekick.description}</div>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                {/* ... Left Sidebar ... */}
 
                 {/* Mobile Analytics View */}
                 <div className={`${mobileView === 'analytics' ? 'flex' : 'hidden'} md:hidden flex-1 flex-col min-w-0 bg-slate-50 h-full relative overflow-y-auto`}>
@@ -366,14 +395,24 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
                             <div className="relative w-32 h-32 flex items-center justify-center">
                                 <svg className="w-full h-full transform -rotate-90">
                                     <circle cx="64" cy="64" r="56" stroke="#f1f5f9" strokeWidth="12" fill="none" />
-                                    <circle cx="64" cy="64" r="56" stroke="#3b82f6" strokeWidth="12" fill="none" strokeDasharray="351.86" strokeDashoffset="70.37" strokeLinecap="round" />
+                                    <circle
+                                        cx="64" cy="64" r="56"
+                                        stroke={analytics.accuracy >= 70 ? "#22c55e" : (analytics.accuracy >= 40 ? "#eab308" : "#ef4444")}
+                                        strokeWidth="12" fill="none"
+                                        strokeDasharray="351.86"
+                                        strokeDashoffset={351.86 - (351.86 * analytics.accuracy) / 100}
+                                        strokeLinecap="round"
+                                    />
                                 </svg>
                                 <div className="absolute flex flex-col items-center">
-                                    <span className="text-3xl font-bold text-slate-800">80%</span>
+                                    <span className="text-3xl font-bold text-slate-800">{analytics.accuracy}%</span>
                                     <span className="text-xs text-slate-500 uppercase tracking-wide">Accuracy</span>
                                 </div>
                             </div>
-                            <p className="text-sm text-slate-600 mt-4 text-center">Your AI is learning fast! Keep providing feedback to improve accuracy.</p>
+                            <p className="text-sm text-slate-600 mt-4 text-center">
+                                {analytics.accuracy === 0 ? 'Start training to see your score!' :
+                                    (analytics.accuracy > 80 ? 'Your AI is doing great! Keep it up.' : 'Keep refining to improve accuracy.')}
+                            </p>
                         </div>
 
                         {/* Stats Grid */}
@@ -383,7 +422,7 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
                                     <span className="material-symbols-outlined">thumb_up</span>
                                     <span className="font-semibold">Good</span>
                                 </div>
-                                <span className="text-2xl font-bold text-slate-800">24</span>
+                                <span className="text-2xl font-bold text-slate-800">{analytics.positive}</span>
                                 <span className="text-xs text-slate-500 ml-1">responses</span>
                             </div>
                             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
@@ -391,7 +430,7 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
                                     <span className="material-symbols-outlined">thumb_down</span>
                                     <span className="font-semibold">Needs Fix</span>
                                 </div>
-                                <span className="text-2xl font-bold text-slate-800">5</span>
+                                <span className="text-2xl font-bold text-slate-800">{analytics.negative}</span>
                                 <span className="text-xs text-slate-500 ml-1">responses</span>
                             </div>
                         </div>
@@ -400,20 +439,23 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                             <h3 className="font-semibold text-slate-800 mb-3">Recent Improvements</h3>
                             <div className="space-y-3">
-                                <div className="flex items-start gap-3 text-sm">
-                                    <span className="material-symbols-outlined text-green-500 mt-0.5">check_circle</span>
-                                    <div>
-                                        <p className="font-medium text-slate-800">Pricing objection handling</p>
-                                        <p className="text-xs text-slate-500">Updated 2 hours ago</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-start gap-3 text-sm">
-                                    <span className="material-symbols-outlined text-green-500 mt-0.5">check_circle</span>
-                                    <div>
-                                        <p className="font-medium text-slate-800">Lead qualification flow</p>
-                                        <p className="text-xs text-slate-500">Updated yesterday</p>
-                                    </div>
-                                </div>
+                                {analytics.recent.length === 0 ? (
+                                    <p className="text-xs text-slate-400">No recent feedback recorded.</p>
+                                ) : (
+                                    analytics.recent.map((item, idx) => (
+                                        <div key={idx} className="flex items-start gap-3 text-sm border-b border-slate-50 pb-2 last:border-0">
+                                            <span className={`material-symbols-outlined mt-0.5 text-xs ${item.feedback === 'thumbs_up' ? 'text-green-500' : 'text-red-500'}`}>
+                                                {item.feedback === 'thumbs_up' ? 'thumb_up' : 'thumb_down'}
+                                            </span>
+                                            <div>
+                                                <p className="font-medium text-slate-800 truncate w-48">{item.userMessage || 'Interaction'}</p>
+                                                <p className="text-xs text-slate-500">
+                                                    {new Date(item.timestamp || item.created_at).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
                     </div>

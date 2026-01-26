@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Phone, Mail, Globe, Share2, Facebook, Instagram, Twitter, Linkedin, Youtube } from 'lucide-react';
+import { Phone, Mail, Globe, Share2, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageSquare, Send } from 'lucide-react';
 import { getAICardProfile, AICardProfile } from '../services/aiCardService';
 
 const PublicAICard: React.FC = () => {
@@ -8,6 +8,9 @@ const PublicAICard: React.FC = () => {
     const [profile, setProfile] = useState<AICardProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const formRef = useRef<HTMLDivElement>(null);
+    const [showContact, setShowContact] = useState(false);
+    const [showConnectForm, setShowConnectForm] = useState(false);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -33,12 +36,16 @@ const PublicAICard: React.FC = () => {
         fetchProfile();
     }, [id]);
 
+    const scrollToForm = () => {
+        formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
     const handleShare = async () => {
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: profile?.fullName || 'Business Card',
-                    text: `Check out ${profile?.fullName}'s AI Business Card!`,
+                    text: `Connect with ${profile?.fullName}`,
                     url: window.location.href,
                 });
             } catch (err) {
@@ -52,6 +59,41 @@ const PublicAICard: React.FC = () => {
             } catch (e) {
                 alert('Could not copy link.');
             }
+        }
+    };
+
+    // --- Lead Capture Logic ---
+    const [connectForm, setConnectForm] = useState({ name: '', email: '', phone: '', message: '' });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+    const handleConnectSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        setSubmitStatus('idle');
+
+        try {
+            const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'https://home-listing-ai-backend.onrender.com';
+            const response = await fetch(`${API_BASE}/api/ai-card/lead`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: id, // from routing params
+                    ...connectForm
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to submit');
+
+            setSubmitStatus('success');
+            setConnectForm({ name: '', email: '', phone: '', message: '' });
+            setTimeout(() => setSubmitStatus('idle'), 5000);
+
+        } catch (err) {
+            console.error('Lead capture failed', err);
+            setSubmitStatus('error');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -71,13 +113,12 @@ const PublicAICard: React.FC = () => {
     );
 
     return (
-        <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8 flex justify-center">
+        <div className="min-h-screen bg-gray-100 py-12 px-2 sm:px-6 lg:px-8 flex justify-center">
             <div
                 className="relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-2xl overflow-hidden border border-gray-200"
                 style={{
                     width: '100%',
                     maxWidth: '400px',
-                    // Ensure height adapts to content in mobile standalone view, but keeps minimum
                     minHeight: '800px',
                     background: `linear-gradient(135deg, ${profile.brandColor}10 0%, white 50%, ${profile.brandColor}05 100%)`
                 }}
@@ -130,34 +171,120 @@ const PublicAICard: React.FC = () => {
                         </p>
                     </div>
 
-                    {/* Contact Info */}
-                    <div className="space-y-3 mb-8">
-                        {profile.phone && (
-                            <a href={`tel:${profile.phone}`} className="flex items-center justify-center space-x-2 text-gray-700 hover:text-gray-900">
-                                <Phone className="w-4 h-4" style={{ color: profile.brandColor }} />
-                                <span className="text-sm">{profile.phone}</span>
-                            </a>
-                        )}
-                        {profile.email && (
-                            <a href={`mailto:${profile.email}`} className="flex items-center justify-center space-x-2 text-gray-700 hover:text-gray-900">
-                                <Mail className="w-4 h-4" style={{ color: profile.brandColor }} />
-                                <span className="text-sm">{profile.email}</span>
-                            </a>
-                        )}
-                        {profile.website && (
-                            <a href={profile.website} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center space-x-2 text-gray-700 hover:text-gray-900">
-                                <Globe className="w-4 h-4" style={{ color: profile.brandColor }} />
-                                <span className="text-sm">{profile.website.replace(/^https?:\/\//, '')}</span>
-                            </a>
-                        )}
+                    {/* Contact Info Toggle */}
+                    <div className="flex justify-center mb-4">
+                        <button
+                            onClick={() => setShowContact(!showContact)}
+                            className="flex items-center space-x-2 px-5 py-2 rounded-full border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-all shadow-sm"
+                        >
+                            <span className="material-symbols-outlined text-lg">contact_page</span>
+                            <span>{showContact ? 'Hide Contact Info' : 'Contact Info'}</span>
+                        </button>
                     </div>
 
+                    {/* Collapsible Contact Details */}
+                    {showContact && (
+                        <div className="space-y-3 mb-8 animate-fade-in-down bg-white/50 p-4 rounded-xl border border-white/60">
+                            {profile.phone && (
+                                <a href={`tel:${profile.phone}`} className="flex items-center justify-center space-x-2 text-gray-700 hover:text-gray-900 transition-colors">
+                                    <Phone className="w-4 h-4" style={{ color: profile.brandColor }} />
+                                    <span className="text-sm font-medium">{profile.phone}</span>
+                                </a>
+                            )}
+                            {profile.email && (
+                                <a href={`mailto:${profile.email}`} className="flex items-center justify-center space-x-2 text-gray-700 hover:text-gray-900 transition-colors">
+                                    <Mail className="w-4 h-4" style={{ color: profile.brandColor }} />
+                                    <span className="text-sm font-medium">{profile.email}</span>
+                                </a>
+                            )}
+                            {profile.website && (
+                                <a href={profile.website} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center space-x-2 text-gray-700 hover:text-gray-900 transition-colors">
+                                    <Globe className="w-4 h-4" style={{ color: profile.brandColor }} />
+                                    <span className="text-sm font-medium">{profile.website.replace(/^https?:\/\//, '')}</span>
+                                </a>
+                            )}
+                        </div>
+                    )}
+
                     {/* Bio */}
-                    <div className="mb-6 flex-1">
-                        <p className="text-sm text-gray-600 leading-relaxed">
+                    <div className="mb-6">
+                        <p className="text-sm text-gray-600 leading-relaxed text-center">
                             {profile.bio}
                         </p>
                     </div>
+
+                    {/* Primary CTA: Chat with Me */}
+                    <div className="flex justify-center mb-8">
+                        <button
+                            onClick={() => setShowConnectForm(!showConnectForm)}
+                            className="flex items-center space-x-2 px-8 py-3 rounded-full font-bold shadow-lg text-white transition-transform hover:scale-105"
+                            style={{ backgroundColor: profile.brandColor || '#4f46e5' }}
+                        >
+                            <MessageSquare className="w-5 h-5" />
+                            <span>Chat with Me</span>
+                        </button>
+                    </div>
+
+                    {/* --- Connect Form (Collapsible) --- */}
+                    {showConnectForm && (
+                        <div ref={formRef} className="mb-8 p-5 bg-white rounded-xl shadow-lg border border-slate-100 animate-fade-in-down">
+                            <h3 className="text-sm font-bold text-slate-800 mb-3 text-center flex items-center justify-center gap-2">
+                                <Send className="w-4 h-4 text-indigo-500" />
+                                Send a Message
+                            </h3>
+
+                            {submitStatus === 'success' ? (
+                                <div className="text-center py-4 bg-green-50 rounded-lg text-green-700 text-sm animate-fade-in">
+                                    <span className="material-symbols-outlined block text-2xl mb-1">check_circle</span>
+                                    Message Sent! I'll be in touch.
+                                </div>
+                            ) : (
+                                <form onSubmit={handleConnectSubmit} className="space-y-3">
+                                    <input
+                                        required
+                                        type="text"
+                                        placeholder="Your Name"
+                                        className="w-full text-sm rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                                        value={connectForm.name}
+                                        onChange={e => setConnectForm({ ...connectForm, name: e.target.value })}
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                            required
+                                            type="email"
+                                            placeholder="Email"
+                                            className="w-full text-sm rounded-lg border-slate-200"
+                                            value={connectForm.email}
+                                            onChange={e => setConnectForm({ ...connectForm, email: e.target.value })}
+                                        />
+                                        <input
+                                            type="tel"
+                                            placeholder="Phone"
+                                            className="w-full text-sm rounded-lg border-slate-200"
+                                            value={connectForm.phone}
+                                            onChange={e => setConnectForm({ ...connectForm, phone: e.target.value })}
+                                        />
+                                    </div>
+                                    <textarea
+                                        placeholder="How can I help?"
+                                        rows={2}
+                                        className="w-full text-sm rounded-lg border-slate-200"
+                                        value={connectForm.message}
+                                        onChange={e => setConnectForm({ ...connectForm, message: e.target.value })}
+                                    ></textarea>
+
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting}
+                                        className="w-full py-2 rounded-lg text-white text-sm font-semibold shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+                                        style={{ backgroundColor: profile.brandColor || '#4f46e5' }}
+                                    >
+                                        {isSubmitting ? 'Sending...' : 'Send Message'}
+                                    </button>
+                                </form>
+                            )}
+                        </div>
+                    )}
 
                     {/* Social Media Icons */}
                     <div className="flex justify-center space-x-4 mb-6">
@@ -188,18 +315,14 @@ const PublicAICard: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Share Button (Self Share) */}
+                    {/* Footer Share Button (Renamed) */}
                     <div className="flex justify-center">
                         <button
                             onClick={handleShare}
-                            className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 shadow-lg text-white"
-                            style={{
-                                backgroundColor: profile.brandColor,
-                                marginBottom: '20px'
-                            }}
+                            className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:bg-gray-200 text-gray-600"
                         >
                             <Share2 className="w-5 h-5" />
-                            <span>Share Card</span>
+                            <span>Share Profile Link</span>
                         </button>
                     </div>
 

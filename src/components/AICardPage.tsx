@@ -108,6 +108,43 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
     return normalized;
   };
 
+
+  const generateVCard = (profile: AgentProfile) => {
+    // 3.0 VCF Format
+    const vcard = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN:${profile.fullName}`,
+      `N:${profile.fullName.split(' ').slice(-1)};${profile.fullName.split(' ').slice(0, -1).join(' ')};;;`,
+      `ORG:${profile.company}`,
+      `TITLE:${profile.professionalTitle}`,
+      `TEL;TYPE=CELL:${profile.phone}`,
+      `EMAIL;TYPE=WORK:${profile.email}`,
+      `URL:${profile.website}`,
+      `NOTE:${profile.bio || ''}`,
+      // Social Media Links as NOTES or URLs
+      ...(profile.socialMedia ? Object.entries(profile.socialMedia)
+        .filter(([key, url]) => url && key !== 'backgroundImage')
+        .map(([key, url]) => `X-SOCIALPROFILE;TYPE=${key}:${url}`) : []),
+      `ADR;TYPE=WORK:;;;;;;`, // Placeholder for address if we had it
+      'END:VCARD'
+    ].join('\n');
+
+    return vcard;
+  };
+
+  const handleDownloadVCard = () => {
+    const vcardContent = generateVCard(form);
+    const blob = new Blob([vcardContent], { type: 'text/vcard;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${form.fullName.replace(/\s+/g, '_')}_contact.vcf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -213,12 +250,13 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
         if (isDemoMode) {
           // 1. Try LocalStorage (Smart Save)
           const stored = localStorage.getItem('ai_card_demo_data');
-          if (stored && !isBlueprintMode) {
+          if (stored && isBlueprintMode) {
+            // Blueprint mode WITH saved changes - use those
             const parsed = JSON.parse(stored);
             setForm(parsed);
             serverProfileRef.current = parsed;
           } else if (isBlueprintMode) {
-            // Blueprint Mode - Clean Slate
+            // Blueprint Mode - Clean Slate (first time)
             const blueprint: AgentProfile = {
               id: BLUEPRINT_AGENT.id,
               fullName: BLUEPRINT_AGENT.name,
@@ -601,119 +639,190 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
     );
   };
 
-  const AICardPreview: React.FC<{ onChatClick?: () => void }> = ({ onChatClick }) => (
-    <div className="relative w-full max-w-[400px] mx-auto aspect-[9/19.5]">
-      {/* AI Card Container */}
-      <div
-        id="ai-card-preview"
-        className="relative w-full h-full rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20"
-      >
-        {/* Luxury Background Image */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src={form.socialMedia.backgroundImage || BACKGROUND_PRESETS[0].url}
-            alt="Card Background"
-            className="w-full h-full object-cover transition-opacity duration-700"
-          />
-          {/* Subtle Dark Overlay for Contrast */}
-          <div className="absolute inset-0 bg-black/20" />
-        </div>
+  const AICardPreview: React.FC<{ onChatClick?: () => void }> = ({ onChatClick }) => {
+    const [showContact, setShowContact] = useState(false);
+    const [showAgentSidekick, setShowAgentSidekick] = useState(false);
 
-        {/* Glass Content Card */}
-        <div className="relative z-10 w-full h-full flex items-center justify-center p-4 sm:p-6">
-          <div className="w-full bg-white/30 backdrop-blur-md rounded-3xl border border-white/40 shadow-2xl overflow-hidden flex flex-col items-center text-center p-5 sm:p-8 max-h-full overflow-y-auto custom-scrollbar">
+    return (
+      <div className="relative w-full max-w-[400px] mx-auto aspect-[9/19.5]">
+        {/* AI Card Container */}
+        <div
+          id="ai-card-preview"
+          className="relative w-full h-full rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20"
+        >
+          {/* Luxury Background Image */}
+          <div className="absolute inset-0 z-0">
+            <img
+              src={form.socialMedia.backgroundImage || BACKGROUND_PRESETS[0].url}
+              alt="Card Background"
+              className="w-full h-full object-cover transition-opacity duration-700"
+            />
+            {/* Subtle Dark Overlay for Contrast */}
+            <div className="absolute inset-0 bg-black/20" />
+          </div>
 
-            {/* Profile Picture (Bigger & First) */}
-            <div className="mb-4 sm:mb-6 relative shrink-0">
-              {form.headshot ? (
-                <img
-                  src={form.headshot}
-                  alt={form.fullName}
-                  className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-white/50 shadow-lg"
-                />
-              ) : (
-                <div
-                  className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white/50 shadow-lg flex items-center justify-center text-2xl sm:text-4xl font-bold text-white bg-slate-400"
-                >
-                  {form.fullName.split(' ').map(n => n[0]).join('')}
-                </div>
-              )}
-            </div>
+          {/* Glass Content Card */}
+          <div className="relative z-10 w-full h-full flex items-center justify-center p-4 sm:p-6">
+            <div className="w-full bg-white/30 backdrop-blur-md rounded-3xl border border-white/40 shadow-2xl overflow-hidden flex flex-col items-center text-center p-5 sm:p-8 max-h-full overflow-y-auto custom-scrollbar">
 
-            {/* Gold Geometric Logo (Second) */}
-            <div className="mb-3 sm:mb-4 shrink-0">
-              {form.logo ? (
-                <img src={form.logo} alt="Logo" className="h-12 w-auto sm:h-16 object-contain drop-shadow-md" />
-              ) : (
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center shadow-lg transform rotate-45">
-                  <span className="material-symbols-outlined text-white text-xl sm:text-2xl transform -rotate-45">apartment</span>
-                </div>
-              )}
-            </div>
-
-            {/* Text Content */}
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 drop-shadow-sm leading-tight">{form.fullName}</h2>
-            <p className="text-base sm:text-lg text-gray-800 font-medium mb-1 tracking-wide leading-tight">{form.professionalTitle}</p>
-            <p className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-widest mb-6 sm:mb-8">
-              {form.company}
-            </p>
-
-            {/* Colorful Buttons */}
-            <button
-              onClick={onChatClick}
-              className="w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl font-bold text-white mb-3 sm:mb-4 transition-all duration-300 hover:scale-105 shadow-lg flex items-center justify-center gap-2 group border border-white/20 shrink-0"
-              style={{
-                background: `linear-gradient(135deg, ${form.brandColor} 0%, ${form.brandColor}DD 100%)`,
-                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-              }}
-            >
-              <span className="material-symbols-outlined text-xl sm:text-2xl group-hover:rotate-12 transition-transform">auto_awesome</span>
-              <span className="text-sm sm:text-base">Ask my Assistant</span>
-            </button>
-
-            <button
-              className="w-full py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl font-semibold text-gray-900 transition-all duration-300 hover:bg-white/60 hover:scale-105 flex items-center justify-center gap-2 shadow-md shrink-0"
-              style={{
-                background: 'rgba(255, 255, 255, 0.4)',
-                border: '1px solid rgba(255, 255, 255, 0.5)'
-              }}
-            >
-              <span className="material-symbols-outlined text-lg sm:text-xl">contact_page</span>
-              <span className="text-sm sm:text-base">Contact Info</span>
-            </button>
-
-            {/* Spacer */}
-            <div className="flex-1 min-h-[1rem]" />
-
-            {/* Social Media Icons (Actual Icons) */}
-            <div className="flex justify-center flex-wrap gap-2 sm:gap-3 mt-6 sm:mt-8 pb-2">
-              {Object.entries(form.socialMedia).map(([key, url]) => {
-                if (!url || key === 'backgroundImage') return null;
-                const iconMap: Record<string, React.ReactNode> = {
-                  facebook: <Facebook className="w-4 h-4 sm:w-5 sm:h-5" />,
-                  instagram: <Instagram className="w-4 h-4 sm:w-5 sm:h-5" />,
-                  twitter: <Twitter className="w-4 h-4 sm:w-5 sm:h-5" />,
-                  linkedin: <Linkedin className="w-4 h-4 sm:w-5 sm:h-5" />,
-                  youtube: <Youtube className="w-4 h-4 sm:w-5 sm:h-5" />
-                };
-                return (
-                  <a
-                    key={key}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2.5 sm:p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-slate-800 shadow-sm backdrop-blur-sm"
+              {/* Profile Picture (Bigger & First) */}
+              <div className="mb-4 sm:mb-6 relative shrink-0">
+                {form.headshot ? (
+                  <img
+                    src={form.headshot}
+                    alt={form.fullName}
+                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-white/50 shadow-lg"
+                  />
+                ) : (
+                  <div
+                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white/50 shadow-lg flex items-center justify-center text-2xl sm:text-4xl font-bold text-white bg-slate-400"
                   >
-                    {iconMap[key]}
-                  </a>
-                );
-              })}
+                    {form.fullName.split(' ').map(n => n[0]).join('')}
+                  </div>
+                )}
+              </div>
+
+              {/* Gold Geometric Logo (Second) */}
+              <div className="mb-3 sm:mb-4 shrink-0">
+                {form.logo ? (
+                  <img src={form.logo} alt="Logo" className="h-12 w-auto sm:h-16 object-contain drop-shadow-md" />
+                ) : (
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center shadow-lg transform rotate-45">
+                    <span className="material-symbols-outlined text-white text-xl sm:text-2xl transform -rotate-45">apartment</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Text Content */}
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 drop-shadow-sm leading-tight">{form.fullName}</h2>
+              <p className="text-base sm:text-lg text-gray-800 font-medium mb-1 tracking-wide leading-tight">{form.professionalTitle}</p>
+              <p className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-widest mb-6 sm:mb-8">
+                {form.company}
+              </p>
+
+              {/* Colorful Buttons */}
+              {/* VISUAL UPDATE: Message Me Button */}
+              {/* VISUAL UPDATE: Chat with Me Button */}
+              {/* BUTTON ROW: Contact & Save */}
+              {/* 1. Chat/Connect Button (Restored) */}
+              <button
+                onClick={() => setShowAgentSidekick(true)}
+                className="w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl font-bold text-white mb-3 sm:mb-4 transition-all duration-300 hover:scale-[1.02] shadow-lg flex items-center justify-center gap-2 group border border-white/20 shrink-0"
+                style={{
+                  background: `linear-gradient(135deg, ${form.brandColor} 0%, ${form.brandColor}DD 100%)`,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                }}
+              >
+                <span className="material-symbols-outlined text-xl sm:text-2xl group-hover:rotate-12 transition-transform">chat_bubble</span>
+                <span className="text-sm sm:text-base">Chat with Me</span>
+              </button>
+
+              {/* AI Agent Sidekick Modal */}
+              {showAgentSidekick && (
+                <AgentSidekickModal
+                  agentProfile={form}
+                  initialMode="voice"
+                  onClose={() => setShowAgentSidekick(false)}
+                />
+              )}
+
+              {/* 2. Share Profile Button */}
+              <button
+                onClick={handleCopyLink}
+                className="w-full py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl font-semibold text-gray-800 transition-all duration-300 hover:bg-white/60 hover:scale-[1.02] flex items-center justify-center gap-2 shadow-sm shrink-0 mb-4"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.4)',
+                  border: '1px solid rgba(255, 255, 255, 0.5)'
+                }}
+              >
+                <Share2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
+                <span className="text-sm sm:text-base">Share Profile Link</span>
+              </button>
+
+              {/* 3. ROW: Contact Info & Save (Side-by-Side) */}
+              <div className="flex items-center gap-3 w-full mb-4 px-1">
+                {/* Contact Info Button (Blue Glass, 40% Opacity) */}
+                <button
+                  onClick={() => setShowContact(!showContact)}
+                  className="flex-1 py-3 rounded-xl font-bold text-white transition-all duration-300 hover:scale-[1.02] flex items-center justify-center gap-2 shadow-lg backdrop-blur-md border border-white/20"
+                  style={{
+                    backgroundColor: 'rgba(59, 130, 246, 0.40)', // Blue glass @ 40%
+                    border: `1px solid ${form.brandColor}`,
+                    textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  <span className="material-symbols-outlined text-lg">contact_page</span>
+                  <span className="text-xs sm:text-sm tracking-wide">Contact Info</span>
+                </button>
+
+                {/* Save Button (Smoked Glass, More Opaque) */}
+                <button
+                  onClick={handleDownloadVCard}
+                  className="flex-1 py-3 rounded-xl font-bold text-white transition-all duration-300 hover:scale-[1.02] flex items-center justify-center gap-2 shadow-lg backdrop-blur-md border border-white/20"
+                  style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.70)', // Smoked glass @ 70%
+                    border: `1px solid ${form.brandColor}`
+                  }}
+                >
+                  <span className="material-symbols-outlined text-lg" style={{ color: form.brandColor }}>person_add</span>
+                  <span className="text-xs sm:text-sm tracking-wide">Save</span>
+                </button>
+              </div>
+
+              {/* Collapsible Contact List */}
+              {showContact && (
+                <div className="w-full bg-white/40 backdrop-blur-md rounded-xl p-3 mb-4 space-y-2 border border-white/40 shadow-sm shrink-0">
+                  {form.phone && (
+                    <div className="flex items-center justify-center space-x-2 text-gray-800">
+                      <span className="material-symbols-outlined text-sm">call</span>
+                      <span className="text-sm font-medium">{form.phone}</span>
+                    </div>
+                  )}
+                  {form.email && (
+                    <div className="flex items-center justify-center space-x-2 text-gray-800">
+                      <span className="material-symbols-outlined text-sm">mail</span>
+                      <span className="text-sm font-medium">{form.email}</span>
+                    </div>
+                  )}
+                  {form.website && (
+                    <div className="flex items-center justify-center space-x-2 text-gray-800">
+                      <span className="material-symbols-outlined text-sm">language</span>
+                      <span className="text-xs font-medium">{form.website.replace(/^https?:\/\//, '')}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Social Media Icons (Actual Icons) */}
+              <div className="flex justify-center flex-wrap gap-2 sm:gap-3 mt-6 sm:mt-8 pb-2">
+                {Object.entries(form.socialMedia).map(([key, url]) => {
+                  if (!url || key === 'backgroundImage') return null;
+                  const iconMap: Record<string, React.ReactNode> = {
+                    facebook: <Facebook className="w-4 h-4 sm:w-5 sm:h-5" />,
+                    instagram: <Instagram className="w-4 h-4 sm:w-5 sm:h-5" />,
+                    twitter: <Twitter className="w-4 h-4 sm:w-5 sm:h-5" />,
+                    linkedin: <Linkedin className="w-4 h-4 sm:w-5 sm:h-5" />,
+                    youtube: <Youtube className="w-4 h-4 sm:w-5 sm:h-5" />
+                  };
+                  return (
+                    <a
+                      key={key}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2.5 sm:p-3 bg-white/40 rounded-full hover:bg-white/60 transition-all hover:-translate-y-1 text-slate-800 shadow-sm backdrop-blur-sm"
+                    >
+                      {iconMap[key]}
+                    </a>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
+      </div >
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1011,7 +1120,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
                     <input
                       ref={headshotInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
                       onChange={(e) => handleImageUpload('headshot', e)}
                       className="hidden"
                     />
@@ -1054,7 +1163,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
                     <input
                       ref={logoInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
                       onChange={(e) => handleImageUpload('logo', e)}
                       className="hidden"
                     />
@@ -1103,7 +1212,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
                   <input
                     ref={bgInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
                     onChange={handleBackgroundUpload}
                     className="hidden"
                   />

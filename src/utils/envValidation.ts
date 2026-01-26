@@ -8,9 +8,7 @@ export class EnvValidation {
     ]
   };
 
-  private static optionalEnvVars = [
-    'VITE_DATAFINITI_API_KEY'
-  ];
+  private static optionalEnvVars: string[] = [];
 
   static validateEnvironment(): { isValid: boolean; errors: string[]; warnings: string[] } {
     const errors: string[] = [];
@@ -20,10 +18,10 @@ export class EnvValidation {
 
     // Check required environment variables
     const requiredVars = this.requiredEnvVars[environment];
-    
+
     for (const envVar of requiredVars) {
       const value = import.meta.env[envVar];
-      
+
       if (!value) {
         errors.push(`Missing required environment variable: ${envVar}`);
       } else if (value.includes('your-') || value.includes('example')) {
@@ -34,7 +32,7 @@ export class EnvValidation {
     // Check optional environment variables
     for (const envVar of this.optionalEnvVars) {
       const value = import.meta.env[envVar];
-      
+
       if (!value) {
         warnings.push(`Optional environment variable not set: ${envVar}`);
       } else if (value.includes('your-') || value.includes('example')) {
@@ -60,7 +58,7 @@ export class EnvValidation {
 
   static logValidationResults(): void {
     const result = this.validateEnvironment();
-    
+
     if (result.errors.length > 0) {
       console.error('❌ Environment validation failed:');
       result.errors.forEach(error => console.error(`  - ${error}`));

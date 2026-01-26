@@ -252,6 +252,57 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
     loadConversations();
   }, [loadConversations]);
 
+  // --- REAL-TIME UPDATES (PHASE 2) ---
+  useEffect(() => {
+    if (isDemoMode) return;
+
+    // 1. Live Conversation List Updates
+    const convChannel = supabase.channel('public:ai_conversations:list')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ai_conversations' },
+        () => {
+          console.log('⚡ [Realtime] Conversation list updated');
+          loadConversations();
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(convChannel); };
+  }, [loadConversations, isDemoMode]);
+
+  useEffect(() => {
+    if (isDemoMode || !selectedConversationId) return;
+
+    // 2. Live Message Thread Updates
+    const msgChannel = supabase.channel(`public:messages:${selectedConversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ai_conversation_messages',
+          filter: `conversation_id=eq.${selectedConversationId}`
+        },
+        async (payload) => {
+          console.log('⚡ [Realtime] New message received');
+          // Fast refresh of just this thread
+          try {
+            const rows = await getMessages(selectedConversationId);
+            setMessagesByConversation((prev) => ({
+              ...prev,
+              [selectedConversationId]: rows.map(mapMessageRowToConversationMessage)
+            }));
+          } catch (err) {
+            console.error('Realtime sync failed', err);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(msgChannel); };
+  }, [selectedConversationId, isDemoMode]);
+
   useEffect(() => {
     setIsDetailExpanded(false);
   }, [selectedConversationId]);

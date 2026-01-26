@@ -109,7 +109,12 @@ const shouldSend = async (userId, channel, eventKey) => {
 
   // 1. CHANNEL TOGGLE CHECK
   if (eventKey && Object.hasOwn(settings, eventKey)) {
+    // Audit Bridge: UI uses 'leadAction', Backend often uses 'aiInteraction'
+    // We check both to ensure the UI toggle actually works.
     if (!settings[eventKey]) return false;
+    if (eventKey === 'aiInteraction' && Object.hasOwn(settings, 'leadAction')) {
+      if (!settings.leadAction) return false;
+    }
   }
 
   // 2. CHANNEL-SPECIFIC RULES

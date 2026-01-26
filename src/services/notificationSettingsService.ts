@@ -15,12 +15,14 @@ const handleResponse = async (response: Response): Promise<NotificationSettingsR
 };
 
 const fetchSettings = async (userId: string): Promise<NotificationSettingsResponse> => {
-    const response = await fetch(`/api/notifications/settings/${userId}`);
+    const safeId = userId || 'default';
+    const response = await fetch(`/api/notifications/settings/${safeId}`);
     return handleResponse(response);
 };
 
 const updateSettings = async (userId: string, settings: Partial<NotificationSettings>): Promise<NotificationSettingsResponse> => {
-    const response = await fetch(`/api/notifications/settings/${userId}`, {
+    const safeId = userId || 'default';
+    const response = await fetch(`/api/notifications/settings/${safeId}`, {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',

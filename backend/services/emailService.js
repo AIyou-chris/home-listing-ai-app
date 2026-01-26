@@ -145,7 +145,7 @@ module.exports = (supabaseAdmin) => {
     }
   };
 
-  const sendViaResend = async ({ to, subject, html, cc, tags }) => {
+  const sendViaResend = async ({ to, subject, html, cc, tags, overrideFrom, overrideReplyTo }) => {
     if (!resendApiKey) return { sent: false };
     assertFetchAvailable();
 
@@ -156,9 +156,10 @@ module.exports = (supabaseAdmin) => {
         Authorization: `Bearer ${resendApiKey}`
       },
       body: JSON.stringify({
-        from: fromAddress,
+        from: overrideFrom || fromAddress,
         to,
         cc,
+        reply_to: overrideReplyTo,
         subject,
         html,
         tags
@@ -173,7 +174,7 @@ module.exports = (supabaseAdmin) => {
     return { sent: true, provider: 'resend' };
   };
 
-  const sendViaPostmark = async ({ to, subject, html, cc, tags }) => {
+  const sendViaPostmark = async ({ to, subject, html, cc, tags, overrideFrom, overrideReplyTo }) => {
     if (!postmarkToken) return { sent: false };
     assertFetchAvailable();
 
@@ -184,9 +185,10 @@ module.exports = (supabaseAdmin) => {
         'X-Postmark-Server-Token': postmarkToken
       },
       body: JSON.stringify({
-        From: fromAddress,
+        From: overrideFrom || fromAddress,
         To: Array.isArray(to) ? to.join(',') : to,
         Cc: cc && cc.length ? (Array.isArray(cc) ? cc.join(',') : cc) : undefined,
+        ReplyTo: overrideReplyTo,
         Subject: subject,
         HtmlBody: html,
         MessageStream: 'outbound',
@@ -202,9 +204,11 @@ module.exports = (supabaseAdmin) => {
     return { sent: true, provider: 'postmark' };
   };
 
-  const sendViaSendgrid = async ({ to, subject, html, cc, tags }) => {
+  const sendViaSendgrid = async ({ to, subject, html, cc, tags, overrideFrom, overrideReplyTo }) => {
     if (!sendgridKey) return { sent: false };
     assertFetchAvailable();
+
+    const finalFrom = overrideFrom || fromAddress;
 
     const payload = {
       personalizations: [
@@ -216,11 +220,14 @@ module.exports = (supabaseAdmin) => {
         }
       ],
       from: {
-        email: fromAddress.includes('<')
-          ? fromAddress.substring(fromAddress.indexOf('<') + 1, fromAddress.indexOf('>'))
-          : fromAddress,
-        name: fromName
+        email: finalFrom.includes('<')
+          ? finalFrom.substring(finalFrom.indexOf('<') + 1, finalFrom.indexOf('>'))
+          : finalFrom,
+        name: finalFrom.includes('<')
+          ? finalFrom.substring(0, finalFrom.indexOf('<')).trim()
+          : (overrideFrom ? '' : fromName)
       },
+      reply_to: overrideReplyTo ? { email: overrideReplyTo } : undefined,
       subject,
       content: [
         {
@@ -247,12 +254,15 @@ module.exports = (supabaseAdmin) => {
     return { sent: true, provider: 'sendgrid' };
   };
 
-  const sendViaMailgun = async ({ to, subject, html, cc, tags }) => {
+  const sendViaMailgun = async ({ to, subject, html, cc, tags, overrideFrom, overrideReplyTo, options }) => {
     if (!mailgunKey || !mailgunDomain) return { sent: false };
     assertFetchAvailable();
 
     const formData = new URLSearchParams();
-    formData.append('from', fromAddress);
+    formData.append('from', overrideFrom || fromAddress);
+    if (overrideReplyTo) {
+      formData.append('h:Reply-To', overrideReplyTo);
+    }
 
     // Handle TO
     if (Array.isArray(to)) {
@@ -280,6 +290,12 @@ module.exports = (supabaseAdmin) => {
       });
     }
 
+    // Tracking Options
+    if (options) {
+      if (options.trackOpens) formData.append('o:tracking-opens', 'yes');
+      if (options.trackClicks) formData.append('o:tracking-clicks', 'yes');
+    }
+
     const auth = Buffer.from(`api:${mailgunKey}`).toString('base64');
 
     const response = await fetch(`https://api.mailgun.net/v3/${mailgunDomain}/messages`, {
@@ -301,7 +317,7 @@ module.exports = (supabaseAdmin) => {
 
   const emailTrackingService = require('./emailTrackingService');
 
-  const sendEmail = async ({ to, subject, html, cc = [], tags }) => {
+  const sendEmail = async ({ to, subject, html, cc = [], tags, options }) => {
     try {
       // 1. Prepare Tracking (if context available)
       let finalHtml = html;
@@ -323,10 +339,67 @@ module.exports = (supabaseAdmin) => {
         }).catch(err => console.error('[EmailService] Tracking Record Error:', err));
       }
 
+      // --- AGENT IDENTITY RESOLUTION ---
+      let customFrom = fromAddress;
+      let customReplyTo = fromAddress;
+
+      if (tags?.user_id) {
+        try {
+          const { data: agentData } = await supabaseAdmin
+            .from('agents')
+            .select('slug, sender_name, sender_email, sender_reply_to')
+            .eq('auth_user_id', tags.user_id)
+            .single();
+
+          if (agentData) {
+            // Build personal 'From' header
+            if (agentData.sender_name) {
+              const name = agentData.sender_name;
+              const email = agentData.sender_email || fromAddress;
+              customFrom = `${name} <${email}>`;
+            }
+
+            // Determine personal 'Reply-To'
+            if (agentData.sender_reply_to) {
+              customReplyTo = agentData.sender_reply_to;
+            } else if (agentData.slug) {
+              customReplyTo = `${agentData.slug}@leads.homelistingai.com`;
+            }
+          }
+
+          // Gmail Override
+          const gmailService = require('./gmailService');
+          const connection = await gmailService.getConnection(tags.user_id);
+          if (connection) {
+            console.log(`📡 [EmailService] Routing via Gmail for User ${tags.user_id}`);
+            const gmailResult = await gmailService.sendEmail(tags.user_id, {
+              to,
+              subject,
+              text: html.replace(/<[^>]*>?/gm, ''), // Simple text fallback
+              html: finalHtml,
+              replyTo: customReplyTo
+            });
+            return { sent: true, provider: 'gmail', messageId, gmailData: gmailResult };
+          }
+        } catch (identityErr) {
+          console.error(`⚠️ [EmailService] Identity Resolve Failed for User ${tags.user_id}:`, identityErr.message);
+        }
+      }
+
       // Prioritize Mailgun if available, then others
       const attempts = [sendViaMailgun, sendViaResend, sendViaPostmark, sendViaSendgrid];
       for (const attempt of attempts) {
-        const result = await attempt({ to, subject, html: finalHtml, cc, tags });
+        // Pass the resolved identity to the provider-specific senders
+        const result = await attempt({
+          to,
+          subject,
+          html: finalHtml,
+          cc,
+          tags,
+          overrideFrom: customFrom,
+          overrideReplyTo: customReplyTo,
+          options
+        });
         if (result.sent) {
           return { sent: true, provider: result.provider, messageId };
         }

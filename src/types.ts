@@ -62,7 +62,10 @@ export type View =
     | 'new-landing'
     | 'signup'
     | 'payments'
+    | 'payments'
+    | 'marketing-hub'
     | 'marketing'
+    | 'checkout'
     | 'checkout'
     | 'signin'
     | 'admin-dashboard'
@@ -539,6 +542,10 @@ export interface BillingSettings {
     renewalDate?: string | null;
     cancellationRequestedAt?: string | null;
     history: BillingHistoryEntry[];
+    usage?: {
+        voiceMinutes: number;
+        smsCount: number;
+    };
 }
 
 export interface SecuritySettings {
@@ -572,7 +579,7 @@ export interface ActiveLeadFollowUp {
     id: string;
     leadId: string;
     sequenceId: string;
-    status: 'active' | 'paused' | 'completed' | 'cancelled';
+    status: 'active' | 'paused' | 'completed' | 'cancelled' | 'replied';
     currentStepIndex: number;
     nextStepDate: string;
     history: FollowUpHistoryEvent[];
@@ -762,7 +769,8 @@ export interface EditableStep {
     conditionValue?: string | number;
 
     // Email Specific
-    plainText?: string; // 'true' | 'false'
-    includeUnsubscribe?: string; // 'true' | 'false'
+    plainText?: boolean;
+    includeUnsubscribe?: boolean;
+    trackOpens?: boolean;
     previewText?: string;
 }

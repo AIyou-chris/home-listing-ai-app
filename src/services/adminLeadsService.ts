@@ -20,6 +20,7 @@ export type CreateLeadPayload = {
   notes?: string;
   funnelId?: string;
   funnelType?: string;
+  userId?: string;
 };
 
 export type UpdateLeadPayload = Partial<Omit<CreateLeadPayload, 'status'>> & { id: string; status?: LeadStatus };
@@ -29,6 +30,24 @@ const ensureOk = async (response: Response, context: string) => {
     const message = await response.text().catch(() => response.statusText);
     throw new Error(`${context} failed (${response.status}): ${message}`);
   }
+};
+
+const normalizeLead = (backendLead: any): Lead => {
+  if (!backendLead) return backendLead;
+  // Map numeric score to LeadScore object if needed
+  if (typeof backendLead.score === 'number') {
+    return {
+      ...backendLead,
+      score: {
+        totalScore: backendLead.score,
+        tier: backendLead.score >= 90 ? 'Hot' : backendLead.score >= 70 ? 'Qualified' : backendLead.score >= 40 ? 'Warm' : 'Cold',
+        leadId: backendLead.id,
+        lastUpdated: backendLead.updatedAt || new Date().toISOString(),
+        scoreHistory: []
+      }
+    };
+  }
+  return backendLead as Lead;
 };
 
 export const adminLeadsService = {
@@ -41,21 +60,23 @@ export const adminLeadsService = {
     const response = await auth.makeAuthenticatedRequest(path);
     await ensureOk(response, 'List leads');
     const data = await response.json();
-    return Array.isArray(data?.leads) ? (data.leads as Lead[]) : [];
+    return Array.isArray(data?.leads) ? data.leads.map(normalizeLead) : [];
   },
 
   async create(payload: CreateLeadPayload) {
     const response = await auth.makeAuthenticatedRequest('/api/admin/leads', {
       method: 'POST',
+      headers: payload.userId ? { 'x-user-id': payload.userId } : undefined,
       body: JSON.stringify({
         funnelId: payload.funnelId ?? 'universal_sales',
         funnelType: payload.funnelType ?? 'universal_sales',
+        userId: payload.userId, // Pass explicit userId if provided
         ...payload
       })
     });
     await ensureOk(response, 'Create lead');
     const data = await response.json();
-    return (data?.lead ?? data) as Lead;
+    return normalizeLead(data?.lead ?? data);
   },
 
   async update(payload: UpdateLeadPayload) {
@@ -65,7 +86,7 @@ export const adminLeadsService = {
     });
     await ensureOk(response, 'Update lead');
     const data = await response.json().catch(() => null);
-    return (data?.lead ?? data) as Lead | null;
+    return normalizeLead(data?.lead ?? data);
   },
 
   async remove(leadId: string) {

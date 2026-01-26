@@ -1,7 +1,7 @@
 export interface EmailTemplate {
     id: string;
     name: string;
-    category: 'lead_capture' | 'follow_up' | 'appointment' | 'nurture' | 'market_update';
+    category: 'lead_capture' | 'follow_up' | 'appointment' | 'nurture' | 'market_update' | 'recruitment';
     subject: string;
     content: string;
     description: string;
@@ -9,7 +9,96 @@ export interface EmailTemplate {
     useCase: string;
 }
 
+
+
 export const EMAIL_TEMPLATES: EmailTemplate[] = [
+    // --- ADMIN RECRUITMENT TEMPLATES ---
+    {
+        id: 'admin_reality_check',
+        name: 'The Reality Check',
+        category: 'recruitment',
+        subject: 'Real estate is broken (and so is your follow-up)',
+        content: `Hi {{lead.firstName}},
+
+The old way of selling homes is dead. While you're manually texting leads, my AI is having full conversations, booking appointments, and qualifying buyers.
+
+Be honest: How many leads did you lose last month just because you were too busy to reply in 5 minutes?
+
+Stop the bleeding. See the new standard here: {{agent.aiCardUrl}}
+
+{{agent.signature}}`,
+        description: 'Wake up call about manual follow-up inefficiency',
+        tags: ['recruitment', 'admin', 'bold'],
+        useCase: 'First touch for recruiting agents'
+    },
+    {
+        id: 'admin_feature_flex',
+        name: 'The Feature Flex',
+        category: 'recruitment',
+        subject: 'I cloned myself (literally)',
+        content: `Hi {{lead.firstName}},
+
+Imagine if you could clone your best sales script and have it run 24/7.
+
+My AI doesn't just "send emails." It:
+• Text messages leads within 30 seconds
+• Has full voice conversations (yes, really)
+• Books appointments directly on your calendar
+
+I'm not asking you to work harder. I'm asking you to let AI do the heavy lifting.
+
+Listen to a live demo call here: [Link]
+
+{{agent.signature}}`,
+        description: 'Showcase AI Voice and Text capabilities',
+        tags: ['recruitment', 'features', 'ai-voice'],
+        useCase: 'Second touch to show off tech'
+    },
+    {
+        id: 'admin_case_study',
+        name: 'The Case Study',
+        category: 'recruitment',
+        subject: 'How Sarah doubled her GCI in 90 days',
+        content: `Hi {{lead.firstName}},
+
+Sarah was stuck at 8 deals a year. She was burning out.
+
+Then she turned on HomeListingAI.
+
+90 days later:
+• 15 new listings taken
+• 0 manual follow-up calls made
+• 100% of leads contacted within 1 minute
+
+She didn't get better at sales. She just got a better system.
+
+Read her full breakdown here: [Case Study Link]
+
+{{agent.signature}}`,
+        description: 'Social proof with metrics',
+        tags: ['recruitment', 'case-study', 'proof'],
+        useCase: 'Third touch to provide evidence'
+    },
+    {
+        id: 'admin_breakup',
+        name: 'The Breakup',
+        category: 'recruitment',
+        subject: 'Is this goodbye?',
+        content: `Hi {{lead.firstName}},
+
+I haven't heard back, so I assume you're perfectly happy with your current lead conversion rates.
+
+I'm going to focus on agents who are actively looking to scale this year.
+
+If you ever decide you want to stop losing leads to faster competitors, you know where to find me.
+
+Best of luck,
+{{agent.signature}}`,
+        description: 'Takeaway close for non-responders',
+        tags: ['recruitment', 'breakup', 'close'],
+        useCase: 'Final touch in the sequence'
+    },
+
     // LEAD CAPTURE TEMPLATES
     {
         id: 'quick_response',
@@ -335,7 +424,8 @@ export const EMAIL_TEMPLATE_CATEGORIES = [
     { id: 'follow_up', name: 'Follow-Up', description: 'Re-engage and nurture leads' },
     { id: 'appointment', name: 'Appointments', description: 'Schedule and confirm showings' },
     { id: 'nurture', name: 'Nurture', description: 'Stay top-of-mind with valuable content' },
-    { id: 'market_update', name: 'Market Updates', description: 'Share market insights and trends' }
+    { id: 'market_update', name: 'Market Updates', description: 'Share market insights and trends' },
+    { id: 'recruitment', name: 'Admin / Recruitment', description: ' Recruit agents to HomeListingAI' }
 ];
 
 export const TEMPLATE_VARIABLES = {

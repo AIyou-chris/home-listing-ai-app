@@ -72,9 +72,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
         aria-hidden="true"
       />
       <aside className={`
-            fixed inset-y-0 left-0 z-40 h-full w-64 flex-col border-r border-slate-200 bg-white px-4 py-6
+            fixed inset-y-0 left-0 z-40 h-full w-64 flex flex-col border-r border-slate-200 bg-white px-4 py-6
             transform transition-transform duration-300 ease-in-out
-            md:static md:flex md:translate-x-0
+            md:static md:translate-x-0
             ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}>
         <div className="flex justify-between items-center px-2 mb-6">
@@ -143,6 +143,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
                 onClose={onClose}
               >
                 AI Funnels
+              </NavItem>
+            </div>
+
+            {/* Marketing Hub */}
+            <div className="border-t border-slate-100">
+              <NavItem
+                to={getPath("/marketing")}
+                icon="campaign"
+                onClose={onClose}
+              >
+                Marketing Hub
               </NavItem>
             </div>
 

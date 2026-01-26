@@ -134,54 +134,47 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             {subtitle}
                         </p>
                     </div>
-                    {activeSection === 'funnels' && (
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setIsImportModalOpen(true)}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-                            >
-                                <span className="material-symbols-outlined text-base">upload_file</span>
-                                Import Leads
-                            </button>
-
-                            <LeadImportModal
-                                isOpen={isImportModalOpen}
-                                onClose={() => setIsImportModalOpen(false)}
-                                onImport={(leads, assignment) => {
-                                    alert(`Successfully queued ${leads.length} leads for import to ${assignment.funnel}!`);
-                                    refreshAnalytics();
-                                    setRefreshKey(prev => prev + 1);
-                                }}
-                            />
-
-                            <button
-                                type="button"
-                                onClick={() => setIsTemplatesModalOpen(true)}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-white border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50"
-                            >
-                                <span className="material-symbols-outlined text-base">library_books</span>
-                                Agent Templates
-                            </button>
-
-                            {/* REMOVED: Open House QR & Email Library for Admin */}
-                            <button
-                                onClick={() => setIsSignatureModalOpen(true)}
-                                className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-50 shadow-sm transition-colors"
-                            >
-                                <span className="material-symbols-outlined text-indigo-600">badge</span>
-                                Edit Global Signature
-                                {customSignature && (
-                                    <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800">
-                                        Active
-                                    </span>
-                                )}
-                            </button>
-                        </div>
-                    )}
+                    {activeSection === 'funnels' && null}
                 </header>
 
-                {/* Test Configuration Card Removed */}
+                <div className="mb-8 rounded-2xl border bg-white p-6 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                        <span className="material-symbols-outlined text-indigo-600">science</span>
+                        <h3 className="text-lg font-semibold text-slate-800">Test Configuration</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                                Test Phone Number (for SMS & Voice)
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="+15550000000"
+                                className="w-full rounded-lg border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+                                defaultValue="+15550000000"
+                            />
+                            <p className="mt-2 text-[10px] text-slate-400">
+                                Format: E.164 (e.g. +12125551212)
+                            </p>
+                            <p className="mt-1 text-[10px] text-slate-400">
+                                * Enter data here to skip prompts when clicking "Send Test".
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                                Test Email Address
+                            </label>
+                            <input
+                                type="email"
+                                placeholder="you@example.com"
+                                className="w-full rounded-lg border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+                                defaultValue="you@example.com"
+                            />
+                        </div>
+                    </div>
+                </div>
 
                 <div className="mb-8 px-4 md:px-0">
                     <PageTipBanner
@@ -245,8 +238,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
                             <AdminSalesFunnelPanel
                                 variant="embedded"
-                                title="Agent Recruitment Sequence"
-                                subtitle="The active 'In Your Face' funnel for imported leads."
+                                title="The 'In Your Face' Closer"
+                                subtitle="A 5-step aggressive campaign to convert Realtors into paid subscribers. Uses the 'Leak-Proof Bucket' strategy."
                                 forcedCallType="sales"
                             />
                         </div>

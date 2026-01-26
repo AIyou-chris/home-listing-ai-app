@@ -30,7 +30,8 @@ const handleResponse = async (response: Response): Promise<CalendarSettingsRespo
 }
 
 const fetchSettings = async (userId: string): Promise<CalendarSettingsResponse> => {
-  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(userId)}`)
+  const safeId = userId || 'default'
+  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(safeId)}`)
   return handleResponse(response)
 }
 
@@ -38,7 +39,8 @@ const updateSettings = async (
   userId: string,
   settings: Partial<CalendarSettings>
 ): Promise<CalendarSettingsResponse> => {
-  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(userId)}`, {
+  const safeId = userId || 'default'
+  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(safeId)}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'

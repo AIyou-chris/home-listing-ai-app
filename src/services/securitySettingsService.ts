@@ -32,7 +32,8 @@ const handleResponse = async (response: Response): Promise<SecuritySettingsRespo
 };
 
 const fetchSettings = async (userId: string): Promise<SecuritySettingsResponse> => {
-    const response = await fetch(`/api/security/settings/${encodeURIComponent(userId)}`);
+    const safeId = userId || 'default';
+    const response = await fetch(`/api/security/settings/${encodeURIComponent(safeId)}`);
     return handleResponse(response);
 };
 
@@ -40,7 +41,8 @@ const updateSettings = async (
     userId: string,
     settings: SecuritySettings
 ): Promise<SecuritySettingsResponse> => {
-    const response = await fetch(`/api/security/settings/${encodeURIComponent(userId)}`, {
+    const safeId = userId || 'default';
+    const response = await fetch(`/api/security/settings/${encodeURIComponent(safeId)}`, {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json'

@@ -309,6 +309,18 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
                         <div className="flex items-center gap-3">
                           <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
                           <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${statusStyles[lead.status]}`}>{lead.status}</span>
+                          {lead.score && (
+                            <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full flex items-center gap-1 ${lead.score.totalScore >= 90 ? 'bg-orange-100 text-orange-700' :
+                                lead.score.totalScore >= 70 ? 'bg-green-100 text-green-700' :
+                                  lead.score.totalScore >= 40 ? 'bg-blue-100 text-blue-700' :
+                                    'bg-slate-100 text-slate-600'
+                              }`}>
+                              <span className="material-symbols-outlined text-sm">
+                                {lead.score.totalScore >= 90 ? 'local_fire_department' : 'trending_up'}
+                              </span>
+                              {lead.score.totalScore}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500 mt-1">
                           <span className="inline-flex items-center gap-1.5">

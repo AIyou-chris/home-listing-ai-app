@@ -123,23 +123,27 @@ class EmailAuthService {
                 token_type: 'Bearer'
             };
 
-            // Store connection in backend
-            const response = await fetch('/api/gmail/oauth/store', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    userId,
-                    email: userInfo.email,
-                    tokens
-                })
-            });
+            // Store connection in backend (Skip for default/demo user)
+            if (userId !== 'default') {
+                const response = await fetch('/api/gmail/oauth/store', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId,
+                        email: userInfo.email,
+                        tokens
+                    })
+                });
 
-            const data = await response.json();
+                const data = await response.json();
 
-            if (!response.ok || !data.success) {
-                throw new Error(data.error || 'Failed to store Gmail connection');
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to store Gmail connection');
+                }
+            } else {
+                console.log('Skipping backend storage for default/demo user - using local persistence only');
             }
 
             const connection: EmailConnection = {

@@ -88,9 +88,60 @@ const Dashboard: React.FC<DashboardProps> = ({
                     title="Upcoming Viewings"
                     value={upcomingAppts}
                     icon="event"
-                    color="bg-emerald-600"
-                    onClick={onViewAppointments}
                 />
+            </div>
+
+            {/* Priority Action Items - Daily Pulse */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-white">
+                    <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-amber-600">notifications_active</span>
+                        Priority Action Items
+                        {_tasks.filter(t => !t.isCompleted).length > 0 && (
+                            <span className="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-full">{_tasks.filter(t => !t.isCompleted).length}</span>
+                        )}
+                    </h3>
+                </div>
+                <div className="divide-y divide-slate-100">
+                    {_tasks.filter(t => !t.isCompleted).length > 0 ? (
+                        _tasks.filter(t => !t.isCompleted).slice(0, 5).map((task) => (
+                            <div key={task.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between group">
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={() => onTaskUpdate(task.id, { isCompleted: true })}
+                                        className="w-6 h-6 rounded-full border-2 border-slate-300 hover:border-emerald-500 hover:bg-emerald-50 transition-all flex items-center justify-center group-hover:scale-110"
+                                        title="Mark Complete"
+                                    >
+                                        <span className="material-symbols-outlined text-xs text-transparent hover:text-emerald-600">check</span>
+                                    </button>
+                                    <div>
+                                        <div className="font-medium text-slate-900">{task.text}</div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {task.priority === 'High' && (
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">High Priority</span>
+                                            )}
+                                            <span className="text-xs text-slate-500">Due: {task.dueDate}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => onTaskUpdate(task.id, { isCompleted: true })}
+                                    className="opacity-0 group-hover:opacity-100 px-3 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-all"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="p-8 text-center">
+                            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <span className="material-symbols-outlined">check_circle</span>
+                            </div>
+                            <h4 className="font-medium text-slate-900">All caught up!</h4>
+                            <p className="text-sm text-slate-500 mt-1">No urgent action items remaining for today.</p>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Main Content Sections */}

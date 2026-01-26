@@ -5,7 +5,8 @@ import { Property, View, AgentProfile, NotificationSettings, EmailSettings, Cale
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
 import {
-    BLUEPRINT_AGENT
+    BLUEPRINT_AGENT,
+    BLUEPRINT_PROPERTIES
 } from './constants/agentBlueprintData';
 import LandingPage from './components/LandingPage';
 import NewLandingPage from './components/NewLandingPage';
@@ -63,8 +64,12 @@ const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
 import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
 import { securitySettingsService } from './services/securitySettingsService';
+import { notificationSettingsService } from './services/notificationSettingsService';
+import { calendarSettingsService } from './services/calendarSettingsService';
+import { billingSettingsService } from './services/billingSettingsService';
 import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
+const PublicListingPage = lazy(() => import('./pages/PublicListingPage')); // Public View
 import CombinedTrainingPage from './components/AgentAISidekicksPage';
 // import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
 import FunnelAnalyticsPanel from './components/FunnelAnalyticsPanel';
@@ -267,7 +272,7 @@ const App: React.FC = () => {
         smsReminders: true,
         newAppointmentAlerts: true
     });
-    const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Complete AI Solution', history: [{ id: 'inv-123', date: '07/15/2024', amount: 69.00, status: 'Paid' }] });
+    const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Free Tier', history: [] });
     // Removed unused state variables
 
 
@@ -284,13 +289,7 @@ const App: React.FC = () => {
         // Initialize performance monitoring
         PerformanceService.initialize();
 
-        // FAILSAFE: Force loading to complete after 3 seconds (was 8)
-        const safetyTimer = setTimeout(() => {
-            setIsLoading((prev) => {
-                if (prev) console.warn("⚠️ Safety timer triggered: Forcing loading complete.");
-                return false;
-            });
-        }, 3000);
+
 
         const initAuth = async () => {
             // Check URL path immediately
@@ -450,6 +449,29 @@ const App: React.FC = () => {
                     });
                 }
 
+                // 3. Load User Settings (Notifications, Calendar, Billing)
+                try {
+                    console.log('⚙️ Loading user settings...');
+                    const [notifRes, calRes, billRes] = await Promise.allSettled([
+                        notificationSettingsService.fetch(currentUser.uid),
+                        calendarSettingsService.fetch(currentUser.uid),
+                        billingSettingsService.get(currentUser.uid)
+                    ]);
+
+                    if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
+                        setNotificationSettings(notifRes.value.settings);
+                    }
+                    if (calRes.status === 'fulfilled' && calRes.value.settings) {
+                        setCalendarSettings(calRes.value.settings);
+                    }
+                    if (billRes.status === 'fulfilled' && billRes.value) {
+                        setBillingSettings(billRes.value);
+                    }
+                    console.log('✅ User settings loaded');
+                } catch (settingsError) {
+                    console.warn('Failed to load user settings:', settingsError);
+                }
+
             } catch (err) {
                 console.warn('Background data load warning:', err);
             }
@@ -498,7 +520,6 @@ const App: React.FC = () => {
         });
 
         return () => {
-            clearTimeout(safetyTimer);
             subscription.unsubscribe();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -647,7 +668,8 @@ const App: React.FC = () => {
         setIsBlueprintMode(true);
 
         // Clear mock data to ensure "Blank Slate" / "Live" experience
-        setProperties([]); // Or keep BLUEPRINT_PROPERTIES if user wants to see Listings? User focused on Lead Scoring.
+        // BUT stick the Demo Listing in so they have an example (as requested)
+        setProperties(BLUEPRINT_PROPERTIES);
         setLeads([]);
         setAppointments([]);
         setInteractions([]);
@@ -1116,6 +1138,13 @@ const App: React.FC = () => {
                     <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={false} isBlueprintMode={true} demoListingCount={1} />} />
                     <Route path="/demo-showcase" element={<MultiToolShowcase />} />
 
+                    {/* Public Property Route */}
+                    <Route path="/listing/:id" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <PublicListingPage />
+                        </Suspense>
+                    } />
+
                     {/* Demo Dashboard */}
                     <Route path="/admin" element={
                         isAdmin ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/" />
@@ -1232,6 +1261,7 @@ const App: React.FC = () => {
                                 onNavigateToAICard={() => navigate('/ai-card')}
                                 securitySettings={{}}
                                 onSaveSecuritySettings={async () => { }}
+                                isBlueprintMode={isBlueprintMode}
                             />
                         } />
                     </Route>
@@ -1277,7 +1307,15 @@ const App: React.FC = () => {
                                     userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
                                 }}
                                 onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
-                                onSupportTicket={(ticketInfo) => { console.log('Support ticket created from chat:', ticketInfo); }}
+                                onSupportTicket={async (ticketInfo) => {
+                                    console.log('Support ticket created from chat:', ticketInfo);
+                                    try {
+                                        const { notifyAgentHandoff } = await import('./services/chatService');
+                                        await notifyAgentHandoff(ticketInfo);
+                                    } catch (err) {
+                                        console.error("Failed to notify agent of handoff:", err);
+                                    }
+                                }}
                                 position="bottom-right"
                                 showWelcomeMessage={false}
                             />

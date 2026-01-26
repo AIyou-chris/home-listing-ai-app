@@ -102,6 +102,33 @@ export const PublicSidekickModal: React.FC<PublicSidekickModalProps> = ({ proper
         }
     }, [isPlaying, profile?.voice_label])
 
+    // Construct Sovereign System Context
+    const systemContext = useMemo(() => {
+        const basePersona = profile?.description?.trim() ?? DEFAULT_PERSONA_DESCRIPTION
+
+        return `
+${basePersona}
+
+CURRENT LISTING CONTEXT:
+Address: ${property.address}
+Price: $${property.price.toLocaleString()}
+Specs: ${property.bedrooms} Bed / ${property.bathrooms} Bath / ${property.squareFeet.toLocaleString()} SqFt
+Description: ${typeof property.description === 'string' ? property.description : property.description?.paragraphs?.join(' ') || ''}
+Features: ${property.features?.join(', ') || 'None listed'}
+
+AGENT INFO:
+Name: ${property.agent?.name || 'Agent'}
+Email: ${property.agent?.email || property.agentId || 'Contact via form'}
+Phone: ${property.agent?.phone || 'Contact via form'}
+
+INSTRUCTIONS:
+- You are the dedicated AI assistant for THIS property.
+- Answer questions specifically about ${property.address}.
+- If you don't know a detail, refer to the agent.
+- Be helpful, professional, and invite them to schedule a showing.
+`.trim()
+    }, [profile, property])
+
     const runChat = React.useCallback(async (text: string) => {
         if (!text.trim() || !conversationId) return
         setLoading(true)
@@ -115,7 +142,7 @@ export const PublicSidekickModal: React.FC<PublicSidekickModalProps> = ({ proper
 
             // Generate AI Response
             const aiText = await continueConversation([
-                { sender: 'system', text: persona },
+                { sender: 'system', text: systemContext }, // Inject Sovereign Context
                 ...newHistory.slice(-10).map(m => ({ sender: m.sender, text: m.text })) // Context window
             ])
 
@@ -133,7 +160,7 @@ export const PublicSidekickModal: React.FC<PublicSidekickModalProps> = ({ proper
         } finally {
             setLoading(false)
         }
-    }, [conversationId, history, persona, mode, speak])
+    }, [conversationId, history, systemContext, mode, speak])
 
     // Voice Recognition Setup
     useEffect(() => {

@@ -5,9 +5,12 @@ export interface VoiceClientEventHandlers {
   onAssistantComplete?: (text: string) => void
   onPartialTranscript?: (text: string) => void
   onListeningChange?: (isListening: boolean) => void
+  onToolCall?: (toolName: string, args: Record<string, any>) => Promise<string | void>
 }
 
 export interface VoiceConnectOptions {
   model?: string
+  voice?: string
   systemPrompt?: string
+  tools?: any[]
 }

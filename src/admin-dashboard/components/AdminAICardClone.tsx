@@ -47,6 +47,8 @@ const AdminAICardClone: React.FC = () => {
   const [form, setForm] = useState<AdminAICardForm>(createEmptyForm);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [shareUrl] = useState<string>(() => `${window.location.origin}/admin/ai-card/preview`);
+  const [previewShowContact, setPreviewShowContact] = useState(false);
+  const [previewShowConnectForm, setPreviewShowConnectForm] = useState(false);
   const headshotInputRef = useRef<HTMLInputElement | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const previewId = useMemo(() => 'admin-ai-business-card-preview', []);
@@ -325,6 +327,8 @@ const AdminAICardClone: React.FC = () => {
             >
               <div className="h-3 w-full" style={{ backgroundColor: form.brandColor || '#0d15e7' }} />
               <div className="p-4 flex flex-col items-center text-center space-y-3">
+
+                {/* ID Section */}
                 <div
                   className="h-16 w-16 rounded-full border-4 border-white shadow-sm overflow-hidden"
                   style={{ backgroundColor: form.brandColor || '#0d15e7' }}
@@ -338,23 +342,50 @@ const AdminAICardClone: React.FC = () => {
                   <p className="text-xs text-slate-500">{form.professionalTitle || 'Professional Title'}</p>
                   <p className="text-xs text-slate-500">{form.company || 'Company'}</p>
                 </div>
-                <div className="flex flex-col items-center gap-2 text-primary-600 text-sm">
-                  {form.phone && <span className="inline-flex items-center gap-1"><span className="material-symbols-outlined text-base">call</span>{form.phone}</span>}
-                  {form.email && <span className="inline-flex items-center gap-1"><span className="material-symbols-outlined text-base">mail</span>{form.email}</span>}
-                  {form.website && <span className="inline-flex items-center gap-1"><span className="material-symbols-outlined text-base">language</span>{form.website}</span>}
-                </div>
+                {/* Collapsible Contact Info */}
                 <button
-                  className="mt-2 w-full rounded-lg px-4 py-2 text-sm font-semibold text-white shadow"
+                  onClick={() => setPreviewShowContact(!previewShowContact)}
+                  className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  <span className="material-symbols-outlined text-sm">contact_page</span>
+                  {previewShowContact ? 'Hide Contact Info' : 'Contact Info'}
+                </button>
+
+                {previewShowContact && (
+                  <div className="flex flex-col items-center gap-2 text-primary-600 text-sm animate-fade-in mt-2 p-3 bg-slate-50 rounded-lg w-full">
+                    {form.phone && <span className="inline-flex items-center gap-1"><span className="material-symbols-outlined text-base">call</span>{form.phone}</span>}
+                    {form.email && <span className="inline-flex items-center gap-1"><span className="material-symbols-outlined text-base">mail</span>{form.email}</span>}
+                    {form.website && <span className="inline-flex items-center gap-1"><span className="material-symbols-outlined text-base">language</span>{form.website}</span>}
+                  </div>
+                )}
+
+                {/* VISUAL UPDATE: Message Me Button */}
+                <button
+                  className="mt-4 w-full rounded-full px-4 py-2 text-sm font-bold text-white shadow-md transition-transform"
                   style={{ backgroundColor: form.brandColor || '#0d15e7' }}
                 >
-                  How can I help?
+                  Message Me
                 </button>
+
+                {/* VISUAL UPDATE: Mock Embedded Form */}
+                <div className="w-full bg-white rounded-lg border border-slate-200 p-3 shadow-sm text-left space-y-2 mt-2">
+                  <p className="text-xs font-bold text-center text-slate-600">Connect with {form.fullName?.split(' ')[0] || 'Agent'}</p>
+                  <div className="h-8 bg-slate-50 rounded border border-slate-100 flex items-center px-2 text-xs text-slate-400">Name</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="h-8 bg-slate-50 rounded border border-slate-100 flex items-center px-2 text-xs text-slate-400">Email</div>
+                    <div className="h-8 bg-slate-50 rounded border border-slate-100 flex items-center px-2 text-xs text-slate-400">Phone</div>
+                  </div>
+                  <div className="h-16 bg-slate-50 rounded border border-slate-100 flex items-center px-2 text-xs text-slate-400">Message...</div>
+                  <div className="h-8 rounded flex items-center justify-center text-xs font-semibold text-white" style={{ backgroundColor: form.brandColor || '#0d15e7', opacity: 0.9 }}>Send Message</div>
+                </div>
+
+                {/* VISUAL UPDATE: Share Link Button (De-emphasized) */}
                 <button
                   onClick={handleCopyLink}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  className="mt-2 inline-flex items-center gap-1 rounded-lg border-0 px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
                 >
                   <Share2 className="w-4 h-4" />
-                  Share Card
+                  Share Profile Link
                 </button>
               </div>
             </div>

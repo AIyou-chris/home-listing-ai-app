@@ -61,143 +61,56 @@ const SidekickLeadScoring: React.FC = () => {
 	const [selectedSidekick, setSelectedSidekick] = useState<AISidekickRole>('agent')
 	const [isLoading, setIsLoading] = useState(true)
 
-	// Initialize demo data
+	// Initialize and fetch real data
 	useEffect(() => {
-		const demoIntegrations: SidekickLeadIntegration[] = [
-			{
-				sidekickId: 'agent',
-				name: 'Agent Sidekick',
-				leadScoringEnabled: true,
-				scoringTriggers: {
-					onMessage: true,
-					onEngagement: true,
-					onPropertyInquiry: true,
-					onSchedulingRequest: true
-				},
-				responseAdaptation: {
-					enabled: true,
-					hotLeadResponse: "I can see you're very interested! Let me connect you with our top agent right away.",
-					warmLeadResponse: "Great questions! I'd love to help you explore this further. Would you like to schedule a call?",
-					coldLeadResponse: "Thanks for your interest! Let me share some helpful information to get you started."
-				},
-				autoActions: {
-					hotLeadNotification: true,
-					warmLeadFollowUp: true,
-					coldLeadNurturing: false,
-					escalateToAgent: true
-				},
-				scoringWeights: {
-					messageEngagement: 25,
-					responseTime: 15,
-					questionComplexity: 20,
-					propertyInterest: 40
-				}
-			},
-			{
-				sidekickId: 'listing',
-				name: 'Listing Sidekick',
-				leadScoringEnabled: true,
-				scoringTriggers: {
-					onMessage: true,
-					onEngagement: false,
-					onPropertyInquiry: true,
-					onSchedulingRequest: true
-				},
-				responseAdaptation: {
-					enabled: true,
-					hotLeadResponse: "This property is perfect for you! Let me schedule an immediate viewing.",
-					warmLeadResponse: "I can tell you're interested in this property. Would you like more details?",
-					coldLeadResponse: "Here's what makes this property special. Feel free to ask any questions!"
-				},
-				autoActions: {
-					hotLeadNotification: true,
-					warmLeadFollowUp: false,
-					coldLeadNurturing: true,
-					escalateToAgent: false
-				},
-				scoringWeights: {
-					messageEngagement: 20,
-					responseTime: 10,
-					questionComplexity: 30,
-					propertyInterest: 40
-				}
-			},
-			{
-				sidekickId: 'marketing',
-				name: 'Marketing Sidekick',
-				leadScoringEnabled: false,
-				scoringTriggers: {
-					onMessage: false,
-					onEngagement: true,
-					onPropertyInquiry: false,
-					onSchedulingRequest: false
-				},
-				responseAdaptation: {
-					enabled: false,
-					hotLeadResponse: "",
-					warmLeadResponse: "",
-					coldLeadResponse: ""
-				},
-				autoActions: {
-					hotLeadNotification: false,
-					warmLeadFollowUp: true,
-					coldLeadNurturing: true,
-					escalateToAgent: false
-				},
-				scoringWeights: {
-					messageEngagement: 30,
-					responseTime: 20,
-					questionComplexity: 25,
-					propertyInterest: 25
-				}
-			}
-		]
+		const fetchData = async () => {
+			setIsLoading(true)
+			try {
+				// 1. Fetch Integrations (Static for now, but enabled)
+				const demoIntegrations: SidekickLeadIntegration[] = [
+					{
+						sidekickId: 'agent',
+						name: 'Agent Sidekick',
+						leadScoringEnabled: true,
+						scoringTriggers: { onMessage: true, onEngagement: true, onPropertyInquiry: true, onSchedulingRequest: true },
+						responseAdaptation: { enabled: true, hotLeadResponse: "I can see you're very interested! Let me connect you with our top agent right away.", warmLeadResponse: "Great questions! I'd love to help you explore this further. Would you like to schedule a call?", coldLeadResponse: "Thanks for your interest! Let me share some helpful information to get you started." },
+						autoActions: { hotLeadNotification: true, warmLeadFollowUp: true, coldLeadNurturing: false, escalateToAgent: true },
+						scoringWeights: { messageEngagement: 25, responseTime: 15, questionComplexity: 20, propertyInterest: 40 }
+					},
+					{
+						sidekickId: 'listing',
+						name: 'Listing Sidekick',
+						leadScoringEnabled: true,
+						scoringTriggers: { onMessage: true, onEngagement: false, onPropertyInquiry: true, onSchedulingRequest: true },
+						responseAdaptation: { enabled: true, hotLeadResponse: "This property is perfect for you! Let me schedule an immediate viewing.", warmLeadResponse: "I can tell you're interested in this property. Would you like more details?", coldLeadResponse: "Here's what makes this property special. Feel free to ask any questions!" },
+						autoActions: { hotLeadNotification: true, warmLeadFollowUp: false, coldLeadNurturing: true, escalateToAgent: false },
+						scoringWeights: { messageEngagement: 20, responseTime: 10, questionComplexity: 30, propertyInterest: 40 }
+					}
+				]
+				setSidekickIntegrations(demoIntegrations)
 
-		const demoInteractions: LeadInteraction[] = [
-			{
-				id: 'int-1',
-				leadId: 'lead-1',
-				leadName: 'Sarah Johnson',
-				sidekickId: 'agent',
-				message: 'I need to see this house tomorrow. Can we schedule ASAP?',
-				response: 'Absolutely! I can see you\'re very interested. Let me connect you with our top agent right away.',
-				scoreBefore: 65,
-				scoreAfter: 85,
-				scoreChange: 20,
-				timestamp: '2024-01-16T14:30:00Z',
-				triggers: ['onMessage', 'onSchedulingRequest']
-			},
-			{
-				id: 'int-2',
-				leadId: 'lead-2',
-				leadName: 'Mike Chen',
-				sidekickId: 'listing',
-				message: 'What\'s the square footage of the master bedroom?',
-				response: 'I can tell you\'re interested in this property. The master bedroom is 180 sq ft. Would you like more details?',
-				scoreBefore: 45,
-				scoreAfter: 52,
-				scoreChange: 7,
-				timestamp: '2024-01-16T13:15:00Z',
-				triggers: ['onMessage', 'onPropertyInquiry']
-			},
-			{
-				id: 'int-3',
-				leadId: 'lead-3',
-				leadName: 'Emma Davis',
-				sidekickId: 'agent',
-				message: 'Just browsing, thanks.',
-				response: 'Thanks for your interest! Let me share some helpful information to get you started.',
-				scoreBefore: 25,
-				scoreAfter: 22,
-				scoreChange: -3,
-				timestamp: '2024-01-16T12:45:00Z',
-				triggers: ['onMessage']
+				// 2. Fetch REAL interactions from backend
+				const response = await fetch('/api/leads/recent-scoring')
+				if (response.ok) {
+					const data = await response.json()
+					if (data.success && data.interactions) {
+						// Map backend fields to frontend interface if necessary
+						const mapped = data.interactions.map((it: any) => ({
+							...it,
+							scoreChange: it.scoreChange || 5, // Backend doesn't store change yet, defaulting to positive engagement
+							triggers: ['onMessage']
+						}))
+						setRecentInteractions(mapped)
+					}
+				}
+			} catch (error) {
+				console.error('Failed to fetch sidekick scoring data:', error)
+			} finally {
+				setIsLoading(false)
 			}
-		]
+		}
 
-		setSidekickIntegrations(demoIntegrations)
-		setRecentInteractions(demoInteractions)
-		setIsLoading(false)
+		fetchData()
 	}, [])
 
 	const currentIntegration = sidekickIntegrations.find(s => s.sidekickId === selectedSidekick)
@@ -292,7 +205,7 @@ const SidekickLeadScoring: React.FC = () => {
 								<div>
 									<h4 className="font-medium text-slate-900">{integration.name}</h4>
 									<p className="text-sm text-slate-600">
-										{integration.leadScoringEnabled ? 'Lead scoring active' : 'Lead scoring disabled'} • 
+										{integration.leadScoringEnabled ? 'Lead scoring active' : 'Lead scoring disabled'} •
 										{Object.values(integration.scoringTriggers).filter(Boolean).length} triggers enabled
 									</p>
 								</div>
@@ -380,8 +293,8 @@ const SidekickLeadScoring: React.FC = () => {
 						<h4 className="font-medium text-slate-900 mb-4">Basic Settings</h4>
 						<div className="space-y-4">
 							<div className="flex items-center gap-2">
-								<input 
-									type="checkbox" 
+								<input
+									type="checkbox"
 									id="leadScoringEnabled"
 									checked={currentIntegration.leadScoringEnabled}
 									onChange={(e) => updateIntegrationSetting(integration => ({
@@ -403,8 +316,8 @@ const SidekickLeadScoring: React.FC = () => {
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 							{Object.entries(currentIntegration.scoringTriggers).map(([key, value]) => (
 								<div key={key} className="flex items-center gap-2">
-									<input 
-										type="checkbox" 
+									<input
+										type="checkbox"
 										id={key}
 										checked={value}
 										onChange={(e) => updateIntegrationSetting(integration => ({
@@ -427,8 +340,8 @@ const SidekickLeadScoring: React.FC = () => {
 					{/* Response Adaptation */}
 					<div className="bg-white rounded-lg border border-slate-200 p-6">
 						<div className="flex items-center gap-2 mb-4">
-							<input 
-								type="checkbox" 
+							<input
+								type="checkbox"
 								id="responseAdaptationEnabled"
 								checked={currentIntegration.responseAdaptation.enabled}
 								onChange={(e) => updateIntegrationSetting(integration => ({
@@ -444,7 +357,7 @@ const SidekickLeadScoring: React.FC = () => {
 								Adaptive Responses Based on Lead Score
 							</label>
 						</div>
-						
+
 						{currentIntegration.responseAdaptation.enabled && (
 							<div className="space-y-4">
 								<div>
@@ -502,8 +415,8 @@ const SidekickLeadScoring: React.FC = () => {
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 							{Object.entries(currentIntegration.autoActions).map(([key, value]) => (
 								<div key={key} className="flex items-center gap-2">
-									<input 
-										type="checkbox" 
+									<input
+										type="checkbox"
 										id={`auto-${key}`}
 										checked={value}
 										onChange={(e) => updateIntegrationSetting(integration => ({
@@ -586,11 +499,10 @@ const SidekickLeadScoring: React.FC = () => {
 						<button
 							key={tab.id}
 							onClick={() => setActiveTab(tab.id)}
-							className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm ${
-								activeTab === tab.id
+							className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
 									? 'border-primary-500 text-primary-600'
 									: 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-							}`}
+								}`}
 						>
 							<span className="material-symbols-outlined text-sm">{tab.icon}</span>
 							{tab.label}

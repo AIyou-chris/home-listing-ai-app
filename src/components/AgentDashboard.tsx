@@ -29,6 +29,7 @@ import {
 import { SecuritySettings } from '../types';
 import { listingsService } from '../services/listingsService';
 import { leadsService, LeadPayload } from '../services/leadsService';
+import { adminLeadsService } from '../services/adminLeadsService'; // Added
 import { listAppointments } from '../services/appointmentsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
 import { securitySettingsService } from '../services/securitySettingsService';
@@ -38,6 +39,7 @@ import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelSe
 import UniversalFunnelPanel from './UniversalFunnelPanel';
 import { initialWelcomeSteps, initialHomeBuyerSteps, initialListingSteps, initialPostShowingSteps } from './constants/funnelDefaults';
 import { useAgentBranding } from '../hooks/useAgentBranding';
+import { SmartTaskService } from '../services/smartTaskService';
 import {
   Property,
   View,
@@ -57,6 +59,53 @@ import {
 type MarketingSequencesResponse = {
   sequences?: FollowUpSequence[];
 };
+
+const STATIC_FUNNEL_SECTIONS = [
+  {
+    key: 'welcome',
+    badgeIcon: 'thunderstorm',
+    badgeClassName: 'bg-teal-50 text-teal-700',
+    badgeLabel: 'New Lead Welcome',
+    title: 'Instant AI Welcome',
+    description: 'Chatbot fires a warm intro email + SMS within 2 minutes.',
+    iconColorClass: 'text-teal-600',
+    initialSteps: initialWelcomeSteps,
+    saveLabel: 'Save Welcome Sequence'
+  },
+  {
+    key: 'buyer',
+    badgeIcon: 'bolt',
+    badgeClassName: 'bg-indigo-50 text-indigo-700',
+    badgeLabel: 'Buyer Nurture',
+    title: 'Buyer Journey',
+    description: 'Automated check-ins to qualify buyers and book tours.',
+    iconColorClass: 'text-indigo-600',
+    initialSteps: initialHomeBuyerSteps,
+    saveLabel: 'Save Buyer Journey'
+  },
+  {
+    key: 'listing',
+    badgeIcon: 'auto_fix_high',
+    badgeClassName: 'bg-purple-50 text-purple-700',
+    badgeLabel: 'Seller Nurture',
+    title: 'Listing Prep & Story',
+    description: 'Guide sellers through the "Home Story" process.',
+    iconColorClass: 'text-purple-600',
+    initialSteps: initialListingSteps,
+    saveLabel: 'Save Seller Flow'
+  },
+  {
+    key: 'post-showing',
+    badgeIcon: 'mail',
+    badgeClassName: 'bg-amber-50 text-amber-700',
+    badgeLabel: 'Showing Follow-Up',
+    title: 'Post-Showing Feedback',
+    description: 'Auto-chase buyers for feedback after a tour.',
+    iconColorClass: 'text-amber-600',
+    initialSteps: initialPostShowingSteps,
+    saveLabel: 'Save Follow-Up'
+  }
+];
 
 const cloneDemoProperty = (property: Property, index: number): Property => {
   const description =
@@ -87,10 +136,33 @@ interface AgentDashboardProps {
   demoListingCount?: number;
 }
 
+// Helper functions to persist leads across hot reloads and refreshes
+const SESSION_STORAGE_KEY = 'blueprint_session_leads';
+
+const getSessionLeads = (): Lead[] => {
+  try {
+    const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveSessionLead = (lead: Lead) => {
+  try {
+    const existing = getSessionLeads();
+    const updated = [lead, ...existing.filter(l => l.id !== lead.id)];
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updated));
+  } catch (error) {
+    console.warn('Failed to persist lead to session storage:', error);
+  }
+};
+
 const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoMode = false, isBlueprintMode: propIsBlueprintMode = false, demoListingCount = 2 }) => {
   // Setup Failsafe: Force Demo Mode if URL implies it
-  const isDemoMode = propIsDemoMode || window.location.pathname.includes('demo');
   const isBlueprintMode = propIsBlueprintMode || window.location.pathname.includes('blueprint');
+  // Blueprint Mode is a special type of Demo Mode, so always set isDemoMode=true when in Blueprint
+  const isDemoMode = propIsDemoMode || isBlueprintMode || window.location.pathname.includes('demo');
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -115,6 +187,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       case 'demo-dashboard': return 'dashboard';
       case 'dashboard-blueprint': return 'dashboard';
       case 'agent-blueprint-dashboard': return 'dashboard';
+      case 'marketing': return 'marketing';
       default: return 'dashboard';
     }
   }, []);
@@ -152,6 +225,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         case 'funnel-analytics': pathSuffix = '/funnel-analytics'; break;
         case 'marketing-reports': pathSuffix = '/marketing-reports'; break;
         case 'payments': pathSuffix = '/payments'; break;
+        case 'marketing': pathSuffix = '/marketing'; break;
         case 'dashboard': pathSuffix = '/daily-pulse'; break;
         default: pathSuffix = ''; break;
       }
@@ -176,10 +250,15 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     if (!isDemoMode) checkUser();
   }, [isDemoMode, navigate]);
 
-
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { isImpersonating, stopImpersonating } = useImpersonation();
+  const { isImpersonating, stopImpersonating, impersonate } = useImpersonation();
+
+  // Force Impersonation for Blueprint Mode
+  useEffect(() => {
+    if (isBlueprintMode && !isImpersonating) {
+      impersonate('blueprint-agent');
+    }
+  }, [isBlueprintMode, isImpersonating, impersonate]);
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = useState(true);
@@ -189,9 +268,94 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     [properties, selectedPropertyId]
   );
 
-  const [leads, setLeads] = useState<Lead[]>([]);
+  // Initialize leads with persistence
+  const [leads, setLeads] = useState<Lead[]>(() => {
+    if (isDemoMode || isBlueprintMode) {
+      const storageKey = isBlueprintMode ? 'blueprint_leads' : 'demo_leads';
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error('Failed to parse saved leads', e);
+        }
+      }
+      return isBlueprintMode ? [] : DEMO_FAT_LEADS;
+    }
+    return [];
+  });
+
+  // Persist leads when they change (debounced slightly to avoid thrashing)
+  useEffect(() => {
+    if (isDemoMode || isBlueprintMode) {
+      const storageKey = isBlueprintMode ? 'blueprint_leads' : 'demo_leads';
+      localStorage.setItem(storageKey, JSON.stringify(leads));
+    }
+  }, [leads, isDemoMode, isBlueprintMode]);
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+
+  // Smart Task Management
+  const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('completed_smart_tasks');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
   const [tasks, setTasks] = useState<AgentTask[]>([]);
+
+  // Generate Smart Tasks
+  useEffect(() => {
+    if ((isDemoMode || isBlueprintMode) && leads.length > 0) {
+      // Only run if we have data to avoid flashing empty state
+      const smartTasks = SmartTaskService.generateSmartTasks(leads, appointments, properties);
+
+      // Filter out completed tasks
+      const activeTasks = smartTasks.map(t => ({
+        ...t,
+        isCompleted: completedTaskIds.has(t.id)
+      }));
+
+      setTasks(activeTasks);
+    }
+  }, [leads, appointments, properties, isDemoMode, isBlueprintMode, completedTaskIds]);
+
+  // Persist Completed Tasks
+  useEffect(() => {
+    localStorage.setItem('completed_smart_tasks', JSON.stringify(Array.from(completedTaskIds)));
+  }, [completedTaskIds]);
+
+  const handleTaskUpdate = (taskId: string, updates: Partial<AgentTask>) => {
+    if (updates.isCompleted !== undefined) {
+      setCompletedTaskIds(prev => {
+        const next = new Set(prev);
+        if (updates.isCompleted) {
+          next.add(taskId);
+        } else {
+          next.delete(taskId);
+        }
+        return next;
+      });
+    }
+    setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task)));
+  };
+
+  const handleTaskAdd = (task: AgentTask) => {
+    setTasks((prev) => [task, ...prev]);
+  };
+
+  const handleTaskDelete = (taskId: string) => {
+    // Treat delete as completion for smart tasks
+    setCompletedTaskIds(prev => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+  };
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
   const [, setIsLeadsLoading] = useState<boolean>(false);
@@ -336,21 +500,24 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     const loadProperties = async () => {
       setIsLoadingProperties(true);
 
-      // Safety Timeout to prevent eternal loading
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Property load timeout')), 15000)
-      );
-
       try {
         console.log('DEBUG: loadProperties', { isDemoMode, demoListingCount });
 
         if (isDemoMode) {
+          console.log("DEBUG: Loading Demo Data", { isBlueprintMode });
           if (isBlueprintMode) {
             setProperties(BLUEPRINT_PROPERTIES);
             return;
           }
           const sliced = DEMO_FAT_PROPERTIES.slice(0, demoListingCount);
           setProperties(sliced.map((property, index) => cloneDemoProperty(property, index)));
+          return;
+        }
+
+        // Also check Blueprint Mode explicitly if not caught by isDemoMode (since we treat them separately in App.tsx sometimes)
+        if (isBlueprintMode) {
+          console.log("DEBUG: Loading Blueprint Data (Explicit)");
+          setProperties(BLUEPRINT_PROPERTIES);
           return;
         }
 
@@ -363,9 +530,17 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           return;
         }
 
-        // Fetch with Safe Race
+        // Fetch with Safe Race and Auto-Cleanup
+        let timeoutHandle: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise((_, reject) =>
+          timeoutHandle = setTimeout(() => reject(new Error('Property load timeout')), 15000)
+        );
+
         const listPromise = listingsService.listProperties(user.id);
         const list = await Promise.race([listPromise, timeoutPromise]) as Property[];
+
+        // If we won the race, clear the bomb
+        clearTimeout(timeoutHandle!);
 
         if (!isMounted) return;
         if (list && list.length > 0) {
@@ -375,7 +550,22 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         }
       } catch (error) {
         console.error("Listing Load Error:", error);
-        // Only notify if it's a real error, not just a timeout
+
+        // Graceful fallback for blueprint/demo mode
+        if (isBlueprintMode && isMounted) {
+          console.log("⚠️ Load failed but in blueprint mode - using blueprint data");
+          setProperties(BLUEPRINT_PROPERTIES);
+          return;
+        }
+
+        if (isDemoMode && isMounted) {
+          console.log("⚠️ Load failed but in demo mode - using demo data");
+          const sliced = DEMO_FAT_PROPERTIES.slice(0, demoListingCount);
+          setProperties(sliced.map((property, index) => cloneDemoProperty(property, index)));
+          return;
+        }
+
+        // Only notify if it's a real error, not just a timeout, and not in demo mode
         if ((error as Error).message !== 'Property load timeout') {
           notifyApiError({
             title: 'Could not load listings',
@@ -431,9 +621,16 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   };
 
   const refreshLeads = useCallback(async () => {
+    console.log('[refreshLeads] Called', { isDemoMode, isBlueprintMode });
     if (isDemoMode) {
       if (isBlueprintMode) {
-        setLeads(BLUEPRINT_LEADS);
+        // Merge session-stored leads with static blueprint leads
+        const sessionLeads = getSessionLeads();
+        console.log('[refreshLeads] Blueprint Mode - Session leads:', sessionLeads);
+        console.log('[refreshLeads] Blueprint Mode - Blueprint leads count:', BLUEPRINT_LEADS.length);
+        const merged = [...sessionLeads, ...BLUEPRINT_LEADS];
+        console.log('[refreshLeads] Blueprint Mode - Merged total:', merged.length);
+        setLeads(merged);
       } else {
         setLeads(DEMO_FAT_LEADS);
       }
@@ -569,7 +766,16 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   };
 
   const handleSetProperty = async (updated: Property) => {
-    setProperties((prev) => prev.map((property) => (property.id === updated.id ? updated : property)));
+    // Check if property exists in current array
+    const existingIndex = properties.findIndex((property) => property.id === updated.id);
+
+    if (existingIndex === -1) {
+      // Property doesn't exist - this is a NEW property (e.g., blueprint fork)
+      setProperties((prev) => [updated, ...prev]);
+    } else {
+      // Property exists - update it
+      setProperties((prev) => prev.map((property) => (property.id === updated.id ? updated : property)));
+    }
 
     if (isDemoMode) {
       return;
@@ -578,7 +784,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     if (
       updated.id.startsWith('demo-') ||
       updated.id.startsWith('prop-demo-') ||
-      updated.id.startsWith('preview-')
+      updated.id.startsWith('preview-') ||
+      updated.id.startsWith('blueprint-') // Fix: Ignore blueprint demo listing
     ) {
       return;
     }
@@ -622,7 +829,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       return;
     }
 
-    if (!id.startsWith('demo-') && !id.startsWith('prop-demo-') && !id.startsWith('preview-')) {
+    if (!id.startsWith('demo-') && !id.startsWith('prop-demo-') && !id.startsWith('preview-') && !id.startsWith('blueprint-')) {
       try {
         await listingsService.deleteProperty(id);
       } catch (error) {
@@ -638,30 +845,20 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     }
   };
 
-  const handleTaskUpdate = (taskId: string, updates: Partial<AgentTask>) => {
-    setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task)));
-  };
 
-  const handleTaskAdd = (task: AgentTask) => {
-    setTasks((prev) => [task, ...prev]);
-  };
-
-  const handleTaskDelete = (taskId: string) => {
-    setTasks((prev) => prev.filter((task) => task.id !== taskId));
-  };
 
   const blueprintSidekickTemplates = [
     {
       id: 'agent',
-      label: 'AI Agent Buddy',
+      label: 'AI Agent',
       description: 'Your all-in-one operations partner. Handles marketing, lead follow-up, and admin tasks.',
       type: 'agent',
       icon: 'smart_toy',
       color: '#4F46E5',
-      defaultName: 'AI Agent Buddy',
+      defaultName: 'AI Agent',
       defaultVoice: 'nova',
       personality: {
-        description: 'You are the Agent’s primary Buddy. You are a world-class real estate assistant, marketer, and operations specialist. You can draft emails, summarize conversations, provide pricing insights, and manage the agent’s daily pulse. Your tone is professional yet friendly, and always highly efficient.',
+        description: 'You are the Agent’s primary Assistant. You are a world-class real estate assistant, marketer, and operations specialist. You can draft emails, summarize conversations, provide pricing insights, and manage the agent’s daily pulse. Your tone is professional yet friendly, and always highly efficient.',
         traits: ['all-in-one', 'efficient', 'professional'],
         preset: 'professional'
       }
@@ -686,25 +883,51 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         phone: leadData.phone,
         status: 'New',
         date: new Date().toISOString(),
-        lastMessage: leadData.message
+        lastMessage: leadData.message,
+        source: leadData.source || 'Manual Entry'
       };
+
+      // PERSIST TO SESSION STORAGE
+      saveSessionLead(fallbackLead);
+
       setLeads((prev) => [fallbackLead, ...prev]);
       void logLeadCaptured(fallbackLead);
       return;
     }
 
     try {
-      const createdLead = await leadsService.create(payload);
+      // Use Admin Service to trigger backend logic (Scoring, Funnels, etc.)
+      const createdLead = await adminLeadsService.create({
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone,
+        source: leadData.source || 'Website',
+        notes: leadData.message, // Map message to notes
+        funnelType: (leadData.funnelType as LeadFunnelType) || undefined,
+        funnelId: (leadData.funnelType === 'universal_sales' ? 'universal_sales' : undefined), // Auto-map known funnels if needed
+        userId: isBlueprintMode ? (agentProfile?.id || 'blueprint-agent') : undefined // Force attribution in Blueprint Mode
+      });
+
+      // PERSIST FOR SESSION IF IN BLUEPRINT MODE (Double safety, though backend should handle it)
+      if (isBlueprintMode) {
+        saveSessionLead(createdLead);
+      }
+
       setLeads((prev) => [createdLead, ...prev]);
       void logLeadCaptured(createdLead);
-    } catch (error) {
 
+      notifyApiError({
+        title: 'Lead Added',
+        description: `${createdLead.name} has been added and enrolled in automation.`,
+        error: null
+      });
+
+    } catch (error) {
       notifyApiError({
         title: 'Could not save lead',
         description: 'Please check your connection and try again.',
         error
       });
-      // In production, do not show a fake success.
     }
   }
 
@@ -998,53 +1221,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           <UniversalFunnelPanel
             userId={agentProfile.id || 'demo-agent'}
             isDemoMode={isDemoMode}
+            isBlueprintMode={isBlueprintMode}
             onBackToDashboard={resetToDashboard}
-            funnelSections={[
-              {
-                key: 'welcome',
-                badgeIcon: 'thunderstorm',
-                badgeClassName: 'bg-teal-50 text-teal-700',
-                badgeLabel: 'New Lead Welcome',
-                title: 'Instant AI Welcome',
-                description: 'Chatbot fires a warm intro email + SMS within 2 minutes.',
-                iconColorClass: 'text-teal-600',
-                initialSteps: initialWelcomeSteps,
-                saveLabel: 'Save Welcome Sequence'
-              },
-              {
-                key: 'buyer',
-                badgeIcon: 'bolt',
-                badgeClassName: 'bg-indigo-50 text-indigo-700',
-                badgeLabel: 'Buyer Nurture',
-                title: 'Buyer Journey',
-                description: 'Automated check-ins to qualify buyers and book tours.',
-                iconColorClass: 'text-indigo-600',
-                initialSteps: initialHomeBuyerSteps,
-                saveLabel: 'Save Buyer Journey'
-              },
-              {
-                key: 'listing',
-                badgeIcon: 'auto_fix_high',
-                badgeClassName: 'bg-purple-50 text-purple-700',
-                badgeLabel: 'Seller Nurture',
-                title: 'Listing Prep & Story',
-                description: 'Guide sellers through the "Home Story" process.',
-                iconColorClass: 'text-purple-600',
-                initialSteps: initialListingSteps,
-                saveLabel: 'Save Seller Flow'
-              },
-              {
-                key: 'post-showing',
-                badgeIcon: 'mail',
-                badgeClassName: 'bg-amber-50 text-amber-700',
-                badgeLabel: 'Showing Follow-Up',
-                title: 'Post-Showing Feedback',
-                description: 'Auto-chase buyers for feedback after a tour.',
-                iconColorClass: 'text-amber-600',
-                initialSteps: initialPostShowingSteps,
-                saveLabel: 'Save Follow-Up'
-              }
-            ]}
+            funnelSections={STATIC_FUNNEL_SECTIONS}
           />
         );
       case 'settings':
@@ -1172,7 +1351,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                               activeView === 'marketing' ? 'Marketing Hub' :
                                 activeView === 'payments' ? 'Payments & Store' :
                                   activeView === 'marketing-reports' ? 'Marketing Reports' :
-                                    activeView === 'funnel-analytics' ? 'Leads Funnel' :
+                                    activeView === 'funnel-analytics' ? '' :
                                       activeView === 'settings' ? 'Settings' :
                                         activeView === 'ai-card' ? 'AI Business Card' :
                                           'Dashboard'}

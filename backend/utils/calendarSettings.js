@@ -187,21 +187,23 @@ const updateCalendarSettings = async (userId, updates = {}) => {
 };
 
 const saveCalendarConnection = async (userId, connection = {}) => {
-  const entry = await getEntry(userId);
-  const provider = connection.provider || 'google';
+  const googleCalendarService = require('../services/googleCalendarService');
 
+  // Save to unified table
+  await googleCalendarService.storeConnection(userId, connection.email, connection.credentials || {});
+
+  // Update legacy settings for UI compatibility (but remove actual credentials from blob)
+  const entry = await getEntry(userId);
   entry.connection = {
-    provider,
+    provider: connection.provider || 'google',
     email: connection.email || entry.connection.email || null,
     connectedAt: connection.connectedAt || new Date().toISOString(),
     status: connection.status || 'active',
-    metadata: { ...entry.connection.metadata, ...connection.metadata },
-    credentials: { ...entry.connection.credentials, ...connection.credentials }
+    metadata: { ...entry.connection?.metadata, ...connection.metadata }
+    // credentials are NOT stored here anymore
   };
 
-  if (provider) {
-    entry.settings.integrationType = provider;
-  }
+  entry.settings.integrationType = connection.provider || 'google';
 
   await saveEntry(userId, entry);
 
@@ -212,6 +214,19 @@ const saveCalendarConnection = async (userId, connection = {}) => {
 };
 
 const getCalendarCredentials = async (userId) => {
+  const googleCalendarService = require('../services/googleCalendarService');
+  const connection = await googleCalendarService.getConnection(userId);
+  if (connection) {
+    return {
+      accessToken: connection.access_token,
+      refreshToken: connection.refresh_token,
+      expiryDate: connection.expiry_date,
+      scope: connection.scope,
+      tokenType: connection.token_type
+    };
+  }
+
+  // Fallback to legacy structure if migration hasn't happened
   const entry = await getEntry(userId);
   return entry.connection?.credentials;
 };

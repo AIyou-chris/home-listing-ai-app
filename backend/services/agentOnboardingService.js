@@ -116,7 +116,7 @@ Staying in your corner,
 
 const DEFAULT_FUNNELS = [
   {
-    funnel_key: 'welcome-onboarding',
+    funnel_key: 'universal_sales', // Renamed from welcome-onboarding to match UI
     name: 'Welcome Sequence',
     description: 'Guides the agent through first login, dashboard setup, and connecting automations.',
     version: 1,
@@ -498,6 +498,34 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
     await ensureFunnels(supabaseAdmin, updatedAgent.id);
 
     const credentials = await ensureAuthUser(supabaseAdmin, updatedAgent);
+
+    // [NEW] Seed the AI Card Profile immediately
+    try {
+      if (credentials.userId) {
+        const { error: cardError } = await supabaseAdmin
+          .from('ai_card_profiles')
+          .insert({
+            user_id: credentials.userId,
+            full_name: `${updatedAgent.first_name} ${updatedAgent.last_name}`,
+            email: updatedAgent.email,
+            plan: isAdminBypass ? 'Admin' : 'Solo Agent',
+            subscription_status: 'active',
+            professional_title: 'Real Estate Agent', // Default
+            brand_color: '#0ea5e9', // Default Brand Color
+            language: 'en',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+
+        if (cardError) {
+          console.warn('[Onboarding] Failed to seed AI Card Profile:', cardError.message);
+        } else {
+          console.log(`[Onboarding] ✅ Seeded AI Card Profile for ${credentials.userId}`);
+        }
+      }
+    } catch (cardErr) {
+      console.warn('[Onboarding] AI Card Seeding Exception:', cardErr);
+    }
 
     if (credentials.userId && updatedAgent.auth_user_id !== credentials.userId) {
       const { data: agentWithAuth, error: authUpdateError } = await supabaseAdmin

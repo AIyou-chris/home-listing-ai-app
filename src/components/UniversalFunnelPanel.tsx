@@ -24,6 +24,8 @@ export type EditableStep = {
     mediaUrl?: string;
     conditionRule?: string;
     conditionValue?: string | number;
+    includeUnsubscribe?: boolean;
+    trackOpens?: boolean;
 };
 
 export interface FunnelSectionConfig {
@@ -47,6 +49,7 @@ export interface UniversalFunnelPanelProps {
     subtitle?: string;
     hideBackButton?: boolean;
     isDemoMode?: boolean;
+    isBlueprintMode?: boolean;
     showLeadScoring?: boolean;
     showSequenceFeedback?: boolean;
 }
@@ -121,10 +124,11 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
     funnelSections,
     onBackToDashboard,
     variant = 'page',
-    title = 'Marketing Funnels',
+    title = 'AI Funnels',
     subtitle = 'AI-powered marketing campaigns',
     hideBackButton = false,
     isDemoMode = false,
+    isBlueprintMode = false,
     showLeadScoring = true,
     showSequenceFeedback = true,
 }) => {
@@ -216,15 +220,30 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
 
     // Handlers
 
+    const [saveStatus, setSaveStatus] = useState<Record<string, 'idle' | 'saving' | 'success' | 'error'>>({});
+
     const handleSaveFunnel = async (key: string) => {
         try {
+            setSaveStatus(prev => ({ ...prev, [key]: 'saving' }));
             const steps = funnelSteps[key] || [];
+
+            // Artificial delay to show 'Saving...' state if operation is too fast
+            const start = Date.now();
             const success = await funnelService.saveFunnelStep(userId, key, steps);
-            if (success) alert('Funnel saved!');
-            else alert('Failed to save.');
+
+            if (Date.now() - start < 500) await new Promise(r => setTimeout(r, 500));
+
+            if (success) {
+                setSaveStatus(prev => ({ ...prev, [key]: 'success' }));
+                setTimeout(() => setSaveStatus(prev => ({ ...prev, [key]: 'idle' })), 3000);
+            } else {
+                setSaveStatus(prev => ({ ...prev, [key]: 'error' }));
+                setTimeout(() => setSaveStatus(prev => ({ ...prev, [key]: 'idle' })), 5000);
+            }
         } catch (error) {
             console.error(`Failed to save funnel ${key}`, error);
-            alert('Unable to save right now.');
+            setSaveStatus(prev => ({ ...prev, [key]: 'error' }));
+            setTimeout(() => setSaveStatus(prev => ({ ...prev, [key]: 'idle' })), 5000);
         }
     };
 
@@ -242,7 +261,8 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
         });
     };
 
-    const handleUpdateStep = (funnelKey: string, stepId: string, field: keyof EditableStep, value: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleUpdateStep = (funnelKey: string, stepId: string, field: keyof EditableStep, value: any) => {
         setFunnelSteps(prev => ({
             ...prev,
             [funnelKey]: prev[funnelKey].map(s => s.id === stepId ? { ...s, [field]: value } : s)
@@ -420,10 +440,6 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
 
                 <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-4 md:px-0">
                     <div className="space-y-2">
-                        <p className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700">
-                            <span className="material-symbols-outlined text-base">monitoring</span>
-                            AI Funnel
-                        </p>
                         <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
                         <p className="text-sm text-slate-500 sm:text-base">
                             {subtitle}
@@ -431,14 +447,7 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
                     </div>
                     {activeSection === 'funnels' && (
                         <div className="flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setIsImportModalOpen(true)}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-                            >
-                                <span className="material-symbols-outlined text-base">upload_file</span>
-                                Import Leads
-                            </button>
+
 
                             <button
                                 type="button"
@@ -696,6 +705,7 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
                                 onSave={() => handleSaveFunnel(section.key)}
                                 onSendTest={handleSendTestEmail}
                                 sampleMergeData={sampleMergeData}
+                                saveStatus={saveStatus[section.key] || 'idle'}
                             />
                         ))}
                     </div>
@@ -715,7 +725,7 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
                 )}
 
                 {activeSection === 'feedback' && showSequenceFeedback && (
-                    <div className="bg-white border-y border-slate-200 md:border md:rounded-2xl p-6 shadow-sm">
+                    <div className="bg-white border-y border-slate-200 md:border md::rounded-2xl p-6 shadow-sm">
                         <div className="mb-6 space-y-2">
                             <p className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
                                 <span className="material-symbols-outlined text-base">auto_fix_high</span>
@@ -723,7 +733,7 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
                             </p>
                             <h2 className="text-2xl font-bold text-slate-900">Automation Performance</h2>
                         </div>
-                        <SequenceFeedbackPanel isDemoMode={isDemoMode} userId={userId} />
+                        <SequenceFeedbackPanel isDemoMode={isDemoMode} userId={userId} isBlueprintMode={isBlueprintMode} />
                     </div>
                 )}
             </div>
@@ -740,6 +750,7 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
             <OutreachTemplatesModal
                 isOpen={isTemplatesModalOpen}
                 onClose={() => setIsTemplatesModalOpen(false)}
+                type="real-estate"
             />
 
             {isQuickEmailOpen && <QuickEmailModal onClose={() => setIsQuickEmailOpen(false)} isDemoMode={isDemoMode} />}
@@ -767,16 +778,17 @@ const FunnelSectionRenderer: React.FC<{
     expandedStepIds: string[];
     onTogglePanel: () => void;
     onToggleStep: (id: string) => void;
-    onUpdateStep: (id: string, field: keyof EditableStep, value: string) => void;
+    onUpdateStep: (id: string, field: keyof EditableStep, value: any) => void;
     onRemoveStep: (id: string) => void;
     onAddStep: () => void;
     onSave: () => void;
     onSendTest: (step: EditableStep) => void;
     sampleMergeData: Record<string, Record<string, string>>;
+    saveStatus?: 'idle' | 'saving' | 'success' | 'error';
 }> = ({
     config, steps, isOpen, expandedStepIds,
     onTogglePanel, onToggleStep, onUpdateStep, onRemoveStep,
-    onAddStep, onSave, onSendTest, sampleMergeData
+    onAddStep, onSave, onSendTest, sampleMergeData, saveStatus = 'idle'
 }) => {
         return (
             <section className="bg-white border-y border-slate-200 md:border md:rounded-2xl shadow-sm p-6 space-y-6">
@@ -792,6 +804,37 @@ const FunnelSectionRenderer: React.FC<{
                         </div>
                     </div>
                     <div className="flex items-center gap-2 self-start">
+                        <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSave(); }}
+                            disabled={saveStatus === 'saving'}
+                            className={`
+                                inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold shadow-md transition-all
+                                ${saveStatus === 'success' ? 'bg-green-600 text-white hover:bg-green-700' :
+                                    saveStatus === 'error' ? 'bg-red-600 text-white hover:bg-red-700' :
+                                        'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800'}
+                                disabled:opacity-75 disabled:cursor-not-allowed
+                            `}
+                        >
+                            {saveStatus === 'saving' ? (
+                                <>
+                                    <span className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full"></span>
+                                    Saving...
+                                </>
+                            ) : saveStatus === 'success' ? (
+                                <>
+                                    <span className="material-symbols-outlined text-sm">check</span>
+                                    Saved!
+                                </>
+                            ) : saveStatus === 'error' ? (
+                                <>
+                                    <span className="material-symbols-outlined text-sm">error</span>
+                                    Failed
+                                </>
+                            ) : (
+                                config.saveLabel || 'Save Changes'
+                            )}
+                        </button>
                         <button
                             type="button"
                             onClick={onTogglePanel}
@@ -912,8 +955,8 @@ const FunnelSectionRenderer: React.FC<{
                                                                             onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
                                                                         />
                                                                         <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-slate-200">
-                                                                            <button onClick={() => onSendTest(step)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm">Send Test</button>
-                                                                            <button onClick={onSave} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700">Save Changes</button>
+                                                                            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSendTest(step); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm">Send Test</button>
+                                                                            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSave(); }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700">Save Changes</button>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -983,8 +1026,8 @@ const FunnelSectionRenderer: React.FC<{
                                                                     </div>
 
                                                                     <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-slate-200">
-                                                                        <button onClick={() => onSendTest(step)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm">Test Call</button>
-                                                                        <button onClick={onSave} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700">Save Changes</button>
+                                                                        <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSendTest(step); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm">Test Call</button>
+                                                                        <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSave(); }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700">Save Changes</button>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1053,6 +1096,26 @@ const FunnelSectionRenderer: React.FC<{
                                                             // Fallback for Email/Task/etc (simplified for brevity, can duplicate full EmailEditor if needed)
                                                             <div className="space-y-4">
                                                                 <div className="rounded-xl bg-violet-50 border border-violet-100 p-5">
+                                                                    <div className="flex flex-wrap gap-4 mb-4">
+                                                                        <label className="flex items-center gap-2 cursor-pointer bg-white border border-violet-200 px-3 py-1.5 rounded-lg shadow-sm hover:border-violet-300">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={step.includeUnsubscribe !== false} // Default true
+                                                                                onChange={(e) => onUpdateStep(step.id, 'includeUnsubscribe', e.target.checked)}
+                                                                                className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                                                                            />
+                                                                            <span className="text-xs font-semibold text-slate-700">Include Unsubscribe Link</span>
+                                                                        </label>
+                                                                        <label className="flex items-center gap-2 cursor-pointer bg-white border border-violet-200 px-3 py-1.5 rounded-lg shadow-sm hover:border-violet-300">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={step.trackOpens !== false} // Default true
+                                                                                onChange={(e) => onUpdateStep(step.id, 'trackOpens', e.target.checked)}
+                                                                                className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                                                                            />
+                                                                            <span className="text-xs font-semibold text-slate-700">Track Opens & Clicks</span>
+                                                                        </label>
+                                                                    </div>
                                                                     <input
                                                                         className="w-full text-base font-bold text-slate-900 placeholder:text-slate-300 border border-violet-200 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white shadow-sm mb-4"
                                                                         placeholder="Subject Line"
@@ -1068,15 +1131,15 @@ const FunnelSectionRenderer: React.FC<{
                                                                         />
                                                                     </div>
                                                                     <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-violet-200/50">
-                                                                        <button onClick={() => onSendTest(step)} className="px-3 py-1.5 bg-white border border-violet-200 rounded-lg text-xs font-semibold text-violet-700 hover:bg-violet-50 shadow-sm">Send Test</button>
-                                                                        <button onClick={onSave} className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-violet-700">Save Changes</button>
+                                                                        <button type="button" onClick={() => onSendTest(step)} className="px-3 py-1.5 bg-white border border-violet-200 rounded-lg text-xs font-semibold text-violet-700 hover:bg-violet-50 shadow-sm">Send Test</button>
+                                                                        <button type="button" onClick={onSave} className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-violet-700">Save Changes</button>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         )}
 
                                                         <div className="mt-4 flex justify-between items-end">
-                                                            <button onClick={() => onRemoveStep(step.id)} className="text-xs text-red-400 hover:text-red-500 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">Remove Step</button>
+                                                            <button type="button" onClick={() => onRemoveStep(step.id)} className="text-xs text-red-400 hover:text-red-500 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">Remove Step</button>
                                                         </div>
                                                     </div>
                                                 </div>

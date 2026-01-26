@@ -27,9 +27,9 @@ type StepInsight = {
 
 const INITIAL_SNAPSHOTS: SequenceSnapshot[] = [
     {
-        id: 'agent_recruitment',
-        name: 'Agent Recruitment Sequence',
-        goal: 'Convert leads to platform users',
+        id: 'universal_sales',
+        name: 'Universal Welcome Drip',
+        goal: 'Capture intent in first 48h',
         replyRate: 0,
         openRate: 0,
         meetings: 0,
@@ -40,6 +40,63 @@ const INITIAL_SNAPSHOTS: SequenceSnapshot[] = [
         bounced: 0
     }
 ];
+
+const BLUEPRINT_SNAPSHOTS: SequenceSnapshot[] = [
+    {
+        id: 'welcome',
+        name: 'Instant AI Welcome',
+        goal: 'Capture intent in first 48h',
+        replyRate: 0,
+        openRate: 0,
+        meetings: 0,
+        trend: 'flat',
+        lastAdjust: 'Never',
+        bestStep: '-',
+        sent: 0,
+        bounced: 0
+    },
+    {
+        id: 'buyer',
+        name: 'Buyer Journey',
+        goal: 'Move buyers to tour requests',
+        replyRate: 0,
+        openRate: 0,
+        meetings: 0,
+        trend: 'flat',
+        lastAdjust: 'Never',
+        bestStep: '-',
+        sent: 0,
+        bounced: 0
+    },
+    {
+        id: 'listing',
+        name: 'Seller Funnel',
+        goal: 'Convert CMAs to listings',
+        replyRate: 0,
+        openRate: 0,
+        meetings: 0,
+        trend: 'flat',
+        lastAdjust: 'Never',
+        bestStep: '-',
+        sent: 0,
+        bounced: 0
+    },
+    {
+        id: 'post-showing',
+        name: 'Post-Showing Follow Up',
+        goal: 'Secure second tours',
+        replyRate: 0,
+        openRate: 0,
+        meetings: 0,
+        trend: 'flat',
+        lastAdjust: 'Never',
+        bestStep: '-',
+        sent: 0,
+        bounced: 0
+    }
+];
+
+
 
 
 
@@ -56,13 +113,27 @@ const TrendIcon: React.FC<{ trend: SequenceSnapshot['trend'] }> = ({ trend }) =>
 
 import { DEMO_SEQUENCE_SNAPSHOTS } from '../demoConstants';
 
-const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }> = ({ isDemoMode = false, userId }) => {
+const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string; isBlueprintMode?: boolean }> = ({ isDemoMode = false, userId, isBlueprintMode = false }) => {
     const [snapshots, setSnapshots] = useState<SequenceSnapshot[]>(INITIAL_SNAPSHOTS.map(s => ({ ...s, replyRate: 0, openRate: 0, meetings: 0, trend: 'flat', lastAdjust: 'Never', bestStep: 'None', sent: 0, bounced: 0 })));
     const [stepInsights, setStepInsights] = useState<StepInsight[]>([]);
     const [loading, setLoading] = useState(true);
+    const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+
+    const toggleCard = (id: string) => {
+        setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+    };
 
     const loadAnalytics = useCallback(async () => {
         setLoading(true);
+
+        if (isBlueprintMode) {
+            // Blueprint Mode: Show empty/zero stats (Clean Slate) for ALL funnels
+            await new Promise(resolve => setTimeout(resolve, 500));
+            setSnapshots(BLUEPRINT_SNAPSHOTS);
+            setStepInsights([]);
+            setLoading(false);
+            return;
+        }
 
         if (isDemoMode) {
             // Simulate network delay
@@ -130,16 +201,23 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }>
             let name = 'Unknown Funnel';
             let goal = 'General Outreach';
 
-            if (campaignId === 'agent_recruitment' || campaignId === 'universal_sales') {
+            if (campaignId === 'agent_recruitment') {
                 name = 'Agent Recruitment Sequence';
                 goal = 'Convert leads to platform users';
+            } else if (campaignId === 'universal_sales' || campaignId === 'welcome') {
+                name = 'Universal Welcome Drip';
+                goal = 'Capture intent in first 48h';
             } else if (campaignId === 'homebuyer') {
                 name = 'Homebuyer Journey';
                 goal = 'Move buyers to tour requests';
             } else if (campaignId === 'seller') {
                 name = 'Seller Funnel';
                 goal = 'Convert CMAs to listings';
+            } else if (campaignId === 'postShowing') {
+                name = 'Post-Showing Follow Up';
+                goal = 'Gather feedback & offers';
             } else {
+                // Fallback: Use the ID as the name, pretty printed
                 name = campaignId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             }
 
@@ -149,7 +227,7 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }>
                 goal: goal,
                 replyRate: replyRate,
                 openRate: openRate,
-                meetings: 0, // Placeholder until meeting data is linked
+                meetings: 0,
                 trend: 'flat',
                 lastAdjust: 'Recently',
                 bestStep: '-',
@@ -158,24 +236,14 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }>
             };
         });
 
-        // Ensure Agent Recruitment is always visible even if empty (for UX confidence)
-        if (!dynamicSnapshots.find(s => s.id === 'agent_recruitment' || s.id === 'universal_sales')) {
-            dynamicSnapshots.unshift({
-                id: 'agent_recruitment',
-                name: 'Agent Recruitment Sequence',
-                goal: 'Convert leads to platform users',
-                replyRate: 0,
-                openRate: 0,
-                meetings: 0,
-                trend: 'flat',
-                lastAdjust: 'Never',
-                bestStep: '-',
-                sent: 0,
-                bounced: 0
-            });
+        // If we have stats, use them. If not (and no snapshots), maybe show default?
+        // But for now, trust the backend data.
+        if (dynamicSnapshots.length > 0) {
+            setSnapshots(dynamicSnapshots);
+        } else {
+            // Fallback if backend empty: Show what we initialized with (or nothing)
+            // setSnapshots(INITIAL_SNAPSHOTS); 
         }
-
-        setSnapshots(dynamicSnapshots);
 
         if (stepStats && stepStats.length > 0) {
             const mappedInsights: StepInsight[] = stepStats.map(s => ({
@@ -195,7 +263,7 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }>
         }
 
         setLoading(false);
-    }, [isDemoMode, userId]);
+    }, [isDemoMode, userId, isBlueprintMode]);
 
     useEffect(() => {
         loadAnalytics();
@@ -260,43 +328,56 @@ const SequenceFeedbackPanel: React.FC<{ isDemoMode?: boolean; userId?: string }>
                 </div>
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {snapshots.map((sequence) => (
-                        <article key={sequence.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <div className="flex items-start justify-between gap-4">
-                                <div>
-                                    <h4 className="text-base font-semibold text-slate-900">{sequence.name}</h4>
-                                    <p className="text-xs uppercase tracking-wide text-slate-500">{sequence.goal}</p>
+                        <article key={sequence.id} className="rounded-2xl border border-slate-100 bg-slate-50 overflow-hidden transition-all duration-200">
+                            <div
+                                className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-100/50"
+                                onClick={() => toggleCard(sequence.id)}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-1 rounded-lg transition-transform duration-200 ${expandedCards[sequence.id] ? 'rotate-90 bg-indigo-50 text-indigo-600' : 'text-slate-400'}`}>
+                                        <span className="material-symbols-outlined text-lg">chevron_right</span>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-base font-semibold text-slate-900">{sequence.name}</h4>
+                                        <p className="text-xs uppercase tracking-wide text-slate-500">{sequence.goal}</p>
+                                    </div>
                                 </div>
                                 <TrendIcon trend={sequence.trend} />
                             </div>
-                            <dl className="mt-4 grid grid-cols-5 gap-3 text-center">
-                                <div className="rounded-lg bg-white p-3 shadow-sm">
-                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Reach</dt>
-                                    <dd className="text-lg font-bold text-slate-900">{sequence.sent}</dd>
+
+                            {expandedCards[sequence.id] && (
+                                <div className="px-4 pb-4 border-t border-slate-100 bg-white/50">
+                                    <dl className="mt-4 grid grid-cols-5 gap-3 text-center">
+                                        <div className="rounded-lg bg-white p-3 shadow-sm border border-slate-100">
+                                            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Reach</dt>
+                                            <dd className="text-lg font-bold text-slate-900">{sequence.sent}</dd>
+                                        </div>
+                                        <div className="rounded-lg bg-white p-3 shadow-sm border border-slate-100">
+                                            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Opens</dt>
+                                            <dd className="text-lg font-bold text-slate-900">{sequence.openRate}%</dd>
+                                        </div>
+                                        <div className="rounded-lg bg-white p-3 shadow-sm border border-slate-100">
+                                            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Replies</dt>
+                                            <dd className="text-lg font-bold text-slate-900">{sequence.replyRate}%</dd>
+                                        </div>
+                                        <div className="rounded-lg bg-white p-3 shadow-sm border border-slate-100">
+                                            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Bounced</dt>
+                                            <dd className="text-lg font-bold text-rose-600">{sequence.bounced}</dd>
+                                        </div>
+                                        <div className="rounded-lg bg-white p-3 shadow-sm border border-slate-100">
+                                            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Meetings</dt>
+                                            <dd className="text-lg font-bold text-slate-900">{sequence.meetings}</dd>
+                                        </div>
+                                    </dl>
+                                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 font-semibold text-indigo-700">
+                                            <span className="material-symbols-outlined text-base">auto_awesome</span>
+                                            Wins: {sequence.bestStep}
+                                        </span>
+                                        <span>Last adjusted {sequence.lastAdjust}</span>
+                                    </div>
                                 </div>
-                                <div className="rounded-lg bg-white p-3 shadow-sm">
-                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Opens</dt>
-                                    <dd className="text-lg font-bold text-slate-900">{sequence.openRate}%</dd>
-                                </div>
-                                <div className="rounded-lg bg-white p-3 shadow-sm">
-                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Replies</dt>
-                                    <dd className="text-lg font-bold text-slate-900">{sequence.replyRate}%</dd>
-                                </div>
-                                <div className="rounded-lg bg-white p-3 shadow-sm">
-                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Bounced</dt>
-                                    <dd className="text-lg font-bold text-rose-600">{sequence.bounced}</dd>
-                                </div>
-                                <div className="rounded-lg bg-white p-3 shadow-sm">
-                                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Meetings</dt>
-                                    <dd className="text-lg font-bold text-slate-900">{sequence.meetings}</dd>
-                                </div>
-                            </dl>
-                            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                                <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 font-semibold text-slate-600">
-                                    <span className="material-symbols-outlined text-base text-primary-500">auto_awesome</span>
-                                    Wins: {sequence.bestStep}
-                                </span>
-                                <span>Last adjusted {sequence.lastAdjust}</span>
-                            </div>
+                            )}
                         </article>
                     ))}
                 </div>

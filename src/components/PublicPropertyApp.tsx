@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ViewingModal from './ViewingModal'
 import PropertyInfoModal from './PropertyInfoModal'
 import { PublicSidekickModal } from './PublicSidekickModal'
+import ContactModal from './ContactModal'
 import { Property, isAIDescription } from '../types';
 import SEO from './SEO';
 
@@ -31,7 +32,26 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
         viewing: boolean;
         info: boolean;
         talk: boolean;
-    }>({ viewing: false, info: false, talk: false });
+        contact: boolean;
+    }>({ viewing: false, info: false, talk: false, contact: false });
+
+    const handleShare = async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: property.title,
+                    text: `Check out this home: ${property.address}`,
+                    url: window.location.href,
+                });
+            } catch (err) {
+                // User cancelled or share failed
+            }
+        } else {
+            // Fallback
+            await navigator.clipboard.writeText(window.location.href);
+            alert('Link copied to clipboard!');
+        }
+    };
 
     // Schema for AIO (kept from original)
     const listingSchema = {
@@ -62,25 +82,26 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
     };
 
     const handleContactClick = () => {
-        // user setting: ctaContactMode === 'sidekick' -> open AI Card (mocked as talk modal for now or external link if we knew it)
-        // For this demo, let's treat "AI Card" as the Talk Modal (Voice Mode) or just reusing ViewingModal as contact form
-        // The user prompt said: "contact information we have it either open the AI card or if the agent just wants a basic form"
-        if (property.ctaContactMode === 'sidekick') {
-            // In a real app, navigate to /card/:slug
-            // For now, let's open the Talk Modal in Chat mode (as a proxy for 'contact AI')
-            // Or Alert.
-            alert('In production, this opens the Agent AI Business Card.');
-        } else {
-            // Basic form -> Reuse ViewingModal logic or similar
-            // For now, toggle viewing modal but maybe we need a dedicated contact modal?
-            // "we've already provided that" -> refers to ViewingModal? 
-            setModalSubState(prev => ({ ...prev, viewing: true }));
-        }
+        // User requested strict "Simple phone/email" for Contact button
+        setModalSubState(prev => ({ ...prev, contact: true }));
     };
 
-    const backgroundImage = property.heroPhotos?.[0] && typeof property.heroPhotos[0] === 'string'
-        ? property.heroPhotos[0]
-        : property.imageUrl;
+    const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+    const heroPhotosArray = property.heroPhotos?.filter(p => typeof p === 'string') || [];
+    const hasMultiplePhotos = heroPhotosArray.length > 1;
+
+    // Auto-advance carousel every 4 seconds if multiple photos
+    React.useEffect(() => {
+        if (!hasMultiplePhotos) return;
+
+        const interval = setInterval(() => {
+            setCurrentPhotoIndex((prev) => (prev + 1) % heroPhotosArray.length);
+        }, 4000);
+
+        return () => clearInterval(interval);
+    }, [hasMultiplePhotos, heroPhotosArray.length]);
+
+    const backgroundImage = heroPhotosArray[currentPhotoIndex] || property.imageUrl;
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-slate-200 font-sans">
@@ -101,12 +122,18 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                 </div>
 
                 {/* Top Controls */}
-                <div className="absolute top-6 left-6 z-20">
+                <div className="absolute top-6 left-6 right-6 z-20 flex justify-between items-center">
                     {showBackButton && (
                         <button onClick={onExit} className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 hover:bg-white/30 transition shadow-lg">
                             <span className="material-symbols-outlined text-lg">arrow_back</span>
                         </button>
                     )}
+                    <button
+                        onClick={handleShare}
+                        className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 hover:bg-white/30 transition shadow-lg ml-auto"
+                    >
+                        <span className="material-symbols-outlined text-lg">ios_share</span>
+                    </button>
                 </div>
 
                 {/* Talk to Home Floating Button */}
@@ -177,6 +204,12 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                         property={property}
                         onClose={() => setModalSubState(prev => ({ ...prev, talk: false }))}
                         initialMode="voice"
+                    />
+                )}
+                {modalSubState.contact && (
+                    <ContactModal
+                        agent={property.agent}
+                        onClose={() => setModalSubState(prev => ({ ...prev, contact: false }))}
                     />
                 )}
 

@@ -48,31 +48,36 @@ export interface InsertAppointmentInput {
 }
 
 export const insertAppointment = async (row: InsertAppointmentInput) => {
-  const payload = {
-    user_id: row.user_id,
-    lead_id: row.lead_id ?? null,
-    property_id: row.property_id ?? null,
-    property_address: row.property_address ?? null,
-    kind: row.kind,
-    name: row.name,
-    email: row.email ?? null,
-    phone: row.phone ?? null,
-    date: row.date,
-    time_label: row.time_label,
-    start_iso: row.start_iso,
-    end_iso: row.end_iso,
-    meet_link: row.meet_link ?? null,
-    notes: row.notes ?? null,
-    status: row.status ?? 'Scheduled',
-    remind_agent: row.remind_agent ?? true,
-    remind_client: row.remind_client ?? true,
-    agent_reminder_minutes_before: row.agent_reminder_minutes_before ?? 60,
-    client_reminder_minutes_before: row.client_reminder_minutes_before ?? 60
-  }
+  // Use the Backend API to ensure emails, double-booking checks, and lead creation happen.
+  try {
+    const { authService } = await import('./authService');
+    const response = await authService.makeAuthenticatedRequest('/api/appointments', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...row,
+        // Map frontend fields to backend expected casing if needed
+        // Backend expects: date, time or timeLabel, contactName (from name)
+        timeLabel: row.time_label,
+        startIso: row.start_iso,
+        endIso: row.end_iso,
+        remindAgent: row.remind_agent,
+        remindClient: row.remind_client,
+        agentReminderMinutes: row.agent_reminder_minutes_before,
+        clientReminderMinutes: row.client_reminder_minutes_before
+      })
+    });
 
-  const { data, error } = await supabase.from('appointments').insert(payload).select('*').single()
-  if (error) throw error
-  return data as AppointmentRow
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || 'Failed to create appointment');
+    }
+
+    const result = await response.json();
+    return result.appointment as AppointmentRow;
+  } catch (error) {
+    console.error('Error creating appointment via API:', error);
+    throw error;
+  }
 }
 
 export const listAppointments = async (userId?: string) => {

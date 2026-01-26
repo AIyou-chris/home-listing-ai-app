@@ -128,6 +128,7 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
   const autoConnectTriggeredRef = useRef(false)
   const [activePrompt, setActivePrompt] = useState(systemPrompt || defaultPrompt)
   const [activeAssistantName, setActiveAssistantName] = useState(assistantName)
+  const [activeVoiceId, setActiveVoiceId] = useState<string>('alloy')
   const [loadingSidekick, setLoadingSidekick] = useState(false)
 
   useEffect(() => {
@@ -162,9 +163,14 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
               : salesPrompt
           setActivePrompt(combinedPrompt)
           setActiveAssistantName(sidekick.name || assistantName)
+          // Use 'openaiVoice' prop if available, otherwise fallback to 'voiceId' or 'nova'
+          // The sidekick object shape might put the ID in voiceId or openaiVoice property depending on normalizer
+          const voiceIdCandidate = (sidekick as any).openaiVoice || sidekick.voiceId || 'nova'
+          setActiveVoiceId(voiceIdCandidate)
         } else {
           setActivePrompt(fallbackPrompt)
           setActiveAssistantName(assistantName)
+          setActiveVoiceId('nova')
         }
       } catch (error) {
         console.error('VoiceBubble: failed to load sidekick persona', error)
@@ -197,8 +203,53 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
       setAssistantCaption(value)
       setIsAssistantSpeaking(false)
       onFinalResponse?.(value)
+    },
+    onToolCall: async (name, args) => {
+      if (name === 'requestHumanHandoff') {
+        setAssistantCaption('Connecting you to a human agent...')
+        try {
+          // Identify agent from sidekick or context
+          // We need to pass the Sidekick ID or User ID to the backend
+          // We can use sidekickId prop
+          const metadata = {
+            sidekickId: sidekickId,
+            reason: args.reason || 'User requested human agent',
+            transcript: args.transcript || 'Voice conversation'
+          }
+
+          await fetch('/api/realtime/handoff', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(metadata)
+          })
+
+          return JSON.stringify({ success: true, message: "Agent has been notified via SMS and Email. They will join shortly." })
+        } catch (err) {
+          console.error('Handoff failed', err)
+          return JSON.stringify({ success: false, error: "Failed to notify agent" })
+        }
+      }
     }
   })
+
+  // Define tools
+  const tools = useMemo(() => [
+    {
+      type: 'function',
+      name: 'requestHumanHandoff',
+      description: 'Call this function when the user explicitly asks to speak to a human, agent, or real person. Also use this if the user seems frustrated or asks a complex question you cannot answer.',
+      parameters: {
+        type: 'object',
+        properties: {
+          reason: {
+            type: 'string',
+            description: 'The reason the user wants to speak to a human.'
+          }
+        },
+        required: ['reason']
+      }
+    }
+  ], [])
 
   const stateLabel = useMemo(() => {
     if (loadingSidekick) return 'Loading sales concierge…'
@@ -210,8 +261,8 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
 
   const connect = useCallback(async () => {
     if (!activePrompt || loadingSidekick) return
-    await client.connect({ model, systemPrompt: activePrompt })
-  }, [activePrompt, client, loadingSidekick, model])
+    await client.connect({ model, systemPrompt: activePrompt, tools, voice: activeVoiceId })
+  }, [activePrompt, client, loadingSidekick, model, tools, activeVoiceId])
 
   const handleFinish = useCallback(() => {
     client.finalizeUserSpeech()
@@ -311,27 +362,24 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
             className={`absolute inset-0 rounded-full blur-xl transition-all duration-500 bg-gradient-to-br ${micGlowClass}`}
           />
           <div
-            className={`absolute inset-0 rounded-full border pointer-events-none transition-all duration-500 ${
-              micState === 'speaking'
-                ? 'border-orange-100/70 animate-speaking'
-                : micState === 'listening'
-                  ? 'border-sky-100/70 animate-listening'
-                  : 'border-white/25'
-            }`}
+            className={`absolute inset-0 rounded-full border pointer-events-none transition-all duration-500 ${micState === 'speaking'
+              ? 'border-orange-100/70 animate-speaking'
+              : micState === 'listening'
+                ? 'border-sky-100/70 animate-listening'
+                : 'border-white/25'
+              }`}
           />
           <div className={`absolute inset-4 rounded-full transition-all duration-700 animate-core ${micCoreClass}`} />
           <div
-            className={`absolute inset-6 rounded-full border border-white/30 transition-all duration-700 ${
-              micState === 'speaking' ? 'animate-ring' : ''
-            }`}
+            className={`absolute inset-6 rounded-full border border-white/30 transition-all duration-700 ${micState === 'speaking' ? 'animate-ring' : ''
+              }`}
           />
           <button
             type='button'
             onClick={connect}
             disabled={loadingSidekick}
-            className={`relative h-28 w-28 rounded-full bg-white/25 backdrop-blur flex items-center justify-center shadow-xl focus:outline-none focus:ring-4 focus:ring-white/60 transition-opacity ${
-              loadingSidekick ? 'opacity-60 cursor-not-allowed' : ''
-            }`}
+            className={`relative h-28 w-28 rounded-full bg-white/25 backdrop-blur flex items-center justify-center shadow-xl focus:outline-none focus:ring-4 focus:ring-white/60 transition-opacity ${loadingSidekick ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
             aria-label='Toggle voice assistant'
           >
             <span className='material-symbols-outlined text-4xl'>mic</span>

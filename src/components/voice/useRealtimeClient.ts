@@ -185,10 +185,78 @@ export const useRealtimeClient = (
     currentHandlers.onPartialTranscript?.('')
   }, [clearSpeechEndTimer, sendEvent])
 
-  const handleRealtimeMessage = useCallback((event: MessageEvent) => {
+  const handleRealtimeMessage = useCallback(async (event: MessageEvent) => {
     try {
-      const payload = JSON.parse(event.data as string) as { type: string; [key: string]: unknown }
+      const payload = JSON.parse(event.data as string) as { type: string;[key: string]: unknown }
       switch (payload.type) {
+        case 'response.function_call_arguments.delta': {
+          const delta = typeof payload.delta === 'string' ? payload.delta : ''
+          // We can optionally expose partial arguments if needed, but usually we wait for done.
+          break
+        }
+        case 'response.function_call_arguments.done': {
+          // We handle execution in output_item.done to be safe, or here.
+          // Actually, 'done' event contains the full arguments usually? No, it implies the stream is done.
+          // We should rely on output_item.done for the full item, but function_call_arguments.done gives us the call_id and arguments.
+          // payload: { type, call_id, arguments }
+          const callId = payload.call_id as string
+          const argsString = payload.arguments as string
+
+          if (callId && argsString) {
+            const name = payload.name as string // Sometimes name comes in .done, or we need to track it from item.added
+            // Actually, reliably, we should track the current function call being built.
+            // But for simplicity, let's assume valid payload.
+            // Wait, standard Realtime API 'response.function_call_arguments.done' has: call_id, arguments. Name might be in item.added.
+            // Let's rely on a reliable pattern:
+            // 1. response.output_item.added -> gives us item.id and item.content[0].name and call_id
+          }
+          break
+        }
+        case 'response.output_item.done': {
+          const item = payload.item as any
+          if (item && item.type === 'function_call') {
+            const { name, call_id, arguments: argsString } = item
+            const handlers = handlersRef.current
+            if (handlers.onToolCall) {
+              try {
+                const args = JSON.parse(argsString)
+                const result = await handlers.onToolCall(name, args)
+
+                // Send result back
+                sendEvent({
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'function_call_output',
+                    call_id: call_id,
+                    output: JSON.stringify(result || { success: true })
+                  }
+                })
+
+                // Trigger response
+                sendEvent({
+                  type: 'response.create',
+                  response: {
+                    modalities: ['text', 'audio'],
+                    instructions: instructionsRef.current || DEFAULT_LANGUAGE_INSTRUCTION
+                  }
+                })
+              } catch (err) {
+                console.error('Tool call failed', err)
+                // Optionally report error to model
+                sendEvent({
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'function_call_output',
+                    call_id: call_id,
+                    output: JSON.stringify({ error: err.message })
+                  }
+                })
+                sendEvent({ type: 'response.create' })
+              }
+            }
+          }
+          break
+        }
         case 'response.output_text.delta': {
           const delta = typeof payload.delta === 'string' ? payload.delta : ''
           assistantBufferRef.current += delta
@@ -230,10 +298,10 @@ export const useRealtimeClient = (
     } catch {
       // ignore malformed frames
     }
-  }, [clearSpeechEndTimer, finalizeUserSpeech])
+  }, [clearSpeechEndTimer, finalizeUserSpeech, sendEvent])
 
   const connect = useCallback(
-    async ({ model, systemPrompt }: VoiceConnectOptions) => {
+    async ({ model, voice, systemPrompt, tools }: VoiceConnectOptions) => {
       let attempts = 0
       const tryConnect = async (): Promise<boolean> => {
         attempts += 1
@@ -288,7 +356,9 @@ export const useRealtimeClient = (
               type: 'session.update',
               session: {
                 modalities: ['text', 'audio'],
-                instructions: instructionsRef.current || DEFAULT_LANGUAGE_INSTRUCTION
+                instructions: instructionsRef.current || DEFAULT_LANGUAGE_INSTRUCTION,
+                voice: voice || 'alloy',
+                tools: tools || []
               }
             }
             sendEvent(sessionUpdatePayload)
@@ -313,7 +383,9 @@ export const useRealtimeClient = (
               sdp: localDescription.sdp,
               type: localDescription.type,
               model: model || 'gpt-4o-realtime-preview',
-              instructions: instructionsRef.current || DEFAULT_LANGUAGE_INSTRUCTION
+              voice: voice || 'alloy',
+              instructions: instructionsRef.current || DEFAULT_LANGUAGE_INSTRUCTION,
+              tools: tools || []
             })
           })
 

@@ -386,3 +386,34 @@ export const exportConversationsCSV = async (params: {
     throw error;
   }
 }
+
+export const notifyAgentHandoff = async (payload: {
+  message: string
+  response: string
+  priority: 'low' | 'medium' | 'high'
+  category: string
+  needsHandoff: boolean
+  timestamp: Date
+}) => {
+  try {
+    const response = await fetch('/api/chat/handoff', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Agent notified of handoff request:', data);
+    return data;
+  } catch (error) {
+    console.error('Error notifying agent of handoff:', error);
+    throw error;
+  }
+}
+

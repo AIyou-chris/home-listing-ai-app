@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { BLUEPRINT_AGENT } from '../constants/agentBlueprintData';
 
 /**
  * Agent Data Service
@@ -54,6 +55,28 @@ export const getAuthenticatedAgentData = async (): Promise<AgentData | null> => 
  */
 export const getAgentData = async (userId: string): Promise<AgentData | null> => {
   try {
+    // Handle Blueprint Mode (Fake Agent)
+    if (userId === 'blueprint-agent') {
+      const [firstName, ...lastNameParts] = BLUEPRINT_AGENT.name.split(' ');
+      return {
+        id: BLUEPRINT_AGENT.id,
+        first_name: firstName || 'Blueprint',
+        last_name: lastNameParts.join(' ') || 'Agent',
+        email: BLUEPRINT_AGENT.email,
+        slug: BLUEPRINT_AGENT.slug || 'blueprint',
+        status: 'active',
+        payment_status: 'paid',
+        auth_user_id: 'blueprint-agent',
+        headshot_url: BLUEPRINT_AGENT.headshotUrl,
+        phone: BLUEPRINT_AGENT.phone,
+        company: BLUEPRINT_AGENT.company,
+        title: BLUEPRINT_AGENT.title,
+        bio: BLUEPRINT_AGENT.bio,
+        website: BLUEPRINT_AGENT.website,
+        created_at: new Date().toISOString()
+      };
+    }
+
     // Query agents table by auth_user_id
     const { data, error } = await supabase
       .from('agents')

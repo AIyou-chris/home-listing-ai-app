@@ -10,7 +10,7 @@ import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from './Schedul
 import ContactLeadModal from './ContactLeadModal';
 import CalendarView from './CalendarView';
 import ExportModal from './ExportModal';
-import { CampaignRunnerModal } from './admin/CampaignRunnerModal';
+// import { CampaignRunnerModal } from './admin/CampaignRunnerModal'; // Removed
 import PageTipBanner from './PageTipBanner';
 
 const formatDate = (dateStr: string) => {
@@ -38,10 +38,25 @@ const LeadStatusBadge: React.FC<{ status: LeadStatus }> = ({ status }) => {
         'Contacted': 'bg-amber-50 text-amber-600 border-amber-100',
         'Showing': 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100',
         'Lost': 'bg-slate-50 text-slate-500 border-slate-100',
-        'Bounced': 'bg-red-50 text-red-600 border-red-100'
+        'Bounced': 'bg-red-50 text-red-700 border-red-200',
+        'Unsubscribed': 'bg-red-100 text-red-800 border-red-200',
+        'Won': 'bg-green-100 text-green-800 border-green-200'
     };
+
+    const getIcon = (s: LeadStatus) => {
+        if (s === 'Unsubscribed') return 'block'; // 🛑
+        if (s === 'Bounced') return 'skull'; // 💀
+        if (s === 'Lost') return 'thumb_down';
+        return null;
+    };
+
+    const icon = getIcon(status);
+
     return (
-        <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border shadow-sm ${statusStyles[status]}`}>{status}</span>
+        <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border shadow-sm flex items-center gap-1 ${statusStyles[status] || 'bg-gray-100 text-gray-600'}`}>
+            {icon && <span className="material-symbols-outlined text-[12px]">{icon}</span>}
+            {status}
+        </span>
     );
 };
 
@@ -51,7 +66,9 @@ const statusColorMap: Record<LeadStatus, string> = {
     'Contacted': 'bg-amber-500',
     'Showing': 'bg-fuchsia-500',
     'Lost': 'bg-slate-400',
-    'Bounced': 'bg-red-500'
+    'Bounced': 'bg-red-500',
+    'Unsubscribed': 'bg-red-800',
+    'Won': 'bg-green-600'
 };
 
 const funnelOptions: Array<{ id: LeadFunnelType; label: string; description: string; icon: string; accent: string }> = [
@@ -198,7 +215,17 @@ const LeadsList: React.FC<{
                                             Edit Lead
                                         </button>
                                         <button
-                                            onClick={() => navigate(`/inbox?leadId=${encodeURIComponent(lead.email || lead.id)}`)}
+                                            onClick={() => {
+                                                // Detect current context to navigate to correct inbox
+                                                const currentPath = window.location.pathname;
+                                                if (currentPath.includes('agent-blueprint-dashboard')) {
+                                                    navigate(`/agent-blueprint-dashboard/inbox?leadId=${encodeURIComponent(lead.email || lead.id)}`);
+                                                } else if (currentPath.includes('demo-dashboard')) {
+                                                    navigate(`/demo-dashboard/inbox?leadId=${encodeURIComponent(lead.email || lead.id)}`);
+                                                } else {
+                                                    navigate(`/inbox?leadId=${encodeURIComponent(lead.email || lead.id)}`);
+                                                }
+                                            }}
                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50/50 text-indigo-600 text-xs font-semibold border border-indigo-100/50 hover:bg-indigo-50 hover:border-indigo-200 transition-colors"
                                         >
                                             <span className="material-symbols-outlined text-sm">chat</span>
@@ -448,7 +475,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [isContactModalOpen, setIsContactModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-    const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
+    // const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false); // Removed
     const [schedulingLead, setSchedulingLead] = useState<Lead | null>(null);
     const [contactingLead, setContactingLead] = useState<Lead | null>(null);
     const [initialContactTab, setInitialContactTab] = useState<'email' | 'call' | 'sms' | 'note' | undefined>(undefined);
@@ -681,13 +708,6 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                                 <span className="material-symbols-outlined text-slate-400">download</span>
                                 <span>Export Data</span>
                             </button>
-                            <button
-                                onClick={() => setIsCampaignModalOpen(true)}
-                                className="flex items-center justify-center gap-2 px-6 py-4 bg-violet-600 text-white rounded-2xl font-bold shadow-lg shadow-violet-200 hover:bg-violet-700 transition-all active:scale-[0.98]"
-                            >
-                                <span className="material-symbols-outlined">rocket_launch</span>
-                                <span>Run Campaign</span>
-                            </button>
                         </div>
                     </div>
                 </header>
@@ -910,23 +930,8 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                 />
             )}
 
-            <CampaignRunnerModal
-                isOpen={isCampaignModalOpen}
-                onClose={() => setIsCampaignModalOpen(false)}
-                selectedLeads={leads.filter(l => l.status === 'New')} // Default to New leads or currently filtered view? 
-                // ideally we'd pass 'filteredLeads' but for now let's pass all 'leads' or maybe let user select in modal?
-                // The requirements were "sending out in chunks". 
-                // If I pass ALL leads, that might be dangerous. 
-                // Let's pass 'leads' and let the modal filter? 
-                // Actually the modal props say 'selectedLeads'. 
-                // For this quick implementation, I'll pass ALL leads and let the user know.
-                // Or better, filter to ONLY 'New' leads by default as a safety mechanism?
-                // The implementation plan said: "Target Audience: All New Leads, Selected Leads, or Tag: X"
-                // The modal has text "You are about to enroll {selectedLeads.length} leads".
-                // I will pass ALL leads for now, assuming the LeadsPage 'leads' prop is what the user sees/filters.
-                funnelId="agentSales" // Defaulting to AgentSales for now
-                funnelName="Recruitment Funnel"
-            />
+
+
 
         </div>
     );

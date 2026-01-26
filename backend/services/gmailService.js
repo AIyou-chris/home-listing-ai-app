@@ -75,10 +75,17 @@ class GmailService {
                 .eq('user_id', userId)
                 .single();
 
-            if (error && error.code !== 'PGRST116') throw error;
+            if (error && error.code !== 'PGRST116') {
+                // REDUNDANT AUDIT FIX: Handle schema cache errors gracefully
+                if (error.code === 'PGRST205') {
+                    console.warn('[GmailService] Schema cache stale (gmail_connections not yet visible). Falling back.');
+                    return null;
+                }
+                throw error;
+            }
             return data;
         } catch (error) {
-            console.error('Error getting Gmail connection:', error);
+            console.error('[GmailService] Error getting connection:', error.message);
             return null;
         }
     }
@@ -112,7 +119,7 @@ class GmailService {
     /**
      * Send email via Gmail API
      */
-    async sendEmail(userId, { to, subject, text, html }) {
+    async sendEmail(userId, { to, subject, text, html, replyTo }) {
         try {
             const connection = await this.getConnection(userId);
             if (!connection) {
@@ -132,10 +139,18 @@ class GmailService {
             const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
 
             // Create email content
-            const email = [
+            const emailHeaders = [
                 `To: ${to}`,
                 `Subject: ${subject}`,
-                `Content-Type: text/html; charset=utf-8`,
+                `Content-Type: text/html; charset=utf-8`
+            ];
+
+            if (replyTo) {
+                emailHeaders.push(`Reply-To: ${replyTo}`);
+            }
+
+            const email = [
+                ...emailHeaders,
                 '',
                 html || text
             ].join('\n');
