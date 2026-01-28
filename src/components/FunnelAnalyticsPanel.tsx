@@ -918,6 +918,27 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                 {stepIsOpen && (
                                                     <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
                                                         <div className="pt-4 border-t border-slate-100">
+                                                            {/* Step Label & Description Editor */}
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                                                <div>
+                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Step Name</label>
+                                                                    <input
+                                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                                                                        value={step.title}
+                                                                        onChange={(e) => onUpdateStep(step.id, 'title', e.target.value)}
+                                                                        placeholder="e.g. Instant AI Welcome"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Description</label>
+                                                                    <input
+                                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                                                                        value={step.description}
+                                                                        onChange={(e) => onUpdateStep(step.id, 'description', e.target.value)}
+                                                                        placeholder="Briefly describe this step..."
+                                                                    />
+                                                                </div>
+                                                            </div>
                                                             {/* Quick Config Row */}
                                                             <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                                 <div className="flex-1">

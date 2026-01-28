@@ -155,6 +155,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
               >
                 Marketing Hub
               </NavItem>
+              <NavItem
+                to={getPath("/marketing-reports")}
+                icon="analytics"
+                onClose={onClose}
+              >
+                Marketing Reports
+              </NavItem>
             </div>
 
             {/* AI Communication */}

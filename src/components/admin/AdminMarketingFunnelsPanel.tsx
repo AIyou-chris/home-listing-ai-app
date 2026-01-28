@@ -55,51 +55,51 @@ const highlightCards = [
 
 
 
-const initialWelcomeSteps: EditableStep[] = [
-    {
-        id: 'welcome-ai',
-        title: 'Instant AI Welcome',
-        description: 'Chatbot fires a warm intro email + SMS within 2 minutes.',
-        icon: 'thunderstorm',
-        delay: '0 min',
-        type: 'Email',
-        subject: 'Welcome aboard, {{lead.name}}!',
-        content: `Hi {{lead.name}},
-
-Great to meet you! I built a quick concierge just for you — it highlights {{lead.interestAddress || "the homes we're short‑listing"}} and answers questions 24/7.
-
-Take a peek here: {{agent.aiCardUrl || agent.website}}
-
-Talk soon,
-{{agent.name}} · {{agent.phone}}`
-    },
-    {
-        id: 'welcome-checkin',
-        title: 'Day 1 Check-In',
-        description: 'Bot shares quick resources and asks for timeline + budget so you can prioritize.',
-        icon: 'draft',
-        delay: '+24 hrs',
-        type: 'Email',
-        subject: 'Quick check-in + next steps',
-        content: `Hi {{lead.name}},
-
-Want me to line up tours for {{lead.interestAddress || 'any favorite homes'}}?
-
-Drop me your target move-in date + ideal payment range and I’ll tailor alerts that match perfectly.`
-    },
-    {
-        id: 'welcome-task',
-        title: 'Agent Task',
-        description: 'Reminder for a human touch — call/text with next steps.',
-        icon: 'call',
-        delay: '+48 hrs',
-        type: 'Task',
-        subject: 'Agent task',
-        content: `Task: Call {{lead.name}} about {{lead.interestAddress || 'their top picks'}}.
-
-Goal: confirm financing path + invite to a live strategy session.`
-    }
-];
+// const initialWelcomeSteps: EditableStep[] = [
+//     {
+//         id: 'welcome-ai',
+//         title: 'Instant AI Welcome',
+//         description: 'Chatbot fires a warm intro email + SMS within 2 minutes.',
+//         icon: 'thunderstorm',
+//         delay: '0 min',
+//         type: 'Email',
+//         subject: 'Welcome aboard, {{lead.name}}!',
+//         content: `Hi {{lead.name}},
+//
+// Great to meet you! I built a quick concierge just for you — it highlights {{lead.interestAddress || "the homes we're short‑listing"}} and answers questions 24/7.
+//
+// Take a peek here: {{agent.aiCardUrl || agent.website}}
+//
+// Talk soon,
+// {{agent.name}} · {{agent.phone}}`
+//     },
+//     {
+//         id: 'welcome-checkin',
+//         title: 'Day 1 Check-In',
+//         description: 'Bot shares quick resources and asks for timeline + budget so you can prioritize.',
+//         icon: 'draft',
+//         delay: '+24 hrs',
+//         type: 'Email',
+//         subject: 'Quick check-in + next steps',
+//         content: `Hi {{lead.name}},
+//
+// Want me to line up tours for {{lead.interestAddress || 'any favorite homes'}}?
+//
+// Drop me your target move-in date + ideal payment range and I’ll tailor alerts that match perfectly.`
+//     },
+//     {
+//         id: 'welcome-task',
+//         title: 'Agent Task',
+//         description: 'Reminder for a human touch — call/text with next steps.',
+//         icon: 'call',
+//         delay: '+48 hrs',
+//         type: 'Task',
+//         subject: 'Agent task',
+//         content: `Task: Call {{lead.name}} about {{lead.interestAddress || 'their top picks'}}.
+//
+// Goal: confirm financing path + invite to a live strategy session.`
+//     }
+// ];
 
 const initialHomeBuyerSteps: EditableStep[] = [
     {
@@ -171,157 +171,157 @@ Need a warm intro to my lender partners? Happy to connect you.`
     }
 ];
 
-const initialListingSteps: EditableStep[] = [
-    {
-        id: 'listing-intake',
-        title: 'AI Story Intake',
-        description: 'Seller completes a quick form; AI turns the notes into a lifestyle narrative.',
-        icon: 'stylus',
-        delay: '0 min',
-        type: 'Email',
-        subject: 'Let’s make your home talk',
-        content: `Thanks for the details on {{lead.interestAddress || 'your property'}}.
-I’m feeding them into our AI storyteller so buyers feel the lifestyle on the first touch.`
-    },
-    {
-        id: 'listing-draft',
-        title: 'Interactive Listing Draft',
-        description: 'System builds the AI-powered property page with concierge + talking points.',
-        icon: 'dynamic_feed',
-        delay: '+30 min',
-        type: 'Email',
-        subject: 'Preview your interactive listing',
-        content: `Here’s the first pass of your AI listing experience:
-{{agent.website}}/listing-preview
+// const initialListingSteps: EditableStep[] = [
+//     {
+//         id: 'listing-intake',
+//         title: 'AI Story Intake',
+//         description: 'Seller completes a quick form; AI turns the notes into a lifestyle narrative.',
+//         icon: 'stylus',
+//         delay: '0 min',
+//         type: 'Email',
+//         subject: 'Let’s make your home talk',
+//         content: `Thanks for the details on {{lead.interestAddress || 'your property'}}.
+// I’m feeding them into our AI storyteller so buyers feel the lifestyle on the first touch.`
+//     },
+//     {
+//         id: 'listing-draft',
+//         title: 'Interactive Listing Draft',
+//         description: 'System builds the AI-powered property page with concierge + talking points.',
+//         icon: 'dynamic_feed',
+//         delay: '+30 min',
+//         type: 'Email',
+//         subject: 'Preview your interactive listing',
+//         content: `Here’s the first pass of your AI listing experience:
+// {{agent.website}}/listing-preview
+//
+// The concierge already knows how to answer buyer questions 24/7.`
+//     },
+//     {
+//         id: 'listing-voice',
+//         title: 'Home Speaks Preview',
+//         description: 'Share a preview link so sellers hear how the home “talks” to buyers.',
+//         icon: 'record_voice_over',
+//         delay: '+2 hrs',
+//         type: 'Email',
+//         subject: 'Hear your home talk to buyers',
+//         content: `Play this preview — our AI concierge walks buyers through every highlight:
+// {{agent.aiCardUrl}}/listing-preview
+//
+// Send me any details you want it to emphasize.`
+//     },
+//     {
+//         id: 'listing-launch',
+//         title: 'Launch Boost',
+//         description: 'Kick off marketing: QR codes, reels, email nurtures referencing the story.',
+//         icon: 'rocket_launch',
+//         delay: '+1 day',
+//         type: 'Email',
+//         subject: 'Launch plan locked',
+//         content: `We’re launching with:
+// - Interactive listing + AI concierge
+// - QR codes for signage
+// - Social reels + nurture emails
+//
+// Go-live date: {{lead.timeline || 'this Friday'}}.`
+//     },
+//     {
+//         id: 'listing-feedback',
+//         title: 'Feedback Loop',
+//         description: 'AI summarizes buyer questions from the concierge for fine-tuning.',
+//         icon: 'insights',
+//         delay: '+3 days',
+//         type: 'Email',
+//         subject: 'Buyer feedback recap',
+//         content: `AI pulled the top buyer questions so far:
+// - {{lead.questionOne || 'Do utilities include solar credits?'}}
+// - {{lead.questionTwo || 'Can we convert the loft?'}}
+//
+// Let’s adjust staging/pricing based on this intel.`
+//     }
+// ];
 
-The concierge already knows how to answer buyer questions 24/7.`
-    },
-    {
-        id: 'listing-voice',
-        title: 'Home Speaks Preview',
-        description: 'Share a preview link so sellers hear how the home “talks” to buyers.',
-        icon: 'record_voice_over',
-        delay: '+2 hrs',
-        type: 'Email',
-        subject: 'Hear your home talk to buyers',
-        content: `Play this preview — our AI concierge walks buyers through every highlight:
-{{agent.aiCardUrl}}/listing-preview
+// const initialPostShowingSteps: EditableStep[] = [
+//     {
+//         id: 'post-thanks',
+//         title: 'Immediate Thanks',
+//         description: 'AI concierge sends a recap minutes after the showing with highlights and next steps.',
+//         icon: 'handshake',
+//         delay: '0 min',
+//         type: 'Email',
+//         subject: 'Thanks for touring {{lead.interestAddress}}',
+//         content: `Hi {{lead.name}},
+//
+// Loved walking you through {{lead.interestAddress}}. Here’s a quick recap + next steps.
+//
+// Want a second look or details on similar homes? I’m on standby.`
+//     },
+//     {
+//         id: 'post-feedback',
+//         title: 'Feedback Pulse',
+//         description: 'Ask the buyer to rate interest level and capture objections via chatbot survey.',
+//         icon: 'rate_review',
+//         delay: '+2 hrs',
+//         type: 'Text',
+//         subject: 'Mind sharing quick feedback?',
+//         content: `Drop a 30-second response so I can tailor our next steps:
+// {{agent.aiCardUrl}}/feedback`
+//     },
+//     {
+//         id: 'post-agent-touch',
+//         title: 'Agent Touch',
+//         description: 'Schedule a personal text or call reminder so the agent can address objections.',
+//         icon: 'sms',
+//         delay: '+1 day',
+//         type: 'Task',
+//         subject: 'Agent task',
+//         content: `Task: Text {{lead.name}} to address objections + offer alternates.
+// Include quick notes from the showing.`
+//     },
+//     {
+//         id: 'post-comps',
+//         title: 'Comparables Drop',
+//         description: 'Share two similar homes with smart commentary to keep the buyer engaged with you.',
+//         icon: 'real_estate_agent',
+//         delay: '+2 days',
+//         type: 'Email',
+//         subject: 'Two smart alternates to compare',
+//         content: `Based on what you loved, here are two matches:
+// 1. {{lead.matchOne || 'Maple Modern – turnkey + office nook'}}
+// 2. {{lead.matchTwo || 'Canyon Ridge – same vibe, bigger yard'}}
+//
+// Want me to unlock either?`
+//     },
+//     {
+//         id: 'post-nudge',
+//         title: 'Offer Nudge',
+//         description: 'AI watches market activity and sends a gentle urgency nudge if interest remains high.',
+//         icon: 'notifications_active',
+//         delay: '+4 days',
+//         type: 'Email',
+//         subject: 'Market update: pace picked up',
+//         content: `Contracts jumped 12% this week for homes like {{lead.interestAddress}}.
+// If you’re still interested, I can prep numbers + offer strategy anytime.`
+//     }
+// ];
 
-Send me any details you want it to emphasize.`
-    },
-    {
-        id: 'listing-launch',
-        title: 'Launch Boost',
-        description: 'Kick off marketing: QR codes, reels, email nurtures referencing the story.',
-        icon: 'rocket_launch',
-        delay: '+1 day',
-        type: 'Email',
-        subject: 'Launch plan locked',
-        content: `We’re launching with:
-- Interactive listing + AI concierge
-- QR codes for signage
-- Social reels + nurture emails
-
-Go-live date: {{lead.timeline || 'this Friday'}}.`
-    },
-    {
-        id: 'listing-feedback',
-        title: 'Feedback Loop',
-        description: 'AI summarizes buyer questions from the concierge for fine-tuning.',
-        icon: 'insights',
-        delay: '+3 days',
-        type: 'Email',
-        subject: 'Buyer feedback recap',
-        content: `AI pulled the top buyer questions so far:
-- {{lead.questionOne || 'Do utilities include solar credits?'}}
-- {{lead.questionTwo || 'Can we convert the loft?'}}
-
-Let’s adjust staging/pricing based on this intel.`
-    }
-];
-
-const initialPostShowingSteps: EditableStep[] = [
-    {
-        id: 'post-thanks',
-        title: 'Immediate Thanks',
-        description: 'AI concierge sends a recap minutes after the showing with highlights and next steps.',
-        icon: 'handshake',
-        delay: '0 min',
-        type: 'Email',
-        subject: 'Thanks for touring {{lead.interestAddress}}',
-        content: `Hi {{lead.name}},
-
-Loved walking you through {{lead.interestAddress}}. Here’s a quick recap + next steps.
-
-Want a second look or details on similar homes? I’m on standby.`
-    },
-    {
-        id: 'post-feedback',
-        title: 'Feedback Pulse',
-        description: 'Ask the buyer to rate interest level and capture objections via chatbot survey.',
-        icon: 'rate_review',
-        delay: '+2 hrs',
-        type: 'Text',
-        subject: 'Mind sharing quick feedback?',
-        content: `Drop a 30-second response so I can tailor our next steps:
-{{agent.aiCardUrl}}/feedback`
-    },
-    {
-        id: 'post-agent-touch',
-        title: 'Agent Touch',
-        description: 'Schedule a personal text or call reminder so the agent can address objections.',
-        icon: 'sms',
-        delay: '+1 day',
-        type: 'Task',
-        subject: 'Agent task',
-        content: `Task: Text {{lead.name}} to address objections + offer alternates.
-Include quick notes from the showing.`
-    },
-    {
-        id: 'post-comps',
-        title: 'Comparables Drop',
-        description: 'Share two similar homes with smart commentary to keep the buyer engaged with you.',
-        icon: 'real_estate_agent',
-        delay: '+2 days',
-        type: 'Email',
-        subject: 'Two smart alternates to compare',
-        content: `Based on what you loved, here are two matches:
-1. {{lead.matchOne || 'Maple Modern – turnkey + office nook'}}
-2. {{lead.matchTwo || 'Canyon Ridge – same vibe, bigger yard'}}
-
-Want me to unlock either?`
-    },
-    {
-        id: 'post-nudge',
-        title: 'Offer Nudge',
-        description: 'AI watches market activity and sends a gentle urgency nudge if interest remains high.',
-        icon: 'notifications_active',
-        delay: '+4 days',
-        type: 'Email',
-        subject: 'Market update: pace picked up',
-        content: `Contracts jumped 12% this week for homes like {{lead.interestAddress}}.
-If you’re still interested, I can prep numbers + offer strategy anytime.`
-    }
-];
-
-const initPanelState = (isBlueprintMode: boolean = false) => {
-    // If in blueprint mode or mobile, start closed
-    if (isBlueprintMode || (typeof window !== 'undefined' && window.innerWidth < 768)) {
-        return {
-            welcome: false,
-            buyer: false,
-            listing: false,
-            post: false
-        };
-    }
-    // Default open for normal users
-    return {
-        welcome: true,
-        buyer: true,
-        listing: true,
-        post: true
-    };
-};
+// const initPanelState = (isBlueprintMode: boolean = false) => {
+//     // If in blueprint mode or mobile, start closed
+//     if (isBlueprintMode || (typeof window !== 'undefined' && window.innerWidth < 768)) {
+//         return {
+//             welcome: false,
+//             buyer: false,
+//             listing: false,
+//             post: false
+//         };
+//     }
+//     // Default open for normal users
+//     return {
+//         welcome: true,
+//         buyer: true,
+//         listing: true,
+//         post: true
+//     };
+// };
 
 const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     onBackToDashboard,
@@ -330,7 +330,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     subtitle = 'Homebuyer, Seller, and Showing funnels for every lead',
     hideBackButton = false,
     isDemoMode = false,
-    // @ts-ignore
+
     isBlueprintMode = false
 }: FunnelAnalyticsPanelProps & { isBlueprintMode?: boolean }) => {
     const isEmbedded = variant === 'embedded';
@@ -740,6 +740,27 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                 {stepIsOpen && (
                                                     <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
                                                         <div className="pt-4 border-t border-slate-100">
+                                                            {/* Step Label & Description Editor */}
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                                                <div>
+                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Step Name</label>
+                                                                    <input
+                                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                                                                        value={step.title}
+                                                                        onChange={(e) => onUpdateStep(step.id, 'title', e.target.value)}
+                                                                        placeholder="e.g. Instant AI Welcome"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Description</label>
+                                                                    <input
+                                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                                                                        value={step.description}
+                                                                        onChange={(e) => onUpdateStep(step.id, 'description', e.target.value)}
+                                                                        placeholder="Briefly describe this step..."
+                                                                    />
+                                                                </div>
+                                                            </div>
                                                             {/* Quick Config Row */}
                                                             <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                                 <div className="flex-1">
