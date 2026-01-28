@@ -44,6 +44,7 @@ import {
   Property,
   View,
   Lead,
+  LeadStatus,
   Appointment,
   AgentTask,
   AgentProfile,
@@ -767,11 +768,23 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
   const handleSetProperty = async (updated: Property) => {
     // Check if property exists in current array
+    // Check if property exists in current array
     const existingIndex = properties.findIndex((property) => property.id === updated.id);
 
+    // Check if we are replacing an old selected property (e.g. demo -> real ID)
+    const oldId = selectedPropertyId;
+    const isIdChanged = oldId && oldId !== updated.id;
+
     if (existingIndex === -1) {
-      // Property doesn't exist - this is a NEW property (e.g., blueprint fork)
-      setProperties((prev) => [updated, ...prev]);
+      if (isIdChanged && oldId) {
+        // ID changed (e.g. demo to real). Replace the old one.
+        setProperties((prev) => prev.map((p) => (p.id === oldId ? updated : p)));
+        // Update selection to new ID
+        setSelectedPropertyId(updated.id);
+      } else {
+        // Property doesn't exist and no old ID match - this is a NEW property
+        setProperties((prev) => [updated, ...prev]);
+      }
     } else {
       // Property exists - update it
       setProperties((prev) => prev.map((property) => (property.id === updated.id ? updated : property)));
@@ -865,7 +878,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     }
   ]
 
-  const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
+  const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string; status?: string }) => {
     const payload: LeadPayload = {
       name: leadData.name,
       email: leadData.email,
@@ -881,7 +894,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         name: leadData.name,
         email: leadData.email,
         phone: leadData.phone,
-        status: 'New',
+        status: (leadData.status as LeadStatus) || 'New',
         date: new Date().toISOString(),
         lastMessage: leadData.message,
         source: leadData.source || 'Manual Entry'
@@ -903,6 +916,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         phone: leadData.phone,
         source: leadData.source || 'Website',
         notes: leadData.message, // Map message to notes
+        status: (leadData.status as LeadStatus) || undefined,
         funnelType: (leadData.funnelType as LeadFunnelType) || undefined,
         funnelId: (leadData.funnelType === 'universal_sales' ? 'universal_sales' : undefined), // Auto-map known funnels if needed
         userId: isBlueprintMode ? (agentProfile?.id || 'blueprint-agent') : undefined // Force attribution in Blueprint Mode

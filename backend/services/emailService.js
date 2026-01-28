@@ -6,6 +6,8 @@ const assertFetchAvailable = () => {
   }
 };
 
+const { sendAlert } = require('./slackService');
+
 const buildWelcomeHtml = (firstName, dashboardUrl, password) => `
   <!DOCTYPE html>
   <html>
@@ -138,6 +140,7 @@ module.exports = (supabaseAdmin) => {
         status: 'queued',
         failure_reason: reason || null
       });
+      sendAlert(`🚨 Email Failed & Queued: "${subject}" to ${to}. Reason: ${reason || 'Unknown'}`);
       return { queued: true };
     } catch (err) {
       console.error('[EmailService] Failed to persist fallback email queue', err);

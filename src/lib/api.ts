@@ -1,8 +1,10 @@
 const normalizeBase = (): string => {
-  const raw = import.meta.env?.VITE_API_BASE_URL
-  // Fallback to production backend if env var is missing (Safety Net)
+  // Check common env vars, prioritizing standard VITE_BACKEND_URL
+  const raw = import.meta.env?.VITE_BACKEND_URL || import.meta.env?.VITE_API_BASE_URL
+
+  // Default to local backend for development reliability
   if (typeof raw !== 'string' || !raw.trim().length) {
-    return 'https://home-listing-ai-backend.onrender.com'
+    return 'http://localhost:3002'
   }
   const trimmed = raw.trim()
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed

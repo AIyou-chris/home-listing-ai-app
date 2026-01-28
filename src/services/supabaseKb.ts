@@ -1,7 +1,7 @@
 // Supabase Knowledge Base service
 import { supabase } from './supabase'
 
-export type SidekickId = 'main' | 'sales' | 'listing' | 'agent' | 'helper' | 'marketing' | 'support'
+export type SidekickId = 'main' | 'sales' | 'listing' | 'agent' | 'helper' | 'marketing' | 'support' | 'god' | 'sales_god' | 'support_god'
 
 export interface KbEntry {
 	id: string

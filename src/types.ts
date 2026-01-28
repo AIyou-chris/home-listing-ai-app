@@ -88,6 +88,7 @@ export type View =
     | 'blog-post'
     | 'marketing-reports'
 
+
     // App routes used during development and feature flags
     | 'ai-content'
     | 'openai-test'
@@ -195,7 +196,7 @@ export interface BlogPost {
     };
 }
 
-export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost' | 'Bounced' | 'Unsubscribed' | 'Won';
+export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost' | 'Bounced' | 'Unsubscribed' | 'Won' | 'Marketing Only';
 
 export type LeadFunnelType = 'universal_sales' | 'homebuyer' | 'seller' | 'postShowing';
 

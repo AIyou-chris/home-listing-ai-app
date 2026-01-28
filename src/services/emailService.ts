@@ -270,54 +270,37 @@ class EmailService {
 
     async sendContactMessage(data: ContactMessageData, options: SendEmailOptions = {}): Promise<boolean> {
         try {
-            console.log('📧 Forwarding contact message to admin inbox');
+            console.log('📧 Sending contact message via Lead Capture API (DB + Email)');
 
-            const adminEmail = 'us@homelistingai.com';
-            const subject = `New contact message from ${data.name}`;
-            const html = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #1e293b;">New Contact Message</h2>
-                    <p>You received a new message from the website contact form.</p>
+            const apiBase = import.meta.env.VITE_API_URL || 'https://home-listing-ai-backend.onrender.com';
 
-                    <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                        <h3 style="margin-top: 0;">Contact Details</h3>
-                        <p><strong>Name:</strong> ${data.name}</p>
-                        <p><strong>Email:</strong> <a href="mailto:${data.email}" style="color: #1e40af;">${data.email}</a></p>
-                        <p><strong>Phone:</strong> ${data.phone || 'Not provided'}</p>
-                    </div>
-
-                    <div style="background-color: #eef2ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                        <h3 style="margin-top: 0;">Message</h3>
-                        <p style="white-space: pre-wrap;">${data.message}</p>
-                    </div>
-
-                    <p>Reply directly to the sender to continue the conversation.</p>
-                </div>
-            `;
-
-            const plainText = `New contact message\n\n` +
-                `Name: ${data.name}\n` +
-                `Email: ${data.email}\n` +
-                `Phone: ${data.phone ?? 'Not provided'}\n\n` +
-                `Message:\n${data.message}`
-
-            const sent = await this.sendEmail(adminEmail, subject, html, {
-                text: plainText,
-                replyTo: data.email,
-                ...options
-            })
-
-            if (!sent) {
-                console.warn('⚠️ Contact email could not be sent via Mailgun. Logging instead:')
-                console.table({
+            const response = await fetch(`${apiBase}/api/leads/public`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
                     name: data.name,
                     email: data.email,
-                    phone: data.phone ?? 'N/A',
-                    message: data.message
+                    phone: data.phone,
+                    message: data.message,
+                    source: 'Website Contact Form',
+                    notifyAdmin: true // This triggers the email notification from backend
                 })
+            });
+
+            if (!response.ok) {
+                console.error('Lead capture API failed', response.status);
+                return false;
             }
 
-            return sent
+            const resData = await response.json();
+            if (resData.success) {
+                console.log('✅ Contact message saved as lead and admin notified.');
+                return true;
+            }
+
+            return false;
         } catch (error) {
             console.error('❌ Error sending contact message:', error);
             return false;

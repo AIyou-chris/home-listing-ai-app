@@ -403,11 +403,33 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
     if (!file) return;
 
     try {
+      // FAST PATH: In Blueprint/Demo mode, handle locally immediately to prevent hanging
+      if (isDemoMode || isBlueprintMode) {
+        try {
+          const dataUrl = await fileToDataUrl(file);
+          handleBackgroundChange(dataUrl);
+          // Persist to local storage for Blueprint consistency
+          if (isBlueprintMode) {
+            const updatedProfile = {
+              ...form,
+              socialMedia: { ...form.socialMedia, backgroundImage: dataUrl }
+            };
+            localStorage.setItem('ai_card_demo_data', JSON.stringify(updatedProfile));
+          }
+          return;
+        } catch (e) {
+          console.error('Failed to process background image locally:', e);
+          // Fall through to try server upload if local fails (unlikely)
+        }
+      }
+
       const uploadResult = await uploadAiCardAsset('background', file);
       const url = uploadResult.url || uploadResult.path;
       handleBackgroundChange(url);
     } catch (error) {
       console.error('Failed to upload background:', error);
+
+      // Fallback for non-demo modes if server upload fails
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes('User authentication required')) {
         try {
@@ -432,11 +454,33 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
       return
     }
 
+    // FAST PATH: In Demo/Blueprint mode, handle locally immediately
+    // This avoids network calls and authentication issues entirely for demo users
+    if (isDemoMode || isBlueprintMode) {
+      try {
+        const dataUrl = await fileToDataUrl(file);
+
+        // Persist immediately
+        await persistForm({ [type]: dataUrl });
+
+        // Force state update to ensure UI reflects it
+        setForm(prev => ({ ...prev, [type]: dataUrl }));
+
+        return;
+      } catch (e) {
+        console.error('Failed to process image locally (fast-path):', e);
+        // Fall through to standard upload if local fails
+      }
+    }
+
     let uploadSucceeded = false
     let uploadedValue: string | null = null
     try {
       const uploadResult = await uploadAiCardAsset(type, file)
-      uploadedValue = uploadResult.path
+      // CRITICAL FIX: Use the 'url' if available (which contains public URL or Data URL), 
+      // otherwise fall back to path. Previously we only used path which broke things.
+      uploadedValue = uploadResult.url || uploadResult.path
+
       await persistForm({ [type]: uploadedValue })
       uploadSucceeded = true
     } catch (error) {
@@ -458,20 +502,12 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
           ...prev,
           [type]: serverProfileRef.current?.[type] ?? prev[type] ?? null
         }))
-        setHasUnsavedChanges(true)
-        if (serverProfileRef.current) {
-          serverProfileRef.current = {
-            ...serverProfileRef.current,
-            [type]: serverProfileRef.current?.[type] ?? null
-          }
-        }
-      }
-    } finally {
-      if (event.target) {
-        event.target.value = ''
+        // Reset file input
+        if (event.target) event.target.value = ''
       }
     }
   }
+
 
   const handleRemoveAsset = async (type: 'headshot' | 'logo') => {
     setForm(prev => ({

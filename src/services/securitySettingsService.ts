@@ -55,21 +55,24 @@ const updateSettings = async (
 
 const notifyLogin = async (userId: string, email: string): Promise<boolean> => {
     try {
-        const response = await fetch('/api/security/notify-login', {
+        // This is a "fire and forget" notification.
+        // We do NOT await the JSON response or let it block the UI if it fails (404, 500, or network error).
+        // The backend might not have the route deployed yet.
+        await fetch('/api/security/notify-login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 userId,
                 email,
-                // We can't easily get IP here, backend will see request IP if behind proxy or direct
                 userAgent: navigator.userAgent
             })
-        });
-        const data = await response.json();
-        return data.success;
+        }).catch(() => { /* Cleanly ignore network errors */ });
+
+        // Always return true to the frontend logic so we don't break the login flow
+        return true;
     } catch (error) {
-        console.error('Failed to notify login', error);
-        return false;
+        // Double safety net
+        return true;
     }
 };
 

@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
+import { buildApiUrl } from '../lib/api'
 
-const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002'
-const LISTING_UPLOAD_PATH = `${apiBaseUrl.replace(/\/$/,'')}/api/listings/photo-upload`
+const LISTING_UPLOAD_PATH = buildApiUrl('/api/listings/photo-upload')
 
 const fileToDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {

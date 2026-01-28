@@ -111,7 +111,7 @@ const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const emailTrackingService = require('./services/emailTrackingService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
-const { scrapeUrl } = require('./services/scraperService');
+
 const { sendSms, validatePhoneNumber } = require('./services/smsService');
 const { initiateCall } = require('./services/voiceService');
 const { sendAlert } = require('./services/slackService');
@@ -150,7 +150,7 @@ app.use(cors({
 }));
 // Middleware: Capture Raw Body for Stripe Webhooks (must be before processing JSON)
 app.use(express.json({
-  limit: '16mb',
+  limit: '50mb',
   verify: (req, res, buf) => {
     req.rawBody = buf.toString();
   }
@@ -163,7 +163,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-app.use(express.urlencoded({ extended: true, limit: '16mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(helmet({
   contentSecurityPolicy: false // Disable CSP for demo flexibility
 }));
@@ -372,21 +372,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Scraper Endpoint
-app.post('/api/scrape', async (req, res) => {
-  try {
-    const { url } = req.body;
-    if (!url) {
-      return res.status(400).json({ success: false, error: 'URL is required' });
-    }
-
-    const result = await scrapeUrl(url);
-    res.json({ success: true, ...result });
-  } catch (error) {
-    console.error('Scraping endpoint error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+// [REMOVED] Scraper endpoint deprecated per user request
 
 app.post('/api/vapi/webhook', async (req, res) => {
   try {
@@ -1275,6 +1261,67 @@ app.get('/api/agents/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
     res.json({ agent });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Voice Clone API Routes
+const voiceCloneService = require('./services/voiceCloneService');
+
+app.post('/api/voice-clone/submit-recording', upload.single('audioFile'), async (req, res) => {
+  try {
+    const { agentId } = req.body;
+    if (!req.file) {
+      return res.status(400).json({ error: 'No audio file uploaded' });
+    }
+    const result = await voiceCloneService.submitVoiceRecording(agentId, req.file.path);
+    res.json(result);
+  } catch (error) {
+    console.error('Voice recording submit error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+app.get('/api/voice-clone/my-recording', async (req, res) => {
+  try {
+    const { agentId } = req.query;
+    if (!agentId) {
+      return res.status(400).json({ error: 'Agent ID required' });
+    }
+    const recording = await voiceCloneService.getAgentRecording(agentId);
+    res.json(recording || { status: 'none' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/voice-clone/pending-approvals', async (req, res) => {
+  try {
+    const recordings = await voiceCloneService.getPendingRecordings();
+    res.json({ recordings });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/voice-clone/approve', async (req, res) => {
+  try {
+    const { recordingId, adminId } = req.body;
+    const result = await voiceCloneService.approveRecording(recordingId, adminId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/voice-clone/reject', async (req, res) => {
+  try {
+    const { recordingId, adminId, reason } = req.body;
+    const result = await voiceCloneService.rejectRecording(recordingId, adminId, reason);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2406,26 +2453,39 @@ const DEFAULT_AI_CARD_PROFILE = {
   updated_at: new Date().toISOString()
 };
 
-const mapAiCardProfileFromRow = (row) =>
-  !row
-    ? null
-    : {
-      id: row.id,
-      fullName: row.full_name || '',
-      professionalTitle: row.professional_title || DEFAULT_AI_CARD_PROFILE.professionalTitle,
-      company: row.company || '',
-      phone: row.phone || '',
-      email: row.email || '',
-      website: row.website || '',
-      bio: row.bio || '',
-      brandColor: row.brand_color || DEFAULT_AI_CARD_PROFILE.brandColor,
-      language: row.language || DEFAULT_AI_CARD_PROFILE.language,
-      socialMedia: row.social_media || { facebook: '', instagram: '', twitter: '', linkedin: '', youtube: '' },
-      headshot: row.headshot_url || null,
-      logo: row.logo_url || null,
-      created_at: row.created_at,
-      updated_at: row.updated_at
-    };
+const mapAiCardProfileFromRow = (row) => {
+  if (!row) return null;
+
+  // Helper: Convert storage path to full public URL
+  const resolveImageUrl = (value) => {
+    if (!value || typeof value !== 'string') return null;
+    // Already a full URL (http/https)
+    if (/^https?:\/\//i.test(value)) return value;
+    // Data URL - return as-is
+    if (value.startsWith('data:')) return value;
+    // Storage path - convert to public URL
+    const { data } = supabaseAdmin.storage.from('ai-card-assets').getPublicUrl(value);
+    return data?.publicUrl || null;
+  };
+
+  return {
+    id: row.id,
+    fullName: row.full_name || '',
+    professionalTitle: row.professional_title || DEFAULT_AI_CARD_PROFILE.professionalTitle,
+    company: row.company || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    website: row.website || '',
+    bio: row.bio || '',
+    brandColor: row.brand_color || DEFAULT_AI_CARD_PROFILE.brandColor,
+    language: row.language || DEFAULT_AI_CARD_PROFILE.language,
+    socialMedia: row.social_media || { facebook: '', instagram: '', twitter: '', linkedin: '', youtube: '' },
+    headshot: resolveImageUrl(row.headshot_url),
+    logo: resolveImageUrl(row.logo_url),
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+};
 
 const isResolvableAssetPath = (value) =>
   typeof value === 'string' && value.trim().length > 0 && !/^https?:/i.test(value) && !/^data:/i.test(value);
@@ -8070,17 +8130,17 @@ app.get('/api/admin/analytics/overview', async (req, res) => {
       .select('*', { count: 'exact', head: true })
       .gte('created_at', today.toISOString());
 
-    // 2. Leads This Week
-    const { count: leadsWeek } = await supabaseAdmin
+    // 2. Leads This Week (and Sparkline)
+    const { data: leadsWeekData, count: leadsWeek } = await supabaseAdmin
       .from('leads')
-      .select('*', { count: 'exact', head: true })
+      .select('created_at', { count: 'exact' })
       .gte('created_at', weekAgo.toISOString());
 
-    // 3. Appointments Next 7 Days
+    // 3. Appointments Next 7 Days (and Sparkline)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const { count: apptsNext7 } = await supabaseAdmin
+    const { data: apptsWeekData, count: apptsNext7 } = await supabaseAdmin
       .from('appointments')
-      .select('*', { count: 'exact', head: true })
+      .select('start_iso', { count: 'exact' })
       .gte('start_iso', new Date().toISOString())
       .lte('start_iso', nextWeek.toISOString());
 
@@ -8118,6 +8178,39 @@ app.get('/api/admin/analytics/overview', async (req, res) => {
         .single();
 
       voiceMinutesUsed = agentData?.voice_minutes_used || 0;
+    }
+
+    // --- CALCULATE SPARKLINES ---
+    const leadsSpark = new Array(7).fill(0);
+    const apptSpark = new Array(7).fill(0);
+
+    // Bucketing (Index 0 = 6 days ago/Today+0, Index 6 = Today/Today+6)
+    // Leads: Past 7 days (Left to Right: Oldest -> Newest)
+    if (leadsWeekData) {
+      const now = new Date();
+      leadsWeekData.forEach(l => {
+        if (!l.created_at) return;
+        const d = new Date(l.created_at);
+        const diffMs = now - d;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0 && diffDays < 7) {
+          leadsSpark[6 - diffDays]++;
+        }
+      });
+    }
+
+    // Appts: Next 7 days (Left to Right: Today -> Future)
+    if (apptsWeekData) {
+      const now = new Date();
+      apptsWeekData.forEach(a => {
+        if (!a.start_iso) return;
+        const d = new Date(a.start_iso);
+        const diffMs = d - now; // Future
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0 && diffDays < 7) {
+          apptSpark[diffDays]++;
+        }
+      });
     }
 
     // --- CAMPAIGN COMMAND STATS ---
@@ -8163,8 +8256,8 @@ app.get('/api/admin/analytics/overview', async (req, res) => {
       messagesSent: msgs || 0,
       voiceMinutesUsed,
       campaignStats,
-      leadsSpark: [], // Keep empty or calculate daily histo
-      apptSpark: [],
+      leadsSpark,
+      apptSpark,
       statuses: {
         aiLatencyMs: 0,
         emailBounceRate: 0,
@@ -9130,6 +9223,84 @@ app.post('/api/email/send', async (req, res) => {
   } catch (err) {
     console.error('Email send error:', err);
     res.status(500).json({ error: 'Failed to send email', details: err.message });
+  }
+});
+
+// Public Lead Capture (Chatbot / Contact Form)
+app.post('/api/leads/public', async (req, res) => {
+  try {
+    const { name, email, phone, message, source, notifyAdmin, targetUserId } = req.body;
+
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    // Use specific Target User (Agent) or System Admin Account/Fallback
+    const userIdToUse = targetUserId || process.env.DEFAULT_LEAD_USER_ID;
+
+    // 1. Insert into DB (Plan A)
+    let dbSuccess = false;
+    let leadData = null;
+
+    if (userIdToUse) {
+      const { data: lead, error } = await supabaseAdmin
+        .from('leads')
+        .insert({
+          user_id: userIdToUse,
+          name: name || email.split('@')[0],
+          email,
+          phone,
+          notes: message,
+          source: source || 'Public Web',
+          status: 'New',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Failed to save public lead to DB:', error);
+      } else {
+        dbSuccess = true;
+        leadData = lead;
+      }
+    } else {
+      console.warn('Skipping DB save: No targetUserId or DEFAULT_LEAD_USER_ID set');
+    }
+
+    // 2. Notify Admin (Plan B / Notification)
+    // If targetUserId is provided, we might want to notify THAT agent? 
+    // For now, let's keep notifying the global admin as a safety net, 
+    // or maybe fetch the agent's email if possible? 
+    // Simplicity: Always notify global admin for now, user can refine later.
+    if (notifyAdmin) {
+      const adminEmail = process.env.VITE_ADMIN_EMAIL || 'us@homelistingai.com';
+      await emailService.sendEmail({
+        to: adminEmail,
+        subject: `🚀 New Lead: ${name || email} (${source})`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px;">
+            <h2 style="color: #4f46e5;">New Lead Captured</h2>
+            <div style="background: #f3f4f6; padding: 15px; border-radius: 8px;">
+                <p><strong>Source:</strong> ${source}</p>
+                <p><strong>Name:</strong> ${name || 'N/A'}</p>
+                <p><strong>Email:</strong> ${email}</p>
+                <p><strong>Phone:</strong> ${phone || 'N/A'}</p>
+                ${targetUserId ? `<p><strong>Target Agent ID:</strong> ${targetUserId}</p>` : ''}
+            </div>
+            <p><strong>Message/Context:</strong></p>
+            <p style="background: #fff; border: 1px solid #e5e7eb; padding: 10px;">${message || 'No message provided.'}</p>
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+            <p style="font-size: 12px; color: #666;">
+                Database Status: ${dbSuccess ? '✅ Saved' : '❌ Failed / Skipped'}
+            </p>
+          </div>
+        `
+      });
+    }
+
+    res.json({ success: true, lead: leadData, dbSaved: dbSuccess });
+  } catch (err) {
+    console.error('Public lead capture error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -12007,31 +12178,48 @@ app.delete('/api/admin/appointments/:appointmentId', (req, res) => {
 // Listing/Property Management Endpoints
 
 // Upload listing photo (handled by backend so uploads use service role key)
+// Upload listing photo (handled by backend so uploads use service role key)
+app.options('/api/listings/photo-upload', cors()); // Force preflight handling
+
 app.post('/api/listings/photo-upload', async (req, res) => {
+  console.log(`📨 [Photo Upload] Incoming request! Body Size: ${req.headers['content-length']}`);
   try {
     const { dataUrl, fileName, userId } = req.body || {};
     if (!dataUrl) {
+      console.warn('[Photo Upload] Rejected request missing dataUrl');
       return res.status(400).json({ error: 'dataUrl is required' });
     }
 
     const targetUserId = userId || DEFAULT_LEAD_USER_ID;
     if (!targetUserId) {
+      console.warn('[Photo Upload] Rejected request missing userId');
       return res.status(400).json({ error: 'userId is required to upload a listing photo' });
     }
 
+    // Upload to 'ai-card-assets' (verified public bucket)
     const storedPath = await uploadDataUrlToStorage(targetUserId, 'listing', dataUrl);
-    const { data: publicData } = supabaseAdmin.storage.from('ai-card-assets').getPublicUrl(storedPath);
-    const signedUrl = publicData?.publicUrl || await createSignedAssetUrl(storedPath);
 
-    console.log(`🏗️ Uploaded listing photo for ${targetUserId} → ${storedPath}`);
+    // Generate Public URL
+    const { data: publicData } = supabaseAdmin.storage.from('ai-card-assets').getPublicUrl(storedPath);
+    let finalUrl = publicData?.publicUrl;
+
+    // Fallback? If publicUrl is missing (unlikely), generate signed
+    if (!finalUrl) {
+      finalUrl = await createSignedAssetUrl(storedPath);
+    }
+
+    console.log(`🏗️ [Photo Upload] Success for ${targetUserId}`);
+    console.log(`   Path: ${storedPath}`);
+    console.log(`   URL:  ${finalUrl}`);
+
     res.json({
       path: storedPath,
-      url: signedUrl || storedPath,
+      url: finalUrl,
       fileName: fileName || ''
     });
   } catch (error) {
     console.error('Error uploading listing photo:', error);
-    res.status(500).json({ error: 'Failed to upload listing photo' });
+    res.status(500).json({ error: 'Failed to upload listing photo: ' + (error.message || 'Unknown error') });
   }
 });
 
@@ -12275,19 +12463,34 @@ app.put('/api/listings/:listingId', (req, res) => {
 });
 
 // Delete listing
-app.delete('/api/listings/:listingId', (req, res) => {
+app.delete('/api/listings/:listingId', async (req, res) => {
   try {
     const { listingId } = req.params;
+    const rawAgentId = req.headers['x-agent-id'];
+    const agentId = typeof rawAgentId === 'string' ? rawAgentId.trim() : '';
 
-    const listingIndex = listings.findIndex(listing => listing.id === listingId);
-    if (listingIndex === -1) {
-      return res.status(404).json({ error: 'Listing not found' });
+    console.log(`🗑️ Delete request for listing: ${listingId} by agent: ${agentId || 'anonymous'}`);
+
+    // Delete from database using service role to bypass RLS
+    const { error } = await supabaseAdmin
+      .from('properties')
+      .delete()
+      .eq('id', listingId);
+
+    if (error) {
+      console.error('Database delete failed:', error);
+      return res.status(500).json({
+        error: 'Failed to delete listing from database',
+        details: error.message
+      });
     }
 
-    const deletedListing = listings.splice(listingIndex, 1)[0];
-
-    console.log(`🏠 Deleted listing: ${listingId}`);
-    res.json({ message: 'Listing deleted successfully', listing: deletedListing });
+    console.log(`✅ Listing deleted successfully: ${listingId}`);
+    res.json({
+      success: true,
+      message: 'Listing deleted successfully',
+      id: listingId
+    });
   } catch (error) {
     console.error('Error deleting listing:', error);
     res.status(500).json({ error: 'Failed to delete listing' });
@@ -12676,13 +12879,27 @@ app.put('/api/properties/:id', async (req, res) => {
     return res.status(400).json({ error: 'Property ID is required', requestId })
   }
 
-  const payload = req.body
+  // Sanitize the payload to ensure it matches DB schema
+  // We pass ID as agentId? No, sanitizePropertyPayload expects (body, agentId)
+  // But for updates, we might want to be careful not to overwrite user_id if we don't mean to?
+  // sanitizePropertyPayload sets user_id = agentId. Should be fine for OWNED properties.
+  const payload = sanitizePropertyPayload(req.body, agentId)
+
+  // Remove immutable fields or fields we shouldn't wipe
+  delete payload.created_at
+  delete payload.id
+  // CRITICAL FIX: Do not update user_id on PUT. It causes FK violations.
+  delete payload.user_id
+
+  // Ensure updated_at is fresh
   payload.updated_at = new Date().toISOString()
 
   console.info(`[${requestId}] Updating property`, {
     agentId,
     propertyId: id
   })
+
+  console.log(`[${requestId}] FINAL PAYLOAD:`, JSON.stringify(payload, null, 2));
 
   try {
     const { data, error } = await supabaseAdmin
@@ -13024,6 +13241,18 @@ app.get('/api/email/settings/:userId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching email settings:', error)
     res.status(500).json({ success: false, error: 'Failed to load email settings' })
+  }
+})
+
+app.patch('/api/email/settings/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params
+    const updates = req.body || {}
+    const { settings } = await updateEmailSettings(userId, updates)
+    res.json({ success: true, settings })
+  } catch (error) {
+    console.error('Error updating email settings:', error)
+    res.status(500).json({ success: false, error: 'Failed to update email settings' })
   }
 })
 

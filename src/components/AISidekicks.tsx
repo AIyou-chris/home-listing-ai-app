@@ -28,7 +28,7 @@ import {
   type KbEntry,
   type SidekickId as KbSidekickId
 } from '../services/supabaseKb';
-import { scrapeWebsite } from '../services/scraperService';
+// import { scrapeWebsite } from '../services/scraperService';
 // const scrapeWebsite = async (url: string) => { console.log('Mock scraping:', url); return { content: 'Scraped content placeholder', title: 'Scraped Page' }; };
 
 interface AISidekicksProps {
@@ -37,7 +37,7 @@ interface AISidekicksProps {
   sidekickTemplatesOverride?: SidekickTemplate[];
 }
 
-type SidekickTemplate = {
+export type SidekickTemplate = {
   id: string;
   label: string;
   description: string;
@@ -170,6 +170,9 @@ const mapToKbSidekickId = (id: string, type: string): KbSidekickId => {
   if (id === 'support' || type === 'support') return 'support';
   if (id === 'marketing' || type === 'marketing') return 'marketing';
   if (id === 'listing' || type === 'listing') return 'listing';
+  if (id === 'god' || type === 'god') return 'god';
+  if (id === 'sales_god' || type === 'sales_god') return 'sales_god';
+  if (id === 'support_god' || type === 'support_god') return 'support_god';
 
   // Blueprint mappings
   if (id === 'sales_marketing' || type === 'sales_marketing') return 'marketing';
@@ -313,7 +316,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, hideLifec
   const loadSidekicks = useCallback(async () => {
     try {
       setLoading(true);
-      if (sidekickTemplatesOverride && sidekickTemplatesOverride.length) {
+      if (sidekickTemplatesOverride && sidekickTemplatesOverride.length && hideLifecycleControls) {
         const mapped = effectiveTemplates.map(mapTemplateToSidekick);
         setSidekicks(mapped);
         setVoices(DEFAULT_DISPLAY_VOICES);
@@ -798,15 +801,10 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, hideLifec
         // Use Real Supabase KB (Store URL + Scraped Content)
         const kbSidekickId = mapToKbSidekickId(selectedSidekick.id, selectedSidekick.type);
 
-        let title = trimmedUrl;
-        let content = "";
-        try {
-          const scrapedData = await scrapeWebsite(trimmedUrl);
-          title = scrapedData.title;
-          content = scrapedData.content;
-        } catch (sErr) {
-          console.warn("Scraping failed", sErr);
-        }
+        // [REMOVED] Scraping logic removed per user request
+        // const data = await scrapeWebsite(trimmedUrl);
+        const title = trimmedUrl; // Fallback to URL as title
+        const content = ''; // No scraped content
 
         const newEntry = await addUrlKb(agentId, kbSidekickId, title, trimmedUrl, content);
         setRealKbEntries(prev => [newEntry, ...prev]);
@@ -1464,7 +1462,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, hideLifec
                       className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl grayscale opacity-70"
                       style={{ backgroundColor: template.color + '20', color: template.color }}
                     >
-                      {template.icon}
+                      <span className="material-symbols-outlined">{template.icon}</span>
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold text-slate-900">{template.label}</h3>

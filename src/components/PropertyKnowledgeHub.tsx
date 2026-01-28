@@ -9,7 +9,7 @@ import {
     deleteKb,
     KbEntry
 } from '../services/supabaseKb';
-import { scrapeWebsite } from '../services/scraperService';
+// import { scrapeWebsite } from '../services/scraperService';
 
 interface PropertyKnowledgeHubProps {
     propertyId: string;
@@ -81,13 +81,11 @@ export const PropertyKnowledgeHub: React.FC<PropertyKnowledgeHubProps> = ({ prop
             let title = url;
             let content = '';
 
-            try {
-                const data = await scrapeWebsite(url);
-                title = data.title || url;
-                content = data.content || '';
-            } catch (err) {
-                console.warn('Scraping failed, saving URL only', err);
-            }
+            // [REMOVED] Scraping logic removed per user request
+            // const data = await scrapeWebsite(url);
+            // title = data.title || url;
+            // content = data.content || '';
+            console.log('Skipping scrape...');
 
             const newEntry = await addUrlKb(userId, SIDEKICK_TYPE, title, url, content, propertyId);
             setEntries(prev => [newEntry, ...prev]);

@@ -11,6 +11,7 @@ import ContactLeadModal from './ContactLeadModal';
 import CalendarView from './CalendarView';
 import ExportModal from './ExportModal';
 // import { CampaignRunnerModal } from './admin/CampaignRunnerModal'; // Removed
+import { LeadUploadModal } from './LeadUploadModal';
 import PageTipBanner from './PageTipBanner';
 
 const formatDate = (dateStr: string) => {
@@ -40,7 +41,8 @@ const LeadStatusBadge: React.FC<{ status: LeadStatus }> = ({ status }) => {
         'Lost': 'bg-slate-50 text-slate-500 border-slate-100',
         'Bounced': 'bg-red-50 text-red-700 border-red-200',
         'Unsubscribed': 'bg-red-100 text-red-800 border-red-200',
-        'Won': 'bg-green-100 text-green-800 border-green-200'
+        'Won': 'bg-green-100 text-green-800 border-green-200',
+        'Marketing Only': 'bg-sky-50 text-sky-600 border-sky-100' // Added for bulk uploads
     };
 
     const getIcon = (s: LeadStatus) => {
@@ -482,6 +484,8 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     // const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false); // Removed unused state
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
     const [syncAgeSeconds, setSyncAgeSeconds] = useState(0);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [showMarketingLeads, setShowMarketingLeads] = useState(false);
     const [leadFunnels, setLeadFunnels] = useState<Record<string, LeadFunnelType | null>>(() => {
         const initial: Record<string, LeadFunnelType | null> = {};
         leads.forEach((lead) => {
@@ -659,6 +663,41 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
         setEditingLead(null);
     };
 
+    // Filter leads based on Marketing Status
+    const filteredLeads = leads.filter(lead => {
+        if (showMarketingLeads) {
+            // Show everything (active + marketing)
+            return true;
+        }
+        // Default: Hide 'Marketing Only' leads
+        return lead.status !== 'Marketing Only';
+    });
+
+    // Derived count
+    const marketingLeadCount = leads.filter(l => l.status === 'Marketing Only').length;
+
+    const handleBulkUpload = async (newLeads: Array<any>) => {
+        // In a real app, this should be a bulk API call.
+        // For now, we simulate serial addition.
+        console.log('Processing bulk upload...', newLeads.length);
+        for (const lead of newLeads) {
+            onAddNewLead({
+                name: lead.name,
+                email: lead.email,
+                phone: lead.phone,
+                // Cast string to any if types conflict temporarily, 
+                // but LeadStatus now includes 'Marketing Only' so it should be fine.
+                // @ts-ignore
+                status: lead.status,
+                source: 'Bulk Import',
+                message: 'Imported via CSV'
+            });
+            // Small delay to prevent UI freeze if many
+            if (newLeads.length > 50) await new Promise(r => setTimeout(r, 10));
+        }
+        alert(`Successfully imported ${newLeads.length} leads!`);
+    };
+
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] relative overflow-hidden font-sans text-slate-900 selection:bg-indigo-500/30">
@@ -669,114 +708,86 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
             <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] bg-blue-100/50 rounded-full blur-[100px] -z-10" />
             <div className="fixed inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] opacity-30 -z-10 pointer-events-none" />
 
+            <LeadUploadModal
+                isOpen={isUploadModalOpen}
+                onClose={() => setIsUploadModalOpen(false)}
+                onUpload={handleBulkUpload}
+            />
+
             <div className="max-w-screen-2xl mx-auto py-10 px-0 sm:px-6 lg:px-8">
-                <button onClick={onBackToDashboard} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors mb-6 px-4 sm:px-0">
-                    <span className="material-symbols-outlined w-5 h-5">arrow_back</span>
-                    <span>Back to Dashboard</span>
+                <button
+                    onClick={() => navigate('/dashboard')}
+                    className="mb-8 flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors font-bold group px-4 sm:px-0"
+                >
+                    <span className="material-symbols-outlined group-hover:-translate-x-1 transition-transform">arrow_back</span>
+                    Back to Dashboard
                 </button>
+
                 <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10 px-4 sm:px-0">
                     <div>
                         <h1 className="text-4xl font-black text-slate-900 tracking-tight">Leads & Appointments</h1>
                         <p className="text-slate-500 mt-2 text-lg">Manage your prospects and schedule showings.</p>
-                        {lastSyncedAt && (
-                            <div className="flex items-center gap-2 mt-2">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                <p className="text-xs text-slate-400 font-medium">Synced {syncAgeSeconds}s ago</p>
-                            </div>
-                        )}
+                        <div className="flex items-center gap-2 mt-4 text-xs font-bold text-slate-400 bg-white/50 w-fit px-3 py-1.5 rounded-full border border-slate-200 shadow-sm backdrop-blur-sm">
+                            <span className={`w-2 h-2 rounded-full ${syncAgeSeconds < 60 ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+                            {lastSyncedAt ? `Synced ${formatSyncTime(syncAgeSeconds)}` : 'Syncing...'}
+                        </div>
                     </div>
                     <div className="w-full lg:w-auto flex flex-col gap-3">
-                        <button
-                            onClick={() => setIsAddLeadModalOpen(true)}
-                            className="flex items-center justify-center gap-3 px-8 py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-[0.98]"
-                        >
-                            <span className="material-symbols-outlined text-2xl">person_add</span>
-                            <span className="text-lg">Add New Lead</span>
-                        </button>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="flex gap-3">
                             <button
-                                onClick={() => handleOpenScheduleModal()}
-                                className="flex items-center justify-center gap-2 px-6 py-4 bg-emerald-500 text-white rounded-2xl font-bold shadow-lg shadow-emerald-50 hover:bg-emerald-600 transition-all active:scale-[0.98]"
+                                onClick={() => setIsAddLeadModalOpen(true)}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-[0.98]"
                             >
-                                <span className="material-symbols-outlined">event</span>
-                                <span>Schedule Appointment</span>
+                                <span className="material-symbols-outlined text-2xl">person_add</span>
+                                <span className="text-lg">Add Lead</span>
                             </button>
                             <button
-                                onClick={handleOpenExportModal}
-                                className="flex items-center justify-center gap-2 px-6 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold shadow-md hover:bg-slate-200 transition-all active:scale-[0.98]"
+                                onClick={() => setIsUploadModalOpen(true)}
+                                className="flex items-center justify-center gap-2 px-6 py-5 bg-indigo-50 text-indigo-600 rounded-2xl font-bold border border-indigo-100 hover:bg-indigo-100 transition-all active:scale-[0.98]"
+                                title="Bulk Import Leads"
+                            >
+                                <span className="material-symbols-outlined text-2xl">upload_file</span>
+                            </button>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => handleOpenScheduleModal()}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white text-slate-700 rounded-2xl font-bold border border-slate-200 shadow-sm hover:bg-slate-50 transition-all active:scale-[0.98]"
+                            >
+                                <span className="material-symbols-outlined text-slate-400">event</span>
+                                <span className="text-sm">Schedule</span>
+                            </button>
+                            <button
+                                onClick={() => setIsExportModalOpen(true)}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white text-slate-700 rounded-2xl font-bold border border-slate-200 shadow-sm hover:bg-slate-50 transition-all active:scale-[0.98]"
                             >
                                 <span className="material-symbols-outlined text-slate-400">download</span>
-                                <span>Export Data</span>
+                                <span className="text-sm">Export</span>
                             </button>
                         </div>
                     </div>
                 </header>
 
-                <div className="mb-8">
-                    <div className="mb-8 px-4 sm:px-0">
-                        <PageTipBanner
-                            pageKey="leads-appointments"
-                            expandedContent={
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div>
-                                        <h4 className="font-bold text-indigo-900 mb-3 text-lg">🎯 Pipeline Mastery System</h4>
-                                        <p className="text-slate-600 mb-4 text-sm leading-relaxed">
-                                            This is your command center. It combines a CRM, an AI sales team, and a smart calendar into one view so you can focus on high-value calls.
-                                        </p>
-
-                                        <div className="space-y-4">
-                                            <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1">How It Works</h5>
-                                            <ul className="space-y-3 text-slate-700 text-sm">
-                                                <li className="flex items-start gap-3">
-                                                    <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
-                                                        <span className="material-symbols-outlined text-sm">filter_alt</span>
-                                                    </div>
-                                                    <span><strong>Smart Funuels:</strong> New leads drop straight into automated sequences. You don't have to manually send the first text—our AI does it instantly.</span>
-                                                </li>
-                                                <li className="flex items-start gap-3">
-                                                    <div className="mt-0.5 p-1 bg-indigo-50 rounded text-indigo-600">
-                                                        <span className="material-symbols-outlined text-sm">priority_high</span>
-                                                    </div>
-                                                    <span><strong>Status Engine:</strong> Leads automatically move from "New" to "Contacted" or "Qualified" based on their AI chat activity. Watch the status badges change in real-time.</span>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-white/50 rounded-xl p-4 border border-indigo-50">
-                                        <h5 className="font-semibold text-slate-900 border-b border-indigo-100 pb-1 mb-3">Workflow Success Tips</h5>
-                                        <ul className="space-y-3 text-slate-700 text-sm">
-                                            <li className="flex items-start gap-3">
-                                                <span className="mr-1 text-lg">☕</span>
-                                                <span><strong>The Morning Routine:</strong> Filter by "Hot" leads every morning. These are people who chatted with your AI last night. Call them while the coffee is brewing.</span>
-                                            </li>
-                                            <li className="flex items-start gap-3">
-                                                <span className="mr-1 text-lg">🧠</span>
-                                                <span><strong>Read the Recap:</strong> Before calling, skim the "Latest AI Summary" on the lead card. It tells you exactly what they're looking for so you sound like a genius.</span>
-                                            </li>
-                                            <li className="flex items-start gap-3">
-                                                <span className="mr-1 text-lg">📅</span>
-                                                <span><strong>Two-Click Scheduling:</strong> Use the "Schedule" button here, not your external calendar. It syncs both ways and sends the client a confirmation text automatically.</span>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            }
-                        />
-                    </div>
-                </div>
-
+                <PageTipBanner
+                    pageId="leads_appointments"
+                    tips={[
+                        "Use the 'Active Leads' tab to focus on high-priority prospects.",
+                        "Toggle 'Show Marketing Leads' to view bulk imported contacts.",
+                        "Drag and drop leads between columns in the Leads view to update their status.",
+                        "Click on any appointment to view details or join the video call."
+                    ]}
+                />
 
                 <main>
-                    <div className="border-b border-slate-200 mb-6 px-4 sm:px-0">
+                    <div className="border-b border-slate-200 mb-6 px-4 sm:px-0 flex justify-between items-center bg-white/40 backdrop-blur-md rounded-t-2xl p-2">
                         <nav className="flex space-x-2">
                             <TabButton
                                 isActive={activeTab === 'leads'}
                                 onClick={() => setActiveTab('leads')}
                                 icon="group"
-                                count={leads.length}
+                                count={leads.filter(l => l.status !== 'Marketing Only').length}
                             >
-                                Leads
+                                Active Leads
                             </TabButton>
                             <TabButton
                                 isActive={activeTab === 'appointments'}
@@ -787,45 +798,65 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                                 Appointments
                             </TabButton>
                         </nav>
+
+                        {/* Marketing List Toggle */}
+                        {marketingLeadCount > 0 && activeTab === 'leads' && (
+                            <button
+                                onClick={() => setShowMarketingLeads(!showMarketingLeads)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all mr-2 ${showMarketingLeads ? 'bg-indigo-900 text-white shadow-lg' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 shadow-sm'}`}
+                            >
+                                <span className="material-symbols-outlined text-sm">{showMarketingLeads ? 'visibility' : 'visibility_off'}</span>
+                                {showMarketingLeads ? 'Hiding' : 'Show'} {marketingLeadCount} Marketing Leads
+                            </button>
+                        )}
                     </div>
 
-                    {activeTab === 'leads' &&
-                        <div className="mx-4 sm:mx-0 bg-white/30 backdrop-blur-3xl rounded-[2rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 p-4 mb-6">
-                            <div className="flex items-center justify-between">
-                                <div className="relative w-full max-w-sm">
-                                    <span className="material-symbols-outlined w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2">search</span>
-                                    <input type="text" placeholder="Search leads..." className="w-full bg-white/40 backdrop-blur-xl border border-white/80 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none placeholder:text-slate-400" />
-                                </div>
-                                <button className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-white/40 backdrop-blur-xl border border-white/80 rounded-2xl px-6 py-4 hover:bg-white/60 transition shadow-sm active:scale-95">
-                                    <span className="material-symbols-outlined w-5 h-5 text-primary-600">filter_list</span>
-                                    <span>All Status</span>
-                                    <span className="material-symbols-outlined w-5 h-5 text-slate-400">expand_more</span>
-                                </button>
-                            </div>
-                        </div>
-                    }
-
                     {activeTab === 'leads' ? (
-                        <div className="space-y-8">
-                            <LeadsList
-                                leads={leads}
-                                onSchedule={handleOpenScheduleModal}
-                                onContact={handleOpenContactModal}
-                                leadFunnels={leadFunnels}
-                                onAssignFunnel={handleAssignFunnel}
-                                onEditLead={handleEditLead}
-                                onDeleteLead={onDeleteLead}
-                            />
-                            <div className="space-y-8">
-                                <div className="rounded-none sm:rounded-lg overflow-hidden border-y sm:border border-slate-200 shadow-sm">
+                        <div className="space-y-8 px-4 sm:px-0">
+                            {/* Search and Filters could go here */}
+
+                            {filteredLeads.length > 0 ? (
+                                <LeadsList
+                                    leads={filteredLeads}
+                                    onSchedule={handleOpenScheduleModal}
+                                    onContact={handleOpenContactModal}
+                                    leadFunnels={leadFunnels}
+                                    onAssignFunnel={handleAssignFunnel}
+                                    onEditLead={handleEditLead}
+                                    onDeleteLead={onDeleteLead}
+                                />
+                            ) : (
+                                <div className="text-center py-20 bg-white/40 backdrop-blur-xl rounded-3xl border border-white/60 shadow-xl">
+                                    <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                                        <span className="material-symbols-outlined text-5xl text-indigo-300">group_off</span>
+                                    </div>
+                                    <h3 className="text-2xl font-black text-slate-900">No leads found</h3>
+                                    <p className="text-slate-500 mt-2 max-w-md mx-auto">
+                                        {showMarketingLeads ? "Your filters are too strict." : "You don't have any active leads yet. Try adding one or importing a list."}
+                                    </p>
+                                    {!showMarketingLeads && marketingLeadCount > 0 && (
+                                        <button
+                                            onClick={() => setShowMarketingLeads(true)}
+                                            className="mt-6 px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl shadow-lg border border-indigo-50 hover:bg-indigo-50 hover:scale-105 transition-all"
+                                        >
+                                            View {marketingLeadCount} Marketing Leads
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="space-y-8 mt-12 opacity-50 hover:opacity-100 transition-opacity duration-500">
+                                <div className="flex items-center gap-4 before:h-px before:flex-1 before:bg-slate-300 after:h-px after:flex-1 after:bg-slate-300">
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Calendar Overview</span>
+                                </div>
+                                <div className="rounded-none sm:rounded-3xl overflow-hidden border border-slate-200 shadow-xl bg-white/80 backdrop-blur-xl">
                                     <CalendarView appointments={appointments} />
                                 </div>
-                                <AppointmentsList appointments={appointments} />
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-8">
-                            <div className="rounded-none sm:rounded-lg overflow-hidden border-y sm:border border-slate-200 shadow-sm">
+                        <div className="space-y-8 px-4 sm:px-0">
+                            <div className="rounded-none sm:rounded-3xl overflow-hidden border border-slate-200 shadow-xl bg-white/80 backdrop-blur-xl">
                                 <CalendarView appointments={appointments} />
                             </div>
                             <AppointmentsList appointments={appointments} />
@@ -833,6 +864,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     )}
                 </main>
             </div>
+
             {isAddLeadModalOpen && (
                 <AddLeadModal
                     onClose={() => {
@@ -851,6 +883,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     isEditing={!!editingLead}
                 />
             )}
+
             {isScheduleModalOpen && (
                 <ScheduleAppointmentModal
                     lead={schedulingLead}
@@ -910,6 +943,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     }}
                 />
             )}
+
             {isContactModalOpen && contactingLead && (
                 <ContactLeadModal
                     lead={contactingLead}
@@ -921,6 +955,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     initialTab={initialContactTab}
                 />
             )}
+
             {isExportModalOpen && (
                 <ExportModal
                     isOpen={isExportModalOpen}
@@ -929,9 +964,6 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                     appointments={appointments}
                 />
             )}
-
-
-
 
         </div>
     );

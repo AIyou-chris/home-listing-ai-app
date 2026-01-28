@@ -314,13 +314,22 @@ export const listingsService = {
   },
 
   async deleteProperty(id: string): Promise<void> {
-    const { error } = await supabase
-      .from(PROPERTIES_TABLE)
-      .delete()
-      .eq('id', id)
+    // Use backend API with service role instead of client-side Supabase
+    // This bypasses RLS restrictions
+    const { data: userData } = await supabase.auth.getUser()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (userData?.user?.id) {
+      headers['x-agent-id'] = userData.user.id
+    }
 
-    if (error) {
-      throw new Error(`Failed to delete property: ${error.message}`)
+    const response = await fetch(buildApiUrl(`/api/listings/${id}`), {
+      method: 'DELETE',
+      headers
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || errorData.details || 'Failed to delete property')
     }
   },
 

@@ -96,16 +96,22 @@ export const uploadAiCardAsset = async (
   file: File,
   userId?: string
 ): Promise<{ path: string; url: string | null }> => {
-  const resolvedUserId = await resolveUserId(userId);
-  // Relaxed check: If no user ID, we might be in demo/fallback mode.
-  // The backend will handle the fallback logic (or fail if strictly required).
-  // We proceed to attempt upload. If direct storage upload fails due to RLS,
-  // the component catches it and tries the backend fallback.
+  // Flexible auth: try to get userId, but allow fallback for demo/anonymous modes
+  // The backend will use DEFAULT_LEAD_USER_ID if needed
+  const { data: { user } } = await supabase.auth.getUser();
+  const resolvedUserId = user?.id;
 
   if (!resolvedUserId) {
-    console.warn('[AI Card] No authenticated user found for upload. Triggering fallback.');
-    // Throwing this specific error message triggers the fallback logic in AICardPage.tsx
-    throw new Error('User authentication required to upload AI Card assets.');
+    console.warn('[AI Card] No authenticated user. Using data URL fallback for local-only storage.');
+    // Return a local data URL instead of uploading to storage
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    return { path: `local-${Date.now()}`, url: dataUrl };
   }
 
   const extension = file.name?.split('.').pop()?.toLowerCase() || 'png';
@@ -123,7 +129,10 @@ export const uploadAiCardAsset = async (
     throw error;
   }
 
-  const url = await createSignedAssetUrl(path);
+  // Use public URL instead of signed URL
+  const { data: publicData } = supabase.storage.from('ai-card-assets').getPublicUrl(path);
+  const url = publicData?.publicUrl || path;
+
   return { path, url };
 };
 

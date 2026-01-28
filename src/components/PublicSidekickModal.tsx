@@ -137,6 +137,31 @@ INSTRUCTIONS:
         const newHistory = [...history, { sender: 'user' as const, text }]
         setHistory(newHistory)
 
+        // ---------------------------------------------------------
+        // AUTO-CAPTURE LEADS: Detect Email in chat (Listing Sidekick)
+        // ---------------------------------------------------------
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+        const emailMatch = text.match(emailRegex);
+        if (emailMatch) {
+            const capturedEmail = emailMatch[0];
+            console.log('🎯 Listing Sidekick detected email:', capturedEmail);
+
+            // Fire-and-forget capture to backend
+            const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+            fetch(`${apiBase}/api/leads/public`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: capturedEmail,
+                    message: `Context from Listing Chat: "${text}"`,
+                    source: `Listing Sidekick (${property.address})`,
+                    notifyAdmin: true,
+                    targetUserId: property.agentId // Attribute to Agent
+                })
+            }).catch(err => console.error('Background lead capture failed:', err));
+        }
+        // ---------------------------------------------------------
+
         try {
             await appendMessage({ conversationId, role: 'user', content: text })
 

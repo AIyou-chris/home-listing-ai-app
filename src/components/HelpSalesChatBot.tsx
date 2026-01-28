@@ -109,6 +109,41 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
     setInputValue('');
     setIsLoading(true);
 
+    // ---------------------------------------------------------
+    // AUTO-CAPTURE LEADS: Detect Email in chat (Blueprint/Dashboard)
+    // ---------------------------------------------------------
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    const emailMatch = inputValue.match(emailRegex);
+    if (emailMatch) {
+      const capturedEmail = emailMatch[0];
+
+      // Dynamic Source based on Mode
+      let leadSource = 'Dashboard Chatbot';
+      if (currentMode === 'agent') {
+        leadSource = `Agent Assistant (Test/Demo) - ${context.agentProfile?.name || 'A.I.'}`;
+      } else if (currentMode === 'sales') {
+        leadSource = 'Sales Assistant (Dashboard)';
+      } else if (currentMode === 'help') {
+        leadSource = 'Help Desk (Dashboard)';
+      }
+
+      console.log(`🎯 ${leadSource} detected email:`, capturedEmail);
+
+      // Fire-and-forget capture to backend
+      const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+      fetch(`${apiBase}/api/leads/public`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: capturedEmail,
+          message: `Context: "${inputValue}"`,
+          source: leadSource,
+          notifyAdmin: true
+        })
+      }).catch(err => console.error('Background lead capture failed:', err));
+    }
+    // ---------------------------------------------------------
+
     try {
       const response: ChatBotResponse = await chatBot.processMessage(inputValue, currentMode);
 

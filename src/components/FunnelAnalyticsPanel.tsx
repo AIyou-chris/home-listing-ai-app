@@ -578,11 +578,11 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             }));
 
             const result = await funnelService.saveFunnelStep(currentUserId, 'welcome', stepsWithMinutes);
-            if (result.success) {
+            if (result) {
                 alert('Welcome drip saved to cloud.');
             } else {
-                console.error('Save failed:', result);
-                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+                console.error('Save failed');
+                alert('Failed to save: Unknown error');
             }
         } catch (error: unknown) {
             const err = error as Error;
@@ -638,11 +638,11 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             }));
 
             const result = await funnelService.saveFunnelStep(currentUserId, 'buyer', stepsWithMinutes);
-            if (result.success) {
+            if (result) {
                 alert('Homebuyer journey saved to cloud.');
             } else {
-                console.error('Save failed:', result);
-                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+                console.error('Save failed');
+                alert('Failed to save: Unknown error');
             }
         } catch (error) {
             const err = error as Error;
@@ -698,11 +698,11 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             }));
 
             const result = await funnelService.saveFunnelStep(currentUserId, 'listing', stepsWithMinutes);
-            if (result.success) {
+            if (result) {
                 alert('Listing funnel saved to cloud.');
             } else {
-                console.error('Save failed:', result);
-                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+                console.error('Save failed');
+                alert('Failed to save: Unknown error');
             }
         } catch (error) {
             const err = error as Error;
@@ -758,11 +758,11 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             }));
 
             const result = await funnelService.saveFunnelStep(currentUserId, 'post-showing', stepsWithMinutes);
-            if (result.success) {
+            if (result) {
                 alert('Post-showing follow-up saved to cloud.');
             } else {
-                console.error('Save failed:', result);
-                alert(`Failed to save: ${JSON.stringify(result.details || result.error || 'Unknown error')}`);
+                console.error('Save failed');
+                alert('Failed to save: Unknown error');
             }
         } catch (error) {
             const err = error as Error;
@@ -1543,7 +1543,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                             {sectionExpanded['scoring'] && (
                                 <div className="border-t border-slate-200">
-                                    <AnalyticsPage variant="embedded" />
+                                    <AnalyticsPage />
                                 </div>
                             )}
                         </div>

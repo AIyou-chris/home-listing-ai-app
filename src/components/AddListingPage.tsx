@@ -33,6 +33,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
     }, [agentProfile, uiProfile]);
 
     const [formData, setFormData] = useState({
+        id: initialProperty?.id || null, // Track ID explicitly in form state
         propertyTitle: initialProperty?.title || '',
         price: initialProperty?.price != null ? String(initialProperty.price) : '',
         address: initialProperty?.address || '',
@@ -136,9 +137,51 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         };
     };
 
+    // Load saved draft on mount ONLY for NEW listings (not editing existing ones)
+    useEffect(() => {
+        // Only restore draft if:
+        // 1. No initialProperty (creating from scratch)
+        // 2. OR initialProperty has a template ID (blueprint/demo)
+        const hasRealId = initialProperty?.id &&
+            !initialProperty.id.startsWith('blueprint-') &&
+            !initialProperty.id.startsWith('demo-');
+
+        if (hasRealId) {
+            // Editing an existing listing - NEVER restore drafts
+            // Clear any leftover draft to prevent confusion
+            localStorage.removeItem('listing_draft_data');
+            console.log('Editing existing listing:', initialProperty.id);
+            return;
+        }
+
+        // Creating a new listing - safe to restore draft
+        const savedDraft = localStorage.getItem('listing_draft_data');
+        if (savedDraft) {
+            try {
+                const parsed = JSON.parse(savedDraft);
+                setFormData(prev => ({
+                    ...prev,
+                    ...parsed,
+                    // CRITICAL: Preserve the ID from initialProperty if it exists
+                    // This prevents blueprint/demo IDs from being overwritten
+                    id: initialProperty?.id || parsed.id,
+                    heroPhotos: Array.isArray(parsed.heroPhotos) ? parsed.heroPhotos : prev.heroPhotos
+                }));
+                console.log('Restored draft for new listing');
+            } catch (e) {
+                console.warn('Failed to restore listing draft', e);
+            }
+        }
+    }, [initialProperty]);
+
     const handleSimpleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData(prev => {
+            const next = { ...prev, [name]: value };
+            // Auto-save to local storage for crash/refresh recovery
+            localStorage.setItem('listing_draft_data', JSON.stringify(next));
+            return next;
+        });
     };
 
     const handlePhotoUpload = async (fileList: FileList | null) => {
@@ -146,33 +189,73 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         setIsUploading(true);
         setUploadError(null);
         const files = Array.from(fileList);
+
+        // Helper to read file locally
+        const fileToDataUrl = (file: File): Promise<string> => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        };
+
         try {
             const uploadedUrls: string[] = [];
+
+            // Check if we are in a mode that requires local handling
+            // 1. Explicit demo/blueprint ID
+            // 2. Draft ID (blueprint- or demo-)
+            // 3. New listing (no ID) - debatable, but let's try server first unless it fails
+            const isDemo = initialProperty?.id?.startsWith('blueprint-') || initialProperty?.id?.startsWith('demo-');
+
             for (const file of files) {
-                const uploaded = await uploadListingPhoto(file);
-                uploadedUrls.push(uploaded);
+                let url: string;
+                if (isDemo) {
+                    // Fast path for demos/blueprints: Local Data URL
+                    url = await fileToDataUrl(file);
+                } else {
+                    try {
+                        // Try real upload
+                        url = await uploadListingPhoto(file);
+                    } catch (e) {
+                        console.warn('Upload failed, falling back to local preview:', e);
+                        // Fallback to local if server fails
+                        url = await fileToDataUrl(file);
+                    }
+                }
+                uploadedUrls.push(url);
             }
+
             // Append to heroPhotos, max 6
             setFormData(prev => {
                 const current = [...prev.heroPhotos];
                 const available = 6 - current.length;
                 if (available <= 0) return prev;
                 const newPhotos = [...current, ...uploadedUrls.slice(0, available)];
-                return { ...prev, heroPhotos: newPhotos };
+
+                const nextState = { ...prev, heroPhotos: newPhotos };
+                // Auto-save photos to draft immediately
+                localStorage.setItem('listing_draft_data', JSON.stringify(nextState));
+                return nextState;
             });
         } catch (error) {
-            console.error('Photo upload failed:', error);
-            setUploadError('Failed to upload photos.');
+            console.error('Photo processing failed:', error);
+            setUploadError(`Failed to process photos: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
             setIsUploading(false);
         }
     };
 
     const removePhoto = (index: number) => {
-        setFormData(prev => ({
-            ...prev,
-            heroPhotos: prev.heroPhotos.filter((_, i) => i !== index)
-        }));
+        setFormData(prev => {
+            const nextState = {
+                ...prev,
+                heroPhotos: prev.heroPhotos.filter((_, i) => i !== index)
+            };
+            localStorage.setItem('listing_draft_data', JSON.stringify(nextState));
+            return nextState;
+        });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -223,17 +306,37 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
             // DEMO MODE BYPASS: ALL SAVES GO TO REAL BACKEND NOW
             // This ensures photos and edits persist.
 
-            // If it's a blueprint/demo ID, we must CREATE a new record instead of updating the fake one.
-            const isBlueprintId = initialProperty?.id?.startsWith('blueprint-') || initialProperty?.id?.startsWith('demo-');
+            const isTempId = (id?: string | null) => !id || id.startsWith('blueprint-') || id.startsWith('demo-');
+            const activeId = formData.id;
 
-            const saved = (initialProperty && !isBlueprintId)
-                ? await listingsService.updateProperty(initialProperty.id, payload)
+            // Logic: Update if we have a valid ID in our form state (restored or initial) that isn't a template
+            const shouldUpdate = activeId && !isTempId(activeId);
+
+            console.log('[Listing Save]', {
+                activeId,
+                isTempId: isTempId(activeId),
+                shouldUpdate,
+                action: shouldUpdate ? 'UPDATE' : 'CREATE'
+            });
+
+            const saved = shouldUpdate
+                ? await listingsService.updateProperty(activeId!, payload)
                 : await listingsService.createProperty(payload);
+
+            // CRITICAL FIX: Immediately update local state with the REAL ID
+            // This ensures that if the user clicks Save again (or refreshes), we know it's an existing listing.
+            setFormData(prev => {
+                const next = { ...prev, id: saved.id };
+                localStorage.setItem('listing_draft_data', JSON.stringify(next));
+                return next;
+            });
 
             // Show Success Toast for Real Save too
             setIsSaving(false);
             setShowSuccessToast(true);
             setTimeout(() => {
+                // Now we are safe to clear the draft as we exit
+                localStorage.removeItem('listing_draft_data');
                 onSave(saved);
             }, 2500);
 
@@ -264,7 +367,14 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 <div className="max-w-3xl mx-auto py-8 px-0 sm:px-6">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-8 px-4 sm:px-0">
-                        <button onClick={onCancel} className="flex items-center text-slate-500 hover:text-slate-900 transition mb-1">
+                        <button
+                            onClick={() => {
+                                // Clear any saved draft when explicitly cancelling/going back
+                                localStorage.removeItem('listing_draft_data');
+                                onCancel();
+                            }}
+                            className="flex items-center text-slate-500 hover:text-slate-900 transition mb-1"
+                        >
                             <span className="material-symbols-outlined mr-1">arrow_back</span>
                             Back
                         </button>

@@ -1028,16 +1028,16 @@ interface LandingPageProps {
     onNavigateToShowcase?: () => void;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal: _onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
     const [isChatOpen, setIsChatOpen] = React.useState(false);
-    const [isAIContactOpen, setIsAIContactOpen] = React.useState(false);
+    // const [isAIContactOpen, setIsAIContactOpen] = React.useState(false); // Unused now
 
     const handleOpenChatBot = () => {
         setIsChatOpen(true);
     };
 
-    const handleOpenAIContact = () => {
-        setIsAIContactOpen(true);
+    const handleOpenContact = () => {
+        onOpenConsultationModal();
     };
 
     return (
@@ -1063,7 +1063,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 onNavigateToSignUp={onNavigateToSignUp}
                 onNavigateToSignIn={onNavigateToSignIn}
                 onEnterDemoMode={onEnterDemoMode}
-                onOpenContact={handleOpenAIContact}
+                onOpenContact={handleOpenContact}
                 onNavigateToShowcase={onNavigateToShowcase}
             />
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
@@ -1075,10 +1075,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <WhatYouGetSectionNew />
                 <TestimonialsSection />
 
-                <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenContact={handleOpenAIContact} />
+                <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenContact={handleOpenContact} />
 
                 <AboutUsSection />
-                <WhiteLabelSection onOpenContact={handleOpenAIContact} />
+                <WhiteLabelSection onOpenContact={handleOpenContact} />
 
                 <FaqSection />
                 <FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
@@ -1105,10 +1105,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 initialOpen={isChatOpen}
             />
 
-            <AIContactOverlay
-                isOpen={isAIContactOpen}
-                onClose={() => setIsAIContactOpen(false)}
-            />
+            {/* <AIContactOverlay isOpen={false} onClose={() => {}} /> Unused - replaced by ConsultationModal */}
         </div>
     );
 };

@@ -46,14 +46,46 @@ type MetricsResponse = {
   }
 }
 
-const Card: React.FC<{ title: string; value: React.ReactNode; subtitle?: string; tone?: 'default' | 'warn' | 'error'; onClick?: () => void }> = ({ title, value, subtitle, tone = 'default', onClick }) => {
+const Card: React.FC<{ title: string; value: React.ReactNode; subtitle?: string; tone?: 'default' | 'warn' | 'error'; sparkline?: number[]; onClick?: () => void }> = ({ title, value, subtitle, tone = 'default', sparkline, onClick }) => {
   const toneClass = tone === 'error' ? 'border-rose-200 bg-rose-50' : tone === 'warn' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'
   const Component = onClick ? 'button' : 'div'
+
+  // Simple Sparkline Renderer
+  const renderSparkline = (data: number[]) => {
+    if (!data || data.length < 2) return null;
+    const max = Math.max(...data, 1);
+    const min = 0;
+    const points = data.map((d, i) => {
+      const x = (i / (data.length - 1)) * 100;
+      const y = 100 - ((d - min) / (max - min)) * 100;
+      return `${x},${y}`;
+    }).join(' ');
+
+    return (
+      <div className="h-8 w-24 mt-2 opacity-50">
+        <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+          <polyline
+            points={points}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={tone === 'default' ? 'text-indigo-600' : 'text-slate-600'}
+          />
+        </svg>
+      </div>
+    );
+  };
+
   return (
-    <Component onClick={onClick} className={`rounded-xl border ${toneClass} p-4 shadow-sm text-left w-full transition-all ${onClick ? 'hover:scale-[1.02] hover:shadow-md cursor-pointer' : ''}`}>
-      <div className='text-xs text-slate-500 uppercase tracking-wide'>{title}</div>
-      <div className='text-2xl font-semibold text-slate-900 mt-1'>{value}</div>
-      {subtitle && <div className='text-xs text-slate-500 mt-1'>{subtitle}</div>}
+    <Component onClick={onClick} className={`rounded-xl border ${toneClass} p-4 shadow-sm text-left w-full transition-all ${onClick ? 'hover:scale-[1.02] hover:shadow-md cursor-pointer' : ''} flex flex-col justify-between`}>
+      <div>
+        <div className='text-xs text-slate-500 uppercase tracking-wide'>{title}</div>
+        <div className='text-2xl font-semibold text-slate-900 mt-1'>{value}</div>
+        {subtitle && <div className='text-xs text-slate-500 mt-1'>{subtitle}</div>}
+      </div>
+      {sparkline && renderSparkline(sparkline)}
     </Component>
   )
 }
@@ -231,8 +263,8 @@ const AdminCommandCenter: React.FC = () => {
         </div>
         <div className='grid grid-cols-1 sm:grid-cols-4 gap-3'>
           <Card title='Leads Today' value={metrics?.leadsToday ?? 0} />
-          <Card title='Leads This Week' value={metrics?.leadsThisWeek ?? 0} />
-          <Card title='Appointments (7d)' value={metrics?.appointmentsNext7 ?? 0} />
+          <Card title='Leads This Week' value={metrics?.leadsThisWeek ?? 0} sparkline={metrics?.leadsSpark} />
+          <Card title='Appointments (7d)' value={metrics?.appointmentsNext7 ?? 0} sparkline={metrics?.apptSpark} />
           <Card title='Messages Sent' value={metrics?.messagesSent ?? 0} />
         </div>
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>

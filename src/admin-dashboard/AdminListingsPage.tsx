@@ -112,7 +112,8 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
         </div>
 
         <div className="mt-6 pt-6 border-t border-slate-700">
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          {/* Buttons hidden for go-live readiness as they are currently non-functional */}
+          {/* <div className="grid grid-cols-2 gap-3 mb-3">
             <button
               type="button"
               onClick={handleEditClick}
@@ -129,7 +130,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
               <span className="material-symbols-outlined w-4 h-4">smart_toy</span>
               <span>Listing Sidekick</span>
             </button>
-          </div>
+          </div> */}
           <div className="mb-3">
             <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
               <span className="text-xs text-slate-400">Link shortening disabled; share the listing URL below:</span>

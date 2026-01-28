@@ -342,7 +342,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         return <AIConversationsPage isDemoMode={isDemoMode} />;
       case 'listings':
         return (
-          <AdminListingsPage />
+          <ListingsPage
+            properties={properties}
+            onSelectProperty={(id, action) => {
+              setSelectedPropertyId(id);
+              if (action === 'edit') {
+                // Open admin builder or just property
+                handleSetView('property');
+              } else {
+                handleSetView('property');
+              }
+            }}
+            onAddNew={() => handleSetView('add-listing')}
+            onDeleteProperty={handleDeleteProperty}
+            onBackToDashboard={resetToDashboard}
+            onOpenMarketing={(id) => {
+              setSelectedPropertyId(id);
+              handleSetView('property');
+            }}
+            onOpenBuilder={(id) => {
+              setSelectedPropertyId(id);
+              handleSetView('property');
+            }}
+          />
         );
       case 'add-listing':
         return (

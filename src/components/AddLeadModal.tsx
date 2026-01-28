@@ -8,6 +8,7 @@ export interface NewLeadPayload {
     message: string;
     source: string;
     funnelType?: string;
+    status?: string;
 }
 
 interface AddLeadModalProps {

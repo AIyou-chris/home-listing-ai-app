@@ -44,6 +44,7 @@ import { getProfileForDashboard, subscribeToProfileChanges } from './services/ag
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
 const AdminLogin = lazy(() => import('./components/AdminLogin'));
 const AdminDashboard = lazy(() => import('./admin-dashboard/AdminDashboard'));
+const LeadDetailDashboard = lazy(() => import('./admin-dashboard/LeadDetailDashboard'));
 
 
 import DemoListingPage from './components/DemoListingPage';
@@ -67,9 +68,11 @@ import { securitySettingsService } from './services/securitySettingsService';
 import { notificationSettingsService } from './services/notificationSettingsService';
 import { calendarSettingsService } from './services/calendarSettingsService';
 import { billingSettingsService } from './services/billingSettingsService';
+import { emailSettingsService } from './services/emailSettingsService';
 import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
 const PublicListingPage = lazy(() => import('./pages/PublicListingPage')); // Public View
+const VoiceLabPage = lazy(() => import('./pages/VoiceLabPage'));
 import CombinedTrainingPage from './components/AgentAISidekicksPage';
 // import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
 import FunnelAnalyticsPanel from './components/FunnelAnalyticsPanel';
@@ -292,6 +295,12 @@ const App: React.FC = () => {
 
 
         const initAuth = async () => {
+            // Safety timeout to prevent infinite loading screen
+            const safetyTimeout = setTimeout(() => {
+                console.warn('⚠️ Auth check timed out. Forcing app load.');
+                setIsLoading(false);
+            }, 5000);
+
             // Check URL path immediately
             const currentPath = window.location.pathname;
             console.log('📍 Initial Route:', currentPath);
@@ -332,7 +341,9 @@ const App: React.FC = () => {
 
             try {
                 // 1. Check Local Session FIRST (Fastest)
+                console.log('🔍 Checking session...');
                 const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                console.log('🔍 Session check complete. User:', session?.user?.email);
 
                 if (sessionError) throw sessionError;
 
@@ -353,6 +364,7 @@ const App: React.FC = () => {
                     // otherwise the route protection will kick us out (isAdmin defaults to false).
                     if (currentPath.startsWith('/admin')) {
                         console.log('⏳ Awaiting admin check for admin route...');
+                        // Add timeout dynamically for this specific await if needed, but the outer safety covers it
                         await loadUserData(currentUser);
                     } else {
                         // For regular dashboard, load async to unblock UI
@@ -367,6 +379,7 @@ const App: React.FC = () => {
 
                         if (currentPath === '/signup' && isNewUser) {
                             console.log('🆕 New user detected on signup page. Allowing signup flow to continue.');
+                            clearTimeout(safetyTimeout);
                             return;
                         }
 
@@ -397,6 +410,7 @@ const App: React.FC = () => {
             } catch (error) {
                 console.error("❌ Auth Init Error:", error);
             } finally {
+                clearTimeout(safetyTimeout);
                 setIsLoading(false);
             }
         };
@@ -406,25 +420,42 @@ const App: React.FC = () => {
             try {
                 console.log('🔄 Loading user data in background...');
 
-                // 1. Admin Check logic
-                const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+                // 1. Admin Check logic - OPTIMIZED ORDER
+                // Fast Local Check: Check email whitelist FIRST to avoid blocking network calls
                 const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
                 const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
                 if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
 
                 const isEnvAdmin = currentUser.email && adminEmails.includes(currentUser.email.toLowerCase());
 
-                if (isRpcAdmin || isEnvAdmin) {
-                    console.log("👮 Admin privileges confirmed for:", currentUser.email);
+                if (isEnvAdmin) {
+                    console.log("👮 Admin privileges confirmed via Email Whitelist:", currentUser.email);
                     setIsAdmin(true);
-                    // Update profile for admin
                     setUserProfile({
                         ...SAMPLE_AGENT,
                         name: 'System Administrator',
                         email: currentUser.email ?? '',
                         headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                     });
-                    // If on admin dashboard, great.
+
+                    // CRITICAL: Unblock UI immediately
+                    setIsLoading(false);
+                    return;
+                }
+
+                // Slow Remote Check: Only RPC if not locally confirmed
+                console.log("⏳ Checking Admin RPC...");
+                const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
+
+                if (isRpcAdmin) {
+                    console.log("👮 Admin privileges confirmed via RPC for:", currentUser.email);
+                    setIsAdmin(true);
+                    setUserProfile({
+                        ...SAMPLE_AGENT,
+                        name: 'System Administrator',
+                        email: currentUser.email ?? '',
+                        headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
+                    });
                     return;
                 }
 
@@ -449,13 +480,14 @@ const App: React.FC = () => {
                     });
                 }
 
-                // 3. Load User Settings (Notifications, Calendar, Billing)
+                // 3. Load User Settings (Notifications, Calendar, Billing, Email)
                 try {
                     console.log('⚙️ Loading user settings...');
-                    const [notifRes, calRes, billRes] = await Promise.allSettled([
+                    const [notifRes, calRes, billRes, emailRes] = await Promise.allSettled([
                         notificationSettingsService.fetch(currentUser.uid),
                         calendarSettingsService.fetch(currentUser.uid),
-                        billingSettingsService.get(currentUser.uid)
+                        billingSettingsService.get(currentUser.uid),
+                        emailSettingsService.fetch(currentUser.uid)
                     ]);
 
                     if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
@@ -466,6 +498,9 @@ const App: React.FC = () => {
                     }
                     if (billRes.status === 'fulfilled' && billRes.value) {
                         setBillingSettings(billRes.value);
+                    }
+                    if (emailRes.status === 'fulfilled' && emailRes.value.settings) {
+                        setEmailSettings(emailRes.value.settings);
                     }
                     console.log('✅ User settings loaded');
                 } catch (settingsError) {
@@ -530,8 +565,11 @@ const App: React.FC = () => {
     useEffect(() => {
         if (isAdmin) {
             const path = location.pathname;
-            if (!path.startsWith('/admin') && path !== '/admin-login') {
-                console.log("👮 Admin detected on agent page (" + path + "). Redirecting...");
+            const isPublicDetails = path.startsWith('/listing/') || path.startsWith('/store/') || path.startsWith('/card/') || path.startsWith('/p/') || path.startsWith('/compliance') || path.startsWith('/dmca');
+            const isPublicRoot = path === '/' || path === '/landing' || path.includes('demo');
+
+            if (!path.startsWith('/admin') && path !== '/admin-login' && !isPublicDetails && !isPublicRoot) {
+                console.log("👮 Admin detected on protected agent page (" + path + "). Redirecting...");
                 navigate('/admin-dashboard', { replace: true });
             }
         }
@@ -920,6 +958,7 @@ const App: React.FC = () => {
     const handleUpdateLead = useCallback(async (updatedLead: Lead) => {
         try {
             // Optimistic update
+            const previousLead = leads.find(l => l.id === updatedLead.id);
             setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
 
             await leadsService.update(updatedLead.id, {
@@ -930,13 +969,42 @@ const App: React.FC = () => {
                 source: updatedLead.source,
                 funnelType: updatedLead.funnelType
             });
-            // Use console for success or a toast if available (dashboard has its own notification context usually)
+
+            // AUTOMATION TRIGGER: If status changed, trigger sequences
+            if (previousLead && previousLead.status !== updatedLead.status) {
+                console.log(`🔄 Lead status changed from ${previousLead.status} to ${updatedLead.status}. Triggering automation...`);
+                try {
+                    // Map status to appropriate trigger type
+                    let triggerType: SequenceTriggerType | null = null;
+                    if (updatedLead.status === 'Qualified') {
+                        triggerType = 'Buyer Lead';
+                    } else if (updatedLead.status === 'Contacted') {
+                        triggerType = 'Seller Lead';
+                    }
+
+                    if (triggerType) {
+                        const sequenceContext = {
+                            lead: updatedLead,
+                            agent: userProfile
+                        };
+                        await SequenceExecutionService.getInstance().triggerSequences(
+                            triggerType,
+                            sequenceContext,
+                            sequences
+                        );
+                    }
+                } catch (automationError) {
+                    console.error('Failed to trigger automation:', automationError);
+                    // Don't block the update, just log the error
+                }
+            }
+
             console.log('Lead updated successfully');
         } catch (error) {
             console.error('Failed to update lead:', error);
             // Revert state if needed - relying on next fetch for now or we could snapshot prev state
         }
-    }, []);
+    }, [leads, user]);
 
     const handleDeleteLead = useCallback(async (leadId: string) => {
         if (window.confirm('Are you sure you want to delete this lead?')) {
@@ -1159,6 +1227,15 @@ const App: React.FC = () => {
                             <Navigate to="/" />
                         )
                     } />
+                    <Route path="/admin/leads/:id/dashboard" element={
+                        isAdmin ? (
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <LeadDetailDashboard leads={leads} />
+                            </Suspense>
+                        ) : (
+                            <Navigate to="/" />
+                        )
+                    } />
                     <Route path="/admin-login" element={
                         <AdminLogin
                             onLogin={handleAdminLogin}
@@ -1244,19 +1321,48 @@ const App: React.FC = () => {
                         <Route path="/analytics" element={<AnalyticsDashboard />} />
                         <Route path="/ai-sidekicks" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
                         <Route path="/marketing-reports" element={<MarketingReportsPage />} />
+                        <Route path="/voice-lab" element={
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <VoiceLabPage />
+                            </Suspense>
+                        } />
                         <Route path="/settings" element={
                             <SettingsPage
                                 userId={user?.uid ?? 'guest-agent'}
                                 userProfile={userProfile}
                                 onSaveProfile={async (profile) => setUserProfile(profile)}
                                 notificationSettings={notificationSettings}
-                                onSaveNotifications={async (settings) => setNotificationSettings(settings)}
+                                onSaveNotifications={async (settings) => {
+                                    setNotificationSettings(settings);
+                                    if (user?.uid) {
+                                        await notificationSettingsService.update(user.uid, settings);
+                                    }
+                                }}
                                 emailSettings={emailSettings}
-                                onSaveEmailSettings={async (settings) => setEmailSettings(settings)}
+                                onSaveEmailSettings={async (settings) => {
+                                    setEmailSettings(settings);
+                                    if (user?.uid) {
+                                        try {
+                                            await emailSettingsService.update(user.uid, settings);
+                                        } catch (error) {
+                                            console.error('Failed to save email settings:', error);
+                                        }
+                                    }
+                                }}
                                 calendarSettings={calendarSettings}
-                                onSaveCalendarSettings={async (settings) => setCalendarSettings(settings)}
+                                onSaveCalendarSettings={async (settings) => {
+                                    setCalendarSettings(settings);
+                                    if (user?.uid) {
+                                        await calendarSettingsService.update(user.uid, settings);
+                                    }
+                                }}
                                 billingSettings={billingSettings}
-                                onSaveBillingSettings={async (settings) => setBillingSettings(settings)}
+                                onSaveBillingSettings={async (settings) => {
+                                    setBillingSettings(settings);
+                                    if (user?.uid) {
+                                        await billingSettingsService.update(user.uid, settings);
+                                    }
+                                }}
                                 onBackToDashboard={() => navigate('/dashboard')}
                                 onNavigateToAICard={() => navigate('/ai-card')}
                                 securitySettings={{}}
