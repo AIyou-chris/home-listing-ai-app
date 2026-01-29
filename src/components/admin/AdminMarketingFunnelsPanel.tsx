@@ -412,7 +412,12 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             // Handle Email Steps
             const subject = mergeTokens(step.subject);
             // Replace newlines with <br/> for HTML email body
-            const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
+            let body = mergeTokens(step.content).replace(/\n/g, '<br/>');
+
+            // Inject Unsubscribe Preview if enabled
+            if (step.includeUnsubscribe !== false) {
+                body += `<br/><br/><div style="font-size:11px;color:#888;margin-top:20px;border-top:1px solid #eee;padding-top:10px;">To stop receiving these emails, <a href="#" style="color:#888;">unsubscribe here</a> (Link active in live emails).</div>`;
+            }
 
             const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
             const response = await fetch(`${apiUrl}/api/admin/email/quick-send`, {
@@ -823,10 +828,11 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                         <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
                                                                             <div className="flex items-center gap-2 mb-2">
                                                                                 <span className="material-symbols-outlined text-slate-500">sms</span>
-                                                                                <h4 className="text-sm font-bold text-slate-700">SMS Content</h4>
+                                                                                <h4 className="text-sm font-bold text-slate-700">Message Content</h4>
                                                                             </div>
+
                                                                             <textarea
-                                                                                className="w-full h-32 rounded-lg border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                                                className="w-full h-32 rounded-lg border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm resize-none"
                                                                                 placeholder="Type your text message here... (e.g. Hi {{lead.name}})"
                                                                                 value={step.content}
                                                                                 onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
@@ -849,6 +855,48 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                                     />
                                                                                     {step.mediaUrl && <div className="w-8 h-8 rounded bg-slate-100 bg-cover bg-center border border-slate-200 shrink-0" style={{ backgroundImage: `url(${step.mediaUrl})` }}></div>}
                                                                                 </div>
+                                                                            </div>
+
+                                                                            <div className="mb-4">
+                                                                                <label className="block text-xs font-semibold text-slate-500 mb-1">Preview Text (Preheader)</label>
+                                                                                <input
+                                                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                                    value={step.previewText || ''}
+                                                                                    onChange={(e) => onUpdateStep(step.id, 'previewText', e.target.value)}
+                                                                                    placeholder="Short summary displayed in inbox list view..."
+                                                                                />
+                                                                            </div>
+
+                                                                            <div className="flex items-center justify-between mb-2">
+                                                                                <label className="block text-xs font-semibold text-slate-500">Email Body</label>
+                                                                                {/* Compliance Toggle */}
+                                                                                <label className="flex items-center gap-2 cursor-pointer group">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        className="hidden"
+                                                                                        checked={step.includeUnsubscribe !== false}
+                                                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                                                        onChange={(e) => onUpdateStep(step.id, 'includeUnsubscribe', e.target.checked as any)}
+                                                                                    />
+                                                                                    <div className={`w-8 h-4 rounded-full transition-colors relative ${step.includeUnsubscribe !== false ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                                                                                        <div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${step.includeUnsubscribe !== false ? 'translate-x-4' : 'translate-x-0'}`} />
+                                                                                    </div>
+                                                                                    <span className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-indigo-500 transition-colors">
+                                                                                        Include Unsubscribe
+                                                                                    </span>
+                                                                                </label>
+                                                                            </div>
+
+                                                                            <textarea
+                                                                                className="w-full h-64 rounded-lg border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm resize-none"
+                                                                                placeholder="Write your email here..."
+                                                                                value={step.content}
+                                                                                onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
+                                                                            />
+                                                                            <div className="flex justify-between items-center mt-1">
+                                                                                <span className="text-[10px] text-slate-400">
+                                                                                    {step.content?.length || 0} characters
+                                                                                </span>
                                                                             </div>
 
                                                                             <p className="text-xs text-slate-400 mt-2">
@@ -1025,16 +1073,44 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                             onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
                                                                         />
 
+                                                                        <label className="block text-xs font-semibold text-violet-800/90 mb-1">
+                                                                            Preview Text <span className="text-violet-400 font-normal">(Preheader)</span>
+                                                                        </label>
+                                                                        <input
+                                                                            className="w-full text-sm text-slate-700 placeholder:text-slate-300 border border-violet-200 rounded-lg p-2.5 focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white shadow-sm mb-4"
+                                                                            placeholder="Short summary shown in inbox list view..."
+                                                                            value={step.previewText || ''}
+                                                                            onChange={(e) => onUpdateStep(step.id, 'previewText', e.target.value)}
+                                                                        />
+
                                                                         <div className="relative">
                                                                             <div className="flex items-center justify-between mb-2">
                                                                                 <label className="text-xs font-semibold text-violet-800/90">Message Body</label>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[10px] font-bold shadow-sm hover:shadow-md transition-all hover:scale-105"
-                                                                                >
-                                                                                    <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                                                                                    AI Magic
-                                                                                </button>
+                                                                                <div className="flex items-center gap-4">
+                                                                                    {/* Compliance Toggle */}
+                                                                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                                                                        <input
+                                                                                            type="checkbox"
+                                                                                            className="hidden"
+                                                                                            checked={step.includeUnsubscribe !== false}
+                                                                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                                                            onChange={(e) => onUpdateStep(step.id, 'includeUnsubscribe', (e.target.checked as any))}
+                                                                                        />
+                                                                                        <div className={`w-8 h-4 rounded-full transition-colors relative ${step.includeUnsubscribe !== false ? 'bg-violet-600' : 'bg-slate-300'}`}>
+                                                                                            <div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${step.includeUnsubscribe !== false ? 'translate-x-4' : 'translate-x-0'}`} />
+                                                                                        </div>
+                                                                                        <span className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-violet-600 transition-colors">
+                                                                                            Unsubscribe Footer
+                                                                                        </span>
+                                                                                    </label>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[10px] font-bold shadow-sm hover:shadow-md transition-all hover:scale-105"
+                                                                                    >
+                                                                                        <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                                                                                        AI Magic
+                                                                                    </button>
+                                                                                </div>
                                                                             </div>
                                                                             <div className="border border-violet-200 rounded-lg overflow-hidden shadow-sm bg-white">
                                                                                 <EmailEditor

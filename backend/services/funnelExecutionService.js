@@ -97,6 +97,13 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                     finalHtml = previewHtml + finalHtml;
                 }
 
+                // --- UNSUBSCRIBE FOOTER (Compliance) ---
+                if (step.includeUnsubscribe !== false) {
+                    const apiUrl = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || 'http://localhost:3002';
+                    const unsubscribeLink = `${apiUrl}/api/leads/unsubscribe/${lead.id}`;
+                    finalHtml += `<br/><br/><div style="font-size:11px;color:#888;margin-top:20px;border-top:1px solid #eee;padding-top:10px;">To stop receiving these emails, <a href="${unsubscribeLink}" style="color:#888;">unsubscribe here</a>.</div>`;
+                }
+
                 const result = await emailService.sendEmail({
                     to: lead.email,
                     subject: subject,

@@ -416,7 +416,12 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             // Handle Email Steps
             const subject = mergeTokens(step.subject);
             // Replace newlines with <br/> for HTML email body
-            const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
+            let body = mergeTokens(step.content).replace(/\n/g, '<br/>');
+
+            // Inject Unsubscribe Preview if enabled
+            if (step.includeUnsubscribe !== false) {
+                body += `<br/><br/><div style="font-size:11px;color:#888;margin-top:20px;border-top:1px solid #eee;padding-top:10px;">To stop receiving these emails, <a href="#" style="color:#888;">unsubscribe here</a> (Link active in live emails).</div>`;
+            }
 
             const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
             const response = await fetch(`${apiUrl}/api/admin/email/quick-send`, {
@@ -521,7 +526,8 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         });
     };
 
-    const handleUpdateStep = (id: string, field: keyof EditableStep, value: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleUpdateStep = (id: string, field: keyof EditableStep, value: any) => {
         setWelcomeSteps((prev) =>
             prev.map((step) => (step.id === id ? { ...step, [field]: value } : step))
         );
@@ -1202,6 +1208,19 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                             value={step.subject}
                                                                             onChange={(e) => onUpdateStep(step.id, 'subject', e.target.value)}
                                                                         />
+
+                                                                        <label className="block text-xs font-semibold text-violet-800/90 mb-1">
+                                                                            Preview Text <span className="text-violet-400 font-normal">(Preheader)</span>
+                                                                        </label>
+                                                                        <input
+                                                                            className="w-full text-sm text-slate-700 placeholder:text-slate-300 border border-violet-200 rounded-lg p-2.5 focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white shadow-sm mb-4"
+                                                                            placeholder="Short summary shown in inbox list view..."
+                                                                            value={step.previewText || ''}
+                                                                            onChange={(e) => onUpdateStep(step.id, 'previewText', e.target.value)}
+                                                                        />
+
+
+
 
                                                                         <div className="relative">
                                                                             <div className="flex items-center justify-between mb-2">
