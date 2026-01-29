@@ -1,3 +1,4 @@
+import React from 'react';
 import Editor from 'react-simple-wysiwyg';
 
 interface EmailEditorProps {
@@ -22,11 +23,37 @@ export const EmailEditor: React.FC<EmailEditorProps> = ({
         ...style
     };
 
+    // Local state for immediate updates and debouncing
+    const [localValue, setLocalValue] = React.useState(value || '');
+    const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    // Sync local value when prop changes from outside (e.g. stepping through funnel)
+    React.useEffect(() => {
+        if (value !== localValue) {
+            setLocalValue(value || '');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleChange = (event: any) => {
+        const newValue = event.target.value;
+        setLocalValue(newValue);
+
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+
+        timeoutRef.current = setTimeout(() => {
+            onChange(newValue);
+        }, 500); // 500ms debounce to prevent flashing/re-renders
+    };
+
     return (
         <div className={`email-editor-wrapper ${className || ''}`}>
             <Editor
-                value={value || ''}
-                onChange={(e) => onChange(e.target.value)}
+                value={localValue}
+                onChange={handleChange}
                 placeholder={placeholder}
                 containerProps={{ style: containerStyle }}
             />
