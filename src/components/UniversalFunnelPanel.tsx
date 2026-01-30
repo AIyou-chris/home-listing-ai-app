@@ -773,6 +773,21 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
                         .then(ok => ok ? console.log('Signature saved') : alert('Failed to save signature'));
                 }}
             />
+            <style>{`
+                .email-preview-container p {
+                    margin-top: 0 !important;
+                    margin-bottom: 0px !important;
+                    line-height: inherit !important;
+                }
+                .email-preview-container div {
+                    line-height: inherit !important;
+                }
+                .email-preview-container br {
+                    display: block;
+                    content: "";
+                    margin-top: 10px;
+                }
+            `}</style>
         </div>
     );
 };

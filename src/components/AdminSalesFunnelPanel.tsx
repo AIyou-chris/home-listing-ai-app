@@ -797,8 +797,8 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                                                                 <p className="text-xs text-slate-500">To: <span className="text-slate-900 font-medium">Jamie Carter (Lead)</span></p>
                                                                 <p className="text-xs text-slate-500">Subject: <span className="text-slate-900 font-medium">{mergeTokens(step.subject)}</span></p>
                                                             </div>
-                                                            <div className="prose prose-sm max-w-none text-slate-600 prose-a:text-blue-600 prose-a:underline prose-a:font-medium">
-                                                                <div dangerouslySetInnerHTML={{ __html: mergeTokens(step.content).replace(/\n/g, '<br/>') }} />
+                                                            <div className="prose prose-sm max-w-none text-slate-600 prose-a:text-blue-600 prose-a:underline prose-a:font-medium email-preview-container">
+                                                                <div dangerouslySetInnerHTML={{ __html: mergeTokens(step.content) }} />
 
                                                                 {/* COMPLIANCE PREVIEW */}
                                                                 {(step.type === 'Email' || step.type === 'email') && (
@@ -1038,6 +1038,21 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                     }}
                 />
             )}
+            <style>{`
+                .email-preview-container p {
+                    margin-top: 0 !important;
+                    margin-bottom: 0px !important;
+                    line-height: inherit !important;
+                }
+                .email-preview-container div {
+                    line-height: inherit !important;
+                }
+                .email-preview-container br {
+                    display: block;
+                    content: "";
+                    margin-top: 10px;
+                }
+            `}</style>
         </div>
     );
 };
