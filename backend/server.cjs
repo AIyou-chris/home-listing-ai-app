@@ -10941,6 +10941,21 @@ app.get('/api/conversations/export/csv', async (req, res) => {
       return res.status(400).json({ error: 'userId is required for export' });
     }
 
+    // TRIAL LOCK: Block CSV export for trial users
+    const { data: agentProfile } = await supabaseAdmin
+      .from('agents')
+      .select('payment_status')
+      .eq('auth_user_id', ownerId)
+      .single();
+
+    if (agentProfile?.payment_status === 'trialing') {
+      return res.status(403).json({
+        error: 'Lead export is a Pro feature',
+        code: 'TRIAL_RESTRICTED',
+        message: 'Please upgrade to Pro to export your leads.'
+      });
+    }
+
     let query = supabaseAdmin
       .from('ai_conversations')
       .select('*, ai_conversation_messages(*)')
@@ -12814,9 +12829,31 @@ app.post('/api/properties', async (req, res) => {
   try {
     const { data: agentData, error: agentError } = await supabaseAdmin
       .from('agents')
-      .select('auth_user_id')
+      .select('auth_user_id, payment_status')
       .eq('id', agentId)
       .single()
+
+    if (agentError) throw agentError;
+
+    // PROPERTY LIMIT: Block creation if trial user already has 1 property
+    if (agentData?.payment_status === 'trialing') {
+      const { count, error: countError } = await supabaseAdmin
+        .from('properties')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', agentData.auth_user_id);
+
+      if (countError) console.error('Error checking property count:', countError);
+
+      if (count !== null && count >= 1) {
+        console.warn(`🛑 Trial user ${agentId} attempted to create second property. Blocked.`);
+        return res.status(403).json({
+          error: 'Trial Limit Reached',
+          code: 'PROPERTY_LIMIT_REACHED',
+          message: 'Your trial allows for 1 active property. Please upgrade to create more!',
+          requestId
+        });
+      }
+    }
 
     if (agentData?.auth_user_id) {
       payload.user_id = agentData.auth_user_id
@@ -13501,7 +13538,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     // 2. 3-DAY OFFER ($10 Immediate / No Trial)
     // We expect the promo code to match a Coupon in Stripe or our DB that reduces first price to $10.
     // If it's a specific "PAY NOW" code, we remove the trial.
-    let trialDays = 7;
+    let trialDays = 3;
     let explicitDiscounts = [];
 
     // Check custom "Pay Now" codes here
@@ -14107,13 +14144,13 @@ const executeDelayedStep = async (userId, lead, step, signature) => {
 const checkTrialWarnings = async () => {
   if (!supabaseAdmin) return;
   try {
-    // Find agents created > 4 days ago (so they have ~3 days left)
-    const fourDaysAgo = new Date(Date.now() - (4 * 24 * 60 * 60 * 1000)).toISOString();
+    // Find agents created > 2 days ago (so they have ~1 day left of 3-day trial)
+    const twoDaysAgo = new Date(Date.now() - (2 * 24 * 60 * 60 * 1000)).toISOString();
 
     const { data: candidates, error } = await supabaseAdmin
       .from('agents')
       .select('id, email, first_name, created_at')
-      .lt('created_at', fourDaysAgo)
+      .lt('created_at', twoDaysAgo)
       .eq('payment_status', 'trialing')
       .eq('trial_warning_sent', false) // Requires new column
       .limit(50);
@@ -14136,13 +14173,13 @@ const checkTrialWarnings = async () => {
               <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                 <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center;">
                   <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" style="width: 48px; height: 48px; background-color: white; border-radius: 8px; padding: 4px; margin-bottom: 16px; object-fit: contain;">
-                  <h1 style="color: white; font-size: 24px; font-weight: bold; margin: 0;">Trial Expires in 3 Days</h1>
+                  <h1 style="color: white; font-size: 24px; font-weight: bold; margin: 0;">Trial Ends Tomorrow</h1>
                 </div>
                 
                 <div style="padding: 32px 24px;">
                   <p style="font-size: 16px; line-height: 1.6; color: #334155;">Hi ${agent.first_name || 'Verified Agent'},</p>
                   <p style="font-size: 16px; line-height: 1.6; color: #334155;">
-                    Just a friendly heads-up that your 7-day free trial of HomeListingAI is ending soon.
+                    Just a friendly heads-up that your 3-day free trial of HomeListingAI is ending in 24 hours.
                   </p>
                   
                   <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; margin: 24px 0;">
@@ -14176,7 +14213,7 @@ const checkTrialWarnings = async () => {
             to: agent.email,
             subject: '⚠️ Your HomeListingAI Trial Ending Soon',
             html: warningHtml,
-            text: `Your trial ends in 3 days. Upgrade now: ${process.env.APP_BASE_URL}/billing`,
+            text: `Your trial ends tomorrow. Upgrade now: ${process.env.APP_BASE_URL}/billing`,
             from: process.env.MAILGUN_FROM_EMAIL || 'hello@homelistingai.app',
           });
 
@@ -14201,14 +14238,13 @@ const checkTrialWarnings = async () => {
 const checkExpiredTrials = async () => {
   if (!supabaseAdmin) return;
   try {
-    // Find agents created > 7.5 days ago (Trial expired)
-    // Adding 0.5 buffer to ensure we don't send it the exact second it expires
-    const eightDaysAgo = new Date(Date.now() - (8 * 24 * 60 * 60 * 1000)).toISOString();
+    // Find agents created > 3 days ago (Trial expired)
+    const threeDaysAgo = new Date(Date.now() - (3 * 24 * 60 * 60 * 1000)).toISOString();
 
     const { data: candidates, error } = await supabaseAdmin
       .from('agents')
       .select('id, email, first_name, created_at')
-      .lt('created_at', eightDaysAgo)
+      .lt('created_at', threeDaysAgo)
       .eq('payment_status', 'trialing') // Still trialing means they didn't pay
       .eq('recovery_email_sent', false) // Requires new column
       .limit(50);

@@ -21,7 +21,7 @@ export const SEQUENCE_TEMPLATES: SequenceTemplate[] = [
         description: 'Welcome new users and guide them through platform features to increase conversion',
         category: 'onboarding',
         triggerType: 'Account Created',
-        estimatedDuration: '7 days',
+        estimatedDuration: 'trial',
         conversionRate: 35,
         difficulty: 'Beginner',
         tags: ['onboarding', 'welcome', 'conversion'],
@@ -34,7 +34,7 @@ export const SEQUENCE_TEMPLATES: SequenceTemplate[] = [
 
 Welcome to HomeListingAI! I'm excited to help you revolutionize your real estate business with AI-powered tools.
 
-Your 7-day free trial is now active, and you have full access to all features. Here's what you can do right now:
+Your free trial is now active, and you have full access to all features. Here's what you can do right now:
 
 🎯 Quick Start Guide:
 1. Add your first property listing
@@ -81,7 +81,7 @@ Here are some real results from agents using HomeListingAI:
 • Mike R. saved 15 hours per week on follow-ups
 • Lisa K. generated 47 new leads in her first month
 
-Your trial ends in 4 days. Want to join these success stories?
+Your trial ends in 1 day. Want to join these success stories?
 
 Upgrade now and get:
 ✅ Unlimited property listings
@@ -100,7 +100,7 @@ The HomeListingAI Team`
                 subject: 'Last 2 Days: Don\'t Lose Your Progress!',
                 content: `Hi {{user.name}},
 
-Your free trial ends in 2 days. Here's what happens next:
+Your free trial ends tomorrow. Here's what happens next:
 
 ⏰ Trial Ending Soon:
 • Your account will be paused
@@ -148,11 +148,11 @@ The HomeListingAI Team`
             },
             {
                 type: 'email',
-                delay: { value: 7, unit: 'days' },
+                delay: { value: 3, unit: 'days' },
                 subject: 'Your Trial Has Ended - Here\'s What\'s Next',
                 content: `Hi {{user.name}},
 
-Your 7-day free trial has ended. Here's what happens now:
+Your free trial has ended. Here's what happens now:
 
 📊 Your Trial Summary:
 • You explored our AI-powered platform
@@ -166,7 +166,7 @@ Your 7-day free trial has ended. Here's what happens now:
 • No setup required
 
 💡 Special Offer:
-Upgrade within the next 7 days and get 20% off your first month!
+Upgrade during your free trial and get 20% off your first month!
 
 Ready to continue? Click here to upgrade.
 
@@ -183,7 +183,7 @@ The HomeListingAI Team`
         description: 'Fast-paced sequence for hot buyer leads who need immediate attention',
         category: 'buyer',
         triggerType: 'Lead Capture',
-        estimatedDuration: '3 days',
+        estimatedDuration: 'trial',
         conversionRate: 24,
         difficulty: 'Beginner',
         tags: ['buyer', 'aggressive', 'fast'],
@@ -365,7 +365,7 @@ Would you be interested in a private showing this week? I have availability tomo
         description: 'Recover leads who missed their scheduled appointments',
         category: 'followup',
         triggerType: 'Custom',
-        estimatedDuration: '3 days',
+        estimatedDuration: 'trial',
         conversionRate: 22,
         difficulty: 'Beginner',
         tags: ['appointment', 'no-show', 'recovery'],

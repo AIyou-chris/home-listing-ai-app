@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const { addMinutes } = require('date-fns');
+const { addMinutes, subHours, differenceInHours } = require('date-fns');
 
 /**
  * Scheduler Service
@@ -66,6 +66,86 @@ module.exports = (supabaseAdmin, emailService) => {
             }
         } catch (err) {
             console.error('Scheduler Job Exception:', err);
+        }
+    });
+
+    // 2. Trial Engagement System (Every Hour)
+    // Checks for users who joined 24h, 48h, or 72h ago
+    cron.schedule('0 * * * *', async () => {
+        try {
+            console.log('⏰ Scheduler: Running Trial Engagement Check...');
+            const now = new Date();
+
+            // Fetch agents active/trial (assuming filtering by time handles status implicitly or we add status check)
+            // We look back up to 4 days to be safe, but target specific windows
+            const fourDaysAgo = subHours(now, 96).toISOString();
+
+            const { data: agents, error } = await supabaseAdmin
+                .from('agents')
+                .select('id, email, first_name, created_at, metadata')
+                .gte('created_at', fourDaysAgo) // Optimization: only recent users
+                .not('email', 'is', null);
+
+            if (error) {
+                console.error('Scheduler DB Error (Trial System):', error);
+                return;
+            }
+
+            if (!agents || agents.length === 0) return;
+
+            const dashboardUrl = process.env.APP_BASE_URL || 'https://homelistingai.com';
+
+            for (const agent of agents) {
+                const joinedAt = new Date(agent.created_at);
+                const hoursSinceJoin = differenceInHours(now, joinedAt);
+                const metadata = agent.metadata || {};
+                const trialData = metadata.trial_system || {};
+                let emailSent = false;
+                let dayToSend = null;
+
+                // Day 1: 24-26 hours after join (allowing 2h window for cron execution safety)
+                if (hoursSinceJoin >= 24 && hoursSinceJoin < 27 && !trialData.day1) {
+                    dayToSend = 1;
+                }
+                // Day 2: 48-51 hours
+                else if (hoursSinceJoin >= 48 && hoursSinceJoin < 51 && !trialData.day2) {
+                    dayToSend = 2;
+                }
+                // Day 3: 72-75 hours
+                else if (hoursSinceJoin >= 72 && hoursSinceJoin < 75 && !trialData.day3) {
+                    dayToSend = 3;
+                }
+
+                if (dayToSend) {
+                    console.log(`📧 Sending Trial Day ${dayToSend} email to ${agent.email}`);
+                    await emailService.sendTrialEngagementEmail({
+                        to: agent.email,
+                        firstName: agent.first_name || 'Agent',
+                        day: dayToSend,
+                        dashboardUrl
+                    });
+
+                    // Update metadata to prevent duplicate sending
+                    const newMetadata = {
+                        ...metadata,
+                        trial_system: {
+                            ...trialData,
+                            [`day${dayToSend}`]: true,
+                            last_sent: new Date().toISOString()
+                        }
+                    };
+
+                    await supabaseAdmin
+                        .from('agents')
+                        .update({ metadata: newMetadata })
+                        .eq('id', agent.id);
+
+                    emailSent = true;
+                }
+            }
+
+        } catch (err) {
+            console.error('Scheduler Job Exception (Trial System):', err);
         }
     });
 

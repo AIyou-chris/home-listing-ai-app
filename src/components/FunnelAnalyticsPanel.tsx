@@ -8,6 +8,7 @@ import SequenceFeedbackPanel from './SequenceFeedbackPanel';
 import { funnelService } from '../services/funnelService';
 import { supabase } from '../services/supabase';
 import PageTipBanner from './PageTipBanner';
+import { Toast, ToastType } from './Toast';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -567,13 +568,27 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         return parseInt(normalized) || 0;
     };
 
+    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+
+    useEffect(() => {
+        if (saveStatus === 'success') {
+            const timer = setTimeout(() => {
+                setSaveStatus('idle');
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [saveStatus]);
+
     const handleSaveWelcomeSteps = async () => {
+        setSaveStatus('saving');
         try {
             const { data: { user } } = await supabase.auth.getUser();
             const currentUserId = user?.id || (isDemoMode ? 'demo-blueprint' : '');
 
             if (!currentUserId) {
-                alert('Please sign in to save funnels.');
+                setToast({ message: 'Please sign in to save funnels.', type: 'error' });
+                setSaveStatus('idle');
                 return;
             }
 
@@ -585,15 +600,17 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
             const result = await funnelService.saveFunnelStep(currentUserId, 'welcome', stepsWithMinutes);
             if (result) {
-                alert('Welcome drip saved to cloud.');
+                setSaveStatus('success');
             } else {
                 console.error('Save failed');
-                alert('Failed to save: Unknown error');
+                setToast({ message: 'Failed to save: Unknown error', type: 'error' });
+                setSaveStatus('error');
             }
         } catch (error: unknown) {
             const err = error as Error;
             console.error('Failed to save welcome funnel', err);
-            alert(`Unable to save: ${err.message}`);
+            setToast({ message: `Unable to save: ${err.message}`, type: 'error' });
+            setSaveStatus('error');
         }
     };
 
@@ -629,12 +646,14 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSaveBuyerSteps = async () => {
+        setSaveStatus('saving');
         try {
             const { data: { user } } = await supabase.auth.getUser();
             const currentUserId = user?.id || (isDemoMode ? 'demo-blueprint' : '');
 
             if (!currentUserId) {
-                alert('Please sign in to save funnels.');
+                setToast({ message: 'Please sign in to save funnels.', type: 'error' });
+                setSaveStatus('idle');
                 return;
             }
 
@@ -645,15 +664,17 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
             const result = await funnelService.saveFunnelStep(currentUserId, 'buyer', stepsWithMinutes);
             if (result) {
-                alert('Homebuyer journey saved to cloud.');
+                setSaveStatus('success');
             } else {
                 console.error('Save failed');
-                alert('Failed to save: Unknown error');
+                setToast({ message: 'Failed to save: Unknown error', type: 'error' });
+                setSaveStatus('error');
             }
         } catch (error) {
             const err = error as Error;
             console.error('Failed to save homebuyer funnel', err);
-            alert(`Unable to save: ${err.message}`);
+            setToast({ message: `Unable to save: ${err.message}`, type: 'error' });
+            setSaveStatus('error');
         }
     };
 
@@ -689,12 +710,14 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSaveListingSteps = async () => {
+        setSaveStatus('saving');
         try {
             const { data: { user } } = await supabase.auth.getUser();
             const currentUserId = user?.id || (isDemoMode ? 'demo-blueprint' : '');
 
             if (!currentUserId) {
-                alert('Please sign in to save funnels.');
+                setToast({ message: 'Please sign in to save funnels.', type: 'error' });
+                setSaveStatus('idle');
                 return;
             }
 
@@ -705,15 +728,17 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
             const result = await funnelService.saveFunnelStep(currentUserId, 'listing', stepsWithMinutes);
             if (result) {
-                alert('Listing funnel saved to cloud.');
+                setSaveStatus('success');
             } else {
                 console.error('Save failed');
-                alert('Failed to save: Unknown error');
+                setToast({ message: 'Failed to save: Unknown error', type: 'error' });
+                setSaveStatus('error');
             }
         } catch (error) {
             const err = error as Error;
             console.error('Failed to save listing funnel', err);
-            alert(`Unable to save: ${err.message}`);
+            setToast({ message: `Unable to save: ${err.message}`, type: 'error' });
+            setSaveStatus('error');
         }
     };
 
@@ -749,12 +774,14 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleSavePostSteps = async () => {
+        setSaveStatus('saving');
         try {
             const { data: { user } } = await supabase.auth.getUser();
             const currentUserId = user?.id || (isDemoMode ? 'demo-blueprint' : '');
 
             if (!currentUserId) {
-                alert('Please sign in to save funnels.');
+                setToast({ message: 'Please sign in to save funnels.', type: 'error' });
+                setSaveStatus('idle');
                 return;
             }
 
@@ -765,15 +792,17 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
             const result = await funnelService.saveFunnelStep(currentUserId, 'post-showing', stepsWithMinutes);
             if (result) {
-                alert('Post-showing follow-up saved to cloud.');
+                setSaveStatus('success');
             } else {
                 console.error('Save failed');
-                alert('Failed to save: Unknown error');
+                setToast({ message: 'Failed to save: Unknown error', type: 'error' });
+                setSaveStatus('error');
             }
         } catch (error) {
             const err = error as Error;
             console.error('Failed to save post-showing funnel', err);
-            alert(`Unable to save: ${err.message}`);
+            setToast({ message: `Unable to save: ${err.message}`, type: 'error' });
+            setSaveStatus('error');
         }
     };
 
@@ -948,12 +977,19 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                             {/* Quick Config Row */}
                                                             <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                                 <div className="flex-1">
-                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Timing</label>
-                                                                    <input
-                                                                        className="w-full bg-transparent text-sm font-bold text-slate-700 focus:outline-none"
+                                                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Timing (Since Previous Step)</label>
+                                                                    <select
+                                                                        className="w-full bg-transparent text-sm font-bold text-slate-700 focus:outline-none cursor-pointer"
                                                                         value={step.delay}
                                                                         onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)}
-                                                                    />
+                                                                    >
+                                                                        <option value="0 min">0 min (Immediate)</option>
+                                                                        <option value="1 hour">1 hour later</option>
+                                                                        <option value="12 hours">12 hours later</option>
+                                                                        <option value="1 day">+1 day later</option>
+                                                                        <option value="2 days">+2 days later</option>
+                                                                        <option value="3 days">+3 days later</option>
+                                                                    </select>
                                                                 </div>
                                                                 <div className="w-px h-8 bg-slate-200" />
                                                                 <div className="flex-1">
@@ -1047,9 +1083,20 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={onSave}
-                                                                                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700"
+                                                                                    disabled={saveStatus === 'saving' || saveStatus === 'success'}
+                                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-md transition-all duration-200 ${saveStatus === 'success' ? 'bg-emerald-500 scale-105' : saveStatus === 'saving' ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'} text-white`}
                                                                                 >
-                                                                                    Save Changes
+                                                                                    {saveStatus === 'saving' ? (
+                                                                                        <span className="flex items-center gap-1">
+                                                                                            <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                                                            Saving...
+                                                                                        </span>
+                                                                                    ) : saveStatus === 'success' ? (
+                                                                                        <span className="flex items-center gap-1">
+                                                                                            <span className="material-symbols-outlined text-[14px]">check</span>
+                                                                                            Saved!
+                                                                                        </span>
+                                                                                    ) : 'Save Changes'}
                                                                                 </button>
                                                                             </div>
                                                                         </div>
@@ -1179,9 +1226,20 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                         <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-emerald-200/50">
                                                                             <button
                                                                                 onClick={onSave}
-                                                                                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-emerald-700"
+                                                                                disabled={saveStatus === 'saving' || saveStatus === 'success'}
+                                                                                className={`px-3 py-1.5 text-white rounded-lg text-xs font-bold shadow-md transition-all duration-200 ${saveStatus === 'success' ? 'bg-emerald-500 scale-105' : saveStatus === 'saving' ? 'bg-emerald-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                                                                             >
-                                                                                Save Changes
+                                                                                {saveStatus === 'saving' ? (
+                                                                                    <span className="flex items-center gap-1">
+                                                                                        <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                                                        Saving...
+                                                                                    </span>
+                                                                                ) : saveStatus === 'success' ? (
+                                                                                    <span className="flex items-center gap-1">
+                                                                                        <span className="material-symbols-outlined text-[14px]">check</span>
+                                                                                        Saved!
+                                                                                    </span>
+                                                                                ) : 'Save Changes'}
                                                                             </button>
                                                                         </div>
                                                                     </div>
@@ -1233,7 +1291,15 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                                     AI Magic
                                                                                 </button>
                                                                             </div>
-                                                                            <div className="border border-violet-200 rounded-lg overflow-hidden shadow-sm bg-white">
+                                                                            <div className="relative border border-violet-200 rounded-lg overflow-hidden shadow-sm bg-white">
+                                                                                {saveStatus === 'success' && (
+                                                                                    <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex items-center justify-center animate-in fade-in duration-300">
+                                                                                        <div className="flex flex-col items-center gap-2 bg-emerald-500 text-white px-6 py-3 rounded-2xl shadow-xl transform scale-100 animate-in zoom-in-50 duration-300">
+                                                                                            <span className="material-symbols-outlined text-3xl">check_circle</span>
+                                                                                            <span className="font-bold text-lg">Saved!</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                )}
                                                                                 <EmailEditor
                                                                                     value={step.content}
                                                                                     onChange={(val) => onUpdateStep(step.id, 'content', val)}
@@ -1250,9 +1316,20 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={onSave}
-                                                                                    className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-violet-700"
+                                                                                    disabled={saveStatus === 'saving' || saveStatus === 'success'}
+                                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-md transition-all duration-200 ${saveStatus === 'success' ? 'bg-emerald-500 scale-105' : saveStatus === 'saving' ? 'bg-violet-400 cursor-not-allowed' : 'bg-violet-600 hover:bg-violet-700'} text-white`}
                                                                                 >
-                                                                                    Save Changes
+                                                                                    {saveStatus === 'saving' ? (
+                                                                                        <span className="flex items-center gap-1">
+                                                                                            <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                                                            Saving...
+                                                                                        </span>
+                                                                                    ) : saveStatus === 'success' ? (
+                                                                                        <span className="flex items-center gap-1">
+                                                                                            <span className="material-symbols-outlined text-[14px]">check</span>
+                                                                                            Saved!
+                                                                                        </span>
+                                                                                    ) : 'Save Changes'}
                                                                                 </button>
                                                                             </div>
                                                                         </div>
@@ -1290,10 +1367,25 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                 <button
                                     type="button"
                                     onClick={onSave}
-                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
+                                    disabled={saveStatus === 'saving' || saveStatus === 'success'}
+                                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 ${saveStatus === 'success' ? 'bg-emerald-500 scale-105' : saveStatus === 'saving' ? 'bg-primary-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700'}`}
                                 >
-                                    <span className="material-symbols-outlined text-base">save</span>
-                                    {saveLabel}
+                                    {saveStatus === 'saving' ? (
+                                        <>
+                                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            Saving...
+                                        </>
+                                    ) : saveStatus === 'success' ? (
+                                        <>
+                                            <span className="material-symbols-outlined text-base">check_circle</span>
+                                            Saved Successfully
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="material-symbols-outlined text-base">save</span>
+                                            {saveLabel}
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </>
@@ -1649,6 +1741,13 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     )
                 }
             </div>
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
         </div>
     );
 };

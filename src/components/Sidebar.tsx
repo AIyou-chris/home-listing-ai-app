@@ -81,9 +81,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
           <a
             href={isBlueprintMode ? "/agent-blueprint-dashboard" : "/"}
             onClick={handleLogoClick}
-            className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg"
+            className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg group"
           >
             <LogoWithName />
+            {!isDemoMode && !isBlueprintMode && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 uppercase tracking-tight">
+                  Trial Mode
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">Active Trial</span>
+              </div>
+            )}
           </a>
           <button onClick={onClose} className="md:hidden p-1 rounded-full text-slate-500 hover:bg-slate-100">
             <Icon name="close" />
@@ -154,13 +162,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
                 onClose={onClose}
               >
                 Marketing Hub
-              </NavItem>
-              <NavItem
-                to={getPath("/marketing-reports")}
-                icon="analytics"
-                onClose={onClose}
-              >
-                Marketing Reports
               </NavItem>
             </div>
 

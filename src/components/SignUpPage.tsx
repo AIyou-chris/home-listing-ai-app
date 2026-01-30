@@ -115,7 +115,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                     <span className="material-symbols-outlined w-6 h-6 text-green-500 flex-shrink-0">verified_user</span>
                                     <div>
                                         <h3 className="font-bold">Privacy First - Your Data is Safe</h3>
-                                        <p className="text-sm mt-1">We take your privacy seriously. This trial account is completely temporary. All your information, including name, email, and any data you create during the trial, will be automatically deleted after 7 days or when you end the trial. We don't keep anything. Feel free to explore and play around!</p>
+                                        <p className="text-sm mt-1">We take your privacy seriously. This trial account is completely temporary. All your information, including name, email, and any data you create during the trial, will be automatically deleted after the trial period or when you end the trial. We don't keep anything. Feel free to explore and play around!</p>
                                     </div>
                                 </div>
                             </div>
@@ -139,7 +139,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
 
                         {/* Right Column */}
                         <div className="bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-200/70">
-                            <h2 className="text-xl font-bold text-slate-800">Start Your 7-Day Free Trial</h2>
+                            <h2 className="text-xl font-bold text-slate-800">Start 3-Day Free Trial</h2>
                             <p className="text-sm text-slate-500 mt-1">Get started in less than 30 seconds</p>
 
                             <form className="mt-8 space-y-6" onSubmit={handleSignUp}>
@@ -170,7 +170,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                         <div>
                                             <h4 className="font-semibold">How onboarding works</h4>
                                             <p className="text-xs mt-1">
-                                                Start with a <strong>7-Day Free Trial</strong>. After checkout, we instantly generate your dashboard and preload your AI funnels. We offer a <strong>30-day money-back guarantee</strong> so you can use the app risk-free. If it doesn't work out, we'll refund you—no questions asked.
+                                                Start with a <strong>3-Day Free Trial</strong>. After checkout, we instantly generate your dashboard and preload your AI funnels. We offer a <strong>30-day money-back guarantee</strong> so you can use the app risk-free. If it doesn't work out, we'll refund you—no questions asked.
                                             </p>
                                         </div>
                                     </div>

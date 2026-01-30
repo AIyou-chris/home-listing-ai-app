@@ -113,7 +113,179 @@ const buildWelcomeHtml = (firstName, dashboardUrl, password) => `
   </html>
 `;
 
+
+const buildTrialHtml = (firstName, day, dashboardUrl) => {
+  const styles = `
+    body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; }
+    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; }
+    .logo { width: 48px; height: 48px; background-color: white; border-radius: 8px; padding: 4px; margin-bottom: 16px; object-fit: contain; }
+    .header-title { color: white; font-size: 24px; font-weight: bold; margin: 0; }
+    .content { padding: 32px 24px; }
+    .greeting { font-size: 20px; font-weight: 600; margin-bottom: 24px; color: #0f172a; }
+    .body-text { font-size: 16px; line-height: 1.6; margin-bottom: 24px; color: #475569; }
+    .btn-container { text-align: center; margin: 32px 0; }
+    .btn { background-color: #4f46e5; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+    .footer { background-color: #f1f5f9; padding: 24px; text-align: center; font-size: 13px; color: #64748b; }
+    .pro-tip-box { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin: 24px 0; }
+    .pro-tip-title { font-weight: bold; color: #15803d; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .how-to-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 24px 0; }
+    .how-to-title { font-weight: bold; color: #334155; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  `;
+
+  let content = '';
+  let subject = '';
+  let btnText = 'Login to Dashboard';
+  let btnLink = dashboardUrl;
+
+  if (day === 1) {
+    subject = 'Your Business Card is Dead. (Here is the upgrade)';
+    content = `
+      <p class="body-text">You signed up effectively, but are you using your <strong>AI Agent</strong> to its full potential?</p>
+      <p class="body-text">Paper business cards get lost or thrown away. Your <strong>AI Card</strong> works 24/7.</p>
+      <p class="body-text">It's not just a profile—it's a fully interactive <strong>Lead Capture Machine</strong>.</p>
+      
+      <p class="body-text" style="margin-bottom: 8px;"><strong>Why your AI Card wins listings:</strong></p>
+      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
+        <li style="margin-bottom: 8px;"><strong>🗣️ Instant Conversation:</strong> Leads can talk to your AI immediately—no forms to fill out.</li>
+        <li style="margin-bottom: 8px;"><strong>🧠 Smart Qualification:</strong> It asks the right questions (Budget? Timeline?) while you sleep.</li>
+        <li style="margin-bottom: 8px;"><strong>📲 One-Tap Save:</strong> Clients can save your contact info directly to their phone.</li>
+      </ul>
+
+      <p class="body-text"><strong>Stop handing out paper. Start capturing leads.</strong></p>
+
+      <div class="btn-container">
+        <a href="${dashboardUrl}/admin/ai-card" class="btn">View My AI Card</a>
+      </div>
+      <div class="pro-tip-box">
+        <div class="pro-tip-title">💡 Pro Tip</div>
+        <p class="body-text" style="margin:0; font-size:15px;">Print your AI Card's <strong>QR Code</strong> and put it on your Open House signs. Visitors scan it, meet your AI, and get instantly logged in your CRM. No more messy sign-in sheets.</p>
+      </div>
+      <div class="how-to-box">
+        <div class="how-to-title">🛠️ How To</div>
+        <ol class="body-text" style="margin:0; padding-left: 20px; font-size:15px;">
+          <li>Go to "AI Card" in your dashboard.</li>
+          <li>Click "Share" → "Download QR Code".</li>
+          <li>Create a new Listing Site instantly by entering an address in the "Listings" tab.</li>
+        </ol>
+      </div>
+    `;
+  } else if (day === 2) {
+    subject = 'Let Your Listing Sell Itself';
+    content = `
+      <p class="body-text">Stop manually building landing pages.</p>
+      <p class="body-text">Your AI Agent builds a dedicated <strong>Single Property AI Application</strong> for every listing—instantly.</p>
+      <p class="body-text">It's not just a photo gallery. It's a 24/7 Virtual Open House that captures buyers.</p>
+      
+      <p class="body-text" style="margin-bottom: 8px;"><strong>Why Agents Love AI Listings:</strong></p>
+      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
+        <li style="margin-bottom: 8px;"><strong>🚀 Zero Work:</strong> Just type the address. AI writes the description, picks the photos, and builds the site.</li>
+        <li style="margin-bottom: 8px;"><strong>🎨 Stunning Design:</strong> Premium layouts that look like you paid a pro agency $500.</li>
+        <li style="margin-bottom: 8px;"><strong>🔍 SEO & Social Ready:</strong> Perfect for sharing on Facebook/Instagram. Visitors land on <em>your</em> branded page, not Zillow.</li>
+        <li style="margin-bottom: 8px;"><strong>🧠 Intelligent Capture:</strong> Visitors can ask questions ("How are the schools?") and get instant AI answers.</li>
+      </ul>
+
+      <p class="body-text"><strong>Your listings deserve to shine. And you deserve to sleep.</strong></p>
+
+      <div class="btn-container">
+        <a href="${dashboardUrl}/admin/listings" class="btn">Create Listing Site</a>
+      </div>
+      <div class="pro-tip-box">
+        <div class="pro-tip-title">💡 Pro Tip</div>
+        <p class="body-text" style="margin:0; font-size:15px;">Post your AI Listing link to local Facebook Community groups. The "What's my home worth?" tool is built into every page, capturing seller leads from your buyer traffic.</p>
+      </div>
+      <div class="how-to-box">
+        <div class="how-to-title">🛠️ How To</div>
+        <ol class="body-text" style="margin:0; padding-left: 20px; font-size:15px;">
+          <li>Click <strong>"Listings"</strong>.</li>
+          <li>Click <strong>"Add New"</strong> and type the address.</li>
+          <li>Watch the AI build the site. Click <strong>"Publish"</strong>.</li>
+        </ol>
+      </div>
+    `;
+  } else if (day === 3) {
+    subject = 'Your ROI: The math is simple.';
+    content = `
+      <p class="body-text">This is it. Your 3-Day Trial is ending.</p>
+      <p class="body-text">You’ve seen how your <strong>AI Card</strong> captures authentic leads.</p>
+      <p class="body-text">You’ve seen how <strong>Single Property AI Applications</strong> turn listings into 24/7 virtual tours.</p>
+      
+      <p class="body-text" style="font-size: 18px; font-weight: bold; color: #4f46e5; margin: 15px 0;">But here is the real question: What is your time worth?</p>
+
+      <p class="body-text">Every day, agents lose money doing tasks a robot should do:</p>
+      <ul class="body-text" style="padding-left: 20px;">
+        <li style="margin-bottom: 5px;">Chasing unqualified leads who never answer.</li>
+        <li style="margin-bottom: 5px;">Answering "Is this still available?" at 10 PM.</li>
+        <li style="margin-bottom: 5px;">Manually building marketing assets.</li>
+      </ul>
+
+      <p class="body-text"><strong>Your AI Agent takes this workload off your plate forever.</strong></p>
+      <p class="body-text">Imagine waking up to <strong>booked appointments</strong> on your calendar instead of a list of unread texts. Your AI nurtures every lead, filters the tire-kickers, and serves you the serious buyers on a silver platter.</p>
+
+      <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; margin: 20px 0; border-radius: 4px;">
+        <p class="body-text" style="margin-top: 0; font-weight: bold; color: #166534;">Let's look at the ROI:</p>
+        <ul class="body-text" style="padding-left: 20px; margin-bottom: 0; color: #166534;">
+          <li><strong>One Commission Check:</strong> ~$12,000 (avg)</li>
+          <li><strong>HomeListingAI:</strong> $97/mo</li>
+        </ul>
+        <p class="body-text" style="margin-bottom: 0; margin-top: 10px; color: #166534;">If this system helps you close <strong>just one extra deal this year</strong>, you have achieved a <strong>10,000% Return on Investment.</strong></p>
+      </div>
+
+      <p class="body-text"><strong>Don't go back to doing it the hard way. The future is automated.</strong></p>
+
+      <div class="btn-container">
+        <a href="${dashboardUrl}/billing" class="btn">Secure My Account</a>
+      </div>
+      <div class="pro-tip-box">
+        <div class="pro-tip-title">💡 Pro Tip</div>
+        <p class="body-text" style="margin:0; font-size:15px;">Check the <strong>"Sentiment Analysis"</strong> in your Funnel Analytics. If a lead is "Warm" but hasn't booked, jump in personally! The AI does 90% of the work so you can be the hero for the last 10%.</p>
+      </div>
+      <div class="how-to-box">
+        <div class="how-to-title">🛠️ How To</div>
+        <ol class="body-text" style="margin:0; padding-left: 20px; font-size:15px;">
+          <li>Go to <strong>"Marketing Funnels"</strong>.</li>
+          <li>Switch on the "Buyer Nurture" (Step 1).</li>
+          <li>Click "Analytics" to see open rates and AI conversation depth.</li>
+        </ol>
+      </div>
+    `;
+  }
+
+  return {
+    html: `
+      < !DOCTYPE html >
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>${styles}</style>
+          </head>
+          <body>
+            <div style="padding: 24px;">
+              <div class="container">
+                <div class="header">
+                  <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" class="logo">
+                    <h1 class="header-title">HomeListingAI Academy</h1>
+                </div>
+                <div class="content">
+                  <h2 class="greeting">Hi ${firstName},</h2>
+                  ${content}
+                </div>
+                <div class="footer">
+                  <p>Sent with 💙 by the HomeListingAI Team</p>
+                  <p>Need help? Just reply to this email, we're here for you.</p>
+                  <p style="margin-top: 12px; font-size: 12px;">© ${new Date().getFullYear()} HomeListingAI. All rights reserved.</p>
+                </div>
+              </div>
+            </div>
+          </body>
+        </html>
+    `,
+    subject
+  };
+};
+
 // Legacy credentials HTML builder removed/merged
+
 
 
 module.exports = (supabaseAdmin) => {
@@ -125,7 +297,7 @@ module.exports = (supabaseAdmin) => {
   const fallbackSupportEmail = process.env.SUPPORT_EMAIL || '';
   const fromName = process.env.EMAIL_FROM_NAME || 'AI You Agent Team';
   const fromAddress =
-    process.env.EMAIL_FROM_ADDRESS || `AI You Agent Team <noreply@homelistingai.com>`;
+    process.env.EMAIL_FROM_ADDRESS || `AI You Agent Team < noreply@homelistingai.com> `;
 
   const persistFallbackEmail = async ({ to, subject, html, cc, tags, reason }) => {
     if (!supabaseAdmin) return { queued: false };
@@ -140,7 +312,7 @@ module.exports = (supabaseAdmin) => {
         status: 'queued',
         failure_reason: reason || null
       });
-      sendAlert(`🚨 Email Failed & Queued: "${subject}" to ${to}. Reason: ${reason || 'Unknown'}`);
+      sendAlert(`🚨 Email Failed & Queued: "${subject}" to ${to}.Reason: ${reason || 'Unknown'} `);
       return { queued: true };
     } catch (err) {
       console.error('[EmailService] Failed to persist fallback email queue', err);
@@ -156,7 +328,7 @@ module.exports = (supabaseAdmin) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${resendApiKey}`
+        Authorization: `Bearer ${resendApiKey} `
       },
       body: JSON.stringify({
         from: overrideFrom || fromAddress,
@@ -171,7 +343,7 @@ module.exports = (supabaseAdmin) => {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Resend error: ${errorBody}`);
+      throw new Error(`Resend error: ${errorBody} `);
     }
 
     return { sent: true, provider: 'resend' };
@@ -201,7 +373,7 @@ module.exports = (supabaseAdmin) => {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Postmark error: ${errorBody}`);
+      throw new Error(`Postmark error: ${errorBody} `);
     }
 
     return { sent: true, provider: 'postmark' };
@@ -243,7 +415,7 @@ module.exports = (supabaseAdmin) => {
     const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${sendgridKey}`,
+        Authorization: `Bearer ${sendgridKey} `,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
@@ -251,7 +423,7 @@ module.exports = (supabaseAdmin) => {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`SendGrid error: ${errorBody}`);
+      throw new Error(`SendGrid error: ${errorBody} `);
     }
 
     return { sent: true, provider: 'sendgrid' };
@@ -289,7 +461,7 @@ module.exports = (supabaseAdmin) => {
     // Add tags if present
     if (tags) {
       Object.keys(tags).forEach(key => {
-        formData.append(`o:tag`, `${key}:${tags[key]}`);
+        formData.append(`o: tag`, `${key}:${tags[key]} `);
       });
     }
 
@@ -453,6 +625,15 @@ module.exports = (supabaseAdmin) => {
   return {
     sendEmail,
     sendWelcomeEmail,
-    sendCredentialsEmail
+    sendCredentialsEmail,
+    sendTrialEngagementEmail: async ({ to, firstName, day, dashboardUrl }) => {
+      const { html, subject } = buildTrialHtml(firstName, day, dashboardUrl);
+      return sendEmail({
+        to,
+        subject,
+        html,
+        tags: { template: `trial-day-${day}`, type: 'nurture' }
+      });
+    }
   };
 };

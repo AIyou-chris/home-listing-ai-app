@@ -6,11 +6,11 @@ import AIConversationsPage from '../components/AIConversationsPage';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import AdminCommandCenter from './components/AdminCommandCenter';
 import AdminAISidekicksPage from './components/AdminAISidekicksPage';
+import MarketingReportsPage from '../components/MarketingReportsPage';
 // import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub'; // Kept for reference if needed, but unused in new flow
 import AdminMarketingFunnelsPanel from '../components/admin/AdminMarketingFunnelsPanel';
 import InteractionHubPage from '../components/InteractionHubPage';
 import AddListingPage from '../components/AddListingPage';
-import AdminListingsPage from './AdminListingsPage';
 import PropertyPage from '../components/PropertyPage';
 import AdminSettingsPage from './components/AdminSettingsPage';
 import AdminUsersPage from '../components/AdminUsersPage';
@@ -43,9 +43,8 @@ export type DashboardView =
   | 'property'
   | 'add-listing'
   | 'ai-card-builder'
-  | 'add-listing'
-  | 'ai-card-builder'
   | 'marketing-funnels'
+  | 'marketing-reports'
   | 'users'
   | 'broadcast';
 
@@ -406,6 +405,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
             variant="page"
           />
         );
+      case 'marketing-reports':
+        return <MarketingReportsPage isDemoMode={isDemoMode} />;
       case 'settings':
         return (
           <AdminSettingsPage

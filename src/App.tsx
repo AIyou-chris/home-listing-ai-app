@@ -31,6 +31,7 @@ import AICardPage from './components/AICardPage';
 import MarketingReportsPage from './components/MarketingReportsPage';
 import CompliancePolicyPage from './components/CompliancePolicyPage';
 import DmcaPolicyPage from './components/DmcaPolicyPage';
+import TrialLock from './components/TrialLock';
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
 import SettingsPage from './components/SettingsPage';
@@ -92,7 +93,7 @@ import { leadsService, LeadPayload } from './services/leadsService';
 // A helper function to delay execution
 
 
-type AppUser = {
+export type AppUser = {
     uid: string;
     id: string;
     email: string | null;
@@ -1004,7 +1005,7 @@ const App: React.FC = () => {
             console.error('Failed to update lead:', error);
             // Revert state if needed - relying on next fetch for now or we could snapshot prev state
         }
-    }, [leads, user]);
+    }, [leads, userProfile, sequences]);
 
     const handleDeleteLead = useCallback(async (leadId: string) => {
         if (window.confirm('Are you sure you want to delete this lead?')) {
@@ -1396,6 +1397,12 @@ const App: React.FC = () => {
                 <AISidekickProvider>
                     <ErrorBoundary>
                         {renderRoutes()}
+                        {user && userProfile?.payment_status === 'trialing' && (() => {
+                            const created = new Date(user.created_at || '').getTime();
+                            const now = new Date().getTime();
+                            const isExpired = now - created >= 3 * 24 * 60 * 60 * 1000;
+                            return isExpired ? <TrialLock user={user} agentProfile={userProfile} /> : null;
+                        })()}
                         {isConsultationModalOpen && (
                             <ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
                         )}

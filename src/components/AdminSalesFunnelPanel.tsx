@@ -9,8 +9,6 @@ import { emailService } from '../services/emailService';
 import { adminLeadsService } from '../services/adminLeadsService';
 import { authService } from '../services/authService';
 import { getAICardProfile, AICardProfile } from '../services/aiCardService';
-import AdminFunnelAnalytics from './AdminFunnelAnalytics';
-
 // CONSTANTS & TYPES
 
 // API Configuration
@@ -59,11 +57,11 @@ Yeah... same. The market's quiet, but your burnout's not.
 
 Meanwhile, smart agents are sleeping through the chaos while Natural Lead AI books their next clients automatically.
 
-And right now, you can try it free for 7 days — and if you love it, keep it for just $69/month.
+And right now, you can try it with a free trial — and if you love it, keep it for just $69/month.
 
 That’s less than one dead “exclusive” lead that never calls back.
 
-👉 [Start your 7-Day Free Trial – $69/month after]
+👉 [Start your Free Trial – $69/month after]
 
 Talk with you soon,
 {{AGENT.NAME}}
@@ -148,7 +146,6 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
     const [importing, setImporting] = useState(false);
     const [previewAgent, setPreviewAgent] = useState<AICardProfile | null>(null);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'funnel' | 'analytics'>('funnel');
     const [customSignature, setCustomSignature] = useState<string>('');
 
     // Library Modal State for EDITOR
@@ -645,12 +642,19 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                                                             />
                                                         </label>
                                                         <label className="text-xs font-semibold text-slate-600">
-                                                            Delay
-                                                            <input
-                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                                            Timing (Since Previous Step)
+                                                            <select
+                                                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                                                                 value={step.delay}
                                                                 onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)}
-                                                            />
+                                                            >
+                                                                <option value="0 min">0 min (Immediate)</option>
+                                                                <option value="1 hour">1 hour later</option>
+                                                                <option value="12 hours">12 hours later</option>
+                                                                <option value="1 day">+1 day later</option>
+                                                                <option value="2 days">+2 days later</option>
+                                                                <option value="3 days">+3 days later</option>
+                                                            </select>
                                                         </label>
                                                     </div>
 

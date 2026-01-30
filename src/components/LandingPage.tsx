@@ -1,7 +1,6 @@
 import React from 'react';
 import { LogoWithName } from './LogoWithName';
 import ChatBotFAB from './ChatBotFAB';
-import { AIContactOverlay } from './AIContactOverlay';
 import SEO from './SEO';
 import { StripeLogo } from './StripeLogo';
 import { MultiToolShowcase } from './MultiToolShowcase';
@@ -261,7 +260,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact: 
                             onClick={onNavigateToSignUp}
                             className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-all duration-300 bg-white text-primary-700 shadow-lg hover:bg-slate-200 transform hover:scale-[1.02]"
                         >
-                            Start Your 7-Day Free Trial
+                            Start Free Trial
                         </button>
                         <p className="text-center text-xs text-slate-300 mt-3 opacity-90">
                             Price may increase at any time. Secure your lifetime rate today.
@@ -613,7 +612,7 @@ const FaqSection: React.FC = () => {
         { q: "How quickly can I get started?", a: "You can build your first AI-powered listing app in under 10 minutes. Our guided system makes it incredibly simple—no technical skills required." },
         { q: "What makes this different from other lead tools?", a: "Instead of just being a contact form, we create an interactive experience for each listing. This engages buyers more deeply, pre-qualifies them, and delivers a much higher quality lead directly to you. You get the full conversation transcript, giving you valuable context to start a meaningful conversation." },
         { q: "Is there really a 30-day money-back guarantee?", a: "Yes! We are so confident you'll love the results that we offer a no-questions-asked, 30-day money-back guarantee. If you don't get value, you don't pay." },
-        { q: "Is my and my client's data secure?", a: "Yes, security is our top priority. All data is encrypted in transit and at rest using enterprise-grade security protocols. We are compliant with data privacy regulations, and you retain full ownership of your data. For trial accounts, all data is automatically purged after 7 days for your peace of mind." },
+        { q: "Is my and my client's data secure?", a: "Yes, security is our top priority. All data is encrypted in transit and at rest using enterprise-grade security protocols. We are compliant with data privacy regulations, and you retain full ownership of your data. For trial accounts, all data is automatically purged after the trial period for your peace of mind." },
         { q: "What kind of support do you offer if I get stuck?", a: "We offer comprehensive support to all our users. This includes a detailed knowledge base, email support for all plans, and priority support for our Pro Team subscribers. We're here to ensure you get the most out of the platform." },
         { q: "How are these leads different from Zillow or Realtor.com?", a: "The leads you get from HomeListingAI are significantly warmer. Instead of just a name and email from a form, you get a contact who has actively engaged with your property, asked specific questions, and been pre-qualified by the AI. You receive the full conversation transcript, giving you valuable context to start a meaningful conversation." },
         { q: "Can I use my own branding (white-label)?", a: "Yes! Our Brokerage plan includes full white-labeling. You can use your own domain, logo, and brand colors to create a seamless experience for your agents and clients. Contact us for a consultation to discuss our white-label and custom service options." },
@@ -832,7 +831,7 @@ const FinalCtaNew: React.FC<{ onNavigateToSignUp: () => void; onEnterDemoMode: (
                     className="flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-yellow-400 via-orange-400 to-purple-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all text-lg transform hover:scale-105 btn-animate"
                 >
                     <span className="material-symbols-outlined animate-pulse">rocket_launch</span>
-                    Start Your 7-Day Free Trial
+                    Start Free Trial
                 </button>
                 <button
                     onClick={onEnterDemoMode}
@@ -965,7 +964,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                         </button>
                         <button onClick={onNavigateToSignUp} className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
                             <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
-                            Start Your 7-Day Free Trial
+                            Start Free Trial
                         </button>
                     </div>
                     <div className="mt-4 flex justify-center lg:justify-start animate-fade-in-up animation-delay-500">

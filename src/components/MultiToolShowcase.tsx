@@ -280,7 +280,7 @@ export const MultiToolShowcase: React.FC = () => {
                     </button>
                     <button onClick={() => navigate('/signup')} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-purple-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-purple-700 transition-all transform hover:scale-105 active:scale-95 hover:shadow-purple-500/25 ring-offset-2 focus:ring-2 ring-purple-500">
                         <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
-                        Start Your 7-Day Free Trial
+                        Start Free Trial
                     </button>
                 </div>
             </div>

@@ -12,7 +12,6 @@ import AgentAISidekicksPage from './AgentAISidekicksPage';
 import SettingsPage from './SettingsPage';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import AICardPage from './AICardPage';
-import MarketingReportsPage from './MarketingReportsPage';
 import NotificationSystem from './NotificationSystem';
 import PWAInstallModal from './settings/PWAInstallModal';
 
@@ -28,7 +27,7 @@ import {
 } from '../constants/agentBlueprintData';
 import { SecuritySettings } from '../types';
 import { listingsService } from '../services/listingsService';
-import { leadsService, LeadPayload } from '../services/leadsService';
+import { leadsService } from '../services/leadsService';
 import { adminLeadsService } from '../services/adminLeadsService'; // Added
 import { listAppointments } from '../services/appointmentsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
@@ -182,7 +181,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       case 'inbox': return 'inbox';
       case 'settings': return 'settings';
       case 'funnel-analytics': return 'funnel-analytics';
-      case 'marketing-reports': return 'marketing-reports';
       case 'payments': return 'payments';
       case 'daily-pulse': return 'dashboard';
       case 'demo-dashboard': return 'dashboard';
@@ -224,7 +222,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         case 'inbox': pathSuffix = '/inbox'; break;
         case 'settings': pathSuffix = '/settings'; break;
         case 'funnel-analytics': pathSuffix = '/funnel-analytics'; break;
-        case 'marketing-reports': pathSuffix = '/marketing-reports'; break;
         case 'payments': pathSuffix = '/payments'; break;
         case 'marketing': pathSuffix = '/marketing'; break;
         case 'dashboard': pathSuffix = '/daily-pulse'; break;
@@ -879,15 +876,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   ]
 
   const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string; status?: string }) => {
-    const payload: LeadPayload = {
-      name: leadData.name,
-      email: leadData.email,
-      phone: leadData.phone,
-      source: leadData.source || 'Website',
-      lastMessage: leadData.message,
-      funnelType: (leadData.funnelType as LeadFunnelType) || null
-    };
-
     if (isDemoMode) {
       const fallbackLead: Lead = {
         id: `lead-${Date.now()}`,
@@ -944,7 +932,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       });
     }
   }
-
 
   const handleNewAppointment = (appointment: Appointment) => {
     setAppointments((prev) => [appointment, ...prev]);
@@ -1263,8 +1250,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         );
       case 'analytics':
         return <AnalyticsDashboard />;
-      case 'marketing-reports':
-        return <MarketingReportsPage isDemoMode={isDemoMode} />;
       case 'marketing':
         return (
           <MarketingHub

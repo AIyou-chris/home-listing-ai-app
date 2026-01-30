@@ -14,11 +14,9 @@ type DashboardView =
   | 'inbox'
   | 'property'
   | 'add-listing'
-  | 'add-listing'
   | 'ai-card-builder'
   | 'marketing-funnels'
-  | 'ai-card-builder'
-  | 'marketing-funnels'
+  | 'marketing-reports'
   | 'users'
   | 'broadcast';
 
@@ -71,6 +69,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     { view: 'listings', icon: 'storefront', label: 'AI Listings' },
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
     { view: 'marketing-funnels', icon: 'campaign', label: 'Marketing Funnels' },
+    { view: 'marketing-reports', icon: 'analytics', label: 'Marketing Reports' },
     { view: 'broadcast', icon: 'podium', label: 'Broadcasts' },
     { view: 'users', icon: 'people', label: 'Users' },
     { view: 'settings', icon: 'settings', label: 'Settings' }

@@ -220,7 +220,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                         className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold shadow ${isCreatingSession ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-500'}`}
                       >
                         <span className="material-symbols-outlined text-base">rocket_launch</span>
-                        {isCreatingSession ? 'Opening checkout...' : 'Start 7-Day Free Trial'}
+                        {isCreatingSession ? 'Opening checkout...' : 'Start 3-Day Free Trial'}
                       </button>
                       <div className="mt-4 flex flex-col items-center justify-center gap-1.5 opacity-80">
                         <div className="flex items-center gap-2 text-slate-500">
@@ -230,7 +230,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ slug, onBackToSignup }) => 
                         </div>
                       </div>
                       <div className="mt-3 text-center">
-                        <p className="text-sm font-medium text-slate-700">7 days free, then $69/mo</p>
+                        <p className="text-sm font-medium text-slate-700">3 days free, then $69/mo</p>
                         <p className="text-xs text-slate-500">Cancel anytime before trial ends and you won't be charged.</p>
                       </div>
                       <p className="text-[10px] text-slate-400 mt-4 text-center text-balance leading-tight px-4">

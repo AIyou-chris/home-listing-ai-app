@@ -41,7 +41,7 @@ const initiateCall = async ({ leadId, agentId, propertyId, script, leadName, lea
             if (a) {
                 // BUDGET CHECK
                 const used = a.voice_minutes_used || 0;
-                const limit = a.voice_allowance_monthly || 60; // Default 60 mins
+                const limit = a.voice_allowance_monthly || (a.payment_status === 'trialing' ? 15 : 60);
 
                 if (used >= limit) {
                     console.warn(`🛑 [Voice Budget] Agent ${agentId} hit limit (${used}/${limit}). Blocking call.`);

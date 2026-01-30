@@ -778,7 +778,7 @@ const FunnelSectionRenderer: React.FC<{
     expandedStepIds: string[];
     onTogglePanel: () => void;
     onToggleStep: (id: string) => void;
-    onUpdateStep: (id: string, field: keyof EditableStep, value: any) => void;
+    onUpdateStep: (id: string, field: keyof EditableStep, value: string | number | boolean) => void;
     onRemoveStep: (id: string) => void;
     onAddStep: () => void;
     onSave: () => void;
@@ -927,8 +927,19 @@ const FunnelSectionRenderer: React.FC<{
                                                         {/* Quick Config Row */}
                                                         <div className="flex items-center gap-4 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                             <div className="flex-1">
-                                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Timing</label>
-                                                                <input className="w-full bg-transparent text-sm font-bold text-slate-700 focus:outline-none" value={step.delay} onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)} />
+                                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Timing (Since Previous Step)</label>
+                                                                <select
+                                                                    className="w-full bg-transparent text-sm font-bold text-slate-700 focus:outline-none cursor-pointer"
+                                                                    value={step.delay}
+                                                                    onChange={(e) => onUpdateStep(step.id, 'delay', e.target.value)}
+                                                                >
+                                                                    <option value="0 min">0 min (Immediate)</option>
+                                                                    <option value="1 hour">1 hour later</option>
+                                                                    <option value="12 hours">12 hours later</option>
+                                                                    <option value="1 day">+1 day later</option>
+                                                                    <option value="2 days">+2 days later</option>
+                                                                    <option value="3 days">+3 days later</option>
+                                                                </select>
                                                             </div>
                                                             <div className="w-px h-8 bg-slate-200" />
                                                             <div className="flex-1">

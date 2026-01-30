@@ -21,6 +21,9 @@ export interface AgentProfile {
     voice_minutes_used?: number;
     voice_allowance_monthly?: number;
     sms_sent_monthly?: number;
+    payment_status?: string;
+    trial_warning_sent?: boolean;
+    recovery_email_sent?: boolean;
 }
 
 export interface AIDescription {
