@@ -1401,7 +1401,7 @@ const App: React.FC = () => {
                             const created = new Date(user.created_at || '').getTime();
                             const now = new Date().getTime();
                             const isExpired = now - created >= 3 * 24 * 60 * 60 * 1000;
-                            return isExpired ? <TrialLock user={user} agentProfile={userProfile} /> : null;
+                            return isExpired ? <TrialLock _user={user} /> : null;
                         })()}
                         {isConsultationModalOpen && (
                             <ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
