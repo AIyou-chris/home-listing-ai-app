@@ -221,7 +221,14 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                 return `<a href="${value}" target="_blank" rel="noopener noreferrer">${value}</a>`;
             }
 
-            if (value !== undefined) return value;
+            if (value !== undefined) {
+                // If the value contains newlines (like agent.signature), convert them to <br/>
+                // BUT only if we are in an email context (which we are here for this component)
+                if (typeof value === 'string' && value.includes('\n')) {
+                    return value.replace(/\n/g, '<br/>');
+                }
+                return value;
+            }
 
             return `{{${path}}}`;
         });
@@ -284,7 +291,7 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
             };
 
             const subject = mergeTokens(step.subject, realMergeData);
-            const body = mergeTokens(step.content, realMergeData).replace(/\n/g, '<br/>');
+            const body = mergeTokens(step.content, realMergeData);
             const testSubject = `[TEST] ${subject}`;
 
             const sent = await emailService.sendEmail(

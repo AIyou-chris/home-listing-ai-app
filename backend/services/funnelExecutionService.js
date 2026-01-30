@@ -5,7 +5,7 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
     if (!emailService) throw new Error('Email service required');
 
     // --- HELPER: Merge Tokens (e.g. {{first_name}}) ---
-    const mergeTokens = (text, lead, agent) => {
+    const mergeTokens = (text, lead, agent, isEmail = false) => {
         if (!text) return '';
         let result = text;
 
@@ -18,8 +18,17 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
         result = result.replace(/{{\s*lead\.name\s*}}/gi, leadName);
 
         // Agent Tokens
-        result = result.replace(/{{\s*agent\.first_name\s*}}/gi, agent.first_name || '');
-        result = result.replace(/{{\s*agent\.name\s*}}/gi, `${agent.first_name || ''} ${agent.last_name || ''}`.trim());
+        let agentFirstName = agent.first_name || '';
+        let agentFullName = `${agent.first_name || ''} ${agent.last_name || ''}`.trim();
+
+        // If it's for an email, we need to convert newlines in data to <br/> (e.g. signature if it existed)
+        if (isEmail) {
+            agentFirstName = agentFirstName.replace(/\n/g, '<br/>');
+            agentFullName = agentFullName.replace(/\n/g, '<br/>');
+        }
+
+        result = result.replace(/{{\s*agent\.first_name\s*}}/gi, agentFirstName);
+        result = result.replace(/{{\s*agent\.name\s*}}/gi, agentFullName);
 
         return result;
     };
@@ -84,16 +93,16 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                 }
 
             } else if (step.type === 'email') {
-                const subject = mergeTokens(step.subject, lead, agent);
-                const content = mergeTokens(step.content || step.body, lead, agent);
+                const subject = mergeTokens(step.subject, lead, agent, true);
+                const content = mergeTokens(step.content || step.body, lead, agent, true);
 
-                // --- PREVIEW TEXT INJECTION (Client-side Gmail/Outlook Hack) ---
-                let finalHtml = content.replace(/\n/g, '<br>');
+                // --- PREVIEW TEXT INJECTION ---
+                let finalHtml = content; // Removed global .replace(/\n/g, '<br>')
                 if (step.previewText) {
                     const previewHtml = `<div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
-                        ${mergeTokens(step.previewText, lead, agent)}
+                        ${mergeTokens(step.previewText, lead, agent, true)}
                         ${'&nbsp;&zwnj;'.repeat(100)} 
-                    </div>`; // &nbsp;&zwnj; repeat pushes actual body text out of view
+                    </div>`;
                     finalHtml = previewHtml + finalHtml;
                 }
 
