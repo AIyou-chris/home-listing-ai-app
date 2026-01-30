@@ -41,7 +41,12 @@ const upload = multer({
 const { parseISO, addMinutes, isBefore, isAfter } = require('date-fns');
 
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
-const MAILGUN_WEBHOOK_SIGNING_KEY = process.env.MAILGUN_WEBHOOK_SIGNING_KEY || process.env.MAILGUN_API_KEY; // Fallback for backward compat, though usually wrong for webhooks
+// The specialized "HTTP Webhook Signing Key" must be used for webhooks, NOT the Sending API Key.
+const MAILGUN_WEBHOOK_SIGNING_KEY = process.env.MAILGUN_WEBHOOK_SIGNING_KEY || process.env.MAILGUN_SIGNING_KEY || process.env.MAILGUN_API_KEY;
+
+if (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
+  console.warn('⚠️ [Config] MAILGUN_WEBHOOK_SIGNING_KEY is using the Sending API Key as a fallback. Webhook verification WILL FAIL unless you provide the specialized Signing Key from the Mailgun dashboard.');
+}
 const APP_URL = process.env.VITE_APP_URL || process.env.APP_URL || 'http://localhost:5173';
 
 
@@ -1792,34 +1797,25 @@ app.post('/api/webhooks/mailgun/inbound', async (req, res) => {
 // Mailgun Webhook Endpoint (Events only)
 app.post('/api/webhooks/mailgun', async (req, res) => {
   try {
-    const { signature } = req.body;
+    const { signature, 'event-data': eventData } = req.body;
 
+    // 1. Verify Signature
     if (!signature || !verifyMailgunSignature(MAILGUN_WEBHOOK_SIGNING_KEY, signature.timestamp, signature.token, signature.signature)) {
       console.error('[Mailgun Webhook] Signature verification failed');
-      console.error('Received:', {
-        timestamp: signature?.timestamp,
-        token: signature?.token,
-        signature: signature?.signature
-      });
-      // DEBUG: Verify Key match (log first/last chars only)
-      const keyStart = MAILGUN_WEBHOOK_SIGNING_KEY ? MAILGUN_WEBHOOK_SIGNING_KEY.substring(0, 5) : 'MISSING';
       const keyLabel = (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) ? 'SENDING Key (Config Mismatch!)' : 'SIGNING Key';
-
-      console.error(`Using ${keyLabel}:`, keyStart + '...');
-
       return res.status(401).json({ error: 'Invalid signature', detail: 'Server checked against ' + keyLabel });
     }
 
-    const eventData = req.body['event-data'];
     if (!eventData) {
       return res.status(400).json({ error: 'No event data' });
     }
 
-    const { event, message, recipient, timestamp, user_variables } = eventData;
+    const { event, message, recipient, timestamp, user_variables, severity } = eventData;
     const messageId = message?.headers?.['message-id'];
     const userId = user_variables?.user_id;
     const campaignId = user_variables?.campaign_id;
 
+    // 2. Log to Database
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
       await supabaseAdmin.from('email_events').insert({
         message_id: messageId,
@@ -1832,6 +1828,38 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
       });
     } else {
       console.log('[Mailgun Webhook] Received event (no DB):', event, recipient);
+    }
+
+    // 3. SPECIAL LOGIC: Handle Permanent Bounces (Auto-Delete)
+    if (event === 'failed' && severity === 'permanent') {
+      console.log(`[Bounce] Detected permanent fail for ${recipient}. Initiating auto-delete...`);
+
+      // Find the lead(s) to cleanup
+      const { data: leadsToDelete } = await supabaseAdmin
+        .from('leads')
+        .select('id, user_id')
+        .eq('email', recipient);
+
+      if (leadsToDelete && leadsToDelete.length > 0) {
+        for (const lead of leadsToDelete) {
+          // Remove from Active Funnels (Stop future emails)
+          const ownerId = lead.user_id;
+          if (ownerId && typeof marketingStore !== 'undefined') {
+            const followUps = await marketingStore.loadActiveFollowUps(ownerId);
+            if (followUps && followUps.length > 0) {
+              const filtered = followUps.filter(f => f.leadId !== lead.id);
+              if (filtered.length !== followUps.length) {
+                await marketingStore.saveActiveFollowUps(ownerId, filtered);
+                console.log(`[Bounce] Removed lead ${lead.id} from active funnels.`);
+              }
+            }
+          }
+
+          // Delete the Lead
+          await supabaseAdmin.from('leads').delete().eq('id', lead.id);
+          console.log(`[Bounce] DELETED lead ${lead.id} (${recipient}) due to bounce.`);
+        }
+      }
     }
 
     res.json({ success: true });
@@ -11068,67 +11096,6 @@ app.get('/api/conversations/export/csv', async (req, res) => {
   } catch (error) {
     console.error('Error exporting conversations to CSV:', error);
     res.status(500).json({ error: 'Failed to export conversations' });
-  }
-});
-
-// MAILGUN WEBHOOK - HANDLE BOUNCES (Auto-Delete)
-app.post('/api/webhooks/mailgun', async (req, res) => {
-  try {
-    // 1. Validate Payload
-    const { signature, 'event-data': eventData } = req.body;
-    if (!signature || !eventData) return res.status(200).send('Ignored: No signature/data'); // 200 to stop retries if invalid
-
-    // 2. Verify Signature (HMAC)
-    const signingKey = process.env.MAILGUN_SIGNING_KEY || process.env.MAILGUN_API_KEY;
-    if (signingKey) {
-      const value = signature.timestamp + signature.token;
-      const hash = crypto.createHmac('sha256', signingKey).update(value).digest('hex');
-      if (hash !== signature.signature) {
-        console.warn('[Webhook] Invalid Mailgun signature. Ignoring.');
-        return res.status(401).send('Invalid signature');
-      }
-    }
-
-    // 3. Process Bounces
-    if (eventData.event === 'failed' && eventData.severity === 'permanent') {
-      const email = eventData.recipient;
-      console.log(`[Bounce] Detected permanent fail for ${email}. Initiating auto-delete...`);
-
-      // A. Find the lead(s) to get owner ID
-      const { data: leadsToDelete } = await supabaseAdmin
-        .from('leads')
-        .select('id, user_id')
-        .eq('email', email);
-
-      if (leadsToDelete && leadsToDelete.length > 0) {
-        for (const lead of leadsToDelete) {
-          // B. Remove from Active Funnels (Stop emails)
-          const ownerId = lead.user_id;
-          if (ownerId) {
-            const followUps = await marketingStore.loadActiveFollowUps(ownerId);
-            if (followUps && followUps.length > 0) {
-              const filtered = followUps.filter(f => f.leadId !== lead.id);
-              if (filtered.length !== followUps.length) {
-                await marketingStore.saveActiveFollowUps(ownerId, filtered);
-                console.log(`[Bounce] Removed lead ${lead.id} from active funnels.`);
-              }
-            }
-          }
-
-          // C. Delete the Lead
-          await supabaseAdmin.from('leads').delete().eq('id', lead.id);
-          console.log(`[Bounce] DELETED lead ${lead.id} (${email}) due to bounce.`);
-        }
-      } else {
-        console.log(`[Bounce] Email ${email} not found in Leads table. Skipping.`);
-      }
-    }
-
-    res.status(200).send('OK');
-
-  } catch (error) {
-    console.error('Webhook error:', error);
-    res.status(500).send('Error processing webhook');
   }
 });
 
