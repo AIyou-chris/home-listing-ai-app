@@ -364,8 +364,8 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
             setSendingTestId(step.id);
 
             const subject = mergeTokens(step.subject);
-            // Replace newlines with <br/> for HTML email body
-            const body = mergeTokens(step.content).replace(/\n/g, '<br/>');
+            // Preparation for HTML email body
+            const body = mergeTokens(step.content);
             const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
             const response = await fetch(`${apiUrl}/api/admin/email/quick-send`, {
                 method: 'POST',
@@ -412,13 +412,21 @@ const UniversalFunnelPanel: React.FC<UniversalFunnelPanelProps> = ({
 
     const mergeTokens = (template: string) => {
         return template.replace(/{{\s*([^}]+)\s*}}/g, (_, path: string) => {
+            let value = '';
             if (path === 'agent.signature' && customSignature) {
-                return customSignature;
+                value = customSignature;
+            } else {
+                const [bucket, key] = path.split('.');
+                if (!bucket || !key || !(bucket in sampleMergeData)) return '';
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                value = (sampleMergeData as any)[bucket]?.[key] || '';
             }
-            const [bucket, key] = path.split('.');
-            if (!bucket || !key || !(bucket in sampleMergeData)) return '';
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return (sampleMergeData as any)[bucket]?.[key] || '';
+
+            // If the value contains newlines, convert them to <br/> for HTML context
+            if (typeof value === 'string' && value.includes('\n')) {
+                return value.replace(/\n/g, '<br/>');
+            }
+            return value;
         });
     };
 
