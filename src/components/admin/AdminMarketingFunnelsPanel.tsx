@@ -619,7 +619,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 leads,
                 {
                     assignee: userId || 'unknown',
-                    tag: 'Marketing Funnel Import'
+                    tag: 'Marketing Funnel Import',
+                    funnel: 'homebuyer'
                 }
             );
 
