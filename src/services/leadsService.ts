@@ -167,7 +167,7 @@ export const leadsService = {
       console.log('🔌 Connecting to Backend Import:', API_BASE);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 Second Timeout
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 Minute Timeout for Large Imports
 
       const response = await fetch(`${API_BASE}/api/admin/leads/import`, {
         method: 'POST',
