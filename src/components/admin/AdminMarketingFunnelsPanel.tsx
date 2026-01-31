@@ -620,7 +620,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 {
                     assignee: userId || 'unknown',
                     tag: 'Agent Outreach Import',
-                    funnel: 'homebuyer'
+                    funnel: 'universal_sales'
                 }
             );
 
