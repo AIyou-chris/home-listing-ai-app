@@ -624,7 +624,18 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             );
 
             console.log('✅ Import Result:', result);
-            setToast({ message: `Successfully imported ${result.imported} leads!`, type: 'success' });
+
+            if (result.failed > 0) {
+                // Show warning if some or all failed
+                if (result.imported === 0) {
+                    setToast({ message: `Import Failed. ${result.failed} leads were rejected by the database. Check console for details.`, type: 'error' });
+                } else {
+                    setToast({ message: `Partial Success: ${result.imported} imported, ${result.failed} failed.`, type: 'info' });
+                }
+            } else {
+                setToast({ message: `Successfully imported ${result.imported} leads!`, type: 'success' });
+            }
+
             setIsUploadModalOpen(false);
 
             // Note: Since this panel doesn't display the lead list directly, 
