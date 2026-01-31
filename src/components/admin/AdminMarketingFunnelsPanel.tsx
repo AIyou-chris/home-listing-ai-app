@@ -328,8 +328,8 @@ Need a warm intro to my lender partners? Happy to connect you.`
 const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     onBackToDashboard,
     variant = 'page',
-    title = 'Leads Funnel',
-    subtitle = 'Homebuyer, Seller, and Showing funnels for every lead',
+    title = 'Agent Outreach Funnel',
+    subtitle = 'Automated sequence for your uploaded leads',
     hideBackButton = false,
     isDemoMode = false,
 
@@ -619,7 +619,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 leads,
                 {
                     assignee: userId || 'unknown',
-                    tag: 'Marketing Funnel Import',
+                    tag: 'Agent Outreach Import',
                     funnel: 'homebuyer'
                 }
             );
