@@ -162,8 +162,8 @@ export const leadsService = {
     if (!session) throw new Error('Not authenticated');
 
     try {
-      // FORCE PRODUCTION URL (Resolves "Spinning" / 404 Issues)
-      const API_BASE = 'https://home-listing-ai-backend.onrender.com';
+      // Use environment variable or default to local (Resolves "Spinning" / 404 Issues)
+      const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
       console.log('🔌 Connecting to Backend Import:', API_BASE);
 
       const controller = new AbortController();

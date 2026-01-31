@@ -10,6 +10,7 @@ import { supabase } from '../../services/supabase';
 import PageTipBanner from '../PageTipBanner';
 import { LeadUploadModal } from '../../components/LeadUploadModal';
 import { LeadStatus } from '../../types';
+import { leadsService } from '../../services/leadsService';
 import { Toast, ToastType } from '../Toast';
 
 interface FunnelAnalyticsPanelProps {
@@ -609,10 +610,30 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     };
 
     const handleUploadLeads = async (leads: Array<{ name: string; email: string; phone: string; status: LeadStatus }>) => {
-        // Mock upload or connect to real service
-        console.log('Uploading leads:', leads);
-        alert(`Successfully imported ${leads.length} leads!`);
-        setIsUploadModalOpen(false);
+        try {
+            console.log('🚀 Initiating Real Lead Import:', leads.length);
+
+            setToast({ message: 'Importing leads...', type: 'info' });
+
+            const result = await leadsService.bulkImport(
+                leads,
+                {
+                    assignee: userId || 'unknown',
+                    tag: 'Marketing Funnel Import'
+                }
+            );
+
+            console.log('✅ Import Result:', result);
+            setToast({ message: `Successfully imported ${result.imported} leads!`, type: 'success' });
+            setIsUploadModalOpen(false);
+
+            // Note: Since this panel doesn't display the lead list directly, 
+            // no immediate UI refresh is needed here.
+        } catch (error) {
+            console.error('❌ Lead Import Failed:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            setToast({ message: `Import failed: ${errorMessage}`, type: 'error' });
+        }
     };
 
 
