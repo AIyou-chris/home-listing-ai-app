@@ -76,7 +76,9 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
         };
 
         try {
-            if (step.type === 'condition') {
+            const stepType = (step.type || '').toLowerCase();
+
+            if (stepType === 'condition') {
                 const isMet = await evaluateCondition(step, lead);
                 context.details = { condition_met: isMet, type: step.condition_type };
 
@@ -92,7 +94,7 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                     console.warn(`[FunnelExecutor] Target step key '${targetKey}' not found. Continuing linearly.`);
                 }
 
-            } else if (step.type === 'email') {
+            } else if (stepType === 'email') {
                 const subject = mergeTokens(step.subject, lead, agent, true);
                 const content = mergeTokens(step.content || step.body, lead, agent, true);
 
@@ -126,7 +128,7 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                 context.details = result;
                 if (!result.sent && !result.queued) throw new Error('Email failed to send');
 
-            } else if (step.type === 'sms' || step.type === 'Text') {
+            } else if (stepType === 'sms' || stepType === 'text') {
                 if (process.env.VITE_ENABLE_SMS === 'false') {
                     context.status = 'skipped';
                     context.details = { reason: 'SMS Disabled via Feature Flag' };
@@ -136,7 +138,7 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                 const message = mergeTokens(step.content || step.body, lead, agent);
                 await smsService.sendSms(lead.phone, message, step.mediaUrl);
 
-            } else if (step.type === 'Call' || step.type === 'call') {
+            } else if (stepType === 'call') {
                 if (process.env.VITE_ENABLE_VOICE === 'false') {
                     context.status = 'skipped';
                     context.details = { reason: 'Voice Disabled via Feature Flag' };
