@@ -1472,7 +1472,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                 </div>
                                 {analyticsExpanded.scoring && (
                                     <div className="animate-in slide-in-from-top-4 fade-in duration-300">
-                                        <AnalyticsPage />
+                                        <AnalyticsPage scope="global" />
                                     </div>
                                 )}
                             </div>

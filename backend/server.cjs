@@ -7937,7 +7937,7 @@ app.get('/api/leads/recent-scoring', async (req, res) => {
 // Get lead stats (aggregated)
 app.get('/api/leads/stats', async (req, res) => {
   try {
-    const { userId } = req.query; // Optional filter if needed, though leadsService usually passes user context
+    const { userId, all } = req.query; // Optional filter if needed, though leadsService usually passes user context
 
     // In a real app with auth middleware, we'd use req.user.id
     // Here we might need to rely on query param or just return stats for the "demo" user context
@@ -7951,7 +7951,9 @@ app.get('/api/leads/stats', async (req, res) => {
     }
 
     let query = supabaseAdmin.from('leads').select('status, score, user_id');
-    if (userId) {
+
+    // Only filter by userId if NOT requesting all stats
+    if (userId && all !== 'true') {
       query = query.eq('user_id', userId);
     }
 

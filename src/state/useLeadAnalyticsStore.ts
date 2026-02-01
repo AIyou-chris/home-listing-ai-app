@@ -84,6 +84,7 @@ export interface LeadStatsResponse {
     cold: number
     highestScore: number
   }
+  leadSources?: LeadSourceBreakdownItem[]
 }
 
 export interface ScoringRuleResponse {
@@ -129,7 +130,7 @@ export interface LeadAnalyticsState {
   scoringRules: ScoringRuleResponse[]
   scoreTiers: ScoreTierResponse[]
   leadSources: LeadSourceBreakdownItem[]
-  refresh: () => Promise<void>
+  refresh: (userId?: string, global?: boolean) => Promise<void>
 }
 
 const normalizeConversionRate = (value: string | number | undefined): number => {
@@ -204,7 +205,7 @@ export const useLeadAnalyticsStore = create<LeadAnalyticsState>()(
     scoringRules: [],
     scoreTiers: [],
     leadSources: [],
-    refresh: async () => {
+    refresh: async (userId?: string, global: boolean = false) => {
       if (get().isLoading) return
       set((state) => {
         state.isLoading = true
@@ -218,8 +219,8 @@ export const useLeadAnalyticsStore = create<LeadAnalyticsState>()(
         })
 
         const [statsResponse, leadsResponse, scoringResponse] = await Promise.all([
-          leadsService.stats(),
-          leadsService.list(),
+          leadsService.stats(userId, global),
+          leadsService.list(undefined, undefined, userId),
           scoringPromise
         ])
 
@@ -242,7 +243,10 @@ export const useLeadAnalyticsStore = create<LeadAnalyticsState>()(
         }
 
         const leads: Lead[] = Array.isArray(leadsResponse?.leads) ? leadsResponse.leads : []
-        const leadSources = buildSourceBreakdown(leads)
+        // Use backend provided sources if available (avoids RLS issues on list), else fallback to frontend calc
+        const leadSources = statsResponse.leadSources && statsResponse.leadSources.length > 0
+          ? statsResponse.leadSources
+          : buildSourceBreakdown(leads)
 
         const scoringRules = scoringResponse.rules.length > 0 ? scoringResponse.rules : [...DEFAULT_SCORING_RULES]
         const scoreTiers = scoringResponse.tiers.length > 0 ? scoringResponse.tiers : [...DEFAULT_SCORE_TIERS]

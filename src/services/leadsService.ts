@@ -95,8 +95,8 @@ const mapLeadRow = (row: LeadRow): Lead => {
 }
 
 export const leadsService = {
-  async list(status?: string, search?: string) {
-    const userId = await getCurrentUserId()
+  async list(status?: string, search?: string, userIdOverride?: string) {
+    const userId = userIdOverride || await getCurrentUserId()
     if (!userId) {
       // Return empty state instead of sample leads
       return {
@@ -282,9 +282,9 @@ export const leadsService = {
     return { deletedCount: data?.length || 0 };
   },
 
-  async stats() {
-    const userId = await getCurrentUserId()
-    if (!userId) {
+  async stats(userIdOverride?: string, global: boolean = false) {
+    const userId = userIdOverride || await getCurrentUserId()
+    if (!userId && !global) {
       return {
         total: 0,
         new: 0,
@@ -309,7 +309,11 @@ export const leadsService = {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-      const response = await fetch(`/api/leads/stats?userId=${userId}`, {
+      const url = global
+        ? `/api/leads/stats?all=true`
+        : `/api/leads/stats?userId=${userId}`;
+
+      const response = await fetch(url, {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -335,7 +339,8 @@ export const leadsService = {
             warm: data.scoreStats?.warm || 0,
             cold: data.scoreStats?.cold || 0,
             highestScore: data.scoreStats?.highestScore || 0
-          }
+          },
+          leadSources: data.leadSources || []
         };
       }
     } catch (e) {

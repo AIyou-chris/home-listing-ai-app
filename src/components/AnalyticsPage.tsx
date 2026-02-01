@@ -282,22 +282,24 @@ const ScoringRulesPanel: React.FC<{ rules: ScoringRuleResponse[]; tiers: ScoreTi
 
 import { DEMO_ANALYTICS_STATS, DEMO_LEAD_SOURCES, DEMO_SCORING_RULES, DEMO_SCORE_TIERS } from '../demoConstants'
 
-const AnalyticsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) => {
+const AnalyticsPage: React.FC<{ isDemoMode?: boolean, userId?: string, scope?: 'global' | 'user' }> = ({ isDemoMode = false, userId, scope = 'user' }) => {
   const { stats, leadSources, scoringRules, scoreTiers, isLoading, error, hasHydrated, refresh } = useLeadAnalyticsStore()
   const [showTips, setShowTips] = useState(true)
 
   useEffect(() => {
-    if (!hasHydrated && !isDemoMode) {
-      refresh()
+    if ((!hasHydrated && !isDemoMode) || userId || scope === 'global') {
+      refresh(userId, scope === 'global')
     }
-  }, [hasHydrated, refresh, isDemoMode])
+  }, [hasHydrated, refresh, isDemoMode, userId, scope])
 
-  const displayStats = isDemoMode ? DEMO_ANALYTICS_STATS : stats
-  const displayLeadSources = isDemoMode ? DEMO_LEAD_SOURCES : leadSources
-  const displayScoringRules = isDemoMode ? DEMO_SCORING_RULES : scoringRules
-  const displayScoreTiers = isDemoMode ? DEMO_SCORE_TIERS : scoreTiers
+  // If userId is provided, we fetch real data, so we shouldn't show demo constants even if isDemoMode is true
+  const showRealData = !!userId || !isDemoMode
+  const displayStats = showRealData ? stats : DEMO_ANALYTICS_STATS
+  const displayLeadSources = showRealData ? leadSources : DEMO_LEAD_SOURCES
+  const displayScoringRules = showRealData ? scoringRules : DEMO_SCORING_RULES
+  const displayScoreTiers = showRealData ? scoreTiers : DEMO_SCORE_TIERS
 
-  if (isLoading && !hasHydrated && !isDemoMode) {
+  if (isLoading && !hasHydrated && showRealData) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-10 text-center text-slate-500">
         Loading lead scoring analytics…
@@ -305,14 +307,14 @@ const AnalyticsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false 
     )
   }
 
-  if (error && !hasHydrated && !isDemoMode) {
+  if (error && !hasHydrated && showRealData) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
         <h3 className="text-lg font-semibold text-red-700 mb-2">Unable to load lead scoring data</h3>
         <p className="text-sm text-red-600 mb-4">{error}</p>
         <button
           type="button"
-          onClick={refresh}
+          onClick={() => refresh(userId)}
           className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700"
         >
           Retry
