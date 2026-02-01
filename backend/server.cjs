@@ -765,9 +765,9 @@ app.get('/api/funnels/:userId', async (req, res) => {
     }
 
     const { data, error } = await supabaseAdmin
-      .from('funnel_steps')
-      .select('funnel_type, steps')
-      .eq('user_id', normalizedUserId);
+      .from('funnels')
+      .select('funnel_key, steps')
+      .eq('agent_id', normalizedUserId);
 
     if (error) {
       console.warn('[Funnels] Failed to load funnel steps:', error);
@@ -775,7 +775,7 @@ app.get('/api/funnels/:userId', async (req, res) => {
     }
 
     const funnels = (data || []).reduce((acc, item) => {
-      acc[item.funnel_type] = item.steps;
+      acc[item.funnel_key] = item.steps;
       return acc;
     }, {});
 
@@ -797,18 +797,56 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
 
     console.log(`[Funnels] Saving ${funnelType} for ${userId}. Steps:`, steps ? steps.length : 'null');
 
-    const { error } = await supabaseAdmin
-      .from('funnel_steps')
-      .upsert({
-        user_id: userId,
-        funnel_type: funnelType,
-        steps: steps,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id, funnel_type' });
+    // 1. Check if funnel exists for this agent
+    const { data: existingFunnel, error: fetchError } = await supabaseAdmin
+      .from('funnels')
+      .select('id')
+      .eq('agent_id', userId)
+      .eq('funnel_key', funnelType)
+      .maybeSingle(); // Use maybeSingle to avoid error on not found
 
-    if (error) {
-      console.error('[Funnels] Failed to save funnel steps:', error);
-      return res.status(500).json({ success: false, error: 'Failed to save funnel', details: error });
+    if (fetchError) {
+      console.error('[Funnels] Failed to check existing funnel:', fetchError);
+      return res.status(500).json({ success: false, error: 'Database error' });
+    }
+
+    let result;
+    if (existingFunnel) {
+      // Update existing
+      result = await supabaseAdmin
+        .from('funnels')
+        .update({
+          steps: steps,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingFunnel.id);
+    } else {
+      // Insert new
+      const FUNNEL_TITLES = {
+        'welcome-onboarding': 'Instant AI Welcome',
+        'buyers-fast-response': 'Buyer Journey',
+        'seller-high-touch': 'Listing Prep & Story',
+        'post-showing-feedback': 'Post-Showing Feedback',
+        'universal_sales': 'Agent Outreach',
+        'homebuyer': 'Buyer Journey'
+      };
+
+      result = await supabaseAdmin
+        .from('funnels')
+        .insert({
+          agent_id: userId,
+          funnel_key: funnelType,
+          name: FUNNEL_TITLES[funnelType] || 'Custom Funnel',
+          description: 'Customized agent funnel',
+          steps: steps,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+    }
+
+    if (result.error) {
+      console.error('[Funnels] Failed to save funnel:', result.error);
+      return res.status(500).json({ success: false, error: 'Failed to save funnel', details: result.error });
     }
 
     res.json({ success: true });
@@ -827,28 +865,63 @@ app.get('/api/analytics/step-performance/:userId', async (req, res) => {
       return res.json({ success: true, steps: [] });
     }
 
-    // Fetch email events for this user
+    // 1. Fetch Tracking Map (message_id -> step_id)
+    const { data: tracking, error: trackError } = await supabaseAdmin
+      .from('email_tracking_events')
+      .select('message_id, step_id, funnel_type')
+      .eq('user_id', userId);
+
+    const msgToStep = {};
+    const msgToName = {};
+
+    if (tracking) {
+      tracking.forEach(t => {
+        if (t.message_id) {
+          // Prefer step_id, fallback to funnel_type or 'Manual'
+          const step = t.step_id || t.funnel_type || 'Manual Email';
+          msgToStep[t.message_id] = step;
+        }
+      });
+    }
+
+    // 2. Fetch email events
     const { data: events, error } = await supabaseAdmin
       .from('email_events')
-      .select('message_id, event_type, campaign_id')
+      .select('message_id, event_type')
       .eq('user_id', userId);
 
     if (error) throw error;
 
-    // Aggregate by message_id (Step)
-    // We assume message_id maps to a Step ID in the funnel
+    // 3. Aggregate by Step ID
     const stepMap = {};
 
-    (events || []).forEach(ev => {
-      const stepId = ev.message_id || 'unknown_step';
-      if (!stepMap[stepId]) {
-        stepMap[stepId] = { stepId, sent: 0, opened: 0, clicked: 0, replied: 0 };
-      }
+    // Helper
+    const getStepStats = (id) => {
+      if (!stepMap[id]) stepMap[id] = { stepId: id, sent: 0, opened: 0, clicked: 0, replied: 0 };
+      return stepMap[id];
+    };
 
-      if (ev.event_type === 'delivered' || ev.event_type === 'accepted') stepMap[stepId].sent++;
-      else if (ev.event_type === 'opened') stepMap[stepId].opened++;
-      else if (ev.event_type === 'clicked') stepMap[stepId].clicked++;
-      else if (ev.event_type === 'replied') stepMap[stepId].replied++;
+    // A. Count Sents from Tracking table (More accurate source of truth for sent count)
+    if (tracking) {
+      tracking.forEach(t => {
+        const step = t.step_id || t.funnel_type || 'Manual Email';
+        const s = getStepStats(step);
+        s.sent++; // Track sent count directly from source
+      });
+    }
+
+    // B. Count Interactions from Events table
+    (events || []).forEach(ev => {
+      // Find which step this message belonged to
+      const stepId = msgToStep[ev.message_id] || 'Manual Email';
+      const s = getStepStats(stepId);
+
+      // Sent is counted via tracking table usually, but if missing, fallback?
+      // We rely on tracking table for 'sent'. Events are for open/click.
+
+      if (ev.event_type === 'opened') s.opened++;
+      else if (ev.event_type === 'clicked') s.clicked++;
+      else if (ev.event_type === 'replied') s.replied++;
     });
 
     res.json({ success: true, steps: Object.values(stepMap) });
@@ -1810,10 +1883,13 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
       return res.status(400).json({ error: 'No event data' });
     }
 
-    const { event, message, recipient, timestamp, user_variables, severity } = eventData;
+    const { event, message, recipient, timestamp, user_variables } = eventData;
     const messageId = message?.headers?.['message-id'];
     const userId = user_variables?.user_id;
     const campaignId = user_variables?.campaign_id;
+
+    // SAFE TIMESTAMP
+    const safeTimestamp = (timestamp && !isNaN(timestamp)) ? new Date(timestamp * 1000).toISOString() : new Date().toISOString();
 
     // 2. Log to Database
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -1821,7 +1897,7 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
         message_id: messageId,
         event_type: event,
         recipient: recipient,
-        timestamp: new Date(timestamp * 1000).toISOString(),
+        timestamp: safeTimestamp,
         user_id: userId,
         campaign_id: campaignId,
         metadata: eventData
@@ -1830,35 +1906,28 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
       console.log('[Mailgun Webhook] Received event (no DB):', event, recipient);
     }
 
-    // 3. SPECIAL LOGIC: Handle Permanent Bounces (Auto-Delete)
-    if (event === 'failed' && severity === 'permanent') {
-      console.log(`[Bounce] Detected permanent fail for ${recipient}. Initiating auto-delete...`);
+    // 3. Handle Failures (Update Status, Do Not Delete)
+    if (event === 'failed' || event === 'bounced' || event === 'complained') {
+      const reason = eventData['delivery-status']?.message || eventData.reason || 'Unknown';
+      console.log(`[Mailgun] Bounce detected for ${recipient}: ${reason}`);
 
-      // Find the lead(s) to cleanup
-      const { data: leadsToDelete } = await supabaseAdmin
-        .from('leads')
-        .select('id, user_id')
-        .eq('email', recipient);
+      const { data: leads } = await supabaseAdmin.from('leads').select('id, user_id').eq('email', recipient);
 
-      if (leadsToDelete && leadsToDelete.length > 0) {
-        for (const lead of leadsToDelete) {
-          // Remove from Active Funnels (Stop future emails)
-          const ownerId = lead.user_id;
-          if (ownerId && typeof marketingStore !== 'undefined') {
-            const followUps = await marketingStore.loadActiveFollowUps(ownerId);
-            if (followUps && followUps.length > 0) {
-              const filtered = followUps.filter(f => f.leadId !== lead.id);
-              if (filtered.length !== followUps.length) {
-                await marketingStore.saveActiveFollowUps(ownerId, filtered);
-                console.log(`[Bounce] Removed lead ${lead.id} from active funnels.`);
-              }
-            }
-          }
+      if (leads && leads.length > 0) {
+        for (const lead of leads) {
+          // Update Status
+          await supabaseAdmin.from('leads').update({ status: 'Bounced' }).eq('id', lead.id);
 
-          // Delete the Lead
-          await supabaseAdmin.from('leads').delete().eq('id', lead.id);
-          console.log(`[Bounce] DELETED lead ${lead.id} (${recipient}) due to bounce.`);
+          // Log Funnel Stats
+          await supabaseAdmin.from('funnel_logs').insert({
+            lead_id: lead.id,
+            agent_id: lead.user_id,
+            action_type: 'Bounced',
+            action_details: { reason, event },
+            status: 'success'
+          });
         }
+        console.log(`[Mailgun] Updated ${leads.length} leads to 'Bounced'.`);
       }
     }
 
@@ -7428,11 +7497,38 @@ app.post('/api/admin/leads/import', async (req, res) => {
         if (intendedFunnel && isEnrollable(intendedFunnel)) {
           try {
             // 1. Get Funnel ID (once per batch ideally, but safe here)
-            const { data: funnelData } = await supabaseAdmin
+            // 1. Try to find Agent-Specific Funnel
+            let { data: funnelData } = await supabaseAdmin
               .from('funnels')
               .select('id, steps')
-              .eq('funnel_key', intendedFunnel) // CORRECTED: Table uses funnel_key, not type
-              .single();
+              .eq('funnel_key', intendedFunnel)
+              .eq('agent_id', user.id)
+              .maybeSingle();
+
+            // 2. Fallback to System Funnel
+            if (!funnelData) {
+              const DEFAULT_AGENT = process.env.DEFAULT_LEAD_USER_ID || '3d16b4d9-a7cd-4820-af02-e58fa8bab4de';
+              const { data: systemFunnel } = await supabaseAdmin
+                .from('funnels')
+                .select('id, steps')
+                .eq('funnel_key', intendedFunnel)
+                // We use .or to find either the default agent OR just in case some legacy data has no agent_id (though constraint prevents)
+                .eq('agent_id', DEFAULT_AGENT)
+                .maybeSingle();
+
+              funnelData = systemFunnel;
+
+              if (!funnelData) {
+                // Final Hail Mary: Just get ANY funnel with this key (if system ID is wrong/changed)
+                const { data: panicFunnel } = await supabaseAdmin
+                  .from('funnels')
+                  .select('id, steps')
+                  .eq('funnel_key', intendedFunnel)
+                  .limit(1)
+                  .maybeSingle();
+                funnelData = panicFunnel;
+              }
+            }
 
             if (funnelData) {
               const firstStep = funnelData.steps?.[0];
@@ -7885,6 +7981,7 @@ app.get('/api/leads/stats', async (req, res) => {
     };
 
     let totalScore = 0;
+    const sourceMap = {};
 
     leads.forEach(lead => {
       const s = (lead.status || 'New');
@@ -7895,6 +7992,8 @@ app.get('/api/leads/stats', async (req, res) => {
       else if (s === 'Contacted') stats.contacted++;
       else if (s === 'Showing') stats.showing++;
       else if (s === 'Lost') stats.lost++;
+      else if (s === 'Bounced') stats.lost++; // Map Bounced to Lost for stats
+      else if (s === 'Unsubscribed') stats.lost++;
 
       // Score stats
       const scoreVal = (lead.score && typeof lead.score === 'object') ? lead.score.totalScore : 0;
@@ -7902,11 +8001,19 @@ app.get('/api/leads/stats', async (req, res) => {
       if (scoreVal > stats.scoreStats.highestScore) stats.scoreStats.highestScore = scoreVal;
 
       // Tiers approximation (could also read from lead.score.tier)
-      if (scoreVal >= 80) stats.scoreStats.hot++;
+      let isHotOrQualified = false;
+      if (scoreVal >= 80) { stats.scoreStats.hot++; isHotOrQualified = true; }
       else if (scoreVal >= 50) stats.scoreStats.warm++;
       else stats.scoreStats.cold++;
 
-      if (s === 'Qualified') stats.scoreStats.qualified++; // Reuse
+      if (s === 'Qualified') { stats.scoreStats.qualified++; isHotOrQualified = true; }
+
+      // Source Stats
+      const sourceRaw = lead.source || 'Unknown';
+      const source = sourceRaw.trim() || 'Unknown';
+      if (!sourceMap[source]) sourceMap[source] = { leadCount: 0, hotCount: 0 };
+      sourceMap[source].leadCount++;
+      if (isHotOrQualified) sourceMap[source].hotCount++;
     });
 
     if (stats.total > 0) {
@@ -7914,7 +8021,14 @@ app.get('/api/leads/stats', async (req, res) => {
       stats.scoreStats.averageScore = Math.round(totalScore / stats.total);
     }
 
-    res.json({ success: true, ...stats });
+    const leadSources = Object.entries(sourceMap).map(([sourceName, data]) => ({
+      sourceName,
+      leadCount: data.leadCount,
+      hotCount: data.hotCount,
+      conversionRate: data.leadCount > 0 ? Math.round((data.hotCount / data.leadCount) * 1000) / 10 : 0
+    })).sort((a, b) => b.leadCount - a.leadCount);
+
+    res.json({ success: true, ...stats, leadSources });
 
   } catch (error) {
     console.error('Lead stats error:', error);
@@ -8244,26 +8358,47 @@ app.get('/api/admin/analytics/overview', async (req, res) => {
     // --- CAMPAIGN COMMAND STATS ---
     let campaignStats = {
       emailsSent: 0,
-      deliveryRate: 100,
+      deliveryRate: 0,
       activeLeads: 0,
       bounced: 0
     };
 
     try {
-      const { count: sentCount, error: logError } = await supabaseAdmin
+      // 1. Sent Count (Funnel Logs) - Case Insensitive & Agent Filtered
+      let sentQuery = supabaseAdmin
         .from('funnel_logs')
         .select('*', { count: 'exact', head: true })
-        .eq('action_type', 'email');
+        .ilike('action_type', 'email');
 
-      const { count: activeCount, error: enrollError } = await supabaseAdmin
-        .from('funnel_enrollments')
+      if (agentId) sentQuery = sentQuery.eq('agent_id', agentId);
+
+      const { count: sentCount, error: logError } = await sentQuery;
+
+      // 2. Active Leads (Enrollments)
+      // 2. Active Leads (Leads in Pipeline - Non-terminal statuses)
+      let activeQuery = supabaseAdmin
+        .from('leads')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
+        .neq('status', 'Bounced')
+        .neq('status', 'Lost')
+        .neq('status', 'Unsubscribed')
+        .neq('status', 'Won');
 
-      const { count: bouncedCount, error: leadError } = await supabaseAdmin
+      if (agentId) activeQuery = activeQuery.eq('agent_id', agentId);
+
+      const { count: activeCount, error: enrollError } = await activeQuery;
+
+      // 3. Bounced Leads
+      let bouncedQuery = supabaseAdmin
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Bounced');
+
+      // leads typically query by user_id or agent_id context. 
+      // Assuming 'user_id' is the owner column in leads table.
+      if (agentId) bouncedQuery = bouncedQuery.eq('user_id', agentId);
+
+      const { count: bouncedCount, error: leadError } = await bouncedQuery;
 
       if (!logError) campaignStats.emailsSent = sentCount || 0;
       if (!enrollError) campaignStats.activeLeads = activeCount || 0;
@@ -13891,122 +14026,129 @@ app.post('/api/sms/send', async (req, res) => {
 const checkFunnelFollowUps = async () => {
   if (!supabaseAdmin) return;
   try {
-    const { data: allFollowUpRows, error } = await supabaseAdmin
-      .from('follow_up_active_store')
-      .select('*');
-
-    if (error) {
-      // Silent fail if table not ready
-      return;
-    }
-    if (!allFollowUpRows || allFollowUpRows.length === 0) return;
-
     const now = new Date();
 
-    for (const row of allFollowUpRows) {
-      const userId = row.user_id;
-      let followUps = row.follow_ups || [];
-      if (!Array.isArray(followUps)) continue;
+    // 1. Fetch DUE Enrollments directly from SQL Table
+    const { data: dueEnrollments, error } = await supabaseAdmin
+      .from('funnel_enrollments')
+      .select('*')
+      .eq('status', 'active')
+      .lte('next_run_at', now.toISOString())
+      .limit(50); // Batch size
 
-      let hasUpdates = false;
+    if (error || !dueEnrollments || dueEnrollments.length === 0) return;
 
-      // Load user's funnel definitions
-      const funnelSequences = await marketingStore.loadSequences(userId);
-      if (!funnelSequences) continue;
+    // 2. Group by Agent to efficienty fetch Funnel Definitions
+    const enrollmentsByAgent = {};
+    dueEnrollments.forEach(e => {
+      if (!enrollmentsByAgent[e.agent_id]) enrollmentsByAgent[e.agent_id] = [];
+      enrollmentsByAgent[e.agent_id].push(e);
+    });
 
-      for (const item of followUps) {
-        // Check if active and due
-        if (item.status === 'active' && item.nextStepDate && new Date(item.nextStepDate) <= now) {
+    // Helper: Parse Delay correctly (supports min, hour, day)
+    const parseDelayMs = (delayStr) => {
+      if (!delayStr) return 0;
+      const s = delayStr.toString().toLowerCase().trim();
+      const num = parseInt(s.match(/\d+/) || ['0'][0]);
+      if (s.includes('hour')) return num * 60 * 60 * 1000;
+      if (s.includes('day')) return num * 24 * 60 * 60 * 1000;
+      // Default to minutes if 'min' or just number? 
+      // Panel default was complicated. Let's assume 'min' if explicitly said, or Days if implicit?
+      // Actually, existing code assumed Days. Let's stick to safe parsing:
+      if (s.includes('min')) return num * 60 * 1000;
+      // Fallback: If just number, assume Days (legacy behavior) OR Minutes?
+      // Most UI sets 'X days'.
+      return num * 24 * 60 * 60 * 1000;
+    };
 
-          try {
+    // 3. Process Per Agent
+    for (const agentId of Object.keys(enrollmentsByAgent)) {
+      // Fetch Funnels
+      const { data: funnels } = await supabaseAdmin
+        .from('funnels')
+        .select('id, steps')
+        .eq('agent_id', agentId);
 
-            // Robust lookup for sequence (Handle Array vs Map)
-            let sequence;
-            if (Array.isArray(funnelSequences)) {
-              sequence = funnelSequences.find(s => s.id === item.sequenceId);
-            } else {
-              sequence = funnelSequences[item.sequenceId];
-            }
+      const funnelMap = {};
+      if (funnels) funnels.forEach(f => funnelMap[f.id] = f);
 
-            const steps = sequence ? sequence.steps : null;
-            const sequenceSignature = sequence ? sequence.signature : null;
+      // Process Enrollments
+      for (const enrollment of enrollmentsByAgent[agentId]) {
+        const funnel = funnelMap[enrollment.funnel_id];
 
-            if (steps && steps[item.currentStepIndex]) {
-              const stepToExecute = steps[item.currentStepIndex];
-
-              // Fetch Lead Details
-              const { data: lead } = await supabaseAdmin
-                .from('leads')
-                .select('*')
-                .eq('id', item.leadId)
-                .single();
-
-              if (lead) {
-                // Execute Step
-                const result = await executeDelayedStep(userId, lead, stepToExecute, sequenceSignature);
-
-                // Advance to Next Step (Always, even if skipped)
-                const nextIndex = item.currentStepIndex + 1;
-                const nextStep = steps[nextIndex];
-
-                // Determine history description
-                let executionDesc = 'Executed Step ' + item.currentStepIndex + ': ' + stepToExecute.type;
-                if (result && result.skipped) {
-                  executionDesc = `Skipped Step ${item.currentStepIndex}: ${stepToExecute.type} (${result.reason})`;
-                }
-
-                if (nextStep) {
-                  let delayMs = 24 * 60 * 60 * 1000;
-                  if (nextStep.delay) {
-                    const parts = nextStep.delay.toString().match(/(\d+)/);
-                    if (parts) delayMs = parseInt(parts[0]) * 24 * 60 * 60 * 1000;
-                  }
-                  item.currentStepIndex = nextIndex;
-                  item.nextStepDate = new Date(now.getTime() + delayMs).toISOString();
-
-                  item.history.push({
-                    id: 'exc-' + Date.now(),
-                    type: result && result.skipped ? 'skipped' : 'execution',
-                    stepId: stepToExecute.id,
-                    description: executionDesc,
-                    date: now.toISOString()
-                  });
-                } else {
-                  item.currentStepIndex = nextIndex; // Move index past end
-                  item.status = 'completed';
-                  item.nextStepDate = null;
-
-                  // Log the final execution status
-                  item.history.push({
-                    id: 'exc-' + Date.now(),
-                    type: result && result.skipped ? 'skipped' : 'execution',
-                    stepId: stepToExecute.id,
-                    description: executionDesc,
-                    date: now.toISOString()
-                  });
-
-                  item.history.push({ type: 'complete', date: now.toISOString() });
-                }
-                hasUpdates = true;
-              }
-            }
-          } catch (err) {
-            console.error('[Scheduler] Failed to execute step for lead ' + item.leadId, err.message);
-          }
+        // If funnel not found (maybe duplicate enrollment or deleted funnel), skip/mark error?
+        if (!funnel || !funnel.steps) {
+          // Optimization: Mark as stopped or log warning?
+          continue;
         }
-      }
 
-      if (hasUpdates) {
-        await marketingStore.saveActiveFollowUps(userId, followUps);
+        const currentIndex = enrollment.current_step_index || 0;
+        const steps = funnel.steps;
+        const stepToExecute = steps[currentIndex];
+
+        if (stepToExecute) {
+          // Fetch Lead
+          const { data: lead } = await supabaseAdmin.from('leads').select('*').eq('id', enrollment.lead_id).single();
+
+          if (lead) {
+            console.log(`[Scheduler] Executing Step ${currentIndex} for Lead ${lead.email}`);
+
+            // EXECUTE
+            try {
+              // Pass funnel.id as sequenceId
+              await executeDelayedStep(agentId, lead, stepToExecute, null, funnel.id);
+            } catch (execErr) {
+              console.error('Execution Failed:', execErr);
+              // Continue to next step? Or retry? 
+              // For now, we advance to ensure no blocks.
+            }
+
+            // CALCULATE NEXT
+            const nextIndex = currentIndex + 1;
+            const nextStep = steps[nextIndex];
+            let updatePayload = {
+              current_step_index: nextIndex,
+              updated_at: new Date().toISOString()
+            };
+
+            if (nextStep) {
+              const delayMs = parseDelayMs(nextStep.delay);
+              // If delay is 0, should we execute immediately? 
+              // For safety, set to now + 1 min or just now?
+              // Setting to now might trigger in next loop.
+              let nextRun = new Date(Date.now() + delayMs);
+              if (delayMs === 0) nextRun = new Date(Date.now() + 1000 * 60); // 1 min buffer for 0 delay
+
+              updatePayload.next_run_at = nextRun.toISOString();
+            } else {
+              updatePayload.status = 'completed';
+              updatePayload.next_run_at = null;
+              console.log(`[Scheduler] Funnel Completed for Lead ${lead.email}`);
+            }
+
+            // UPDATE DB
+            await supabaseAdmin
+              .from('funnel_enrollments')
+              .update(updatePayload)
+              .eq('id', enrollment.id);
+
+          } else {
+            // Lead deleted? Mark stopped.
+            await supabaseAdmin.from('funnel_enrollments').update({ status: 'stopped' }).eq('id', enrollment.id);
+          }
+        } else {
+          // Out of steps?
+          await supabaseAdmin.from('funnel_enrollments').update({ status: 'completed' }).eq('id', enrollment.id);
+        }
       }
     }
 
   } catch (err) {
-    // console.error('[Scheduler] Error checking follow-ups:', err.message);
+    console.error('[Scheduler] Critical Error:', err);
   }
 };
 
-const executeDelayedStep = async (userId, lead, step, signature) => {
+const executeDelayedStep = async (userId, lead, step, signature, sequenceId) => {
   const replaceTokens = (str) => {
     return (str || '')
       .replace(/{{lead.name}}/g, lead.name || 'Client')
@@ -14063,9 +14205,16 @@ const executeDelayedStep = async (userId, lead, step, signature) => {
         text: content,
         html: finalHtml,
         from: process.env.MAILGUN_FROM_EMAIL || 'noreply@homelistingai.app',
-        tags: { type: 'delayed-funnel', user_id: userId, lead_id: lead.id, funnel_step: step.id },
+        tags: { type: 'delayed-funnel', user_id: userId, lead_id: lead.id, funnel_step: step.id, sequence_id: sequenceId },
         options
       });
+
+      // Update Status to 'Contacted' if currently 'New'
+      if (lead.status && lead.status.toLowerCase() === 'new') {
+        await supabaseAdmin.from('leads').update({ status: 'Contacted' }).eq('id', lead.id);
+        console.log(`[Scheduler] Updated lead ${lead.id} status to Contacted.`);
+      }
+
       return { success: true };
     } else {
       console.log(`[Scheduler] Skipping Email for lead ${lead.id}: No email address`);
@@ -14098,6 +14247,13 @@ const executeDelayedStep = async (userId, lead, step, signature) => {
       console.log(`[Scheduler] Skipping AI Call for lead ${lead.id}: No phone number`);
       return { success: false, skipped: true, reason: 'No phone number' };
     }
+  }
+  // Wait Step / Logic Marker
+  else if (type === 'wait' || type === 'condition') {
+    console.log(`[Scheduler] Processed logical step (${type}) for lead ${lead.id}`);
+    // These steps are primarily for timing/logic, which the scheduler handles by checking 'next_run_at'.
+    // If we are here, the wait is over, so we mark success to proceed to the next step.
+    return { success: true };
   }
 
   return { success: false, reason: 'Unknown step type' };

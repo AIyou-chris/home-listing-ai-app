@@ -767,6 +767,7 @@ export interface EditableStep {
     voiceId?: string;
     script?: string;
     transferNumber?: string;
+    callType?: 'agent' | 'sales';
 
     // Automation & Logic
     conditionRule?: string;

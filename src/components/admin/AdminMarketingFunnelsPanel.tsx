@@ -468,8 +468,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                 const funnels = await funnelService.fetchFunnels(currentUserId);
 
-                if (funnels.buyer && funnels.buyer.length > 0) {
-                    setFunnelSteps(funnels.buyer);
+                if (funnels.universal_sales && funnels.universal_sales.length > 0) {
+                    setFunnelSteps(funnels.universal_sales);
                 }
             } catch (error) {
                 console.error('Failed to load funnels:', error);
@@ -523,7 +523,25 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     const handleUpdateStep = (id: string, field: keyof EditableStep, value: string) => {
         setFunnelSteps((prev) =>
-            prev.map((step) => (step.id === id ? { ...step, [field]: value } : step))
+            prev.map((step) => {
+                if (step.id !== id) return step;
+                const updated = { ...step, [field]: value };
+
+                // Auto-update icon based on type for better UX
+                if (field === 'type') {
+                    switch (value) {
+                        case 'Condition': updated.icon = 'alt_route'; break;
+                        case 'Wait': updated.icon = 'hourglass_empty'; break;
+                        case 'Call':
+                        case 'AI Call': updated.icon = 'call'; break;
+                        case 'SMS':
+                        case 'Text': updated.icon = 'sms'; break;
+                        case 'Task': updated.icon = 'assignment_turned_in'; break;
+                        default: updated.icon = 'forward_to_inbox';
+                    }
+                }
+                return updated;
+            })
         );
     };
 
@@ -591,8 +609,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 delayMinutes: parseDelay(step.delay)
             }));
 
-            // Saving to 'buyer' key as the main funnel
-            const result = await funnelService.saveFunnelStep(currentUserId, 'buyer', stepsWithMinutes);
+            // Saving to 'universal_sales' key as the main funnel
+            const result = await funnelService.saveFunnelStep(currentUserId, 'universal_sales', stepsWithMinutes);
             if (result) {
                 setSaveStatus('success');
                 // Removed toast for success as per user request for inline feedback
@@ -846,6 +864,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                         <option value="Call">AI Call</option>
                                                                         <option value="Task">Task</option>
                                                                         <option value="SMS">SMS</option>
+                                                                        <option value="Condition">Condition (If/Then)</option>
+                                                                        <option value="Wait">Wait</option>
                                                                     </select>
                                                                 </div>
                                                             </div>
@@ -1102,6 +1122,85 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                             <button
                                                                                 onClick={onSave}
                                                                                 className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-emerald-700"
+                                                                            >
+                                                                                Save Changes
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ) : step.type === 'Condition' ? (
+                                                                <div className="space-y-4">
+                                                                    <div className="rounded-xl bg-amber-50 border border-amber-100 p-5">
+                                                                        <div className="flex items-center gap-2 mb-4">
+                                                                            <div className="p-2 bg-amber-100 text-amber-600 rounded-lg">
+                                                                                <span className="material-symbols-outlined">alt_route</span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-amber-900">Logic Condition</h4>
+                                                                                <p className="text-xs text-amber-700/80">Branch the funnel based on lead behavior.</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <label className="block text-xs font-semibold text-amber-800 mb-1">
+                                                                            If this happens...
+                                                                        </label>
+                                                                        <select
+                                                                            className="w-full text-sm font-bold text-slate-900 border-amber-200 rounded-lg p-2.5 focus:border-amber-500 bg-white mb-3"
+                                                                            value={step.conditionRule || 'opened_email'}
+                                                                            onChange={(e) => onUpdateStep(step.id, 'conditionRule', e.target.value)}
+                                                                        >
+                                                                            <option value="opened_email">Opened Previous Email</option>
+                                                                            <option value="clicked_link">Clicked Link</option>
+                                                                            <option value="replied">Replied to Email</option>
+                                                                            <option value="no_reply">Did Not Reply</option>
+                                                                            <option value="tag_added">Tag Added</option>
+                                                                        </select>
+
+                                                                        <label className="block text-xs font-semibold text-amber-800 mb-1">
+                                                                            Value / Details (Optional)
+                                                                        </label>
+                                                                        <input
+                                                                            className="w-full text-sm text-slate-900 border-amber-200 rounded-lg p-2.5 focus:border-amber-500 bg-white mb-3"
+                                                                            placeholder="e.g. specific tag or link..."
+                                                                            value={step.conditionValue || ''}
+                                                                            onChange={(e) => onUpdateStep(step.id, 'conditionValue', e.target.value)}
+                                                                        />
+
+                                                                        <div className="mt-2 p-3 bg-white/50 rounded-lg border border-amber-100 text-xs text-amber-700 italic">
+                                                                            Note: Advanced branching logic is maintained by the AI. This step acts as a marker for the decision point.
+                                                                        </div>
+
+                                                                        <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-amber-200/50">
+                                                                            <button
+                                                                                onClick={onSave}
+                                                                                className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-amber-700"
+                                                                            >
+                                                                                Save Changes
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ) : step.type === 'Wait' ? (
+                                                                <div className="space-y-4">
+                                                                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-5">
+                                                                        <div className="flex items-center gap-2 mb-4">
+                                                                            <div className="p-2 bg-slate-200 text-slate-600 rounded-lg">
+                                                                                <span className="material-symbols-outlined">hourglass_empty</span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-slate-900">Wait Step</h4>
+                                                                                <p className="text-xs text-slate-500">Pause the sequence for a specific time.</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="p-4 bg-white rounded-lg border border-slate-200 text-sm text-slate-600">
+                                                                            Please use the <strong>Timing</strong> dropdown at the top of this card to set the wait duration.
+                                                                        </div>
+
+                                                                        <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-slate-200">
+                                                                            <button
+                                                                                onClick={onSave}
+                                                                                className="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold shadow-md hover:bg-slate-900"
                                                                             >
                                                                                 Save Changes
                                                                             </button>
