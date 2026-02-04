@@ -125,6 +125,37 @@ const tools = [
             }
         ],
         layout: 'right-image'
+    },
+    {
+        id: 'marketing',
+        title: 'Marketing Hub',
+        icon: 'campaign',
+        image: '/demo/marketing-hub-mockup.png',
+        headline: 'Your Marketing Command Center',
+        description: 'Track engagement, manage campaigns, and access all your marketing assets in one centralized hub. See what\'s working in real-time.',
+        bullets: [
+            {
+                icon: 'qr_code_scanner',
+                text: 'QR Code tracking \u0026 analytics',
+                subtext: 'See exactly who scans your codes and when—turn every scan into a qualified lead.'
+            },
+            {
+                icon: 'bar_chart',
+                text: 'Real-time performance metrics',
+                subtext: 'Monitor link clicks, profile views, and lead generation across all your campaigns.'
+            },
+            {
+                icon: 'share',
+                text: 'One-click social media promotion',
+                subtext: 'Share your top listings to Facebook, Instagram, and email lists instantly.'
+            },
+            {
+                icon: 'library_books',
+                text: 'Centralized asset library',
+                subtext: 'Access all your marketing materials—flyers, cards, and campaigns—in one place.'
+            }
+        ],
+        layout: 'left-image'
     }
 ];
 
@@ -278,7 +309,12 @@ export const MultiToolShowcase: React.FC = () => {
                         <span className="material-symbols-outlined animate-pulse">visibility</span>
                         See Demo
                     </button>
-                    <button onClick={() => navigate('/signup')} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-purple-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-purple-700 transition-all transform hover:scale-105 active:scale-95 hover:shadow-purple-500/25 ring-offset-2 focus:ring-2 ring-purple-500">
+                    <button onClick={() => {
+                        if (typeof window !== 'undefined' && (window as any).gtag) {
+                            (window as any).gtag('event', 'click_start_free_trial', { event_category: 'conversion', event_label: 'showcase_bottom' });
+                        }
+                        navigate('/signup');
+                    }} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-purple-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-purple-700 transition-all transform hover:scale-105 active:scale-95 hover:shadow-purple-500/25 ring-offset-2 focus:ring-2 ring-purple-500">
                         <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
                         Start Free Trial
                     </button>

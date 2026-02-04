@@ -18,7 +18,7 @@ import PWAInstallModal from './settings/PWAInstallModal';
 import { MarketingHub } from './MarketingHub';
 import { UsageStatsCard } from './dashboard/UsageStatsCard';
 
-import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from '../demoConstants';
+import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_FAT_INTERACTIONS, DEMO_SEQUENCES } from '../demoConstants';
 import {
   BLUEPRINT_PROPERTIES,
   BLUEPRINT_LEADS,
@@ -32,6 +32,8 @@ import { adminLeadsService } from '../services/adminLeadsService'; // Added
 import { listAppointments } from '../services/appointmentsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
 import { securitySettingsService } from '../services/securitySettingsService';
+import { billingSettingsService } from '../services/billingSettingsService';
+import { emailSettingsService } from '../services/emailSettingsService';
 import { notificationSettingsService } from '../services/notificationSettingsService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
@@ -62,7 +64,7 @@ type MarketingSequencesResponse = {
 
 const STATIC_FUNNEL_SECTIONS = [
   {
-    key: 'welcome',
+    key: 'welcome-onboarding',
     badgeIcon: 'thunderstorm',
     badgeClassName: 'bg-teal-50 text-teal-700',
     badgeLabel: 'New Lead Welcome',
@@ -73,7 +75,7 @@ const STATIC_FUNNEL_SECTIONS = [
     saveLabel: 'Save Welcome Sequence'
   },
   {
-    key: 'buyer',
+    key: 'buyers-fast-response',
     badgeIcon: 'bolt',
     badgeClassName: 'bg-indigo-50 text-indigo-700',
     badgeLabel: 'Buyer Nurture',
@@ -84,7 +86,7 @@ const STATIC_FUNNEL_SECTIONS = [
     saveLabel: 'Save Buyer Journey'
   },
   {
-    key: 'listing',
+    key: 'seller-high-touch',
     badgeIcon: 'auto_fix_high',
     badgeClassName: 'bg-purple-50 text-purple-700',
     badgeLabel: 'Seller Nurture',
@@ -95,7 +97,7 @@ const STATIC_FUNNEL_SECTIONS = [
     saveLabel: 'Save Seller Flow'
   },
   {
-    key: 'post-showing',
+    key: 'post-showing-feedback',
     badgeIcon: 'mail',
     badgeClassName: 'bg-amber-50 text-amber-700',
     badgeLabel: 'Showing Follow-Up',
@@ -134,6 +136,7 @@ interface AgentDashboardProps {
   isDemoMode?: boolean;
   isBlueprintMode?: boolean;
   demoListingCount?: number;
+  preloadedProperties?: Property[];
 }
 
 // Helper functions to persist leads across hot reloads and refreshes
@@ -158,7 +161,7 @@ const saveSessionLead = (lead: Lead) => {
   }
 };
 
-const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoMode = false, isBlueprintMode: propIsBlueprintMode = false, demoListingCount = 2 }) => {
+const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoMode = false, isBlueprintMode: propIsBlueprintMode = false, demoListingCount = 2, preloadedProperties }) => {
   // Setup Failsafe: Force Demo Mode if URL implies it
   const isBlueprintMode = propIsBlueprintMode || window.location.pathname.includes('blueprint');
   // Blueprint Mode is a special type of Demo Mode, so always set isDemoMode=true when in Blueprint
@@ -199,8 +202,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       if (session?.user) {
         setCurrentUserId(session.user.id);
       } else if (isDemoMode || window.location.pathname.includes('blueprint')) {
-        // Fallback for Blueprint/Demo mode testing
-        setCurrentUserId('blueprint-agent');
+        // Use a dedicated, ISOLATED Blueprint Identity (Clean Slate)
+        // This UUID is distinct from the Admin/Imported data.
+        setCurrentUserId('55555555-5555-5555-5555-555555555555');
       }
     });
   }, [isDemoMode]);
@@ -251,12 +255,12 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { isImpersonating, stopImpersonating, impersonate } = useImpersonation();
 
-  // Force Impersonation for Blueprint Mode
-  useEffect(() => {
-    if (isBlueprintMode && !isImpersonating) {
-      impersonate('blueprint-agent');
-    }
-  }, [isBlueprintMode, isImpersonating, impersonate]);
+  // Force Impersonation for Blueprint Mode - DISABLED
+  // useEffect(() => {
+  //   if (isBlueprintMode && !isImpersonating) {
+  //     impersonate('blueprint-agent');
+  //   }
+  // }, [isBlueprintMode, isImpersonating, impersonate]);
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = useState(true);
@@ -354,8 +358,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     });
     setTasks((prev) => prev.filter((task) => task.id !== taskId));
   };
-  const [interactions, setInteractions] = useState<Interaction[]>([]);
-  const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
+  const [interactions, setInteractions] = useState<Interaction[]>(isDemoMode ? DEMO_FAT_INTERACTIONS : []);
+  const [sequences, setSequences] = useState<FollowUpSequence[]>(isDemoMode ? DEMO_SEQUENCES : []);
   const [, setIsLeadsLoading] = useState<boolean>(false);
 
   const notifyApiError = useApiErrorNotifier();
@@ -457,10 +461,25 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         console.warn('Failed to load notification settings', error);
       }
     };
+    const loadBillingSettings = async () => {
+      if (isDemoMode || !currentUserId) return;
+      try {
+        // Check if we are using the 'blueprint' user ID or real auth ID
+        // currentUserId is set in a useEffect above based on session
+        const settings = await billingSettingsService.get(currentUserId);
+        if (isMounted && settings) {
+          setBillingSettings(settings);
+        }
+      } catch (error) {
+        console.warn('Failed to load billing settings', error);
+      }
+    };
+
     loadSecuritySettings();
     loadNotificationSettings();
+    loadBillingSettings();
     return () => { isMounted = false; };
-  }, [agentProfile.slug, agentProfile.id, isDemoMode]);
+  }, [agentProfile.slug, agentProfile.id, isDemoMode, currentUserId]);
 
   const handleSaveSecuritySettings = async (settings: SecuritySettings) => {
     setSecuritySettings(settings); // Optimistic
@@ -499,31 +518,87 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       setIsLoadingProperties(true);
 
       try {
-        console.log('DEBUG: loadProperties', { isDemoMode, demoListingCount });
+        console.log('DEBUG: loadProperties', { isDemoMode, demoListingCount, hasPreloaded: !!preloadedProperties });
+
+        // 0. Use Preloaded Properties (Fastest)
+        if (preloadedProperties && preloadedProperties.length > 0 && !isDemoMode && !isBlueprintMode) {
+          console.log("⚡️ Using preloaded properties from App.tsx");
+          let sorted = [...preloadedProperties].sort((a, b) => (b.listedDate && a.listedDate) ? new Date(b.listedDate).getTime() - new Date(a.listedDate).getTime() : 0);
+          setProperties(sorted);
+          setIsLoadingProperties(false);
+          return;
+        }
 
         if (isDemoMode) {
           console.log("DEBUG: Loading Demo Data", { isBlueprintMode });
           if (isBlueprintMode) {
-            setProperties(BLUEPRINT_PROPERTIES);
+            // BLUEPRINT HYBRID MODE: Fetch REAL properties for the Blueprint User (5555...) 
+            // and MERGE them with the static demo properties. 
+            // This allows "Live" testing (saving/loading) while keeping the demo feel.
+            const blueprintId = currentUserId || '55555555-5555-5555-5555-555555555555';
+            try {
+              const realProperties = await listingsService.listProperties(blueprintId);
+              // Combine real properties with static ones (Real ones first to show new adds)
+              // Deduplicate by ID just in case
+              const merged = [...realProperties, ...BLUEPRINT_PROPERTIES.filter(bp => !realProperties.some(rp => rp.id === bp.id))];
+              setProperties(merged);
+            } catch (e) {
+              console.warn("Blueprint fetch failed, falling back to static only:", e);
+              setProperties(BLUEPRINT_PROPERTIES);
+            }
+            setIsLoadingProperties(false);
             return;
           }
           const sliced = DEMO_FAT_PROPERTIES.slice(0, demoListingCount);
           setProperties(sliced.map((property, index) => cloneDemoProperty(property, index)));
+          setIsLoadingProperties(false);
           return;
         }
 
         // Also check Blueprint Mode explicitly if not caught by isDemoMode (since we treat them separately in App.tsx sometimes)
         if (isBlueprintMode) {
-          console.log("DEBUG: Loading Blueprint Data (Explicit)");
-          setProperties(BLUEPRINT_PROPERTIES);
+          const blueprintId = currentUserId || '55555555-5555-5555-5555-555555555555';
+          try {
+            const realProperties = await listingsService.listProperties(blueprintId);
+            const merged = [...realProperties, ...BLUEPRINT_PROPERTIES.filter(bp => !realProperties.some(rp => rp.id === bp.id))];
+            setProperties(merged);
+          } catch (e) {
+            console.warn("Blueprint fetch failed (explicit block), using static:", e);
+            setProperties(BLUEPRINT_PROPERTIES);
+          }
+          setIsLoadingProperties(false);
           return;
         }
 
-        // Get User ID explicitly to ensure filter works
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        // 0. Optimistic Check (Bypass network hang)
+        let resolvedUserId = null;
+        try {
+          const sbKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+          if (sbKey) {
+            const raw = localStorage.getItem(sbKey);
+            if (raw) {
+              const sessionData = JSON.parse(raw);
+              if (sessionData?.user?.id) resolvedUserId = sessionData.user.id;
+            }
+          }
+        } catch (e) { /* ignore */ }
+
+        let userResult;
+        if (resolvedUserId) {
+          console.log("⚡️ Optimistic Dashboard Auth: Using cached ID", resolvedUserId);
+          userResult = { id: resolvedUserId };
+        } else {
+          // Fallback to Network (original logic)
+          const userPromise = supabase.auth.getUser();
+          const authTimeoutPromise = new Promise<{ data: { user: any } }>((_, reject) =>
+            setTimeout(() => reject(new Error('Auth timeout')), 5000)
+          );
+          const { data: { user } } = await Promise.race([userPromise, authTimeoutPromise]);
+          userResult = user;
+        }
+
+        if (!userResult) {
           console.warn("⚠️ No authenticated user found for dashboard listing load.");
-          // If no user, maybe we should not load? Or empty?
           if (isMounted) setProperties([]);
           return;
         }
@@ -534,7 +609,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           timeoutHandle = setTimeout(() => reject(new Error('Property load timeout')), 15000)
         );
 
-        const listPromise = listingsService.listProperties(user.id);
+        const listPromise = listingsService.listProperties(userResult.id);
         const list = await Promise.race([listPromise, timeoutPromise]) as Property[];
 
         // If we won the race, clear the bomb
@@ -584,7 +659,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     return () => {
       isMounted = false;
     };
-  }, [isDemoMode, isBlueprintMode, notifyApiError, demoListingCount]);
+  }, [isDemoMode, isBlueprintMode, notifyApiError, demoListingCount, preloadedProperties]);
 
   useEffect(() => {
     let isMounted = true;
@@ -610,7 +685,23 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     return () => {
       isMounted = false;
     };
-  }, [agentProfile.slug, isDemoMode, notifyApiError]);
+  }, [agentProfile.slug, isDemoMode, notifyApiError, currentUserId]); // Added currentUserId dependency
+
+  const handleUpgradeSubscription = async () => {
+    try {
+      if (!agentProfile.email || !currentUserId) {
+        notifyApiError({ title: 'Upgrade Failed', description: 'Missing account information.', error: null });
+        return;
+      }
+
+      // Show loading state if needed, or simplified button text change
+      // For now, we rely on the redirect behavior
+      const { url } = await billingSettingsService.createCheckoutSession(currentUserId, agentProfile.email);
+      window.location.href = url;
+    } catch (error) {
+      notifyApiError({ title: 'Checkout Failed', description: 'Could not start checkout session.', error });
+    }
+  };
 
   const leadsMountedRef = useRef(true);
 
@@ -716,7 +807,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         if (isBlueprintMode) {
           if (isMounted) setSequences(BLUEPRINT_SEQUENCES);
         } else {
-          if (isMounted) setSequences([]);
+          if (isMounted) setSequences(DEMO_SEQUENCES);
         }
         return;
       }
@@ -822,7 +913,16 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       isDemoMode && !newProperty.id.startsWith('demo-')
         ? { ...newProperty, id: `demo-${Date.now()}` }
         : newProperty;
-    setProperties((prev) => [nextProperty, ...prev]);
+
+    setProperties((prev) => {
+      // Prevent duplicates: If ID exists, update it; otherwise prepend.
+      const exists = prev.some(p => p.id === nextProperty.id);
+      if (exists) {
+        return prev.map(p => p.id === nextProperty.id ? nextProperty : p);
+      }
+      return [nextProperty, ...prev];
+    });
+
     setSelectedPropertyId(nextProperty.id);
     setActiveView('property');
   };
@@ -953,8 +1053,39 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     setSelectedPropertyId(null);
   };
 
-  const handleDeleteLead = (leadId: string) => {
-    setLeads(prev => prev.filter(l => l.id !== leadId));
+  const handleDeleteLead = async (leadId: string) => {
+    if (!window.confirm('Are you sure you want to delete this lead?')) {
+      return;
+    }
+
+    // Store previous state for rollback
+    const previousLeads = leads;
+
+    try {
+      // Optimistic update - remove from UI immediately
+      setLeads(prev => prev.filter(l => l.id !== leadId));
+
+      // Call backend API to actually delete
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/leads/${leadId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete lead: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Lead deleted successfully:', result);
+
+    } catch (error) {
+      console.error('❌ Failed to delete lead:', error);
+      // Rollback on error
+      setLeads(previousLeads);
+      alert('Failed to delete lead. Please try again.');
+    }
   };
 
   const renderMainContent = () => {
@@ -1093,37 +1224,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
               <UsageStatsCard profile={agentProfile} />
               {/* Placeholders or other widgets could go here */}
             </div>
-            {isLoadingProperties && properties.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
-                Loading listings…
-              </div>
-            ) : (
-              <Dashboard
-                agentProfile={agentProfile}
-                properties={properties}
-                leads={leads}
-                appointments={appointments}
-                tasks={tasks}
-                onSelectProperty={handleSelectProperty}
-                onTaskUpdate={handleTaskUpdate}
-                onTaskAdd={handleTaskAdd}
-                onTaskDelete={handleTaskDelete}
-                onViewLeads={(leadId, action, initialTab) => {
-                  handleViewChange('leads');
-                  if (leadId) {
-                    const params = new URLSearchParams();
-                    params.set('tab', 'leads');
-                    params.set('id', leadId);
-                    if (action) params.set('action', action);
-                    if (initialTab) params.set('initialTab', initialTab);
-                    navigate(`?${params.toString()}`, { replace: true });
-                  }
-                }}
-                onViewLogs={() => handleViewChange('ai-interaction-hub')}
-                onViewListings={() => handleViewChange('listings')}
-                onViewAppointments={() => handleViewChange('leads')}
-              />
-            )}
           </div>
         );
       case 'leads':
@@ -1179,6 +1279,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             onCancel={handleBackToListings}
             onSave={handleSaveNewProperty}
             agentProfile={agentProfile}
+            isDemoMode={isDemoMode}
           />
         );
       case 'edit-listing':
@@ -1188,6 +1289,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             onSave={handleSetProperty}
             initialProperty={selectedProperty}
             agentProfile={agentProfile}
+            isDemoMode={isDemoMode}
           />
         ) : (
           <ListingsPage
@@ -1220,7 +1322,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       case 'funnel-analytics':
         return (
           <UniversalFunnelPanel
-            userId={agentProfile.id || 'demo-agent'}
+            userId={currentUserId || agentProfile.id || 'demo-agent'}
             isDemoMode={isDemoMode}
             isBlueprintMode={isBlueprintMode}
             onBackToDashboard={resetToDashboard}
@@ -1255,6 +1357,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           <MarketingHub
             agentProfile={agentProfile}
             properties={properties}
+          isDemoMode={isDemoMode}
           />
         );
 
@@ -1297,6 +1400,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     if (isIntegrated) navigate('/leads?tab=appointments');
     else setActiveView('leads');
   };
+
+  // Placeholder for renderMobileTabs if it's not defined elsewhere
+  const renderMobileTabs = () => null;
 
   return (
     <div className={`flex ${isIntegrated ? 'flex-col min-h-full' : 'h-screen overflow-hidden'} bg-slate-50`}>
@@ -1367,7 +1473,39 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
               </button>
             )}
-            <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
+            {/* TABS HEADER */}
+            {renderMobileTabs()}
+
+            {/* TRIAL BANNER - "THE BRIDGE" */}
+            {billingSettings.planStatus === 'trialing' && !isDemoMode && (
+              <div className="mb-6 mx-4 md:mx-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 text-white shadow-lg relative overflow-hidden animate-fadeIn">
+                {/* Background Decoration */}
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+                <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-32 h-32 bg-purple-400 opacity-10 rounded-full blur-xl"></div>
+
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="material-symbols-outlined text-yellow-300">verified</span>
+                      <h3 className="text-xl font-bold">Founding Member Trial Active</h3>
+                    </div>
+                    <p className="text-white/90 text-sm md:text-base">
+                      Your 3-day full access pass is live. Lock in your <strong>$69/mo</strong> rate (vs $99) before the trial expires.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleUpgradeSubscription}
+                    className="whitespace-nowrap px-6 py-3 bg-white text-indigo-700 font-bold rounded-lg hover:bg-indigo-50 hover:scale-105 transition-all shadow-md flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-xl">rocket_launch</span>
+                    Upgrade Now
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* MAIN LAYOUT */}
+            <div className="flex flex-col lg:flex-row gap-6 h-full overflow-hidden">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-slate-900">{agentProfile.name || 'Agent'}</p>
                 <p className="text-xs text-slate-500">{agentProfile.title}</p>
@@ -1556,6 +1694,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           isOpen={showInstallGuide}
           onClose={() => setShowInstallGuide(false)}
         />
+        <div className="fixed bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full z-[99999] pointer-events-none font-mono">
+          v2.4 - Persistence Fix
+        </div>
       </div>
     </div>
   );

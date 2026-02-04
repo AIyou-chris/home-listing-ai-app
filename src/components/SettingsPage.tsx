@@ -44,6 +44,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     onBackToDashboard,
     onNavigateToAICard,
     userId,
+    isDemoMode = false,
     isBlueprintMode
 }) => {
     const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'identity' | 'calendar' | 'security' | 'billing'>('profile');
@@ -118,10 +119,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     </div>
 
                     <div className="pb-20 md:pb-0">
+                        {isDemoMode && (
+                            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                <div className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined text-amber-600 flex-shrink-0">info</span>
+                                    <div>
+                                        <h4 className="font-semibold text-amber-900 mb-1">Demo Mode - Settings Are View-Only</h4>
+                                        <p className="text-sm text-amber-700">You're viewing demo settings. Changes won't be saved in demo mode.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {activeTab === 'profile' && (
                             <ProfileSettings
                                 userProfile={userProfile}
-                                onSave={onSaveProfile}
+                                onSave={isDemoMode ? async () => { } : onSaveProfile}
                                 onBack={onBackToDashboard}
                                 onNavigateToAICard={onNavigateToAICard}
                             />
@@ -129,14 +141,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                         {activeTab === 'notifications' && (
                             <NotificationSettingsPage
                                 settings={notificationSettings}
-                                onSave={onSaveNotifications}
+                                onSave={isDemoMode ? async () => { } : onSaveNotifications}
                                 onBack={onBackToDashboard}
                             />
                         )}
                         {activeTab === 'email' && (
                             <EmailSettingsPage
                                 settings={emailSettings}
-                                onSave={onSaveEmailSettings}
+                                onSave={isDemoMode ? async () => { } : onSaveEmailSettings}
                                 onBack={onBackToDashboard}
                                 agentSlug={userProfile.slug || userId}
                             />
@@ -147,21 +159,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                         {activeTab === 'calendar' && (
                             <CalendarSettingsPage
                                 settings={calendarSettings}
-                                onSave={onSaveCalendarSettings}
+                                onSave={isDemoMode ? async () => { } : onSaveCalendarSettings}
                                 onBack={onBackToDashboard}
                             />
                         )}
                         {activeTab === 'security' && (
                             <SecuritySettingsPage
                                 settings={securitySettings}
-                                onSaveSettings={onSaveSecuritySettings}
+                                onSaveSettings={isDemoMode ? async () => { } : onSaveSecuritySettings}
                                 onBack={onBackToDashboard}
                             />
                         )}
                         {activeTab === 'billing' && (
                             <BillingSettingsPage
                                 settings={billingSettings}
-                                onSave={onSaveBillingSettings}
+                                onSave={isDemoMode ? async () => { } : onSaveBillingSettings}
                                 onBack={onBackToDashboard}
                                 isBlueprintMode={isBlueprintMode}
                                 agentProfile={userProfile}

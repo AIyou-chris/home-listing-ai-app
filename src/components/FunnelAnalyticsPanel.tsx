@@ -1675,7 +1675,7 @@ const FunnelAnalyticsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                             {sectionExpanded['scoring'] && (
                                 <div className="border-t border-slate-200">
-                                    <AnalyticsPage />
+                                    <AnalyticsPage isDemoMode={isDemoMode} />
                                 </div>
                             )}
                         </div>
