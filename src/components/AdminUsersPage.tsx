@@ -20,6 +20,7 @@ const AdminUsersPage: React.FC = () => {
     const [users, setUsers] = useState<AgentUser[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
     const { impersonate } = useImpersonation();
 
     useEffect(() => {
@@ -62,10 +63,12 @@ const AdminUsersPage: React.FC = () => {
     };
 
     const handleDelete = async (userId: string) => {
-        if (!confirm('Are you sure you want to delete this user? This cannot be undone.')) return;
+        if (!confirm('Are you sure you want to delete this user? This will remove them from Supabase Auth and the email becomes immediately available for reuse.')) return;
 
         try {
-            setLoading(true);
+            setDeletingUserId(userId);
+            setError(null);
+
             const auth = AuthService.getInstance();
             const response = await auth.makeAuthenticatedRequest(`/api/admin/users/${userId}`, {
                 method: 'DELETE'
@@ -76,13 +79,25 @@ const AdminUsersPage: React.FC = () => {
                 throw new Error(err.error || 'Failed to delete user');
             }
 
-            // Refresh list
-            fetchUsers();
+            const result = await response.json();
+            console.log('✅ User deleted successfully:', result);
+
+            // Immediately update UI by filtering out the deleted user
+            setUsers(prevUsers => prevUsers.filter(u => u.auth_user_id !== userId && u.id !== userId));
+
+            // Show success for 3 seconds
+            setError('User deleted successfully! Email is now available for reuse.');
+            setTimeout(() => setError(null), 3000);
+
         } catch (err: unknown) {
-            console.error('Delete error:', err);
+            console.error('❌ Delete error:', err);
             const errorMessage = err instanceof Error ? err.message : 'Failed to delete user';
-            setError(errorMessage);
-            setLoading(false);
+            setError(`Delete failed: ${errorMessage}`);
+
+            // Clear error after 5 seconds
+            setTimeout(() => setError(null), 5000);
+        } finally {
+            setDeletingUserId(null);
         }
     };
 
@@ -106,7 +121,10 @@ const AdminUsersPage: React.FC = () => {
             </div>
 
             {error && (
-                <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                <div className={`mt-4 border px-4 py-3 rounded-lg ${error.includes('successfully')
+                        ? 'bg-green-50 border-green-200 text-green-700'
+                        : 'bg-red-50 border-red-200 text-red-700'
+                    }`}>
                     {error}
                 </div>
             )}
@@ -150,9 +168,10 @@ const AdminUsersPage: React.FC = () => {
                                         const voiceColor = voicePercent >= 90 ? 'bg-red-500' : (voicePercent >= 70 ? 'bg-amber-500' : 'bg-emerald-500');
 
                                         const smsSent = user.sms_sent_monthly || 0;
+                                        const isDeleting = deletingUserId === user.auth_user_id || deletingUserId === user.id;
 
                                         return (
-                                            <tr key={user.id}>
+                                            <tr key={user.id} className={isDeleting ? 'opacity-50' : ''}>
                                                 <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                                                     {user.first_name} {user.last_name}
                                                 </td>
@@ -190,15 +209,17 @@ const AdminUsersPage: React.FC = () => {
                                                 <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                                                     <button
                                                         onClick={() => handleImpersonate(user.auth_user_id)}
-                                                        className="text-primary-600 hover:text-primary-900 font-semibold"
+                                                        disabled={isDeleting}
+                                                        className="text-primary-600 hover:text-primary-900 font-semibold disabled:opacity-50"
                                                     >
                                                         Impersonate<span className="sr-only">, {user.first_name}</span>
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(user.auth_user_id || user.id)}
-                                                        className="ml-4 text-red-600 hover:text-red-900 font-semibold"
+                                                        disabled={isDeleting}
+                                                        className="ml-4 text-red-600 hover:text-red-900 font-semibold disabled:opacity-50"
                                                     >
-                                                        Delete<span className="sr-only">, {user.first_name}</span>
+                                                        {isDeleting ? 'Deleting...' : 'Delete'}<span className="sr-only">, {user.first_name}</span>
                                                     </button>
                                                 </td>
                                             </tr>
