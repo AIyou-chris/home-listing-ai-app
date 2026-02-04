@@ -5214,6 +5214,7 @@ app.post('/api/security/audit', async (req, res) => {
 
 // SECURITY MIDDLEWARE: Verify Admin Access
 const verifyAdmin = async (req, res, next) => {
+  console.log(`[Auth] Admin verification started for: ${req.method} ${req.url}`);
   try {
     // 1. Verify Supabase Token (Strict)
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -5853,42 +5854,52 @@ app.put('/api/admin/users/:userId', async (req, res) => {
 });
 
 // Delete user endpoint
-app.delete('/api/admin/users/:userId', async (req, res) => {
+app.delete('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const adminEmail = req.user?.email || 'Unknown Admin';
+
   try {
-    const { userId } = req.params;
+    console.log(`[Admin] Deletion request for user ${userId} initiated by ${adminEmail}`);
 
-    // SECURITY: Verify Request
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: tokenError } = await supabase.auth.getUser(token);
-    if (tokenError || !user) return res.status(401).json({ error: 'Invalid token' });
-
-    console.log(`[Admin] Deleting user: ${userId} by ${user.email}`);
-
-    // Delete from Supabase Auth (This is the primary record)
+    // 1. Delete from Supabase Auth
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (authError) {
-      console.warn('[Admin] Auth delete warning (may not exist):', authError.message);
+      // Check if it is a "User not found" error, which we can ignore
+      if (authError.status === 404 || authError.message?.toLowerCase().includes('not found')) {
+        console.log(`[Admin] Auth record for ${userId} already gone or not found. Continuing.`);
+      } else {
+        console.warn(`[Admin] Supabase Auth deletion warning for ${userId}: ${authError.message}`);
+      }
+    } else {
+      console.log(`[Admin] Supabase Auth record for ${userId} deleted successfully.`);
     }
 
-    // Explicitly delete from agents table (in case cascade is missing)
-    // We try to match either auth_user_id or id to be sure we catch it.
+    // 2. Delete from agents table 
+    // This is the most important step for the UI
     const { error: agentError } = await supabaseAdmin
       .from('agents')
       .delete()
       .or(`auth_user_id.eq.${userId},id.eq.${userId}`);
 
     if (agentError) {
-      console.error('[Admin] Failed to delete agent record:', agentError);
-      return res.status(500).json({ error: 'Failed to delete agent record' });
+      console.error(`[Admin] Failed to delete agent record for ${userId}:`, agentError);
+      return res.status(500).json({
+        error: 'Failed to delete agent database record',
+        details: agentError.message
+      });
     }
 
-    res.json({ success: true, message: 'User and agent record deleted successfully' });
+    console.log(`[Admin] Agent record for ${userId} deleted successfully.`);
+
+    return res.json({
+      success: true,
+      message: 'User deleted successfully. Their email is now available for new registration.'
+    });
+
   } catch (error) {
-    console.error('Delete user error:', error);
-    res.status(500).json({ error: error.message });
+    console.error(`[Admin] Critical error during user deletion (${userId}):`, error);
+    return res.status(500).json({ error: 'Internal server error during deletion' });
   }
 });
 
