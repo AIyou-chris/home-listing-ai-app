@@ -33,13 +33,14 @@ import { listAppointments } from '../services/appointmentsService';
 import { calendarSettingsService } from '../services/calendarSettingsService';
 import { securitySettingsService } from '../services/securitySettingsService';
 import { billingSettingsService } from '../services/billingSettingsService';
-import { emailSettingsService } from '../services/emailSettingsService';
+
 import { notificationSettingsService } from '../services/notificationSettingsService';
 import { useApiErrorNotifier } from '../hooks/useApiErrorNotifier';
 import { logLeadCaptured, logAppointmentScheduled } from '../services/aiFunnelService';
 import UniversalFunnelPanel from './UniversalFunnelPanel';
 import { initialWelcomeSteps, initialHomeBuyerSteps, initialListingSteps, initialPostShowingSteps } from './constants/funnelDefaults';
 import { useAgentBranding } from '../hooks/useAgentBranding';
+import { showToast } from '../utils/toastService';
 import { SmartTaskService } from '../services/smartTaskService';
 import {
   Property,
@@ -253,7 +254,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   }, [isDemoMode, navigate]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { isImpersonating, stopImpersonating, impersonate } = useImpersonation();
+  const { isImpersonating, stopImpersonating } = useImpersonation();
 
   // Force Impersonation for Blueprint Mode - DISABLED
   // useEffect(() => {
@@ -272,26 +273,29 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
   // Initialize leads with persistence
   const [leads, setLeads] = useState<Lead[]>(() => {
-    if (isDemoMode || isBlueprintMode) {
-      const storageKey = isBlueprintMode ? 'blueprint_leads' : 'demo_leads';
+    if (!(isDemoMode || isBlueprintMode)) return [];
+
+    const storageKey = isBlueprintMode ? 'blueprint_leads' : 'demo_leads';
+    try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {
-          console.error('Failed to parse saved leads', e);
-        }
+        return JSON.parse(saved);
       }
-      return isBlueprintMode ? [] : DEMO_FAT_LEADS;
+    } catch (e) {
+      console.warn('Leads storage unavailable; using defaults.', e);
     }
-    return [];
+
+    return isBlueprintMode ? [] : DEMO_FAT_LEADS;
   });
 
   // Persist leads when they change (debounced slightly to avoid thrashing)
   useEffect(() => {
-    if (isDemoMode || isBlueprintMode) {
-      const storageKey = isBlueprintMode ? 'blueprint_leads' : 'demo_leads';
+    if (!(isDemoMode || isBlueprintMode)) return;
+    const storageKey = isBlueprintMode ? 'blueprint_leads' : 'demo_leads';
+    try {
       localStorage.setItem(storageKey, JSON.stringify(leads));
+    } catch (e) {
+      console.warn('Failed to persist leads to storage (continuing anyway)', e);
     }
   }, [leads, isDemoMode, isBlueprintMode]);
 
@@ -302,7 +306,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     try {
       const saved = localStorage.getItem('completed_smart_tasks');
       return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
+    } catch (e) {
+      console.warn('Task storage unavailable; starting clean.', e);
       return new Set();
     }
   });
@@ -327,7 +332,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
   // Persist Completed Tasks
   useEffect(() => {
-    localStorage.setItem('completed_smart_tasks', JSON.stringify(Array.from(completedTaskIds)));
+    try {
+      localStorage.setItem('completed_smart_tasks', JSON.stringify(Array.from(completedTaskIds)));
+    } catch (e) {
+      console.warn('Failed to persist smart task state (continuing)', e);
+    }
   }, [completedTaskIds]);
 
   const handleTaskUpdate = (taskId: string, updates: Partial<AgentTask>) => {
@@ -523,7 +532,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         // 0. Use Preloaded Properties (Fastest)
         if (preloadedProperties && preloadedProperties.length > 0 && !isDemoMode && !isBlueprintMode) {
           console.log("⚡️ Using preloaded properties from App.tsx");
-          let sorted = [...preloadedProperties].sort((a, b) => (b.listedDate && a.listedDate) ? new Date(b.listedDate).getTime() - new Date(a.listedDate).getTime() : 0);
+          const sorted = [...preloadedProperties].sort((a, b) => (b.listedDate && a.listedDate) ? new Date(b.listedDate).getTime() - new Date(a.listedDate).getTime() : 0);
           setProperties(sorted);
           setIsLoadingProperties(false);
           return;
@@ -590,6 +599,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
         } else {
           // Fallback to Network (original logic)
           const userPromise = supabase.auth.getUser();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const authTimeoutPromise = new Promise<{ data: { user: any } }>((_, reject) =>
             setTimeout(() => reject(new Error('Auth timeout')), 5000)
           );
@@ -659,7 +669,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     return () => {
       isMounted = false;
     };
-  }, [isDemoMode, isBlueprintMode, notifyApiError, demoListingCount, preloadedProperties]);
+  }, [isDemoMode, isBlueprintMode, notifyApiError, demoListingCount, preloadedProperties, currentUserId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -942,16 +952,14 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     if (!id.startsWith('demo-') && !id.startsWith('prop-demo-') && !id.startsWith('preview-') && !id.startsWith('blueprint-')) {
       try {
         await listingsService.deleteProperty(id);
+        showToast.success('Listing deleted successfully');
       } catch (error) {
-        notifyApiError({
-          title: 'Could not delete property',
-          description: 'The listing is still here. Please try again in a moment.',
-          error
-        });
-        if (removedProperty) {
-          setProperties((prev) => [removedProperty, ...prev]);
-        }
+        console.error('DELETE PROPERTY ERROR:', error);
+        setProperties(prev => [...prev, removedProperty!].filter(Boolean) as Property[]);
+        showToast.error('Delete failed. Try again.');
       }
+    } else {
+      showToast.success('Demo listing removed');
     }
   };
 
@@ -1084,7 +1092,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       console.error('❌ Failed to delete lead:', error);
       // Rollback on error
       setLeads(previousLeads);
-      alert('Failed to delete lead. Please try again.');
+      showToast.error('Failed to delete lead. Please try again.');
     }
   };
 
@@ -1357,7 +1365,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           <MarketingHub
             agentProfile={agentProfile}
             properties={properties}
-          isDemoMode={isDemoMode}
+            isDemoMode={isDemoMode}
           />
         );
 
