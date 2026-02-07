@@ -310,7 +310,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem('completed_smart_tasks');
-      return saved ? new Set(JSON.parse(saved)) : new Set();
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? new Set(parsed) : new Set();
+      }
+      return new Set();
     } catch (e) {
       console.warn('Task storage unavailable; starting clean.', e);
       return new Set();
