@@ -146,7 +146,11 @@ const SESSION_STORAGE_KEY = 'blueprint_session_leads';
 const getSessionLeads = (): Lead[] => {
   try {
     const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+    return [];
   } catch {
     return [];
   }
