@@ -279,7 +279,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
       }
     } catch (e) {
       console.warn('Leads storage unavailable; using defaults.', e);
