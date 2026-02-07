@@ -7,6 +7,7 @@ import PublicPropertyApp from './PublicPropertyApp';
 import { listingsService, type CreatePropertyInput } from '../services/listingsService';
 import { uploadListingPhoto } from '../services/listingMediaService';
 import { useAgentBranding } from '../hooks/useAgentBranding';
+import { showToast } from '../utils/toastService';
 
 interface AddListingPageProps {
     onCancel: () => void;
@@ -14,12 +15,13 @@ interface AddListingPageProps {
     onPreview?: () => void;
     initialProperty?: Property | null;
     agentProfile?: AgentProfile | null;
+    isDemoMode?: boolean;
 }
 
 const inputClasses = "w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition mb-1";
 const labelClasses = "block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 ml-1";
 
-const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initialProperty, agentProfile }) => {
+const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initialProperty, agentProfile, isDemoMode = false }) => {
     const { uiProfile } = useAgentBranding();
     const mergedAgentProfile = useMemo<AgentProfile>(() => {
         const baseProfile = agentProfile ?? uiProfile ?? SAMPLE_AGENT;
@@ -59,7 +61,6 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [showSuccessToast, setShowSuccessToast] = useState(false);
 
     // Sync contact mode if URL is present vs empty
     useEffect(() => {
@@ -88,7 +89,7 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
             setFormData(prev => ({ ...prev, description: text }));
         } catch (error) {
             console.error(error);
-            alert('Failed to generate description. Please ensure you have entered an address and basic details.');
+            showToast.error('Failed to generate description. Please ensure you have entered an address and basic details.');
         } finally {
             setIsGenerating(false);
         }
@@ -179,7 +180,11 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         setFormData(prev => {
             const next = { ...prev, [name]: value };
             // Auto-save to local storage for crash/refresh recovery
-            localStorage.setItem('listing_draft_data', JSON.stringify(next));
+            try {
+                localStorage.setItem('listing_draft_data', JSON.stringify(next));
+            } catch (e) {
+                // Ignore quota errors for auto-save
+            }
             return next;
         });
     };
@@ -236,7 +241,11 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
 
                 const nextState = { ...prev, heroPhotos: newPhotos };
                 // Auto-save photos to draft immediately
-                localStorage.setItem('listing_draft_data', JSON.stringify(nextState));
+                try {
+                    localStorage.setItem('listing_draft_data', JSON.stringify(nextState));
+                } catch (e) {
+                    console.warn('Draft save failed (photos likely too large for storage)');
+                }
                 return nextState;
             });
         } catch (error) {
@@ -263,6 +272,37 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
         setIsSaving(true);
 
         try {
+            // DEMO MODE: Block all backend saves
+            if (isDemoMode) {
+                console.log('[Demo Mode] Save blocked - creating local preview only');
+                const previewProperty = generatePreviewProperty();
+
+                // Update local state immediately
+                setFormData(prev => {
+                    const next = { ...prev, id: previewProperty.id };
+                    try {
+                        localStorage.setItem('listing_draft_data', JSON.stringify(next));
+                    } catch (e) {
+                        console.warn('Failed to save draft to localStorage (likely quota exceeded):', e);
+                    }
+                    return next;
+                });
+
+                // Show success and return to parent
+                setIsSaving(false);
+                showToast.success('Listing saved successfully!');
+                setTimeout(() => {
+                    try {
+                        localStorage.removeItem('listing_draft_data');
+                    } catch (e) {
+                        console.warn('Failed to clear draft:', e);
+                    }
+                    onSave(previewProperty);
+                }, 1500);
+                return;
+            }
+
+            // PRODUCTION MODE: Full backend save
             // Ensure we have a valid agent ID for potential backend requirements in demo mode
             // We'll trust the service to handle auth headers, but if we need to pass it explicitly:
             // The error 'Agent must be signed in' usually comes from the backend checking req.user or similar.
@@ -303,25 +343,31 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 agentSnapshot: formData.agent
             }
 
-            // DEMO MODE BYPASS: ALL SAVES GO TO REAL BACKEND NOW
-            // This ensures photos and edits persist.
-
             const isTempId = (id?: string | null) => !id || id.startsWith('blueprint-') || id.startsWith('demo-');
             const activeId = formData.id;
 
             // Logic: Update if we have a valid ID in our form state (restored or initial) that isn't a template
             const shouldUpdate = activeId && !isTempId(activeId);
 
-            console.log('[Listing Save]', {
-                activeId,
-                isTempId: isTempId(activeId),
-                shouldUpdate,
-                action: shouldUpdate ? 'UPDATE' : 'CREATE'
-            });
+            console.log('[Listing Save] ========== SAVE DEBUG ==========');
+            console.log('[Listing Save] formData.id:', formData.id);
+            console.log('[Listing Save] activeId:', activeId);
+            console.log('[Listing Save] isTempId:', isTempId(activeId));
+            console.log('[Listing Save] shouldUpdate:', shouldUpdate);
+            console.log('[Listing Save] Action:', shouldUpdate ? 'UPDATE' : 'CREATE');
+            console.log('[Listing Save] Payload keys:', Object.keys(payload));
+            console.log('[Listing Save] =====================================');
 
-            const saved = shouldUpdate
-                ? await listingsService.updateProperty(activeId!, payload)
-                : await listingsService.createProperty(payload);
+            let saved;
+            try {
+                saved = shouldUpdate
+                    ? await listingsService.updateProperty(activeId!, payload)
+                    : await listingsService.createProperty(payload);
+                console.log('[Listing Save] ✅ SUCCESS:', saved);
+            } catch (err) {
+                console.error('[Listing Save] ❌ FAILED:', err);
+                throw err;
+            }
 
             // CRITICAL FIX: Immediately update local state with the REAL ID
             // This ensures that if the user clicks Save again (or refreshes), we know it's an existing listing.
@@ -331,32 +377,23 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 return next;
             });
 
-            // Show Success Toast for Real Save too
             setIsSaving(false);
-            setShowSuccessToast(true);
+            showToast.success('Listing saved successfully!');
             setTimeout(() => {
                 // Now we are safe to clear the draft as we exit
                 localStorage.removeItem('listing_draft_data');
                 onSave(saved);
-            }, 2500);
+            }, 1500);
 
         } catch (error) {
             console.error('Error saving listing:', error);
-            alert('Failed to save listing.');
+            showToast.error('Failed to save listing.');
             setIsSaving(false);
         }
     };
 
     return (
         <>
-            {showSuccessToast && (
-                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <span className="bg-emerald-500 rounded-full p-1 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-sm font-bold text-white">check</span>
-                    </span>
-                    <span className="font-semibold text-sm">Listing Saved Successfully</span>
-                </div>
-            )}
             {isPreviewing && (
                 <PublicPropertyApp
                     property={generatePreviewProperty()}
@@ -412,6 +449,18 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                         <h1 className="text-3xl font-bold text-slate-900 mb-2">Build AI Listing</h1>
                         <p className="text-slate-500">Streamlined editor for your immersive property feed.</p>
                     </div>
+
+                    {isDemoMode && (
+                        <div className="mb-6 px-4 sm:px-0">
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                                <span className="material-symbols-outlined text-amber-600 mt-0.5">info</span>
+                                <div className="flex-1">
+                                    <p className="text-sm font-medium text-amber-900">Demo Mode Active</p>
+                                    <p className="text-xs text-amber-700 mt-1">Changes are preview-only and won't be saved to the backend.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="mb-10 px-4 sm:px-0">
                         <PageTipBanner
