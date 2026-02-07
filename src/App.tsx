@@ -15,6 +15,8 @@ import SignInPage from './components/SignInPage';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
 import CheckoutPage from './components/CheckoutPage';
+import { Toaster } from 'react-hot-toast';
+import { showToast } from './utils/toastService';
 import { getRegistrationContext } from './services/agentOnboardingService';
 
 import AgentDashboard from './components/AgentDashboard';
@@ -44,7 +46,7 @@ import { getProfileForDashboard, subscribeToProfileChanges } from './services/ag
 // Lazy load admin components for better performance
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
 const AdminLogin = lazy(() => import('./components/AdminLogin'));
-const AdminDashboard = lazy(() => import('./admin-dashboard/AdminDashboard'));
+import AdminDashboard from './admin-dashboard/AdminDashboard';
 const LeadDetailDashboard = lazy(() => import('./admin-dashboard/LeadDetailDashboard'));
 
 
@@ -295,127 +297,6 @@ const App: React.FC = () => {
 
 
 
-        const initAuth = async () => {
-            // Safety timeout to prevent infinite loading screen
-            const safetyTimeout = setTimeout(() => {
-                console.warn('⚠️ Auth check timed out. Forcing app load.');
-                setIsLoading(false);
-            }, 5000);
-
-            // Check URL path immediately
-            const currentPath = window.location.pathname;
-            console.log('📍 Initial Route:', currentPath);
-
-            // Fast path for public routes - DO NOT BLOCK
-            const isPublicRoute =
-                currentPath === '/' ||
-                currentPath === '/landing' ||
-                currentPath === '/signin' ||
-                currentPath === '/signup' ||
-                currentPath === '/forgot-password' ||
-                currentPath === '/reset-password' ||
-                currentPath.startsWith('/store/') ||
-                currentPath.startsWith('/checkout') || // Critical for checkout flow
-                currentPath.includes('/demo-') ||
-                currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard');
-
-            // Force Blueprint Mode handling if on that route specifically
-            if (currentPath.includes('blueprint')) {
-                if (!isBlueprintMode) handleEnterBlueprintMode();
-            }
-
-            if (isPublicRoute) {
-
-                // We typically just let the router handle the view based on URL,
-                // but for compatibility we set 'view' for the old renderer if needed
-                if (currentPath.startsWith('/checkout')) {
-                    // Do nothing, let router render Outlet
-                } else if (currentPath === '/signup') {
-                    setView('signup');
-                } else if (currentPath === '/signin') {
-                    setView('signin');
-                }
-            } else {
-                // If protected route, show loading briefly while we check session
-                setIsLoading(true);
-            }
-
-            try {
-                // 1. Check Local Session FIRST (Fastest)
-                console.log('🔍 Checking session...');
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-                console.log('🔍 Session check complete. User:', session?.user?.email);
-
-                if (sessionError) throw sessionError;
-
-                if (session?.user) {
-                    console.log(`✅ Session found for: ${session.user.email}`);
-                    const currentUser: AppUser = {
-                        uid: session.user.id,
-                        id: session.user.id,
-                        email: session.user.email,
-                        displayName: session.user.user_metadata?.name ?? null,
-                        created_at: session.user.created_at
-                    };
-
-                    setUser(currentUser);
-
-                    // 2. Admin Check Priority
-                    // If we are attempting to access an Admin route, we MUST wait for the admin check
-                    // otherwise the route protection will kick us out (isAdmin defaults to false).
-                    if (currentPath.startsWith('/admin')) {
-                        console.log('⏳ Awaiting admin check for admin route...');
-                        // Add timeout dynamically for this specific await if needed, but the outer safety covers it
-                        await loadUserData(currentUser);
-                    } else {
-                        // For regular dashboard, load async to unblock UI
-                        loadUserData(currentUser);
-                    }
-
-                    // Route Protection Logic
-                    if (currentPath === '/signin' || currentPath === '/signup' || currentPath === '/') {
-                        // Redirect logged-in users away from auth pages
-                        // EXCEPTION: If the user just signed up (created_at is very recent), let SignUpPage handle the Next step
-                        const isNewUser = currentUser.created_at && (new Date().getTime() - new Date(currentUser.created_at).getTime() < 60000);
-
-                        if (currentPath === '/signup' && isNewUser) {
-                            console.log('🆕 New user detected on signup page. Allowing signup flow to continue.');
-                            clearTimeout(safetyTimeout);
-                            return;
-                        }
-
-                        // Check for specific redirect (scenarios like "Finish Signup")
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const next = urlParams.get('next'); // e.g. /checkout
-                        if (next) {
-                            navigate(next);
-                        } else {
-                            navigate('/dashboard');
-                        }
-                    }
-                    // ELSE: Stay on current path (e.g. /admin-dashboard)
-
-                } else {
-                    // No Session
-                    console.log('👤 No active session.');
-                    setUser(null);
-
-                    // Redirect protected routes to signin
-                    if (!isPublicRoute) {
-                        console.log('🔒 Protected route accessed without session. Redirecting to signin.');
-                        // Store return url?
-                        navigate('/signin');
-                    }
-                }
-
-            } catch (error) {
-                console.error("❌ Auth Init Error:", error);
-            } finally {
-                clearTimeout(safetyTimeout);
-                setIsLoading(false);
-            }
-        };
-
         // Separate function to load heavy data without blocking UI
         const loadUserData = async (currentUser: AppUser) => {
             try {
@@ -513,6 +394,169 @@ const App: React.FC = () => {
             }
         };
 
+        const initAuth = async () => {
+            // Safety timeout to prevent infinite loading screen
+            const safetyTimeout = setTimeout(() => {
+                console.warn('⚠️ Auth check timed out. Forcing app load.');
+                setIsLoading(false);
+            }, 5000);
+
+            // Check URL path immediately
+            const currentPath = window.location.pathname;
+            console.log('📍 Initial Route:', currentPath);
+
+            // Fast path for public routes - DO NOT BLOCK
+            const isPublicRoute =
+                currentPath === '/' ||
+                currentPath === '/landing' ||
+                currentPath === '/signin' ||
+                currentPath === '/signup' ||
+                currentPath === '/forgot-password' ||
+                currentPath === '/reset-password' ||
+                currentPath.startsWith('/store/') ||
+                currentPath.startsWith('/checkout') || // Critical for checkout flow
+                currentPath.includes('/demo-') ||
+                currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard');
+
+            // Force Blueprint Mode handling if on that route specifically
+            if (currentPath.includes('blueprint')) {
+                if (!isBlueprintMode) handleEnterBlueprintMode();
+            }
+
+            if (isPublicRoute) {
+
+                // We typically just let the router handle the view based on URL,
+                // but for compatibility we set 'view' for the old renderer if needed
+                if (currentPath.startsWith('/checkout')) {
+                    // Do nothing, let router render Outlet
+                } else if (currentPath === '/signup') {
+                    setView('signup');
+                } else if (currentPath === '/signin') {
+                    setView('signin');
+                }
+            } else {
+                // If protected route, show loading briefly while we check session
+                setIsLoading(true);
+            }
+
+            try {
+                // 0. OPTIMISTIC CHECK: Look in LocalStorage before waiting for network
+                // This prevents the 5s wait if the user was previously logged in.
+                try {
+                    const sbKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+                    if (sbKey) {
+                        const raw = localStorage.getItem(sbKey);
+                        if (raw) {
+                            const sessionData = JSON.parse(raw);
+                            if (sessionData?.user?.id) {
+                                console.log('⚡️ Optimistic Auth: User found in local storage');
+                                const optimisticUser: AppUser = {
+                                    uid: sessionData.user.id,
+                                    id: sessionData.user.id,
+                                    email: sessionData.user.email,
+                                    displayName: sessionData.user.user_metadata?.name ?? null,
+                                    created_at: sessionData.user.created_at
+                                };
+                                // Update State immediately
+                                setUser(optimisticUser);
+
+                                // CRITICAL for Admin routes: Do NOT unblock UI yet if we are heading to /admin.
+                                // We MUST wait for the official admin check to prevent the 'flash' redirect to agent dashboard.
+                                if (!currentPath.startsWith('/admin')) {
+                                    setIsLoading(false);
+                                }
+                                clearTimeout(safetyTimeout);
+
+                                // We still let the network check run below to verify validity, 
+                                // but the user is already seeing the app!
+                            }
+                        }
+                    }
+                } catch (e) { console.warn('Optimistic check failed', e); }
+
+                // 1. Check Local Session (Network Validation)
+                console.log('🔍 Checking session (Network Validation)...');
+                const sessionPromise = supabase.auth.getSession();
+
+                // Add a small timeout race for the network check too, just in case
+                const { data: { session }, error: sessionError } = await Promise.race([
+                    sessionPromise,
+                    new Promise<{ data: { session: any }, error: any }>((resolve) => setTimeout(() => resolve({ data: { session: null }, error: null }), 3000))
+                ]);
+
+                console.log('🔍 Network Session check complete. User:', session?.user?.email);
+
+                if (sessionError) throw sessionError;
+
+                if (session?.user) {
+                    console.log(`✅ Session found for: ${session.user.email}`);
+                    const currentUser: AppUser = {
+                        uid: session.user.id,
+                        id: session.user.id,
+                        email: session.user.email,
+                        displayName: session.user.user_metadata?.name ?? null,
+                        created_at: session.user.created_at
+                    };
+
+                    setUser(currentUser);
+
+                    // 2. Admin Check Priority
+                    // If we are attempting to access an Admin route, we MUST wait for the admin check
+                    // otherwise the route protection will kick us out (isAdmin defaults to false).
+                    if (currentPath.startsWith('/admin')) {
+                        console.log('⏳ Awaiting admin check for admin route...');
+                        // Add timeout dynamically for this specific await if needed, but the outer safety covers it
+                        await loadUserData(currentUser);
+                    } else {
+                        // For regular dashboard, load async to unblock UI
+                        loadUserData(currentUser);
+                    }
+
+                    // Route Protection Logic
+                    if (currentPath === '/signin' || currentPath === '/signup' || currentPath === '/') {
+                        // Redirect logged-in users away from auth pages
+                        // EXCEPTION: If the user just signed up (created_at is very recent), let SignUpPage handle the Next step
+                        const isNewUser = currentUser.created_at && (new Date().getTime() - new Date(currentUser.created_at).getTime() < 60000);
+
+                        if (currentPath === '/signup' && isNewUser) {
+                            console.log('🆕 New user detected on signup page. Allowing signup flow to continue.');
+                            clearTimeout(safetyTimeout);
+                            return;
+                        }
+
+                        // Check for specific redirect (scenarios like "Finish Signup")
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const next = urlParams.get('next'); // e.g. /checkout
+                        if (next) {
+                            navigate(next);
+                        } else {
+                            navigate('/dashboard');
+                        }
+                    }
+                    // ELSE: Stay on current path (e.g. /admin-dashboard)
+
+                } else {
+                    // No Session
+                    console.log('👤 No active session.');
+                    setUser(null);
+
+                    // Redirect protected routes to signin
+                    if (!isPublicRoute) {
+                        console.log('🔒 Protected route accessed without session. Redirecting to signin.');
+                        // Store return url?
+                        navigate('/signin');
+                    }
+                }
+
+            } catch (error) {
+                console.error("❌ Auth Init Error:", error);
+            } finally {
+                clearTimeout(safetyTimeout);
+                setIsLoading(false);
+            }
+        };
+
+
         initAuth();
 
         // Listen for auth changes (Sign In / Sign Out / Token Refresh)
@@ -531,7 +575,10 @@ const App: React.FC = () => {
                     setUser(currentUser);
 
                     // IMMEDIATE ADMIN CHECK (Redundant but fast)
+                    const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
                     const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+                    if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
+
                     if (session.user.email && adminEmails.includes(session.user.email.toLowerCase())) {
                         console.log("👮 Fast Admin Check Passed");
                         setIsAdmin(true);
@@ -551,6 +598,7 @@ const App: React.FC = () => {
                 setUserProfile(SAMPLE_AGENT);
                 setIsAdmin(false);
                 setProperties([]);
+                localStorage.removeItem('hlai_impersonated_user_id'); // Clear impersonation
                 navigate('/');
             }
         });
@@ -563,22 +611,45 @@ const App: React.FC = () => {
 
     // --- FORCE ADMIN REDIRECT ---
     // If we are detected as Admin, but not on an admin page, GO TO ADMIN DASHBOARD.
+    // --- FORCE ADMIN REDIRECT ---
+    // If we are detected as Admin, but not on an admin page, GO TO ADMIN DASHBOARD.
     useEffect(() => {
         if (isAdmin) {
             const path = location.pathname;
             const isPublicDetails = path.startsWith('/listing/') || path.startsWith('/store/') || path.startsWith('/card/') || path.startsWith('/p/') || path.startsWith('/compliance') || path.startsWith('/dmca');
-            const isPublicRoot = path === '/' || path === '/landing' || path.includes('demo');
+            const isPublicRoot = path === '/' || path === '/landing' || path.includes('/demo-');
 
             if (!path.startsWith('/admin') && path !== '/admin-login' && !isPublicDetails && !isPublicRoot) {
                 console.log("👮 Admin detected on protected agent page (" + path + "). Redirecting...");
                 navigate('/admin-dashboard', { replace: true });
             }
+        } else if (location.pathname.startsWith('/admin') && location.pathname !== '/admin-login') {
+            // Safety: If NOT admin but on admin page, kick out
+            console.warn("⛔️ Accessing admin page without admin privileges. Redirecting.");
+            if (user) {
+                // If logged in but not admin, maybe regular dashboard?
+                navigate('/dashboard', { replace: true });
+            } else {
+                navigate('/admin-login', { replace: true });
+            }
         }
-    }, [isAdmin, location.pathname, navigate]);
+    }, [isAdmin, user, location.pathname, navigate]);
+
+    // --- FORCE AUTH REDIRECT ---
+    // If user is logged in but on a public auth page (Signin/Signup), redirect to Dashboard.
+    useEffect(() => {
+        if (user && !isLoading) {
+            const path = location.pathname;
+            if (path === '/signin' || path === '/signup') {
+                console.log("✅ User authenticated on auth page. Redirecting to dashboard...");
+                navigate('/dashboard', { replace: true });
+            }
+        }
+    }, [user, isLoading, location.pathname, navigate]);
 
     // Load centralized agent profile and set up real-time updates
     useEffect(() => {
-        if (user && !isDemoMode) {
+        if (user && !isDemoMode && !isAdmin) {
             // Load centralized agent profile
             loadAgentProfile();
 
@@ -603,7 +674,7 @@ const App: React.FC = () => {
                 unsubscribe();
             };
         }
-    }, [user, isDemoMode]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user, isDemoMode, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleNavigateToSignUp = () => navigate('/signup');
     const handleNavigateToSignIn = () => navigate('/signin');
@@ -617,6 +688,14 @@ const App: React.FC = () => {
         try {
             setIsProfileLoading(true);
             const profileData = await getProfileForDashboard();
+
+            // SECURITY: If we have been identified as an admin while this was loading, 
+            // DO NOT overwrite the System Administrator profile with a personal agent profile.
+            if (isAdmin) {
+                console.log('👮 Admin detected during profile load. Skipping agent profile overwrite.');
+                return;
+            }
+
             setUserProfile(prev => ({
                 ...prev,
                 name: profileData.name,
@@ -769,6 +848,8 @@ const App: React.FC = () => {
 
             setIsAdminLoginOpen(false);
             setIsAdmin(true); // Manually set admin for this session (RPC verified)
+            // CRITICAL: Clear any leftover impersonation state to ensure we enter Admin Dashboard cleanly
+            localStorage.removeItem('hlai_impersonated_user_id');
             navigate('/admin-dashboard');
         } catch (error) {
             console.error('Admin login failed', error);
@@ -858,11 +939,13 @@ const App: React.FC = () => {
 
     const handleDeleteProperty = (id: string) => {
         if (window.confirm('Are you sure you want to delete this listing?')) {
+            const removedProperty = properties.find(p => p.id === id);
             setProperties(prev => prev.filter(p => p.id !== id));
             if (selectedPropertyId === id) {
                 setSelectedPropertyId(null);
                 setView('listings');
             }
+            showToast.success('Listing removed successfully');
         }
     };
 
@@ -873,16 +956,9 @@ const App: React.FC = () => {
             propertyOverride?: Property
         ) => {
             try {
-                const sequenceService = SequenceExecutionService.getInstance();
-                await sequenceService.triggerSequences(
-                    triggerType,
-                    {
-                        lead,
-                        agent: userProfile || SAMPLE_AGENT,
-                        property: propertyOverride ?? resolvePropertyForLead(lead)
-                    },
-                    sequences
-                );
+                // [MIGRATION] Client-side execution disabled. Architecture moved to Server (funnelExecutionService.js)
+                // const sequenceService = SequenceExecutionService.getInstance();
+                console.log(`✅ [Backend] Sequence trigger requested for: ${triggerType} (Handled by Server)`);
                 console.log(`✅ ${triggerType} sequences triggered for:`, lead.name);
             } catch (error) {
                 console.error('❌ Error triggering sequences:', error);
@@ -988,11 +1064,13 @@ const App: React.FC = () => {
                             lead: updatedLead,
                             agent: userProfile
                         };
-                        await SequenceExecutionService.getInstance().triggerSequences(
-                            triggerType,
-                            sequenceContext,
-                            sequences
-                        );
+                        // [MIGRATION] Client-side execution disabled.
+                        // await SequenceExecutionService.getInstance().triggerSequences(
+                        //     triggerType,
+                        //     sequenceContext,
+                        //     sequences
+                        // );
+                        console.log('✅ [Backend] Lead status change automation handled by server');
                     }
                 } catch (automationError) {
                     console.error('Failed to trigger automation:', automationError);
@@ -1009,16 +1087,37 @@ const App: React.FC = () => {
 
     const handleDeleteLead = useCallback(async (leadId: string) => {
         if (window.confirm('Are you sure you want to delete this lead?')) {
+            // Store previous state for rollback
+            const previousLeads = leads;
+
             try {
                 // Optimistic update
                 setLeads(prev => prev.filter(l => l.id !== leadId));
-                // Call service if strictly needed, but for now local/demo state is primary or service is mock
-                // await leadsService.delete(leadId); 
+
+                // Call backend API to actually delete
+                const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/leads/${leadId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionStorage.getItem('access_token') || ''}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to delete lead: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                console.log('✅ Lead deleted successfully:', result);
+                showToast.success('Lead removed successfully');
             } catch (error) {
-                console.error('Failed to delete lead:', error);
+                console.error('DELETE LEAD ERROR:', error);
+                // Rollback on error - this ensures the UI matches reality
+                setLeads(previousLeads);
+                showToast.error('Delete failed. Try again.');
             }
         }
-    }, []);
+    }, [leads]);
 
     // Load appointments from Supabase when user signs in or demo/local admin
     React.useEffect(() => {
@@ -1202,7 +1301,7 @@ const App: React.FC = () => {
                             <PublicAICard />
                         </Suspense>
                     } />
-                    <Route path="/demo-dashboard/*" element={<AgentDashboard isDemoMode={true} demoListingCount={2} />} />
+                    <Route path="/demo-dashboard/*" element={<AgentDashboard isDemoMode={true} demoListingCount={4} />} />
                     <Route path="/dashboard-blueprint/*" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
                     <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={false} isBlueprintMode={true} demoListingCount={1} />} />
                     <Route path="/demo-showcase" element={<MultiToolShowcase />} />
@@ -1221,9 +1320,7 @@ const App: React.FC = () => {
                     <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
                     <Route path="/admin/:tab" element={
                         isAdmin ? (
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <AdminDashboard />
-                            </Suspense>
+                            <AdminDashboard />
                         ) : (
                             <Navigate to="/" />
                         )
@@ -1262,13 +1359,13 @@ const App: React.FC = () => {
                     <Route element={<ProtectedLayout />}>
                         <Route path="/dashboard" element={
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
-                                (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />)
+                                (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard preloadedProperties={properties} />)
                         } />
                         <Route path="/daily-pulse" element={
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
-                                (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard />)
+                                (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard preloadedProperties={properties} />)
                         } />
-                        <Route path="/dashboard/:slug" element={<AgentDashboard />} />
+                        <Route path="/dashboard/:slug" element={<AgentDashboard preloadedProperties={properties} />} />
 
 
                         <Route path="/listings" element={
@@ -1435,6 +1532,16 @@ const App: React.FC = () => {
                         )}
                     </ErrorBoundary>
                 </AISidekickProvider>
+                <Toaster
+                    position="bottom-center"
+                    toastOptions={{
+                        duration: 3000,
+                        style: {
+                            background: '#333',
+                            color: '#fff',
+                        },
+                    }}
+                />
             </AgentBrandingProvider>
         </ImpersonationProvider>
     );

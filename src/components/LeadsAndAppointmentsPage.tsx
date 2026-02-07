@@ -70,7 +70,8 @@ const statusColorMap: Record<LeadStatus, string> = {
     'Lost': 'bg-slate-400',
     'Bounced': 'bg-red-500',
     'Unsubscribed': 'bg-red-800',
-    'Won': 'bg-green-600'
+    'Won': 'bg-green-600',
+    'Marketing Only': 'bg-sky-500'
 };
 
 const funnelOptions: Array<{ id: LeadFunnelType; label: string; description: string; icon: string; accent: string }> = [
@@ -130,14 +131,14 @@ const LeadsList: React.FC<{
 
     const toggleLead = (leadId: string) => {
         const expanded = expandedLeadIds.includes(leadId);
-        void analyticsService.trackInteraction({
-            eventType: 'lead_accordion_toggle',
-            eventData: {
+        void analyticsService.trackInteraction(
+            'lead_accordion_toggle',
+            {
                 leadId,
                 expanded: !expanded,
                 timestamp: new Date().toISOString()
             }
-        });
+        );
         setExpandedLeadIds((prev) =>
             prev.includes(leadId) ? prev.filter((id) => id !== leadId) : [...prev, leadId]
         );
@@ -346,6 +347,12 @@ const formatReminderLabel = (minutes?: number) => {
     return `${minutes} min before`;
 };
 
+const formatSyncTime = (seconds: number) => {
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    return `${Math.floor(seconds / 3600)}h ago`;
+};
+
 const AppointmentsList: React.FC<{ appointments: Appointment[] }> = ({ appointments }) => {
     const upcoming = [...appointments].sort((a, b) => {
         const aStart = a.startIso ? new Date(a.startIso).getTime() : new Date(a.date).getTime();
@@ -460,7 +467,10 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     onUpdateLead,
     onDeleteLead
 }) => {
-    // const navigate = useNavigate();
+    // Defensive Fallback
+    const safeLeads = Array.isArray(leads) ? leads : [];
+    const safeAppointments = Array.isArray(appointments) ? appointments : [];
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get('tab');
     const activeTab = (tabParam === 'appointments' || tabParam === 'leads') ? tabParam : 'leads';
@@ -488,7 +498,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     const [showMarketingLeads, setShowMarketingLeads] = useState(false);
     const [leadFunnels, setLeadFunnels] = useState<Record<string, LeadFunnelType | null>>(() => {
         const initial: Record<string, LeadFunnelType | null> = {};
-        leads.forEach((lead) => {
+        safeLeads.forEach((lead) => {
             initial[lead.id] = lead.funnelType ?? null;
         });
         return initial;
@@ -499,8 +509,8 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
         const leadId = searchParams.get('id');
         const action = searchParams.get('action');
 
-        if (leadId && leads.length > 0) {
-            const lead = leads.find(l => l.id === leadId);
+        if (leadId && safeLeads.length > 0) {
+            const lead = safeLeads.find(l => l.id === leadId);
             if (lead) {
                 if (action === 'contact') {
                     setContactingLead(lead);
@@ -525,13 +535,13 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                 // }, { replace: true });
             }
         }
-    }, [searchParams, leads]);
+    }, [searchParams, safeLeads]);
 
     useEffect(() => {
         setLeadFunnels((prev) => {
             const next: Record<string, LeadFunnelType | null> = {};
-            let changed = Object.keys(prev).length !== leads.length;
-            leads.forEach((lead) => {
+            let changed = Object.keys(prev).length !== safeLeads.length;
+            safeLeads.forEach((lead) => {
                 const normalized = lead.funnelType ?? null;
                 next[lead.id] = normalized;
                 if (prev[lead.id] !== normalized) {
@@ -540,22 +550,22 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
             });
             return changed ? next : prev;
         });
-    }, [leads]);
+    }, [safeLeads]);
 
     useEffect(() => {
         setLastSyncedAt(new Date());
-    }, [leads, appointments]);
+    }, [safeLeads, safeAppointments]);
 
     const trackExportEvent = useCallback(() => {
-        void analyticsService.trackInteraction({
-            eventType: 'leads_export',
-            eventData: {
-                leadCount: leads.length,
-                appointmentCount: appointments.length,
+        void analyticsService.trackInteraction(
+            'leads_export',
+            {
+                leadCount: safeLeads.length,
+                appointmentCount: safeAppointments.length,
                 timestamp: new Date().toISOString()
             }
-        });
-    }, [appointments.length, leads.length]);
+        );
+    }, [safeAppointments.length, safeLeads.length]);
 
     const handleOpenScheduleModal = (lead: Lead | null = null) => {
         setSchedulingLead(lead);
@@ -664,7 +674,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     };
 
     // Filter leads based on Marketing Status
-    const filteredLeads = leads.filter(lead => {
+    const filteredLeads = safeLeads.filter(lead => {
         if (showMarketingLeads) {
             // Show everything (active + marketing)
             return true;
@@ -674,7 +684,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     });
 
     // Derived count
-    const marketingLeadCount = leads.filter(l => l.status === 'Marketing Only').length;
+    const marketingLeadCount = safeLeads.filter(l => l.status === 'Marketing Only').length;
 
     const handleBulkUpload = async (newLeads: Array<any>) => {
         // In a real app, this should be a bulk API call.
@@ -769,13 +779,16 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                 </header>
 
                 <PageTipBanner
-                    pageId="leads_appointments"
-                    tips={[
-                        "Use the 'Active Leads' tab to focus on high-priority prospects.",
-                        "Toggle 'Show Marketing Leads' to view bulk imported contacts.",
-                        "Drag and drop leads between columns in the Leads view to update their status.",
-                        "Click on any appointment to view details or join the video call."
-                    ]}
+                    pageKey="leads_appointments"
+                    title="Managing your Leads & Appointments"
+                    message="Use the 'Active Leads' tab to prioritize your follow-ups. Toggle 'Show Marketing Leads' to see bulk imports."
+                    expandedContent={
+                        <ul className="list-disc pl-5 space-y-2 mt-2">
+                            <li>Drag and drop leads between columns in the Leads view to update their status.</li>
+                            <li>Click on any appointment to view details or join the video call.</li>
+                            <li>Use the 'Add Lead' button to manually enter new prospects or import a CSV.</li>
+                        </ul>
+                    }
                 />
 
                 <main>
@@ -785,7 +798,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                                 isActive={activeTab === 'leads'}
                                 onClick={() => setActiveTab('leads')}
                                 icon="group"
-                                count={leads.filter(l => l.status !== 'Marketing Only').length}
+                                count={safeLeads.filter(l => l.status !== 'Marketing Only').length}
                             >
                                 Active Leads
                             </TabButton>
@@ -793,7 +806,7 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                                 isActive={activeTab === 'appointments'}
                                 onClick={() => setActiveTab('appointments')}
                                 icon="calendar_today"
-                                count={appointments.length}
+                                count={safeAppointments.length}
                             >
                                 Appointments
                             </TabButton>
@@ -850,16 +863,16 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Calendar Overview</span>
                                 </div>
                                 <div className="rounded-none sm:rounded-3xl overflow-hidden border border-slate-200 shadow-xl bg-white/80 backdrop-blur-xl">
-                                    <CalendarView appointments={appointments} />
+                                    <CalendarView appointments={safeAppointments} />
                                 </div>
                             </div>
                         </div>
                     ) : (
                         <div className="space-y-8 px-4 sm:px-0">
                             <div className="rounded-none sm:rounded-3xl overflow-hidden border border-slate-200 shadow-xl bg-white/80 backdrop-blur-xl">
-                                <CalendarView appointments={appointments} />
+                                <CalendarView appointments={safeAppointments} />
                             </div>
-                            <AppointmentsList appointments={appointments} />
+                            <AppointmentsList appointments={safeAppointments} />
                         </div>
                     )}
                 </main>
@@ -960,8 +973,8 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
                 <ExportModal
                     isOpen={isExportModalOpen}
                     onClose={() => setIsExportModalOpen(false)}
-                    leads={leads}
-                    appointments={appointments}
+                    leads={safeLeads}
+                    appointments={safeAppointments}
                 />
             )}
 
