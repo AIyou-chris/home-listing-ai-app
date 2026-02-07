@@ -262,7 +262,11 @@ const AddListingPage: React.FC<AddListingPageProps> = ({ onCancel, onSave, initi
                 ...prev,
                 heroPhotos: prev.heroPhotos.filter((_, i) => i !== index)
             };
-            localStorage.setItem('listing_draft_data', JSON.stringify(nextState));
+            try {
+                localStorage.setItem('listing_draft_data', JSON.stringify(nextState));
+            } catch (e) {
+                // Ignore quota errors
+            }
             return nextState;
         });
     };
