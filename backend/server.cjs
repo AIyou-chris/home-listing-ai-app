@@ -121,6 +121,28 @@ const { sendSms, validatePhoneNumber } = require('./services/smsService');
 const { initiateCall } = require('./services/voiceService');
 const { sendAlert } = require('./services/slackService');
 
+// Google Analytics (GA4) Data API setup
+const GA_PROPERTY_ID = process.env.GA_PROPERTY_ID;
+console.log('[GA4] Property ID Configured:', !!GA_PROPERTY_ID ? `Yes (${GA_PROPERTY_ID})` : 'No (Setup Required)');
+const GA_SERVICE_ACCOUNT_JSON = process.env.GA_SERVICE_ACCOUNT_JSON || path.resolve(__dirname, '../service-account.json');
+let gaDataApiClient = null;
+
+const getGaClient = async () => {
+  if (gaDataApiClient) return gaDataApiClient;
+
+  // Ensure credentials file exists
+  if (!fs.existsSync(GA_SERVICE_ACCOUNT_JSON)) {
+    throw new Error(`GA service account JSON not found at ${GA_SERVICE_ACCOUNT_JSON}. Set GA_SERVICE_ACCOUNT_JSON to the correct path.`);
+  }
+
+  const credentials = JSON.parse(fs.readFileSync(GA_SERVICE_ACCOUNT_JSON, 'utf8'));
+  const scopes = ['https://www.googleapis.com/auth/analytics.readonly'];
+  const auth = new google.auth.GoogleAuth({ credentials, scopes });
+
+  gaDataApiClient = google.analyticsdata({ version: 'v1beta', auth });
+  return gaDataApiClient;
+};
+
 const app = express();
 
 // SECURITY: Rate Limiter (InMemory)
@@ -1893,6 +1915,7 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
 
     // 2. Log to Database
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      // Basic event log
       await supabaseAdmin.from('email_events').insert({
         message_id: messageId,
         event_type: event,
@@ -1902,6 +1925,30 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
         campaign_id: campaignId,
         metadata: eventData
       });
+
+      // Update aggregate tracking table if linked
+      const internalMsgId = user_variables?.internal_msg_id;
+      if (internalMsgId) {
+        const updateData = {};
+
+        // Map Mailgun events to our tracking status
+        if (event === 'delivered') updateData.status = 'delivered';
+        else if (event === 'opened') {
+          updateData.status = 'opened';
+          // logic to increment open_count is complex via simple update, assume separate pixel handles counts
+        }
+        else if (event === 'clicked') updateData.status = 'clicked';
+        else if (['bounced', 'failed', 'complained'].includes(event)) updateData.status = 'bounced';
+
+        if (Object.keys(updateData).length > 0) {
+          await supabaseAdmin
+            .from('email_tracking_events')
+            .update(updateData)
+            .eq('message_id', internalMsgId);
+          console.log(`[Mailgun Webhook] Synced status '${event}' to tracking record ${internalMsgId}`);
+        }
+      }
+
     } else {
       console.log('[Mailgun Webhook] Received event (no DB):', event, recipient);
     }
@@ -5536,9 +5583,9 @@ app.get('/api/admin/dashboard-metrics', verifyAdmin, async (req, res) => {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Bounced');
 
-      if (!logError) campaignStats.emailsSent = sentCount || 0;
+      if (!logError && campaignStats.emailsSent === 0) campaignStats.emailsSent = sentCount || 0;
       if (!enrollError) campaignStats.activeLeads = activeCount || 0;
-      if (!leadError) campaignStats.bounced = bouncedCount || 0;
+      if (!leadError && campaignStats.bounced === 0) campaignStats.bounced = bouncedCount || 0;
 
       // 4. Calculate Delivery Rate
       if (campaignStats.emailsSent > 0) {
@@ -5856,6 +5903,8 @@ app.put('/api/admin/users/:userId', async (req, res) => {
 // Delete user endpoint
 app.delete('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
   const { userId } = req.params;
+  // Also remove from in-memory array (for demo/mock users)
+  users = users.filter(u => u.id !== userId && u.auth_user_id !== userId);
   const adminEmail = req.user?.email || 'Unknown Admin';
 
   try {
@@ -8373,10 +8422,95 @@ app.get('/api/admin/analytics/overview', async (req, res) => {
       emailsSent: 0,
       deliveryRate: 0,
       activeLeads: 0,
-      bounced: 0
+      bounced: 0,
+      opens: 0,
+      clicks: 0,
+      unsubscribed: 0
     };
 
     try {
+      // Pull live Mailgun stats for last 30 days
+      if (MAILGUN_API_KEY) {
+        const mailgunDomain = process.env.MAILGUN_DOMAIN || process.env.MAILGUN_SANDBOX_DOMAIN || 'mg.homelistingai.com';
+        const mgBase = (process.env.MAILGUN_REGION || '').toLowerCase() === 'eu'
+          ? 'https://api.eu.mailgun.net'
+          : 'https://api.mailgun.net';
+        const mgParams = {
+          start: '30d',
+          resolution: 'day',
+          event: ['accepted', 'delivered', 'failed', 'opened', 'clicked', 'unsubscribed', 'complained']
+        };
+        const mgParamsSerializer = (params) => {
+          const usp = new URLSearchParams();
+          Object.entries(params).forEach(([key, val]) => {
+            if (Array.isArray(val)) {
+              val.forEach(v => usp.append(key, v));
+            } else if (val !== undefined && val !== null) {
+              usp.append(key, val);
+            }
+          });
+          return usp.toString();
+        };
+
+        const statsRes = await axios.get(`${mgBase}/v3/${mailgunDomain}/stats/total`, {
+          auth: { username: 'api', password: MAILGUN_API_KEY },
+          params: mgParams,
+          paramsSerializer: mgParamsSerializer
+        }).catch(err => {
+          console.warn('[Mailgun] Stats fetch failed', err?.response?.data || err.message);
+          return null;
+        });
+
+        if (statsRes?.data?.stats) {
+          const totals = statsRes.data.stats.reduce((acc, day) => {
+            acc.accepted += day.accepted?.total ?? day.accepted ?? 0;
+            acc.delivered += day.delivered?.total ?? day.delivered ?? 0;
+            acc.failed += day.failed?.total ?? day.failed ?? 0;
+            acc.opened += day.opened?.total ?? day.opened ?? 0;
+            acc.clicked += day.clicked?.total ?? day.clicked ?? 0;
+            acc.unsubscribed += day.unsubscribed?.total ?? day.unsubscribed ?? 0;
+            acc.complained += day.complained?.total ?? day.complained ?? 0;
+            return acc;
+          }, { accepted: 0, delivered: 0, failed: 0, opened: 0, clicked: 0, unsubscribed: 0, complained: 0 });
+
+          campaignStats.emailsSent = totals.accepted;
+          campaignStats.bounced = totals.failed;
+          campaignStats.opens = totals.opened;
+          campaignStats.clicks = totals.clicked;
+          campaignStats.unsubscribed = totals.unsubscribed;
+
+          if (totals.accepted > 0) {
+            campaignStats.deliveryRate = parseFloat(((totals.delivered / totals.accepted) * 100).toFixed(1));
+          }
+        }
+      }
+
+      // Fallback/augment from stored webhook events in Supabase (last 30 days)
+      const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const fetchCount = async (eventType) => {
+        const { count, error } = await supabaseAdmin
+          .from('email_events')
+          .select('*', { count: 'exact', head: true })
+          .eq('event_type', eventType)
+          .gte('timestamp', thirtyDaysAgoIso);
+        if (error) {
+          console.warn(`[Mailgun] Supabase email_events count error (${eventType})`, error.message);
+          return 0;
+        }
+        return count || 0;
+      };
+
+      const [openedCount, clickedCount, unsubCount] = await Promise.all([
+        fetchCount('opened'),
+        fetchCount('clicked'),
+        fetchCount('unsubscribed')
+      ]);
+
+      if (campaignStats.opens === 0) campaignStats.opens = openedCount;
+      if (campaignStats.clicks === 0) campaignStats.clicks = clickedCount;
+      if (campaignStats.unsubscribed === 0) campaignStats.unsubscribed = unsubCount;
+
       // 1. Sent Count (Funnel Logs) - Case Insensitive & Agent Filtered
       let sentQuery = supabaseAdmin
         .from('funnel_logs')
@@ -8445,6 +8579,53 @@ app.get('/api/admin/analytics/overview', async (req, res) => {
   } catch (error) {
     console.error('Analytics overview error:', error);
     res.status(500).json({ error: 'Failed to load metrics' });
+  }
+});
+
+// Google Analytics Integration Stub
+app.get('/api/admin/analytics/google', verifyAdmin, async (req, res) => {
+  try {
+    if (!GA_PROPERTY_ID) {
+      return res.status(400).json({ success: false, error: 'GA_PROPERTY_ID is not configured.' });
+    }
+
+    const analyticsdata = await getGaClient();
+
+    const report = await analyticsdata.properties.runReport({
+      property: `properties/${GA_PROPERTY_ID}`,
+      requestBody: {
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        metrics: [
+          { name: 'activeUsers' },
+          { name: 'newUsers' },
+          { name: 'sessions' },
+          { name: 'screenPageViews' },
+          { name: 'engagementRate' }
+        ]
+      }
+    });
+
+    const row = report.data?.rows?.[0];
+    if (!row) {
+      return res.status(200).json({ success: false, error: 'No data returned from Google Analytics.' });
+    }
+
+    const [activeUsers, newUsers, sessions, screenPageViews, engagementRate] = row.metricValues.map(mv => parseFloat(mv.value || '0'));
+
+    res.json({
+      success: true,
+      stats: {
+        activeUsers,
+        newUsers,
+        sessions,
+        engagementRate: engagementRate || 0,
+        screenPageViews
+      }
+    });
+  } catch (error) {
+    console.error('[GA4] Error:', error);
+    const message = error?.response?.data?.error?.message || error.message || 'Failed to load GA stats';
+    res.status(500).json({ success: false, error: message });
   }
 });
 
@@ -14593,4 +14774,3 @@ setInterval(() => {
   checkLeadScores(); // Run the scoring watchdog
   checkFunnelFollowUps(); // CRITICAL: Run the funnel automation logic
 }, 60 * 1000);
-

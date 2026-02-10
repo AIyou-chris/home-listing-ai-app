@@ -458,10 +458,19 @@ module.exports = (supabaseAdmin) => {
     formData.append('subject', subject);
     formData.append('html', html);
 
-    // Add tags if present
+    // Add tags and variables
     if (tags) {
       Object.keys(tags).forEach(key => {
-        formData.append(`o: tag`, `${key}:${tags[key]} `);
+        // Mailgun Tags (for searching in Mailgun dashboard)
+        formData.append('o:tag', `${key}:${tags[key]}`);
+
+        // Mailgun User Variables (for Webhooks)
+        formData.append(`v:${key}`, tags[key]);
+
+        // Map sequence_id to campaign_id for analytics consistency
+        if (key === 'sequence_id') {
+          formData.append('v:campaign_id', tags[key]);
+        }
       });
     }
 
@@ -570,7 +579,7 @@ module.exports = (supabaseAdmin) => {
           subject,
           html: finalHtml,
           cc,
-          tags,
+          tags: { ...tags, internal_msg_id: messageId },
           overrideFrom: customFrom,
           overrideReplyTo: customReplyTo,
           options
