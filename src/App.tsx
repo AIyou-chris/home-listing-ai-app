@@ -416,6 +416,7 @@ const App: React.FC = () => {
                 currentPath.startsWith('/store/') ||
                 currentPath.startsWith('/checkout') || // Critical for checkout flow
                 currentPath.includes('/demo-') ||
+                currentPath.startsWith('/blog') || // Allow blog access
                 currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard');
 
             // Force Blueprint Mode handling if on that route specifically

@@ -4,84 +4,13 @@ import ChatBotFAB from './ChatBotFAB';
 import SEO from './SEO';
 import { StripeLogo } from './StripeLogo';
 import { MultiToolShowcase } from './MultiToolShowcase';
+import { PublicHeader } from './layout/PublicHeader';
+import { PublicFooter } from './layout/PublicFooter';
 
 // --- New Components for the Redesigned Page ---
 
-const Header: React.FC<{ onNavigateToSignUp: () => void; onNavigateToSignIn: () => void; onEnterDemoMode: () => void; onNavigateToShowcase?: () => void; onOpenContact: () => void; }> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onNavigateToShowcase, onOpenContact }) => {
-    const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-    const navLinks = [
-        { name: "Price", href: "#pricing" },
-        { name: "Demo", href: "#demo" },
-        { name: "White Label", href: "#contact" },
-        { name: "Contact", href: "#contact" }
-    ];
-
-    const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
-        e.preventDefault();
-        if (targetId === '#demo') {
-            if (onNavigateToShowcase) {
-                onNavigateToShowcase();
-            } else {
-                onEnterDemoMode();
-            }
-        } else if (targetId === '#contact') {
-            onOpenContact();
-        }
-        else {
-            const element = document.getElementById(targetId.substring(1));
-            if (element) {
-                element.scrollIntoView({ behavior: 'smooth' });
-            }
-        }
-        setIsMenuOpen(false);
-    };
-
-    return (
-        <header className="absolute top-0 left-0 right-0 z-50 py-4 bg-white/80 backdrop-blur-sm shadow-sm">
-            <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
-                <nav className="relative flex items-center justify-between">
-                    <a href="#" className="flex items-center">
-                        <LogoWithName />
-                    </a>
-                    <div className="hidden lg:flex lg:items-center lg:space-x-6">
-                        {navLinks.map((link) => (
-                            <a key={link.name} href={link.href} onClick={(e) => handleLinkClick(e, link.href)} className="text-sm font-semibold text-slate-700 hover:text-primary-600 transition-colors">
-                                {link.name}
-                            </a>
-                        ))}
-                    </div>
-                    <div className="hidden lg:flex items-center gap-4">
-                        <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
-                            🛡️ 30-Day Money-Back Guarantee
-                        </span>
-                        <button onClick={onNavigateToSignIn} className="text-sm font-semibold text-slate-700 hover:text-primary-600 transition-colors">Login</button>
-                        <button onClick={onNavigateToSignUp} className="px-5 py-2.5 bg-blue-600 text-white font-semibold text-sm rounded-lg shadow-md hover:bg-blue-700 transition-all">
-                            Sign Up
-                        </button>
-                    </div>
-                    <div className="lg:hidden">
-                        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 rounded-md text-slate-600 hover:bg-slate-100">
-                            <span className="material-symbols-outlined">{isMenuOpen ? 'close' : 'menu'}</span>
-                        </button>
-                    </div>
-                </nav>
-                {isMenuOpen && (
-                    <div className="lg:hidden mt-4 bg-white rounded-lg shadow-lg p-4 space-y-2">
-                        {navLinks.map((link) => (
-                            <a key={link.name} href={link.href} onClick={(e) => handleLinkClick(e, link.href)} className="block px-3 py-2 text-base font-medium text-slate-700 rounded-md hover:bg-slate-50">
-                                {link.name}
-                            </a>
-                        ))}
-                        <div className="border-t border-slate-200 pt-4 space-y-2">
-                            <button onClick={onNavigateToSignIn} className="w-full text-left block px-3 py-2 text-base font-medium text-slate-700 rounded-md hover:bg-slate-50">Login</button>
-                            <button onClick={onNavigateToSignUp} className="w-full text-left block px-3 py-2 text-base font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">Sign Up</button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </header>
-    );
-};
+// Unused components removed to fix lint errors.
+// const DashboardShowcaseSection ...
 
 // Unused components removed to fix lint errors.
 // const DashboardShowcaseSection ...
@@ -1058,7 +987,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                     "description": "AI-powered real estate assistant for lead generation and management."
                 }}
             />
-            <Header
+            <PublicHeader
                 onNavigateToSignUp={onNavigateToSignUp}
                 onNavigateToSignIn={onNavigateToSignIn}
                 onEnterDemoMode={onEnterDemoMode}
@@ -1082,7 +1011,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <FaqSection />
                 <FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
             </main>
-            <FooterNew onNavigateToAdmin={onNavigateToAdmin} />
+            <PublicFooter onNavigateToAdmin={onNavigateToAdmin} />
 
             {/* Chat Bot FAB for visitors */}
             <ChatBotFAB
