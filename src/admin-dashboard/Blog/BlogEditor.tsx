@@ -43,14 +43,14 @@ const BlogEditor: React.FC = () => {
         setIsLoading(true);
         const { data, error } = await supabase
             .from('blog_posts')
-            .select('*')
+            .select('id, title, slug, status, published_at, created_at')
             .order('created_at', { ascending: false });
 
         if (error) {
             toast.error('Failed to fetch posts');
             console.error(error);
         } else {
-            setPosts(data || []);
+            setPosts((data as any) || []);
         }
         setIsLoading(false);
     };
@@ -66,9 +66,22 @@ const BlogEditor: React.FC = () => {
         setView('edit');
     };
 
-    const handleEdit = (post: BlogPost) => {
-        setCurrentPost(post);
-        setView('edit');
+    const handleEdit = async (post: BlogPost) => {
+        setIsLoading(true);
+        const { data, error } = await supabase
+            .from('blog_posts')
+            .select('*')
+            .eq('id', post.id)
+            .single();
+
+        if (error) {
+            toast.error('Failed to load post details');
+            console.error(error);
+        } else {
+            setCurrentPost(data);
+            setView('edit');
+        }
+        setIsLoading(false);
     };
 
     const handleSave = async (status: 'draft' | 'published') => {
