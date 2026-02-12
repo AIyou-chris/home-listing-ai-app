@@ -75,6 +75,8 @@ import { emailSettingsService } from './services/emailSettingsService';
 import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
 const PublicListingPage = lazy(() => import('./pages/PublicListingPage')); // Public View
+import BlogIndex from './pages/Blog/BlogIndex';
+import BlogPost from './pages/Blog/BlogPost';
 const VoiceLabPage = lazy(() => import('./pages/VoiceLabPage'));
 import CombinedTrainingPage from './components/AgentAISidekicksPage';
 // import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
@@ -1295,6 +1297,10 @@ const App: React.FC = () => {
 
                     {/* Public Storefront Route */}
                     <Route path="/store/:slug" element={<StorefrontPage />} />
+
+                    {/* Blog Routes */}
+                    <Route path="/blog" element={<BlogIndex />} />
+                    <Route path="/blog/:slug" element={<BlogPost />} />
 
                     {/* Public AI Card View */}
                     <Route path="/card/:id" element={
