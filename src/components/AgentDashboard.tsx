@@ -1711,9 +1711,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           isOpen={showInstallGuide}
           onClose={() => setShowInstallGuide(false)}
         />
-        <div className="fixed bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full z-[99999] pointer-events-none font-mono">
-          v2.4 - Persistence Fix
-        </div>
+
       </div>
     </div>
   );
