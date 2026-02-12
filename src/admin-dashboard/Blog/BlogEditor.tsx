@@ -403,19 +403,35 @@ const BlogEditor: React.FC = () => {
                                             <div className="flex text-sm text-slate-600 justify-center">
                                                 <label className="relative cursor-pointer rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
                                                     <span>Upload a file</span>
-                                                    <input type="file" className="sr-only" onChange={(e) => {
-                                                        // Placeholder for file upoad
-                                                        if (e.target.files?.[0]) {
-                                                            const reader = new FileReader();
-                                                            reader.onloadend = () => {
-                                                                setCurrentPost({ ...currentPost, featured_image: reader.result as string });
-                                                            };
-                                                            reader.readAsDataURL(e.target.files[0]);
+                                                    <input type="file" className="sr-only" accept="image/*" onChange={async (e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (!file) return;
+
+                                                        const fileExt = file.name.split('.').pop();
+                                                        const fileName = `blog-images/${Math.random().toString(36).substring(2)}.${fileExt}`;
+                                                        const filePath = `${fileName}`;
+
+                                                        const toastId = toast.loading('Uploading image...');
+
+                                                        const { error: uploadError } = await supabase.storage
+                                                            .from('ai-kb')
+                                                            .upload(filePath, file);
+
+                                                        if (uploadError) {
+                                                            console.error('Upload error:', uploadError);
+                                                            toast.error('Failed to upload image', { id: toastId });
+                                                        } else {
+                                                            const { data: { publicUrl } } = supabase.storage
+                                                                .from('ai-kb')
+                                                                .getPublicUrl(filePath);
+
+                                                            setCurrentPost({ ...currentPost, featured_image: publicUrl });
+                                                            toast.success('Image uploaded!', { id: toastId });
                                                         }
                                                     }} />
                                                 </label>
                                             </div>
-                                            <p className="text-xs text-slate-500">PNG, JPG, GIF up to 10MB</p>
+                                            <p className="text-xs text-slate-500">PNG, JPG, GIF up to 5MB</p>
                                         </>
                                     )}
                                 </div>
