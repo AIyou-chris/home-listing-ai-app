@@ -45,6 +45,9 @@ type MetricsResponse = {
     deliveryRate: number
     activeLeads: number
     bounced: number
+    opens: number
+    clicks: number
+    unsubscribed: number
   }
 }
 

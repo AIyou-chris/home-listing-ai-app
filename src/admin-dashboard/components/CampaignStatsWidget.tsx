@@ -1,12 +1,15 @@
 
 import React from 'react';
-import { Mail, Activity, AlertTriangle, Send } from 'lucide-react';
+import { Mail, Activity, AlertTriangle, Send, MousePointerClick, Eye, UserMinus } from 'lucide-react';
 
 interface CampaignStats {
     emailsSent: number;
     deliveryRate: number;
     activeLeads: number;
     bounced: number;
+    opens: number;
+    clicks: number;
+    unsubscribed: number;
 }
 
 interface CampaignStatsWidgetProps {
@@ -16,7 +19,7 @@ interface CampaignStatsWidgetProps {
 
 export const CampaignStatsWidget: React.FC<CampaignStatsWidgetProps> = ({ stats, loading }) => {
     if (loading) {
-        return <div className="animate-pulse h-32 bg-gray-100 rounded-lg mb-6"></div>;
+        return <div className="animate-pulse h-64 bg-gray-100 rounded-lg mb-6"></div>;
     }
 
     if (!stats) return null;
@@ -60,17 +63,45 @@ export const CampaignStatsWidget: React.FC<CampaignStatsWidgetProps> = ({ stats,
                     <div className="text-2xl font-bold text-gray-900">{stats.deliveryRate}%</div>
                 </div>
 
-                {/* Active Funnels */}
+                {/* Opens */}
                 <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
                     <div className="flex items-center gap-2 mb-1">
+                        <Eye className="w-4 h-4 text-blue-500" />
+                        <span className="text-xs font-medium text-blue-600 uppercase tracking-wider">Opened</span>
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{stats.opens.toLocaleString()}</div>
+                </div>
+
+                {/* Clicks */}
+                <div className="p-4 bg-violet-50/50 rounded-xl border border-violet-100">
+                    <div className="flex items-center gap-2 mb-1">
+                        <MousePointerClick className="w-4 h-4 text-violet-500" />
+                        <span className="text-xs font-medium text-violet-600 uppercase tracking-wider">Clicked</span>
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{stats.clicks.toLocaleString()}</div>
+                </div>
+
+                {/* Unsubscribed */}
+                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                    <div className="flex items-center gap-2 mb-1">
+                        <UserMinus className="w-4 h-4 text-gray-500" />
+                        <span className="text-xs font-medium text-gray-600 uppercase tracking-wider">Unsubs</span>
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{stats.unsubscribed.toLocaleString()}</div>
+                </div>
+
+                {/* Active Funnels */}
+                <div className="p-4 bg-sky-50/50 rounded-xl border border-sky-100">
+                    <div className="flex items-center gap-2 mb-1">
                         <div className="relative flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-500"></span>
                         </div>
-                        <span className="text-xs font-medium text-blue-600 uppercase tracking-wider">Active Pipe</span>
+                        <span className="text-xs font-medium text-sky-600 uppercase tracking-wider">Active Pipe</span>
                     </div>
                     <div className="text-2xl font-bold text-gray-900">{stats.activeLeads}</div>
                 </div>
+
 
                 {/* Bounced */}
                 <div className="p-4 bg-red-50/50 rounded-xl border border-red-100">
