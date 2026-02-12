@@ -298,6 +298,17 @@ const BlogEditor: React.FC = () => {
                                     value={currentPost.content || ''}
                                     onChange={(content) => setCurrentPost({ ...currentPost, content })}
                                     style={{ height: '400px', marginBottom: '50px' }}
+                                    modules={{
+                                        toolbar: [
+                                            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                                            ['bold', 'italic', 'underline', 'strike', 'blockquote', 'code-block'],
+                                            [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
+                                            [{ 'script': 'sub' }, { 'script': 'super' }],
+                                            [{ 'align': [] }],
+                                            ['link', 'image', 'video'],
+                                            ['clean']
+                                        ],
+                                    }}
                                 />
                             </div>
                         </div>
