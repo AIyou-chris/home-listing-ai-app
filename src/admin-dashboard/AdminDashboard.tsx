@@ -46,9 +46,13 @@ export type DashboardView =
   | 'marketing-funnels'
   | 'marketing-reports'
   | 'users'
-  | 'broadcast';
+  | 'marketing-reports'
+  | 'users'
+  | 'broadcast'
+  | 'blog';
 
 import AdminBroadcastPage from './components/AdminBroadcastPage';
+import BlogEditor from './Blog/BlogEditor';
 
 const cloneDemoProperty = (property: Property, index: number): Property => {
   const description =
@@ -429,6 +433,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         return <AdminUsersPage />;
       case 'broadcast':
         return <AdminBroadcastPage />;
+      case 'blog':
+        return <BlogEditor />;
       default:
         return (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8">

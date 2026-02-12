@@ -18,7 +18,8 @@ type DashboardView =
   | 'marketing-funnels'
   | 'marketing-reports'
   | 'users'
-  | 'broadcast';
+  | 'broadcast'
+  | 'blog';
 
 interface AdminDashboardSidebarProps {
   activeView: DashboardView;
@@ -72,6 +73,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     { view: 'marketing-reports', icon: 'analytics', label: 'Marketing Reports' },
     { view: 'broadcast', icon: 'podium', label: 'Broadcasts' },
     { view: 'users', icon: 'people', label: 'Users' },
+    { view: 'blog', icon: 'article', label: 'Blog' },
     { view: 'settings', icon: 'settings', label: 'Settings' }
   ];
 
