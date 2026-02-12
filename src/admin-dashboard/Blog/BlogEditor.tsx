@@ -17,6 +17,7 @@ interface BlogPost {
     content: string;
     excerpt: string;
     featured_image: string;
+    featured_image_alt?: string;
     status: 'draft' | 'published';
     published_at: string | null;
     seo_title: string;
@@ -418,6 +419,16 @@ const BlogEditor: React.FC = () => {
                                         </>
                                     )}
                                 </div>
+                            </div>
+                            <div className="mt-3">
+                                <label className="block text-xs font-medium text-slate-700 mb-1">Alt Text (for SEO)</label>
+                                <input
+                                    type="text"
+                                    value={currentPost.featured_image_alt || ''}
+                                    onChange={(e) => setCurrentPost({ ...currentPost, featured_image_alt: e.target.value })}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm placeholder-slate-400"
+                                    placeholder="Describe the image..."
+                                />
                             </div>
                         </div>
 
