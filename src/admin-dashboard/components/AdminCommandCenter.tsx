@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { CampaignStatsWidget } from './CampaignStatsWidget'
+import { GoogleAnalyticsWidget } from './GoogleAnalyticsWidget'
 
 type HealthResponse = {
   totalApiCalls: number
@@ -110,22 +111,40 @@ const AdminCommandCenter: React.FC = () => {
   const [security, setSecurity] = useState<SecurityResponse | null>(null)
   const [support, setSupport] = useState<SupportResponse | null>(null)
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null)
+  const [gaStats, setGaStats] = useState<any>(null)
+  const [gaError, setGaError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [selectedLogView, setSelectedLogView] = useState<'failures' | null>(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [h, s, sp, m] = await Promise.all([
+      const [h, s, sp, m, gaRes] = await Promise.all([
         fetch(`${apiBase}/api/admin/system/health`).catch(() => null),
         fetch(`${apiBase}/api/admin/security/monitor`).catch(() => null),
         fetch(`${apiBase}/api/admin/support/summary`).catch(() => null),
-        fetch(`${apiBase}/api/admin/analytics/overview`).catch(() => null)
+        fetch(`${apiBase}/api/admin/analytics/overview`).catch(() => null),
+        fetch(`${apiBase}/api/admin/analytics/google`, { headers: { 'Authorization': 'Bearer admin' } }).catch(() => null) // Mock auth for demo/internal check
       ])
       if (h?.ok) setHealth(await h.json())
       if (s?.ok) setSecurity(await s.json())
       if (sp?.ok) setSupport(await sp.json())
       if (m?.ok) setMetrics(await m.json())
+
+      // GA Handling
+      if (gaRes?.ok) {
+        const json = await gaRes.json();
+        if (json.success) {
+          setGaStats(json.stats);
+          setGaError(null);
+        } else {
+          setGaError(json.error || 'Failed to load GA data');
+        }
+      } else {
+        // Silently fail or set error if critical
+        // setGaError('Analytics Service Unavailable'); 
+        // Actually better to handle gracefully
+      }
     } catch (error) {
       console.warn('Admin command center load failed', error)
     } finally {
@@ -163,6 +182,7 @@ const AdminCommandCenter: React.FC = () => {
       </div>
 
       <CampaignStatsWidget stats={metrics?.campaignStats ?? null} loading={loading} />
+      <GoogleAnalyticsWidget stats={gaStats} loading={loading} error={gaError} />
 
       {/* System Health */}
       <section className='rounded-2xl border border-slate-200 bg-white shadow-sm p-5 space-y-4'>
