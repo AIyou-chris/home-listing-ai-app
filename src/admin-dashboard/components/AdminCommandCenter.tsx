@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { CampaignStatsWidget } from './CampaignStatsWidget'
 import { GoogleAnalyticsWidget } from './GoogleAnalyticsWidget'
+import { supabase } from '../../services/supabase'
 
 type HealthResponse = {
   totalApiCalls: number
@@ -119,13 +120,20 @@ const AdminCommandCenter: React.FC = () => {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
+      // 1. Get Auth Token
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       const [h, s, sp, m, gaRes] = await Promise.all([
         fetch(`${apiBase}/api/admin/system/health`).catch(() => null),
         fetch(`${apiBase}/api/admin/security/monitor`).catch(() => null),
         fetch(`${apiBase}/api/admin/support/summary`).catch(() => null),
         fetch(`${apiBase}/api/admin/analytics/overview`).catch(() => null),
-        fetch(`${apiBase}/api/admin/analytics/google`, { headers: { 'Authorization': 'Bearer admin' } }).catch(() => null) // Mock auth for demo/internal check
+        fetch(`${apiBase}/api/admin/analytics/google`, { headers: authHeaders }).catch(() => null)
       ])
+
       if (h?.ok) setHealth(await h.json())
       if (s?.ok) setSecurity(await s.json())
       if (sp?.ok) setSupport(await sp.json())
@@ -143,7 +151,6 @@ const AdminCommandCenter: React.FC = () => {
       } else {
         // Silently fail or set error if critical
         // setGaError('Analytics Service Unavailable'); 
-        // Actually better to handle gracefully
       }
     } catch (error) {
       console.warn('Admin command center load failed', error)
