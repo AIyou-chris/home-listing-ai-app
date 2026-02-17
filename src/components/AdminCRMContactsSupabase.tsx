@@ -20,6 +20,16 @@ const getFileCreatedAt = (file: ContactFile): string | null => {
 	return typeof withDate.created_at === 'string' ? withDate.created_at : null;
 };
 
+const getScoreColor = (tier?: string) => {
+	switch (tier?.toLowerCase()) {
+		case 'qualified': return 'bg-purple-100 text-purple-800 border-purple-200';
+		case 'hot': return 'bg-red-50 text-red-600 border-red-200';
+		case 'warm': return 'bg-amber-50 text-amber-700 border-amber-200';
+		case 'cold': return 'bg-blue-50 text-blue-600 border-blue-200';
+		default: return 'bg-gray-100 text-gray-800 border-gray-200';
+	}
+};
+
 const AdminCRMContactsSupabase: React.FC = () => {
 	const [contacts, setContacts] = useState<Contact[]>([]);
 	const [query, setQuery] = useState('');
@@ -65,7 +75,7 @@ const AdminCRMContactsSupabase: React.FC = () => {
 				return []
 			}
 		}
-		
+
 		const loadContacts = async () => {
 			let unsubscribeContacts: (() => void) | null = null;
 			try {
@@ -77,7 +87,7 @@ const AdminCRMContactsSupabase: React.FC = () => {
 					console.log('Initial contacts loaded:', contacts.length);
 					setContacts(contacts);
 					setIsLoading(false);
-					
+
 					// Set up real-time listener
 					const listener = await supabaseContactService.onContactsChange((loadedContacts) => {
 						console.log('Contacts updated via real-time:', loadedContacts.length, 'contacts');
@@ -245,7 +255,7 @@ const AdminCRMContactsSupabase: React.FC = () => {
 				});
 				console.log('Contact created successfully with ID:', contactId);
 			}
-			
+
 			// Reset form and close modal
 			setForm({
 				name: '',
@@ -270,16 +280,16 @@ const AdminCRMContactsSupabase: React.FC = () => {
 		if (!window.confirm('Are you sure you want to delete this contact?')) {
 			return;
 		}
-		
+
 		try {
 			console.log('Deleting contact:', id);
 			await supabaseContactService.deleteContact(id);
 			console.log('Contact deleted successfully');
-			
+
 			// Refresh the contacts list
 			const updatedContacts = await supabaseContactService.getContacts();
 			setContacts(updatedContacts);
-			
+
 			if (editing?.id === id) setIsModalOpen(false);
 		} catch (error) {
 			console.error('Failed to delete contact:', error);
@@ -287,7 +297,7 @@ const AdminCRMContactsSupabase: React.FC = () => {
 		}
 	};
 
-		const addFakeContact = async () => {
+	const addFakeContact = async () => {
 		const localInsert = () => {
 			const key = 'hlai_contacts'
 			const raw = localStorage.getItem(key)
@@ -363,17 +373,17 @@ const AdminCRMContactsSupabase: React.FC = () => {
 
 	const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
 		if (!actionContact || !event.target.files?.[0]) return;
-		
+
 		const file = event.target.files[0];
 		setUploadingFile(true);
-		
+
 		try {
 			await supabaseContactService.addContactFile(actionContact.id, file);
-			
+
 			// Refresh files list
 			const files = await supabaseContactService.getContactFiles(actionContact.id);
 			setFilesById(prev => ({ ...prev, [actionContact.id]: files }));
-			
+
 			// Reset file input
 			event.target.value = '';
 		} catch (error) {
@@ -386,11 +396,11 @@ const AdminCRMContactsSupabase: React.FC = () => {
 
 	const handleDeleteFile = async (fileId: string) => {
 		if (!actionContact) return;
-		
+
 		if (confirm('Are you sure you want to delete this file?')) {
 			try {
 				await supabaseContactService.deleteContactFile(fileId);
-				
+
 				// Refresh files list
 				const files = await supabaseContactService.getContactFiles(actionContact.id);
 				setFilesById(prev => ({ ...prev, [actionContact.id]: files }));
@@ -425,13 +435,13 @@ const AdminCRMContactsSupabase: React.FC = () => {
 						<p className="text-gray-600">Manage your leads and clients</p>
 					</div>
 					<div className="flex items-center gap-3">
-						<button 
+						<button
 							onClick={async () => {
 								setIsLoading(true);
 								const contacts = await supabaseContactService.getContacts();
 								setContacts(contacts);
 								setIsLoading(false);
-							}} 
+							}}
 							className="px-4 py-2 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition"
 						>
 							<span className="material-symbols-outlined text-sm">refresh</span>
@@ -454,10 +464,10 @@ const AdminCRMContactsSupabase: React.FC = () => {
 						<span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
 							<span className="material-symbols-outlined text-gray-400">search</span>
 						</span>
-						<input 
-							value={query} 
-							onChange={e => setQuery(e.target.value)} 
-							placeholder="Search contacts..." 
+						<input
+							value={query}
+							onChange={e => setQuery(e.target.value)}
+							placeholder="Search contacts..."
 							className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 						/>
 					</div>
@@ -488,13 +498,20 @@ const AdminCRMContactsSupabase: React.FC = () => {
 									</div>
 								</div>
 							</div>
-							
+
 							<div className="flex flex-wrap gap-2 mb-4">
-								<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-									c.role === 'lead' 
-										? 'bg-amber-100 text-amber-800' 
+								{(c.score !== undefined || c.score_tier) && (
+									<span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border ${getScoreColor(c.score_tier)}`}>
+										<span className="material-symbols-outlined text-[14px] mr-1">
+											{c.score_tier === 'Hot' ? 'local_fire_department' : 'speed'}
+										</span>
+										{c.score ?? 0} • {c.score_tier || 'Unscored'}
+									</span>
+								)}
+								<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${c.role === 'lead'
+										? 'bg-amber-100 text-amber-800'
 										: 'bg-green-100 text-green-800'
-								}`}>
+									}`}>
 									{c.role === 'lead' ? 'Lead' : 'Client'}
 								</span>
 								<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -502,15 +519,15 @@ const AdminCRMContactsSupabase: React.FC = () => {
 								</span>
 								{c.sequences && c.sequences.length > 0 && (
 									<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 truncate max-w-[120px]" title={c.sequences.join(', ')}>
-										{c.sequences[0]}{c.sequences.length > 1 ? ` +${c.sequences.length-1}` : ''}
+										{c.sequences[0]}{c.sequences.length > 1 ? ` +${c.sequences.length - 1}` : ''}
 									</span>
 								)}
 							</div>
 
 							<div className="flex items-center justify-between pt-4 border-t border-gray-100">
 								<div className="flex items-center gap-2">
-									<button 
-										onClick={() => openActions(c, 'contact')} 
+									<button
+										onClick={() => openActions(c, 'contact')}
 										className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
 									>
 										<span className="material-symbols-outlined text-sm">more_horiz</span>
@@ -518,15 +535,15 @@ const AdminCRMContactsSupabase: React.FC = () => {
 									</button>
 								</div>
 								<div className="flex items-center gap-2">
-									<button 
-										onClick={() => handleOpen(c)} 
+									<button
+										onClick={() => handleOpen(c)}
 										className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
 									>
 										<span className="material-symbols-outlined text-sm">edit</span>
 										Edit
 									</button>
-									<button 
-										onClick={() => handleDelete(c.id)} 
+									<button
+										onClick={() => handleDelete(c.id)}
 										className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors"
 									>
 										<span className="material-symbols-outlined text-sm">delete</span>
@@ -565,18 +582,18 @@ const AdminCRMContactsSupabase: React.FC = () => {
 								<div className="grid grid-cols-2 gap-2">
 									<div>
 										<label className="block text-xs text-gray-500 mb-1">Type</label>
-								<select
-									value={form.role}
-									onChange={(e) => {
-										const nextRole: ContactRole = e.target.value === 'client' ? 'client' : 'lead';
-										setForm({
-											...form,
-											role: nextRole,
-											stage: nextRole === 'lead' ? 'New' : 'Onboarding',
-										});
-									}}
-									className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-								>
+										<select
+											value={form.role}
+											onChange={(e) => {
+												const nextRole: ContactRole = e.target.value === 'client' ? 'client' : 'lead';
+												setForm({
+													...form,
+													role: nextRole,
+													stage: nextRole === 'lead' ? 'New' : 'Onboarding',
+												});
+											}}
+											className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+										>
 											<option value="lead">Lead</option>
 											<option value="client">Client</option>
 										</select>
@@ -620,9 +637,9 @@ const AdminCRMContactsSupabase: React.FC = () => {
 						</div>
 						<div className="px-4 pt-3">
 							<div className="flex items-center gap-2 mb-3 overflow-auto no-scrollbar">
-								{(['contact','notes','files','sequences'] as const).map(tab => (
+								{(['contact', 'notes', 'files', 'sequences'] as const).map(tab => (
 									<button key={tab} className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ${actionTab === tab ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`} onClick={() => setActionTab(tab)}>
-										{tab[0].toUpperCase()+tab.slice(1)}
+										{tab[0].toUpperCase() + tab.slice(1)}
 									</button>
 								))}
 							</div>
@@ -671,10 +688,10 @@ const AdminCRMContactsSupabase: React.FC = () => {
 											<span className="material-symbols-outlined w-4 h-4">upload_file</span>
 											{uploadingFile ? 'Uploading...' : 'Upload File'}
 										</label>
-										<input 
-											id="contact-file-upload" 
-											type="file" 
-											className="hidden" 
+										<input
+											id="contact-file-upload"
+											type="file"
+											className="hidden"
 											onChange={handleFileUpload}
 											disabled={uploadingFile}
 										/>
@@ -684,27 +701,27 @@ const AdminCRMContactsSupabase: React.FC = () => {
 											<div key={file.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
 												<div className="flex items-center gap-3">
 													<span className="material-symbols-outlined text-blue-600">description</span>
-										<div>
-											<div className="text-sm font-medium text-gray-900">{file.name}</div>
-											<div className="text-xs text-gray-500">
-												Added {(() => {
-													const createdAt = getFileCreatedAt(file);
-													return createdAt ? new Date(createdAt).toLocaleDateString() : '—';
-												})()}
-											</div>
-										</div>
+													<div>
+														<div className="text-sm font-medium text-gray-900">{file.name}</div>
+														<div className="text-xs text-gray-500">
+															Added {(() => {
+																const createdAt = getFileCreatedAt(file);
+																return createdAt ? new Date(createdAt).toLocaleDateString() : '—';
+															})()}
+														</div>
+													</div>
 												</div>
 												<div className="flex items-center gap-2">
-													<a 
-														href={file.url} 
-														target="_blank" 
+													<a
+														href={file.url}
+														target="_blank"
 														rel="noopener noreferrer"
 														className="p-1 text-blue-600 hover:text-blue-800"
 														title="Download"
 													>
 														<span className="material-symbols-outlined w-4 h-4">download</span>
 													</a>
-													<button 
+													<button
 														onClick={() => handleDeleteFile(file.id)}
 														className="p-1 text-red-600 hover:text-red-800"
 														title="Delete"

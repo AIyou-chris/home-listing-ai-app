@@ -732,13 +732,48 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     console.log('[refreshLeads] Called', { isDemoMode, isBlueprintMode });
     if (isDemoMode) {
       if (isBlueprintMode) {
-        // Merge session-stored leads with static blueprint leads
+        // BLUEPRINT HYBRID MODE: Fetch REAL leads for the Blueprint User (5555...)
+        // and MERGE them with the static demo leads.
         const sessionLeads = getSessionLeads();
-        console.log('[refreshLeads] Blueprint Mode - Session leads:', sessionLeads);
-        console.log('[refreshLeads] Blueprint Mode - Blueprint leads count:', BLUEPRINT_LEADS.length);
-        const merged = [...sessionLeads, ...BLUEPRINT_LEADS];
-        console.log('[refreshLeads] Blueprint Mode - Merged total:', merged.length);
-        setLeads(merged);
+        let databaseLeads: Lead[] = [];
+
+        try {
+          const blueprintId = '55555555-5555-5555-5555-555555555555';
+          const response = await fetch(`/api/blueprint/leads?userId=${blueprintId}`);
+          if (response.ok) {
+            const rows = await response.json();
+            // Map DB rows to Lead objects (similar to leadsService mapping)
+            // We can reuse leadsService.mapLeadRow if exported, or just map manually here for safety
+            databaseLeads = rows.map((row: any) => ({
+              id: row.id,
+              name: row.name,
+              email: row.email || '',
+              phone: row.phone || '',
+              status: row.status || 'New',
+              date: row.created_at ? new Date(row.created_at).toLocaleDateString() : '',
+              lastMessage: row.last_message || '',
+              source: row.source || 'Unknown',
+              notes: row.notes || '',
+              score: row.score ? {
+                totalScore: row.score,
+                tier: row.score >= 90 ? 'Hot' : row.score >= 70 ? 'Qualified' : row.score >= 40 ? 'Warm' : 'Cold',
+                leadId: row.id,
+                lastUpdated: row.created_at || new Date().toISOString(),
+                scoreHistory: []
+              } : undefined
+            }));
+            console.log('✅ Loaded real blueprint leads:', databaseLeads.length);
+          }
+        } catch (e) {
+          console.warn('Failed to load real blueprint leads:', e);
+        }
+
+        // Merge: Session > Database > Static
+        // Deduplicate by ID
+        const allLeads = [...sessionLeads, ...databaseLeads, ...BLUEPRINT_LEADS];
+        const uniqueLeads = Array.from(new Map(allLeads.map(item => [item.id, item])).values());
+
+        setLeads(uniqueLeads);
       } else {
         setLeads(DEMO_FAT_LEADS);
       }

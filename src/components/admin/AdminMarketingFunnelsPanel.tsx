@@ -338,6 +338,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const isEmbedded = variant === 'embedded';
     // Single Main Funnel State (formerly Buyer)
     const [funnelSteps, setFunnelSteps] = useState<EditableStep[]>(initialHomeBuyerSteps);
+    const [availableFunnels, setAvailableFunnels] = useState<Record<string, EditableStep[]>>({});
+    const [selectedFunnelId, setSelectedFunnelId] = useState<string>('');
 
     // UI States
     const [isQuickEmailOpen, setIsQuickEmailOpen] = useState(false);
@@ -436,7 +438,11 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             });
 
             if (response.ok) {
-                alert(`Test email sent to ${testEmail || user?.email || 'test@example.com'}`);
+                // UPDATE: Show inline "Sent!" badge instead of alert
+                setSendSuccessIds(prev => [...prev, step.id]);
+                setTimeout(() => {
+                    setSendSuccessIds(prev => prev.filter(id => id !== step.id));
+                }, 3000);
             } else {
                 throw new Error('Failed to send test email');
             }
@@ -468,8 +474,32 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                 const funnels = await funnelService.fetchFunnels(currentUserId);
 
-                if (funnels.universal_sales && funnels.universal_sales.length > 0) {
+                // User Request: "Only want a realtor funnel and a broker funnel that's it"
+                const allowedFunnels = ['realtor_funnel', 'broker_funnel'];
+                const filteredFunnels = Object.fromEntries(
+                    Object.entries(funnels).filter(([key]) => allowedFunnels.includes(key))
+                );
+
+                setAvailableFunnels(filteredFunnels);
+
+                // Priority: Selected -> Realtor -> Broker -> Universal -> First
+                if (funnels[selectedFunnelId]) {
+                    setFunnelSteps(funnels[selectedFunnelId]);
+                } else if (funnels['realtor_funnel']) {
+                    setSelectedFunnelId('realtor_funnel');
+                    setFunnelSteps(funnels['realtor_funnel']);
+                } else if (funnels['broker_funnel']) {
+                    setSelectedFunnelId('broker_funnel');
+                    setFunnelSteps(funnels['broker_funnel']);
+                } else if (funnels.universal_sales) {
+                    setSelectedFunnelId('universal_sales');
                     setFunnelSteps(funnels.universal_sales);
+                } else {
+                    const keys = Object.keys(funnels);
+                    if (keys.length > 0) {
+                        setSelectedFunnelId(keys[0]);
+                        setFunnelSteps(funnels[keys[0]]);
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load funnels:', error);
@@ -477,6 +507,16 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         };
         loadFunnels();
     }, [isDemoMode]);
+
+    // Update steps when selection changes
+    useEffect(() => {
+        if (availableFunnels[selectedFunnelId]) {
+            setFunnelSteps(availableFunnels[selectedFunnelId]);
+        } else if (selectedFunnelId === 'universal_sales' && !availableFunnels['universal_sales']) {
+            // Fallback if universal_sales is selected but not yet in availableFunnels (e.g. init)
+            setFunnelSteps(initialHomeBuyerSteps);
+        }
+    }, [selectedFunnelId, availableFunnels]);
 
     const togglePanel = () => setPanelExpanded(prev => !prev);
 
@@ -581,6 +621,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [sendSuccessIds, setSendSuccessIds] = useState<string[]>([]);
 
     useEffect(() => {
         if (saveStatus === 'success') {
@@ -609,11 +650,15 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 delayMinutes: parseDelay(step.delay)
             }));
 
-            // Saving to 'universal_sales' key as the main funnel
-            const result = await funnelService.saveFunnelStep(currentUserId, 'universal_sales', stepsWithMinutes);
+            // Saving to selectedFunnelId key
+            const result = await funnelService.saveFunnelStep(currentUserId, selectedFunnelId, stepsWithMinutes);
             if (result) {
                 setSaveStatus('success');
-                // Removed toast for success as per user request for inline feedback
+                // Update local availableFunnels state
+                setAvailableFunnels(prev => ({
+                    ...prev,
+                    [selectedFunnelId]: stepsWithMinutes
+                }));
             } else {
                 console.error('Save failed');
                 setToast({ message: 'Failed to save: Unknown error', type: 'error' });
@@ -814,6 +859,26 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                 {stepIsOpen && (
                                                     <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
                                                         <div className="pt-4 border-t border-slate-100">
+                                                            {/* Live Metrics Grid */}
+                                                            <div className="grid grid-cols-4 gap-4 mb-6">
+                                                                <div className="bg-white border border-slate-200 rounded-xl p-3 text-center shadow-sm">
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sent</div>
+                                                                    <div className="text-xl font-bold text-slate-700">{step.sent || 0}</div>
+                                                                </div>
+                                                                <div className="bg-white border border-slate-200 rounded-xl p-3 text-center shadow-sm">
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Opened</div>
+                                                                    <div className="text-xl font-bold text-indigo-600">{step.opened || 0}</div>
+                                                                </div>
+                                                                <div className="bg-white border border-slate-200 rounded-xl p-3 text-center shadow-sm">
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Clicked</div>
+                                                                    <div className="text-xl font-bold text-emerald-600">{step.clicked || 0}</div>
+                                                                </div>
+                                                                <div className="bg-white border border-slate-200 rounded-xl p-3 text-center shadow-sm">
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Replied</div>
+                                                                    <div className="text-xl font-bold text-blue-600">{step.replied || 0}</div>
+                                                                </div>
+                                                            </div>
+
                                                             {/* Step Label & Description Editor */}
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                                                 <div>
@@ -1286,12 +1351,20 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                                 />
                                                                             </div>
                                                                             <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-violet-200/50">
-                                                                                <button
-                                                                                    onClick={() => onSendTest(step)}
-                                                                                    className="px-3 py-1.5 bg-white border border-violet-200 rounded-lg text-xs font-semibold text-violet-700 hover:bg-violet-50 shadow-sm"
-                                                                                >
-                                                                                    Send Test
-                                                                                </button>
+                                                                                {sendSuccessIds.includes(step.id) ? (
+                                                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold animate-in zoom-in spin-in-3 duration-300">
+                                                                                        <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                                                                                        Sent!
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <button
+                                                                                        onClick={() => onSendTest(step)}
+                                                                                        disabled={sendingTestId === step.id}
+                                                                                        className="px-3 py-1.5 bg-white border border-violet-200 rounded-lg text-xs font-semibold text-violet-700 hover:bg-violet-50 shadow-sm disabled:opacity-50"
+                                                                                    >
+                                                                                        {sendingTestId === step.id ? 'Sending...' : 'Send Test'}
+                                                                                    </button>
+                                                                                )}
                                                                                 <button
                                                                                     onClick={onSave}
                                                                                     disabled={saveStatus === 'saving' || saveStatus === 'success'}
@@ -1403,7 +1476,29 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                             <span className="material-symbols-outlined text-base">monitoring</span>
                             AI Funnel
                         </p>
-                        <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                            <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
+                            {Object.keys(availableFunnels).length > 0 && (
+                                <div className="relative">
+                                    <select
+                                        value={selectedFunnelId}
+                                        onChange={(e) => setSelectedFunnelId(e.target.value)}
+                                        className="appearance-none bg-white border border-slate-300 text-slate-700 font-semibold py-2 pl-4 pr-10 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer text-sm"
+                                    >
+                                        {/* Cleanup: Only showing Realtor/Broker funnels as requested */}
+                                        {Object.keys(availableFunnels)
+                                            .map(key => (
+                                                <option key={key} value={key}>
+                                                    {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}
+                                                </option>
+                                            ))}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                                        <span className="material-symbols-outlined text-xl">expand_more</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         <p className="text-sm text-slate-500 sm:text-base">
                             {subtitle}
                         </p>

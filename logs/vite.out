@@ -1078,3 +1078,91 @@ The editor process exited with an error: (code 1).
 8:01:24 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
 8:01:39 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
 8:01:40 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+
+  VITE v7.2.2  ready in 2175 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+
+  VITE v7.2.2  ready in 1750 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+
+  VITE v7.2.2  ready in 1008 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+11:01:33 AM [vite] (client) hmr update /src/index.css
+11:01:54 AM [vite] (client) hmr update /src/index.css
+11:01:54 AM [vite] (client) hmr update /src/index.css
+Port 5174 is in use, trying another one...
+
+  VITE v7.2.2  ready in 1307 ms
+
+  ➜  Local:   http://localhost:5175/
+  ➜  Network: http://192.168.1.28:5175/
+  ➜  Network: http://169.254.106.155:5175/
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+3:50:15 PM [vite] (client) hmr update /src/index.css
+3:50:15 PM [vite] (client) hmr update /src/index.css
+4:11:48 PM [vite] (client) hmr update /src/index.css
+4:12:01 PM [vite] (client) hmr update /src/index.css
+4:12:01 PM [vite] (client) hmr update /src/index.css
+
+  VITE v7.2.2  ready in 1376 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+9:11:59 AM [vite] (client) hmr update /src/components/LandingPage.tsx, /src/index.css
+9:11:59 AM [vite] (client) hmr update /src/components/LandingPage.tsx, /src/index.css
+9:24:11 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:24:11 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+
+  VITE v7.2.2  ready in 1837 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+9:54:23 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:54:23 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:54:25 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:54:25 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:55:02 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:55:02 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:55:11 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:55:13 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:55:14 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:57:04 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:57:04 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+10:03:37 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:03:37 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:05:44 AM [vite] (client) hmr update /src/admin-dashboard/AdminDashboard.tsx, /src/index.css
+10:05:46 AM [vite] (client) hmr update /src/admin-dashboard/AdminDashboard.tsx, /src/index.css
+10:05:46 AM [vite] (client) hmr update /src/admin-dashboard/AdminDashboard.tsx, /src/index.css
+10:06:00 AM [vite] (client) hmr update /src/index.css, /src/admin-dashboard/components/AdminCommandCenter.tsx
+10:08:16 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:08:34 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:08:35 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:08:36 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:08:37 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:20:35 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:20:36 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:20:44 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:20:44 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:21:04 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:34:58 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:35:00 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:35:01 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:35:02 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:35:02 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:53:52 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+10:53:53 AM [vite] (client) hmr update /src/pages/WhiteLabelPage.tsx, /src/index.css
+11:27:11 AM [vite] (client) hmr update /src/components/ConsultationModal.tsx, /src/index.css
+11:33:17 AM [vite] (client) hmr update /src/context/SchedulerContext.tsx, /src/components/LeadsAndAppointmentsPage.tsx, /src/components/ViewingModal.tsx, /src/components/ConsultationModal.tsx, /src/index.css
+11:33:17 AM [vite] (client) hmr invalidate /src/context/SchedulerContext.tsx Could not Fast Refresh ("useScheduler" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:33:17 AM [vite] (client) page reload src/context/SchedulerContext.tsx

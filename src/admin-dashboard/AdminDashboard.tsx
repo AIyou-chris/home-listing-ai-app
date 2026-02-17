@@ -122,7 +122,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDemoMode] = useState(false);
+  const [isDemoMode] = useState(true);
 
   const [properties, setProperties] = useState<Property[]>(() =>
     DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index))
@@ -318,7 +318,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   const renderMainContent = () => {
     switch (activeView) {
       case 'dashboard':
-        return <AdminCommandCenter />;
+        return <AdminCommandCenter isDemoMode={isDemoMode} />;
       case 'leads':
         return (
           <AdminLeadsPage

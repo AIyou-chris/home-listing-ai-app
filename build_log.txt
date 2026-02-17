@@ -1,0 +1,70 @@
+
+> homelistingai-app@1.0.0 build
+> vite build
+
+vite v7.2.2 building client environment for production...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+transforming...
+✓ 2302 modules transformed.
+Generated an empty chunk: "ui".
+rendering chunks...
+[plugin vite:reporter] 
+(!) /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/supabase.ts is dynamically imported by /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/settings/BillingSettings.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/emailAuthService.ts but also statically imported by /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/App.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/admin-dashboard/Blog/BlogEditor.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AICardPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AIConversationsPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AISidekicks.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AddLeadModal.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AgentDashboard.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/ForgotPasswordPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/FunnelAnalyticsPanel.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/MarketingHub.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/ResetPasswordPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/SignInPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/UnifiedTrainingStudio.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/UniversalFunnelPanel.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/admin/AdminMarketingFunnelsPanel.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/admin/LeadImportModal.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/settings/SecuritySettings.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/pages/Blog/BlogIndex.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/pages/Blog/BlogPost.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/adminAuthService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/agentDataService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/aiCardService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/aiPersonaService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/appointmentsService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/authService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/leadsService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/listingKbService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/listingMediaService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/listingsService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/notificationService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/schedulerService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/sidekickProfilesService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/supabaseKb.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/authService.ts is dynamically imported by /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/appointmentsService.ts but also statically imported by /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/admin-dashboard/components/AdminBroadcastPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/admin-dashboard/components/AdminSettingsPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AdminUsersPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/settings/ColdEmailSettings.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/adminAppointmentsService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/adminLeadsService.ts, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/funnelService.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/chatService.ts is dynamically imported by /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/App.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AIInteractionHubPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AIInteractionHubPage.tsx but also statically imported by /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/admin-dashboard/LeadDetailDashboard.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AIConversationsPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AIInteractionHubPage.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/AgentSidekickModal.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/ListingSidekickWidget.tsx, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/PublicSidekickModal.tsx, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/html2canvas/dist/html2canvas.esm.js is dynamically imported by /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/jspdf/dist/jspdf.es.min.js, /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/services/aiCardService.ts but also statically imported by /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/reports/PdfGenerator.ts, dynamic import will not move module into another chunk.
+
+computing gzip size...
+dist/registerSW.js                               0.13 kB
+dist/manifest.webmanifest                        0.35 kB
+dist/index.html                                  2.94 kB │ gzip:   1.07 kB
+dist/assets/index-D_2M2tAx.css                 181.07 kB │ gzip:  26.59 kB
+dist/assets/ui-l0sNRNKZ.js                       0.00 kB │ gzip:   0.02 kB
+dist/assets/StripeLogo-bUJZoUfb.js               0.21 kB │ gzip:   0.19 kB
+dist/assets/VoiceLabPage-Bhc9ucf2.js             0.47 kB │ gzip:   0.30 kB
+dist/assets/PublicListingPage-dTFrbarw.js        1.27 kB │ gzip:   0.72 kB
+dist/assets/ForgotPasswordPage-BtCmFntz.js       2.67 kB │ gzip:   1.19 kB
+dist/assets/AdminLogin-BM-eakDV.js               3.59 kB │ gzip:   1.23 kB
+dist/assets/SignInPage-BK5ST57p.js               3.85 kB │ gzip:   1.53 kB
+dist/assets/AdminSetup-C_9gqWIr.js               3.93 kB │ gzip:   1.43 kB
+dist/assets/ResetPasswordPage-DcBjynVd.js        5.31 kB │ gzip:   2.05 kB
+dist/assets/LeadDetailDashboard-BcBm9v12.js      6.25 kB │ gzip:   1.76 kB
+dist/assets/PublicAICard-BHKyHpxU.js             8.71 kB │ gzip:   2.66 kB
+dist/assets/SignUpPage-_8dnmtks.js               8.81 kB │ gzip:   2.89 kB
+dist/assets/CheckoutPage--SA0lz3d.js            10.31 kB │ gzip:   3.17 kB
+dist/assets/WhiteLabelPage-CmSVIY4y.js          12.85 kB │ gzip:   3.83 kB
+dist/assets/NewLandingPage-DN-XRl5E.js          17.33 kB │ gzip:   4.70 kB
+dist/assets/purify.es-DXLIWP_F.js               22.50 kB │ gzip:   8.50 kB
+dist/assets/LandingPage-BP55d13N.js             50.06 kB │ gzip:  10.31 kB
+dist/assets/vendor-DQe0sZay.js                 139.62 kB │ gzip:  45.02 kB
+dist/assets/index.es-l9HgxRPS.js               155.72 kB │ gzip:  50.89 kB
+dist/assets/index-B-BkNTmd.js                2,233.90 kB │ gzip: 582.33 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 10.85s
+error during build:
+Error: 
+  Configure "workbox.maximumFileSizeToCacheInBytes" to change the limit: the default value is 2 MiB.
+  Check https://vite-pwa-org.netlify.app/guide/faq.html#missing-assets-from-sw-precache-manifest for more information.
+  Assets exceeding the limit:
+  - assets/index-B-BkNTmd.js is 2.23 MB, and won't be precached.
+
+    at logWorkboxResult (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/vite-plugin-pwa/dist/chunk-G4TAN34B.js:44:13)
+    at generateServiceWorker (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/vite-plugin-pwa/dist/index.js:209:3)
+    at async _generateSW (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/vite-plugin-pwa/dist/index.js:234:5)
+    at async Object.handler (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/vite-plugin-pwa/dist/index.js:427:13)
+    at async PluginDriver.hookParallel (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/rollup/dist/es/shared/node-entry.js:22341:17)
+    at async Object.close (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/rollup/dist/es/shared/node-entry.js:23360:13)
+    at async buildEnvironment (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/vite/dist/node/chunks/config.js:34174:15)
+    at async Object.build (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/vite/dist/node/chunks/config.js:34519:19)
+    at async Object.buildApp (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/vite/dist/node/chunks/config.js:34516:153)
+    at async CAC.<anonymous> (file:///Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/vite/dist/node/cli.js:629:3)

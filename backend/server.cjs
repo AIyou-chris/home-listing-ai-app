@@ -40,6 +40,8 @@ const upload = multer({
 });
 const { parseISO, addMinutes, isBefore, isAfter } = require('date-fns');
 
+const leadScoringService = require('./services/LeadScoringService');
+const funnelEngine = require('./services/FunnelEngine');
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 // The specialized "HTTP Webhook Signing Key" must be used for webhooks, NOT the Sending API Key.
 const MAILGUN_WEBHOOK_SIGNING_KEY = process.env.MAILGUN_WEBHOOK_SIGNING_KEY || process.env.MAILGUN_SIGNING_KEY || process.env.MAILGUN_API_KEY;
@@ -780,28 +782,88 @@ app.post('/api/webhooks/connect', async (req, res) => {
 app.get('/api/funnels/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const normalizedUserId = userId; // simplify for debug
+    const normalizedUserId = userId;
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return res.json({ success: true, funnels: {} });
     }
 
-    const { data, error } = await supabaseAdmin
+    // 1. Fetch all funnels for this agent (or default admin ones)
+    let { data: funnels, error } = await supabaseAdmin
       .from('funnels')
-      .select('funnel_key, steps')
-      .eq('agent_id', normalizedUserId);
+      .select('*')
+      .or(`agent_id.eq.${normalizedUserId},is_default.eq.true`);
 
     if (error) {
-      console.warn('[Funnels] Failed to load funnel steps:', error);
+      console.warn('[Funnels] Failed to load funnels:', error);
       return res.status(500).json({ success: false, error: 'Failed to load funnels' });
     }
 
-    const funnels = (data || []).reduce((acc, item) => {
-      acc[item.funnel_key] = item.steps;
-      return acc;
-    }, {});
+    if (!funnels || funnels.length === 0) {
+      // Fallback to defaults if none exist
+      return res.json({ success: true, funnels: {} });
+    }
 
-    res.json({ success: true, funnels });
+    // 2. Build Result Map
+    const result = {};
+
+    for (const funnel of funnels) {
+      // Fetch Steps with Metrics
+      const { data: steps, error: stepsError } = await supabaseAdmin
+        .from('funnel_steps')
+        .select(`
+                *,
+                metrics:funnel_step_metrics(*)
+            `)
+        .eq('funnel_id', funnel.id)
+        .order('step_index', { ascending: true });
+
+      if (stepsError) console.error('Step fetch error:', stepsError);
+
+      // Map to EditableStep format
+      const mappedSteps = (steps || []).map(s => {
+        // Determine Title/Description if missing
+        const title = s.step_name || `${s.action_type || 'Unknown'} Step`;
+        const icon = s.action_type === 'email' ? 'mail'
+          : s.action_type === 'sms' ? 'sms'
+            : s.action_type === 'call' ? 'call'
+              : 'task';
+
+        // Format Delay
+        const delayStr = s.delay_days > 0 ? `+${s.delay_days} days`
+          : s.delay_minutes > 0 ? `+${s.delay_minutes} min`
+            : 'Immediately';
+
+        // Metrics
+        const m = Array.isArray(s.metrics) ? s.metrics[0] : s.metrics; // One-to-one usually
+
+        return {
+          id: s.id, // Use UUID
+          step_key: s.step_key,
+          title: title,
+          description: s.description || '',
+          icon: icon,
+          delay: delayStr,
+          delayMinutes: (s.delay_days * 1440) + (s.delay_minutes || 0),
+          type: (s.action_type || 'email').charAt(0).toUpperCase() + (s.action_type || 'email').slice(1), // Capitalize
+          subject: s.subject || s.email_subject || '',
+          content: s.email_body || s.content || '',
+          conditionRule: s.condition_type,
+          conditionValue: s.condition_value,
+          // Metrics (Frontend will need to update interface to see these)
+          sent: m?.sent_count || 0,
+          opened: m?.opens || 0,
+          clicked: m?.clicks || 0,
+          replied: m?.replies || 0
+        };
+      });
+
+      // Use 'funnel_key' if available (e.g. 'realtor_funnel'), else type
+      const key = funnel.funnel_key || funnel.type || `funnel_${funnel.id}`;
+      result[key] = mappedSteps;
+    }
+
+    res.json({ success: true, funnels: result });
   } catch (error) {
     console.error('[Funnels] Error fetching funnels:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -819,57 +881,86 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
 
     console.log(`[Funnels] Saving ${funnelType} for ${userId}. Steps:`, steps ? steps.length : 'null');
 
-    // 1. Check if funnel exists for this agent
-    const { data: existingFunnel, error: fetchError } = await supabaseAdmin
+    // 1. Get/Create Funnel Record
+    let { data: funnel, error: fetchError } = await supabaseAdmin
       .from('funnels')
       .select('id')
       .eq('agent_id', userId)
       .eq('funnel_key', funnelType)
-      .maybeSingle(); // Use maybeSingle to avoid error on not found
+      .maybeSingle();
 
     if (fetchError) {
       console.error('[Funnels] Failed to check existing funnel:', fetchError);
       return res.status(500).json({ success: false, error: 'Database error' });
     }
 
-    let result;
-    if (existingFunnel) {
-      // Update existing
-      result = await supabaseAdmin
-        .from('funnels')
-        .update({
-          steps: steps,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingFunnel.id);
-    } else {
-      // Insert new
+    // Insert new funnel context if missing
+    if (!funnel) {
       const FUNNEL_TITLES = {
-        'welcome-onboarding': 'Instant AI Welcome',
-        'buyers-fast-response': 'Buyer Journey',
-        'seller-high-touch': 'Listing Prep & Story',
-        'post-showing-feedback': 'Post-Showing Feedback',
+        'realtor_funnel': 'Realtor Funnel',
+        'broker_funnel': 'Broker / Recruiter Funnel',
         'universal_sales': 'Agent Outreach',
         'homebuyer': 'Buyer Journey'
       };
 
-      result = await supabaseAdmin
+      const { data: newFunnel, error: insertError } = await supabaseAdmin
         .from('funnels')
         .insert({
           agent_id: userId,
           funnel_key: funnelType,
           name: FUNNEL_TITLES[funnelType] || 'Custom Funnel',
           description: 'Customized agent funnel',
-          steps: steps,
+          steps: [], // Deprecated JSON column
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        });
+        })
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+      funnel = newFunnel;
     }
 
-    if (result.error) {
-      console.error('[Funnels] Failed to save funnel:', result.error);
-      return res.status(500).json({ success: false, error: 'Failed to save funnel', details: result.error });
+    // 2. Clear Existing Steps (Replace Strategy)
+    const { error: deleteError } = await supabaseAdmin
+      .from('funnel_steps')
+      .delete()
+      .eq('funnel_id', funnel.id);
+
+    if (deleteError) throw deleteError;
+
+    // 3. Insert New Steps
+    if (steps && steps.length > 0) {
+      const stepsPayload = steps.map((s, index) => ({
+        funnel_id: funnel.id,
+        step_index: index + 1,
+        step_name: s.title || 'Untitled Step',
+        action_type: (s.type || 'email').toLowerCase(), // Normalize 'Email' -> 'email'
+        subject: s.subject || '',
+        content: s.content || '',
+        delay_days: Math.floor((s.delayMinutes || 0) / 1440), // Convert minutes to days (approx)
+        description: s.description || '',
+        preview_text: s.previewText || '',
+        created_at: new Date().toISOString()
+      }));
+
+      const { error: stepsInsertError } = await supabaseAdmin
+        .from('funnel_steps')
+        .insert(stepsPayload);
+
+      if (stepsInsertError) {
+        // If description column missing error, retry without description?
+        // For now, we omit description to be safe until migration is confirmed.
+        console.error('[Funnels] Failed to insert steps:', stepsInsertError);
+        throw stepsInsertError;
+      }
     }
+
+    // 4. Update Funnel Timestamp
+    await supabaseAdmin
+      .from('funnels')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', funnel.id);
 
     res.json({ success: true });
   } catch (error) {
@@ -1839,6 +1930,10 @@ app.post('/api/webhooks/mailgun/inbound', async (req, res) => {
 
     console.log(`✅ [Inbound Email] Saved to conversation ${conversationId}`);
 
+    // Trigger Lead Scoring (Async)
+    leadScoringService.recalculateLeadScore(lead.id, 'CHAT_REPLY')
+      .catch(err => console.error('Failed to score inbound email:', err));
+
     // --- SMART INTERRUPT: STOP FUNNELS ON REPLY ---
     try {
       const activeUserId = lead.user_id; // Use correct variable name from lead object
@@ -1912,6 +2007,18 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
 
     // SAFE TIMESTAMP
     const safeTimestamp = (timestamp && !isNaN(timestamp)) ? new Date(timestamp * 1000).toISOString() : new Date().toISOString();
+
+    // --- NEW: Funnel Engine Processing ---
+    // If attributes exist, update funnel metrics & score
+    const funnelEngine = require('./services/FunnelEngine');
+    if (user_variables?.lead_id) {
+      try {
+        await funnelEngine.processEvent(user_variables.lead_id, event, user_variables.funnel_step_id);
+        console.log(`🌀 [Funnel Event] Processed '${event}' for Lead ${user_variables.lead_id}`);
+      } catch (feErr) {
+        console.error('⚠️ Funnel Event Processing Failed:', feErr);
+      }
+    }
 
     // 2. Log to Database
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -3225,65 +3332,23 @@ const triggerHotLeadAlert = async (lead, totalScore) => {
   }
 };
 
+// Wrappers for V2 Lead Scoring Service
 function calculateLeadScore(lead, trackingData = null, dynamicRules = []) {
-  const breakdown = [];
-  let totalScore = 0;
-
-  // Create a map of dynamic configs for fast lookup
-  const ruleConfigMap = new Map();
-  if (Array.isArray(dynamicRules)) {
-    dynamicRules.forEach(r => ruleConfigMap.set(r.id, r));
-  }
-
-  // Apply each scoring rule definition
-  for (const def of LEAD_SCORING_RULES) {
-    try {
-      // Check for dynamic override
-      const config = ruleConfigMap.get(def.id);
-
-      // If rule is disabled in DB, skip
-      if (config && config.isActive === false) continue; // Assuming active field exists, or default true
-
-      // Use dynamic points if available, else static default
-      const points = (config && typeof config.points === 'number') ? config.points : def.points;
-
-      if (def.condition(lead, trackingData)) {
-        totalScore += points;
-        breakdown.push({
-          ruleId: def.id,
-          ruleName: def.name,
-          points: points,
-          category: def.category,
-          appliedCount: 1
-        });
-      }
-    } catch (error) {
-      console.warn(`Error applying scoring rule ${def.id}:`, error.message);
-    }
-  }
-
-  // Determine tier based on total score
-  let tier = 'Cold';
-  if (totalScore >= SCORE_TIERS.QUALIFIED.min) tier = 'Qualified';
-  else if (totalScore >= SCORE_TIERS.HOT.min) tier = 'Hot';
-  else if (totalScore >= SCORE_TIERS.WARM.min) tier = 'Warm';
-
-  return {
-    leadId: lead.id,
-    totalScore,
-    tier,
-    breakdown,
-    lastUpdated: new Date().toISOString()
-  };
+  // Bridge to V2 Service (Synchronous calculation only)
+  // Note: This misses historical event context if not provided, but serves as a compatibility layer.
+  // For full accuracy, prefer: await leadScoringService.recalculateLeadScore(leadId, trigger)
+  return leadScoringService.calculateScore(lead, [], null);
 }
 
 // Auto-score lead and add to lead object
 function autoScoreLead(lead) {
   const score = calculateLeadScore(lead);
-  lead.score = clampScore(score.totalScore);
-  lead.scoreTier = score.tier;
-  lead.scoreBreakdown = score.breakdown;
-  lead.scoreLastUpdated = score.lastUpdated;
+  lead.score = score.totalScore;
+  lead.score_tier = score.tier; // V2 Column
+  lead.scoreTier = score.tier; // Legacy support
+  lead.score_breakdown = score.breakdown; // V2 Column
+  lead.scoreBreakdown = score.breakdown; // Legacy support
+  lead.last_behavior_at = new Date().toISOString();
   return lead;
 }
 
@@ -4841,7 +4906,48 @@ app.post('/api/admin/email/quick-send', async (req, res) => {
   const { to, subject, html, text } = req.body;
   if (!to || !subject || !html) return res.status(400).json({ error: 'Missing required fields' });
   try {
-    const result = await emailService.sendEmail({ to, subject, html, text: text || 'Please enable HTML to view this email.' });
+    // Attempt to find lead for tracking
+    let tags = {};
+    const recipientEmail = Array.isArray(to) ? to[0] : to;
+    if (recipientEmail) {
+      const { data: lead } = await supabaseAdmin
+        .from('leads')
+        .select('id, user_id')
+        .eq('email', recipientEmail)
+        .limit(1)
+        .single();
+
+      if (lead) {
+        tags = {
+          lead_id: lead.id,
+          user_id: lead.user_id,
+          funnel_step: 'manual_test'
+        };
+      }
+    }
+
+    // Wrap content in strict styling template
+    const styledHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <style>
+              body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.2; color: #334155; }
+              h1 { font-size: 16px; margin: 10px 0 5px 0; font-weight: bold; }
+              h2 { font-size: 14px; margin: 10px 0 5px 0; font-weight: bold; }
+              p { margin: 0 0 10px 0; }
+              a { color: #4f46e5; text-decoration: none; }
+              .content { width: 100%; max-width: 600px; padding-left: 5px; padding-top: 0; margin-top: 0; }
+          </style>
+      </head>
+      <body>
+          <div class="content" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.2; color: #334155; padding-left: 5px; padding-top: 0; margin-top: 0;">
+              ${html}
+          </div>
+      </body>
+      </html>`;
+
+    const result = await emailService.sendEmail({ to, subject, html: styledHtml, text: text || 'Please enable HTML to view this email.', tags });
     res.json({ success: true, result });
   } catch (error) {
     console.error('Test email failed:', error);
@@ -4892,18 +4998,35 @@ app.get('/api/track/email/open/:messageId', async (req, res) => {
       return res.status(400).send('Message ID required');
     }
 
-    // Update tracking record
-    const { error } = await supabaseAdmin
+    // 1. Fetch existing record to get current count and lead_id
+    const { data: eventData, error: fetchError } = await supabaseAdmin
       .from('email_tracking_events')
-      .update({
-        opened_at: supabaseAdmin.raw('COALESCE(opened_at, NOW())'), // Only set if not already set
-        open_count: supabaseAdmin.raw('open_count + 1'),
-        updated_at: new Date().toISOString()
-      })
-      .eq('message_id', messageId);
+      .select('id, open_count, lead_id')
+      .eq('message_id', messageId)
+      .single();
 
-    if (error) {
-      console.error('Error tracking email open:', error);
+    if (fetchError || !eventData) {
+      console.warn('Tracking event not found or error:', messageId);
+    } else {
+      // 2. Update tracking record
+      const { error: updateError } = await supabaseAdmin
+        .from('email_tracking_events')
+        .update({
+          opened_at: new Date().toISOString(),
+          open_count: (eventData.open_count || 0) + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq('message_id', messageId);
+
+      if (updateError) {
+        console.error('Error tracking email open update:', updateError);
+      } else {
+        // 3. Trigger Score
+        if (eventData.lead_id) {
+          leadScoringService.recalculateLeadScore(eventData.lead_id, 'EMAIL_OPEN')
+            .catch(err => console.error('Failed to score open:', err));
+        }
+      }
     }
 
     // Return 1x1 transparent GIF
@@ -4941,18 +5064,35 @@ app.get('/api/track/email/click/:messageId', async (req, res) => {
       return res.status(400).send('Message ID and URL required');
     }
 
-    // Update tracking record
-    const { error } = await supabaseAdmin
+    // 1. Fetch existing record
+    const { data: eventData, error: fetchError } = await supabaseAdmin
       .from('email_tracking_events')
-      .update({
-        clicked_at: supabaseAdmin.raw('COALESCE(clicked_at, NOW())'), // Only set first click time
-        click_count: supabaseAdmin.raw('click_count + 1'),
-        updated_at: new Date().toISOString()
-      })
-      .eq('message_id', messageId);
+      .select('id, click_count, lead_id, clicked_at')
+      .eq('message_id', messageId)
+      .single();
 
-    if (error) {
-      console.error('Error tracking email click:', error);
+    if (fetchError || !eventData) {
+      console.warn('Tracking event not found for click:', messageId);
+    } else {
+      // 2. Update tracking record
+      const { error: updateError } = await supabaseAdmin
+        .from('email_tracking_events')
+        .update({
+          clicked_at: eventData.clicked_at || new Date().toISOString(), // Keep original if set
+          click_count: (eventData.click_count || 0) + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq('message_id', messageId);
+
+      if (updateError) {
+        console.error('Error tracking email click update:', updateError);
+      } else {
+        // 3. Trigger Score
+        if (eventData.lead_id) {
+          leadScoringService.recalculateLeadScore(eventData.lead_id, 'EMAIL_CLICK')
+            .catch(err => console.error('Failed to score click:', err));
+        }
+      }
     }
 
     // Redirect to actual URL
@@ -6941,6 +7081,10 @@ app.post('/api/webhooks/telnyx/inbound', async (req, res) => {
       });
       console.log(`✅ [SMS] Saved to conversation ${conversationId}`);
 
+      // Trigger Lead Scoring (Async)
+      leadScoringService.recalculateLeadScore(lead.id, 'CHAT_REPLY')
+        .catch(err => console.error('Failed to score inbound SMS:', err));
+
       // 5. Update Conversation Metadata
       await supabaseAdmin.from('ai_conversations').update({
         last_message: textBody,
@@ -7150,6 +7294,14 @@ app.post('/api/admin/leads', async (req, res) => {
     const { data, error } = await supabaseAdmin.from('leads').insert(insertPayload).select('*').single();
     if (error) {
       throw error;
+    }
+
+    // --- NEW: Assign Funnel ---
+    try {
+      const funnelType = (req.body.role === 'broker' || req.body.role === 'recruiter') ? 'broker' : 'realtor';
+      await funnelEngine.assignFunnel(data.id, funnelType);
+    } catch (funnelError) {
+      console.error('⚠️ Funnel assignment failed (non-blocking):', funnelError);
     }
 
     const mappedLead = mapLeadFromRow(data);
@@ -8253,6 +8405,16 @@ app.post('/api/leads', async (req, res) => {
         // Fallback or continue? We should probably fail if DB fails, but for demo we can proceed.
       } else {
         savedLead = data;
+
+        // --- NEW: Assign Funnel (Public Lead) ---
+        try {
+          // Basic logic: Default is 'realtor'. If source implies broker, switch.
+          // You might want to add a hidden field in your landing page for 'role'
+          const funnelType = (req.body.role === 'broker') ? 'broker' : 'realtor';
+          await funnelEngine.assignFunnel(savedLead.id, funnelType);
+        } catch (funnelErr) {
+          console.error('⚠️ Funnel assignment failed for public lead:', funnelErr);
+        }
       }
     }
 
@@ -8353,6 +8515,15 @@ app.get('/api/admin/analytics/funnel-summary', (_req, res) => {
 app.get('/api/admin/analytics/funnel-performance', (_req, res) => {
   res.json(adminFunnelAnalytics.performance);
 });
+
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// New Routes
+app.get('/api/leads/stats', require('./api/leads_stats'));
+app.get('/api/blueprint/leads', require('./api/blueprint_leads')); // NEW: Blueprint Leads Proxy
+
+// React routing handler moved to end of file to prevent masking API routes
 
 app.get('/api/admin/analytics/funnel-calendar', (_req, res) => {
   res.json(adminFunnelAnalytics.calendar);
@@ -9738,6 +9909,16 @@ app.post('/api/leads/public', async (req, res) => {
       } else {
         dbSuccess = true;
         leadData = lead;
+
+        // --- NEW: Assign Funnel ---
+        try {
+          // Assuming 'role' might be passed in req.body for public leads, or default to 'realtor'
+          const funnelType = (req.body.role === 'broker' || req.body.role === 'recruiter') ? 'broker' : 'realtor';
+          // Assuming funnelEngine is available (e.g., required at the top of the file)
+          await funnelEngine.assignFunnel(lead.id, funnelType);
+        } catch (funnelError) {
+          console.error('⚠️ Funnel assignment failed (non-blocking):', funnelError);
+        }
       }
     } else {
       console.warn('Skipping DB save: No targetUserId or DEFAULT_LEAD_USER_ID set');
@@ -9781,27 +9962,7 @@ app.post('/api/leads/public', async (req, res) => {
   }
 });
 
-// Quick email sending (Unified Service)
-app.post('/api/admin/email/quick-send', async (req, res) => {
-  try {
-    const { to, subject, html, text, from } = req.body;
-    // Basic validation
-    if (!to || !subject) return res.status(400).json({ error: 'Missing to or subject' });
 
-    await createEmailService().sendEmail({
-      to,
-      subject,
-      html: html || text,
-      text,
-      from,
-      tags: ['admin-quick-send']
-    });
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Quick Email Error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 app.post('/api/admin/voice/quick-send', async (req, res) => {
   try {
@@ -9996,6 +10157,57 @@ app.get('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
     if (!sequence) {
       console.warn(`[Marketing-GET] Sequence ${sequenceId} not found in user's list`);
       return res.status(404).json({ error: 'Sequence not found' });
+    }
+
+    // --- INJECT STATS ---
+    try {
+      if (sequence.steps && Array.isArray(sequence.steps) && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const stepIds = sequence.steps.map(s => s.id).filter(Boolean);
+
+        if (stepIds.length > 0) {
+          // Fetch tracking events for these steps (and this sequence)
+          const { data: statsData, error: statsError } = await supabaseAdmin
+            .from('email_tracking_events')
+            .select('step_id, open_count, click_count, opened_at, clicked_at')
+            .in('step_id', stepIds);
+
+          if (!statsError && statsData) {
+            const statsMap = {};
+
+            statsData.forEach(row => {
+              if (!row.step_id) return;
+
+              if (!statsMap[row.step_id]) {
+                statsMap[row.step_id] = { sent: 0, opened: 0, clicked: 0 };
+              }
+
+              statsMap[row.step_id].sent += 1;
+
+              // Count as opened if open_count > 0 OR opened_at is set
+              if (row.open_count > 0 || row.opened_at) {
+                statsMap[row.step_id].opened += 1;
+              }
+
+              // Count as clicked if click_count > 0 OR clicked_at is set
+              if (row.click_count > 0 || row.clicked_at) {
+                statsMap[row.step_id].clicked += 1;
+              }
+            });
+
+            // Merge stats into steps
+            sequence.steps = sequence.steps.map(step => ({
+              ...step,
+              stats: statsMap[step.id] || { sent: 0, opened: 0, clicked: 0 }
+            }));
+
+            console.log(`[Marketing-GET] Injected stats for ${Object.keys(statsMap).length} steps`);
+          } else if (statsError) {
+            console.warn('[Marketing-GET] Failed to fetch stats:', statsError);
+          }
+        }
+      }
+    } catch (statsErr) {
+      console.error('[Marketing-GET] Stats injection error:', statsErr);
     }
 
     console.log(`[Marketing-GET] Success. Returning sequence: ${sequence.name}`);
@@ -12366,6 +12578,12 @@ app.post('/api/appointments', async (req, res) => {
       throw error;
     }
 
+    // Trigger Lead Scoring (Async)
+    if (resolvedLeadId) {
+      leadScoringService.recalculateLeadScore(resolvedLeadId, 'BOOKING')
+        .catch(err => console.error('Failed to score booking:', err));
+    }
+
     const agentProfile =
       (await fetchAiCardProfileForUser(agentId || ownerId)) || DEFAULT_AI_CARD_PROFILE;
     const appointment = decorateAppointmentWithAgent(mapAppointmentFromRow(data), agentProfile);
@@ -13605,6 +13823,11 @@ app.put('/api/agent/identity', async (req, res) => {
   }
 });
 
+// Handle React routing, return all requests to React app (Wildcard must be last)
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
+});
+
 app.listen(port, '0.0.0.0', () => {
   console.log(`🚀 AI Server running on http://0.0.0.0:${port}`);
   console.log('📝 Available endpoints:');
@@ -14493,7 +14716,8 @@ const executeDelayedStep = async (userId, lead, step, signature, sequenceId) => 
     const email = lead.email;
     if (email) {
       console.log('[Scheduler] Sending Delayed Email to ' + email);
-      const emailService = require('./services/emailService'); // Ensure loaded
+      const createEmailService = require('./services/emailService');
+      const emailService = createEmailService(supabaseAdmin);
 
       let finalHtml = content.replace(/\n/g, '<br/>');
 
@@ -14596,7 +14820,8 @@ const checkTrialWarnings = async () => {
 
     if (candidates && candidates.length > 0) {
       console.log(`[Scheduler] Found ${candidates.length} agents due for trial warning.`);
-      const emailService = require('./services/emailService');
+      const createEmailService = require('./services/emailService');
+      const emailService = createEmailService(supabaseAdmin);
 
       for (const agent of candidates) {
         const warningHtml = `
@@ -14690,7 +14915,8 @@ const checkExpiredTrials = async () => {
 
     if (candidates && candidates.length > 0) {
       console.log(`[Scheduler] Found ${candidates.length} expired trials for recovery.`);
-      const emailService = require('./services/emailService');
+      const createEmailService = require('./services/emailService');
+      const emailService = createEmailService(supabaseAdmin);
 
       for (const agent of candidates) {
         const recoveryHtml = `
@@ -14891,6 +15117,6 @@ setInterval(() => {
   checkTrialWarnings();
   checkExpiredTrials();
   checkUpcomingAppointments();
-  checkLeadScores(); // Run the scoring watchdog
+  // checkLeadScores(); // DISABLED: Using V2 Event-Driven Scoring (LeadScoringService)
   checkFunnelFollowUps(); // CRITICAL: Run the funnel automation logic
 }, 60 * 1000);

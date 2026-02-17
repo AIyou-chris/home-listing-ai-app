@@ -37,6 +37,11 @@ export type EditableStep = {
     callType?: 'agent' | 'sales';
     previewText?: string;
     attachments?: Array<{ id: string; name: string; url?: string }>;
+    stats?: {
+        sent: number;
+        opened: number;
+        clicked: number;
+    };
 };
 
 const buildDefaultSteps = (): EditableStep[] => ([
@@ -294,11 +299,21 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
             const body = mergeTokens(step.content, realMergeData);
             const testSubject = `[TEST] ${subject}`;
 
+
             const sent = await emailService.sendEmail(
                 email,
                 testSubject,
                 body,
-                { text: mergeTokens(step.content, realMergeData) }
+                {
+                    text: mergeTokens(step.content, realMergeData),
+                    tags: {
+                        user_id: user?.id || 'admin-test',
+                        lead_id: 'test-lead-preview',
+                        funnel_step: step.id,
+                        sequence_id: UNIVERSAL_FUNNEL_ID,
+                        type: 'test-email'
+                    }
+                }
             );
 
             if (sent) alert(`Test email sent to ${email}`);
@@ -612,6 +627,23 @@ const AdminSalesFunnelPanel: React.FC<AdminSalesFunnelPanelProps> = ({
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4 text-xs text-slate-500">
+                                            {/* Debug: {console.log('Step Stats:', step.id, step.stats)} */}
+                                            {step.stats && (
+                                                <div className="flex items-center gap-3 mr-2 border-r border-slate-200 pr-4">
+                                                    <div className="flex flex-col items-center min-w-[30px]">
+                                                        <span className="text-[9px] uppercase font-bold text-slate-400 leading-none mb-1">Sent</span>
+                                                        <span className="font-semibold text-slate-700 leading-none">{step.stats.sent}</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-center min-w-[30px]">
+                                                        <span className="text-[9px] uppercase font-bold text-slate-400 leading-none mb-1">Open</span>
+                                                        <span className="font-semibold text-emerald-600 leading-none">{step.stats.opened}</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-center min-w-[30px]">
+                                                        <span className="text-[9px] uppercase font-bold text-slate-400 leading-none mb-1">Click</span>
+                                                        <span className="font-semibold text-blue-600 leading-none">{step.stats.clicked}</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                             <span className="font-semibold">{step.delay}</span>
                                             <span className="hidden rounded-full border border-slate-200 bg-white px-2 py-1 font-semibold sm:inline">
                                                 {step.type}

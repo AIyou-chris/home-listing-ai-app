@@ -17,8 +17,8 @@ interface AdminLeadsPageProps {
   isLoading: boolean;
   error?: string | null;
   onRefreshLeads: () => Promise<void>;
-  onAddLead: (payload: { name: string; email: string; phone: string; message: string; source: string }) => Promise<Lead>;
-  onUpdateLead: (leadId: string, payload: { name: string; email: string; phone: string; message: string; source: string }) => Promise<void>;
+  onAddLead: (payload: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => Promise<Lead>;
+  onUpdateLead: (leadId: string, payload: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => Promise<void>;
   onDeleteLead: (leadId: string) => Promise<void>;
   onCreateAppointment: (payload: ScheduleAppointmentFormData, lead?: Lead | null) => Promise<Appointment | null>;
   onUpdateAppointment: (id: string, payload: ScheduleAppointmentFormData, lead?: Lead | null) => Promise<Appointment | null>;
@@ -37,7 +37,8 @@ const statusStyles: Record<LeadStatus, string> = {
   Lost: 'bg-red-100 text-red-700',
   Won: 'bg-teal-100 text-teal-700',
   Bounced: 'bg-red-100 text-red-700',
-  Unsubscribed: 'bg-slate-100 text-slate-700'
+  Unsubscribed: 'bg-slate-100 text-slate-700',
+  'Marketing Only': 'bg-indigo-100 text-indigo-700'
 };
 
 const StatCard: React.FC<{ icon: string; value: number; label: string; colorClass: string; iconColor: string }> = ({
@@ -311,9 +312,9 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
                           <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${statusStyles[lead.status]}`}>{lead.status}</span>
                           {lead.score && (
                             <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full flex items-center gap-1 ${lead.score.totalScore >= 90 ? 'bg-orange-100 text-orange-700' :
-                                lead.score.totalScore >= 70 ? 'bg-green-100 text-green-700' :
-                                  lead.score.totalScore >= 40 ? 'bg-blue-100 text-blue-700' :
-                                    'bg-slate-100 text-slate-600'
+                              lead.score.totalScore >= 70 ? 'bg-green-100 text-green-700' :
+                                lead.score.totalScore >= 40 ? 'bg-blue-100 text-blue-700' :
+                                  'bg-slate-100 text-slate-600'
                               }`}>
                               <span className="material-symbols-outlined text-sm">
                                 {lead.score.totalScore >= 90 ? 'local_fire_department' : 'trending_up'}
@@ -621,7 +622,8 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
             email: editingLead.email,
             phone: editingLead.phone || '',
             message: editingLead.notes || '',
-            source: editingLead.source || 'Manual Entry'
+            source: editingLead.source || 'Manual Entry',
+            funnelType: editingLead.funnelType || ''
           }}
           onClose={() => setEditingLead(null)}
           onAddLead={async (leadData) => {

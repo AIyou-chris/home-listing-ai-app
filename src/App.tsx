@@ -8,52 +8,55 @@ import {
     BLUEPRINT_AGENT,
     BLUEPRINT_PROPERTIES
 } from './constants/agentBlueprintData';
-import LandingPage from './components/LandingPage';
-import NewLandingPage from './components/NewLandingPage';
-import SignUpPage from './components/SignUpPage';
-import SignInPage from './components/SignInPage';
-import ForgotPasswordPage from './components/ForgotPasswordPage';
-import ResetPasswordPage from './components/ResetPasswordPage';
-import CheckoutPage from './components/CheckoutPage';
+const LandingPage = lazy(() => import('./components/LandingPage'));
+const NewLandingPage = lazy(() => import('./components/NewLandingPage'));
+const SignUpPage = lazy(() => import('./components/SignUpPage'));
+const SignInPage = lazy(() => import('./components/SignInPage'));
+const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
+const CheckoutPage = lazy(() => import('./components/CheckoutPage'));
 import { Toaster } from 'react-hot-toast';
 import { showToast } from './utils/toastService';
 import { getRegistrationContext } from './services/agentOnboardingService';
 
-import AgentDashboard from './components/AgentDashboard';
-import NotificationSystem from './components/NotificationSystem';
+const WhiteLabelPage = lazy(() => import('./pages/WhiteLabelPage'));
 
-import Sidebar from './components/Sidebar';
-import PropertyPage from './components/PropertyPage';
-import ListingsPage from './components/ListingsPage';
-import AddListingPage from './components/AddListingPage';
-import LeadsAndAppointmentsPage from './components/LeadsAndAppointmentsPage';
-import InteractionHubPage from './components/AIInteractionHubPage';
-import AIConversationsPage from './components/AIConversationsPage';
-import AICardPage from './components/AICardPage';
-import MarketingReportsPage from './components/MarketingReportsPage';
-import CompliancePolicyPage from './components/CompliancePolicyPage';
-import DmcaPolicyPage from './components/DmcaPolicyPage';
-import TrialLock from './components/TrialLock';
+const AgentDashboard = lazy(() => import('./components/AgentDashboard'));
+const NotificationSystem = lazy(() => import('./components/NotificationSystem'));
+
+const Sidebar = lazy(() => import('./components/Sidebar'));
+const PropertyPage = lazy(() => import('./components/PropertyPage'));
+const ListingsPage = lazy(() => import('./components/ListingsPage'));
+const AddListingPage = lazy(() => import('./components/AddListingPage'));
+const LeadsAndAppointmentsPage = lazy(() => import('./components/LeadsAndAppointmentsPage'));
+const InteractionHubPage = lazy(() => import('./components/AIInteractionHubPage'));
+const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
+const AICardPage = lazy(() => import('./components/AICardPage'));
+const MarketingReportsPage = lazy(() => import('./components/MarketingReportsPage'));
+const CompliancePolicyPage = lazy(() => import('./components/CompliancePolicyPage'));
+const DmcaPolicyPage = lazy(() => import('./components/DmcaPolicyPage'));
+const TrialLock = lazy(() => import('./components/TrialLock'));
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
-import SettingsPage from './components/SettingsPage';
-import AnalyticsDashboard from './components/AnalyticsDashboard';
+const SettingsPage = lazy(() => import('./components/SettingsPage'));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
 
-import ConsultationModal from './components/ConsultationModal';
+const ConsultationModal = lazy(() => import('./components/ConsultationModal'));
 import { AISidekickProvider } from './context/AISidekickContext';
 import { AgentBrandingProvider } from './context/AgentBrandingContext';
 import { getProfileForDashboard, subscribeToProfileChanges } from './services/agentProfileService';
 // Lazy load admin components for better performance
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
-const AdminLogin = lazy(() => import('./components/AdminLogin'));
-import AdminDashboard from './admin-dashboard/AdminDashboard';
+import AdminLogin from './components/AdminLogin'; // Keep AdminLogin static for faster auth interaction? No, lazy is fine if wrapped.
+const AdminDashboard = lazy(() => import('./admin-dashboard/AdminDashboard'));
 const LeadDetailDashboard = lazy(() => import('./admin-dashboard/LeadDetailDashboard'));
 
 
-import DemoListingPage from './components/DemoListingPage';
-import ChatBotFAB from './components/ChatBotFAB';
-import { StorefrontPage } from './pages/StorefrontPage';
-import { MultiToolShowcase } from './components/MultiToolShowcase';
+const DemoListingPage = lazy(() => import('./components/DemoListingPage'));
+const ChatBotFAB = lazy(() => import('./components/ChatBotFAB'));
+const StorefrontPage = lazy(() => import('./pages/StorefrontPage').then(module => ({ default: module.StorefrontPage })));
+// Note: StorefrontPage is named export in original file based on import { StorefrontPage } ...
+const MultiToolShowcase = lazy(() => import('./components/MultiToolShowcase').then(module => ({ default: module.MultiToolShowcase })));
 const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
     universal_sales: 'Buyer Lead',
     homebuyer: 'Buyer Lead',
@@ -72,15 +75,15 @@ import { notificationSettingsService } from './services/notificationSettingsServ
 import { calendarSettingsService } from './services/calendarSettingsService';
 import { billingSettingsService } from './services/billingSettingsService';
 import { emailSettingsService } from './services/emailSettingsService';
-import EnhancedAISidekicksHub from './components/EnhancedAISidekicksHub';
+const EnhancedAISidekicksHub = lazy(() => import('./components/EnhancedAISidekicksHub'));
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
 const PublicListingPage = lazy(() => import('./pages/PublicListingPage')); // Public View
-import BlogIndex from './pages/Blog/BlogIndex';
-import BlogPost from './pages/Blog/BlogPost';
+const BlogIndex = lazy(() => import('./pages/Blog/BlogIndex'));
+const BlogPost = lazy(() => import('./pages/Blog/BlogPost'));
 const VoiceLabPage = lazy(() => import('./pages/VoiceLabPage'));
-import CombinedTrainingPage from './components/AgentAISidekicksPage';
+const CombinedTrainingPage = lazy(() => import('./components/AgentAISidekicksPage'));
 // import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
-import FunnelAnalyticsPanel from './components/FunnelAnalyticsPanel';
+const FunnelAnalyticsPanel = lazy(() => import('./components/FunnelAnalyticsPanel'));
 
 import { listingsService, CreatePropertyInput } from './services/listingsService';
 // Stubs removed, using real service
@@ -237,6 +240,7 @@ const App: React.FC = () => {
 
     // Removed unused selectedLead state
     const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
+    const [consultationRole, setConsultationRole] = useState<'realtor' | 'broker'>('realtor');
     const [scrollToSection, setScrollToSection] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     // Notification system is now handled by NotificationSystem component
@@ -419,7 +423,8 @@ const App: React.FC = () => {
                 currentPath.startsWith('/checkout') || // Critical for checkout flow
                 currentPath.includes('/demo-') ||
                 currentPath.startsWith('/blog') || // Allow blog access
-                currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard');
+                currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard') ||
+                currentPath === '/white-label';
 
             // Force Blueprint Mode handling if on that route specifically
             if (currentPath.includes('blueprint')) {
@@ -620,7 +625,7 @@ const App: React.FC = () => {
         if (isAdmin) {
             const path = location.pathname;
             const isPublicDetails = path.startsWith('/listing/') || path.startsWith('/store/') || path.startsWith('/card/') || path.startsWith('/p/') || path.startsWith('/compliance') || path.startsWith('/dmca');
-            const isPublicRoot = path === '/' || path === '/landing' || path.includes('/demo-');
+            const isPublicRoot = path === '/' || path === '/landing' || path === '/white-label' || path.includes('/demo-');
 
             if (!path.startsWith('/admin') && path !== '/admin-login' && !isPublicDetails && !isPublicRoot) {
                 console.log("👮 Admin detected on protected agent page (" + path + "). Redirecting...");
@@ -970,14 +975,14 @@ const App: React.FC = () => {
         [resolvePropertyForLead, sequences, userProfile]
     );
 
-    const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; }) => {
+    const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
         const payload: LeadPayload = {
             name: leadData.name,
             email: leadData.email,
             phone: leadData.phone,
             source: leadData.source || 'Website',
             lastMessage: leadData.message,
-            funnelType: null
+            funnelType: leadData.funnelType || null
         };
 
         try {
@@ -1035,19 +1040,28 @@ const App: React.FC = () => {
         [resolvePropertyForLead, triggerLeadSequences]
     );
 
-    const handleUpdateLead = useCallback(async (updatedLead: Lead) => {
+    const handleUpdateLead = useCallback(async (leadId: string, updatedData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
         try {
             // Optimistic update
-            const previousLead = leads.find(l => l.id === updatedLead.id);
-            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+            const leadToUpdate = leads.find(l => l.id === leadId);
+            if (!leadToUpdate) return;
+            const previousLead = leadToUpdate; // Capture for comparison
 
-            await leadsService.update(updatedLead.id, {
-                name: updatedLead.name,
-                email: updatedLead.email,
-                phone: updatedLead.phone,
-                lastMessage: updatedLead.lastMessage,
-                source: updatedLead.source,
-                funnelType: updatedLead.funnelType
+            const updatedLead = {
+                ...leadToUpdate,
+                ...updatedData,
+                notes: updatedData.message // Map message back to notes/lastMessage if needed
+            };
+
+            setLeads(prev => prev.map(l => l.id === leadId ? updatedLead : l));
+
+            await leadsService.update(leadId, {
+                name: updatedData.name,
+                email: updatedData.email,
+                phone: updatedData.phone,
+                lastMessage: updatedData.message,
+                source: updatedData.source,
+                funnelType: updatedData.funnelType
             });
 
             // AUTOMATION TRIGGER: If status changed, trigger sequences
@@ -1252,44 +1266,60 @@ const App: React.FC = () => {
                     {/* Public Routes */}
                     <Route path="/" element={
                         (user || isDemoMode || isAdmin) ? <Navigate to="/dashboard" replace /> :
-                            <LandingPage
-                                onNavigateToSignUp={handleNavigateToSignUp}
-                                onNavigateToSignIn={handleNavigateToSignIn}
-                                onEnterDemoMode={() => navigate('/demo-dashboard')}
-                                onNavigateToShowcase={() => navigate('/demo-dashboard')}
-                                scrollToSection={scrollToSection}
-                                onScrollComplete={() => setScrollToSection(null)}
-                                onOpenConsultationModal={() => setIsConsultationModalOpen(true)}
-                                onNavigateToAdmin={handleNavigateToAdmin}
-                            />
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <LandingPage
+                                    onNavigateToSignUp={handleNavigateToSignUp}
+                                    onNavigateToSignIn={handleNavigateToSignIn}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                    onNavigateToShowcase={() => navigate('/demo-dashboard')}
+                                    scrollToSection={scrollToSection}
+                                    onScrollComplete={() => setScrollToSection(null)}
+                                    onOpenConsultationModal={() => { setConsultationRole('realtor'); setIsConsultationModalOpen(true); }}
+                                    onNavigateToAdmin={handleNavigateToAdmin}
+                                />
+                            </Suspense>
                     } />
                     <Route path="/landing" element={<Navigate to="/" replace />} />
                     <Route path="/signin" element={
-                        <SignInPage
-                            onNavigateToSignUp={handleNavigateToSignUp}
-                            onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={() => navigate('/demo-dashboard')}
-                            onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
-                        />
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <SignInPage
+                                onNavigateToSignUp={handleNavigateToSignUp}
+                                onNavigateToLanding={handleNavigateToLanding}
+                                onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                            />
+                        </Suspense>
                     } />
                     <Route path="/forgot-password" element={
-                        <ForgotPasswordPage
-                            onNavigateToSignUp={handleNavigateToSignUp}
-                            onNavigateToSignIn={handleNavigateToSignIn}
-                            onNavigateToLanding={handleNavigateToLanding}
-                        />
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <ForgotPasswordPage
+                                onNavigateToSignUp={handleNavigateToSignUp}
+                                onNavigateToSignIn={handleNavigateToSignIn}
+                                onNavigateToLanding={handleNavigateToLanding}
+                            />
+                        </Suspense>
                     } />
-                    <Route path="/reset-password" element={<ResetPasswordPage />} />
+                    <Route path="/reset-password" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <ResetPasswordPage />
+                        </Suspense>
+                    } />
                     <Route path="/signup" element={
-                        <SignUpPage
-                            onNavigateToSignIn={handleNavigateToSignIn}
-                            onNavigateToLanding={handleNavigateToLanding}
-                            onEnterDemoMode={() => navigate('/demo-dashboard')}
-                            onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
-                        />
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <SignUpPage
+                                onNavigateToSignIn={handleNavigateToSignIn}
+                                onNavigateToLanding={handleNavigateToLanding}
+                                onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                            />
+                        </Suspense>
                     } />
 
-                    <Route path="/checkout/:slug?" element={<CheckoutRouteWrapper />} />
+                    <Route path="/checkout/:slug?" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <CheckoutRouteWrapper />
+                        </Suspense>
+                    } />
 
                     {/* Legal Pages */}
                     <Route path="/compliance" element={<CompliancePolicyPage />} />
@@ -1297,6 +1327,19 @@ const App: React.FC = () => {
 
                     {/* Public Storefront Route */}
                     <Route path="/store/:slug" element={<StorefrontPage />} />
+
+                    {/* Public White Label Route - EXPLICITLY PUBLIC */}
+                    <Route path="/white-label" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <WhiteLabelPage
+                                onOpenContact={() => { setConsultationRole('broker'); setIsConsultationModalOpen(true); }}
+                                onNavigateToAdmin={handleNavigateToAdmin}
+                                onNavigateToSignUp={handleNavigateToSignUp}
+                                onNavigateToSignIn={handleNavigateToSignIn}
+                                onEnterDemoMode={() => navigate('/demo-dashboard')}
+                            />
+                        </Suspense>
+                    } />
 
                     {/* Blog Routes */}
                     <Route path="/blog" element={<BlogIndex />} />
@@ -1400,7 +1443,14 @@ const App: React.FC = () => {
                                     if (lead) await triggerLeadSequences(lead, 'Appointment Scheduled', resolvePropertyForLead(lead));
                                 }}
                                 onAssignFunnel={handleLeadFunnelAssigned}
-                                onUpdateLead={handleUpdateLead}
+                                onUpdateLead={(lead) => handleUpdateLead(lead.id, {
+                                    name: lead.name,
+                                    email: lead.email,
+                                    phone: lead.phone,
+                                    message: lead.lastMessage,
+                                    source: lead.source || 'Manual Entry',
+                                    funnelType: lead.funnelType
+                                })}
                                 onDeleteLead={handleDeleteLead}
                             />
                         } />
@@ -1500,15 +1550,23 @@ const App: React.FC = () => {
             <AgentBrandingProvider>
                 <AISidekickProvider>
                     <ErrorBoundary>
-                        {renderRoutes()}
+                        <Suspense fallback={<LoadingSpinner />}>
+                            {renderRoutes()}
+                        </Suspense>
                         {user && userProfile?.payment_status === 'trialing' && (() => {
                             const created = new Date(user.created_at || '').getTime();
                             const now = new Date().getTime();
                             const isExpired = now - created >= 3 * 24 * 60 * 60 * 1000;
-                            return isExpired ? <TrialLock _user={user} /> : null;
+                            return isExpired ? (
+                                <Suspense fallback={null}>
+                                    <TrialLock _user={user} />
+                                </Suspense>
+                            ) : null;
                         })()}
                         {isConsultationModalOpen && (
-                            <ConsultationModal onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <ConsultationModal leadRole={consultationRole} onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
+                            </Suspense>
                         )}
                         {isAdminLoginOpen && view !== 'admin-setup' && (
                             <Suspense fallback={<LoadingSpinner />}>
@@ -1516,26 +1574,28 @@ const App: React.FC = () => {
                             </Suspense>
                         )}
                         {view !== 'landing' && view !== 'new-landing' && (
-                            <ChatBotFAB
-                                context={{
-                                    userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
-                                    currentPage: view,
-                                    previousInteractions: user ? 1 : 0,
-                                    userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
-                                }}
-                                onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
-                                onSupportTicket={async (ticketInfo) => {
-                                    console.log('Support ticket created from chat:', ticketInfo);
-                                    try {
-                                        const { notifyAgentHandoff } = await import('./services/chatService');
-                                        await notifyAgentHandoff(ticketInfo);
-                                    } catch (err) {
-                                        console.error("Failed to notify agent of handoff:", err);
-                                    }
-                                }}
-                                position="bottom-right"
-                                showWelcomeMessage={false}
-                            />
+                            <Suspense fallback={null}>
+                                <ChatBotFAB
+                                    context={{
+                                        userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
+                                        currentPage: view,
+                                        previousInteractions: user ? 1 : 0,
+                                        userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
+                                    }}
+                                    onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
+                                    onSupportTicket={async (ticketInfo) => {
+                                        console.log('Support ticket created from chat:', ticketInfo);
+                                        try {
+                                            const { notifyAgentHandoff } = await import('./services/chatService');
+                                            await notifyAgentHandoff(ticketInfo);
+                                        } catch (err) {
+                                            console.error("Failed to notify agent of handoff:", err);
+                                        }
+                                    }}
+                                    position="bottom-right"
+                                    showWelcomeMessage={false}
+                                />
+                            </Suspense>
                         )}
                     </ErrorBoundary>
                 </AISidekickProvider>

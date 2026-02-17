@@ -154,7 +154,16 @@ class SequenceExecutionService {
     const success = await this.emailService.sendEmail(
       lead.email,
       subject,
-      htmlContent
+      htmlContent,
+      {
+        tags: {
+          user_id: agent.id || '',
+          lead_id: lead.id,
+          sequence_id: sequence.id,
+          funnel_step: step.id,
+          source: 'funnel_sequence'
+        }
+      }
     );
 
     if (success) {

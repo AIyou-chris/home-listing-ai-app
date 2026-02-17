@@ -12,6 +12,7 @@ type SendEmailOptions = {
         channel: 'email'
         event: string
     }
+    tags?: Record<string, string>
 }
 
 type EmailRequestPayload = {
@@ -28,6 +29,7 @@ type EmailRequestPayload = {
         channel: 'email'
         event: string
     }
+    tags?: Record<string, string>
 }
 
 export interface ConsultationData {
@@ -50,6 +52,7 @@ export interface ContactMessageData {
     email: string;
     phone?: string;
     message: string;
+    role?: string;
 }
 
 // Helper to generate Google Maps URL
@@ -119,7 +122,8 @@ class EmailService {
             cc: options.cc,
             bcc: options.bcc,
             replyTo: options.replyTo,
-            preference: options.preference
+            preference: options.preference,
+            tags: options.tags
         }
 
         if (!payload.text && html) {
@@ -285,6 +289,7 @@ class EmailService {
                     phone: data.phone,
                     message: data.message,
                     source: 'Website Contact Form',
+                    role: data.role, // Pass role to backend for funnel assignment
                     notifyAdmin: true // This triggers the email notification from backend
                 })
             });

@@ -64,10 +64,7 @@ const mapLeadRow = (row: LeadRow): Lead => {
     ? (rawStatus as LeadStatus)
     : 'New'
   const createdAt = row.created_at ? new Date(row.created_at) : null
-  const funnelType =
-    row.funnel_type && VALID_FUNNEL_TYPES.includes(row.funnel_type as LeadFunnelType)
-      ? (row.funnel_type as LeadFunnelType)
-      : undefined
+  const funnelType = (row.funnel_type as LeadFunnelType) || undefined
 
   return {
     id: row.id,

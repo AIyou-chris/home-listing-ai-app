@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
+import { funnelService } from '../services/funnelService';
+import { supabase } from '../services/supabase';
 
 export interface NewLeadPayload {
     name: string;
@@ -66,6 +68,45 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onAddLead, initial
         funnelType: initialData?.funnelType || ''
     });
 
+    const [availableFunnels, setAvailableFunnels] = useState<string[]>([]);
+
+    useEffect(() => {
+        const fetchFunnels = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const funnels = await funnelService.fetchFunnels(user.id);
+                    // User Request: "Only want a realtor funnel and a broker funnel that's it"
+                    const allowedFunnels = ['realtor_funnel', 'broker_funnel'];
+                    const filteredKeys = Object.keys(funnels).filter(k => allowedFunnels.includes(k));
+
+                    if (filteredKeys.length > 0) {
+                        setAvailableFunnels(filteredKeys);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch funnels for dropdown:', error);
+            }
+        };
+        fetchFunnels();
+    }, []);
+
+    const formatFunnelName = (key: string) => {
+        const map: Record<string, string> = {
+            'universal_sales': 'Universal Welcome Drip',
+            'homebuyer': 'AI-Powered Homebuyer Journey',
+            'seller': 'AI-Powered Seller Funnel',
+            'postShowing': 'After-Showing Follow-Up'
+        };
+        if (map[key]) return map[key];
+
+        // Formatter for custom keys: "my_custom_funnel" -> "My Custom Funnel"
+        return key
+            .split(/[_-]/)
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -109,10 +150,18 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onAddLead, initial
                         <Label htmlFor="funnelType">Enroll in Funnel</Label>
                         <Select id="funnelType" name="funnelType" value={formData.funnelType || ''} onChange={handleChange}>
                             <option value="">No Funnel (Manual Only)</option>
-                            <option value="universal_sales">Universal Welcome Drip</option>
-                            <option value="homebuyer">AI-Powered Homebuyer Journey</option>
-                            <option value="seller">AI-Powered Seller Funnel</option>
-                            <option value="postShowing">After-Showing Follow-Up</option>
+                            {availableFunnels.length > 0 ? (
+                                availableFunnels.map(funnelId => (
+                                    <option key={funnelId} value={funnelId}>
+                                        {formatFunnelName(funnelId)}
+                                    </option>
+                                ))
+                            ) : (
+                                <>
+                                    <option value="realtor_funnel">Realtor Funnel</option>
+                                    <option value="broker_funnel">Broker Funnel</option>
+                                </>
+                            )}
                         </Select>
                     </FormRow>
                 </div>

@@ -624,3 +624,77 @@ ${normalizedInput.message || 'No additional notes'}
     }
   }
 }
+
+export const getAvailableSlots = async (
+  date: string,
+  userId?: string
+): Promise<string[]> => {
+  try {
+    const { settings, busyIntervals } = await loadCalendarContext(userId)
+
+    // Parse working hours
+    const { hour: startHour, minute: startMinute } = parseWorkingTime(settings.workingHours?.start, { hour: 9, minute: 0 })
+    const { hour: endHour, minute: endMinute } = parseWorkingTime(settings.workingHours?.end, { hour: 17, minute: 0 })
+    const defaultDuration = settings.defaultDuration || 30
+
+    // Check if date is a working day
+    // Fix timezone issue by treating input date as local or specific query date
+    // For simplicity, we assume 'date' is YYYY-MM-DD
+    // We construct a date at noon to avoid timezone shift issues when just checking the day of week
+    const dayName = DAY_NAMES[new Date(date + 'T12:00:00').getDay()]
+
+    const allowedDays = new Set(
+      settings.workingDays && settings.workingDays.length > 0
+        ? settings.workingDays.map(d => d.toLowerCase())
+        : DEFAULT_CALENDAR_SETTINGS.workingDays.map(d => d.toLowerCase())
+    )
+
+    if (!allowedDays.has(dayName.toLowerCase())) {
+      return []
+    }
+
+    // Generate all possible slots for the day
+    const slots: string[] = []
+    let current = new Date(date + 'T00:00:00')
+    current.setHours(startHour, startMinute, 0, 0)
+
+    const endOfDay = new Date(date + 'T00:00:00')
+    endOfDay.setHours(endHour, endMinute, 0, 0)
+
+    // Expand busy intervals with buffer
+    const bufferMinutes = Math.max(settings.bufferTime || 0, 0)
+    const bufferMs = bufferMinutes * 60 * 1000
+    const expandedBusy = busyIntervals.map(interval => ({
+      start: new Date(interval.start.getTime() - bufferMs),
+      end: new Date(interval.end.getTime() + bufferMs)
+    }))
+
+    while (current.getTime() + defaultDuration * 60000 <= endOfDay.getTime()) {
+      const slotEnd = new Date(current.getTime() + defaultDuration * 60000)
+
+      // Check conflicts
+      const isBusy = expandedBusy.some(interval =>
+        (current < interval.end) && (slotEnd > interval.start)
+      )
+
+      // Also check if slot is in the past (if date is today)
+      const now = new Date()
+      // Create a specific "now" comparison that respects the date being checked
+      // If the checked date is today, block past times.
+      const isToday = new Date().toDateString() === new Date(date + 'T00:00:00').toDateString()
+      const isPast = isToday && current < now
+
+      if (!isBusy && !isPast) {
+        slots.push(formatTimeForLabel(current))
+      }
+
+      // Increment by 30 mins
+      current = new Date(current.getTime() + 30 * 60000)
+    }
+
+    return slots
+  } catch (error) {
+    console.error('Error calculating slots:', error)
+    return []
+  }
+}

@@ -26,7 +26,7 @@ class SupabaseContactService {
     localStorage.setItem(key, JSON.stringify(items))
   }
 
-  // Contacts
+  // Contacts (Actually Leads in V2)
   async getContacts(): Promise<Contact[]> {
     const user = await this.getUser()
     if (!user) {
@@ -34,8 +34,8 @@ class SupabaseContactService {
     }
 
     const { data, error } = await supabase
-      .from('contacts')
-      .select('*')
+      .from('leads')
+      .select('*, stage:status, pipeline_note:notes')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -61,9 +61,11 @@ class SupabaseContactService {
     }
 
     const { data, error } = await supabase
-      .from('contacts')
+      .from('leads')
       .insert([{
         ...contactData,
+        status: contactData.stage, // Map back to DB column
+        notes: contactData.pipeline_note, // Map back to DB column
         user_id: user.id
       }])
       .select()
@@ -85,12 +87,15 @@ class SupabaseContactService {
       return
     }
 
+    const payload: any = { ...updates, updated_at: new Date().toISOString() };
+    if (updates.stage) payload.status = updates.stage;
+    if (updates.pipeline_note) payload.notes = updates.pipeline_note;
+    delete payload.stage;
+    delete payload.pipeline_note;
+
     const { error } = await supabase
-      .from('contacts')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
+      .from('leads')
+      .update(payload)
       .eq('id', id)
       .eq('user_id', user.id)
 
@@ -106,7 +111,7 @@ class SupabaseContactService {
     }
 
     const { error } = await supabase
-      .from('contacts')
+      .from('leads')
       .delete()
       .eq('id', id)
       .eq('user_id', user.id)
@@ -298,7 +303,7 @@ class SupabaseContactService {
 
   async onContactNotesChange(contactId: string, callback: (notes: ContactNote[]) => void) {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return () => {}
+    if (!user) return () => { }
 
     return supabase
       .channel(`notes-${contactId}`)
@@ -315,7 +320,7 @@ class SupabaseContactService {
 
   async onContactFilesChange(contactId: string, callback: (files: ContactFile[]) => void) {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return () => {}
+    if (!user) return () => { }
 
     return supabase
       .channel(`files-${contactId}`)

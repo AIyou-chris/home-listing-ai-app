@@ -201,7 +201,7 @@ export interface BlogPost {
 
 export type LeadStatus = 'New' | 'Qualified' | 'Contacted' | 'Showing' | 'Lost' | 'Bounced' | 'Unsubscribed' | 'Won' | 'Marketing Only';
 
-export type LeadFunnelType = 'universal_sales' | 'homebuyer' | 'seller' | 'postShowing';
+export type LeadFunnelType = 'realtor_funnel' | 'broker_funnel' | 'universal_sales' | 'homebuyer' | 'seller' | 'postShowing' | string;
 
 export interface Lead {
     id: string;
@@ -778,4 +778,10 @@ export interface EditableStep {
     includeUnsubscribe?: boolean;
     trackOpens?: boolean;
     previewText?: string;
+
+    // Metrics
+    sent?: number;
+    opened?: number;
+    clicked?: number;
+    replied?: number;
 }

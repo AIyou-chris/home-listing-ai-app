@@ -105,7 +105,8 @@ const Badge: React.FC<{ tone?: 'success' | 'warn' | 'error' | 'neutral'; childre
   return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${map[tone]}`}>{children}</span>
 }
 
-const AdminCommandCenter: React.FC = () => {
+
+const AdminCommandCenter: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode }) => {
   const apiBase = useMemo(() => {
     const base = (import.meta as unknown as { env?: Record<string, string> })?.env?.VITE_API_BASE_URL || ''
     return base.replace(/\/$/, '')
@@ -121,23 +122,78 @@ const AdminCommandCenter: React.FC = () => {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [h, s, sp, m] = await Promise.all([
-        fetch(`${apiBase}/api/admin/system/health`).catch(() => null),
-        fetch(`${apiBase}/api/admin/security/monitor`).catch(() => null),
-        fetch(`${apiBase}/api/admin/support/summary`).catch(() => null),
-        fetch(`${apiBase}/api/admin/analytics/overview`).catch(() => null)
-      ])
+      if (isDemoMode) {
+        // Mock Data for Demo
+        await new Promise(r => setTimeout(r, 800)); // Fake delay
+        setHealth({
+          totalApiCalls: 14502,
+          failedApiCalls: 12, // Small number to look realistic but healthy
+          avgResponseTimeMs: 145,
+          uptimePercent: 99.99,
+          lastChecked: new Date().toISOString(),
+          alerts: []
+        });
+        setSecurity({
+          openRisks: [],
+          lastLogin: { ip: '192.168.1.42', device: 'MacBook Pro' },
+          anomalies: []
+        });
+        setSupport({
+          openChats: 3,
+          openTickets: 5,
+          openErrors: 0,
+          items: [
+            { id: '1', title: 'Feature Request: Dark Mode', type: 'Ticket', severity: 'low' },
+            { id: '2', title: 'Billing Inquiry - Agent Smith', type: 'Chat', severity: 'medium' }
+          ]
+        });
+        setMetrics({
+          leadsToday: 42,
+          leadsThisWeek: 315,
+          appointmentsNext7: 18,
+          messagesSent: 1240,
+          voiceMinutesUsed: 420,
+          leadsSpark: [12, 19, 15, 25, 32, 28, 42],
+          apptSpark: [2, 4, 3, 5, 4, 6, 8],
+          statuses: {
+            aiLatencyMs: 850,
+            emailBounceRate: 0.2,
+            fileQueueStuck: 0
+          },
+          recentLeads: [
+            { id: 'l1', name: 'Sarah Connor', status: 'New', source: 'Website', at: new Date().toISOString() },
+            { id: 'l2', name: 'Kyle Reese', status: 'Contacted', source: 'Referral', at: new Date(Date.now() - 3600000).toISOString() },
+            { id: 'l3', name: 'John Doe', status: 'Qualified', source: 'Zillow', at: new Date(Date.now() - 7200000).toISOString() }
+          ],
+          campaignStats: {
+            emailsSent: 5430,
+            deliveryRate: 99.2,
+            activeLeads: 840,
+            bounced: 12,
+            opens: 2450,
+            clicks: 890,
+            unsubscribed: 5
+          }
+        });
+      } else {
+        const [h, s, sp, m] = await Promise.all([
+          fetch(`${apiBase}/api/admin/system/health`).catch(() => null),
+          fetch(`${apiBase}/api/admin/security/monitor`).catch(() => null),
+          fetch(`${apiBase}/api/admin/support/summary`).catch(() => null),
+          fetch(`${apiBase}/api/admin/analytics/overview`).catch(() => null)
+        ])
 
-      if (h?.ok) setHealth(await h.json())
-      if (s?.ok) setSecurity(await s.json())
-      if (sp?.ok) setSupport(await sp.json())
-      if (m?.ok) setMetrics(await m.json())
+        if (h?.ok) setHealth(await h.json())
+        if (s?.ok) setSecurity(await s.json())
+        if (sp?.ok) setSupport(await sp.json())
+        if (m?.ok) setMetrics(await m.json())
+      }
     } catch (error) {
       console.warn('Admin command center load failed', error)
     } finally {
       setLoading(false)
     }
-  }, [apiBase])
+  }, [apiBase, isDemoMode])
 
   useEffect(() => {
     loadAll().catch(() => undefined)

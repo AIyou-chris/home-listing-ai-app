@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LogoWithName } from './LogoWithName';
-import ChatBotFAB from './ChatBotFAB';
+const ChatBotFAB = lazy(() => import('./ChatBotFAB'));
 import SEO from './SEO';
 import { StripeLogo } from './StripeLogo';
-import { MultiToolShowcase } from './MultiToolShowcase';
+const MultiToolShowcase = lazy(() => import('./MultiToolShowcase').then(module => ({ default: module.MultiToolShowcase })));
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 
@@ -223,6 +224,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact: 
 };
 
 const WhiteLabelSection: React.FC<{ onOpenContact: () => void; }> = ({ onOpenContact }) => {
+    const navigate = useNavigate();
 
     const ServiceItem: React.FC<{ icon: string, title: string, iconClass?: string, children: React.ReactNode }> = ({ icon, title, iconClass, children }) => (
         <div>
@@ -298,16 +300,19 @@ const WhiteLabelSection: React.FC<{ onOpenContact: () => void; }> = ({ onOpenCon
                     </div>
 
                     <div className="mt-16 animate-fade-in-up animation-delay-600">
+                        {/* Consultation button removed */}
+                    </div>
+
+                    {/* Broker CTA */}
+                    <div className="mt-10 pt-8 border-t border-slate-200/60 animate-fade-in-up animation-delay-800">
+                        <p className="text-slate-600 mb-4 font-medium">Looking for enterprise solutions?</p>
                         <button
-                            onClick={onOpenContact}
-                            className="inline-flex items-center gap-2 px-6 py-3 text-base font-bold text-white bg-gradient-to-r from-green-400 to-primary-500 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 btn-animate"
+                            onClick={() => navigate('/white-label')}
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 text-lg font-bold text-white bg-slate-900 rounded-xl shadow-lg hover:bg-slate-800 hover:shadow-slate-500/25 transition-all transform hover:scale-105 active:scale-95 border border-slate-700"
                         >
-                            <span className="material-symbols-outlined animate-pulse">calendar_today</span>
-                            Set Up a Consultation
+                            <span className="material-symbols-outlined">domain_add</span>
+                            For Brokers & Team Leaders
                         </button>
-                        <p className="mt-4 text-sm text-slate-500 animate-fade-in-up animation-delay-800">
-                            No obligation. See how we can help your business grow.
-                        </p>
                     </div>
                 </div>
             </div>
@@ -997,7 +1002,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} />
 
-                <MultiToolShowcase />
+                <Suspense fallback={<div className="h-96 animate-pulse bg-slate-100 rounded-xl" />}>
+                    <MultiToolShowcase />
+                </Suspense>
 
                 <FeaturesGridSection />
                 <WhatYouGetSectionNew />
@@ -1014,24 +1021,26 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <PublicFooter onNavigateToAdmin={onNavigateToAdmin} />
 
             {/* Chat Bot FAB for visitors */}
-            <ChatBotFAB
-                context={{
-                    userType: 'visitor',
-                    currentPage: 'landing',
-                    previousInteractions: 0,
-                    userInfo: {}
-                }}
-                onLeadGenerated={(leadInfo) => {
-                    console.log('Lead generated from landing page chat:', leadInfo);
-                    // Could trigger analytics event or save lead
-                }}
-                onSupportTicket={(ticketInfo) => {
-                    console.log('Support ticket created from landing page:', ticketInfo);
-                    // Could create support ticket or send notification
-                }}
-                position="bottom-right"
-                initialOpen={isChatOpen}
-            />
+            <Suspense fallback={null}>
+                <ChatBotFAB
+                    context={{
+                        userType: 'visitor',
+                        currentPage: 'landing',
+                        previousInteractions: 0,
+                        userInfo: {}
+                    }}
+                    onLeadGenerated={(leadInfo) => {
+                        console.log('Lead generated from landing page chat:', leadInfo);
+                        // Could trigger analytics event or save lead
+                    }}
+                    onSupportTicket={(ticketInfo) => {
+                        console.log('Support ticket created from landing page:', ticketInfo);
+                        // Could create support ticket or send notification
+                    }}
+                    position="bottom-right"
+                    initialOpen={isChatOpen}
+                />
+            </Suspense>
 
             {/* <AIContactOverlay isOpen={false} onClose={() => {}} /> Unused - replaced by ConsultationModal */}
         </div>

@@ -1,0 +1,45 @@
+
+require('dotenv').config();
+const { createClient } = require('@supabase/supabase-js');
+
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Missing Supabase URL or Service Key');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+async function updateSchema() {
+  console.log('Running schema update...');
+
+  // 1. Add description column
+  const { error: descError } = await supabase.rpc('run_sql_query', {
+    query: `ALTER TABLE funnel_steps ADD COLUMN IF NOT EXISTS description TEXT;`
+  });
+
+  if (descError) {
+    // If RPC fails (likely), try direct SQL via inspection or just assume we might need another way.
+    // However, usually we can't run DDL via client unless we have a specific RPC set up.
+    // Let's try standard RPC 'exec_sql' or similar if it exists, otherwise we might be stuck.
+    console.log('RPC run_sql_query failed or not found, trying fallback...', descError);
+  } else {
+    console.log('Added description column.');
+  }
+
+  // Fallback: If we can't run DDL via 'rpc', we might be in trouble without psql. 
+  // BUT, looking at `restore_funnels.sql`, it seems to run via some mechanism.
+  // Wait, `restore_funnels.sql` is likely run by the USER manually or by a specific setup script.
+  // The user has a running backend. I can add an endpoint to `server.cjs` explicitly to run this SQL, 
+  // call it, and then remove it. That's a clever way to use the existing privileged connection.
+}
+
+// Actually, let's just create a temporary endpoint in server.cjs to run this migration 
+// because standard client might restricted from DDL unless using service_role, which we have.
+// But standard supabase-js client doesn't support raw SQL query execution unless enabled via an RPC function.
+
+console.log('Please manualy run this SQL in your Supabase SQL Editor:');
+console.log('ALTER TABLE funnel_steps ADD COLUMN IF NOT EXISTS description TEXT;');
+console.log('ALTER TABLE funnel_steps ADD COLUMN IF NOT EXISTS preview_text TEXT;');

@@ -46,6 +46,11 @@ export interface Contact {
   user_id: string
   created_at: string
   updated_at: string
+  // Lead Scoring V2
+  score?: number
+  score_tier?: string
+  score_breakdown?: any[]
+  last_behavior_at?: string
 }
 
 export interface ContactNote {

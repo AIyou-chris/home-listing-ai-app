@@ -1,8 +1,17 @@
-[dotenv@17.2.3] injecting env (0) from ../.env.local -- tip: ⚙️  enable debug logging with { debug: true }
-[dotenv@17.2.3] injecting env (56) from ../.env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
-[dotenv@17.2.3] injecting env (0) from .env.local -- tip: ⚙️  enable debug logging with { debug: true }
-[dotenv@17.2.3] injecting env (0) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from ../.env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.2.3] injecting env (60) from ../.env -- tip: ⚙️  suppress all logs with { quiet: true }
+[dotenv@17.2.3] injecting env (0) from .env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[dotenv@17.2.3] injecting env (0) from ../.env -- tip: ⚙️  suppress all logs with { quiet: true }
+[dotenv@17.2.3] injecting env (0) from ../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+[GA4] Property ID Configured: Yes (499620080)
 [server] has service role? true
+⏰ Scheduler Service Initialized (Job: 1h Reminders)
+🛡️ [SEED] Checking default funnels...
+⚡ [Funnel Engine] Scheduler started (60s interval).
+[dotenv@17.2.3] injecting env (0) from ../.env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+[dotenv@17.2.3] injecting env (0) from ../.env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+✅ Blueprint API loaded .env from: /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/.env
 [Server] Registering AI Sidekick routes
 🚀 AI Server running on http://0.0.0.0:3002
 📝 Available endpoints:
@@ -82,4 +91,48 @@
    GET  /api/admin/listings
    POST /api/admin/listings
    DELETE /api/admin/listings/:id
-[Leads] Cache primed with 0 record(s).
+✨ [SEED] Creating missing funnel: Agent Recruitment (Universal)
+[Leads] Cache primed with 1000 record(s).
+⏰ Scheduler: Running Trial Engagement Check...
+Scheduler DB Error (Trial System): {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column agents.metadata does not exist'
+}
+[FunnelExecutor] Processing 1 due enrollments...
+[FunnelExecutor] Checking Lead cdf9787e-5c13-49ce-a579-b2b99a1124a3 Status: 'Contacted'
+[FunnelExecutor] Running Step: Email for Lead RE/MAX Key Properties Oregon
+[GmailService] Schema cache stale (gmail_connections not yet visible). Falling back.
+[Scheduler] Executing Step 3 for Lead rachel.barnette@remaxhawaii.com
+[Scheduler] Sending Delayed Email to rachel.barnette@remaxhawaii.com
+[GmailService] Schema cache stale (gmail_connections not yet visible). Falling back.
+[FunnelExecutor] Advanced RE/MAX Key Properties Oregon to Step 4. Next run: Mon Mar 02 2026 16:48:38 GMT-0800 (Pacific Standard Time)
+⏰ Scheduler: Running Trial Engagement Check...
+Scheduler DB Error (Trial System): {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column agents.metadata does not exist'
+}
+⏰ Scheduler: Running Trial Engagement Check...
+Scheduler DB Error (Trial System): {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column agents.metadata does not exist'
+}
+⏰ Scheduler: Running Trial Engagement Check...
+Scheduler DB Error (Trial System): {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column agents.metadata does not exist'
+}
+⏰ Scheduler: Running Trial Engagement Check...
+Scheduler DB Error (Trial System): {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column agents.metadata does not exist'
+}

@@ -76,44 +76,25 @@ const statusColorMap: Record<LeadStatus, string> = {
 
 const funnelOptions: Array<{ id: LeadFunnelType; label: string; description: string; icon: string; accent: string }> = [
     {
-        id: 'universal_sales',
-        label: 'Universal Welcome Drip',
-        description: 'Every new chatbot lead lands here automatically.',
-        icon: 'filter_alt',
-        accent: 'text-blue-600 bg-blue-50 border-blue-200'
+        id: 'realtor_funnel',
+        label: 'Realtor Funnel',
+        description: 'Targeted outreach for real estate agents.',
+        icon: 'real_estate_agent',
+        accent: 'text-indigo-600 bg-indigo-50 border-indigo-200'
     },
     {
-        id: 'homebuyer',
-        label: 'AI-Powered Homebuyer Journey',
-        description: 'Guide serious buyers from first chat to offer-ready.',
-        icon: 'explore',
+        id: 'broker_funnel',
+        label: 'Broker Funnel',
+        description: 'Strategic engagement for brokerage owners.',
+        icon: 'domain',
         accent: 'text-emerald-600 bg-emerald-50 border-emerald-200'
-    },
-    {
-        id: 'seller',
-        label: 'AI-Powered Seller Funnel',
-        description: 'Show clients how the concierge tells their story.',
-        icon: 'campaign',
-        accent: 'text-orange-600 bg-orange-50 border-orange-200'
-    },
-    {
-        id: 'postShowing',
-        label: 'After-Showing Follow-Up',
-        description: 'Spin up smart follow-ups with surveys and urgency nudges.',
-        icon: 'rate_review',
-        accent: 'text-purple-600 bg-purple-50 border-purple-200'
     }
 ];
 
 const funnelLabelMap = funnelOptions.reduce<Record<LeadFunnelType, string>>((map, option) => {
     map[option.id] = option.label;
     return map;
-}, {
-    universal_sales: 'Universal Welcome Drip',
-    homebuyer: 'AI-Powered Homebuyer Journey',
-    seller: 'AI-Powered Seller Funnel',
-    postShowing: 'After-Showing Follow-Up'
-} as Record<LeadFunnelType, string>);
+}, {} as Record<LeadFunnelType, string>);
 
 const LeadsList: React.FC<{
     leads: Lead[];
@@ -131,14 +112,14 @@ const LeadsList: React.FC<{
 
     const toggleLead = (leadId: string) => {
         const expanded = expandedLeadIds.includes(leadId);
-        void analyticsService.trackInteraction(
-            'lead_accordion_toggle',
-            {
+        void analyticsService.trackInteraction({
+            eventType: 'lead_accordion_toggle',
+            eventData: {
                 leadId,
                 expanded: !expanded,
                 timestamp: new Date().toISOString()
             }
-        );
+        });
         setExpandedLeadIds((prev) =>
             prev.includes(leadId) ? prev.filter((id) => id !== leadId) : [...prev, leadId]
         );
@@ -557,14 +538,14 @@ const LeadsAndAppointmentsPage: React.FC<LeadsAndAppointmentsPageProps> = ({
     }, [safeLeads, safeAppointments]);
 
     const trackExportEvent = useCallback(() => {
-        void analyticsService.trackInteraction(
-            'leads_export',
-            {
+        void analyticsService.trackInteraction({
+            eventType: 'leads_export',
+            eventData: {
                 leadCount: safeLeads.length,
                 appointmentCount: safeAppointments.length,
                 timestamp: new Date().toISOString()
             }
-        );
+        });
     }, [safeAppointments.length, safeLeads.length]);
 
     const handleOpenScheduleModal = (lead: Lead | null = null) => {
