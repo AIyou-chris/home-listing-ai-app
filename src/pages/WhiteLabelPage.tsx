@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import SEO from '../components/SEO';
 import { PublicHeader } from '../components/layout/PublicHeader';
 import { PublicFooter } from '../components/layout/PublicFooter';
@@ -21,7 +21,11 @@ const WhiteLabelPage: React.FC<WhiteLabelPageProps> = ({
     onNavigateToSignIn = () => { },
     onEnterDemoMode = () => { }
 }) => {
-    const navigate = useNavigate();
+
+
+    React.useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans">
