@@ -13632,10 +13632,16 @@ app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
-// Hume Voice Webhook (Telnyx)
+// Hume Voice Webhook (Telnyx TeXML - for inbound calls)
 app.post('/api/voice/hume/connect', async (req, res) => {
   const { handleIncomingCall } = require('./services/humeVoiceService');
   handleIncomingCall(req, res);
+});
+
+// Telnyx Call Control Events Webhook (call.answered triggers media streaming)
+app.post('/api/voice/telnyx/events', async (req, res) => {
+  const { handleTelnyxEvent } = require('./services/humeVoiceService');
+  await handleTelnyxEvent(req, res);
 });
 
 // Hume Outbound Call (Frontend Trigger)
@@ -13645,7 +13651,6 @@ app.post('/api/voice/hume/outbound-call', async (req, res) => {
     if (!to) return res.status(400).json({ error: 'Missing "to" phone number' });
 
     const { initiateOutboundCall } = require('./services/humeVoiceService');
-    // Default prompt if none provided
     const systemPrompt = prompt || "You are an AI assistant for a real estate agency. Be helpful, professional, and empathetic.";
 
     const result = await initiateOutboundCall(to, systemPrompt, context, req);

@@ -3,14 +3,13 @@ const { WebSocketServer } = require('ws');
 const { Telnyx } = require('telnyx');
 const { createClient } = require('@supabase/supabase-js');
 
-// ─── Audio Conversion Helpers ────────────────────────────────────
+// ─── Audio Conversion Helpers ───────────────────────────────────────────────
 // Hume EVI outputs 24kHz 16-bit PCM WAV (base64 encoded)
-// Telnyx expects 8kHz mulaw (base64 encoded, raw payload, no headers)
+// Telnyx expects 8kHz mulaw (base64 encoded, raw RTP payload, no WAV headers)
 
-// Linear16 sample → mulaw byte
-const MAX = 0x1FFF; // 8191
 const BIAS = 0x84;
 const CLIP = 32635;
+
 function linear16ToMulaw(sample) {
     let sign = (sample >> 8) & 0x80;
     if (sign !== 0) sample = -sample;
@@ -25,7 +24,6 @@ function linear16ToMulaw(sample) {
     return ~(sign | (exponent << 4) | mantissa) & 0xFF;
 }
 
-// Downsample PCM buffer from srcRate to dstRate (simple linear interpolation)
 function downsamplePcm16(inputBuf, srcRate, dstRate) {
     if (srcRate === dstRate) return inputBuf;
     const ratio = srcRate / dstRate;
@@ -39,7 +37,6 @@ function downsamplePcm16(inputBuf, srcRate, dstRate) {
     return output;
 }
 
-// Convert PCM16 Buffer to mulaw Buffer
 function pcm16BufToMulawBuf(pcmBuf) {
     const numSamples = pcmBuf.length / 2;
     const muBuf = Buffer.alloc(numSamples);
@@ -49,42 +46,39 @@ function pcm16BufToMulawBuf(pcmBuf) {
     return muBuf;
 }
 
-// Strip WAV header from a Buffer (returns raw PCM data)
 function stripWavHeader(buf) {
-    // Find 'data' chunk
     for (let i = 0; i < buf.length - 8; i++) {
         if (buf[i] === 0x64 && buf[i + 1] === 0x61 && buf[i + 2] === 0x74 && buf[i + 3] === 0x61) {
-            // 'data' found at i, data size at i+4 (4 bytes LE), actual data at i+8
             return buf.slice(i + 8);
         }
     }
-    // No header found, return as-is
     return buf;
 }
 
-// Full pipeline: base64 WAV (from Hume) → base64 mulaw (for Telnyx)
 function humeAudioToTelnyxPayload(base64Wav) {
-    const wavBuf = Buffer.from(base64Wav, 'base64');
-    const pcmData = stripWavHeader(wavBuf);
-    // Hume outputs 24kHz, Telnyx needs 8kHz
-    const downsampled = downsamplePcm16(pcmData, 24000, 8000);
-    const mulawBuf = pcm16BufToMulawBuf(downsampled);
-    return mulawBuf.toString('base64');
+    try {
+        const wavBuf = Buffer.from(base64Wav, 'base64');
+        const pcmData = stripWavHeader(wavBuf);
+        const downsampled = downsamplePcm16(pcmData, 24000, 8000);
+        const mulawBuf = pcm16BufToMulawBuf(downsampled);
+        return mulawBuf.toString('base64');
+    } catch (err) {
+        console.error('Audio conversion error:', err.message);
+        return null;
+    }
 }
 
-// Supabase Admin for logging transcripts
+// ─── Setup ──────────────────────────────────────────────────────────────────
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Configuration
 const HUME_API_KEY = process.env.HUME_API_KEY;
 const HUME_SECRET_KEY = process.env.HUME_SECRET_KEY;
 const HUME_CONFIG_ID = process.env.HUME_CONFIG_ID;
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY || process.env.VITE_TELNYX_API_KEY;
 const TELNYX_FROM_NUMBER = process.env.TELNYX_PHONE_NUMBER || '+12069442374';
 const TELNYX_CONNECTION_ID = process.env.TELNYX_CONNECTION_ID;
-const TELNYX_OUTBOUND_PROFILE_ID = process.env.TELNYX_OUTBOUND_PROFILE_ID || '';
 
 const HTTP_PUBLIC_BASE_URL =
     process.env.VOICE_PUBLIC_BASE_URL ||
@@ -93,168 +87,53 @@ const HTTP_PUBLIC_BASE_URL =
     process.env.VITE_API_BASE_URL ||
     '';
 
-// Telnyx Client
 const telnyx = new Telnyx({ apiKey: TELNYX_API_KEY });
+const hume = new HumeClient({ apiKey: HUME_API_KEY, secretKey: HUME_SECRET_KEY });
 
-// Hume Client
-const hume = new HumeClient({
-    apiKey: HUME_API_KEY,
-    secretKey: HUME_SECRET_KEY,
-});
-
-// Map to store call context by call ID or normalized destination number
+// Context map: call_control_id -> { prompt, leadId, conversationId, ... }
 const callContextMap = new Map();
 
-const normalizeBaseUrl = (value) => {
-    if (!value) return '';
-    return String(value).trim().replace(/\/+$/, '');
-};
-
-const normalizePhone = (value) => String(value || '').replace(/\D/g, '').slice(-10);
-
-const xmlEscape = (value) =>
-    String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/'/g, '&apos;');
-
-const pickFirst = (...values) => {
-    for (const value of values) {
-        if (value !== undefined && value !== null && value !== '') return value;
-    }
-    return undefined;
-};
+// ─── Utils ──────────────────────────────────────────────────────────────────
+const normalizeBaseUrl = (v) => String(v || '').trim().replace(/\/+$/, '');
+const normalizePhone = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+const xmlEscape = (v) => String(v || '')
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const pickFirst = (...args) => args.find(v => v !== null && v !== undefined && v !== '') ?? null;
 
 const buildPublicHttpBase = (req) => {
-    const configured = normalizeBaseUrl(HTTP_PUBLIC_BASE_URL);
-    if (configured) return configured;
-
-    const forwardedProtoRaw = req?.headers?.['x-forwarded-proto'];
-    const forwardedProto = Array.isArray(forwardedProtoRaw)
-        ? forwardedProtoRaw[0]
-        : String(forwardedProtoRaw || '').split(',')[0].trim();
-
-    const forwardedHostRaw = req?.headers?.['x-forwarded-host'];
-    const forwardedHost = Array.isArray(forwardedHostRaw)
-        ? forwardedHostRaw[0]
-        : String(forwardedHostRaw || '').split(',')[0].trim();
-
-    const host = forwardedHost || req?.headers?.host || `localhost:${process.env.PORT || 3002}`;
-    const protocol = forwardedProto || (req?.secure ? 'https' : 'http');
-
-    return `${protocol}://${host}`;
-};
-
-const buildPublicWsBase = (req) => {
-    const httpBase = buildPublicHttpBase(req);
-    if (!httpBase) return '';
-
-    try {
-        const parsed = new URL(httpBase);
-        parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
-        return parsed.toString().replace(/\/+$/, '');
-    } catch (_) {
-        return httpBase.startsWith('https://')
-            ? httpBase.replace(/^https:\/\//, 'wss://')
-            : httpBase.replace(/^http:\/\//, 'ws://');
+    const base = normalizeBaseUrl(HTTP_PUBLIC_BASE_URL);
+    if (base) return base;
+    if (req) {
+        const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+        const host = req.headers['x-forwarded-host'] || req.headers.host;
+        if (host) return `${proto}://${host}`;
     }
+    return 'http://localhost:3002';
 };
 
-const extractTelnyxCallPayload = (req) => {
-    const payload = req?.body?.data?.payload;
-    if (payload) {
-        return {
-            callControlId: payload.call_control_id,
-            callSid: payload.call_sid,
-            to: payload.to,
-            from: payload.from,
-            direction: payload.direction,
-        };
-    }
-
-    // TeXML webhooks are often form-encoded Twilio-compatible parameters.
-    const body = req?.body || {};
-    return {
-        callControlId: pickFirst(body.call_control_id, body.CallControlId),
-        callSid: pickFirst(body.call_sid, body.CallSid),
-        to: pickFirst(body.to, body.To, body.Called),
-        from: pickFirst(body.from, body.From, body.Caller),
-        direction: pickFirst(body.direction, body.Direction),
-    };
-};
-
-const resolveCallIdFromWsRequest = (req) => {
-    try {
-        const base = `http://${req?.headers?.host || 'localhost'}`;
-        const url = new URL(req?.url || '', base);
-        return pickFirst(
-            url.searchParams.get('call_id'),
-            url.searchParams.get('x-call-id')
-        );
-    } catch (_) {
-        return undefined;
-    }
-};
-
-const isMissingOutboundProfileError = (error) => {
-    const msg = String(error?.message || '').toLowerCase();
-    if (msg.includes('d38') || msg.includes('outbound voice profile')) return true;
-
-    const rawErrors = error?.raw?.errors;
-    if (Array.isArray(rawErrors)) {
-        return rawErrors.some((entry) => {
-            const code = String(entry?.code || '').toLowerCase();
-            const detail = String(entry?.detail || '').toLowerCase();
-            const title = String(entry?.title || '').toLowerCase();
-            return code.includes('d38') || detail.includes('outbound voice profile') || title.includes('outbound voice profile');
-        });
-    }
-
-    return false;
-};
-
-const ensureOutboundProfileAssigned = async () => {
-    if (!TELNYX_OUTBOUND_PROFILE_ID || !TELNYX_CONNECTION_ID) return false;
-
-    try {
-        await telnyx.texmlApplications.update(TELNYX_CONNECTION_ID, {
-            outbound: {
-                outbound_voice_profile_id: TELNYX_OUTBOUND_PROFILE_ID,
-            },
-        });
-        console.log(`✅ [Hume Voice] Reassigned outbound profile ${TELNYX_OUTBOUND_PROFILE_ID}`);
-        return true;
-    } catch (error) {
-        console.error('❌ [Hume Voice] Failed to reassign outbound profile:', error.message);
-        return false;
-    }
-};
-
-const buildWebhookUrl = (req) => `${buildPublicHttpBase(req)}/api/voice/hume/connect`;
+const buildPublicWsBase = (req) => buildPublicHttpBase(req).replace(/^http/, 'ws');
 
 const buildStreamUrl = (req, callId) => {
     const wsBase = buildPublicWsBase(req);
     return `${wsBase}/api/voice/hume/stream?call_id=${encodeURIComponent(callId)}`;
 };
 
+// ─── Outbound Call Initiation (Telnyx Call Control API) ──────────────────────
 /**
- * Initiates an outbound call via Telnyx.
- * @param {string} to - The destination phone number.
- * @param {string} prompt - The system prompt/instructions for this specific call.
- * @param {object} context - Additional context variables.
- * @param {import('express').Request | undefined} req - Optional request for host/proxy inference.
+ * Initiates an outbound call using Telnyx Call Control API (NOT TeXML).
+ * Telnyx will call our webhook on call.answered with the call_control_id.
+ * We then start media streaming from the webhook handler.
  */
 const initiateOutboundCall = async (to, prompt, context = {}, req) => {
     try {
         if (!TELNYX_CONNECTION_ID) {
-            throw new Error('Missing TELNYX_CONNECTION_ID for TeXML outbound calling.');
+            throw new Error('Missing TELNYX_CONNECTION_ID');
         }
 
-        const webhookUrl = buildWebhookUrl(req);
+        const webhookUrl = `${buildPublicHttpBase(req)}/api/voice/telnyx/events`;
 
-        // Create a conversation record in Supabase
+        // Create conversation record
         let conversationId = null;
         if (context.leadId) {
             const { data, error } = await supabase
@@ -264,298 +143,323 @@ const initiateOutboundCall = async (to, prompt, context = {}, req) => {
                     status: 'active',
                     metadata: { type: 'voice_call', provider: 'hume', direction: 'outbound' },
                 })
-                .select()
-                .single();
-
+                .select().single();
             if (data) conversationId = data.id;
             if (error) console.error('Error creating conversation:', error.message);
         }
 
+        // Pre-store context by phone number (linked to call_control_id when call.answered fires)
         const cleanNumber = normalizePhone(to);
-        callContextMap.set(cleanNumber, { prompt, ...context, conversationId });
+        callContextMap.set(cleanNumber, { prompt: prompt || '', ...context, conversationId });
 
-        console.log(`☎️ [Hume Voice] Initiating outbound call to ${to}...`);
-        console.log(`📝 [Hume Voice] Context loaded for ${cleanNumber}`);
-        console.log(`🔗 [Hume Voice] TeXML URL override: ${webhookUrl}`);
+        console.log(`☎️  [Voice] Initiating outbound call to ${to}`);
+        console.log(`🔗 [Voice] Webhook: ${webhookUrl}`);
 
-        const payload = {
-            To: to,
-            From: TELNYX_FROM_NUMBER,
-            Url: webhookUrl,
-            UrlMethod: 'POST',
-            FallbackUrl: webhookUrl,
-            FallbackMethod: 'POST',
-        };
+        // Use Telnyx Call Control API (NOT TeXML)
+        const { data: call } = await telnyx.calls.create({
+            connection_id: TELNYX_CONNECTION_ID,
+            to,
+            from: TELNYX_FROM_NUMBER,
+            webhook_url: webhookUrl,
+            webhook_url_method: 'POST',
+        });
 
-        let call;
-        try {
-            call = await telnyx.texml.calls.initiate(TELNYX_CONNECTION_ID, payload);
-        } catch (error) {
-            if (isMissingOutboundProfileError(error)) {
-                const reassigned = await ensureOutboundProfileAssigned();
-                if (reassigned) {
-                    call = await telnyx.texml.calls.initiate(TELNYX_CONNECTION_ID, payload);
-                } else {
-                    throw error;
-                }
-            } else {
-                throw error;
-            }
+        const callControlId = call?.call_control_id;
+        if (callControlId) {
+            const ctx = callContextMap.get(cleanNumber);
+            if (ctx) callContextMap.set(callControlId, ctx);
+            console.log(`✅ [Voice] Call created. call_control_id: ${callControlId}`);
         }
 
-        const callId = pickFirst(call?.call_sid, call?.data?.sid, call?.data?.call_sid);
-        if (callId) {
-            const currentContext = callContextMap.get(cleanNumber);
-            if (currentContext) callContextMap.set(callId, currentContext);
-        }
-
-        console.log(`✅ [Hume Voice] Call initiated. SID: ${callId || 'unknown'}`);
-        return { success: true, callId: callId || null };
+        return { success: true, callId: callControlId || null };
     } catch (error) {
-        console.error('❌ [Hume Voice] Failed to initiate call:', error.message);
+        console.error('❌ [Voice] Failed to initiate call:', error.message);
         if (error.raw) console.error(JSON.stringify(error.raw, null, 2));
         throw error;
     }
 };
 
+// ─── Telnyx Call Control Event Handler ───────────────────────────────────────
 /**
- * Handles incoming call webhook from Telnyx and returns TeXML.
+ * Handles Telnyx Call Control webhook events.
+ * On call.answered → start media streaming via wss connection.
  */
-const handleIncomingCall = (req, res) => {
+const handleTelnyxEvent = async (req, res) => {
+    // Acknowledge immediately
+    res.status(200).json({ received: true });
+
     try {
-        const payload = extractTelnyxCallPayload(req);
-        const callId = pickFirst(payload.callControlId, payload.callSid, `call-${Date.now()}`);
-        const direction = payload.direction || 'outbound';
-        const to = payload.to || '';
+        const event = req.body?.data;
+        if (!event) return;
 
-        const wsUrl = buildStreamUrl(req, callId);
+        const eventType = event.event_type;
+        const payload = event.payload || {};
+        const callControlId = payload.call_control_id;
 
-        console.log(`📞 [Hume Voice] Incoming call ${callId}. Direction: ${direction}`);
-        console.log(`📡 [Hume Voice] Generated WebSocket URL: ${wsUrl}`);
+        console.log(`📡 [Voice] Telnyx event: ${eventType} | call_control_id: ${callControlId}`);
 
-        if (direction === 'outbound' && to) {
-            const cleanTo = normalizePhone(to);
-            const context = callContextMap.get(cleanTo);
+        if (eventType === 'call.answered') {
+            // Link context from phone number to call_control_id
+            const toNumber = normalizePhone(payload.to);
+            const ctx = callContextMap.get(toNumber) || callContextMap.get(callControlId);
+            if (ctx && !callContextMap.has(callControlId)) {
+                callContextMap.set(callControlId, ctx);
+            }
 
-            if (context) {
-                console.log(`🔗 [Hume Voice] Linking context from ${cleanTo} to Call ID ${callId}`);
-                callContextMap.set(callId, context);
+            // Start media streaming via Telnyx Call Control API
+            const streamUrl = `${buildPublicWsBase(req)}/api/voice/hume/stream?call_id=${encodeURIComponent(callControlId)}`;
+            console.log(`🎙️  [Voice] call.answered — starting media stream to: ${streamUrl}`);
+
+            try {
+                await telnyx.calls.streamingStart(callControlId, {
+                    stream_url: streamUrl,
+                    stream_track: 'both_tracks',
+                    enable_dialogflow: false,
+                });
+                console.log('✅ [Voice] Media streaming started');
+            } catch (streamErr) {
+                console.error('❌ [Voice] Failed to start streaming:', streamErr.message);
+                if (streamErr.raw) console.error(JSON.stringify(streamErr.raw, null, 2));
             }
         }
 
-        const escapedWsUrl = xmlEscape(wsUrl);
-        const escapedCallId = xmlEscape(callId);
+        if (eventType === 'call.hangup') {
+            console.log(`📴 [Voice] Call hung up: ${callControlId}`);
+            callContextMap.delete(callControlId);
+        }
 
-        // CRITICAL: 'both_tracks' is required for bidirectional audio (send + receive)
-        // Do NOT put <Say> before <Connect> — it terminates the media leg before Stream opens
-        // The greeting will come from Hume AI itself via the system prompt
-        const texml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Connect>
-        <Stream url="${escapedWsUrl}" track="both_tracks">
-            <Parameter name="call_id" value="${escapedCallId}" />
-        </Stream>
-    </Connect>
-</Response>`;
-
-        res.type('text/xml');
-        res.send(texml);
-    } catch (error) {
-        console.error('❌ [Hume Voice] Failed to generate TeXML:', error.message);
-        res.status(500).type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+    } catch (err) {
+        console.error('❌ [Voice] Error handling Telnyx event:', err.message);
     }
 };
 
-/**
- * Attaches the WebSocket server to the existing HTTP server.
- * Handles the bidirectional audio stream between Telnyx and Hume.
- */
+// ─── WebSocket Bridge (Telnyx ↔ Hume) ────────────────────────────────────────
 const attachVoiceBridge = (server) => {
     const wss = new WebSocketServer({ noServer: true });
 
     server.on('upgrade', (request, socket, head) => {
-        const base = `http://${request.headers.host || 'localhost'}`;
-        const url = new URL(request.url, base);
+        try {
+            const base = `http://${request.headers.host || 'localhost'}`;
+            const url = new URL(request.url, base);
 
-        console.log(`🔄 [Hume Voice] Upgrade Request: ${url.pathname} (Params: ${url.search})`);
+            console.log(`🔄 [Voice] WS Upgrade: ${url.pathname}${url.search}`);
 
-        if (url.pathname === '/api/voice/hume/stream' || url.pathname.startsWith('/api/voice/hume/stream/')) {
-            wss.handleUpgrade(request, socket, head, (ws) => {
-                console.log('✅ [Hume Voice] WebSocket Upgrade Successful');
-                wss.emit('connection', ws, request);
-            });
-            return;
+            if (url.pathname === '/api/voice/hume/stream') {
+                wss.handleUpgrade(request, socket, head, (ws) => {
+                    console.log('✅ [Voice] WebSocket upgraded successfully');
+                    wss.emit('connection', ws, request);
+                });
+            } else {
+                socket.destroy();
+            }
+        } catch (e) {
+            console.error('❌ [Voice] WS upgrade error:', e.message);
+            socket.destroy();
         }
-
-        console.log(`⚠️ [Hume Voice] Ignoring unknown upgrade path: ${url.pathname}`);
-        socket.destroy();
     });
 
     wss.on('connection', async (ws, req) => {
-        console.log('🔌 [Hume Voice] Telnyx connected to Media Stream');
-
+        const base = `http://${req.headers.host || 'localhost'}`;
+        const url = new URL(req.url, base);
+        let activeCallId = url.searchParams.get('call_id') || null;
         let humeSocket = null;
-        let streamId = null;
-        let activeCallId = resolveCallIdFromWsRequest(req);
         let humeReady = false;
-        let audioChunkCount = 0;
+        let streamSid = null;
+        let audioChunksSent = 0;
 
-        // --- Helper: connect to Hume (called once Telnyx stream starts) ---
-        const connectToHume = async () => {
+        console.log(`🔌 [Voice] Telnyx stream connected. call_id: ${activeCallId}`);
+
+        // ── Connect to Hume ────────────────────────────────────────────────
+        const connectHume = async () => {
             try {
-                const context = activeCallId ? callContextMap.get(activeCallId) : null;
-                const sessionSettings = context?.prompt ? { systemPrompt: context.prompt } : undefined;
+                const ctx = activeCallId ? callContextMap.get(activeCallId) : null;
+                const systemPrompt = ctx?.prompt || '';
 
-                console.log(`🧠 [Hume Voice] Connecting to Hume EVI (configId: ${HUME_CONFIG_ID})...`);
+                console.log(`🧠 [Voice] Connecting to Hume EVI (configId: ${HUME_CONFIG_ID})...`);
                 humeSocket = await hume.empathicVoice.chat.connect({
                     configId: HUME_CONFIG_ID,
-                    ...(sessionSettings && { sessionSettings }),
                 });
 
                 humeSocket.on('open', () => {
-                    console.log('🧠 [Hume Voice] Connected to Hume EVI ✅');
+                    console.log('🧠 [Voice] Hume EVI connected ✅');
                     humeReady = true;
 
-                    // Trigger Hume to greet first (outbound call — AI speaks first)
-                    try {
-                        humeSocket.sendSessionSettings({
-                            systemPrompt: (callContextMap.get(activeCallId) || {}).prompt || undefined,
-                            audio: { encoding: 'mulaw', sampleRate: 8000, channels: 1 },
-                        });
-                    } catch (settingsErr) {
-                        console.warn('⚠️ Could not send session settings:', settingsErr.message);
-                    }
-
-                    // Send a blank user message to kick Hume into speaking first
-                    setTimeout(() => {
+                    // Send system prompt via session settings
+                    if (systemPrompt) {
                         try {
-                            if (humeSocket && humeReady) {
-                                humeSocket.sendUserInput('Hello?');
-                                console.log('🎙️ [Hume Voice] Sent greeting trigger to Hume');
-                            }
-                        } catch (trigErr) {
-                            console.warn('⚠️ Could not trigger Hume greeting:', trigErr.message);
+                            humeSocket.sendSessionSettings({ systemPrompt });
+                        } catch (e) {
+                            console.warn('⚠️ Could not send session settings:', e.message);
                         }
-                    }, 500);
+                    }
+
+                    // Trigger Hume to speak first (outbound call)
+                    setTimeout(() => {
+                        if (humeSocket && humeReady) {
+                            try {
+                                humeSocket.sendUserInput('...');
+                                console.log('🎙️  [Voice] Triggered Hume greeting');
+                            } catch (e) {
+                                console.warn('⚠️ Trigger failed:', e.message);
+                            }
+                        }
+                    }, 300);
                 });
 
-                humeSocket.on('message', async (message) => {
+                humeSocket.on('message', async (msg) => {
                     try {
-                        if (message.type === 'audio_output') {
-                            // Convert Hume PCM WAV → Telnyx mulaw payload
-                            const mulawPayload = humeAudioToTelnyxPayload(message.data);
-                            const payload = {
-                                event: 'media',
-                                media: {
-                                    payload: mulawPayload,
-                                    track: 'outbound_track',
-                                },
-                                stream_id: streamId,
-                            };
+                        if (msg.type === 'audio_output') {
+                            const payload = humeAudioToTelnyxPayload(msg.data);
+                            if (!payload) return;
+
                             if (ws.readyState === 1) {
-                                ws.send(JSON.stringify(payload));
-                                audioChunkCount++;
-                                if (audioChunkCount <= 3) console.log(`🔊 [Hume Voice] Sent audio chunk #${audioChunkCount} to Telnyx`);
-                            } else {
-                                console.warn('⚠️ [Hume Voice] Cannot send audio — Telnyx WS not open (state:', ws.readyState, ')');
-                            }
-                        }
-
-                        if (message.type === 'user_message' || message.type === 'assistant_message') {
-                            const role = message.type === 'user_message' ? 'user' : 'assistant';
-                            const text = message.message?.content || '';
-                            console.log(`💬 [Hume Transcript] ${role}: ${text.substring(0, 100)}`);
-
-                            const contextForTranscript = activeCallId ? callContextMap.get(activeCallId) : null;
-                            if (contextForTranscript && contextForTranscript.conversationId) {
-                                try {
-                                    await supabase.from('messages').insert({
-                                        conversation_id: contextForTranscript.conversationId,
-                                        role,
-                                        content: text,
-                                        metadata: { call_id: activeCallId, timestamp: new Date().toISOString() },
-                                    });
-                                } catch (err) {
-                                    console.error('Error logging transcript:', err.message);
+                                ws.send(JSON.stringify({
+                                    event: 'media',
+                                    streamSid,
+                                    media: {
+                                        payload,
+                                        track: 'outbound',
+                                    },
+                                }));
+                                audioChunksSent++;
+                                if (audioChunksSent <= 5) {
+                                    console.log(`🔊 [Voice] Sent audio chunk #${audioChunksSent} to Telnyx`);
                                 }
+                            } else {
+                                console.warn(`⚠️ [Voice] Can't send audio — WS state: ${ws.readyState}`);
                             }
                         }
 
-                        if (message.type === 'error') {
-                            console.error('❌ [Hume Voice] Hume sent error message:', JSON.stringify(message));
+                        if (msg.type === 'user_message' || msg.type === 'assistant_message') {
+                            const role = msg.type === 'user_message' ? 'user' : 'assistant';
+                            const text = msg.message?.content || '';
+                            console.log(`💬 [Voice] ${role}: ${text.substring(0, 120)}`);
+
+                            const ctx = activeCallId ? callContextMap.get(activeCallId) : null;
+                            if (ctx?.conversationId) {
+                                supabase.from('messages').insert({
+                                    conversation_id: ctx.conversationId,
+                                    role, content: text,
+                                    metadata: { call_id: activeCallId, ts: new Date().toISOString() },
+                                }).catch(e => console.error('Transcript log error:', e.message));
+                            }
                         }
-                    } catch (msgErr) {
-                        console.error('❌ [Hume Voice] Error handling Hume message:', msgErr.message);
+
+                        if (msg.type === 'error') {
+                            console.error('❌ [Voice] Hume error message:', JSON.stringify(msg));
+                        }
+                    } catch (e) {
+                        console.error('❌ [Voice] Hume message handler error:', e.message);
                     }
                 });
 
-                humeSocket.on('error', (err) => {
-                    console.error('❌ [Hume Voice] Hume Error:', err?.message || err);
+                humeSocket.on('error', (e) => {
+                    console.error('❌ [Voice] Hume socket error:', e?.message || e);
                 });
 
                 humeSocket.on('close', () => {
-                    console.log('👋 [Hume Voice] Hume disconnected');
+                    console.log('👋 [Voice] Hume disconnected');
                     humeReady = false;
-                    if (ws.readyState === 1) ws.close();
                 });
-            } catch (err) {
-                console.error('❌ [Hume Voice] Failed to connect to Hume:', err?.message || err);
-                if (ws.readyState === 1) ws.close();
+
+            } catch (e) {
+                console.error('❌ [Voice] Failed to connect to Hume:', e.message);
             }
         };
 
-        // --- Telnyx WebSocket message handler ---
-        ws.on('message', async (data) => {
+        // ── Handle Telnyx messages ─────────────────────────────────────────
+        ws.on('message', async (raw) => {
             try {
-                const msg = JSON.parse(data.toString());
+                const msg = JSON.parse(raw.toString());
 
-                if (msg.event === 'connected') {
-                    console.log('✅ [Hume Voice] Telnyx Stream Connected');
-                } else if (msg.event === 'start') {
-                    streamId = pickFirst(msg.stream_id, msg.start?.stream_id);
-                    const customParams = msg.start?.custom_parameters || msg.start?.customParameters || {};
-                    const startCallId = pickFirst(
-                        msg.call_id,
-                        msg.start?.call_id,
-                        customParams.call_id,
-                        customParams['x-call-id']
-                    );
-                    if (!activeCallId && startCallId) activeCallId = String(startCallId);
-                    console.log(`🎬 [Hume Voice] Stream Started. ID: ${streamId || 'unknown'} Call: ${activeCallId || 'unknown'}`);
+                switch (msg.event) {
+                    case 'connected':
+                        console.log('✅ [Voice] Telnyx stream connected event received');
+                        break;
 
-                    // NOW connect to Hume (stream is confirmed ready)
-                    await connectToHume();
-                } else if (msg.event === 'media') {
-                    // Forward audio to Hume (Telnyx sends base64 mulaw, Hume can handle it)
-                    if (humeSocket && humeReady && msg.media?.payload) {
-                        try {
-                            await humeSocket.sendAudioInput({ data: msg.media.payload });
-                        } catch (sendErr) {
-                            console.error('Error sending audio to Hume:', sendErr.message);
+                    case 'start':
+                        streamSid = msg.start?.stream_sid || msg.streamSid || null;
+                        const startCallId = msg.start?.call_sid
+                            || msg.start?.custom_parameters?.call_id
+                            || null;
+                        if (!activeCallId && startCallId) activeCallId = startCallId;
+                        console.log(`🎬 [Voice] Stream started. SID: ${streamSid} | callId: ${activeCallId}`);
+                        await connectHume();
+                        break;
+
+                    case 'media':
+                        if (humeSocket && humeReady && msg.media?.payload) {
+                            try {
+                                await humeSocket.sendAudioInput({ data: msg.media.payload });
+                            } catch (e) {
+                                console.error('Error forwarding audio to Hume:', e.message);
+                            }
                         }
-                    }
-                } else if (msg.event === 'stop') {
-                    console.log('🛑 [Hume Voice] Stream Stopped');
-                    if (humeSocket) humeSocket.close();
+                        break;
+
+                    case 'stop':
+                        console.log('🛑 [Voice] Stream stopped');
+                        if (humeSocket) humeSocket.close();
+                        break;
+
+                    default:
+                        break;
                 }
-            } catch (error) {
-                console.error('Error parsing Telnyx message:', error.message);
+            } catch (e) {
+                console.error('❌ [Voice] Error parsing WS message:', e.message);
             }
         });
 
         ws.on('close', () => {
-            console.log('🔌 [Hume Voice] Telnyx Disconnected');
-            if (humeSocket) humeSocket.close();
+            console.log('🔌 [Voice] Telnyx WS disconnected');
+            if (humeSocket) try { humeSocket.close(); } catch (_) { }
         });
 
-        ws.on('error', (err) => {
-            console.error('❌ [Hume Voice] Telnyx WS Error:', err?.message || err);
+        ws.on('error', (e) => {
+            console.error('❌ [Voice] Telnyx WS error:', e.message);
         });
     });
 };
 
+// ─── TeXML handler (kept for inbound calls only) ─────────────────────────────
+const handleIncomingCall = (req, res) => {
+    try {
+        const body = req.body || {};
+        const callControlId = body.CallSid || body.call_control_id || `call-${Date.now()}`;
+        const to = body.To || body.to || '';
+        const direction = (body.Direction || body.direction || '').toLowerCase();
+
+        if (direction === 'outbound' || direction === 'outbound-api') {
+            // This is the answered callback for a TeXML initiated outbound call
+            // (shouldn't happen with Call Control API, but handle gracefully)
+            const cleanTo = normalizePhone(to);
+            const ctx = callContextMap.get(cleanTo);
+            if (ctx && !callContextMap.has(callControlId)) {
+                callContextMap.set(callControlId, ctx);
+                console.log(`🔗 [Voice] Linked context for ${cleanTo} → ${callControlId}`);
+            }
+        }
+
+        const streamUrl = buildStreamUrl(req, callControlId);
+        console.log(`📞 [Voice] handleIncomingCall: ${callControlId} | streamUrl: ${streamUrl}`);
+
+        res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Connect>
+        <Stream url="${xmlEscape(streamUrl)}" track="both_tracks">
+            <Parameter name="call_id" value="${xmlEscape(callControlId)}" />
+        </Stream>
+    </Connect>
+</Response>`);
+    } catch (e) {
+        console.error('❌ [Voice] handleIncomingCall error:', e.message);
+        res.status(500).type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+    }
+};
+
 module.exports = {
     handleIncomingCall,
+    handleTelnyxEvent,
     initiateOutboundCall,
     attachVoiceBridge,
 };
