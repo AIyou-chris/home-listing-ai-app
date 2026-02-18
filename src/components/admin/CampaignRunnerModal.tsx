@@ -9,7 +9,7 @@ interface CampaignRunnerModalProps {
     isOpen: boolean;
     onClose: () => void;
     selectedLeads: Lead[];
-    funnelId: string; // The funnel to trigger (e.g., 'agentSales')
+funnelId: string; // The funnel to trigger (e.g., 'agentSales')
     funnelName: string;
 }
 

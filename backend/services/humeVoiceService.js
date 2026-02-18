@@ -3,6 +3,75 @@ const { WebSocketServer } = require('ws');
 const { Telnyx } = require('telnyx');
 const { createClient } = require('@supabase/supabase-js');
 
+// ─── Audio Conversion Helpers ────────────────────────────────────
+// Hume EVI outputs 24kHz 16-bit PCM WAV (base64 encoded)
+// Telnyx expects 8kHz mulaw (base64 encoded, raw payload, no headers)
+
+// Linear16 sample → mulaw byte
+const MAX = 0x1FFF; // 8191
+const BIAS = 0x84;
+const CLIP = 32635;
+function linear16ToMulaw(sample) {
+    let sign = (sample >> 8) & 0x80;
+    if (sign !== 0) sample = -sample;
+    if (sample > CLIP) sample = CLIP;
+    sample += BIAS;
+    let exponent = 7;
+    let mask = 0x4000;
+    for (; exponent > 0; exponent--, mask >>= 1) {
+        if (sample & mask) break;
+    }
+    const mantissa = (sample >> (exponent + 3)) & 0x0F;
+    return ~(sign | (exponent << 4) | mantissa) & 0xFF;
+}
+
+// Downsample PCM buffer from srcRate to dstRate (simple linear interpolation)
+function downsamplePcm16(inputBuf, srcRate, dstRate) {
+    if (srcRate === dstRate) return inputBuf;
+    const ratio = srcRate / dstRate;
+    const srcSamples = inputBuf.length / 2;
+    const dstSamples = Math.floor(srcSamples / ratio);
+    const output = Buffer.alloc(dstSamples * 2);
+    for (let i = 0; i < dstSamples; i++) {
+        const srcIndex = Math.min(Math.floor(i * ratio), srcSamples - 1);
+        output.writeInt16LE(inputBuf.readInt16LE(srcIndex * 2), i * 2);
+    }
+    return output;
+}
+
+// Convert PCM16 Buffer to mulaw Buffer
+function pcm16BufToMulawBuf(pcmBuf) {
+    const numSamples = pcmBuf.length / 2;
+    const muBuf = Buffer.alloc(numSamples);
+    for (let i = 0; i < numSamples; i++) {
+        muBuf[i] = linear16ToMulaw(pcmBuf.readInt16LE(i * 2));
+    }
+    return muBuf;
+}
+
+// Strip WAV header from a Buffer (returns raw PCM data)
+function stripWavHeader(buf) {
+    // Find 'data' chunk
+    for (let i = 0; i < buf.length - 8; i++) {
+        if (buf[i] === 0x64 && buf[i + 1] === 0x61 && buf[i + 2] === 0x74 && buf[i + 3] === 0x61) {
+            // 'data' found at i, data size at i+4 (4 bytes LE), actual data at i+8
+            return buf.slice(i + 8);
+        }
+    }
+    // No header found, return as-is
+    return buf;
+}
+
+// Full pipeline: base64 WAV (from Hume) → base64 mulaw (for Telnyx)
+function humeAudioToTelnyxPayload(base64Wav) {
+    const wavBuf = Buffer.from(base64Wav, 'base64');
+    const pcmData = stripWavHeader(wavBuf);
+    // Hume outputs 24kHz, Telnyx needs 8kHz
+    const downsampled = downsamplePcm16(pcmData, 24000, 8000);
+    const mulawBuf = pcm16BufToMulawBuf(downsampled);
+    return mulawBuf.toString('base64');
+}
+
 // Supabase Admin for logging transcripts
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
@@ -327,81 +396,92 @@ const attachVoiceBridge = (server) => {
         let humeSocket = null;
         let streamId = null;
         let activeCallId = resolveCallIdFromWsRequest(req);
+        let humeReady = false;
+        let audioChunkCount = 0;
 
-        try {
-            const context = activeCallId ? callContextMap.get(activeCallId) : null;
-            const sessionSettings = context?.prompt ? { systemPrompt: context.prompt } : undefined;
+        // --- Helper: connect to Hume (called once Telnyx stream starts) ---
+        const connectToHume = async () => {
+            try {
+                const context = activeCallId ? callContextMap.get(activeCallId) : null;
+                const sessionSettings = context?.prompt ? { systemPrompt: context.prompt } : undefined;
 
-            humeSocket = await hume.empathicVoice.chat.connect({
-                configId: HUME_CONFIG_ID,
-                sessionSettings,
-            });
+                console.log(`🧠 [Hume Voice] Connecting to Hume EVI (configId: ${HUME_CONFIG_ID})...`);
+                humeSocket = await hume.empathicVoice.chat.connect({
+                    configId: HUME_CONFIG_ID,
+                    ...(sessionSettings && { sessionSettings }),
+                });
 
-            humeSocket.on('open', () => {
-                console.log('🧠 [Hume Voice] Connected to Hume EVI');
-            });
+                humeSocket.on('open', () => {
+                    console.log('🧠 [Hume Voice] Connected to Hume EVI ✅');
+                    humeReady = true;
+                });
 
-            humeSocket.on('message', async (message) => {
-                if (message.type === 'audio_output') {
-                    const payload = {
-                        event: 'media',
-                        media: {
-                            payload: message.data,
-                            track: 'outbound_track',
-                        },
-                        stream_id: streamId,
-                    };
-                    if (ws.readyState === 1) ws.send(JSON.stringify(payload));
-                }
+                humeSocket.on('message', async (message) => {
+                    try {
+                        if (message.type === 'audio_output') {
+                            // Convert Hume PCM WAV → Telnyx mulaw payload
+                            const mulawPayload = humeAudioToTelnyxPayload(message.data);
+                            const payload = {
+                                event: 'media',
+                                media: {
+                                    payload: mulawPayload,
+                                    track: 'outbound_track',
+                                },
+                                stream_id: streamId,
+                            };
+                            if (ws.readyState === 1) {
+                                ws.send(JSON.stringify(payload));
+                                audioChunkCount++;
+                                if (audioChunkCount <= 3) console.log(`🔊 [Hume Voice] Sent audio chunk #${audioChunkCount} to Telnyx`);
+                            } else {
+                                console.warn('⚠️ [Hume Voice] Cannot send audio — Telnyx WS not open (state:', ws.readyState, ')');
+                            }
+                        }
 
-                if (message.type === 'user_message' || message.type === 'assistant_message') {
-                    const role = message.type === 'user_message' ? 'user' : 'assistant';
-                    const text = message.message?.content || '';
-                    const contextForTranscript = activeCallId ? callContextMap.get(activeCallId) : null;
+                        if (message.type === 'user_message' || message.type === 'assistant_message') {
+                            const role = message.type === 'user_message' ? 'user' : 'assistant';
+                            const text = message.message?.content || '';
+                            console.log(`💬 [Hume Transcript] ${role}: ${text.substring(0, 100)}`);
 
-                    if (contextForTranscript && contextForTranscript.leadId) {
-                        try {
-                            console.log(`💬 [Hume Transcript] ${role}: ${text}`);
-
-                            if (contextForTranscript.conversationId) {
-                                await supabase
-                                    .from('messages')
-                                    .insert({
+                            const contextForTranscript = activeCallId ? callContextMap.get(activeCallId) : null;
+                            if (contextForTranscript && contextForTranscript.conversationId) {
+                                try {
+                                    await supabase.from('messages').insert({
                                         conversation_id: contextForTranscript.conversationId,
                                         role,
                                         content: text,
-                                        metadata: {
-                                            call_id: activeCallId,
-                                            timestamp: new Date().toISOString(),
-                                        },
+                                        metadata: { call_id: activeCallId, timestamp: new Date().toISOString() },
                                     });
-                                console.log(`✅ Saved transcript to Conv ${contextForTranscript.conversationId}`);
-                            } else {
-                                console.warn('⚠️ No conversation ID found for transcript');
+                                } catch (err) {
+                                    console.error('Error logging transcript:', err.message);
+                                }
                             }
-                        } catch (err) {
-                            console.error('Error logging transcript:', err);
                         }
-                    } else {
-                        console.log(`💬 [Hume Transcript] (${activeCallId || 'Unknown'}) ${role}: ${text}`);
+
+                        if (message.type === 'error') {
+                            console.error('❌ [Hume Voice] Hume sent error message:', JSON.stringify(message));
+                        }
+                    } catch (msgErr) {
+                        console.error('❌ [Hume Voice] Error handling Hume message:', msgErr.message);
                     }
-                }
-            });
+                });
 
-            humeSocket.on('error', (err) => {
-                console.error('❌ [Hume Voice] Hume Error:', err);
-            });
+                humeSocket.on('error', (err) => {
+                    console.error('❌ [Hume Voice] Hume Error:', err?.message || err);
+                });
 
-            humeSocket.on('close', () => {
-                console.log('👋 [Hume Voice] Hume disconnected');
+                humeSocket.on('close', () => {
+                    console.log('👋 [Hume Voice] Hume disconnected');
+                    humeReady = false;
+                    if (ws.readyState === 1) ws.close();
+                });
+            } catch (err) {
+                console.error('❌ [Hume Voice] Failed to connect to Hume:', err?.message || err);
                 if (ws.readyState === 1) ws.close();
-            });
-        } catch (err) {
-            console.error('❌ [Hume Voice] Failed to connect to Hume:', err);
-            ws.close();
-            return;
-        }
+            }
+        };
 
+        // --- Telnyx WebSocket message handler ---
         ws.on('message', async (data) => {
             try {
                 const msg = JSON.parse(data.toString());
@@ -410,7 +490,6 @@ const attachVoiceBridge = (server) => {
                     console.log('✅ [Hume Voice] Telnyx Stream Connected');
                 } else if (msg.event === 'start') {
                     streamId = pickFirst(msg.stream_id, msg.start?.stream_id);
-
                     const customParams = msg.start?.custom_parameters || msg.start?.customParameters || {};
                     const startCallId = pickFirst(
                         msg.call_id,
@@ -418,27 +497,36 @@ const attachVoiceBridge = (server) => {
                         customParams.call_id,
                         customParams['x-call-id']
                     );
-
                     if (!activeCallId && startCallId) activeCallId = String(startCallId);
                     console.log(`🎬 [Hume Voice] Stream Started. ID: ${streamId || 'unknown'} Call: ${activeCallId || 'unknown'}`);
+
+                    // NOW connect to Hume (stream is confirmed ready)
+                    await connectToHume();
                 } else if (msg.event === 'media') {
-                    if (humeSocket && msg.media?.payload) {
-                        await humeSocket.sendAudioInput({
-                            data: msg.media.payload,
-                        });
+                    // Forward audio to Hume (Telnyx sends base64 mulaw, Hume can handle it)
+                    if (humeSocket && humeReady && msg.media?.payload) {
+                        try {
+                            await humeSocket.sendAudioInput({ data: msg.media.payload });
+                        } catch (sendErr) {
+                            console.error('Error sending audio to Hume:', sendErr.message);
+                        }
                     }
                 } else if (msg.event === 'stop') {
                     console.log('🛑 [Hume Voice] Stream Stopped');
                     if (humeSocket) humeSocket.close();
                 }
             } catch (error) {
-                console.error('Error parsing Telnyx message:', error);
+                console.error('Error parsing Telnyx message:', error.message);
             }
         });
 
         ws.on('close', () => {
             console.log('🔌 [Hume Voice] Telnyx Disconnected');
             if (humeSocket) humeSocket.close();
+        });
+
+        ws.on('error', (err) => {
+            console.error('❌ [Hume Voice] Telnyx WS Error:', err?.message || err);
         });
     });
 };
