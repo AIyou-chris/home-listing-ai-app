@@ -278,6 +278,8 @@ const handleIncomingCall = (req, res) => {
         const escapedCallId = xmlEscape(callId);
         const texml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+    <Say voice="alice">Hello! Please hold for just a moment while I connect you.</Say>
+    <Pause length="1"/>
     <Connect>
         <Stream url="${escapedWsUrl}">
             <Parameter name="call_id" value="${escapedCallId}" />
