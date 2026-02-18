@@ -403,186 +403,10 @@ app.use((req, res, next) => {
 
 // [REMOVED] Scraper endpoint deprecated per user request
 
+// [VAPI WEBHOOK REMOVED]
+// This endpoint handled call status updates and transcripts from Vapi.
 app.post('/api/vapi/webhook', async (req, res) => {
-  try {
-    const { message } = req.body;
-
-    // 1. Log Event
-    if (message && message.type) {
-      // console.log(`[Vapi Webhook] Received event: ${message.type}`);
-    }
-
-    // 2. Billing & Transcripts: Handle End-of-Call Report
-    if (message && message.type === 'end-of-call-report') {
-      // Extract Metadata
-      // Vapi payload structure for metadata can vary based on overrides
-      const callObj = message.call || {};
-      const metadata = callObj.assistantOverrides?.metadata || callObj.metadata || {};
-      const agentId = metadata.agentId;
-      const leadId = metadata.leadId;
-
-      // Extract Content
-      const transcript = message.transcript || callObj.transcript || "";
-      const summary = message.summary || message.analysis?.summary || callObj.analysis?.summary || "";
-      const recordingUrl = message.recordingUrl || callObj.recordingUrl || "";
-
-      const durationSeconds = message.durationSeconds || message.duration || (message.artifact ? message.artifact.durationSeconds : 0) || 0;
-
-      // A. BILLING LOGIC
-      if (agentId && durationSeconds > 0) {
-        const minutes = Math.ceil(durationSeconds / 60);
-        console.log(`💰 [Billing] Agent ${agentId} call ended. Duration: ${durationSeconds}s (${minutes} min). Charging account.`);
-
-        // Fetch current usage
-        const { data: currentAgent } = await supabaseAdmin.from('agents').select('voice_minutes_used').eq('id', agentId).single();
-        const newUsage = (currentAgent?.voice_minutes_used || 0) + minutes;
-
-        await supabaseAdmin.from('agents').update({ voice_minutes_used: newUsage }).eq('id', agentId);
-      }
-
-      // B. TRANSCRIPT STORAGE LOGIC
-      // We process legal transcripts even if leadId is missing (Generic Call)
-      if (agentId && (transcript || summary)) {
-        console.log(`📝 [Vapi] Processing transcript for Agent ${agentId} (Lead: ${leadId || 'Unknown/Generic'})`);
-
-        try {
-          let conversationId = null;
-
-          // 1. Find Existing Conversation (Only if Lead ID exists)
-          let existingConv = null;
-          if (leadId) {
-            const { data: foundConv } = await supabaseAdmin
-              .from('ai_conversations')
-              .select('id, message_count, voice_transcript')
-              .eq('user_id', agentId)
-              .eq('lead_id', leadId)
-              .eq('status', 'active')
-              .order('last_message_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
-            if (foundConv) {
-              existingConv = foundConv;
-              conversationId = foundConv.id;
-            }
-          }
-
-          // 2. Create New Conversation if needed
-          if (!conversationId) {
-            let title = 'Voice Call';
-            let contactName = 'Unknown';
-            let contactPhone = null;
-            let contactEmail = null;
-
-            if (leadId) {
-              const { data: lead } = await supabaseAdmin.from('leads').select('*').eq('id', leadId).single();
-              if (lead) {
-                title = `Call with ${lead.name}`;
-                contactName = lead.name;
-                contactPhone = lead.phone;
-                contactEmail = lead.email;
-              }
-            } else {
-              title = `Voice Call - ${new Date().toLocaleString()}`;
-            }
-
-            const { data: newConv, error: createError } = await supabaseAdmin
-              .from('ai_conversations')
-              .insert({
-                user_id: agentId,
-                lead_id: leadId || null, // Explicit null if undefined
-                title: title,
-                contact_name: contactName,
-                contact_phone: contactPhone,
-                contact_email: contactEmail,
-                status: 'active',
-                type: 'voice',
-                voice_transcript: transcript,
-                last_message: summary || "Voice call ended",
-                message_count: 1,
-                last_message_at: new Date().toISOString()
-              })
-              .select('id')
-              .single();
-
-            if (createError) {
-              console.error('Failed to create conversation:', createError);
-            } else if (newConv) {
-              conversationId = newConv.id;
-            }
-          }
-
-          // 3. Insert Message/Transcript
-          if (conversationId) {
-            const content = `📞 **Voice Call Ended** (${durationSeconds}s)\n\n**Summary:** ${summary || "No summary."}\n\n**Transcript:**\n${transcript || "[No transcript]"}`;
-
-            // --- SMART FEATURE: MISSED CALL FALLBACK --- (Merged)
-            const missedReasons = ['customer-did-not-answer', 'customer-busy', 'customer-unavailable'];
-            if (missedReasons.includes(message.endedReason) && contactPhone) {
-              console.log(`📞✖️ Missed call detected. Engaging SMS Fallback Safety Net...`);
-              const fallbackMsg = `Hi ${contactName}! I just tried calling you about your property inquiry. Is now a good time to chat?`;
-              const { sendSms } = require('./services/smsService');
-              await sendSms(contactPhone, fallbackMsg, [], agentId);
-            }
-
-            const { error: msgError } = await supabaseAdmin.from('ai_conversation_messages').insert({
-              conversation_id: conversationId,
-              user_id: agentId,
-              sender: 'ai',
-              channel: 'voice',
-              content: content,
-              metadata: {
-                recordingUrl: recordingUrl,
-                vapiCallId: message.call?.id,
-                durationSeconds: durationSeconds,
-                cost: message.cost || 0
-              }
-            });
-
-            if (msgError) {
-              console.error('Failed to insert transcript message:', msgError);
-            } else {
-              // Update parent timestamp and metadata
-              const updatePayload = {
-                last_message_at: new Date().toISOString(),
-                last_message: summary || "Voice call ended"
-              };
-
-              // Update transcript if provided (concatenate or replace? Replace usually for full call report)
-              if (transcript) {
-                updatePayload.voice_transcript = transcript;
-              }
-
-              // Increment message count
-              if (existingConv) {
-                updatePayload.message_count = (existingConv.message_count || 0) + 1;
-              }
-
-              await supabaseAdmin.from('ai_conversations')
-                .update(updatePayload)
-                .eq('id', conversationId);
-
-              console.log(`✅ [Vapi] Transcript saved to Conversation ${conversationId}`);
-            }
-
-          } else {
-            console.warn(`⚠️ [Vapi] Dropped transcript: Could not create conversation for Agent ${agentId}`);
-          }
-
-        } catch (transcriptError) {
-          console.error(`❌ [Vapi] Exception saving transcript: ${transcriptError.message}`);
-        }
-      }
-    }
-
-    // 3. Calendar Check Logic (if applicable)
-    // ... (handled by separate endpoint usually, but if Vapi sends function calls here, delegate)
-
-    return res.status(200).json({ success: true });
-  } catch (error) {
-    console.error('Vapi Webhook Error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+  res.sendStatus(200);
 });
 
 // STRIPE CHECKOUT ENDPOINT
@@ -13714,29 +13538,9 @@ app.post('/api/admin/setup', async (req, res) => {
 });
 
 // VAPI CALL ENDPOINT
+// [VAPI CALL ENDPOINT REMOVED]
 app.post('/api/vapi/call', async (req, res) => {
-  try {
-    const { leadId, agentId, propertyId, script, leadName, leadPhone, callType } = req.body;
-
-    // Delegate to shared service
-    const { initiateCall } = require('./services/voiceService');
-
-    const result = await initiateCall({
-      leadId,
-      agentId,
-      propertyId,
-      script,
-      leadName,
-      leadPhone,
-      callType
-    });
-
-    res.json(result);
-
-  } catch (error) {
-    console.error('Vapi Call Error:', error.message);
-    res.status(500).json({ error: 'Failed to initiate call', details: error.message });
-  }
+  res.status(503).json({ error: 'Vapi integration has been removed. Hume AI upgrade in progress.' });
 });
 
 // VAPI WEBHOOK HANDLER
@@ -13828,7 +13632,32 @@ app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
-app.listen(port, '0.0.0.0', () => {
+// Hume Voice Webhook (Telnyx)
+app.post('/api/voice/hume/connect', async (req, res) => {
+  const { handleIncomingCall } = require('./services/humeVoiceService');
+  handleIncomingCall(req, res);
+});
+
+// Hume Outbound Call (Frontend Trigger)
+app.post('/api/voice/hume/outbound-call', async (req, res) => {
+  try {
+    const { to, prompt, ...context } = req.body;
+    if (!to) return res.status(400).json({ error: 'Missing "to" phone number' });
+
+    const { initiateOutboundCall } = require('./services/humeVoiceService');
+    // Default prompt if none provided
+    const systemPrompt = prompt || "You are an AI assistant for a real estate agency. Be helpful, professional, and empathetic.";
+
+    const result = await initiateOutboundCall(to, systemPrompt, context, req);
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Outbound Call Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const server = app.listen(port, '0.0.0.0', () => {
   console.log(`🚀 AI Server running on http://0.0.0.0:${port}`);
   console.log('📝 Available endpoints:');
   console.log('   POST /api/continue-conversation');
@@ -13908,6 +13737,15 @@ app.listen(port, '0.0.0.0', () => {
   console.log('   POST /api/admin/listings');
   console.log('   DELETE /api/admin/listings/:id');
 });
+
+// Attach Hume Voice Bridge
+try {
+  const { attachVoiceBridge } = require('./services/humeVoiceService');
+  attachVoiceBridge(server);
+  console.log('✅ Hume Voice Bridge Attached (WebSocket)');
+} catch (e) {
+  console.error('❌ Failed to attach Voice Bridge:', e.message);
+}
 
 app.get('/api/email/settings/:userId', async (req, res) => {
   try {
@@ -14424,108 +14262,9 @@ app.get('/api/email/google/oauth-callback', async (req, res) => {
 });
 
 // Vapi Tool: Check Calendar Availability
+// [VAPI CALENDAR TOOL REMOVED]
 app.post(['/api/vapi/calendar/availability', '/api/vapi/calendar/book'], async (req, res) => {
-  try {
-    const { message } = req.body;
-    const toolCall = message?.toolCalls?.[0];
-
-    if (!toolCall) return res.status(200).json({});
-
-    const agentId = message.call?.metadata?.agentId;
-    if (!agentId) {
-      return res.json({
-        results: [{
-          toolCallId: toolCall.id,
-          result: "Error: No agent ID found in call metadata."
-        }]
-      });
-    }
-
-    let args = {};
-    try {
-      args = typeof toolCall.function.arguments === 'string'
-        ? JSON.parse(toolCall.function.arguments)
-        : toolCall.function.arguments || {};
-    } catch (e) {
-      console.warn('Failed to parse arguments:', e);
-    }
-
-    // --- HANDLE CHECK AVAILABILITY ---
-    if (toolCall.function.name === 'checkAvailability') {
-      const { getCalendarCredentials, createGoogleOAuthClient } = require('./utils/calendarSettings');
-      const { google } = require('googleapis');
-      const { startOfDay, endOfDay, format } = require('date-fns');
-
-      const credentialData = await getCalendarCredentials(agentId);
-      if (!credentialData || !credentialData.refreshToken) {
-        return res.json({ results: [{ toolCallId: toolCall.id, result: "Calendar not connected." }] });
-      }
-
-      const oauthClient = createGoogleOAuthClient();
-      oauthClient.setCredentials(credentialData);
-      const calendar = google.calendar({ version: 'v3', auth: oauthClient });
-
-      const targetDate = args.date ? new Date(args.date) : new Date();
-      const freeBusy = await calendar.freebusy.query({
-        resource: {
-          timeMin: startOfDay(targetDate).toISOString(),
-          timeMax: endOfDay(targetDate).toISOString(),
-          timeZone: 'America/New_York',
-          items: [{ id: 'primary' }]
-        }
-      });
-
-      const busy = freeBusy.data.calendars.primary.busy || [];
-      return res.json({
-        results: [{
-          toolCallId: toolCall.id,
-          result: busy.length === 0 ? "Agent is free all day." : `Agent has ${busy.length} busy periods. Suggest a time.`
-        }]
-      });
-    }
-
-    // --- HANDLE BOOKING ---
-    if (toolCall.function.name === 'bookAppointment') {
-      console.log(`📅 [Vapi Tool] Booking appointment for Agent ${agentId} at ${args.date} ${args.time}`);
-
-      // Simulate/Delegate to the standard internal appointment creation via internal fetch or direct call
-      // For simplicity and safety during audit, we call our own endpoint internally
-      const axios = require('axios');
-      const port = process.env.PORT || 3002;
-
-      try {
-        const bookRes = await axios.post(`http://localhost:${port}/api/appointments`, {
-          userId: agentId,
-          date: args.date,
-          timeLabel: args.time,
-          name: message.call?.customer?.name || 'Voice Lead',
-          phone: message.call?.customer?.number,
-          notes: 'Booked via AI Voice Assistant',
-          kind: 'Consultation'
-        });
-
-        return res.json({
-          results: [{
-            toolCallId: toolCall.id,
-            result: `Success! I have booked the appointment for ${args.date} at ${args.time}.`
-          }]
-        });
-      } catch (err) {
-        console.error('Inner Booking Error:', err.message);
-        return res.json({
-          results: [{
-            toolCallId: toolCall.id,
-            result: "I'm sorry, I couldn't book that time. It might be taken. Can we try another time?"
-          }]
-        });
-      }
-    }
-
-    return res.status(200).json({});
-  } catch (error) {
-    console.error('Vapi Calendar Tool Error:', error);
-    res.status(500).json({ error: 'Tool failed' });
-  }
+  res.status(503).json({ error: 'Tool unavailable during Hume AI upgrade.' });
 });
 
 // SMS Sending Endpoint (Backend Proxy)
