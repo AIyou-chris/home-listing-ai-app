@@ -337,9 +337,10 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 }: FunnelAnalyticsPanelProps & { isBlueprintMode?: boolean }) => {
     const isEmbedded = variant === 'embedded';
     // Single Main Funnel State (formerly Buyer)
-    const [funnelSteps, setFunnelSteps] = useState<EditableStep[]>(initialHomeBuyerSteps);
+    const [funnelSteps, setFunnelSteps] = useState<EditableStep[]>([]);
     const [availableFunnels, setAvailableFunnels] = useState<Record<string, EditableStep[]>>({});
     const [selectedFunnelId, setSelectedFunnelId] = useState<string>('');
+    const [isLoading, setIsLoading] = useState(true);
 
     // UI States
     const [isQuickEmailOpen, setIsQuickEmailOpen] = useState(false);
@@ -386,26 +387,22 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     alert('Please enter a test phone number first.');
                     return;
                 }
-                if (!isTestPhoneValid) {
-                    alert('Please enter a valid E.164 phone number (e.g. +14155552671).');
-                    return;
-                }
-
                 const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
-                const response = await fetch(`${apiUrl}/api/admin/voice/quick-send`, {
+
+                // Call Hume Outbound Endpoint
+                const response = await fetch(`${apiUrl}/api/voice/hume/outbound-call`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${user?.id}` // Pass ID if needed by generic middleware
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         to: testPhone,
-                        script: step.content // Send the script template
+                        prompt: step.content || "You are an AI assistant. Please introduce yourself."
                     })
                 });
 
                 if (response.ok) {
-                    alert(`Test call initiated to ${testPhone}`);
+                    alert(`Test call initiated to ${testPhone} via Hume AI!`);
                 } else {
                     const err = await response.json();
                     throw new Error(err.error || 'Failed to initiate call');
@@ -503,9 +500,12 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 }
             } catch (error) {
                 console.error('Failed to load funnels:', error);
+            } finally {
+                setIsLoading(false);
             }
         };
         loadFunnels();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isDemoMode]);
 
     // Update steps when selection changes
@@ -749,6 +749,18 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         }
     ) => {
         const isOpen = panelExpanded;
+
+        if (isLoading) {
+            return (
+                <section key="marketing-funnel-panel" className="bg-white border-y border-slate-200 md:border md:rounded-2xl shadow-sm p-6 space-y-6 min-h-[400px] flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                        <p className="text-sm text-slate-500 font-medium">Loading funnel steps...</p>
+                    </div>
+                </section>
+            );
+        }
+
         return (
             <section key="marketing-funnel-panel" className="bg-white border-y border-slate-200 md:border md:rounded-2xl shadow-sm p-6 space-y-6">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -945,23 +957,51 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                         <div>
                                                                             <h4 className="text-blue-900 font-bold text-lg mb-1">AI Call Configured</h4>
                                                                             <p className="text-blue-700/80 text-sm leading-relaxed max-w-md">
-                                                                                Your AI Agent will give them a friendly call to remind them about the appointment. You'll get the transcript right here in your dashboard.
+                                                                                The AI Agent will call the lead and follow the custom script you provide below. The full transcript will be saved to the lead's profile.
                                                                             </p>
                                                                         </div>
                                                                     </div>
 
-                                                                    <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                                    <div className="rounded-xl bg-white border border-slate-200 p-4 space-y-4">
                                                                         <div>
-                                                                            <label className="block text-xs font-semibold text-slate-500 mb-1">Voice Script Preview</label>
-                                                                            <p className="text-sm text-slate-700 font-medium italic">"{step.content || "Standard admission script..."}"</p>
+                                                                            <div className="flex justify-between items-center mb-2">
+                                                                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                                                                                    AI System Prompt (Script)
+                                                                                </label>
+                                                                                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                                                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                                                                                    Hume EVI Active
+                                                                                </span>
+                                                                            </div>
+                                                                            <textarea
+                                                                                className="w-full h-40 rounded-lg border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-inner resize-none font-mono leading-relaxed"
+                                                                                placeholder="You are an AI assistant calling a lead. Your goal is to..."
+                                                                                value={step.content || ''}
+                                                                                onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
+                                                                            />
+                                                                            <div className="flex justify-between items-start mt-1.5">
+                                                                                <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                                                    <span className="material-symbols-outlined text-[10px]">info</span>
+                                                                                    This script is sent directly to the AI as its instructions.
+                                                                                </p>
+                                                                                <span className="text-[10px] text-slate-400">
+                                                                                    {step.content?.length || 0} chars
+                                                                                </span>
+                                                                            </div>
                                                                         </div>
-                                                                        <button
-                                                                            onClick={() => onSendTest(step)}
-                                                                            className="flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 text-blue-700 rounded-lg text-xs font-bold shadow-sm hover:bg-blue-50 transition-colors"
-                                                                        >
-                                                                            <span className="material-symbols-outlined text-sm">call</span>
-                                                                            Send Test Call
-                                                                        </button>
+
+                                                                        <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+                                                                            <div className="text-xs text-slate-500 font-medium">
+                                                                                <span className="font-bold text-slate-700">Test Number:</span> {testPhone || 'Not set'}
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => onSendTest(step)}
+                                                                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 border border-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700 hover:shadow-lg transition-all active:scale-95"
+                                                                            >
+                                                                                <span className="material-symbols-outlined text-sm">record_voice_over</span>
+                                                                                Test AI Call
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             ) : (step.type === 'Text' || step.type === 'sms' || step.type === 'SMS') ? (

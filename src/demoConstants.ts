@@ -534,7 +534,10 @@ export const DEMO_FAT_INTERACTIONS: Interaction[] = [
     message: 'Marcus is asking about local school ratings for the Maple Grove property.',
     timestamp: new Date().toISOString(),
     isRead: false,
-    relatedPropertyId: 'demo-2'
+    relatedPropertyId: 'demo-2',
+    metadata: {
+      recordingUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg'
+    }
   },
   {
     id: 'int-demo-2',
@@ -1275,7 +1278,10 @@ export const DEMO_MESSAGES = {
       sender: 'lead',
       channel: 'voice',
       timestamp: '2025-11-23T16:30:00Z',
-      text: 'Voice call transcript available in details.'
+      text: 'Voice call transcript available in details.',
+      metadata: {
+        recordingUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg'
+      }
     }
   ],
   'conv-demo-2': [

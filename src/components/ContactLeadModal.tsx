@@ -307,6 +307,37 @@ Best regards,`
         }
     };
 
+    const handleStartAICall = async () => {
+        if (!lead.phone) {
+            alert('Lead has no phone number.');
+            return;
+        }
+        if (!confirm(`Initialize AI Associate call to ${lead.name}?`)) return;
+
+        try {
+            const response = await fetch('/api/voice/hume/outbound-call', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: lead.phone,
+                    prompt: `You are an AI Real Estate Assistant calling ${lead.name}. Your goal is to qualify them for a home listing appointment. Be friendly, professional, and empathetic.`,
+                    leadName: lead.name,
+                    leadId: lead.id
+                })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                alert('Call initiated via Telnyx! The AI will begin speaking once they answer.');
+            } else {
+                throw new Error(data.error || 'Failed to start call');
+            }
+        } catch (e: unknown) {
+            console.error(e);
+            alert(`Failed to start call: ${e instanceof Error ? e.message : String(e)}`);
+        }
+    };
+
     const handleTabClick = (tab: 'email' | 'call' | 'note' | 'sms' | 'schedule') => {
         if (tab === 'schedule') {
             onSchedule(lead);
@@ -402,6 +433,34 @@ Best regards,`
                 )}
                 {activeTab === 'call' && (
                     <>
+                        <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                    <span className="material-symbols-outlined">smart_toy</span>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-indigo-900 text-sm">Instant AI Associate</h4>
+                                    <p className="text-xs text-indigo-600 font-medium">Powered by Hume Empathic Voice</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleStartAICall}
+                                className={`px-4 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:bg-indigo-700 transition flex items-center gap-2 active:scale-95`}
+                            >
+                                <span className="material-symbols-outlined text-lg">record_voice_over</span>
+                                Start Call
+                            </button>
+                        </div>
+
+                        <div className="relative flex items-center mb-6">
+                            <div className="flex-grow border-t border-slate-200"></div>
+                            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-bold uppercase tracking-wider">Or Log Manually</span>
+                            <div className="flex-grow border-t border-slate-200"></div>
+                        </div>
+
+
+
                         <FormRow>
                             <Label htmlFor="call-started-at">Call Time</Label>
                             <Input
@@ -477,18 +536,20 @@ Best regards,`
                         <p className="text-xs text-slate-500 mt-1 text-right">{smsMessage.length}/160 characters</p>
                     </FormRow>
                 )}
-                {activeTab === 'note' && (
-                    <FormRow>
-                        <Label htmlFor="note-content">Add a Note</Label>
-                        <Textarea
-                            id="note-content"
-                            value={noteContent}
-                            onChange={(e) => setNoteContent(e.target.value)}
-                            placeholder={`Add a private note for ${lead.name}...`}
-                        />
-                    </FormRow>
-                )}
-            </div>
+                {
+                    activeTab === 'note' && (
+                        <FormRow>
+                            <Label htmlFor="note-content">Add a Note</Label>
+                            <Textarea
+                                id="note-content"
+                                value={noteContent}
+                                onChange={(e) => setNoteContent(e.target.value)}
+                                placeholder={`Add a private note for ${lead.name}...`}
+                            />
+                        </FormRow>
+                    )
+                }
+            </div >
 
             <div className="flex justify-end items-center px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-xl">
                 <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition mr-2">
@@ -535,7 +596,7 @@ Best regards,`
                     </button>
                 )}
             </div>
-        </Modal>
+        </Modal >
     );
 };
 

@@ -1,18 +1,19 @@
-[dotenv@17.2.3] injecting env (0) from ../.env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
-[dotenv@17.2.3] injecting env (60) from ../.env -- tip: ⚙️  suppress all logs with { quiet: true }
-[dotenv@17.2.3] injecting env (0) from .env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
-[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[dotenv@17.2.3] injecting env (0) from ../.env.local -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (61) from ../.env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+[dotenv@17.2.3] injecting env (0) from .env.local -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
 [dotenv@17.2.3] injecting env (0) from ../.env -- tip: ⚙️  suppress all logs with { quiet: true }
-[dotenv@17.2.3] injecting env (0) from ../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from ../.env -- tip: ⚙️  enable debug logging with { debug: true }
 [GA4] Property ID Configured: Yes (499620080)
 [server] has service role? true
 ⏰ Scheduler Service Initialized (Job: 1h Reminders)
 🛡️ [SEED] Checking default funnels...
 ⚡ [Funnel Engine] Scheduler started (60s interval).
-[dotenv@17.2.3] injecting env (0) from ../.env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
-[dotenv@17.2.3] injecting env (0) from ../.env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+[dotenv@17.2.3] injecting env (0) from ../.env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+[dotenv@17.2.3] injecting env (0) from ../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
 ✅ Blueprint API loaded .env from: /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/.env
 [Server] Registering AI Sidekick routes
+✅ Hume Voice Bridge Attached (WebSocket)
 🚀 AI Server running on http://0.0.0.0:3002
 📝 Available endpoints:
    POST /api/continue-conversation
@@ -100,14 +101,18 @@ Scheduler DB Error (Trial System): {
   hint: null,
   message: 'column agents.metadata does not exist'
 }
-[FunnelExecutor] Processing 1 due enrollments...
-[FunnelExecutor] Checking Lead cdf9787e-5c13-49ce-a579-b2b99a1124a3 Status: 'Contacted'
-[FunnelExecutor] Running Step: Email for Lead RE/MAX Key Properties Oregon
-[GmailService] Schema cache stale (gmail_connections not yet visible). Falling back.
-[Scheduler] Executing Step 3 for Lead rachel.barnette@remaxhawaii.com
-[Scheduler] Sending Delayed Email to rachel.barnette@remaxhawaii.com
-[GmailService] Schema cache stale (gmail_connections not yet visible). Falling back.
-[FunnelExecutor] Advanced RE/MAX Key Properties Oregon to Step 4. Next run: Mon Mar 02 2026 16:48:38 GMT-0800 (Pacific Standard Time)
+⏰ Scheduler: Running Trial Engagement Check...
+Scheduler DB Error (Trial System): {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column agents.metadata does not exist'
+}
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+⚠️ SQLite/Postgres properties fetch failed: Could not find a relationship between 'properties' and 'agents' in the schema cache
+🏠 Retrieved 0 listings (0 from DB, 0 from Memory)
+🎴 Retrieved AI Card profile: 12021f06-03bc-4046-9b9d-dbfd47eb29ee
 ⏰ Scheduler: Running Trial Engagement Check...
 Scheduler DB Error (Trial System): {
   code: '42703',
@@ -129,10 +134,7 @@ Scheduler DB Error (Trial System): {
   hint: null,
   message: 'column agents.metadata does not exist'
 }
-⏰ Scheduler: Running Trial Engagement Check...
-Scheduler DB Error (Trial System): {
-  code: '42703',
-  details: null,
-  hint: null,
-  message: 'column agents.metadata does not exist'
-}
+☎️ [Hume Voice] Initiating outbound call to +12067551047...
+📝 [Hume Voice] Context loaded for 2067551047
+🔗 [Hume Voice] Webhook URL: https://nonimbricative-posttraumatic-alan.ngrok-free.dev/api/voice/hume/connect
+✅ [Hume Voice] Call initiated. SID: v3:o3EUA_VpBnWqDis-TUyC-8PeywwCFxyYa3fFrtPeD2jTbBnWqjZbzw

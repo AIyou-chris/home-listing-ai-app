@@ -36,6 +36,7 @@ interface HubItem {
     intent?: string;
     messageCount?: number;
     property?: string;
+    metadata?: Record<string, unknown>;
 }
 
 interface AIInteractionHubPageProps {
@@ -108,7 +109,8 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
             timestamp: i.timestamp,
             isRead: i.isRead,
             status: 'New',
-            relatedPropertyId: i.relatedPropertyId
+            relatedPropertyId: i.relatedPropertyId,
+            metadata: i.metadata
         }));
 
         const conversationItems: HubItem[] = conversations.map(c => ({
@@ -489,6 +491,16 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
                                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                                             <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-4">Message</h4>
                                             <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{selectedItem.message}</p>
+
+                                            {/* Audio Player for Voice Inquiry */}
+                                            {selectedItem.metadata?.recordingUrl && (
+                                                <div className="mt-4 pt-4 border-t border-slate-100">
+                                                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">Voice Recording</p>
+                                                    <audio controls className="w-full h-10" src={selectedItem.metadata.recordingUrl as string}>
+                                                        Your browser does not support the audio element.
+                                                    </audio>
+                                                </div>
+                                            )}
                                         </div>
                                         {relatedProperty && (
                                             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex gap-4">
@@ -518,7 +530,21 @@ const AIInteractionHubPage: React.FC<AIInteractionHubPageProps> = ({
                                                 <div key={idx} className={`flex ${msg.sender === 'lead' ? 'justify-start' : 'justify-end'}`}>
                                                     <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${msg.sender === 'lead' ? 'bg-white border border-slate-100 text-slate-700' : 'bg-indigo-600 text-white'}`}>
                                                         <div className="text-[10px] font-bold opacity-50 mb-1 uppercase tracking-wider">{msg.sender === 'lead' ? selectedItem.contact.name : 'AI Buddy'}</div>
-                                                        {msg.content || msg.text}
+
+                                                        {/* Audio Player for Voice Calls */}
+                                                        {msg.metadata?.recordingUrl && (
+                                                            <div className="mb-3 mt-1">
+                                                                <audio controls className="w-full h-8" src={msg.metadata.recordingUrl as string}>
+                                                                    Your browser does not support the audio element.
+                                                                </audio>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Text Content */}
+                                                        <div className="whitespace-pre-wrap">
+                                                            {msg.content || msg.text}
+                                                        </div>
+
                                                         {msg.sender === 'ai' && (
                                                             <div className="flex justify-end mt-1">
                                                                 {msg.metadata?.status === 'delivered' ? (

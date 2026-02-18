@@ -1,0 +1,10 @@
+
+> homelistingai-app@1.0.0 dev
+> vite --port 5174
+
+
+  VITE v7.2.2  ready in 586 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.28:5174/
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`

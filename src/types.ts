@@ -280,6 +280,7 @@ export interface Interaction {
     timestamp: string;
     isRead: boolean;
     relatedPropertyId?: string;
+    metadata?: Record<string, unknown>;
 }
 
 export interface AIPersonality {
