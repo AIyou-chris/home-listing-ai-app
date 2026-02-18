@@ -345,14 +345,15 @@ const handleIncomingCall = (req, res) => {
 
         const escapedWsUrl = xmlEscape(wsUrl);
         const escapedCallId = xmlEscape(callId);
+
+        // CRITICAL: 'both_tracks' is required for bidirectional audio (send + receive)
+        // Do NOT put <Say> before <Connect> — it terminates the media leg before Stream opens
+        // The greeting will come from Hume AI itself via the system prompt
         const texml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say voice="alice">Hello! Please hold for just a moment while I connect you.</Say>
-    <Pause length="1"/>
     <Connect>
-        <Stream url="${escapedWsUrl}">
+        <Stream url="${escapedWsUrl}" track="both_tracks">
             <Parameter name="call_id" value="${escapedCallId}" />
-            <Parameter name="track" value="inbound_track" />
         </Stream>
     </Connect>
 </Response>`;
@@ -414,6 +415,28 @@ const attachVoiceBridge = (server) => {
                 humeSocket.on('open', () => {
                     console.log('🧠 [Hume Voice] Connected to Hume EVI ✅');
                     humeReady = true;
+
+                    // Trigger Hume to greet first (outbound call — AI speaks first)
+                    try {
+                        humeSocket.sendSessionSettings({
+                            systemPrompt: (callContextMap.get(activeCallId) || {}).prompt || undefined,
+                            audio: { encoding: 'mulaw', sampleRate: 8000, channels: 1 },
+                        });
+                    } catch (settingsErr) {
+                        console.warn('⚠️ Could not send session settings:', settingsErr.message);
+                    }
+
+                    // Send a blank user message to kick Hume into speaking first
+                    setTimeout(() => {
+                        try {
+                            if (humeSocket && humeReady) {
+                                humeSocket.sendUserInput('Hello?');
+                                console.log('🎙️ [Hume Voice] Sent greeting trigger to Hume');
+                            }
+                        } catch (trigErr) {
+                            console.warn('⚠️ Could not trigger Hume greeting:', trigErr.message);
+                        }
+                    }, 500);
                 });
 
                 humeSocket.on('message', async (message) => {
