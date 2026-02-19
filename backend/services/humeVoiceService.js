@@ -4,8 +4,8 @@ const { Telnyx } = require('telnyx');
 const { createClient } = require('@supabase/supabase-js');
 
 // ─── Audio Conversion Helpers ───────────────────────────────────────────────
-// Hume EVI outputs 24kHz 16-bit PCM WAV (base64 encoded)
-// Telnyx expects 8kHz mulaw (base64 encoded, raw RTP payload, no WAV headers)
+// Hume EVI outputs WAV/PCM audio chunks (base64 encoded).
+// Telnyx bidirectional RTP (PCMU) expects base64 raw RTP payload bytes.
 
 const BIAS = 0x84;
 const CLIP = 32635;
@@ -55,13 +55,66 @@ function stripWavHeader(buf) {
     return buf;
 }
 
-function humeAudioToTelnyxPayload(base64Wav) {
+function parseWavMeta(buf) {
+    if (buf.length < 44) return null;
+    if (buf.toString('ascii', 0, 4) !== 'RIFF') return null;
+    if (buf.toString('ascii', 8, 12) !== 'WAVE') return null;
+
+    let dataOffset = -1;
+    let dataLength = 0;
+    let offset = 12;
+    while (offset + 8 <= buf.length) {
+        const chunkId = buf.toString('ascii', offset, offset + 4);
+        const chunkSize = buf.readUInt32LE(offset + 4);
+        const chunkDataStart = offset + 8;
+        if (chunkId === 'data') {
+            dataOffset = chunkDataStart;
+            dataLength = Math.min(chunkSize, buf.length - chunkDataStart);
+            break;
+        }
+        offset = chunkDataStart + chunkSize + (chunkSize % 2);
+    }
+
+    if (dataOffset < 0) return null;
+    const channels = buf.readUInt16LE(22);
+    const sampleRate = buf.readUInt32LE(24);
+    const bitsPerSample = buf.readUInt16LE(34);
+
+    return { dataOffset, dataLength, channels, sampleRate, bitsPerSample };
+}
+
+function extractMonoPcm16(buf, channels) {
+    if (channels <= 1) return buf;
+    const frameSize = channels * 2;
+    const sampleCount = Math.floor(buf.length / frameSize);
+    const mono = Buffer.alloc(sampleCount * 2);
+    for (let i = 0; i < sampleCount; i++) {
+        const sample = buf.readInt16LE(i * frameSize);
+        mono.writeInt16LE(sample, i * 2);
+    }
+    return mono;
+}
+
+function humeAudioToTelnyxMulaw(base64Audio) {
     try {
-        const wavBuf = Buffer.from(base64Wav, 'base64');
-        const pcmData = stripWavHeader(wavBuf);
-        const downsampled = downsamplePcm16(pcmData, 24000, 8000);
-        const mulawBuf = pcm16BufToMulawBuf(downsampled);
-        return mulawBuf.toString('base64');
+        const audioBuf = Buffer.from(base64Audio, 'base64');
+        if (!audioBuf.length) return null;
+
+        const wavMeta = parseWavMeta(audioBuf);
+        if (!wavMeta) {
+            // If no WAV header is present, assume payload is already PCMU RTP payload.
+            return audioBuf;
+        }
+
+        const pcmData = audioBuf.slice(wavMeta.dataOffset, wavMeta.dataOffset + wavMeta.dataLength);
+        if (wavMeta.bitsPerSample !== 16) {
+            console.warn(`⚠️ [Voice] Unsupported WAV bit depth: ${wavMeta.bitsPerSample}`);
+            return null;
+        }
+
+        const monoPcm = extractMonoPcm16(pcmData, wavMeta.channels);
+        const downsampled = downsamplePcm16(monoPcm, wavMeta.sampleRate || 24000, 8000);
+        return pcm16BufToMulawBuf(downsampled);
     } catch (err) {
         console.error('Audio conversion error:', err.message);
         return null;
@@ -91,6 +144,11 @@ const telnyx = new Telnyx({ apiKey: TELNYX_API_KEY });
 const hume = new HumeClient({ apiKey: HUME_API_KEY, secretKey: HUME_SECRET_KEY });
 const VOICE_BRIDGE_STRICT_MODE = String(process.env.VOICE_BRIDGE_STRICT_MODE || 'true').toLowerCase() !== 'false';
 const HUME_INBOUND_QUEUE_MAX = Math.max(Number(process.env.HUME_INBOUND_QUEUE_MAX || 120), 20);
+const TELNYX_OUTBOUND_FRAME_MS = Math.max(Number(process.env.TELNYX_OUTBOUND_FRAME_MS || 20), 20);
+const TELNYX_PCMU_FRAME_BYTES = 160; // 20ms @ 8kHz PCMU
+const TELNYX_OUTBOUND_QUEUE_MAX_BYTES = Math.max(Number(process.env.TELNYX_OUTBOUND_QUEUE_MAX_BYTES || 160000), 1600);
+const DEFAULT_SYSTEM_PROMPT = process.env.VOICE_DEFAULT_SYSTEM_PROMPT
+    || 'You are a helpful, professional, and empathetic AI real estate voice assistant.';
 
 // Context map: call_control_id -> { prompt, leadId, conversationId, ... }
 const callContextMap = new Map();
@@ -102,6 +160,21 @@ const xmlEscape = (v) => String(v || '')
     .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
     .replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const pickFirst = (...args) => args.find(v => v !== null && v !== undefined && v !== '') ?? null;
+const composeSystemPrompt = (ctx = {}) => {
+    const userScript = pickFirst(
+        ctx.prompt,
+        ctx.systemPrompt,
+        ctx.voicePrompt,
+        ctx.funnelScript,
+        ctx.script
+    );
+    const botTag = ctx.botType ? `Bot type: ${ctx.botType}.` : '';
+
+    return [DEFAULT_SYSTEM_PROMPT, botTag, userScript]
+        .filter(Boolean)
+        .join('\n\n')
+        .trim();
+};
 
 const buildPublicHttpBase = (req) => {
     const base = normalizeBaseUrl(HTTP_PUBLIC_BASE_URL);
@@ -217,6 +290,8 @@ const handleTelnyxEvent = async (req, res) => {
                     stream_url: streamUrl,
                     stream_track: 'both_tracks',
                     stream_bidirectional_mode: 'rtp',
+                    stream_bidirectional_codec: 'PCMU',
+                    stream_bidirectional_sampling_rate: 8000,
                 });
                 console.log('✅ [Voice] Media streaming started (bidirectional RTP mode)');
             } catch (streamErr) {
@@ -277,6 +352,8 @@ const attachVoiceBridge = (server) => {
         let forwardErrLogs = 0;
         let startedAt = Date.now();
         const inboundQueue = [];
+        let outboundQueue = Buffer.alloc(0);
+        let outboundTick = null;
         const bridgeLabel = () => `[Voice][${activeCallId || 'unknown-call'}]`;
 
         const logBridgeState = (stage, extra = '') => {
@@ -325,6 +402,10 @@ const attachVoiceBridge = (server) => {
             if (bridgeClosed) return;
             bridgeClosed = true;
             logBridgeState('closing', `reason=${reason} durationMs=${Date.now() - startedAt}`);
+            if (outboundTick) {
+                clearInterval(outboundTick);
+                outboundTick = null;
+            }
             try {
                 if (humeSocket) humeSocket.close();
             } catch (_) { }
@@ -336,13 +417,44 @@ const attachVoiceBridge = (server) => {
         console.log(`🔌 [Voice] Telnyx stream connected. call_id: ${activeCallId}`);
         logBridgeState('telnyx_ws_connected');
 
+        const enqueueOutboundPayload = (payloadBuf) => {
+            if (!payloadBuf || payloadBuf.length === 0) return;
+            if (outboundQueue.length + payloadBuf.length > TELNYX_OUTBOUND_QUEUE_MAX_BYTES) {
+                const overflow = (outboundQueue.length + payloadBuf.length) - TELNYX_OUTBOUND_QUEUE_MAX_BYTES;
+                outboundQueue = outboundQueue.slice(Math.min(overflow, outboundQueue.length));
+                droppedFrames += 1;
+            }
+            outboundQueue = Buffer.concat([outboundQueue, payloadBuf]);
+        };
+
+        const startOutboundTicker = () => {
+            if (outboundTick) return;
+            outboundTick = setInterval(() => {
+                if (bridgeClosed || ws.readyState !== 1) return;
+                if (outboundQueue.length < TELNYX_PCMU_FRAME_BYTES) return;
+
+                const frame = outboundQueue.slice(0, TELNYX_PCMU_FRAME_BYTES);
+                outboundQueue = outboundQueue.slice(TELNYX_PCMU_FRAME_BYTES);
+
+                ws.send(JSON.stringify({
+                    event: 'media',
+                    media: { payload: frame.toString('base64') },
+                }));
+                audioChunksSent++;
+                outboundFrames++;
+                if (audioChunksSent <= 5) {
+                    console.log(`🔊 [Voice] Sent audio frame #${audioChunksSent} (${frame.length} bytes)`);
+                }
+            }, TELNYX_OUTBOUND_FRAME_MS);
+        };
+
         // ── Connect to Hume ────────────────────────────────────────────────
         const connectHume = async () => {
             if (bridgeClosed || humeReady || humeConnecting) return;
             try {
                 humeConnecting = true;
                 const ctx = activeCallId ? callContextMap.get(activeCallId) : null;
-                const systemPrompt = ctx?.prompt || '';
+                const systemPrompt = composeSystemPrompt(ctx || {});
 
                 console.log(`🧠 [Voice] Connecting to Hume EVI (configId: ${HUME_CONFIG_ID})...`);
                 humeSocket = await hume.empathicVoice.chat.connect({
@@ -384,23 +496,10 @@ const attachVoiceBridge = (server) => {
                 humeSocket.on('message', async (msg) => {
                     try {
                         if (msg.type === 'audio_output') {
-                            const payload = humeAudioToTelnyxPayload(msg.data);
-                            if (!payload) return;
-
-                            if (ws.readyState === 1) {
-                                // Exact format per Telnyx docs for RTP bidirectional streaming
-                                ws.send(JSON.stringify({
-                                    event: 'media',
-                                    media: { payload },
-                                }));
-                                audioChunksSent++;
-                                outboundFrames++;
-                                if (audioChunksSent <= 5) {
-                                    console.log(`🔊 [Voice] Sent audio chunk #${audioChunksSent} to Telnyx (${payload.length} bytes b64)`);
-                                }
-                            } else {
-                                console.warn(`⚠️ [Voice] Can't send audio — WS state: ${ws.readyState}`);
-                            }
+                            const mulawBuf = humeAudioToTelnyxMulaw(msg.data);
+                            if (!mulawBuf) return;
+                            enqueueOutboundPayload(mulawBuf);
+                            startOutboundTicker();
                         }
 
                         if (msg.type === 'user_message' || msg.type === 'assistant_message') {
