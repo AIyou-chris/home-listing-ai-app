@@ -184,7 +184,7 @@ const HUME_FALLBACK_INPUT_SAMPLE_RATE = Math.max(Number(process.env.HUME_FALLBAC
 const TELNYX_OUTBOUND_FRAME_MS = Math.max(Number(process.env.TELNYX_OUTBOUND_FRAME_MS || 20), 20);
 const TELNYX_PCMU_FRAME_BYTES = 160; // 20ms @ 8kHz PCMU
 const TELNYX_OUTBOUND_QUEUE_MAX_BYTES = Math.max(Number(process.env.TELNYX_OUTBOUND_QUEUE_MAX_BYTES || 160000), 1600);
-const TELNYX_OUTBOUND_AUDIO_MODE = String(process.env.TELNYX_OUTBOUND_AUDIO_MODE || 'legacy').toLowerCase();
+const TELNYX_OUTBOUND_AUDIO_MODE = String(process.env.TELNYX_OUTBOUND_AUDIO_MODE || 'paced').toLowerCase();
 const VOICE_USE_ASSISTANT_INPUT_GREETING = String(process.env.VOICE_USE_ASSISTANT_INPUT_GREETING || 'true').toLowerCase() !== 'false';
 const VOICE_INITIAL_ASSISTANT_GREETING = process.env.VOICE_INITIAL_ASSISTANT_GREETING
     || 'Hello, this is your AI assistant. Can you hear me clearly?';
@@ -201,6 +201,12 @@ const xmlEscape = (v) => String(v || '')
     .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
     .replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const pickFirst = (...args) => args.find(v => v !== null && v !== undefined && v !== '') ?? null;
+const stringifyScalar = (v) => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    return null;
+};
 const composeSystemPrompt = (ctx = {}) => {
     const userScript = pickFirst(
         ctx.prompt,
@@ -215,6 +221,40 @@ const composeSystemPrompt = (ctx = {}) => {
         .filter(Boolean)
         .join('\n\n')
         .trim();
+};
+const buildHumeVariables = (ctx = {}) => {
+    const lead = (ctx && typeof ctx.lead === 'object' && ctx.lead) ? ctx.lead : {};
+    const leadName = pickFirst(
+        stringifyScalar(ctx.leadName),
+        stringifyScalar(lead.name),
+        stringifyScalar(ctx.name),
+        stringifyScalar(ctx.fullName),
+        stringifyScalar(ctx.firstName),
+        'there'
+    );
+    const leadEmail = pickFirst(
+        stringifyScalar(ctx.email),
+        stringifyScalar(lead.email)
+    );
+    const leadPhone = pickFirst(
+        stringifyScalar(ctx.phone),
+        stringifyScalar(ctx.to),
+        stringifyScalar(lead.phone)
+    );
+    const vars = {
+        LEAD: leadName, // Covers configs that reference {{LEAD}}
+        lead: leadName,
+        'lead.name': leadName,
+    };
+    if (leadEmail) {
+        vars.LEAD_EMAIL = leadEmail;
+        vars['lead.email'] = leadEmail;
+    }
+    if (leadPhone) {
+        vars.LEAD_PHONE = leadPhone;
+        vars['lead.phone'] = leadPhone;
+    }
+    return vars;
 };
 
 const buildPublicHttpBase = (req) => {
@@ -383,7 +423,7 @@ const attachVoiceBridge = (server) => {
         let humeSocket = null;
         let humeReady = false;
         let humeConnecting = false;
-        let streamSid = null;
+        let streamId = null;
         let bridgeClosed = false;
         let audioChunksSent = 0;
         let inboundFrames = 0;
@@ -478,10 +518,12 @@ const attachVoiceBridge = (server) => {
                 const frame = outboundQueue.slice(0, TELNYX_PCMU_FRAME_BYTES);
                 outboundQueue = outboundQueue.slice(TELNYX_PCMU_FRAME_BYTES);
 
-                ws.send(JSON.stringify({
+                const payload = {
                     event: 'media',
                     media: { payload: frame.toString('base64') },
-                }));
+                };
+                if (streamId) payload.stream_id = streamId;
+                ws.send(JSON.stringify(payload));
                 audioChunksSent++;
                 outboundFrames++;
                 if (audioChunksSent <= 5) {
@@ -497,10 +539,15 @@ const attachVoiceBridge = (server) => {
                 humeConnecting = true;
                 const ctx = activeCallId ? callContextMap.get(activeCallId) : null;
                 const systemPrompt = composeSystemPrompt(ctx || {});
+                const humeVariables = buildHumeVariables(ctx || {});
 
                 console.log(`🧠 [Voice] Connecting to Hume EVI (configId: ${HUME_CONFIG_ID})...`);
                 humeSocket = await hume.empathicVoice.chat.connect({
                     configId: HUME_CONFIG_ID,
+                    sessionSettings: {
+                        systemPrompt,
+                        variables: humeVariables,
+                    },
                 });
 
                 humeSocket.on('open', () => {
@@ -508,15 +555,6 @@ const attachVoiceBridge = (server) => {
                     humeReady = true;
                     humeConnecting = false;
                     logBridgeState('hume_open');
-
-                    // Send system prompt via session settings
-                    if (systemPrompt) {
-                        try {
-                            humeSocket.sendSessionSettings({ systemPrompt });
-                        } catch (e) {
-                            console.warn('⚠️ Could not send session settings:', e.message);
-                        }
-                    }
 
                     // Trigger Hume to speak first (outbound call)
                     setTimeout(() => {
@@ -551,10 +589,12 @@ const attachVoiceBridge = (server) => {
                             } else {
                                 const legacyPayload = humeAudioToTelnyxLegacyBase64(msg.data);
                                 if (!legacyPayload || ws.readyState !== 1) return;
-                                ws.send(JSON.stringify({
+                                const payload = {
                                     event: 'media',
                                     media: { payload: legacyPayload },
-                                }));
+                                };
+                                if (streamId) payload.stream_id = streamId;
+                                ws.send(JSON.stringify(payload));
                                 audioChunksSent++;
                                 outboundFrames++;
                                 if (audioChunksSent <= 5) {
@@ -621,12 +661,17 @@ const attachVoiceBridge = (server) => {
                         break;
 
                     case 'start':
-                        streamSid = msg.start?.stream_sid || msg.streamSid || null;
+                        streamId =
+                            msg.start?.stream_id ||
+                            msg.start?.stream_sid ||
+                            msg.stream_id ||
+                            msg.streamSid ||
+                            null;
                         const startCallId = msg.start?.call_sid
                             || msg.start?.custom_parameters?.call_id
                             || null;
                         if (!activeCallId && startCallId) activeCallId = startCallId;
-                        console.log(`🎬 [Voice] Stream started. SID: ${streamSid} | callId: ${activeCallId}`);
+                        console.log(`🎬 [Voice] Stream started. streamId: ${streamId} | callId: ${activeCallId}`);
                         logBridgeState('telnyx_start');
                         await connectHume();
                         break;
