@@ -129,9 +129,26 @@ function humeAudioToTelnyxMulaw(base64Audio) {
 
 function humeAudioToTelnyxLegacyBase64(base64Audio) {
     try {
-        const wavBuf = Buffer.from(base64Audio, 'base64');
-        const pcmData = stripWavHeader(wavBuf);
-        const downsampled = downsamplePcm16(pcmData, 24000, 8000);
+        const audioBuf = Buffer.from(base64Audio, 'base64');
+        if (!audioBuf.length) return null;
+
+        const wavMeta = parseWavMeta(audioBuf);
+        let pcmData;
+        let sourceRate;
+        if (wavMeta) {
+            if (wavMeta.bitsPerSample !== 16) {
+                console.warn(`⚠️ [Voice] Unsupported WAV bit depth in legacy converter: ${wavMeta.bitsPerSample}`);
+                return null;
+            }
+            const wavPcm = audioBuf.slice(wavMeta.dataOffset, wavMeta.dataOffset + wavMeta.dataLength);
+            pcmData = extractMonoPcm16(wavPcm, wavMeta.channels);
+            sourceRate = wavMeta.sampleRate || HUME_FALLBACK_INPUT_SAMPLE_RATE;
+        } else {
+            pcmData = stripWavHeader(audioBuf);
+            sourceRate = HUME_FALLBACK_INPUT_SAMPLE_RATE;
+        }
+
+        const downsampled = downsamplePcm16(pcmData, sourceRate, 8000);
         const mulawBuf = pcm16BufToMulawBuf(downsampled);
         return mulawBuf.toString('base64');
     } catch (err) {
@@ -168,6 +185,9 @@ const TELNYX_OUTBOUND_FRAME_MS = Math.max(Number(process.env.TELNYX_OUTBOUND_FRA
 const TELNYX_PCMU_FRAME_BYTES = 160; // 20ms @ 8kHz PCMU
 const TELNYX_OUTBOUND_QUEUE_MAX_BYTES = Math.max(Number(process.env.TELNYX_OUTBOUND_QUEUE_MAX_BYTES || 160000), 1600);
 const TELNYX_OUTBOUND_AUDIO_MODE = String(process.env.TELNYX_OUTBOUND_AUDIO_MODE || 'legacy').toLowerCase();
+const VOICE_USE_ASSISTANT_INPUT_GREETING = String(process.env.VOICE_USE_ASSISTANT_INPUT_GREETING || 'true').toLowerCase() !== 'false';
+const VOICE_INITIAL_ASSISTANT_GREETING = process.env.VOICE_INITIAL_ASSISTANT_GREETING
+    || 'Hello, this is your AI assistant. Can you hear me clearly?';
 const DEFAULT_SYSTEM_PROMPT = process.env.VOICE_DEFAULT_SYSTEM_PROMPT
     || 'You are a helpful, professional, and empathetic AI real estate voice assistant.';
 
@@ -372,6 +392,7 @@ const attachVoiceBridge = (server) => {
         let queueDropLogs = 0;
         let forwardErrLogs = 0;
         let startedAt = Date.now();
+        let greetingSent = false;
         const inboundQueue = [];
         let outboundQueue = Buffer.alloc(0);
         let outboundTick = null;
@@ -499,13 +520,18 @@ const attachVoiceBridge = (server) => {
 
                     // Trigger Hume to speak first (outbound call)
                     setTimeout(() => {
-                        if (humeSocket && humeReady) {
-                            try {
-                                humeSocket.sendUserInput('...');
-                                console.log('🎙️  [Voice] Triggered Hume greeting');
-                            } catch (e) {
-                                console.warn('⚠️ Trigger failed:', e.message);
+                        if (!humeSocket || !humeReady || greetingSent) return;
+                        try {
+                            if (VOICE_USE_ASSISTANT_INPUT_GREETING) {
+                                humeSocket.sendAssistantInput({ text: VOICE_INITIAL_ASSISTANT_GREETING });
+                                console.log('🎙️  [Voice] Sent assistant_input greeting');
+                            } else {
+                                humeSocket.sendUserInput('Hello');
+                                console.log('🎙️  [Voice] Sent user_input greeting trigger');
                             }
+                            greetingSent = true;
+                        } catch (e) {
+                            console.warn('⚠️ Greeting trigger failed:', e.message);
                         }
                     }, 300);
 
