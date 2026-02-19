@@ -156,7 +156,7 @@ const initiateOutboundCall = async (to, prompt, context = {}, req) => {
         console.log(`🔗 [Voice] Webhook: ${webhookUrl}`);
 
         // Use Telnyx Call Control API (NOT TeXML)
-        const { data: call } = await telnyx.calls.create({
+        const { data: call } = await telnyx.calls.dial({
             connection_id: TELNYX_CONNECTION_ID,
             to,
             from: TELNYX_FROM_NUMBER,
@@ -211,10 +211,9 @@ const handleTelnyxEvent = async (req, res) => {
             console.log(`🎙️  [Voice] call.answered — starting media stream to: ${streamUrl}`);
 
             try {
-                await telnyx.calls.streamingStart(callControlId, {
+                await telnyx.calls.actions.startStreaming(callControlId, {
                     stream_url: streamUrl,
                     stream_track: 'both_tracks',
-                    enable_dialogflow: false,
                 });
                 console.log('✅ [Voice] Media streaming started');
             } catch (streamErr) {
