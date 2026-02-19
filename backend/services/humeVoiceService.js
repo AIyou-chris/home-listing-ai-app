@@ -127,6 +127,19 @@ function humeAudioToTelnyxMulaw(base64Audio) {
     }
 }
 
+function humeAudioToTelnyxLegacyBase64(base64Audio) {
+    try {
+        const wavBuf = Buffer.from(base64Audio, 'base64');
+        const pcmData = stripWavHeader(wavBuf);
+        const downsampled = downsamplePcm16(pcmData, 24000, 8000);
+        const mulawBuf = pcm16BufToMulawBuf(downsampled);
+        return mulawBuf.toString('base64');
+    } catch (err) {
+        console.error('Legacy audio conversion error:', err.message);
+        return null;
+    }
+}
+
 // ─── Setup ──────────────────────────────────────────────────────────────────
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
@@ -154,6 +167,7 @@ const HUME_FALLBACK_INPUT_SAMPLE_RATE = Math.max(Number(process.env.HUME_FALLBAC
 const TELNYX_OUTBOUND_FRAME_MS = Math.max(Number(process.env.TELNYX_OUTBOUND_FRAME_MS || 20), 20);
 const TELNYX_PCMU_FRAME_BYTES = 160; // 20ms @ 8kHz PCMU
 const TELNYX_OUTBOUND_QUEUE_MAX_BYTES = Math.max(Number(process.env.TELNYX_OUTBOUND_QUEUE_MAX_BYTES || 160000), 1600);
+const TELNYX_OUTBOUND_AUDIO_MODE = String(process.env.TELNYX_OUTBOUND_AUDIO_MODE || 'legacy').toLowerCase();
 const DEFAULT_SYSTEM_PROMPT = process.env.VOICE_DEFAULT_SYSTEM_PROMPT
     || 'You are a helpful, professional, and empathetic AI real estate voice assistant.';
 
@@ -422,7 +436,7 @@ const attachVoiceBridge = (server) => {
         };
 
         console.log(`🔌 [Voice] Telnyx stream connected. call_id: ${activeCallId}`);
-        logBridgeState('telnyx_ws_connected');
+        logBridgeState('telnyx_ws_connected', `audioMode=${TELNYX_OUTBOUND_AUDIO_MODE}`);
 
         const enqueueOutboundPayload = (payloadBuf) => {
             if (!payloadBuf || payloadBuf.length === 0) return;
@@ -503,10 +517,24 @@ const attachVoiceBridge = (server) => {
                 humeSocket.on('message', async (msg) => {
                     try {
                         if (msg.type === 'audio_output') {
-                            const mulawBuf = humeAudioToTelnyxMulaw(msg.data);
-                            if (!mulawBuf) return;
-                            enqueueOutboundPayload(mulawBuf);
-                            startOutboundTicker();
+                            if (TELNYX_OUTBOUND_AUDIO_MODE === 'paced') {
+                                const mulawBuf = humeAudioToTelnyxMulaw(msg.data);
+                                if (!mulawBuf) return;
+                                enqueueOutboundPayload(mulawBuf);
+                                startOutboundTicker();
+                            } else {
+                                const legacyPayload = humeAudioToTelnyxLegacyBase64(msg.data);
+                                if (!legacyPayload || ws.readyState !== 1) return;
+                                ws.send(JSON.stringify({
+                                    event: 'media',
+                                    media: { payload: legacyPayload },
+                                }));
+                                audioChunksSent++;
+                                outboundFrames++;
+                                if (audioChunksSent <= 5) {
+                                    console.log(`🔊 [Voice] Sent legacy audio chunk #${audioChunksSent} (${legacyPayload.length} bytes b64)`);
+                                }
+                            }
                         }
 
                         if (msg.type === 'user_message' || msg.type === 'assistant_message') {
