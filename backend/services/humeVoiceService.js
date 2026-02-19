@@ -89,6 +89,8 @@ const HTTP_PUBLIC_BASE_URL =
 
 const telnyx = new Telnyx({ apiKey: TELNYX_API_KEY });
 const hume = new HumeClient({ apiKey: HUME_API_KEY, secretKey: HUME_SECRET_KEY });
+const VOICE_BRIDGE_STRICT_MODE = String(process.env.VOICE_BRIDGE_STRICT_MODE || 'true').toLowerCase() !== 'false';
+const HUME_INBOUND_QUEUE_MAX = Math.max(Number(process.env.HUME_INBOUND_QUEUE_MAX || 120), 20);
 
 // Context map: call_control_id -> { prompt, leadId, conversationId, ... }
 const callContextMap = new Map();
@@ -264,14 +266,81 @@ const attachVoiceBridge = (server) => {
         let activeCallId = url.searchParams.get('call_id') || null;
         let humeSocket = null;
         let humeReady = false;
+        let humeConnecting = false;
         let streamSid = null;
+        let bridgeClosed = false;
         let audioChunksSent = 0;
+        let inboundFrames = 0;
+        let outboundFrames = 0;
+        let droppedFrames = 0;
+        let queueDropLogs = 0;
+        let forwardErrLogs = 0;
+        let startedAt = Date.now();
+        const inboundQueue = [];
+        const bridgeLabel = () => `[Voice][${activeCallId || 'unknown-call'}]`;
+
+        const logBridgeState = (stage, extra = '') => {
+            console.log(`${bridgeLabel()} stage=${stage} strict=${VOICE_BRIDGE_STRICT_MODE} queue=${inboundQueue.length} in=${inboundFrames} out=${outboundFrames} drop=${droppedFrames}${extra ? ` ${extra}` : ''}`);
+        };
+
+        const enqueueInboundAudio = (payload) => {
+            if (!VOICE_BRIDGE_STRICT_MODE) {
+                droppedFrames += 1;
+                return;
+            }
+            inboundQueue.push(payload);
+            if (inboundQueue.length > HUME_INBOUND_QUEUE_MAX) {
+                inboundQueue.shift();
+                droppedFrames += 1;
+                if (queueDropLogs < 3) {
+                    console.warn(`${bridgeLabel()} queue_overflow drop=1 max=${HUME_INBOUND_QUEUE_MAX}`);
+                    queueDropLogs += 1;
+                }
+            }
+        };
+
+        const flushInboundQueue = async () => {
+            if (!humeSocket || !humeReady || inboundQueue.length === 0) return;
+            while (inboundQueue.length && humeSocket && humeReady && ws.readyState === 1) {
+                const nextPayload = inboundQueue.shift();
+                try {
+                    await humeSocket.sendAudioInput({ data: nextPayload });
+                    inboundFrames += 1;
+                } catch (err) {
+                    enqueueInboundAudio(nextPayload);
+                    if (forwardErrLogs < 5) {
+                        console.error(`${bridgeLabel()} flush_failed reason="${err.message}"`);
+                        forwardErrLogs += 1;
+                    }
+                    humeReady = false;
+                    break;
+                }
+            }
+            if (inboundQueue.length === 0) {
+                logBridgeState('queue_flushed');
+            }
+        };
+
+        const closeBridge = (reason) => {
+            if (bridgeClosed) return;
+            bridgeClosed = true;
+            logBridgeState('closing', `reason=${reason} durationMs=${Date.now() - startedAt}`);
+            try {
+                if (humeSocket) humeSocket.close();
+            } catch (_) { }
+            try {
+                if (ws.readyState === 1 || ws.readyState === 0) ws.close();
+            } catch (_) { }
+        };
 
         console.log(`🔌 [Voice] Telnyx stream connected. call_id: ${activeCallId}`);
+        logBridgeState('telnyx_ws_connected');
 
         // ── Connect to Hume ────────────────────────────────────────────────
         const connectHume = async () => {
+            if (bridgeClosed || humeReady || humeConnecting) return;
             try {
+                humeConnecting = true;
                 const ctx = activeCallId ? callContextMap.get(activeCallId) : null;
                 const systemPrompt = ctx?.prompt || '';
 
@@ -283,6 +352,8 @@ const attachVoiceBridge = (server) => {
                 humeSocket.on('open', () => {
                     console.log('🧠 [Voice] Hume EVI connected ✅');
                     humeReady = true;
+                    humeConnecting = false;
+                    logBridgeState('hume_open');
 
                     // Send system prompt via session settings
                     if (systemPrompt) {
@@ -304,6 +375,10 @@ const attachVoiceBridge = (server) => {
                             }
                         }
                     }, 300);
+
+                    flushInboundQueue().catch((err) => {
+                        console.error(`${bridgeLabel()} queue_flush_error:`, err.message);
+                    });
                 });
 
                 humeSocket.on('message', async (msg) => {
@@ -319,6 +394,7 @@ const attachVoiceBridge = (server) => {
                                     media: { payload },
                                 }));
                                 audioChunksSent++;
+                                outboundFrames++;
                                 if (audioChunksSent <= 5) {
                                     console.log(`🔊 [Voice] Sent audio chunk #${audioChunksSent} to Telnyx (${payload.length} bytes b64)`);
                                 }
@@ -352,26 +428,36 @@ const attachVoiceBridge = (server) => {
 
                 humeSocket.on('error', (e) => {
                     console.error('❌ [Voice] Hume socket error:', e?.message || e);
+                    humeReady = false;
+                    humeConnecting = false;
                 });
 
                 humeSocket.on('close', () => {
                     console.log('👋 [Voice] Hume disconnected');
                     humeReady = false;
+                    humeConnecting = false;
                 });
 
             } catch (e) {
                 console.error('❌ [Voice] Failed to connect to Hume:', e.message);
+                humeReady = false;
+                humeConnecting = false;
+                if (VOICE_BRIDGE_STRICT_MODE) {
+                    closeBridge('hume_connect_failed');
+                }
             }
         };
 
         // ── Handle Telnyx messages ─────────────────────────────────────────
         ws.on('message', async (raw) => {
+            if (bridgeClosed) return;
             try {
                 const msg = JSON.parse(raw.toString());
 
                 switch (msg.event) {
                     case 'connected':
                         console.log('✅ [Voice] Telnyx stream connected event received');
+                        logBridgeState('telnyx_connected');
                         break;
 
                     case 'start':
@@ -381,22 +467,33 @@ const attachVoiceBridge = (server) => {
                             || null;
                         if (!activeCallId && startCallId) activeCallId = startCallId;
                         console.log(`🎬 [Voice] Stream started. SID: ${streamSid} | callId: ${activeCallId}`);
+                        logBridgeState('telnyx_start');
                         await connectHume();
                         break;
 
                     case 'media':
-                        if (humeSocket && humeReady && msg.media?.payload) {
+                        if (!msg.media?.payload) break;
+                        if (humeSocket && humeReady) {
                             try {
                                 await humeSocket.sendAudioInput({ data: msg.media.payload });
+                                inboundFrames++;
                             } catch (e) {
-                                console.error('Error forwarding audio to Hume:', e.message);
+                                enqueueInboundAudio(msg.media.payload);
+                                humeReady = false;
+                                if (forwardErrLogs < 5) {
+                                    console.error('Error forwarding audio to Hume:', e.message);
+                                    forwardErrLogs++;
+                                }
+                                connectHume().catch(() => { });
                             }
+                        } else {
+                            enqueueInboundAudio(msg.media.payload);
                         }
                         break;
 
                     case 'stop':
                         console.log('🛑 [Voice] Stream stopped');
-                        if (humeSocket) humeSocket.close();
+                        closeBridge('telnyx_stop');
                         break;
 
                     default:
@@ -409,11 +506,12 @@ const attachVoiceBridge = (server) => {
 
         ws.on('close', () => {
             console.log('🔌 [Voice] Telnyx WS disconnected');
-            if (humeSocket) try { humeSocket.close(); } catch (_) { }
+            closeBridge('telnyx_ws_closed');
         });
 
         ws.on('error', (e) => {
             console.error('❌ [Voice] Telnyx WS error:', e.message);
+            closeBridge('telnyx_ws_error');
         });
     });
 };
