@@ -102,7 +102,13 @@ function humeAudioToTelnyxMulaw(base64Audio) {
 
         const wavMeta = parseWavMeta(audioBuf);
         if (!wavMeta) {
-            // If no WAV header is present, assume payload is already PCMU RTP payload.
+            // Fallback: treat as raw mono PCM16 and convert.
+            // This keeps behavior aligned with the earlier path that produced audible output.
+            if (audioBuf.length >= 2 && audioBuf.length % 2 === 0) {
+                const downsampled = downsamplePcm16(audioBuf, HUME_FALLBACK_INPUT_SAMPLE_RATE, 8000);
+                return pcm16BufToMulawBuf(downsampled);
+            }
+            // Last resort if we cannot interpret sample structure.
             return audioBuf;
         }
 
@@ -144,6 +150,7 @@ const telnyx = new Telnyx({ apiKey: TELNYX_API_KEY });
 const hume = new HumeClient({ apiKey: HUME_API_KEY, secretKey: HUME_SECRET_KEY });
 const VOICE_BRIDGE_STRICT_MODE = String(process.env.VOICE_BRIDGE_STRICT_MODE || 'true').toLowerCase() !== 'false';
 const HUME_INBOUND_QUEUE_MAX = Math.max(Number(process.env.HUME_INBOUND_QUEUE_MAX || 120), 20);
+const HUME_FALLBACK_INPUT_SAMPLE_RATE = Math.max(Number(process.env.HUME_FALLBACK_INPUT_SAMPLE_RATE || 24000), 8000);
 const TELNYX_OUTBOUND_FRAME_MS = Math.max(Number(process.env.TELNYX_OUTBOUND_FRAME_MS || 20), 20);
 const TELNYX_PCMU_FRAME_BYTES = 160; // 20ms @ 8kHz PCMU
 const TELNYX_OUTBOUND_QUEUE_MAX_BYTES = Math.max(Number(process.env.TELNYX_OUTBOUND_QUEUE_MAX_BYTES || 160000), 1600);
