@@ -214,8 +214,9 @@ const handleTelnyxEvent = async (req, res) => {
                 await telnyx.calls.actions.startStreaming(callControlId, {
                     stream_url: streamUrl,
                     stream_track: 'both_tracks',
+                    stream_bidirectional_mode: 'rtp',
                 });
-                console.log('✅ [Voice] Media streaming started');
+                console.log('✅ [Voice] Media streaming started (bidirectional RTP mode)');
             } catch (streamErr) {
                 console.error('❌ [Voice] Failed to start streaming:', streamErr.message);
                 if (streamErr.raw) console.error(JSON.stringify(streamErr.raw, null, 2));
@@ -312,17 +313,14 @@ const attachVoiceBridge = (server) => {
                             if (!payload) return;
 
                             if (ws.readyState === 1) {
+                                // Exact format per Telnyx docs for RTP bidirectional streaming
                                 ws.send(JSON.stringify({
                                     event: 'media',
-                                    streamSid,
-                                    media: {
-                                        payload,
-                                        track: 'outbound',
-                                    },
+                                    media: { payload },
                                 }));
                                 audioChunksSent++;
                                 if (audioChunksSent <= 5) {
-                                    console.log(`🔊 [Voice] Sent audio chunk #${audioChunksSent} to Telnyx`);
+                                    console.log(`🔊 [Voice] Sent audio chunk #${audioChunksSent} to Telnyx (${payload.length} bytes b64)`);
                                 }
                             } else {
                                 console.warn(`⚠️ [Voice] Can't send audio — WS state: ${ws.readyState}`);
