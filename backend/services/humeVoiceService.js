@@ -108,8 +108,9 @@ function humeAudioToTelnyxMulaw(base64Audio) {
                 const downsampled = downsamplePcm16(audioBuf, HUME_FALLBACK_INPUT_SAMPLE_RATE, 8000);
                 return pcm16BufToMulawBuf(downsampled);
             }
-            // Last resort if we cannot interpret sample structure.
-            return audioBuf;
+            // If we cannot parse safely, drop the chunk to avoid noisy/distorted output.
+            console.warn('⚠️ [Voice] Dropping unparseable audio_output chunk from Hume');
+            return null;
         }
 
         const pcmData = audioBuf.slice(wavMeta.dataOffset, wavMeta.dataOffset + wavMeta.dataLength);
@@ -185,7 +186,9 @@ const HUME_FALLBACK_INPUT_SAMPLE_RATE = Math.max(Number(process.env.HUME_FALLBAC
 const TELNYX_OUTBOUND_FRAME_MS = Math.max(Number(process.env.TELNYX_OUTBOUND_FRAME_MS || 20), 20);
 const TELNYX_PCMU_FRAME_BYTES = 160; // 20ms @ 8kHz PCMU
 const TELNYX_OUTBOUND_QUEUE_MAX_BYTES = Math.max(Number(process.env.TELNYX_OUTBOUND_QUEUE_MAX_BYTES || 160000), 1600);
-const TELNYX_OUTBOUND_AUDIO_MODE = String(process.env.TELNYX_OUTBOUND_AUDIO_MODE || 'paced').toLowerCase();
+const REQUESTED_TELNYX_OUTBOUND_AUDIO_MODE = String(process.env.TELNYX_OUTBOUND_AUDIO_MODE || 'paced').toLowerCase();
+const TELNYX_OUTBOUND_AUDIO_MODE = 'paced';
+const VOICE_FORWARD_INBOUND_ONLY = String(process.env.VOICE_FORWARD_INBOUND_ONLY || 'true').toLowerCase() !== 'false';
 const VOICE_PHASE1_SINGLE_BOT_MODE = String(process.env.VOICE_PHASE1_SINGLE_BOT_MODE || 'true').toLowerCase() !== 'false';
 const VOICE_HUME_MANAGED_PROMPTS = String(process.env.VOICE_HUME_MANAGED_PROMPTS || 'true').toLowerCase() !== 'false';
 const VOICE_USE_ASSISTANT_INPUT_GREETING = String(process.env.VOICE_USE_ASSISTANT_INPUT_GREETING || 'true').toLowerCase() !== 'false';
@@ -259,6 +262,9 @@ const buildHumeVariables = (ctx = {}) => {
     }
     return vars;
 };
+if (REQUESTED_TELNYX_OUTBOUND_AUDIO_MODE !== 'paced') {
+    console.warn(`⚠️ [Voice] Forcing TELNYX_OUTBOUND_AUDIO_MODE=paced (requested="${REQUESTED_TELNYX_OUTBOUND_AUDIO_MODE}")`);
+}
 const resolveHumeConfigId = (ctx = {}) => {
     if (VOICE_PHASE1_SINGLE_BOT_MODE) {
         return PHASE1_FOLLOWUP_CONFIG_ID || HUME_CONFIG_ID;
@@ -382,12 +388,12 @@ const handleTelnyxEvent = async (req, res) => {
             try {
                 await telnyx.calls.actions.startStreaming(callControlId, {
                     stream_url: streamUrl,
-                    stream_track: 'both_tracks',
+                    stream_track: VOICE_FORWARD_INBOUND_ONLY ? 'inbound_track' : 'both_tracks',
                     stream_bidirectional_mode: 'rtp',
                     stream_bidirectional_codec: 'PCMU',
                     stream_bidirectional_sampling_rate: 8000,
                 });
-                console.log('✅ [Voice] Media streaming started (bidirectional RTP mode)');
+                console.log(`✅ [Voice] Media streaming started (bidirectional RTP mode, track=${VOICE_FORWARD_INBOUND_ONLY ? 'inbound_track' : 'both_tracks'})`);
             } catch (streamErr) {
                 console.error('❌ [Voice] Failed to start streaming:', streamErr.message);
                 if (streamErr.raw) console.error(JSON.stringify(streamErr.raw, null, 2));
@@ -444,6 +450,7 @@ const attachVoiceBridge = (server) => {
         let droppedFrames = 0;
         let queueDropLogs = 0;
         let forwardErrLogs = 0;
+        let droppedOutboundTrackLogs = 0;
         let startedAt = Date.now();
         let greetingSent = false;
         const inboundQueue = [];
@@ -693,6 +700,18 @@ const attachVoiceBridge = (server) => {
 
                     case 'media':
                         if (!msg.media?.payload) break;
+                        // Telnyx can send both tracks; only forward caller audio to Hume to avoid echo loops.
+                        if (VOICE_FORWARD_INBOUND_ONLY) {
+                            const track = String(msg.media?.track || msg.track || '').toLowerCase();
+                            if (track && !track.includes('inbound')) {
+                                droppedFrames++;
+                                if (droppedOutboundTrackLogs < 5) {
+                                    console.log(`${bridgeLabel()} drop_non_inbound_media track=${track}`);
+                                    droppedOutboundTrackLogs++;
+                                }
+                                break;
+                            }
+                        }
                         if (humeSocket && humeReady) {
                             try {
                                 await humeSocket.sendAudioInput({ data: msg.media.payload });
@@ -761,7 +780,7 @@ const handleIncomingCall = (req, res) => {
         res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <Stream url="${xmlEscape(streamUrl)}" track="both_tracks">
+        <Stream url="${xmlEscape(streamUrl)}" track="${VOICE_FORWARD_INBOUND_ONLY ? 'inbound_track' : 'both_tracks'}">
             <Parameter name="call_id" value="${xmlEscape(callControlId)}" />
         </Stream>
     </Connect>
