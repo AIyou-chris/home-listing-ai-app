@@ -9790,14 +9790,16 @@ app.post('/api/leads/public', async (req, res) => {
 
 app.post('/api/admin/voice/quick-send', async (req, res) => {
   try {
-    const { to, script } = req.body;
+    const { to, assistantKey, botType, humeConfigId } = req.body || {};
+    if (!to) return res.status(400).json({ error: 'Missing "to" phone number' });
 
-    // Initiate test call
-    const result = await initiateCall({
-      leadPhone: to,
-      script: script,
-      callType: 'test'
-    });
+    const { initiateOutboundCall } = require('./services/humeVoiceService');
+    const result = await initiateOutboundCall(to, '', {
+      assistantKey: assistantKey || botType || 'admin_follow_up',
+      botType: botType || assistantKey || 'admin_follow_up',
+      humeConfigId,
+      source: 'admin_quick_send'
+    }, req);
 
     res.json(result);
   } catch (error) {

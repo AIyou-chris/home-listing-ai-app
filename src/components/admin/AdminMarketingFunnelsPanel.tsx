@@ -22,6 +22,29 @@ interface FunnelAnalyticsPanelProps {
     isDemoMode?: boolean;
 }
 
+const CALL_BOT_OPTIONS = [
+    {
+        id: 'admin_follow_up',
+        name: 'Admin Follow-Up Bot',
+        description: 'Uses your prebuilt Hume follow-up configuration.',
+        configId: 'd1d4d371-00dd-4ef9-8ab5-36878641b349'
+    }
+] as const;
+
+const DEFAULT_CALL_BOT_ID = CALL_BOT_OPTIONS[0].id;
+
+const isCallStepType = (type: string) => ['call', 'ai call', 'ai-call', 'voice'].includes((type || '').toLowerCase());
+
+const resolveCallBotId = (value?: string) => {
+    const normalized = (value || '').trim();
+    return CALL_BOT_OPTIONS.some((bot) => bot.id === normalized) ? normalized : DEFAULT_CALL_BOT_ID;
+};
+
+const normalizeCallStep = (step: EditableStep): EditableStep => {
+    if (!isCallStepType(step.type)) return step;
+    return { ...step, content: resolveCallBotId(step.content) };
+};
+
 const highlightCards = [
     {
         id: 'health',
@@ -387,6 +410,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     alert('Please enter a test phone number first.');
                     return;
                 }
+                const callBotId = resolveCallBotId(step.content);
+                const callBot = CALL_BOT_OPTIONS.find((bot) => bot.id === callBotId);
                 const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
 
                 // Call Hume Outbound Endpoint
@@ -397,7 +422,9 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     },
                     body: JSON.stringify({
                         to: testPhone,
-                        prompt: step.content || "You are an AI assistant. Please introduce yourself."
+                        botType: callBotId,
+                        assistantKey: callBotId,
+                        humeConfigId: callBot?.configId
                     })
                 });
 
@@ -476,26 +503,32 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 const filteredFunnels = Object.fromEntries(
                     Object.entries(funnels).filter(([key]) => allowedFunnels.includes(key))
                 );
+                const normalizedFunnels = Object.fromEntries(
+                    Object.entries(filteredFunnels).map(([key, steps]) => [
+                        key,
+                        (steps || []).map(normalizeCallStep)
+                    ])
+                );
 
-                setAvailableFunnels(filteredFunnels);
+                setAvailableFunnels(normalizedFunnels);
 
                 // Priority: Selected -> Realtor -> Broker -> Universal -> First
-                if (funnels[selectedFunnelId]) {
-                    setFunnelSteps(funnels[selectedFunnelId]);
-                } else if (funnels['realtor_funnel']) {
+                if (normalizedFunnels[selectedFunnelId]) {
+                    setFunnelSteps(normalizedFunnels[selectedFunnelId]);
+                } else if (normalizedFunnels['realtor_funnel']) {
                     setSelectedFunnelId('realtor_funnel');
-                    setFunnelSteps(funnels['realtor_funnel']);
-                } else if (funnels['broker_funnel']) {
+                    setFunnelSteps(normalizedFunnels['realtor_funnel']);
+                } else if (normalizedFunnels['broker_funnel']) {
                     setSelectedFunnelId('broker_funnel');
-                    setFunnelSteps(funnels['broker_funnel']);
-                } else if (funnels.universal_sales) {
+                    setFunnelSteps(normalizedFunnels['broker_funnel']);
+                } else if (normalizedFunnels.universal_sales) {
                     setSelectedFunnelId('universal_sales');
-                    setFunnelSteps(funnels.universal_sales);
+                    setFunnelSteps(normalizedFunnels.universal_sales);
                 } else {
-                    const keys = Object.keys(funnels);
+                    const keys = Object.keys(normalizedFunnels);
                     if (keys.length > 0) {
                         setSelectedFunnelId(keys[0]);
-                        setFunnelSteps(funnels[keys[0]]);
+                        setFunnelSteps(normalizedFunnels[keys[0]]);
                     }
                 }
             } catch (error) {
@@ -578,6 +611,9 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         case 'Text': updated.icon = 'sms'; break;
                         case 'Task': updated.icon = 'assignment_turned_in'; break;
                         default: updated.icon = 'forward_to_inbox';
+                    }
+                    if (isCallStepType(value)) {
+                        updated.content = resolveCallBotId(step.content);
                     }
                 }
                 return updated;
@@ -957,7 +993,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                         <div>
                                                                             <h4 className="text-blue-900 font-bold text-lg mb-1">AI Call Configured</h4>
                                                                             <p className="text-blue-700/80 text-sm leading-relaxed max-w-md">
-                                                                                The AI Agent will call the lead and follow the custom script you provide below. The full transcript will be saved to the lead's profile.
+                                                                                This call step uses a prebuilt Hume assistant. Script editing is disabled here to keep behavior stable.
                                                                             </p>
                                                                         </div>
                                                                     </div>
@@ -966,26 +1002,31 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                         <div>
                                                                             <div className="flex justify-between items-center mb-2">
                                                                                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
-                                                                                    AI System Prompt (Script)
+                                                                                    Assistant Profile
                                                                                 </label>
                                                                                 <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                                                                                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
-                                                                                    Hume EVI Active
+                                                                                    Hume Managed
                                                                                 </span>
                                                                             </div>
-                                                                            <textarea
-                                                                                className="w-full h-40 rounded-lg border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-inner resize-none font-mono leading-relaxed"
-                                                                                placeholder="You are an AI assistant calling a lead. Your goal is to..."
-                                                                                value={step.content || ''}
+                                                                            <select
+                                                                                className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                                                                value={resolveCallBotId(step.content)}
                                                                                 onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
-                                                                            />
+                                                                            >
+                                                                                {CALL_BOT_OPTIONS.map((bot) => (
+                                                                                    <option key={bot.id} value={bot.id}>
+                                                                                        {bot.name}
+                                                                                    </option>
+                                                                                ))}
+                                                                            </select>
                                                                             <div className="flex justify-between items-start mt-1.5">
                                                                                 <p className="text-[10px] text-slate-400 flex items-center gap-1">
                                                                                     <span className="material-symbols-outlined text-[10px]">info</span>
-                                                                                    This script is sent directly to the AI as its instructions.
+                                                                                    Edit the prompt/script in Hume Config, not in this funnel step.
                                                                                 </p>
                                                                                 <span className="text-[10px] text-slate-400">
-                                                                                    {step.content?.length || 0} chars
+                                                                                    {CALL_BOT_OPTIONS.find((bot) => bot.id === resolveCallBotId(step.content))?.configId}
                                                                                 </span>
                                                                             </div>
                                                                         </div>
