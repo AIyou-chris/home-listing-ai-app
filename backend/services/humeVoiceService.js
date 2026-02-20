@@ -165,6 +165,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const HUME_API_KEY = process.env.HUME_API_KEY;
 const HUME_SECRET_KEY = process.env.HUME_SECRET_KEY;
 const HUME_CONFIG_ID = process.env.HUME_CONFIG_ID;
+const PHASE1_FOLLOWUP_CONFIG_ID = process.env.VOICE_PHASE1_FOLLOWUP_CONFIG_ID || 'd1d4d371-00dd-4ef9-8ab5-36878641b349';
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY || process.env.VITE_TELNYX_API_KEY;
 const TELNYX_FROM_NUMBER = process.env.TELNYX_PHONE_NUMBER || '+12069442374';
 const TELNYX_CONNECTION_ID = process.env.TELNYX_CONNECTION_ID;
@@ -185,6 +186,8 @@ const TELNYX_OUTBOUND_FRAME_MS = Math.max(Number(process.env.TELNYX_OUTBOUND_FRA
 const TELNYX_PCMU_FRAME_BYTES = 160; // 20ms @ 8kHz PCMU
 const TELNYX_OUTBOUND_QUEUE_MAX_BYTES = Math.max(Number(process.env.TELNYX_OUTBOUND_QUEUE_MAX_BYTES || 160000), 1600);
 const TELNYX_OUTBOUND_AUDIO_MODE = String(process.env.TELNYX_OUTBOUND_AUDIO_MODE || 'paced').toLowerCase();
+const VOICE_PHASE1_SINGLE_BOT_MODE = String(process.env.VOICE_PHASE1_SINGLE_BOT_MODE || 'true').toLowerCase() !== 'false';
+const VOICE_HUME_MANAGED_PROMPTS = String(process.env.VOICE_HUME_MANAGED_PROMPTS || 'true').toLowerCase() !== 'false';
 const VOICE_USE_ASSISTANT_INPUT_GREETING = String(process.env.VOICE_USE_ASSISTANT_INPUT_GREETING || 'true').toLowerCase() !== 'false';
 const VOICE_INITIAL_ASSISTANT_GREETING = process.env.VOICE_INITIAL_ASSISTANT_GREETING
     || 'Hello, this is your AI assistant. Can you hear me clearly?';
@@ -255,6 +258,16 @@ const buildHumeVariables = (ctx = {}) => {
         vars['lead.phone'] = leadPhone;
     }
     return vars;
+};
+const resolveHumeConfigId = (ctx = {}) => {
+    if (VOICE_PHASE1_SINGLE_BOT_MODE) {
+        return PHASE1_FOLLOWUP_CONFIG_ID || HUME_CONFIG_ID;
+    }
+    return pickFirst(
+        stringifyScalar(ctx.humeConfigId),
+        stringifyScalar(ctx.configId),
+        HUME_CONFIG_ID
+    );
 };
 
 const buildPublicHttpBase = (req) => {
@@ -538,16 +551,18 @@ const attachVoiceBridge = (server) => {
             try {
                 humeConnecting = true;
                 const ctx = activeCallId ? callContextMap.get(activeCallId) : null;
+                const selectedConfigId = resolveHumeConfigId(ctx || {});
                 const systemPrompt = composeSystemPrompt(ctx || {});
                 const humeVariables = buildHumeVariables(ctx || {});
+                const sessionSettings = { variables: humeVariables };
+                if (!VOICE_HUME_MANAGED_PROMPTS) {
+                    sessionSettings.systemPrompt = systemPrompt;
+                }
 
-                console.log(`🧠 [Voice] Connecting to Hume EVI (configId: ${HUME_CONFIG_ID})...`);
+                console.log(`🧠 [Voice] Connecting to Hume EVI (configId: ${selectedConfigId})...`);
                 humeSocket = await hume.empathicVoice.chat.connect({
-                    configId: HUME_CONFIG_ID,
-                    sessionSettings: {
-                        systemPrompt,
-                        variables: humeVariables,
-                    },
+                    configId: selectedConfigId,
+                    sessionSettings,
                 });
 
                 humeSocket.on('open', () => {
