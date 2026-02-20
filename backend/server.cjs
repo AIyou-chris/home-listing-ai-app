@@ -643,6 +643,40 @@ app.get('/api/funnels/:userId', async (req, res) => {
         .order('step_index', { ascending: true });
 
       if (stepsError) console.error('Step fetch error:', stepsError);
+      const stepIds = (steps || []).map((s) => s.id).filter(Boolean);
+      let trackingStatsByStep = {};
+      if (stepIds.length > 0) {
+        const { data: trackingRows, error: trackingError } = await supabaseAdmin
+          .from('email_tracking_events')
+          .select('step_id, open_count, click_count, opened_at, clicked_at, status')
+          .eq('user_id', normalizedUserId)
+          .in('step_id', stepIds);
+
+        if (trackingError) {
+          console.warn('[Funnels] Tracking stats fallback failed:', trackingError.message);
+        } else {
+          trackingStatsByStep = (trackingRows || []).reduce((acc, row) => {
+            const stepId = row.step_id;
+            if (!stepId) return acc;
+            if (!acc[stepId]) {
+              acc[stepId] = { sent: 0, opened: 0, clicked: 0, replied: 0 };
+            }
+            const stat = acc[stepId];
+            const status = String(row.status || '').toLowerCase();
+            stat.sent += 1;
+            if ((row.open_count || 0) > 0 || row.opened_at || status === 'opened' || status === 'clicked' || status === 'replied') {
+              stat.opened += 1;
+            }
+            if ((row.click_count || 0) > 0 || row.clicked_at || status === 'clicked' || status === 'replied') {
+              stat.clicked += 1;
+            }
+            if (status === 'replied') {
+              stat.replied += 1;
+            }
+            return acc;
+          }, {});
+        }
+      }
 
       // Map to EditableStep format
       const mappedSteps = (steps || []).map(s => {
@@ -660,6 +694,7 @@ app.get('/api/funnels/:userId', async (req, res) => {
 
         // Metrics
         const m = Array.isArray(s.metrics) ? s.metrics[0] : s.metrics; // One-to-one usually
+        const trackingMetrics = trackingStatsByStep[s.id] || {};
 
         return {
           id: s.id, // Use UUID
@@ -675,10 +710,10 @@ app.get('/api/funnels/:userId', async (req, res) => {
           conditionRule: s.condition_type,
           conditionValue: s.condition_value,
           // Metrics (Frontend will need to update interface to see these)
-          sent: m?.sent_count || 0,
-          opened: m?.opens || 0,
-          clicked: m?.clicks || 0,
-          replied: m?.replies || 0
+          sent: Math.max(m?.sent_count || 0, trackingMetrics.sent || 0),
+          opened: Math.max(m?.opens || 0, trackingMetrics.opened || 0),
+          clicked: Math.max(m?.clicks || 0, trackingMetrics.clicked || 0),
+          replied: Math.max(m?.replies || 0, trackingMetrics.replied || 0)
         };
       });
 
@@ -7551,7 +7586,7 @@ app.post('/api/admin/leads/import', async (req, res) => {
     const safeDbFunnel = (f) => DB_CONSTRAINT_FUNNELS.includes(f) ? f : null;
 
     // 2. APP SUPPORTED FUNNELS (For 'funnels' table lookup & enrollment)
-    const APP_SUPPORTED_FUNNELS = ['homebuyer', 'seller', 'postShowing', 'universal_sales', 'welcome'];
+    const APP_SUPPORTED_FUNNELS = ['homebuyer', 'seller', 'postShowing', 'universal_sales', 'welcome', 'realtor_funnel', 'broker_funnel'];
     const isEnrollable = (f) => APP_SUPPORTED_FUNNELS.includes(f);
 
     const intendedFunnel = assignment?.funnel;
