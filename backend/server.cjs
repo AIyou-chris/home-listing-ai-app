@@ -9823,16 +9823,82 @@ app.post('/api/leads/public', async (req, res) => {
 
 
 
+app.get('/api/admin/call-bots', async (req, res) => {
+  try {
+    const { userId, includeInactive } = req.query || {};
+    if (!userId) return res.status(400).json({ error: 'Missing "userId" query param' });
+
+    const { listCallBots } = require('./services/callBotsService');
+    const bots = await listCallBots({ userId, includeInactive: String(includeInactive || 'false') === 'true' });
+    res.json({ bots });
+  } catch (error) {
+    console.error('Call bots list error:', error);
+    res.status(500).json({ error: error.message || 'Failed to load call bots' });
+  }
+});
+
+app.post('/api/admin/call-bots', async (req, res) => {
+  try {
+    const { userId, name, key, description, configId, isActive, isDefault } = req.body || {};
+    if (!userId) return res.status(400).json({ error: 'Missing "userId"' });
+
+    const { createCallBot } = require('./services/callBotsService');
+    const bot = await createCallBot({ userId, name, key, description, configId, isActive, isDefault });
+    res.status(201).json({ bot });
+  } catch (error) {
+    console.error('Call bot create error:', error);
+    res.status(500).json({ error: error.message || 'Failed to create call bot' });
+  }
+});
+
+app.put('/api/admin/call-bots/:botId', async (req, res) => {
+  try {
+    const { botId } = req.params;
+    const { userId, name, key, description, configId, isActive, isDefault } = req.body || {};
+    if (!userId) return res.status(400).json({ error: 'Missing "userId"' });
+
+    const { updateCallBot } = require('./services/callBotsService');
+    const bot = await updateCallBot({ botId, userId, name, key, description, configId, isActive, isDefault });
+    res.json({ bot });
+  } catch (error) {
+    console.error('Call bot update error:', error);
+    res.status(500).json({ error: error.message || 'Failed to update call bot' });
+  }
+});
+
+app.delete('/api/admin/call-bots/:botId', async (req, res) => {
+  try {
+    const { botId } = req.params;
+    const userId = (req.body && req.body.userId) || req.query?.userId;
+    if (!userId) return res.status(400).json({ error: 'Missing "userId"' });
+
+    const { deleteCallBot } = require('./services/callBotsService');
+    await deleteCallBot({ botId, userId });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Call bot delete error:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete call bot' });
+  }
+});
+
 app.post('/api/admin/voice/quick-send', async (req, res) => {
   try {
-    const { to, assistantKey, botType, humeConfigId } = req.body || {};
+    const { to, assistantKey, botType, humeConfigId, userId } = req.body || {};
     if (!to) return res.status(400).json({ error: 'Missing "to" phone number' });
+
+    const selectedBotKey = assistantKey || botType || 'admin_follow_up';
+    let resolvedConfigId = humeConfigId;
+
+    if (!resolvedConfigId) {
+      const { resolveCallBotConfigId } = require('./services/callBotsService');
+      resolvedConfigId = await resolveCallBotConfigId({ userId, botKey: selectedBotKey });
+    }
 
     const { initiateOutboundCall } = require('./services/humeVoiceService');
     const result = await initiateOutboundCall(to, '', {
-      assistantKey: assistantKey || botType || 'admin_follow_up',
-      botType: botType || assistantKey || 'admin_follow_up',
-      humeConfigId,
+      assistantKey: selectedBotKey,
+      botType: selectedBotKey,
+      humeConfigId: resolvedConfigId,
       source: 'admin_quick_send'
     }, req);
 
@@ -13689,6 +13755,15 @@ app.post('/api/voice/hume/outbound-call', async (req, res) => {
 
     const { initiateOutboundCall } = require('./services/humeVoiceService');
     const systemPrompt = prompt || "You are an AI assistant for a real estate agency. Be helpful, professional, and empathetic.";
+    const selectedBotKey = context.assistantKey || context.botType || null;
+
+    if (!context.humeConfigId && selectedBotKey) {
+      const { resolveCallBotConfigId } = require('./services/callBotsService');
+      context.humeConfigId = await resolveCallBotConfigId({
+        userId: context.userId,
+        botKey: selectedBotKey
+      });
+    }
 
     const result = await initiateOutboundCall(to, systemPrompt, context, req);
     res.json(result);

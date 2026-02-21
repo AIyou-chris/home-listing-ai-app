@@ -236,6 +236,20 @@ export interface LeadBehavior {
     metadata?: Record<string, unknown>;
 }
 
+export interface CallBot {
+    id: string;
+    userId?: string | null;
+    key: string;
+    name: string;
+    description?: string;
+    configId: string;
+    isActive: boolean;
+    isDefault: boolean;
+    isSystem?: boolean;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+}
+
 export interface Appointment {
     id: string;
     type: 'Showing' | 'Consultation' | 'Open House' | 'Virtual Tour' | 'Follow-up';

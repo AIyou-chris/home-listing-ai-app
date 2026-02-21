@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { EditableStep } from '../../types';
+import { CallBot, EditableStep } from '../../types';
 import AnalyticsPage from '../AnalyticsPage';
 import QuickEmailModal from '../QuickEmailModal';
 import SignatureEditorModal from '../SignatureEditorModal';
@@ -12,6 +12,7 @@ import { LeadUploadModal } from '../../components/LeadUploadModal';
 import { LeadStatus } from '../../types';
 import { leadsService } from '../../services/leadsService';
 import { Toast, ToastType } from '../Toast';
+import { callBotsService } from '../../services/callBotsService';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -22,27 +23,25 @@ interface FunnelAnalyticsPanelProps {
     isDemoMode?: boolean;
 }
 
-const CALL_BOT_OPTIONS = [
-    {
-        id: 'admin_follow_up',
-        name: 'Admin Follow-Up Bot',
-        description: 'Uses your prebuilt Hume follow-up configuration.',
-        configId: 'd1d4d371-00dd-4ef9-8ab5-36878641b349'
-    }
-] as const;
-
-const DEFAULT_CALL_BOT_ID = CALL_BOT_OPTIONS[0].id;
-
 const isCallStepType = (type: string) => ['call', 'ai call', 'ai-call', 'voice'].includes((type || '').toLowerCase());
+const DEFAULT_CALL_BOT_KEY = 'admin_follow_up';
 
-const resolveCallBotId = (value?: string) => {
+const slugifyBotKey = (value: string) => value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+const resolveCallBotId = (value: string | undefined, bots: CallBot[]) => {
     const normalized = (value || '').trim();
-    return CALL_BOT_OPTIONS.some((bot) => bot.id === normalized) ? normalized : DEFAULT_CALL_BOT_ID;
+    const defaultBot = bots.find((bot) => bot.isDefault && bot.isActive) || bots.find((bot) => bot.isActive) || bots[0];
+    const defaultKey = defaultBot?.key || DEFAULT_CALL_BOT_KEY;
+    return bots.some((bot) => bot.key === normalized) ? normalized : defaultKey;
 };
 
-const normalizeCallStep = (step: EditableStep): EditableStep => {
+const normalizeCallStep = (step: EditableStep, bots: CallBot[]): EditableStep => {
     if (!isCallStepType(step.type)) return step;
-    return { ...step, content: resolveCallBotId(step.content) };
+    return { ...step, content: resolveCallBotId(step.content, bots) };
 };
 
 const highlightCards = [
@@ -372,6 +371,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [panelExpanded, setPanelExpanded] = useState(true);
     const [userId, setUserId] = useState<string>('');
+    const [callBots, setCallBots] = useState<CallBot[]>([]);
+    const [isSavingBot, setIsSavingBot] = useState(false);
 
     // Removed individual toggleSection logic in favor of simplified view
     const [activeSection, setActiveSection] = useState<'funnels' | 'scoring' | 'feedback'>('funnels');
@@ -386,12 +387,112 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [testPhone, setTestPhone] = useState<string>('');
     const [testEmail, setTestEmail] = useState<string>('');
     const [isTestPhoneValid, setIsTestPhoneValid] = useState(true);
+    const isLikelyDialableE164 = (value: string): boolean => {
+        const phone = (value || '').trim();
+        if (!/^\+[1-9]\d{7,14}$/.test(phone)) return false;
+        // For NANP (+1), require exactly country code + 10 digits.
+        if (phone.startsWith('+1') && phone.length !== 12) return false;
+        return true;
+    };
 
     // Validate phone on change
     useEffect(() => {
-        const phoneRegex = /^\+[1-9]\d{10,14}$/;
-        setIsTestPhoneValid(testPhone === '' || phoneRegex.test(testPhone));
+        setIsTestPhoneValid(testPhone === '' || isLikelyDialableE164(testPhone));
     }, [testPhone]);
+
+    const activeCallBots = useMemo(
+        () => callBots.filter((bot) => bot.isActive),
+        [callBots]
+    );
+
+    const getBotOptions = () => (activeCallBots.length ? activeCallBots : callBots);
+
+    const resolveCallBotIdForStep = (value?: string) => resolveCallBotId(value, getBotOptions());
+
+    const refreshCallBots = async (currentUserId: string) => {
+        const bots = await callBotsService.fetchCallBots(currentUserId, true);
+        setCallBots(bots);
+        return bots;
+    };
+
+    const handleCreateCallBot = async () => {
+        if (!userId || isSavingBot) return;
+
+        const name = window.prompt('Call bot name (example: Broker Follow-Up Bot):');
+        if (!name) return;
+
+        const configId = window.prompt('Hume Config ID for this bot:');
+        if (!configId) return;
+
+        const suggestedKey = slugifyBotKey(name) || `call_bot_${Date.now()}`;
+        const key = window.prompt('Bot key (letters/numbers/underscores):', suggestedKey) || suggestedKey;
+        const description = window.prompt('Short description (optional):', '') || '';
+
+        try {
+            setIsSavingBot(true);
+            const created = await callBotsService.createCallBot(userId, {
+                name: name.trim(),
+                key,
+                description,
+                configId: configId.trim(),
+                isActive: true,
+                isDefault: callBots.length === 0
+            });
+            await refreshCallBots(userId);
+            setToast({ message: `Call bot "${created.name}" created.`, type: 'success' });
+        } catch (error) {
+            setToast({ message: (error as Error).message || 'Failed to create call bot.', type: 'error' });
+        } finally {
+            setIsSavingBot(false);
+        }
+    };
+
+    const handleEditCallBot = async (bot: CallBot) => {
+        if (!userId || isSavingBot) return;
+        const nextName = window.prompt('Call bot name:', bot.name);
+        if (!nextName) return;
+        const nextConfigId = window.prompt('Hume Config ID:', bot.configId);
+        if (!nextConfigId) return;
+        const nextDescription = window.prompt('Description:', bot.description || '') || '';
+
+        try {
+            setIsSavingBot(true);
+            await callBotsService.updateCallBot(userId, bot.id, {
+                name: nextName.trim(),
+                configId: nextConfigId.trim(),
+                description: nextDescription
+            });
+            await refreshCallBots(userId);
+            setToast({ message: `Updated "${nextName}".`, type: 'success' });
+        } catch (error) {
+            setToast({ message: (error as Error).message || 'Failed to update call bot.', type: 'error' });
+        } finally {
+            setIsSavingBot(false);
+        }
+    };
+
+    const handleDeleteCallBot = async (bot: CallBot) => {
+        if (!userId || isSavingBot || bot.isSystem) return;
+        const ok = window.confirm(`Delete call bot "${bot.name}"?`);
+        if (!ok) return;
+
+        try {
+            setIsSavingBot(true);
+            await callBotsService.deleteCallBot(userId, bot.id);
+            const bots = await refreshCallBots(userId);
+            const fallbackKey = resolveCallBotId('', bots.filter((b) => b.isActive));
+            setFunnelSteps((prev) => prev.map((step) => (
+                isCallStepType(step.type) && step.content === bot.key
+                    ? { ...step, content: fallbackKey }
+                    : step
+            )));
+            setToast({ message: `Deleted "${bot.name}".`, type: 'success' });
+        } catch (error) {
+            setToast({ message: (error as Error).message || 'Failed to delete call bot.', type: 'error' });
+        } finally {
+            setIsSavingBot(false);
+        }
+    };
 
     const handleSendTest = async (step: EditableStep) => {
         if (sendingTestId) return;
@@ -410,21 +511,29 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     alert('Please enter a test phone number first.');
                     return;
                 }
-                const callBotId = resolveCallBotId(step.content);
-                const callBot = CALL_BOT_OPTIONS.find((bot) => bot.id === callBotId);
-                const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+                if (!isLikelyDialableE164(testPhone)) {
+                    alert('Invalid phone format. Use E.164 (example: +12125551212). For US/Canada numbers, use +1 plus exactly 10 digits.');
+                    return;
+                }
+                const callBotId = resolveCallBotIdForStep(step.content);
+                const callBot = getBotOptions().find((bot) => bot.key === callBotId);
+                const voiceApiUrl =
+                    import.meta.env.VITE_VOICE_API_BASE_URL ||
+                    import.meta.env.VITE_API_BASE_URL ||
+                    'http://localhost:3002';
 
                 // Call Hume Outbound Endpoint
-                const response = await fetch(`${apiUrl}/api/voice/hume/outbound-call`, {
+                const response = await fetch(`${voiceApiUrl}/api/voice/hume/outbound-call`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        to: testPhone,
+                        to: testPhone.trim(),
                         botType: callBotId,
                         assistantKey: callBotId,
-                        humeConfigId: callBot?.configId
+                        humeConfigId: callBot?.configId,
+                        userId
                     })
                 });
 
@@ -472,7 +581,12 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             }
         } catch (error) {
             console.error(error);
-            alert(`Failed to send test: ${(error as Error).message}`);
+            const message = (error as Error).message || 'Unknown error';
+            if (message.includes('D11') || message.toLowerCase().includes('destination number is invalid')) {
+                alert('Telnyx rejected the destination number (D11). Use E.164 format. For US/Canada: +1 followed by exactly 10 digits.');
+                return;
+            }
+            alert(`Failed to send test: ${message}`);
         } finally {
             setSendingTestId(null);
         }
@@ -496,17 +610,25 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 }
                 setUserId(currentUserId);
 
-                const funnels = await funnelService.fetchFunnels(currentUserId);
+                const [funnelData, botData] = await Promise.all([
+                    funnelService.fetchFunnels(currentUserId),
+                    callBotsService.fetchCallBots(currentUserId, true)
+                ]);
+                setCallBots(botData);
+                const botOptions = botData.filter((bot) => bot.isActive).length
+                    ? botData.filter((bot) => bot.isActive)
+                    : botData;
+                const normalizeWithBots = (step: EditableStep) => normalizeCallStep(step, botOptions);
 
                 // User Request: "Only want a realtor funnel and a broker funnel that's it"
                 const allowedFunnels = ['realtor_funnel', 'broker_funnel'];
                 const filteredFunnels = Object.fromEntries(
-                    Object.entries(funnels).filter(([key]) => allowedFunnels.includes(key))
+                    Object.entries(funnelData).filter(([key]) => allowedFunnels.includes(key))
                 );
                 const normalizedFunnels = Object.fromEntries(
                     Object.entries(filteredFunnels).map(([key, steps]) => [
                         key,
-                        (steps || []).map(normalizeCallStep)
+                        (steps || []).map(normalizeWithBots)
                     ])
                 );
 
@@ -550,6 +672,12 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             setFunnelSteps(initialHomeBuyerSteps);
         }
     }, [selectedFunnelId, availableFunnels]);
+
+    useEffect(() => {
+        if (!callBots.length) return;
+        const options = activeCallBots.length ? activeCallBots : callBots;
+        setFunnelSteps((prev) => prev.map((step) => normalizeCallStep(step, options)));
+    }, [callBots, activeCallBots]);
 
     const togglePanel = () => setPanelExpanded(prev => !prev);
 
@@ -613,7 +741,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         default: updated.icon = 'forward_to_inbox';
                     }
                     if (isCallStepType(value)) {
-                        updated.content = resolveCallBotId(step.content);
+                        updated.content = resolveCallBotIdForStep(step.content);
                     }
                 }
                 return updated;
@@ -1011,11 +1139,11 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                             </div>
                                                                             <select
                                                                                 className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                                                                                value={resolveCallBotId(step.content)}
+                                                                                value={resolveCallBotIdForStep(step.content)}
                                                                                 onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
                                                                             >
-                                                                                {CALL_BOT_OPTIONS.map((bot) => (
-                                                                                    <option key={bot.id} value={bot.id}>
+                                                                                {getBotOptions().map((bot) => (
+                                                                                    <option key={bot.key} value={bot.key}>
                                                                                         {bot.name}
                                                                                     </option>
                                                                                 ))}
@@ -1026,8 +1154,44 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                                     Edit the prompt/script in Hume Config, not in this funnel step.
                                                                                 </p>
                                                                                 <span className="text-[10px] text-slate-400">
-                                                                                    {CALL_BOT_OPTIONS.find((bot) => bot.id === resolveCallBotId(step.content))?.configId}
+                                                                                    {getBotOptions().find((bot) => bot.key === resolveCallBotIdForStep(step.content))?.configId}
                                                                                 </span>
+                                                                            </div>
+                                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={handleCreateCallBot}
+                                                                                    disabled={isSavingBot}
+                                                                                    className="text-[11px] px-2.5 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                                                                                >
+                                                                                    + New Bot
+                                                                                </button>
+                                                                                {(() => {
+                                                                                    const selectedBot = getBotOptions().find((bot) => bot.key === resolveCallBotIdForStep(step.content));
+                                                                                    if (!selectedBot) return null;
+                                                                                    return (
+                                                                                        <>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => handleEditCallBot(selectedBot)}
+                                                                                                disabled={isSavingBot}
+                                                                                                className="text-[11px] px-2.5 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                                                                                            >
+                                                                                                Edit Bot
+                                                                                            </button>
+                                                                                            {!selectedBot.isSystem && (
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleDeleteCallBot(selectedBot)}
+                                                                                                    disabled={isSavingBot}
+                                                                                                    className="text-[11px] px-2.5 py-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+                                                                                                >
+                                                                                                    Delete Bot
+                                                                                                </button>
+                                                                                            )}
+                                                                                        </>
+                                                                                    );
+                                                                                })()}
                                                                             </div>
                                                                         </div>
 
@@ -1741,7 +1905,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                         </div>
                                         {!isTestPhoneValid && testPhone && (
                                             <p className="text-[10px] text-red-500 mt-1">
-                                                Please use E.164 format (e.g. +12125551212)
+                                                Please use E.164 format (e.g. +12125551212). US/Canada must be +1 and exactly 10 digits.
                                             </p>
                                         )}
                                         <p className="text-[10px] text-slate-400 mt-1">

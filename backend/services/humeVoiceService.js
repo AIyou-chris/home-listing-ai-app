@@ -169,7 +169,12 @@ const HUME_CONFIG_ID = process.env.HUME_CONFIG_ID;
 const PHASE1_FOLLOWUP_CONFIG_ID = process.env.VOICE_PHASE1_FOLLOWUP_CONFIG_ID || 'd1d4d371-00dd-4ef9-8ab5-36878641b349';
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY || process.env.VITE_TELNYX_API_KEY;
 const TELNYX_FROM_NUMBER = process.env.TELNYX_PHONE_NUMBER || '+12069442374';
-const TELNYX_CONNECTION_ID = process.env.TELNYX_CONNECTION_ID;
+const resolveTelnyxConnectionId = () => pickFirst(
+    process.env.TELNYX_CONNECTION_ID,
+    process.env.VITE_TELNYX_CONNECTION_ID,
+    process.env.TELNYX_APP_ID,
+    process.env.TELNYX_TEXML_APP_ID
+);
 
 const HTTP_PUBLIC_BASE_URL =
     process.env.VOICE_PUBLIC_BASE_URL ||
@@ -191,9 +196,9 @@ const TELNYX_OUTBOUND_AUDIO_MODE = 'paced';
 const VOICE_FORWARD_INBOUND_ONLY = String(process.env.VOICE_FORWARD_INBOUND_ONLY || 'true').toLowerCase() !== 'false';
 const VOICE_PHASE1_SINGLE_BOT_MODE = String(process.env.VOICE_PHASE1_SINGLE_BOT_MODE || 'true').toLowerCase() !== 'false';
 const VOICE_HUME_MANAGED_PROMPTS = String(process.env.VOICE_HUME_MANAGED_PROMPTS || 'true').toLowerCase() !== 'false';
-const VOICE_USE_ASSISTANT_INPUT_GREETING = String(process.env.VOICE_USE_ASSISTANT_INPUT_GREETING || 'true').toLowerCase() !== 'false';
-const VOICE_INITIAL_ASSISTANT_GREETING = process.env.VOICE_INITIAL_ASSISTANT_GREETING
-    || 'Hello, this is your AI assistant. Can you hear me clearly?';
+// Default OFF so Hume config prompt controls opening behavior.
+const VOICE_USE_ASSISTANT_INPUT_GREETING = String(process.env.VOICE_USE_ASSISTANT_INPUT_GREETING || 'false').toLowerCase() === 'true';
+const VOICE_INITIAL_ASSISTANT_GREETING = process.env.VOICE_INITIAL_ASSISTANT_GREETING || '';
 const DEFAULT_SYSTEM_PROMPT = process.env.VOICE_DEFAULT_SYSTEM_PROMPT
     || 'You are a helpful, professional, and empathetic AI real estate voice assistant.';
 
@@ -266,14 +271,16 @@ if (REQUESTED_TELNYX_OUTBOUND_AUDIO_MODE !== 'paced') {
     console.warn(`⚠️ [Voice] Forcing TELNYX_OUTBOUND_AUDIO_MODE=paced (requested="${REQUESTED_TELNYX_OUTBOUND_AUDIO_MODE}")`);
 }
 const resolveHumeConfigId = (ctx = {}) => {
+    const explicitConfigId = pickFirst(
+        stringifyScalar(ctx.humeConfigId),
+        stringifyScalar(ctx.configId)
+    );
+    if (explicitConfigId) return explicitConfigId;
+
     if (VOICE_PHASE1_SINGLE_BOT_MODE) {
         return PHASE1_FOLLOWUP_CONFIG_ID || HUME_CONFIG_ID;
     }
-    return pickFirst(
-        stringifyScalar(ctx.humeConfigId),
-        stringifyScalar(ctx.configId),
-        HUME_CONFIG_ID
-    );
+    return HUME_CONFIG_ID;
 };
 
 const buildPublicHttpBase = (req) => {
@@ -302,8 +309,9 @@ const buildStreamUrl = (req, callId) => {
  */
 const initiateOutboundCall = async (to, prompt, context = {}, req) => {
     try {
-        if (!TELNYX_CONNECTION_ID) {
-            throw new Error('Missing TELNYX_CONNECTION_ID');
+        const telnyxConnectionId = resolveTelnyxConnectionId();
+        if (!telnyxConnectionId) {
+            throw new Error('Missing TELNYX_CONNECTION_ID (or VITE_TELNYX_CONNECTION_ID / TELNYX_APP_ID / TELNYX_TEXML_APP_ID)');
         }
 
         const webhookUrl = `${buildPublicHttpBase(req)}/api/voice/telnyx/events`;
@@ -332,7 +340,7 @@ const initiateOutboundCall = async (to, prompt, context = {}, req) => {
 
         // Use Telnyx Call Control API (NOT TeXML)
         const { data: call } = await telnyx.calls.dial({
-            connection_id: TELNYX_CONNECTION_ID,
+            connection_id: telnyxConnectionId,
             to,
             from: TELNYX_FROM_NUMBER,
             webhook_url: webhookUrl,
@@ -582,12 +590,12 @@ const attachVoiceBridge = (server) => {
                     setTimeout(() => {
                         if (!humeSocket || !humeReady || greetingSent) return;
                         try {
-                            if (VOICE_USE_ASSISTANT_INPUT_GREETING) {
+                            if (VOICE_USE_ASSISTANT_INPUT_GREETING && VOICE_INITIAL_ASSISTANT_GREETING.trim()) {
                                 humeSocket.sendAssistantInput({ text: VOICE_INITIAL_ASSISTANT_GREETING });
                                 console.log('🎙️  [Voice] Sent assistant_input greeting');
                             } else {
-                                humeSocket.sendUserInput('Hello');
-                                console.log('🎙️  [Voice] Sent user_input greeting trigger');
+                                humeSocket.sendUserInput('Hi');
+                                console.log('🎙️  [Voice] Sent user_input greeting trigger (Hume-managed)');
                             }
                             greetingSent = true;
                         } catch (e) {
