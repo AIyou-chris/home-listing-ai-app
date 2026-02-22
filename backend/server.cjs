@@ -9856,22 +9856,23 @@ app.delete('/api/admin/call-bots/:botId', async (req, res) => {
 
 app.post('/api/admin/voice/quick-send', async (req, res) => {
   try {
-    const { to, assistantKey, botType, humeConfigId, userId } = req.body || {};
+    const { to, assistantKey, botType, configId, humeConfigId, userId } = req.body || {};
     if (!to) return res.status(400).json({ error: 'Missing "to" phone number' });
 
     const selectedBotKey = assistantKey || botType || 'admin_follow_up';
-    let resolvedConfigId = humeConfigId;
+    let resolvedConfigId = configId || humeConfigId;
 
     if (!resolvedConfigId) {
       const { resolveCallBotConfigId } = require('./services/callBotsService');
       resolvedConfigId = await resolveCallBotConfigId({ userId, botKey: selectedBotKey });
     }
 
-    const { initiateOutboundCall } = require('./services/humeVoiceService');
+    const { initiateOutboundCall } = require('./services/retellVoiceService');
     const result = await initiateOutboundCall(to, '', {
       assistantKey: selectedBotKey,
       botType: selectedBotKey,
-      humeConfigId: resolvedConfigId,
+      configId: resolvedConfigId,
+      userId,
       source: 'admin_quick_send'
     }, req);
 
@@ -13433,7 +13434,7 @@ app.post('/api/admin/setup', async (req, res) => {
 // VAPI CALL ENDPOINT
 // [VAPI CALL ENDPOINT REMOVED]
 app.post('/api/vapi/call', async (req, res) => {
-  res.status(503).json({ error: 'Vapi integration has been removed. Hume AI upgrade in progress.' });
+  res.status(503).json({ error: 'Vapi integration has been removed. Use /api/voice/outbound-call.' });
 });
 
 // VAPI WEBHOOK HANDLER
@@ -13520,39 +13521,42 @@ app.put('/api/agent/identity', async (req, res) => {
   }
 });
 
-// Handle React routing, return all requests to React app (Wildcard must be last)
-app.get(/.*/, (req, res) => {
+// Handle React routing for non-API GET requests.
+app.get(/.*/, (req, res, next) => {
+  if (req.path.startsWith('/api/')) return next();
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
-// Hume Voice Webhook (Telnyx TeXML - for inbound calls)
-app.post('/api/voice/hume/connect', async (req, res) => {
-  const { handleIncomingCall } = require('./services/humeVoiceService');
-  handleIncomingCall(req, res);
+// Retell webhook receiver (configure this URL in Retell dashboard webhooks)
+app.post(['/api/voice/retell/webhook', '/api/retell/webhook'], async (req, res) => {
+  const { handleRetellWebhook } = require('./services/retellVoiceService');
+  await handleRetellWebhook(req, res);
 });
 
-// Telnyx Call Control Events Webhook (call.answered triggers media streaming)
-app.post('/api/voice/telnyx/events', async (req, res) => {
-  const { handleTelnyxEvent } = require('./services/humeVoiceService');
-  await handleTelnyxEvent(req, res);
+// Simple health endpoint so provider webhook "Test" calls can validate reachability.
+app.get(['/api/voice/retell/webhook', '/api/retell/webhook'], async (req, res) => {
+  res.status(200).json({ ok: true, provider: 'retell' });
 });
 
-// Hume Outbound Call (Frontend Trigger)
-app.post('/api/voice/hume/outbound-call', async (req, res) => {
+const handleVoiceOutboundCall = async (req, res) => {
   try {
     const { to, prompt, ...context } = req.body;
     if (!to) return res.status(400).json({ error: 'Missing "to" phone number' });
 
-    const { initiateOutboundCall } = require('./services/humeVoiceService');
+    const { initiateOutboundCall } = require('./services/retellVoiceService');
     const systemPrompt = prompt || "You are an AI assistant for a real estate agency. Be helpful, professional, and empathetic.";
     const selectedBotKey = context.assistantKey || context.botType || null;
 
-    if (!context.humeConfigId && selectedBotKey) {
+    if (!context.configId && !context.humeConfigId && selectedBotKey) {
       const { resolveCallBotConfigId } = require('./services/callBotsService');
-      context.humeConfigId = await resolveCallBotConfigId({
+      context.configId = await resolveCallBotConfigId({
         userId: context.userId,
         botKey: selectedBotKey
       });
+    }
+
+    if (!context.configId && context.humeConfigId) {
+      context.configId = context.humeConfigId;
     }
 
     const result = await initiateOutboundCall(to, systemPrompt, context, req);
@@ -13562,6 +13566,18 @@ app.post('/api/voice/hume/outbound-call', async (req, res) => {
     console.error('❌ Outbound Call Error:', error.message);
     res.status(500).json({ error: error.message });
   }
+};
+
+// Primary voice endpoints
+app.post('/api/voice/outbound-call', handleVoiceOutboundCall);
+app.post('/api/voice/retell/outbound-call', handleVoiceOutboundCall);
+
+// Backward compatibility alias so existing clients do not break during cutover.
+app.post('/api/voice/hume/outbound-call', handleVoiceOutboundCall);
+
+// Hard-disable old bridge webhooks after Retell migration.
+app.post(['/api/voice/hume/connect', '/api/voice/telnyx/events'], async (req, res) => {
+  res.status(410).json({ error: 'Legacy Hume/Telnyx bridge is removed. Use /api/voice/retell/webhook.' });
 });
 
 const server = app.listen(port, '0.0.0.0', () => {
@@ -13644,15 +13660,6 @@ const server = app.listen(port, '0.0.0.0', () => {
   console.log('   POST /api/admin/listings');
   console.log('   DELETE /api/admin/listings/:id');
 });
-
-// Attach Hume Voice Bridge
-try {
-  const { attachVoiceBridge } = require('./services/humeVoiceService');
-  attachVoiceBridge(server);
-  console.log('✅ Hume Voice Bridge Attached (WebSocket)');
-} catch (e) {
-  console.error('❌ Failed to attach Voice Bridge:', e.message);
-}
 
 app.get('/api/email/settings/:userId', async (req, res) => {
   try {
@@ -14159,7 +14166,7 @@ app.get('/api/email/google/oauth-callback', async (req, res) => {
 // Vapi Tool: Check Calendar Availability
 // [VAPI CALENDAR TOOL REMOVED]
 app.post(['/api/vapi/calendar/availability', '/api/vapi/calendar/book'], async (req, res) => {
-  res.status(503).json({ error: 'Tool unavailable during Hume AI upgrade.' });
+  res.status(503).json({ error: 'Tool unavailable. Use the active voice provider endpoints.' });
 });
 
 // SMS Sending Endpoint (Backend Proxy)
