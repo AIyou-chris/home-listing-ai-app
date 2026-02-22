@@ -80,11 +80,21 @@ module.exports = (supabaseAdmin, emailService) => {
             // We look back up to 4 days to be safe, but target specific windows
             const fourDaysAgo = subHours(now, 96).toISOString();
 
-            const { data: agents, error } = await supabaseAdmin
+            let supportsAgentMetadata = true;
+            let { data: agents, error } = await supabaseAdmin
                 .from('agents')
                 .select('id, email, first_name, created_at, metadata')
                 .gte('created_at', fourDaysAgo) // Optimization: only recent users
                 .not('email', 'is', null);
+
+            if (error && String(error.message || '').toLowerCase().includes('metadata')) {
+                supportsAgentMetadata = false;
+                ({ data: agents, error } = await supabaseAdmin
+                    .from('agents')
+                    .select('id, email, first_name, created_at')
+                    .gte('created_at', fourDaysAgo)
+                    .not('email', 'is', null));
+            }
 
             if (error) {
                 console.error('Scheduler DB Error (Trial System):', error);
@@ -98,7 +108,7 @@ module.exports = (supabaseAdmin, emailService) => {
             for (const agent of agents) {
                 const joinedAt = new Date(agent.created_at);
                 const hoursSinceJoin = differenceInHours(now, joinedAt);
-                const metadata = agent.metadata || {};
+                const metadata = supportsAgentMetadata ? (agent.metadata || {}) : {};
                 const trialData = metadata.trial_system || {};
                 let emailSent = false;
                 let dayToSend = null;
@@ -135,10 +145,12 @@ module.exports = (supabaseAdmin, emailService) => {
                         }
                     };
 
-                    await supabaseAdmin
-                        .from('agents')
-                        .update({ metadata: newMetadata })
-                        .eq('id', agent.id);
+                    if (supportsAgentMetadata) {
+                        await supabaseAdmin
+                            .from('agents')
+                            .update({ metadata: newMetadata })
+                            .eq('id', agent.id);
+                    }
 
                     emailSent = true;
                 }

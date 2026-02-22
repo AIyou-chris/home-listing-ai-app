@@ -41,7 +41,6 @@ const upload = multer({
 const { parseISO, addMinutes, isBefore, isAfter } = require('date-fns');
 
 const leadScoringService = require('./services/LeadScoringService');
-const funnelEngine = require('./services/FunnelEngine');
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 // The specialized "HTTP Webhook Signing Key" must be used for webhooks, NOT the Sending API Key.
 const MAILGUN_WEBHOOK_SIGNING_KEY = process.env.MAILGUN_WEBHOOK_SIGNING_KEY || process.env.MAILGUN_SIGNING_KEY || process.env.MAILGUN_API_KEY;
@@ -68,6 +67,11 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     persistSession: false
   }
 });
+
+const schemaCapabilities = {
+  emailTrackingStatus: false,
+  agentsMetadata: false
+};
 
 const {
   getPreferences: getNotificationPreferences,
@@ -118,6 +122,11 @@ const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const emailTrackingService = require('./services/emailTrackingService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
+const { runStartupDiagnostics } = require('./services/startupDiagnostics');
+const {
+  enrollLeadInFunnel,
+  buildFunnelJsonSteps
+} = require('./services/funnelEnrollmentService');
 
 const { sendSms, validatePhoneNumber } = require('./services/smsService');
 const { initiateCall } = require('./services/voiceService');
@@ -646,9 +655,13 @@ app.get('/api/funnels/:userId', async (req, res) => {
       const stepIds = (steps || []).map((s) => s.id).filter(Boolean);
       let trackingStatsByStep = {};
       if (stepIds.length > 0) {
+        const trackingColumns = schemaCapabilities.emailTrackingStatus
+          ? 'step_id, open_count, click_count, opened_at, clicked_at, status'
+          : 'step_id, open_count, click_count, opened_at, clicked_at';
+
         const { data: trackingRows, error: trackingError } = await supabaseAdmin
           .from('email_tracking_events')
-          .select('step_id, open_count, click_count, opened_at, clicked_at, status')
+          .select(trackingColumns)
           .eq('user_id', normalizedUserId)
           .in('step_id', stepIds);
 
@@ -733,6 +746,7 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
   try {
     const { userId, funnelType } = req.params;
     const { steps } = req.body;
+    const normalizedSteps = buildFunnelJsonSteps(Array.isArray(steps) ? steps : []);
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return res.json({ success: true, saved: false });
@@ -769,7 +783,7 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
           funnel_key: funnelType,
           name: FUNNEL_TITLES[funnelType] || 'Custom Funnel',
           description: 'Customized agent funnel',
-          steps: [], // Deprecated JSON column
+          steps: normalizedSteps,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -791,21 +805,30 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
     // 3. Insert New Steps
     if (steps && steps.length > 0) {
       const stepsPayload = steps.map((s, index) => ({
+        constDelayMinutes: Math.max(Number(s.delayMinutes || 0), 0),
+        normalizedType: (s.type || 'email').toLowerCase().replace('ai ', ''),
         funnel_id: funnel.id,
         step_index: index + 1,
         step_name: s.title || 'Untitled Step',
+        step_key: s.step_key || s.id || `step-${index + 1}`,
         action_type: (s.type || 'email').toLowerCase(), // Normalize 'Email' -> 'email'
         subject: s.subject || '',
         content: s.content || '',
-        delay_days: Math.floor((s.delayMinutes || 0) / 1440), // Convert minutes to days (approx)
         description: s.description || '',
         preview_text: s.previewText || '',
         created_at: new Date().toISOString()
       }));
 
+      const normalizedPayload = stepsPayload.map(({ constDelayMinutes, normalizedType, ...row }) => ({
+        ...row,
+        action_type: normalizedType === 'call' ? 'call' : normalizedType,
+        delay_days: Math.floor(constDelayMinutes / 1440),
+        delay_minutes: constDelayMinutes % 1440
+      }));
+
       const { error: stepsInsertError } = await supabaseAdmin
         .from('funnel_steps')
-        .insert(stepsPayload);
+        .insert(normalizedPayload);
 
       if (stepsInsertError) {
         // If description column missing error, retry without description?
@@ -815,10 +838,13 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
       }
     }
 
-    // 4. Update Funnel Timestamp
+    // 4. Keep both storage paths in sync while we migrate to canonical JSON-based execution.
     await supabaseAdmin
       .from('funnels')
-      .update({ updated_at: new Date().toISOString() })
+      .update({
+        steps: normalizedSteps,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', funnel.id);
 
     res.json({ success: true });
@@ -1176,6 +1202,17 @@ const funnelService = createFunnelService({
   voiceService: { initiateCall }
 });
 
+const enrollLeadWithFunnelKey = async ({ agentId, leadId, funnelKey }) => {
+  return enrollLeadInFunnel({
+    supabaseAdmin,
+    funnelService,
+    agentId,
+    leadId,
+    funnelKey,
+    defaultAgentId: DEFAULT_LEAD_USER_ID
+  });
+};
+
 // --- SEEDING: Default Funnels ---
 const CRM_DEFAULT_FUNNELS = [
   {
@@ -1275,7 +1312,11 @@ app.post('/api/funnels/assign', async (req, res) => {
     const { leadId, funnelType } = req.body;
     if (!leadId || !funnelType) return res.status(400).json({ error: 'Missing leadId or funnelType' });
 
-    const enrollment = await funnelService.enrollLead(user.id, leadId, funnelType);
+    const enrollment = await enrollLeadWithFunnelKey({
+      agentId: user.id,
+      leadId,
+      funnelKey: funnelType
+    });
     res.json(enrollment);
   } catch (error) {
     console.error('Enrollment Error:', error);
@@ -1283,13 +1324,7 @@ app.post('/api/funnels/assign', async (req, res) => {
   }
 });
 
-// Run Funnel Engine every 60 seconds
-setInterval(() => {
-  funnelService.processBatch()
-    .catch(err => console.error('Funnel Engine Loop Error:', err));
-}, 60000);
-
-console.log('⚡ [Funnel Engine] Scheduler started (60s interval).');
+console.log('⚡ [Funnel Engine] Registered on shared scheduler loop.');
 
 // Agent Onboarding Endpoints
 app.post('/api/agents/register', async (req, res) => {
@@ -1867,15 +1902,30 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
     // SAFE TIMESTAMP
     const safeTimestamp = (timestamp && !isNaN(timestamp)) ? new Date(timestamp * 1000).toISOString() : new Date().toISOString();
 
-    // --- NEW: Funnel Engine Processing ---
-    // If attributes exist, update funnel metrics & score
-    const funnelEngine = require('./services/FunnelEngine');
+    // Unified engagement processing for the canonical funnel system.
     if (user_variables?.lead_id) {
-      try {
-        await funnelEngine.processEvent(user_variables.lead_id, event, user_variables.funnel_step_id);
-        console.log(`🌀 [Funnel Event] Processed '${event}' for Lead ${user_variables.lead_id}`);
-      } catch (feErr) {
-        console.error('⚠️ Funnel Event Processing Failed:', feErr);
+      const leadId = user_variables.lead_id;
+      const scoringTriggerMap = {
+        unsubscribed: 'UNSUBSCRIBE'
+      };
+      const scoringTrigger = scoringTriggerMap[event];
+
+      if (scoringTrigger) {
+        leadScoringService
+          .recalculateLeadScore(leadId, scoringTrigger)
+          .catch((scoreErr) => console.error(`[Mailgun] Lead scoring failed (${scoringTrigger}):`, scoreErr.message));
+      }
+
+      if (['unsubscribed', 'bounced', 'failed', 'complained'].includes(event)) {
+        try {
+          await supabaseAdmin
+            .from('funnel_enrollments')
+            .update({ status: 'stopped', updated_at: new Date().toISOString() })
+            .eq('lead_id', leadId)
+            .eq('status', 'active');
+        } catch (stopErr) {
+          console.error(`[Mailgun] Failed to stop active funnels for lead ${leadId}:`, stopErr.message);
+        }
       }
     }
 
@@ -1906,6 +1956,10 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
         else if (event === 'clicked') updateData.status = 'clicked';
         else if (event === 'unsubscribed') updateData.status = 'unsubscribed';
         else if (['bounced', 'failed', 'complained'].includes(event)) updateData.status = 'bounced';
+
+        if (!schemaCapabilities.emailTrackingStatus) {
+          delete updateData.status;
+        }
 
         if (Object.keys(updateData).length > 0) {
           await supabaseAdmin
@@ -2000,14 +2054,27 @@ app.get('/api/track/email/open/:messageId', async (req, res) => {
           metadata: { source: 'internal_pixel', ip: req.ip, userAgent: req.get('User-Agent') }
         });
 
-        const updates = { open_count: (record.open_count || 0) + 1 };
-        if (record.status !== 'clicked' && record.status !== 'replied') {
+        const updates = {
+          open_count: (record.open_count || 0) + 1,
+          opened_at: record.opened_at || new Date().toISOString()
+        };
+        if (
+          schemaCapabilities.emailTrackingStatus &&
+          record.status !== 'clicked' &&
+          record.status !== 'replied'
+        ) {
           updates.status = 'opened';
         }
         await supabaseAdmin
           .from('email_tracking_events')
           .update(updates)
           .eq('message_id', messageId);
+
+        if (record.lead_id) {
+          leadScoringService
+            .recalculateLeadScore(record.lead_id, 'EMAIL_OPEN')
+            .catch((err) => console.error('Failed to score open:', err.message));
+        }
       }
     }
   } catch (err) {
@@ -2054,13 +2121,24 @@ app.get('/api/track/email/click/:messageId', async (req, res) => {
           metadata: { source: 'internal_tracking', target: url, ip: req.ip }
         });
 
+        const updates = {
+          click_count: (record.click_count || 0) + 1,
+          clicked_at: record.clicked_at || new Date().toISOString()
+        };
+        if (schemaCapabilities.emailTrackingStatus) {
+          updates.status = 'clicked';
+        }
+
         await supabaseAdmin
           .from('email_tracking_events')
-          .update({
-            click_count: (record.click_count || 0) + 1,
-            status: 'clicked'
-          })
+          .update(updates)
           .eq('message_id', messageId);
+
+        if (record.lead_id) {
+          leadScoringService
+            .recalculateLeadScore(record.lead_id, 'EMAIL_CLICK')
+            .catch((err) => console.error('Failed to score click:', err.message));
+        }
       }
     }
   } catch (err) {
@@ -4286,8 +4364,11 @@ app.post('/api/continue-conversation', async (req, res) => {
                 // --- NEW: AUTO-ENROLL IN RECRUITMENT FUNNEL ---
                 try {
                   console.log(`🧠 Brain Wiring: Enrolling Lead ${freshLead.id} in 'universal_sales'`);
-                  const funnelService = require('./services/funnelService')({ supabaseAdmin, emailService: createEmailService() });
-                  await funnelService.enrollLead(leadOwnerId, freshLead.id, 'universal_sales');
+                  await enrollLeadWithFunnelKey({
+                    agentId: leadOwnerId,
+                    leadId: freshLead.id,
+                    funnelKey: 'universal_sales'
+                  });
                 } catch (enrollErr) {
                   console.error('🧠 Brain Wiring Error (Auto-Enroll):', enrollErr.message);
                 }
@@ -4846,128 +4927,6 @@ app.delete('/api/gmail/connection/:userId', async (req, res) => {
   }
 });
 
-// --- EMAIL TRACKING ENDPOINTS ---
-
-// Track email opens (1x1 transparent pixel)
-app.get('/api/track/email/open/:messageId', async (req, res) => {
-  try {
-    const { messageId } = req.params;
-
-    if (!messageId) {
-      return res.status(400).send('Message ID required');
-    }
-
-    // 1. Fetch existing record to get current count and lead_id
-    const { data: eventData, error: fetchError } = await supabaseAdmin
-      .from('email_tracking_events')
-      .select('id, open_count, lead_id')
-      .eq('message_id', messageId)
-      .single();
-
-    if (fetchError || !eventData) {
-      console.warn('Tracking event not found or error:', messageId);
-    } else {
-      // 2. Update tracking record
-      const { error: updateError } = await supabaseAdmin
-        .from('email_tracking_events')
-        .update({
-          opened_at: new Date().toISOString(),
-          open_count: (eventData.open_count || 0) + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('message_id', messageId);
-
-      if (updateError) {
-        console.error('Error tracking email open update:', updateError);
-      } else {
-        // 3. Trigger Score
-        if (eventData.lead_id) {
-          leadScoringService.recalculateLeadScore(eventData.lead_id, 'EMAIL_OPEN')
-            .catch(err => console.error('Failed to score open:', err));
-        }
-      }
-    }
-
-    // Return 1x1 transparent GIF
-    const pixel = Buffer.from(
-      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-      'base64'
-    );
-
-    res.writeHead(200, {
-      'Content-Type': 'image/gif',
-      'Content-Length': pixel.length,
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      'Pragma': 'no-cache'
-    });
-    res.end(pixel);
-  } catch (error) {
-    console.error('Error in email open tracking:', error);
-    // Still return pixel even on error
-    const pixel = Buffer.from(
-      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-      'base64'
-    );
-    res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': pixel.length });
-    res.end(pixel);
-  }
-});
-
-// Track email link clicks
-app.get('/api/track/email/click/:messageId', async (req, res) => {
-  try {
-    const { messageId } = req.params;
-    const { url } = req.query;
-
-    if (!messageId || !url) {
-      return res.status(400).send('Message ID and URL required');
-    }
-
-    // 1. Fetch existing record
-    const { data: eventData, error: fetchError } = await supabaseAdmin
-      .from('email_tracking_events')
-      .select('id, click_count, lead_id, clicked_at')
-      .eq('message_id', messageId)
-      .single();
-
-    if (fetchError || !eventData) {
-      console.warn('Tracking event not found for click:', messageId);
-    } else {
-      // 2. Update tracking record
-      const { error: updateError } = await supabaseAdmin
-        .from('email_tracking_events')
-        .update({
-          clicked_at: eventData.clicked_at || new Date().toISOString(), // Keep original if set
-          click_count: (eventData.click_count || 0) + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('message_id', messageId);
-
-      if (updateError) {
-        console.error('Error tracking email click update:', updateError);
-      } else {
-        // 3. Trigger Score
-        if (eventData.lead_id) {
-          leadScoringService.recalculateLeadScore(eventData.lead_id, 'EMAIL_CLICK')
-            .catch(err => console.error('Failed to score click:', err));
-        }
-      }
-    }
-
-    // Redirect to actual URL
-    res.redirect(decodeURIComponent(url));
-  } catch (error) {
-    console.error('Error in email click tracking:', error);
-    // Redirect anyway on error
-    const { url } = req.query;
-    if (url) {
-      res.redirect(decodeURIComponent(url));
-    } else {
-      res.status(400).send('URL required');
-    }
-  }
-});
-
 // Bounce webhook (from email provider like SendGrid, Mailgun, etc.)
 app.post('/api/track/email/bounce', async (req, res) => {
   try {
@@ -5158,10 +5117,12 @@ app.post('/api/leads/email-forward', async (req, res) => {
       return res.json({ success: true, message: 'Agent not found' });
     }
 
+    const assignedOwnerId = agent.auth_user_id || agent.id;
+
     const { data: lead, error } = await supabaseAdmin
       .from('leads')
       .insert({
-        user_id: agent.auth_user_id || agent.id, // Prefer auth_user_id for foreign key
+        user_id: assignedOwnerId, // Prefer auth_user_id for foreign key
         name: leadData.name,
         email: leadData.email,
         phone: leadData.phone,
@@ -5183,21 +5144,13 @@ app.post('/api/leads/email-forward', async (req, res) => {
     // --- REDUNDANT AUDIT FIX: Wire to Funnels & Notifications ---
     (async () => {
       try {
-        // 1. Enroll in Funnel (Agent Recruitment is default if exists)
-        const { data: funnel } = await supabaseAdmin.from('funnels')
-          .select('id')
-          .eq('user_id', agent.id)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-
-        if (funnel) {
-          const funnelExecutionService = require('./services/funnelExecutionService')({
-            supabaseAdmin, emailService, smsService, voiceService
-          });
-          await funnelExecutionService.enrollLead(agent.id, lead.id, funnel.id);
-          console.log(`🚀 Enrolled forwarded lead ${lead.id} into funnel ${funnel.id}`);
-        }
+        // 1. Enroll in Funnel
+        await enrollLeadWithFunnelKey({
+          agentId: assignedOwnerId,
+          leadId: lead.id,
+          funnelKey: req.body?.funnelType || 'realtor_funnel'
+        });
+        console.log(`🚀 Enrolled forwarded lead ${lead.id} for owner ${assignedOwnerId}`);
 
         // 2. Notify Agent
         if (await shouldSendNotification(agent.id, 'email', 'newLead')) {
@@ -7157,8 +7110,14 @@ app.post('/api/admin/leads', async (req, res) => {
 
     // --- NEW: Assign Funnel ---
     try {
-      const funnelType = (req.body.role === 'broker' || req.body.role === 'recruiter') ? 'broker' : 'realtor';
-      await funnelEngine.assignFunnel(data.id, funnelType);
+      const funnelType = (req.body.role === 'broker' || req.body.role === 'recruiter')
+        ? 'broker_funnel'
+        : 'realtor_funnel';
+      await enrollLeadWithFunnelKey({
+        agentId: assignedUserId,
+        leadId: data.id,
+        funnelKey: funnelType
+      });
     } catch (funnelError) {
       console.error('⚠️ Funnel assignment failed (non-blocking):', funnelError);
     }
@@ -8242,6 +8201,7 @@ app.post('/api/leads', async (req, res) => {
       name,
       email,
       phone,
+      user_id: agentId || DEFAULT_LEAD_USER_ID,
       agent_id: agentId,
       notes,
       source: source || 'web',
@@ -8269,8 +8229,14 @@ app.post('/api/leads', async (req, res) => {
         try {
           // Basic logic: Default is 'realtor'. If source implies broker, switch.
           // You might want to add a hidden field in your landing page for 'role'
-          const funnelType = (req.body.role === 'broker') ? 'broker' : 'realtor';
-          await funnelEngine.assignFunnel(savedLead.id, funnelType);
+          const funnelType = (req.body.role === 'broker' || req.body.role === 'recruiter')
+            ? 'broker_funnel'
+            : 'realtor_funnel';
+          await enrollLeadWithFunnelKey({
+            agentId: payload.user_id,
+            leadId: savedLead.id,
+            funnelKey: funnelType
+          });
         } catch (funnelErr) {
           console.error('⚠️ Funnel assignment failed for public lead:', funnelErr);
         }
@@ -8330,8 +8296,11 @@ app.post('/api/leads', async (req, res) => {
     if (savedLead && savedLead.id) {
       try {
         console.log(`🧠 [Brain] Auto-enrolling Web Lead ${savedLead.id} in 'welcome' funnel`);
-        const funnelService = require('./services/funnelService')({ supabaseAdmin, emailService: createEmailService() });
-        await funnelService.enrollLead(agentId || DEFAULT_LEAD_USER_ID, savedLead.id, 'welcome');
+        await enrollLeadWithFunnelKey({
+          agentId: payload.user_id,
+          leadId: savedLead.id,
+          funnelKey: 'welcome'
+        });
       } catch (enrollErr) {
         console.warn('🧠 [Brain] Auto-Enroll Error (Web Lead):', enrollErr.message);
       }
@@ -8379,7 +8348,6 @@ app.get('/api/admin/analytics/funnel-performance', (_req, res) => {
 app.use(express.static(path.join(__dirname, '../dist')));
 
 // New Routes
-app.get('/api/leads/stats', require('./api/leads_stats'));
 app.get('/api/blueprint/leads', require('./api/blueprint_leads')); // NEW: Blueprint Leads Proxy
 
 // React routing handler moved to end of file to prevent masking API routes
@@ -9772,9 +9740,14 @@ app.post('/api/leads/public', async (req, res) => {
         // --- NEW: Assign Funnel ---
         try {
           // Assuming 'role' might be passed in req.body for public leads, or default to 'realtor'
-          const funnelType = (req.body.role === 'broker' || req.body.role === 'recruiter') ? 'broker' : 'realtor';
-          // Assuming funnelEngine is available (e.g., required at the top of the file)
-          await funnelEngine.assignFunnel(lead.id, funnelType);
+          const funnelType = (req.body.role === 'broker' || req.body.role === 'recruiter')
+            ? 'broker_funnel'
+            : 'realtor_funnel';
+          await enrollLeadWithFunnelKey({
+            agentId: userIdToUse,
+            leadId: lead.id,
+            funnelKey: funnelType
+          });
         } catch (funnelError) {
           console.error('⚠️ Funnel assignment failed (non-blocking):', funnelError);
         }
@@ -9969,78 +9942,6 @@ app.post('/api/language/detect', async (req, res) => {
     res.status(500).json({ error: 'Language detection failed' })
   }
 })
-
-// EMAIL TRACKING ROUTES
-app.get('/api/track/email/open/:messageId', async (req, res) => {
-  try {
-    const { messageId } = req.params;
-
-    // Fetch current count
-    const { data: current } = await supabaseAdmin
-      .from('email_tracking_events')
-      .select('open_count, opened_at')
-      .eq('message_id', messageId)
-      .single();
-
-    if (current) {
-      await supabaseAdmin
-        .from('email_tracking_events')
-        .update({
-          open_count: (current.open_count || 0) + 1,
-          opened_at: current.opened_at || new Date().toISOString()
-        })
-        .eq('message_id', messageId);
-    }
-
-    // Return 1x1 transparent pixel
-    const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-    res.writeHead(200, {
-      'Content-Type': 'image/gif',
-      'Content-Length': pixel.length,
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
-    });
-    res.end(pixel);
-  } catch (error) {
-    console.error('Tracking Pixel Error:', error);
-    const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-    res.writeHead(200, { 'Content-Type': 'image/gif' });
-    res.end(pixel);
-  }
-});
-
-app.get('/api/track/email/click/:messageId', async (req, res) => {
-  try {
-    const { messageId } = req.params;
-    const { url } = req.query;
-
-    if (!url) return res.status(400).send('Missing URL');
-
-    // Fetch current count
-    const { data: current } = await supabaseAdmin
-      .from('email_tracking_events')
-      .select('click_count, clicked_at')
-      .eq('message_id', messageId)
-      .single();
-
-    if (current) {
-      await supabaseAdmin
-        .from('email_tracking_events')
-        .update({
-          click_count: (current.click_count || 0) + 1,
-          clicked_at: current.clicked_at || new Date().toISOString()
-        })
-        .eq('message_id', messageId);
-    }
-
-    // Redirect
-    res.redirect(url);
-  } catch (error) {
-    console.error('Tracking Click Error:', error);
-    if (req.query.url) return res.redirect(req.query.url);
-    res.status(500).send('Tracking Error');
-  }
-});
-
 
 app.patch('/api/notifications/preferences/:userId', async (req, res) => {
   try {
@@ -12073,7 +11974,11 @@ app.post('/api/ai-card/lead', async (req, res) => {
 
     // 2. Enroll in 'Welcome' Funnel (if available)
     try {
-      await funnelService.enrollLead(targetUserId, lead.id, 'universal_sales'); // Use universal as default
+      await enrollLeadWithFunnelKey({
+        agentId: targetUserId,
+        leadId: lead.id,
+        funnelKey: 'universal_sales'
+      }); // Use universal as default
       console.log(`✅ [AI Card] Enrolled lead ${lead.id} in funnel.`);
     } catch (funnelErr) {
       console.warn(`⚠️ [AI Card] Failed to enroll lead in funnel: ${funnelErr.message}`);
@@ -12894,121 +12799,6 @@ app.get('/api/listings', async (req, res) => {
   } catch (error) {
     console.error('Error getting listings:', error);
     res.status(500).json({ error: 'Failed to get listings' });
-  }
-});
-
-// Create new listing
-app.post('/api/listings', async (req, res) => {
-  try {
-    const {
-      title,
-      address,
-      price,
-      bedrooms,
-      bathrooms,
-      squareFeet,
-      propertyType,
-      description,
-      features,
-      heroPhotos,
-      galleryPhotos,
-      agentId,
-      userId,
-      user_id
-    } = req.body || {};
-
-    const ownerId = userId || user_id || DEFAULT_LEAD_USER_ID;
-    if (!ownerId) {
-      return res.status(400).json({
-        error: 'Listing owner is required (userId or DEFAULT_LEAD_USER_ID).'
-      });
-    }
-
-    if (!title || !address || price === undefined || price === null || price === '') {
-      return res.status(400).json({ error: 'Title, address, and price are required' });
-    }
-
-    const priceValue = Number(price);
-    if (!Number.isFinite(priceValue) || priceValue < 0) {
-      return res.status(400).json({ error: 'Price must be a non-negative number' });
-    }
-
-    const agentOwnerId = agentId || ownerId;
-    const agentProfile =
-      (await fetchAiCardProfileForUser(agentOwnerId)) || DEFAULT_AI_CARD_PROFILE;
-
-    const bedroomsCount = parseInt(bedrooms, 10) || 0;
-    const bathroomsCount = parseInt(bathrooms, 10) || 0;
-    const squareFeetCount = parseInt(squareFeet, 10) || 0;
-    const propertyTypeValue =
-      ((propertyType || 'Single-Family Home').trim()) || 'Single-Family Home';
-    const descriptionValue = description || '';
-    const ensureArray = (value) =>
-      Array.isArray(value) ? value : value ? [value] : [];
-    const featuresArray = ensureArray(features);
-    const heroPhotosArray = ensureArray(heroPhotos);
-    const galleryPhotosArray = ensureArray(galleryPhotos);
-
-    const formattedPrice = priceValue.toLocaleString('en-US');
-    const propertyTypeTag = propertyTypeValue.replace(/\s+/g, '');
-
-    const newListing = {
-      id: `listing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      ownerId,
-      agentId: agentOwnerId,
-      title,
-      address,
-      price: priceValue,
-      bedrooms: bedroomsCount,
-      bathrooms: bathroomsCount,
-      squareFeet: squareFeetCount,
-      propertyType: propertyTypeValue,
-      description: descriptionValue,
-      features: featuresArray,
-      heroPhotos: heroPhotosArray,
-      galleryPhotos: galleryPhotosArray,
-      status: 'active',
-      listingDate: new Date().toISOString().split('T')[0],
-      agent: {
-        id: agentProfile.id,
-        name: agentProfile.fullName,
-        title: agentProfile.professionalTitle,
-        company: agentProfile.company,
-        phone: agentProfile.phone,
-        email: agentProfile.email,
-        website: agentProfile.website,
-        headshotUrl: agentProfile.headshot,
-        brandColor: agentProfile.brandColor
-      },
-      marketing: {
-        views: 0,
-        inquiries: 0,
-        showings: 0,
-        favorites: 0,
-        socialShares: 0,
-        leadGenerated: 0
-      },
-      aiContent: {
-        marketingDescription: `Discover this amazing ${propertyTypeValue.toLowerCase()} at ${address}. ${descriptionValue}`,
-        socialMediaPosts: [
-          `🏠✨ NEW LISTING! ${title} - ${bedroomsCount}BR/${bathroomsCount}BA ${propertyTypeValue} for $${formattedPrice}! ${address} #RealEstate #NewListing #${propertyTypeTag}`,
-          `Don't miss this incredible opportunity! ${title} offers ${squareFeetCount} sq ft of luxury living. Contact ${agentProfile.fullName} today! 🏡`
-        ],
-        emailTemplate: `Subject: New Listing - ${title}\n\nDear [Name],\n\nI'm excited to share this incredible new listing with you!\n\n${title}\n${address}\nPrice: $${formattedPrice}\n${bedroomsCount} Bedrooms, ${bathroomsCount} Bathrooms\n${squareFeetCount} Square Feet\n\n${descriptionValue}\n\nBest regards,\n${agentProfile.fullName}\n${agentProfile.company}`
-      },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    listings.push(newListing);
-
-    console.log(
-      `🏠 Created listing: ${title} at ${address} (Owner: ${ownerId}, Agent: ${agentProfile.fullName || agentOwnerId})`
-    );
-    res.json(newListing);
-  } catch (error) {
-    console.error('Error creating listing:', error);
-    res.status(500).json({ error: 'Failed to create listing' });
   }
 });
 
@@ -13994,18 +13784,6 @@ const sendOAuthResultPage = (res, payload) => {
    </script></body></html>`);
 };
 
-app.patch('/api/email/settings/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params
-    const updates = req.body || {}
-    const payload = await updateEmailSettings(userId, updates)
-    res.json({ success: true, ...payload })
-  } catch (error) {
-    console.error('Error updating email settings:', error)
-    res.status(500).json({ success: false, error: 'Failed to update email settings' })
-  }
-})
-
 app.get('/api/billing/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params
@@ -14974,5 +14752,11 @@ setInterval(() => {
   checkExpiredTrials();
   checkUpcomingAppointments();
   // checkLeadScores(); // DISABLED: Using V2 Event-Driven Scoring (LeadScoringService)
-  checkFunnelFollowUps(); // CRITICAL: Run the funnel automation logic
+  funnelService.processBatch().catch((err) => console.error('Funnel Engine Loop Error:', err));
 }, 60 * 1000);
+
+// Run once after startup to expose duplicate routes and schema drift before runtime errors surface.
+setTimeout(() => {
+  runStartupDiagnostics({ app, supabaseAdmin, schemaCapabilities })
+    .catch((error) => console.warn('[StartupChecks] Failed:', error.message));
+}, 3000);
