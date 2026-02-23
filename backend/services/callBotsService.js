@@ -5,6 +5,9 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SU
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const DEFAULT_FOLLOWUP_CONFIG_ID =
+    process.env.VAPI_DEFAULT_ASSISTANT_ID ||
+    process.env.RETELL_DEFAULT_AGENT_ID ||
+    process.env.RETELL_AGENT_ID ||
     process.env.VOICE_PHASE1_FOLLOWUP_CONFIG_ID ||
     process.env.HUME_CONFIG_ID ||
     process.env.VITE_HUME_ADMIN_FOLLOWUP_CONFIG_ID ||
@@ -85,7 +88,7 @@ const listCallBots = async ({ userId, includeInactive = false }) => {
 const createCallBot = async ({ userId, name, key, description, configId, isActive = true, isDefault = false }) => {
     if (!userId) throw new Error('Missing userId');
     if (!name || !String(name).trim()) throw new Error('Missing bot name');
-    if (!configId || !String(configId).trim()) throw new Error('Missing Hume config ID');
+    if (!configId || !String(configId).trim()) throw new Error('Missing call bot config ID');
 
     const botKey = slugifyBotKey(key || name);
     if (!botKey) throw new Error('Invalid bot key');

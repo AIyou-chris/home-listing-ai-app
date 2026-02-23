@@ -3,6 +3,9 @@ import { CallBot } from '../types';
 
 const API_BASE = '/api/admin/call-bots';
 const DEFAULT_FOLLOWUP_CONFIG_ID = String(
+    import.meta.env.VITE_VAPI_DEFAULT_ASSISTANT_ID ||
+    import.meta.env.VITE_RETELL_DEFAULT_AGENT_ID ||
+    import.meta.env.VITE_RETELL_AGENT_ID ||
     import.meta.env.VITE_HUME_ADMIN_FOLLOWUP_CONFIG_ID || 'd1d4d371-00dd-4ef9-8ab5-36878641b349'
 ).trim();
 

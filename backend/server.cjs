@@ -412,10 +412,14 @@ app.use((req, res, next) => {
 
 // [REMOVED] Scraper endpoint deprecated per user request
 
-// [VAPI WEBHOOK REMOVED]
-// This endpoint handled call status updates and transcripts from Vapi.
-app.post('/api/vapi/webhook', async (req, res) => {
-  res.sendStatus(200);
+// Vapi webhook endpoint (status + transcript events)
+app.post(['/api/vapi/webhook', '/api/voice/vapi/webhook'], async (req, res) => {
+  const { handleVapiWebhook } = require('./services/vapiVoiceService');
+  await handleVapiWebhook(req, res);
+});
+
+app.get(['/api/vapi/webhook', '/api/voice/vapi/webhook'], async (req, res) => {
+  res.status(200).json({ ok: true, provider: 'vapi' });
 });
 
 // STRIPE CHECKOUT ENDPOINT
@@ -9867,7 +9871,7 @@ app.post('/api/admin/voice/quick-send', async (req, res) => {
       resolvedConfigId = await resolveCallBotConfigId({ userId, botKey: selectedBotKey });
     }
 
-    const { initiateOutboundCall } = require('./services/retellVoiceService');
+    const { initiateOutboundCall } = require('./services/vapiVoiceService');
     const result = await initiateOutboundCall(to, '', {
       assistantKey: selectedBotKey,
       botType: selectedBotKey,
@@ -13431,10 +13435,19 @@ app.post('/api/admin/setup', async (req, res) => {
   }
 });
 
-// VAPI CALL ENDPOINT
-// [VAPI CALL ENDPOINT REMOVED]
 app.post('/api/vapi/call', async (req, res) => {
-  res.status(503).json({ error: 'Vapi integration has been removed. Use /api/voice/outbound-call.' });
+  try {
+    const { leadPhone, script, ...context } = req.body || {};
+    const to = (req.body && req.body.to) || leadPhone;
+    if (!to) return res.status(400).json({ error: 'Missing "to" phone number' });
+
+    const { initiateOutboundCall } = require('./services/vapiVoiceService');
+    const result = await initiateOutboundCall(to, script || '', context, req);
+    res.json(result);
+  } catch (error) {
+    console.error('Vapi call error:', error);
+    res.status(500).json({ error: error.message || 'Failed to start Vapi call' });
+  }
 });
 
 // VAPI WEBHOOK HANDLER
@@ -13527,15 +13540,14 @@ app.get(/.*/, (req, res, next) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
-// Retell webhook receiver (configure this URL in Retell dashboard webhooks)
+// Legacy Retell route kept for backwards compatibility; now handled by Vapi service.
 app.post(['/api/voice/retell/webhook', '/api/retell/webhook'], async (req, res) => {
-  const { handleRetellWebhook } = require('./services/retellVoiceService');
-  await handleRetellWebhook(req, res);
+  const { handleVapiWebhook } = require('./services/vapiVoiceService');
+  await handleVapiWebhook(req, res);
 });
 
-// Simple health endpoint so provider webhook "Test" calls can validate reachability.
 app.get(['/api/voice/retell/webhook', '/api/retell/webhook'], async (req, res) => {
-  res.status(200).json({ ok: true, provider: 'retell' });
+  res.status(200).json({ ok: true, provider: 'vapi' });
 });
 
 const handleVoiceOutboundCall = async (req, res) => {
@@ -13543,7 +13555,7 @@ const handleVoiceOutboundCall = async (req, res) => {
     const { to, prompt, ...context } = req.body;
     if (!to) return res.status(400).json({ error: 'Missing "to" phone number' });
 
-    const { initiateOutboundCall } = require('./services/retellVoiceService');
+    const { initiateOutboundCall } = require('./services/vapiVoiceService');
     const systemPrompt = prompt || "You are an AI assistant for a real estate agency. Be helpful, professional, and empathetic.";
     const selectedBotKey = context.assistantKey || context.botType || null;
 
@@ -13570,6 +13582,7 @@ const handleVoiceOutboundCall = async (req, res) => {
 
 // Primary voice endpoints
 app.post('/api/voice/outbound-call', handleVoiceOutboundCall);
+app.post('/api/voice/vapi/outbound-call', handleVoiceOutboundCall);
 app.post('/api/voice/retell/outbound-call', handleVoiceOutboundCall);
 
 // Backward compatibility alias so existing clients do not break during cutover.
@@ -13577,7 +13590,7 @@ app.post('/api/voice/hume/outbound-call', handleVoiceOutboundCall);
 
 // Hard-disable old bridge webhooks after Retell migration.
 app.post(['/api/voice/hume/connect', '/api/voice/telnyx/events'], async (req, res) => {
-  res.status(410).json({ error: 'Legacy Hume/Telnyx bridge is removed. Use /api/voice/retell/webhook.' });
+  res.status(410).json({ error: 'Legacy Hume/Telnyx bridge is removed. Use /api/voice/vapi/webhook.' });
 });
 
 const server = app.listen(port, '0.0.0.0', () => {
