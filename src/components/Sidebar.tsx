@@ -53,6 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     { to: getPath('/ai-card'), icon: 'badge', label: 'AI Business Card' },
     { to: getPath('/ai-agent'), icon: 'smart_toy', label: 'AI Agent' },
     { to: getPath('/listings'), icon: 'storefront', label: 'AI Listings' },
+    { to: getPath('/listings-v2'), icon: 'auto_awesome', label: 'Listings Studio V2' },
   ];
 
   const communicationItems = [

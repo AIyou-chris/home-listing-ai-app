@@ -28,6 +28,7 @@ const Sidebar = lazy(() => import('./components/Sidebar'));
 const PropertyPage = lazy(() => import('./components/PropertyPage'));
 const ListingsPage = lazy(() => import('./components/ListingsPage'));
 const AddListingPage = lazy(() => import('./components/AddListingPage'));
+const ListingStudioV2Page = lazy(() => import('./components/listings/ListingStudioV2Page'));
 const LeadsAndAppointmentsPage = lazy(() => import('./components/LeadsAndAppointmentsPage'));
 const InteractionHubPage = lazy(() => import('./components/AIInteractionHubPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
@@ -203,6 +204,7 @@ const App: React.FC = () => {
             '/dashboard',
             '/daily-pulse',
             '/listings',
+            '/listings-v2',
             '/add-listing',
             '/property',
             '/leads',
@@ -1481,6 +1483,10 @@ const App: React.FC = () => {
 
                         <Route path="/listings" element={
                             <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => navigate('/add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => navigate('/dashboard')} />
+                        } />
+
+                        <Route path="/listings-v2" element={
+                            <ListingStudioV2Page properties={properties} agentProfile={userProfile} onBackToListings={() => navigate('/listings')} />
                         } />
 
                         <Route path="/add-listing" element={

@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
 import LeadsAndAppointmentsPage from './LeadsAndAppointmentsPage';
 import ListingsPage from './ListingsPage';
+import ListingStudioV2Page from './listings/ListingStudioV2Page';
 import AddListingPage from './AddListingPage';
 import PropertyPage from './PropertyPage';
 import AIInteractionHubPage from './AIInteractionHubPage';
@@ -183,6 +184,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
 
     switch (lastPart) {
       case 'ai-agent': return 'knowledge-base';
+      case 'listings-v2': return 'listings-v2';
       case 'listings': return 'listings';
       case 'leads': return 'leads';
       case 'ai-card': return 'ai-card';
@@ -226,6 +228,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
       switch (view) {
         case 'knowledge-base': pathSuffix = '/ai-agent'; break;
         case 'listings': pathSuffix = '/listings'; break;
+        case 'listings-v2': pathSuffix = '/listings-v2'; break;
         case 'leads': pathSuffix = '/leads'; break;
         case 'ai-card': pathSuffix = '/ai-card'; break;
         case 'inbox': pathSuffix = '/inbox'; break;
@@ -1325,6 +1328,14 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             onOpenBuilder={(id) => { setSelectedPropertyId(id); setActiveView('edit-listing'); }}
           />
         );
+      case 'listings-v2':
+        return (
+          <ListingStudioV2Page
+            properties={properties}
+            agentProfile={agentProfile}
+            onBackToListings={() => setActiveView('listings')}
+          />
+        );
       case 'add-listing':
         return (
           <AddListingPage
@@ -1500,6 +1511,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
               {activeView === 'dashboard' ? 'My Daily Pulse' :
                 activeView === 'leads' ? 'Leads & Appointments' :
                   activeView === 'listings' ? 'AI Listings' :
+                    activeView === 'listings-v2' ? 'Listings Studio V2' :
                     activeView === 'add-listing' ? 'Add Listing' :
                       activeView === 'ai-interaction-hub' ? 'AI Interaction Hub' :
                         activeView === 'ai-conversations' ? 'AI Conversations' :

@@ -45,6 +45,7 @@ export type View =
     | 'dashboard'
     | 'analytics'
     | 'listings'
+    | 'listings-v2'
     | 'leads'
     | 'ai-conversations'
     | 'ai-interaction-hub'

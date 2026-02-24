@@ -12868,6 +12868,148 @@ app.delete('/api/listings/:listingId', async (req, res) => {
   }
 });
 
+const extractZipFromAddress = (address) => {
+  if (typeof address !== 'string') return null
+  const zipMatch = address.match(/\b(\d{5})(?:-\d{4})?\b/)
+  return zipMatch ? zipMatch[1] : null
+}
+
+const median = (values = []) => {
+  if (!values.length) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid]
+}
+
+const safeNumber = (value) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const getDaysOnMarket = (value) => {
+  if (!value) return 0
+  const timestamp = new Date(value).getTime()
+  if (!Number.isFinite(timestamp)) return 0
+  const diffMs = Date.now() - timestamp
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+  return diffDays > 0 ? diffDays : 0
+}
+
+const fetchCensusZipData = async (zipCode) => {
+  if (!zipCode) return null
+  const apiKey = process.env.CENSUS_API_KEY ? `&key=${encodeURIComponent(process.env.CENSUS_API_KEY)}` : ''
+  const endpoint = `https://api.census.gov/data/2023/acs/acs5?get=NAME,B25077_001E,B19013_001E,B01003_001E&for=zip%20code%20tabulation%20area:${zipCode}${apiKey}`
+
+  try {
+    const response = await fetch(endpoint)
+    if (!response.ok) return null
+    const payload = await response.json()
+    if (!Array.isArray(payload) || payload.length < 2 || !Array.isArray(payload[1])) return null
+    const row = payload[1]
+    const medianHomeValue = safeNumber(row[1])
+    const medianHouseholdIncome = safeNumber(row[2])
+    const population = safeNumber(row[3])
+    return {
+      zipCode,
+      medianHomeValue,
+      medianHouseholdIncome,
+      population,
+      source: 'US Census ACS 2023'
+    }
+  } catch (_error) {
+    return null
+  }
+}
+
+// Listing-level market analysis (data-backed from comps + optional Census ZIP data)
+app.get('/api/listings/:listingId/market-analysis', async (req, res) => {
+  try {
+    const { listingId } = req.params
+    if (!/^[0-9a-fA-F-]{36}$/.test(listingId)) {
+      return res.status(400).json({ error: 'Invalid listing id format' })
+    }
+    const rawAgentId = req.headers['x-agent-id']
+    const headerAgentId = typeof rawAgentId === 'string' ? rawAgentId.trim() : ''
+
+    const { data: subject, error: subjectError } = await supabaseAdmin
+      .from('properties')
+      .select('id,address,price,sqft,status,listing_date,created_at,user_id')
+      .eq('id', listingId)
+      .maybeSingle()
+
+    if (subjectError) {
+      return res.status(500).json({ error: 'Failed to load listing', details: subjectError.message })
+    }
+    if (!subject) {
+      return res.status(404).json({ error: 'Listing not found' })
+    }
+
+    const ownerId = req.query.userId || req.query.user_id || headerAgentId || subject.user_id
+    const zipCode = extractZipFromAddress(subject.address)
+
+    let compsQuery = supabaseAdmin
+      .from('properties')
+      .select('id,address,price,sqft,status,listing_date,created_at,user_id')
+      .neq('id', listingId)
+      .limit(250)
+
+    if (ownerId) compsQuery = compsQuery.eq('user_id', ownerId)
+    if (zipCode) compsQuery = compsQuery.ilike('address', `%${zipCode}%`)
+
+    const { data: compsRows, error: compsError } = await compsQuery
+    if (compsError) {
+      return res.status(500).json({ error: 'Failed to load comparables', details: compsError.message })
+    }
+
+    const comps = Array.isArray(compsRows) ? compsRows : []
+    const allRows = [subject, ...comps]
+
+    const perSqftValues = allRows
+      .map((row) => {
+        const price = safeNumber(row.price)
+        const sqft = safeNumber(row.sqft)
+        return price > 0 && sqft > 0 ? price / sqft : 0
+      })
+      .filter((value) => value > 0)
+
+    const domValues = allRows
+      .filter((row) => ['active', 'pending'].includes(String(row.status || '').toLowerCase()))
+      .map((row) => getDaysOnMarket(row.listing_date || row.created_at))
+      .filter((value) => value > 0)
+
+    const soldCount = allRows.filter((row) => String(row.status || '').toLowerCase() === 'sold').length
+    const relevantCount = allRows.filter((row) => ['active', 'pending', 'sold'].includes(String(row.status || '').toLowerCase())).length
+    const activeListings = allRows.filter((row) => String(row.status || '').toLowerCase() === 'active').length
+    const listToCloseRatio = relevantCount > 0 ? (soldCount / relevantCount) * 100 : 0
+
+    const census = zipCode ? await fetchCensusZipData(zipCode) : null
+
+    const marketSnapshot = {
+      avgPricePerSqft: perSqftValues.length ? Number((perSqftValues.reduce((sum, value) => sum + value, 0) / perSqftValues.length).toFixed(2)) : 0,
+      medianDom: domValues.length ? Math.round(median(domValues)) : 0,
+      activeListings,
+      listToCloseRatio: Number(listToCloseRatio.toFixed(1))
+    }
+
+    res.json({
+      listingId,
+      zipCode,
+      marketSnapshot,
+      compsCount: comps.length,
+      dataSources: [
+        zipCode ? 'Internal comparable listings (same ZIP + same account scope)' : 'Internal comparable listings (account scope)',
+        census ? census.source : 'US Census ACS unavailable'
+      ],
+      publicData: census
+    })
+  } catch (error) {
+    console.error('Error generating listing market analysis:', error)
+    res.status(500).json({ error: 'Failed to generate market analysis' })
+  }
+})
+
 // Get listing marketing data
 app.get('/api/listings/:listingId/marketing', (req, res) => {
   try {

@@ -50,6 +50,28 @@ export interface CreatePropertyInput {
 
 export type UpdatePropertyInput = Partial<CreatePropertyInput> & { id: string }
 
+export interface ListingMarketSnapshot {
+  avgPricePerSqft: number
+  medianDom: number
+  activeListings: number
+  listToCloseRatio: number
+}
+
+export interface ListingMarketAnalysis {
+  listingId: string
+  zipCode?: string | null
+  marketSnapshot: ListingMarketSnapshot
+  compsCount: number
+  dataSources: string[]
+  publicData?: {
+    zipCode: string
+    medianHomeValue: number
+    medianHouseholdIncome: number
+    population: number
+    source: string
+  } | null
+}
+
 const DEFAULT_IMAGE_PLACEHOLDER = 'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto=format&fit=crop'
 
 const DEFAULT_APP_FEATURES: Record<string, boolean> = {
@@ -371,5 +393,26 @@ export const listingsService = {
 
     const data = await response.json();
     return data as AIDescription;
+  },
+
+  async getMarketAnalysis(listingId: string): Promise<ListingMarketAnalysis> {
+    const { data: userData } = await supabase.auth.getUser()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (userData?.user?.id) {
+      headers['x-agent-id'] = userData.user.id
+    }
+
+    const query = userData?.user?.id ? `?userId=${encodeURIComponent(userData.user.id)}` : ''
+    const response = await fetch(buildApiUrl(`/api/listings/${listingId}/market-analysis${query}`), {
+      method: 'GET',
+      headers
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || errorData.details || 'Failed to load market analysis')
+    }
+
+    return await response.json() as ListingMarketAnalysis
   }
 }
