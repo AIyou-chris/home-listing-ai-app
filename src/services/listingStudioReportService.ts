@@ -24,6 +24,7 @@ export interface ListingStudioReportInput {
   marketSnapshot: ListingStudioMarketSnapshot;
   disclaimer?: string;
   agentHeadshotUrl?: string;
+  showMockBadge?: boolean;
 }
 
 export const DEFAULT_LISTING_REPORT_DISCLAIMER =
@@ -44,6 +45,8 @@ const safeMoney = (value: number) =>
   Number.isFinite(value) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value) : '$0';
 
 const safePercent = (value: number) => `${Number.isFinite(value) ? value.toFixed(1) : '0.0'}%`;
+
+const getImageType = (dataUrl: string): 'PNG' | 'JPEG' => (dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG');
 
 const toDataUrl = async (url: string): Promise<string | null> => {
   if (!url) return null;
@@ -94,16 +97,22 @@ const makeCircleImage = async (sourceDataUrl: string, size = 256): Promise<strin
   });
 };
 
-const drawLabelValue = (pdf: jsPDF, label: string, value: string, x: number, y: number, width: number) => {
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(71, 85, 105);
-  pdf.setFontSize(8);
-  pdf.text(label.toUpperCase(), x, y);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(11);
-  pdf.setTextColor(15, 23, 42);
-  const lines = pdf.splitTextToSize(value, width);
-  pdf.text(lines, x, y + 5);
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const drawBar = (pdf: jsPDF, x: number, y: number, width: number, height: number, progress: number, color: { r: number; g: number; b: number }) => {
+  const pct = clamp(progress, 0, 100);
+  pdf.setFillColor(226, 232, 240);
+  pdf.roundedRect(x, y, width, height, 2, 2, 'F');
+  pdf.setFillColor(color.r, color.g, color.b);
+  pdf.roundedRect(x, y, (width * pct) / 100, height, 2, 2, 'F');
+};
+
+const truncateLines = (lines: string[], maxLines: number) => {
+  if (lines.length <= maxLines) return lines;
+  const clipped = lines.slice(0, maxLines);
+  const last = clipped[maxLines - 1] || '';
+  clipped[maxLines - 1] = last.length > 2 ? `${last.slice(0, -2)}...` : `${last}...`;
+  return clipped;
 };
 
 const slugify = (value: string) =>
@@ -150,7 +159,7 @@ export const generateListingStudioPdf = async (input: ListingStudioReportInput):
   pdf.rect(0, 30, pageWidth, 4, 'F');
 
   if (heroData) {
-    pdf.addImage(heroData, 'JPEG', 14, 38, pageWidth - 28, 60);
+    pdf.addImage(heroData, getImageType(heroData), 14, 38, pageWidth - 28, 60);
   } else {
     pdf.setFillColor(241, 245, 249);
     pdf.roundedRect(14, 38, pageWidth - 28, 60, 3, 3, 'F');
@@ -171,7 +180,8 @@ export const generateListingStudioPdf = async (input: ListingStudioReportInput):
   pdf.text(property.title || 'Listing Overview', 24, 100);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(10);
-  pdf.text(property.address || 'Address pending', 24, 106);
+  const addressLine = pdf.splitTextToSize(property.address || 'Address pending', 92);
+  pdf.text(addressLine, 24, 106);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(20);
   pdf.text(safeMoney(property.price), pageWidth - 24, 101, { align: 'right' });
@@ -179,12 +189,23 @@ export const generateListingStudioPdf = async (input: ListingStudioReportInput):
   pdf.setFont('helvetica', 'normal');
   pdf.text(`${property.bedrooms} bed • ${property.bathrooms} bath • ${property.squareFeet.toLocaleString()} sq ft`, pageWidth - 24, 107, { align: 'right' });
 
-  drawLabelValue(pdf, 'Executive Summary', executiveSummary, 14, 132, 118);
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(226, 232, 240);
+  pdf.roundedRect(14, 128, 118, 60, 3, 3, 'S');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(71, 85, 105);
+  pdf.setFontSize(8);
+  pdf.text('EXECUTIVE SUMMARY', 18, 135);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(15, 23, 42);
+  pdf.setFontSize(10);
+  const summaryLines = truncateLines(pdf.splitTextToSize(executiveSummary, 110), 11);
+  pdf.text(summaryLines, 18, 141);
 
   pdf.setFillColor(248, 250, 252);
-  pdf.roundedRect(136, 128, 60, 52, 3, 3, 'F');
+  pdf.roundedRect(136, 128, 60, 58, 3, 3, 'F');
   pdf.setDrawColor(226, 232, 240);
-  pdf.roundedRect(136, 128, 60, 52, 3, 3, 'S');
+  pdf.roundedRect(136, 128, 60, 58, 3, 3, 'S');
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(primary.r, primary.g, primary.b);
   pdf.setFontSize(11);
@@ -192,55 +213,88 @@ export const generateListingStudioPdf = async (input: ListingStudioReportInput):
   pdf.setTextColor(15, 23, 42);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
-  pdf.text(`Avg $/sqft: ${safeMoney(marketSnapshot.avgPricePerSqft)}`, 140, 144);
-  pdf.text(`Median DOM: ${marketSnapshot.medianDom} days`, 140, 150);
-  pdf.text(`Active Listings: ${marketSnapshot.activeListings}`, 140, 156);
-  pdf.text(`List-to-Close: ${safePercent(marketSnapshot.listToCloseRatio)}`, 140, 162);
+  pdf.text(`Avg $/sqft: ${safeMoney(marketSnapshot.avgPricePerSqft)}`, 140, 143);
+  pdf.text(`Median DOM: ${marketSnapshot.medianDom} days`, 140, 149);
+  pdf.text(`Active Listings: ${marketSnapshot.activeListings}`, 140, 155);
+  pdf.text(`List-to-Close: ${safePercent(marketSnapshot.listToCloseRatio)}`, 140, 161);
 
+  pdf.setFillColor(248, 250, 252);
+  pdf.roundedRect(136, 188, 60, 34, 3, 3, 'F');
+  pdf.setDrawColor(226, 232, 240);
+  pdf.roundedRect(136, 188, 60, 34, 3, 3, 'S');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(primary.r, primary.g, primary.b);
+  pdf.setFontSize(9);
+  pdf.text('Market Momentum', 140, 194);
+  pdf.setTextColor(15, 23, 42);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7);
+  const demand = clamp((marketSnapshot.activeListings / 250) * 100, 0, 100);
+  const velocity = clamp(100 - marketSnapshot.medianDom * 1.8, 0, 100);
+  const conversion = clamp(marketSnapshot.listToCloseRatio, 0, 100);
+  pdf.text('Demand', 140, 199);
+  drawBar(pdf, 153, 196.5, 39, 3.5, demand, accent);
+  pdf.text('Velocity', 140, 206);
+  drawBar(pdf, 153, 203.5, 39, 3.5, velocity, primary);
+  pdf.text('Conversion', 140, 213);
+  drawBar(pdf, 153, 210.5, 39, 3.5, conversion, accent);
+
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(226, 232, 240);
+  pdf.roundedRect(14, 192, 118, 74, 3, 3, 'S');
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(71, 85, 105);
   pdf.setFontSize(8);
-  pdf.text('Agent Action Plan', 14, 188);
+  pdf.text('AGENT ACTION PLAN', 18, 199);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(15, 23, 42);
   pdf.setFontSize(10);
-  let actionY = 194;
+  let actionY = 206;
   actionPlan.slice(0, 5).forEach((item) => {
-    const text = pdf.splitTextToSize(`• ${item}`, 116);
-    pdf.text(text, 14, actionY);
+    const text = truncateLines(pdf.splitTextToSize(`• ${item}`, 110), 3);
+    pdf.text(text, 18, actionY);
     actionY += text.length * 5;
   });
 
   pdf.setFillColor(248, 250, 252);
-  pdf.roundedRect(136, 184, 60, 78, 3, 3, 'F');
+  pdf.roundedRect(136, 224, 60, 42, 3, 3, 'F');
   pdf.setDrawColor(226, 232, 240);
-  pdf.roundedRect(136, 184, 60, 78, 3, 3, 'S');
+  pdf.roundedRect(136, 224, 60, 42, 3, 3, 'S');
 
   if (headshotCircle) {
-    pdf.addImage(headshotCircle, 'PNG', 156, 190, 20, 20);
+    pdf.addImage(headshotCircle, 'PNG', 141, 229, 14, 14);
   } else {
     pdf.setDrawColor(203, 213, 225);
-    pdf.circle(166, 200, 10, 'S');
+    pdf.circle(148, 236, 7, 'S');
   }
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(9);
+  pdf.setFontSize(8);
   pdf.setTextColor(15, 23, 42);
-  pdf.text(agentProfile.name || 'Listing Agent', 166, 214, { align: 'center' });
+  pdf.text(agentProfile.name || 'Listing Agent', 170, 232);
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8);
-  pdf.text(agentProfile.title || 'Real Estate Advisor', 166, 219, { align: 'center' });
+  pdf.setFontSize(7);
+  pdf.text(agentProfile.title || 'Real Estate Advisor', 170, 236);
 
-  pdf.addImage(qrData, 'PNG', 148, 224, 36, 36);
+  pdf.addImage(qrData, 'PNG', 170, 228, 22, 22);
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(8);
+  pdf.setFontSize(7);
   pdf.setTextColor(primary.r, primary.g, primary.b);
-  pdf.text('Scan for Listing + Lead Capture', 166, 263, { align: 'center' });
+  pdf.text('Scan for Lead Capture', 181, 254, { align: 'center' });
+
+  if (input.showMockBadge) {
+    pdf.setFillColor(accent.r, accent.g, accent.b);
+    pdf.roundedRect(pageWidth - 52, 10, 38, 9, 2, 2, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8);
+    pdf.text('DEMO DATA', pageWidth - 33, 15.7, { align: 'center' });
+  }
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(7);
   pdf.setTextColor(100, 116, 139);
   const disclaimer = pdf.splitTextToSize(input.disclaimer || DEFAULT_LISTING_REPORT_DISCLAIMER, pageWidth - 28);
-  pdf.text(disclaimer, 14, 275);
+  pdf.text(disclaimer, 14, 274);
 
   const nameSeed = slugify(property.title || property.address || 'listing-report');
   pdf.save(`${nameSeed}-market-report.pdf`);

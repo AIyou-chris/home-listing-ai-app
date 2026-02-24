@@ -15,6 +15,7 @@ interface ListingStudioV2PageProps {
 
 const DEFAULT_PRIMARY = '#233074';
 const DEFAULT_ACCENT = '#f77b23';
+const DEMO_HERO_PHOTO = 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?q=80&w=1600&auto=format&fit=crop';
 
 const formatMoney = (value: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number.isFinite(value) ? value : 0);
@@ -48,6 +49,33 @@ const defaultActionPlan = (property: Property) => {
   ].join('\n');
 };
 
+const mockSummary = (property: Property) =>
+  `${property.title || 'This listing'} is positioned as a high-intent move-up opportunity with premium finishes and a strong lifestyle narrative. Buyer demand in this ZIP favors turnkey homes, and this asset scores above market on presentation, location pull, and showing potential. Launch strategy should pair visual-first media, clear pricing confidence, and immediate QR lead capture follow-up.`;
+
+const mockActionPlan = [
+  'Open with exterior + kitchen in all channels to maximize first-impression quality.',
+  'Use 3-hook social campaign: lifestyle, value, and urgency with showing CTA.',
+  'Run 72-hour QR flyer sprint and retarget all scanners with the market report.',
+  'Offer two curated showing windows and push scarcity in follow-up SMS/email.'
+].join('\n');
+
+const getMockMarketSnapshot = (): ListingMarketSnapshot => ({
+  avgPricePerSqft: 518,
+  medianDom: 19,
+  activeListings: 146,
+  listToCloseRatio: 97.1
+});
+
+const buildMockProperty = (property: Property): Property => ({
+  ...property,
+  title: property.title || 'Modern Hillside Estate',
+  price: property.price > 0 ? property.price : 1250000,
+  bedrooms: property.bedrooms || 4,
+  bathrooms: property.bathrooms || 3,
+  squareFeet: property.squareFeet || 2800,
+  heroPhotos: [DEMO_HERO_PHOTO]
+});
+
 export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ properties, agentProfile, onBackToListings }) => {
   const firstProperty = properties[0] || null;
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(firstProperty?.id || '');
@@ -70,6 +98,7 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
   const [isLoadingMarket, setIsLoadingMarket] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [useMockDataPack, setUseMockDataPack] = useState(true);
 
   useEffect(() => {
     if (!selectedProperty) return;
@@ -81,6 +110,12 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
     );
     setAgentHeadshotUrl(agentProfile.headshotUrl || '/demo-headshot.png');
   }, [selectedProperty, agentProfile.headshotUrl]);
+
+  useEffect(() => {
+    if (!selectedProperty || !useMockDataPack) return;
+    setExecutiveSummary(mockSummary(selectedProperty));
+    setActionPlanText(mockActionPlan);
+  }, [selectedProperty, useMockDataPack]);
 
   useEffect(() => {
     let isMounted = true;
@@ -151,16 +186,19 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
     if (!selectedProperty || !marketSnapshot) return;
     setIsGenerating(true);
     try {
+      const reportProperty = useMockDataPack ? buildMockProperty(selectedProperty) : selectedProperty;
+      const reportSnapshot = useMockDataPack ? getMockMarketSnapshot() : marketSnapshot;
       await generateListingStudioPdf({
-        property: selectedProperty,
+        property: reportProperty,
         agentProfile,
         theme: { primary: primaryColor, accent: accentColor },
         qrDestinationUrl,
         executiveSummary,
         actionPlan: actionPlanText.split('\n').map((line) => line.trim()).filter(Boolean),
-        marketSnapshot,
+        marketSnapshot: reportSnapshot,
         disclaimer,
-        agentHeadshotUrl
+        agentHeadshotUrl,
+        showMockBadge: useMockDataPack
       });
       showToast.success('Report PDF generated.');
     } catch (error) {
@@ -170,6 +208,11 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
       setIsGenerating(false);
     }
   };
+
+  const effectiveMarket = useMockDataPack ? getMockMarketSnapshot() : marketSnapshot;
+  const momentumDemand = Math.min(100, Math.round((effectiveMarket?.activeListings ?? 0) / 2.2));
+  const momentumVelocity = Math.max(0, Math.round(100 - (effectiveMarket?.medianDom ?? 0) * 2));
+  const momentumConversion = Math.min(100, Math.round(effectiveMarket?.listToCloseRatio ?? 0));
 
   if (!selectedProperty) {
     return (
@@ -190,7 +233,7 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
           <div>
             <h2 className="text-2xl font-bold">Listings Studio V2</h2>
             <p className="mt-1 text-sm text-white/90">
-              Property Analysis + Marketing Report PDF + QR Lead Capture
+              AI Listing Lead Machine • Property Analysis + PDF + QR Lead Capture
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -237,22 +280,34 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
             </select>
           </div>
 
+          <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+            <label className="flex items-center gap-3 text-sm font-semibold text-indigo-900">
+              <input
+                type="checkbox"
+                checked={useMockDataPack}
+                onChange={(event) => setUseMockDataPack(event.target.checked)}
+                className="h-4 w-4 rounded border-indigo-300"
+              />
+              Use polished demo numbers + mock photo for presentation mode
+            </label>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">List Price</p>
-              <p className="mt-1 text-xl font-bold text-slate-900">{formatMoney(selectedProperty.price)}</p>
+              <p className="mt-1 text-xl font-bold text-slate-900">{formatMoney((useMockDataPack ? buildMockProperty(selectedProperty).price : selectedProperty.price))}</p>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Avg $/Sq Ft</p>
-              <p className="mt-1 text-xl font-bold text-slate-900">{formatMoney(marketSnapshot?.avgPricePerSqft ?? 0)}</p>
+              <p className="mt-1 text-xl font-bold text-slate-900">{formatMoney(effectiveMarket?.avgPricePerSqft ?? 0)}</p>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Median DOM</p>
-              <p className="mt-1 text-xl font-bold text-slate-900">{marketSnapshot?.medianDom ?? 0}</p>
+              <p className="mt-1 text-xl font-bold text-slate-900">{effectiveMarket?.medianDom ?? 0}</p>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Active Listings</p>
-              <p className="mt-1 text-xl font-bold text-slate-900">{marketSnapshot?.activeListings ?? 0}</p>
+              <p className="mt-1 text-xl font-bold text-slate-900">{effectiveMarket?.activeListings ?? 0}</p>
             </div>
           </div>
 
@@ -262,6 +317,39 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
             </p>
             {!!marketSources.length && <p className="mt-1">{marketSources.join(' | ')}</p>}
             {!!publicMarketNote && <p className="mt-1">{publicMarketNote}</p>}
+          </div>
+
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Market Momentum Chart</p>
+            <div className="space-y-3">
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+                  <span>Demand</span>
+                  <span>{momentumDemand}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-200">
+                  <div className="h-2 rounded-full bg-orange-500" style={{ width: `${momentumDemand}%` }} />
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+                  <span>Velocity</span>
+                  <span>{momentumVelocity}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-200">
+                  <div className="h-2 rounded-full bg-indigo-700" style={{ width: `${momentumVelocity}%` }} />
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+                  <span>Conversion</span>
+                  <span>{momentumConversion}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-200">
+                  <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${momentumConversion}%` }} />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 grid gap-4">
