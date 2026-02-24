@@ -1194,7 +1194,7 @@ export const DEMO_CONVERSATIONS = [
   {
     id: 'conv-demo-welcome',
     contactName: 'AI Concierge',
-    contactEmail: 'concierge@homelisting.ai',
+    contactEmail: 'concierge@homelistingai.com',
     contactPhone: '',
     type: 'chat',
     lastMessage: 'Welcome! I am here to help you manage your conversations.',

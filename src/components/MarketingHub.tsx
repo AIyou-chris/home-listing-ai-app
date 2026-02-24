@@ -228,10 +228,10 @@ export const MarketingHub: React.FC<MarketingHubProps> = ({ agentProfile, proper
                                     <div className="flex items-center gap-3">
                                         <QrCode className="text-slate-400" size={20} />
                                         <span className="text-sm font-mono text-slate-600 truncate max-w-[120px]">
-                                            homelisting.ai/card/{(agentProfile?.id || '').substring(0, 6)}...
+                                            homelistingai.com/card/{(agentProfile?.id || '').substring(0, 6)}...
                                         </span>
                                     </div>
-                                    <button onClick={() => copyToClipboard(`https://homelisting.ai/card/${agentProfile?.id || ''}`)} className="text-indigo-600 hover:text-indigo-700">
+                                    <button onClick={() => copyToClipboard(`https://homelistingai.com/card/${agentProfile?.id || ''}`)} className="text-indigo-600 hover:text-indigo-700">
                                         <Copy size={16} />
                                     </button>
                                 </div>
@@ -310,7 +310,7 @@ export const MarketingHub: React.FC<MarketingHubProps> = ({ agentProfile, proper
                                 type="Personal"
                                 scans={482}
                                 onDownloadQr={() => handleDownloadQr(agentProfile.id, 'AI Card', 'card')}
-                                onCopyLink={() => copyToClipboard(`https://homelisting.ai/card/${agentProfile.id}`)}
+                                onCopyLink={() => copyToClipboard(`https://homelistingai.com/card/${agentProfile.id}`)}
                             />
 
                             {/* Property Assets */}
@@ -323,7 +323,7 @@ export const MarketingHub: React.FC<MarketingHubProps> = ({ agentProfile, proper
                                     type="Listing"
                                     scans={Math.floor(Math.random() * 200)}
                                     onDownloadQr={() => handleDownloadQr(prop.id, prop.address, 'listing')}
-                                    onCopyLink={() => copyToClipboard(`https://homelisting.ai/listings/${prop.id}`)}
+                                    onCopyLink={() => copyToClipboard(`https://homelistingai.com/listings/${prop.id}`)}
                                 />
                             ))}
                         </div>

@@ -3966,7 +3966,7 @@ app.post('/api/continue-conversation', async (req, res) => {
     const userEmail = metadata?.userId?.includes('@') ? metadata.userId : null;
 
     // Construct lookup key (Real Email > Session Email)
-    const lookupEmail = userEmail || (sessionId ? `visitor+${sessionId}@leads.homelisting.ai` : null);
+    const lookupEmail = userEmail || (sessionId ? `visitor+${sessionId}@leads.homelistingai.com` : null);
 
     if (lookupEmail && leadOwnerId) {
       try {

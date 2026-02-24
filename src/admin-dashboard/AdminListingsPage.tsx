@@ -54,7 +54,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
   const shareUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/demo/listings/${encodeURIComponent(property.id)}`
-      : `https://demo.homelisting.ai/listings/${property.id}`;
+      : `https://demo.homelistingai.com/listings/${property.id}`;
 
   const descriptionText = isAIDescription(property.description)
     ? property.description.title

@@ -106,7 +106,7 @@ export const BLUEPRINT_CONVERSATIONS = [
     {
         id: 'conv-blueprint-welcome',
         contactName: 'AI Concierge',
-        contactEmail: 'concierge@homelisting.ai',
+        contactEmail: 'concierge@homelistingai.com',
         contactPhone: '',
         type: 'chat',
         lastMessage: 'Welcome to your AI Conversations Inbox! 🚀\n\nHere you can see how I interact with your leads, handle objections, and schedule appointments.\n\nTry exporting a CSV, filtering by "Voice", or check the "Deep Dive" panel to see transcripts and translations.\n\nYou can delete this message when you are ready to start!',
