@@ -1,0 +1,98 @@
+/admin
+  X-Robots-Tag: noindex, nofollow
+
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+
+/dashboard
+  X-Robots-Tag: noindex, nofollow
+
+/dashboard/*
+  X-Robots-Tag: noindex, nofollow
+
+/daily-pulse
+  X-Robots-Tag: noindex, nofollow
+
+/listings
+  X-Robots-Tag: noindex, nofollow
+
+/listings/*
+  X-Robots-Tag: noindex, nofollow
+
+/leads
+  X-Robots-Tag: noindex, nofollow
+
+/inbox
+  X-Robots-Tag: noindex, nofollow
+
+/settings
+  X-Robots-Tag: noindex, nofollow
+
+/ai-conversations
+  X-Robots-Tag: noindex, nofollow
+
+/ai-card
+  X-Robots-Tag: noindex, nofollow
+
+/knowledge-base
+  X-Robots-Tag: noindex, nofollow
+
+/ai-training
+  X-Robots-Tag: noindex, nofollow
+
+/ai-agent
+  X-Robots-Tag: noindex, nofollow
+
+/funnel-analytics
+  X-Robots-Tag: noindex, nofollow
+
+/analytics
+  X-Robots-Tag: noindex, nofollow
+
+/voice-lab
+  X-Robots-Tag: noindex, nofollow
+
+/signin
+  X-Robots-Tag: noindex, nofollow
+
+/signup
+  X-Robots-Tag: noindex, nofollow
+
+/forgot-password
+  X-Robots-Tag: noindex, nofollow
+
+/reset-password
+  X-Robots-Tag: noindex, nofollow
+
+/checkout
+  X-Robots-Tag: noindex, nofollow
+
+/checkout/*
+  X-Robots-Tag: noindex, nofollow
+
+/demo-dashboard
+  X-Robots-Tag: noindex, nofollow
+
+/demo-dashboard/*
+  X-Robots-Tag: noindex, nofollow
+
+/dashboard-blueprint
+  X-Robots-Tag: noindex, nofollow
+
+/dashboard-blueprint/*
+  X-Robots-Tag: noindex, nofollow
+
+/agent-blueprint-dashboard
+  X-Robots-Tag: noindex, nofollow
+
+/agent-blueprint-dashboard/*
+  X-Robots-Tag: noindex, nofollow
+
+/demo-showcase
+  X-Robots-Tag: noindex, nofollow
+
+/demo-listing
+  X-Robots-Tag: noindex, nofollow
+
+/demo/*
+  X-Robots-Tag: noindex, nofollow

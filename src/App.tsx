@@ -194,6 +194,67 @@ const App: React.FC = () => {
     // We treat 'view' as derived state now
     const view = getCurrentView();
 
+    const shouldNoindexRoute = useCallback((pathname: string) => {
+        const privatePrefixes = [
+            '/admin',
+            '/admin-dashboard',
+            '/admin-login',
+            '/admin-setup',
+            '/dashboard',
+            '/daily-pulse',
+            '/listings',
+            '/add-listing',
+            '/property',
+            '/leads',
+            '/inbox',
+            '/ai-conversations',
+            '/ai-card',
+            '/knowledge-base',
+            '/ai-training',
+            '/ai-agent',
+            '/funnel-analytics',
+            '/analytics',
+            '/ai-sidekicks',
+            '/marketing-reports',
+            '/voice-lab',
+            '/settings',
+            '/signin',
+            '/signup',
+            '/forgot-password',
+            '/reset-password',
+            '/checkout',
+            '/demo-dashboard',
+            '/dashboard-blueprint',
+            '/agent-blueprint-dashboard',
+            '/demo-showcase',
+            '/demo-listing',
+            '/demo/'
+        ];
+
+        return privatePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+    }, []);
+
+    useEffect(() => {
+        const robotsContent = shouldNoindexRoute(location.pathname) ? 'noindex,nofollow' : 'index,follow';
+        let robotsTag = document.querySelector('meta[name="robots"]');
+        if (!robotsTag) {
+            robotsTag = document.createElement('meta');
+            robotsTag.setAttribute('name', 'robots');
+            document.head.appendChild(robotsTag);
+        }
+        robotsTag.setAttribute('content', robotsContent);
+
+        const canonicalPath = location.pathname === '/' ? '/' : location.pathname.replace(/\/+$/, '');
+        const canonicalUrl = `https://homelistingai.com${canonicalPath}`;
+        let canonicalTag = document.querySelector('link[rel="canonical"]');
+        if (!canonicalTag) {
+            canonicalTag = document.createElement('link');
+            canonicalTag.setAttribute('rel', 'canonical');
+            document.head.appendChild(canonicalTag);
+        }
+        canonicalTag.setAttribute('href', canonicalUrl);
+    }, [location.pathname, shouldNoindexRoute]);
+
     // PERF: Initialize loading state
     const [isLoading, setIsLoading] = useState(false); // Router handles most loading now
     const [isSettingUp] = useState(false); // Helper state for setup flows (currently unused)
