@@ -21,6 +21,7 @@ export interface DashboardLeadItem {
   last_message_preview: string | null;
   created_at: string;
   listing_id: string | null;
+  last_agent_action_at?: string | null;
   listing: {
     id: string;
     address?: string;
@@ -108,6 +109,51 @@ export interface DashboardAppointmentRow {
     scheduled_for: string;
     provider_response?: Record<string, unknown> | null;
   } | null;
+}
+
+export interface CommandCenterLeadQueueItem {
+  lead_id: string;
+  listing_id: string | null;
+  listing_address: string | null;
+  full_name: string;
+  intent_level: LeadIntentLevel;
+  status: string;
+  timeline: string;
+  financing: string;
+  source_type: string;
+  last_activity_at: string | null;
+  lead_summary_preview: string | null;
+  phone: string | null;
+  email: string | null;
+  created_at: string | null;
+  last_agent_action_at: string | null;
+}
+
+export interface CommandCenterAppointmentQueueItem {
+  appointment_id: string;
+  lead_id: string | null;
+  listing_id: string | null;
+  listing_address: string | null;
+  starts_at: string | null;
+  status: string;
+  lead_name: string;
+  lead_phone: string | null;
+  lead_email: string | null;
+  last_reminder_outcome: string | null;
+}
+
+export interface DashboardCommandCenterSnapshot {
+  stats: {
+    new_leads_today: number;
+    unworked_leads: number;
+    appointments_today: number;
+    confirmations_7d: number;
+  };
+  queues: {
+    new_leads_to_work: CommandCenterLeadQueueItem[];
+    appointments_coming_up: CommandCenterAppointmentQueueItem[];
+    needs_attention: CommandCenterAppointmentQueueItem[];
+  };
 }
 
 export interface RoiMetrics {
@@ -290,4 +336,45 @@ export const fetchListingPerformance = async (listingId: string, agentIdOverride
     { headers: defaultJsonHeaders(agentId) }
   );
   return parseResponse<{ success: boolean; listing_id: string; metrics: ListingPerformanceMetrics }>(response);
+};
+
+export const fetchCommandCenterSnapshot = async (agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/command-center', agentId)), {
+    headers: defaultJsonHeaders(agentId)
+  });
+  return parseResponse<{ success: boolean } & DashboardCommandCenterSnapshot>(response);
+};
+
+export const logDashboardAgentAction = async (
+  payload: { lead_id: string; action: 'call_clicked' | 'email_clicked' | 'status_changed' | 'appointment_created' | 'appointment_updated'; metadata?: Record<string, unknown> },
+  agentIdOverride?: string | null
+) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(buildApiUrl('/api/dashboard/agent-actions'), {
+    method: 'POST',
+    headers: defaultJsonHeaders(agentId),
+    body: JSON.stringify({
+      ...payload,
+      agentId
+    })
+  });
+  return parseResponse<{ success: boolean; action: { id: string | null; lead_id: string; action: string; created_at: string } }>(response);
+};
+
+export const retryDashboardReminder = async (appointmentId: string, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(buildApiUrl(`/api/dashboard/reminders/${encodeURIComponent(appointmentId)}/retry`), {
+    method: 'POST',
+    headers: defaultJsonHeaders(agentId),
+    body: JSON.stringify({ agentId })
+  });
+  return parseResponse<{
+    success: boolean;
+    queued: boolean;
+    duplicate: boolean;
+    job_id: string | null;
+    idempotency_key: string;
+    reminder_id?: string | null;
+  }>(response);
 };

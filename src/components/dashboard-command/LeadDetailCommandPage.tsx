@@ -5,9 +5,11 @@ import {
   DashboardLeadDetail,
   createLeadAppointment,
   fetchDashboardLeadDetail,
+  logDashboardAgentAction,
   updateAppointmentStatus,
   updateDashboardLeadStatus
 } from '../../services/dashboardCommandService';
+import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore';
 
 const prettyEventName = (value: string) =>
   value
@@ -25,6 +27,8 @@ const formatDateTime = (value?: string | null) => {
 const LeadDetailCommandPage: React.FC = () => {
   const { leadId = '' } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
+  const realtimeLead = useDashboardRealtimeStore((state) => (leadId ? state.leadsById[leadId] : undefined));
+  const appointmentsById = useDashboardRealtimeStore((state) => state.appointmentsById);
   const [detail, setDetail] = useState<DashboardLeadDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +40,18 @@ const LeadDetailCommandPage: React.FC = () => {
   const [timeline, setTimeline] = useState('unknown');
   const [financing, setFinancing] = useState('unknown');
   const [workingWithAgent, setWorkingWithAgent] = useState('unknown');
+
+  const logAction = async (
+    action: 'call_clicked' | 'email_clicked' | 'status_changed' | 'appointment_created' | 'appointment_updated',
+    metadata?: Record<string, unknown>
+  ) => {
+    if (!leadId) return;
+    await logDashboardAgentAction({
+      lead_id: leadId,
+      action,
+      metadata
+    }).catch(() => undefined);
+  };
 
   const load = async (refreshIntel = false) => {
     if (!leadId) return;
@@ -61,6 +77,100 @@ const LeadDetailCommandPage: React.FC = () => {
     void load(true);
   }, [leadId]);
 
+  useEffect(() => {
+    if (!realtimeLead) return;
+
+    setDetail((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        lead: {
+          ...(prev.lead || {}),
+          status: realtimeLead.status,
+          timeline: realtimeLead.timeline,
+          financing: realtimeLead.financing,
+          full_name: realtimeLead.name,
+          name: realtimeLead.name,
+          phone_e164: realtimeLead.phone,
+          email_lower: realtimeLead.email,
+          listing_id: realtimeLead.listing_id
+        },
+        listing: realtimeLead.listing?.id
+          ? {
+            ...(prev.listing || {}),
+            id: realtimeLead.listing.id,
+            address: realtimeLead.listing.address || (prev.listing as Record<string, unknown> | null)?.address || null
+          }
+          : prev.listing
+      };
+    });
+
+    setStatus(realtimeLead.status || 'New');
+    setTimeline(realtimeLead.timeline || 'unknown');
+    setFinancing(realtimeLead.financing || 'unknown');
+  }, [realtimeLead]);
+
+  useEffect(() => {
+    setDetail((prev) => {
+      if (!prev) return prev;
+      const nextAppointments = [...(prev.appointments || [])];
+      const seen = new Set(nextAppointments.map((appointment) => appointment.id));
+
+      for (let index = 0; index < nextAppointments.length; index += 1) {
+        const current = nextAppointments[index];
+        const realtime = appointmentsById[current.id];
+        if (!realtime) continue;
+        nextAppointments[index] = {
+          ...current,
+          status: realtime.status || current.status,
+          normalizedStatus: realtime.normalizedStatus || current.normalizedStatus,
+          startsAt: realtime.startsAt || realtime.startIso || current.startsAt || current.startIso || null,
+          startIso: realtime.startIso || realtime.startsAt || current.startIso || current.startsAt || null,
+          location: realtime.location || current.location || null,
+          lastReminderResult: realtime.last_reminder_outcome
+            ? {
+              status: realtime.last_reminder_outcome.status,
+              reminder_type: realtime.last_reminder_outcome.reminder_type,
+              scheduled_for: realtime.last_reminder_outcome.scheduled_for,
+              provider_response: realtime.last_reminder_outcome.provider_response || null
+            }
+            : current.lastReminderResult || null
+        };
+      }
+
+      for (const realtime of Object.values(appointmentsById)) {
+        if (!realtime?.lead?.id || realtime.lead.id !== leadId) continue;
+        if (seen.has(realtime.id)) continue;
+        nextAppointments.push({
+          id: realtime.id,
+          status: realtime.status,
+          normalizedStatus: realtime.normalizedStatus,
+          startsAt: realtime.startsAt || realtime.startIso || null,
+          startIso: realtime.startIso || realtime.startsAt || null,
+          location: realtime.location || null,
+          reminders: [],
+          lastReminderResult: realtime.last_reminder_outcome
+            ? {
+              status: realtime.last_reminder_outcome.status,
+              reminder_type: realtime.last_reminder_outcome.reminder_type,
+              scheduled_for: realtime.last_reminder_outcome.scheduled_for,
+              provider_response: realtime.last_reminder_outcome.provider_response || null
+            }
+            : null
+        });
+      }
+
+      return {
+        ...prev,
+        appointments: nextAppointments.sort(
+          (a, b) =>
+            new Date(a.startsAt || a.startIso || 0).getTime() -
+            new Date(b.startsAt || b.startIso || 0).getTime()
+        )
+      };
+    });
+  }, [appointmentsById, leadId]);
+
   const lead = useMemo(() => (detail?.lead || {}) as Record<string, unknown>, [detail]);
 
   const saveLeadProfile = async () => {
@@ -72,6 +182,13 @@ const LeadDetailCommandPage: React.FC = () => {
         timeline,
         financing,
         working_with_agent: workingWithAgent
+      });
+      await logAction('status_changed', {
+        status,
+        timeline,
+        financing,
+        working_with_agent: workingWithAgent,
+        source: 'lead_detail'
       });
       await load(true);
     } catch (err) {
@@ -99,6 +216,10 @@ const LeadDetailCommandPage: React.FC = () => {
         timezone: 'America/Los_Angeles',
         location: appointmentLocation || undefined
       });
+      await logAction('appointment_created', {
+        starts_at: startsAtIso,
+        location: appointmentLocation || null
+      });
       setShowAppointmentModal(false);
       setAppointmentLocation('');
       setAppointmentDateTime('');
@@ -114,9 +235,48 @@ const LeadDetailCommandPage: React.FC = () => {
     setSaving(true);
     try {
       await updateAppointmentStatus(appointment.id, nextStatus);
+      await logAction('appointment_updated', {
+        appointment_id: appointment.id,
+        status: nextStatus
+      });
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update appointment.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCallLeadClick = async () => {
+    if (!leadPhone) return;
+    await logAction('call_clicked', { source: 'lead_detail' });
+    window.location.href = `tel:${leadPhone}`;
+  };
+
+  const handleEmailLeadClick = async () => {
+    if (!leadEmail) return;
+    await logAction('email_clicked', { source: 'lead_detail' });
+    window.location.href = `mailto:${leadEmail}`;
+  };
+
+  const handleQuickMarkContacted = async () => {
+    setSaving(true);
+    try {
+      const nextStatus = 'Contacted';
+      setStatus(nextStatus);
+      await updateDashboardLeadStatus(leadId, {
+        status: nextStatus,
+        timeline,
+        financing,
+        working_with_agent: workingWithAgent
+      });
+      await logAction('status_changed', {
+        status: nextStatus,
+        source: 'lead_detail_quick_action'
+      });
+      await load(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark contacted.');
     } finally {
       setSaving(false);
     }
@@ -173,9 +333,30 @@ const LeadDetailCommandPage: React.FC = () => {
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-5">
-          <a href={leadPhone ? `tel:${leadPhone}` : '#'} className="rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-slate-800">Call</a>
-          <a href={leadEmail ? `mailto:${leadEmail}` : '#'} className="rounded-lg bg-slate-800 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-slate-700">Email</a>
-          <button type="button" onClick={() => setStatus('Contacted')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Mark Contacted</button>
+          <button
+            type="button"
+            onClick={() => void handleCallLeadClick()}
+            disabled={!leadPhone}
+            className="rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Call
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleEmailLeadClick()}
+            disabled={!leadEmail}
+            className="rounded-lg bg-slate-800 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Email
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleQuickMarkContacted()}
+            disabled={saving}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            Mark Contacted
+          </button>
           <button type="button" onClick={() => setShowAppointmentModal(true)} className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">Set Appointment</button>
           <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             {detail.actionBar.statusOptions.map((option) => (
@@ -288,6 +469,18 @@ const LeadDetailCommandPage: React.FC = () => {
                       ? `${appointment.lastReminderResult.status} • ${formatDateTime(appointment.lastReminderResult.scheduled_for)}`
                       : 'No reminders yet'}
                   </p>
+                  {Array.isArray(appointment.reminders) && appointment.reminders.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {appointment.reminders.map((reminder) => (
+                        <span
+                          key={reminder.id}
+                          className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                        >
+                          {reminder.reminder_type.toUpperCase()} • {reminder.status}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

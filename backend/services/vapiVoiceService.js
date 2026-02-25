@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const createEmailService = require('./emailService');
 const { updateLeadIntelligence } = require('./leadIntelligenceService');
+const { enqueueJob } = require('./jobQueueService');
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
@@ -19,10 +20,20 @@ const VAPI_WEBHOOK_SECRET = process.env.VAPI_WEBHOOK_SECRET || '';
 const callContextMap = new Map();
 const transcriptBufferMap = new Map();
 const finalizedCalls = new Set();
+let realtimePublisher = null;
 
 const FINAL_MESSAGE_TYPES = new Set(['end-of-call-report']);
 const FINAL_STATUSES = new Set(['ended']);
 const APPOINTMENT_REMINDER_SOURCE = 'appointment_reminder';
+
+const publishReminderOutcomeRealtime = async (payload = {}) => {
+    if (typeof realtimePublisher !== 'function') return;
+    try {
+        await realtimePublisher(payload);
+    } catch (error) {
+        console.warn('[Vapi] Failed to publish reminder outcome realtime event:', error?.message || error);
+    }
+};
 
 const pickFirst = (...values) => values.find((value) => value !== null && value !== undefined && value !== '') || null;
 
@@ -520,19 +531,37 @@ const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcr
         });
     }
 
+    await publishReminderOutcomeRealtime({
+        appointmentId,
+        leadId: resolvedLeadId || null,
+        agentId: extractAgentIdFromAppointment(appointment || {}),
+        outcome: outcome.key,
+        provider: 'vapi',
+        occurredAt: new Date().toISOString(),
+        notes: endedReason || null
+    });
+
     if (outcome.eventType === 'APPOINTMENT_CONFIRMED' || outcome.eventType === 'APPOINTMENT_RESCHEDULE_REQUESTED' || outcome.eventType === 'HUMAN_HANDOFF_REQUESTED') {
         const agentId = extractAgentIdFromAppointment(appointment || {});
         const dashboardPath = `/dashboard/leads/${resolvedLeadId || ''}`;
         try {
-            await sendAgentAppointmentUpdateEmail({
-                agentId,
-                appointment,
-                lead,
-                outcome: outcome.key,
-                dashboardPath
+            await enqueueJob({
+                type: 'email_send',
+                payload: {
+                    kind: 'appointment_update_agent',
+                    agent_id: agentId || null,
+                    lead_id: resolvedLeadId || null,
+                    appointment_id: appointmentId,
+                    outcome: outcome.key,
+                    dashboard_path: dashboardPath
+                },
+                idempotencyKey: `email:appt_update:${appointmentId}:${outcome.key}`,
+                priority: 3,
+                runAt: new Date().toISOString(),
+                maxAttempts: 3
             });
         } catch (error) {
-            console.warn('[Vapi] Failed to send appointment update email:', error.message);
+            console.warn('[Vapi] Failed to enqueue appointment update email job:', error.message);
         }
     }
 };
@@ -616,6 +645,10 @@ const handleVapiWebhook = async (req, res) => {
     processVapiWebhook(req.body || {}).catch((error) => {
         console.error('[Vapi] Webhook processing failed:', error.message);
     });
+};
+
+const setRealtimePublisher = (publisher) => {
+    realtimePublisher = typeof publisher === 'function' ? publisher : null;
 };
 
 const createCallPayload = ({ to, context, selectedAssistantId, conversationId }) => {
@@ -808,5 +841,6 @@ const initiateOutboundCall = async (to, _prompt = '', context = {}, _req = null)
 module.exports = {
     initiateOutboundCall,
     handleVapiWebhook,
-    processVapiWebhook
+    processVapiWebhook,
+    setRealtimePublisher
 };

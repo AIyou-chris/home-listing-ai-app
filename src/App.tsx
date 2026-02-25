@@ -56,8 +56,7 @@ const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import AdminLogin from './components/AdminLogin'; // Keep AdminLogin static for faster auth interaction? No, lazy is fine if wrapped.
 const AdminDashboard = lazy(() => import('./admin-dashboard/AdminDashboard'));
 const LeadDetailDashboard = lazy(() => import('./admin-dashboard/LeadDetailDashboard'));
-
-
+import { NotFound } from './components/NotFound';
 const DemoListingPage = lazy(() => import('./components/DemoListingPage'));
 const ChatBotFAB = lazy(() => import('./components/ChatBotFAB'));
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage').then(module => ({ default: module.StorefrontPage })));
@@ -96,6 +95,7 @@ import { listingsService, CreatePropertyInput } from './services/listingsService
 import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
+import DashboardRealtimeBootstrap from './components/dashboard-command/DashboardRealtimeBootstrap';
 // SessionService removed
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
@@ -1318,6 +1318,7 @@ const App: React.FC = () => {
                 </div>
 
                 <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
+                    <DashboardRealtimeBootstrap />
                     <Outlet />
                 </main>
             </div>
@@ -1612,7 +1613,7 @@ const App: React.FC = () => {
                     <Route path="/new-landing" element={<NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />} />
 
                     {/* Fallback */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
+                    <Route path="*" element={<NotFound />} />
                 </Routes>
             </div>
         );
