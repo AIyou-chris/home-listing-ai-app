@@ -10433,6 +10433,40 @@ app.get('/api/dashboard/command-center', async (req, res) => {
     const agentId = resolveDashboardOwnerId(req);
     if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
 
+    const loadRecentConfirmations = async () => {
+      const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const runQuery = async ({ ownerMode = 'agent_or_user', timeField = 'updated_at' } = {}) => {
+        let query = supabaseAdmin
+          .from('appointments')
+          .select('id')
+          .eq('status', 'confirmed')
+          .gte(timeField, sinceIso);
+
+        if (agentId) {
+          query = ownerMode === 'agent_or_user'
+            ? query.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+            : query.eq('user_id', agentId);
+        }
+
+        return query;
+      };
+
+      let result = await runQuery({ ownerMode: 'agent_or_user', timeField: 'updated_at' });
+      if (result.error && /column .*updated_at.* does not exist/i.test(result.error.message || '')) {
+        result = await runQuery({ ownerMode: 'agent_or_user', timeField: 'created_at' });
+      }
+      if (result.error && /agent_id/i.test(result.error.message || '')) {
+        result = await runQuery({ ownerMode: 'user_only', timeField: 'updated_at' });
+        if (result.error && /column .*updated_at.* does not exist/i.test(result.error.message || '')) {
+          result = await runQuery({ ownerMode: 'user_only', timeField: 'created_at' });
+        }
+      }
+
+      if (result.error) throw result.error;
+      return result.data || [];
+    };
+
     const runLeadQuery = (ownerMode = 'agent_or_user') => {
       let scoped = supabaseAdmin
         .from('leads')
@@ -10474,18 +10508,10 @@ app.get('/api/dashboard/command-center', async (req, res) => {
         fromIso: new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
         toIso: new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
       }),
-      supabaseAdmin
-        .from('appointments')
-        .select('id')
-        .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
-        .eq('status', 'confirmed')
-        .gte('updated_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      loadRecentConfirmations()
     ]);
 
     if (listingRowsRes.error) throw listingRowsRes.error;
-    if (confirmationsRows.error && !/column .*updated_at.* does not exist/i.test(confirmationsRows.error.message || '')) {
-      throw confirmationsRows.error;
-    }
 
     const listingMap = (listingRowsRes.data || []).reduce((acc, row) => {
       acc[row.id] = row;
@@ -10604,7 +10630,7 @@ app.get('/api/dashboard/command-center', async (req, res) => {
     todayStart.setHours(0, 0, 0, 0);
     const newLeadsToday = mappedLeads.filter((lead) => new Date(lead.created_at || 0).getTime() >= todayStart.getTime()).length;
     const appointmentsToday = (appointmentsTodayRows || []).length;
-    const confirmations7d = Array.isArray(confirmationsRows.data) ? confirmationsRows.data.length : 0;
+    const confirmations7d = Array.isArray(confirmationsRows) ? confirmationsRows.length : 0;
 
     res.json({
       success: true,
