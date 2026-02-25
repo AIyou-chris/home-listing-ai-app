@@ -260,11 +260,11 @@ Best regards,`
                 setSmsMessage('');
                 onClose();
             } else {
-                alert('Failed to send SMS. Ensure the number is valid and verify your Telnyx setup.');
+                alert('SMS is marked as Coming Soon right now. Please use email or call for now.');
             }
         } catch (error) {
             console.error('Failed to send SMS', error);
-            alert('Failed to send SMS');
+            alert('SMS is marked as Coming Soon right now. Please use email or call for now.');
         } finally {
             setIsSendingSms(false);
         }
@@ -315,7 +315,7 @@ Best regards,`
         if (!confirm(`Initialize AI Associate call to ${lead.name}?`)) return;
 
         try {
-            const response = await fetch('/api/voice/hume/outbound-call', {
+            const response = await fetch('/api/voice/outbound-call', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -328,7 +328,7 @@ Best regards,`
 
             const data = await response.json();
             if (response.ok) {
-                alert('Call initiated via Telnyx! The AI will begin speaking once they answer.');
+                alert('AI call started. The assistant will begin speaking once they answer.');
             } else {
                 throw new Error(data.error || 'Failed to start call');
             }
@@ -440,7 +440,7 @@ Best regards,`
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-indigo-900 text-sm">Instant AI Associate</h4>
-                                    <p className="text-xs text-indigo-600 font-medium">Powered by Hume Empathic Voice</p>
+                                    <p className="text-xs text-indigo-600 font-medium">Powered by the live call bot profile</p>
                                 </div>
                             </div>
                             <button

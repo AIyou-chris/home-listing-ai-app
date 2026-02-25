@@ -40,6 +40,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     appointments,
     tasks: _tasks,
     onSelectProperty: _onSelectProperty,
+    onTaskUpdate,
     onViewLeads,
     onViewLogs,
     onViewListings,
@@ -88,6 +89,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     title="Upcoming Viewings"
                     value={upcomingAppts}
                     icon="event"
+                    color="bg-emerald-600"
+                    onClick={onViewAppointments}
                 />
             </div>
 

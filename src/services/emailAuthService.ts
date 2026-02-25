@@ -93,7 +93,7 @@ class EmailAuthService {
     async connectGmail(): Promise<EmailConnection> {
         try {
             // Get userId from context (you'll need to pass this in)
-            const userId = this.getUserId();
+            const userId = await this.getUserId();
 
             // Use the existing Google OAuth service with gmail.send scope
             const result = await googleOAuthService.authenticate([

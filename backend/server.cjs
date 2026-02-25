@@ -49,6 +49,8 @@ if (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
   console.warn('⚠️ [Config] MAILGUN_WEBHOOK_SIGNING_KEY is using the Sending API Key as a fallback. Webhook verification WILL FAIL unless you provide the specialized Signing Key from the Mailgun dashboard.');
 }
 const APP_URL = process.env.VITE_APP_URL || process.env.APP_URL || 'http://localhost:5173';
+const SMS_COMING_SOON =
+  String(process.env.SMS_COMING_SOON || 'true').toLowerCase() !== 'false';
 
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -2176,6 +2178,212 @@ const resolveSidekickOwner = (explicitUserId) => {
   if (isUuid(explicitUserId)) return explicitUserId;
   if (isUuid(DEFAULT_LEAD_USER_ID)) return DEFAULT_LEAD_USER_ID;
   return null;
+};
+
+const nowIso = () => new Date().toISOString();
+
+const normalizeEmailLower = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const next = value.trim().toLowerCase();
+  return next || null;
+};
+
+const normalizePhoneE164 = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  if (value.trim().startsWith('+')) return value.trim();
+  return `+${digits}`;
+};
+
+const resolveListingForCapture = async (listingId) => {
+  if (!listingId) return null;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .select('id, user_id, address, city, state, zip, price, bedrooms, bathrooms, sqft, status')
+      .eq('id', listingId)
+      .single();
+
+    if (error || !data) return null;
+
+    return {
+      id: data.id,
+      agentId: data.user_id,
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      zip: data.zip,
+      price: data.price,
+      beds: data.bedrooms,
+      baths: data.bathrooms,
+      sqft: data.sqft,
+      status: data.status
+    };
+  } catch (error) {
+    console.warn('[LeadCapture] Listing lookup failed:', error?.message || error);
+    return null;
+  }
+};
+
+const recordLeadEvent = async ({ leadId, type, payload }) => {
+  if (!leadId || !type) return;
+  try {
+    await supabaseAdmin.from('lead_events').insert({
+      lead_id: leadId,
+      type,
+      payload: payload || {},
+      created_at: nowIso()
+    });
+  } catch (error) {
+    console.warn(`[LeadCapture] Failed to write lead_events (${type}):`, error?.message || error);
+  }
+};
+
+const attachLeadToConversation = async ({
+  conversationId,
+  leadId,
+  listingId,
+  visitorId,
+  agentId,
+  context
+}) => {
+  if (!conversationId || !leadId) return false;
+  try {
+    const { data: conversation } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('metadata')
+      .eq('id', conversationId)
+      .single();
+
+    const nextMetadata = {
+      ...(conversation?.metadata || {}),
+      listing_id: listingId,
+      visitor_id: visitorId,
+      capture_context: context || 'general_info'
+    };
+
+    await supabaseAdmin
+      .from('ai_conversations')
+      .update({
+        lead_id: leadId,
+        user_id: agentId,
+        metadata: nextMetadata,
+        updated_at: nowIso()
+      })
+      .eq('id', conversationId);
+    return true;
+  } catch (error) {
+    console.warn('[LeadCapture] Failed to attach lead to conversation:', error?.message || error);
+    return false;
+  }
+};
+
+const sendLeadCaptureNotifications = async ({
+  lead,
+  listing,
+  context,
+  fullName,
+  phoneE164,
+  emailLower
+}) => {
+  const attempts = [];
+  const dashboardBase = process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com';
+  const ctaUrl = `${dashboardBase.replace(/\/$/, '')}/dashboard/leads/${lead.id}`;
+
+  // Push/in-app notification
+  try {
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .insert({
+        user_id: lead.agent_id,
+        title: 'New lead captured',
+        content: `${fullName || 'Unknown lead'} captured from ${listing.address || 'a listing'}.`,
+        type: 'lead',
+        priority: 'high',
+        is_read: false
+      });
+    if (error) throw error;
+    attempts.push({ channel: 'push', status: 'sent' });
+  } catch (error) {
+    attempts.push({ channel: 'push', status: 'failed', reason: error?.message || 'push_insert_failed' });
+  }
+
+  // SMS temporarily paused.
+  if (SMS_COMING_SOON) {
+    attempts.push({ channel: 'sms', status: 'coming_soon', reason: 'sms_temporarily_paused' });
+  } else {
+    try {
+      const canSendSms = await shouldSendNotification(lead.agent_id, 'sms', 'smsNewLeadAlerts');
+      if (!canSendSms) {
+        attempts.push({ channel: 'sms', status: 'skipped', reason: 'preferences_blocked' });
+      } else {
+        const prefs = await getNotificationPreferences(lead.agent_id);
+        const destination = prefs.notificationPhone || phoneE164;
+        if (!destination) {
+          attempts.push({ channel: 'sms', status: 'failed', reason: 'missing_destination_number' });
+        } else {
+          const smsText = `New lead: ${fullName || 'Unknown'} | ${listing.address || ''} | ${context || 'general_info'}`;
+          const smsResult = await sendSms(destination, smsText);
+          attempts.push({ channel: 'sms', status: smsResult ? 'sent' : 'failed' });
+        }
+      }
+    } catch (error) {
+      attempts.push({ channel: 'sms', status: 'failed', reason: error?.message || 'sms_error' });
+    }
+  }
+
+  // Email fallback if SMS is unavailable/failed or push failed.
+  const shouldFallbackToEmail = attempts.some(
+    (attempt) => attempt.channel !== 'email' && attempt.status !== 'sent'
+  );
+  if (shouldFallbackToEmail) {
+    let targetEmail = null;
+    try {
+      const { data: agent, error: agentError } = await supabaseAdmin
+        .from('agents')
+        .select('email')
+        .eq('id', lead.agent_id)
+        .single();
+      if (!agentError) targetEmail = agent?.email || null;
+    } catch (error) {
+      // no-op
+    }
+    targetEmail = targetEmail || process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
+
+    if (targetEmail) {
+      try {
+        await emailService.sendEmail({
+          to: targetEmail,
+          subject: `Lead capture: ${fullName || emailLower || phoneE164 || 'new lead'}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+              <h3>Lead Captured</h3>
+              <p><strong>Name:</strong> ${fullName || 'Unknown'}</p>
+              <p><strong>Phone:</strong> ${phoneE164 || 'N/A'}</p>
+              <p><strong>Email:</strong> ${emailLower || 'N/A'}</p>
+              <p><strong>Listing:</strong> ${listing.address || 'N/A'}</p>
+              <p><strong>Context:</strong> ${context || 'general_info'}</p>
+              <p><a href="${ctaUrl}">Open Lead Detail</a></p>
+              ${SMS_COMING_SOON ? '<p style="color:#92400e;">SMS is currently marked as Coming Soon.</p>' : ''}
+            </div>
+          `
+        });
+        attempts.push({ channel: 'email', status: 'sent', destination: targetEmail, cta_url: ctaUrl });
+      } catch (error) {
+        attempts.push({ channel: 'email', status: 'failed', reason: error?.message || 'email_error' });
+      }
+    } else {
+      attempts.push({ channel: 'email', status: 'failed', reason: 'missing_agent_email' });
+    }
+  }
+
+  return {
+    attempts,
+    cta_url: ctaUrl
+  };
 };
 
 const SIDEKICK_SCOPES = ['agent', 'marketing', 'listing', 'sales', 'support', 'helper', 'main', 'god'];
@@ -4731,7 +4939,15 @@ app.get('/api/notifications/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const settings = await getNotificationPreferences(userId);
-    res.json({ success: true, settings });
+    if (SMS_COMING_SOON) {
+      settings.smsNewLeadAlerts = false;
+      settings.smsReminders = false;
+    }
+    res.json({
+      success: true,
+      settings,
+      smsChannel: SMS_COMING_SOON ? 'coming_soon' : 'active'
+    });
   } catch (error) {
     console.error('Error fetching notification settings:', error);
     res.status(500).json({ success: false, error: 'Failed to load notification settings' });
@@ -4742,8 +4958,20 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const updates = req.body || {};
+    if (SMS_COMING_SOON) {
+      updates.smsNewLeadAlerts = false;
+      updates.smsReminders = false;
+    }
     const settings = await updateNotificationPreferences(userId, updates);
-    res.json({ success: true, settings });
+    if (SMS_COMING_SOON) {
+      settings.smsNewLeadAlerts = false;
+      settings.smsReminders = false;
+    }
+    res.json({
+      success: true,
+      settings,
+      smsChannel: SMS_COMING_SOON ? 'coming_soon' : 'active'
+    });
   } catch (error) {
     console.error('Error updating notification settings:', error);
     res.status(500).json({ success: false, error: 'Failed to update notification settings' });
@@ -8247,22 +8475,24 @@ app.post('/api/leads', async (req, res) => {
       }
     }
 
-    // 2. SMS Notifications
+    // 2. Agent Notifications (SMS paused, email fallback active)
     if (agentId) {
       try {
-        if (await shouldSendNotification(agentId, 'sms', 'smsNewLeadAlerts')) {
-          const prefs = await getNotificationPreferences(agentId);
-          let agentPhone = prefs.notificationPhone;
+        const prefs = await getNotificationPreferences(agentId);
+        let agentPhone = prefs.notificationPhone;
+        let agentEmail = process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
 
-          if (!agentPhone && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-            const { data: agent } = await supabaseAdmin
-              .from('agents')
-              .select('phone')
-              .eq('id', agentId)
-              .single();
-            if (agent) agentPhone = agent.phone;
-          }
+        if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+          const { data: agent } = await supabaseAdmin
+            .from('agents')
+            .select('phone, email')
+            .eq('id', agentId)
+            .single();
+          if (agent?.phone) agentPhone = agent.phone;
+          if (agent?.email) agentEmail = agent.email;
+        }
 
+        if (!SMS_COMING_SOON && await shouldSendNotification(agentId, 'sms', 'smsNewLeadAlerts')) {
           if (agentPhone) {
             const smsMessage = `New Lead Alert: ${name} just signed up! 📞 ${phone || 'No phone'} 📧 ${email}`;
             await sendSms(agentPhone, smsMessage);
@@ -8270,9 +8500,32 @@ app.post('/api/leads', async (req, res) => {
           } else {
             console.warn(`⚠️ SMS Alert skipped: No phone number found for Agent ${agentId}`);
           }
+        } else if (SMS_COMING_SOON) {
+          console.log(`📵 SMS alerts are coming soon. Skipping SMS for Agent ${agentId}.`);
+        }
+
+        if (agentEmail) {
+          await emailService.sendEmail({
+            to: agentEmail,
+            subject: `New lead captured: ${name || email}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+                <h3 style="margin: 0 0 12px;">New lead captured</h3>
+                <p><strong>Name:</strong> ${name || 'Unknown'}</p>
+                <p><strong>Email:</strong> ${email || 'N/A'}</p>
+                <p><strong>Phone:</strong> ${phone || 'N/A'}</p>
+                <p><strong>Source:</strong> ${source || 'web'}</p>
+                <p><strong>Status:</strong> New</p>
+                <p style="margin-top: 14px;">
+                  <a href="${process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com'}/dashboard/leads">Open Leads Inbox</a>
+                </p>
+                ${SMS_COMING_SOON ? '<p style="color:#92400e;">SMS alerts are marked as Coming Soon.</p>' : ''}
+              </div>
+            `
+          });
         }
       } catch (notifyErr) {
-        console.warn('Failed to send lead SMS notification:', notifyErr.message);
+        console.warn('Failed to notify agent for new lead:', notifyErr.message);
       }
     }
 
@@ -8315,6 +8568,484 @@ app.post('/api/leads', async (req, res) => {
   } catch (error) {
     console.error('Create lead error:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Bootstrap a visitor session for public listing capture.
+app.post('/api/public/listings/:listingId/session', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const visitorId = (req.body?.visitor_id || req.headers['x-visitor-id'] || crypto.randomUUID()).toString();
+
+    const listing = await resolveListingForCapture(listingId);
+    if (!listing) {
+      return res.status(404).json({ error: 'listing_not_found' });
+    }
+
+    const timestamp = nowIso();
+    const { data: conversation, error } = await supabaseAdmin
+      .from('ai_conversations')
+      .insert({
+        user_id: listing.agentId || DEFAULT_LEAD_USER_ID,
+        contact_name: 'Visitor',
+        type: 'chat',
+        status: 'active',
+        last_message_at: timestamp,
+        metadata: {
+          listing_id: listingId,
+          visitor_id: visitorId,
+          source: 'public_listing',
+          channel: 'web'
+        },
+        created_at: timestamp,
+        updated_at: timestamp
+      })
+      .select('id')
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      visitor_id: visitorId,
+      conversation_id: conversation.id,
+      listing_id: listingId
+    });
+  } catch (error) {
+    console.error('[LeadCapture] Failed to create public listing session:', error);
+    res.status(500).json({ error: 'failed_to_create_session' });
+  }
+});
+
+// Single source of truth: create or dedupe lead captures from public listing CTAs.
+app.post('/api/leads/capture', async (req, res) => {
+  try {
+    const {
+      listing_id: listingId,
+      visitor_id: visitorId,
+      conversation_id: conversationId,
+      full_name: fullName,
+      phone,
+      email,
+      consent_sms: consentSms,
+      source_type: sourceType = 'unknown',
+      source_meta: sourceMeta = {},
+      context = 'general_info'
+    } = req.body || {};
+
+    if (!listingId) {
+      return res.status(400).json({ error: 'listing_id_required' });
+    }
+
+    const phoneE164 = normalizePhoneE164(phone || '');
+    const emailLower = normalizeEmailLower(email || '');
+
+    if (!phoneE164 && !emailLower) {
+      return res.status(400).json({ error: 'phone_or_email_required' });
+    }
+
+    if (phoneE164 && consentSms !== true) {
+      return res.status(400).json({ error: 'consent_sms_required_when_phone_present' });
+    }
+
+    const listing = await resolveListingForCapture(listingId);
+    if (!listing) {
+      return res.status(404).json({ error: 'listing_not_found' });
+    }
+
+    const agentId = listing.agentId || DEFAULT_LEAD_USER_ID;
+    const timestamp = nowIso();
+
+    let existingLead = null;
+    if (phoneE164) {
+      const { data } = await supabaseAdmin
+        .from('leads')
+        .select('id, status, intent_level, phone_e164, email_lower')
+        .eq('agent_id', agentId)
+        .eq('listing_id', listingId)
+        .eq('phone_e164', phoneE164)
+        .limit(1);
+      if (data && data.length > 0) existingLead = data[0];
+    }
+
+    if (!existingLead && emailLower) {
+      const { data } = await supabaseAdmin
+        .from('leads')
+        .select('id, status, intent_level, phone_e164, email_lower')
+        .eq('agent_id', agentId)
+        .eq('listing_id', listingId)
+        .eq('email_lower', emailLower)
+        .limit(1);
+      if (data && data.length > 0) existingLead = data[0];
+    }
+
+    let leadId = null;
+    let isDeduped = false;
+    let leadStatus = 'New';
+    let intentLevel = (phoneE164 || emailLower) ? 'Warm' : 'Cold';
+
+    if (existingLead) {
+      isDeduped = true;
+      leadId = existingLead.id;
+      leadStatus = existingLead.status || 'New';
+      intentLevel = existingLead.intent_level || intentLevel;
+
+      const updatePayload = {
+        updated_at: timestamp,
+        full_name: fullName || undefined,
+        name: fullName || undefined,
+        phone: phoneE164 || phone || undefined,
+        phone_e164: phoneE164 || undefined,
+        email: emailLower || undefined,
+        email_lower: emailLower || undefined,
+        source_type: sourceType,
+        source: sourceType,
+        source_meta: sourceMeta || {},
+        last_message: 'Contact captured',
+        last_message_preview: 'Contact captured',
+        last_message_at: timestamp,
+        last_contact: timestamp
+      };
+
+      await supabaseAdmin
+        .from('leads')
+        .update(updatePayload)
+        .eq('id', leadId);
+
+      await recordLeadEvent({
+        leadId,
+        type: 'LEAD_DEDUPED',
+        payload: { listing_id: listingId, source_type: sourceType, context }
+      });
+    } else {
+      const insertPayload = {
+        user_id: agentId,
+        agent_id: agentId,
+        listing_id: listingId,
+        full_name: fullName || null,
+        name: fullName || null,
+        phone: phoneE164 || phone || null,
+        phone_e164: phoneE164 || null,
+        email: emailLower || null,
+        email_lower: emailLower || null,
+        source_type: sourceType,
+        source: sourceType,
+        source_meta: sourceMeta || {},
+        consent_sms: !!(phoneE164 && consentSms === true),
+        consent_timestamp: phoneE164 && consentSms === true ? timestamp : null,
+        status: 'New',
+        intent_level: intentLevel,
+        timeline: 'unknown',
+        financing: 'unknown',
+        working_with_agent: 'unknown',
+        last_message: 'Contact captured',
+        last_message_preview: 'Contact captured',
+        last_message_at: timestamp,
+        last_contact: timestamp,
+        notes: `Capture context: ${context}`,
+        created_at: timestamp,
+        updated_at: timestamp
+      };
+
+      const { data: createdLead, error: createError } = await supabaseAdmin
+        .from('leads')
+        .insert(insertPayload)
+        .select('id, status, intent_level')
+        .single();
+
+      if (createError || !createdLead) {
+        throw createError || new Error('failed_to_create_lead');
+      }
+
+      leadId = createdLead.id;
+      leadStatus = createdLead.status || 'New';
+      intentLevel = createdLead.intent_level || intentLevel;
+
+      await recordLeadEvent({
+        leadId,
+        type: 'LEAD_CREATED',
+        payload: { listing_id: listingId, source_type: sourceType, context }
+      });
+    }
+
+    await recordLeadEvent({
+      leadId,
+      type: 'CONTACT_CAPTURED',
+      payload: {
+        listing_id: listingId,
+        visitor_id: visitorId || null,
+        context,
+        has_phone: !!phoneE164,
+        has_email: !!emailLower
+      }
+    });
+
+    if (phoneE164 && consentSms === true) {
+      await recordLeadEvent({
+        leadId,
+        type: 'CONSENT_RECORDED',
+        payload: {
+          consent_sms: true,
+          consent_timestamp: timestamp
+        }
+      });
+    }
+
+    await attachLeadToConversation({
+      conversationId,
+      leadId,
+      listingId,
+      visitorId,
+      agentId,
+      context
+    });
+
+    const notificationResult = await sendLeadCaptureNotifications({
+      lead: { id: leadId, agent_id: agentId },
+      listing,
+      context,
+      fullName,
+      phoneE164,
+      emailLower
+    });
+
+    await recordLeadEvent({
+      leadId,
+      type: 'NOTIFIED_AGENT',
+      payload: {
+        context,
+        listing_id: listingId,
+        notification_attempts: notificationResult.attempts,
+        sms_channel: SMS_COMING_SOON ? 'coming_soon' : 'active'
+      }
+    });
+
+    res.json({
+      lead_id: leadId,
+      is_deduped: isDeduped,
+      status: leadStatus,
+      intent_level: intentLevel,
+      sms_channel: SMS_COMING_SOON ? 'coming_soon' : 'active'
+    });
+  } catch (error) {
+    console.error('[LeadCapture] Failed to capture lead:', error);
+    res.status(500).json({ error: 'lead_capture_failed' });
+  }
+});
+
+app.get('/api/dashboard/leads', async (req, res) => {
+  try {
+    const tab = (req.query.tab || 'New').toString();
+    const listingId = req.query.listingId ? String(req.query.listingId) : null;
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || DEFAULT_LEAD_USER_ID || '');
+
+    if (!agentId) {
+      return res.status(400).json({ error: 'agent_id_required' });
+    }
+
+    let query = supabaseAdmin
+      .from('leads')
+      .select('id, listing_id, full_name, name, phone, phone_e164, email, email_lower, source_type, source, status, intent_level, created_at, updated_at')
+      .eq('agent_id', agentId)
+      .order('created_at', { ascending: false });
+
+    if (tab.toLowerCase() === 'new') {
+      query = query.eq('status', 'New');
+    }
+    if (listingId) {
+      query = query.eq('listing_id', listingId);
+    }
+
+    const { data: leads, error } = await query;
+    if (error) throw error;
+
+    const listingIds = Array.from(new Set((leads || []).map((lead) => lead.listing_id).filter(Boolean)));
+    let listingMap = {};
+    if (listingIds.length > 0) {
+      const { data: listingRows } = await supabaseAdmin
+        .from('properties')
+        .select('id, address, city, state, zip')
+        .in('id', listingIds);
+      listingMap = (listingRows || []).reduce((acc, row) => {
+        acc[row.id] = row;
+        return acc;
+      }, {});
+    }
+
+    const mapped = (leads || []).map((lead) => ({
+      id: lead.id,
+      name: lead.full_name || lead.name || 'Unknown',
+      phone: lead.phone_e164 || lead.phone || null,
+      email: lead.email_lower || lead.email || null,
+      status: lead.status || 'New',
+      source_type: lead.source_type || lead.source || 'unknown',
+      intent_level: lead.intent_level || 'Warm',
+      created_at: lead.created_at,
+      listing_id: lead.listing_id || null,
+      listing: lead.listing_id ? (listingMap[lead.listing_id] || null) : null
+    }));
+
+    res.json({
+      success: true,
+      tab,
+      leads: mapped
+    });
+  } catch (error) {
+    console.error('[LeadCapture] Failed to load dashboard leads:', error);
+    res.status(500).json({ error: 'failed_to_load_leads' });
+  }
+});
+
+app.get('/api/dashboard/leads/:leadId', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || DEFAULT_LEAD_USER_ID || '');
+
+    let leadQuery = supabaseAdmin
+      .from('leads')
+      .select('*')
+      .eq('id', leadId)
+      .limit(1);
+
+    if (agentId) {
+      leadQuery = leadQuery.eq('agent_id', agentId);
+    }
+
+    const { data: leadRows, error: leadError } = await leadQuery;
+    if (leadError) throw leadError;
+    if (!leadRows || leadRows.length === 0) {
+      return res.status(404).json({ error: 'lead_not_found' });
+    }
+    const lead = leadRows[0];
+
+    let listing = null;
+    if (lead.listing_id) {
+      const { data: listingRow } = await supabaseAdmin
+        .from('properties')
+        .select('id, address, city, state, zip, price, bedrooms, bathrooms, sqft, status')
+        .eq('id', lead.listing_id)
+        .single();
+      listing = listingRow || null;
+    }
+
+    const { data: events } = await supabaseAdmin
+      .from('lead_events')
+      .select('id, type, payload, created_at')
+      .eq('lead_id', lead.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    const { data: conversations } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id, last_message, last_message_at, created_at, type, status')
+      .eq('lead_id', lead.id)
+      .order('updated_at', { ascending: false })
+      .limit(3);
+
+    const conversationIds = (conversations || []).map((row) => row.id);
+    let transcript = [];
+    if (conversationIds.length > 0) {
+      const { data: messages } = await supabaseAdmin
+        .from('ai_conversation_messages')
+        .select('id, conversation_id, sender, channel, content, created_at')
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: true })
+        .limit(100);
+      transcript = messages || [];
+    }
+
+    res.json({
+      success: true,
+      lead,
+      listing,
+      events: events || [],
+      transcript: transcript.length > 0 ? transcript : [{ type: 'placeholder', content: 'No conversation yet' }]
+    });
+  } catch (error) {
+    console.error('[LeadCapture] Failed to load lead detail:', error);
+    res.status(500).json({ error: 'failed_to_load_lead_detail' });
+  }
+});
+
+app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const updates = req.body || {};
+    const allowedStatus = ['New', 'Contacted', 'Nurture', 'Closed-Lost'];
+    const status = allowedStatus.includes(updates.status) ? updates.status : null;
+
+    if (!status) {
+      return res.status(400).json({ error: 'invalid_status' });
+    }
+
+    const patch = {
+      status,
+      timeline: updates.timeline || undefined,
+      financing: updates.financing || undefined,
+      working_with_agent: updates.working_with_agent || undefined,
+      updated_at: nowIso()
+    };
+
+    const { data: updatedLead, error } = await supabaseAdmin
+      .from('leads')
+      .update(patch)
+      .eq('id', leadId)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+
+    await recordLeadEvent({
+      leadId,
+      type: 'STATUS_UPDATED',
+      payload: {
+        status,
+        timeline: updates.timeline || null,
+        financing: updates.financing || null,
+        working_with_agent: updates.working_with_agent || null
+      }
+    });
+
+    res.json({ success: true, lead: updatedLead });
+  } catch (error) {
+    console.error('[LeadCapture] Failed to update lead status:', error);
+    res.status(500).json({ error: 'failed_to_update_status' });
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/leads', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || DEFAULT_LEAD_USER_ID || '');
+
+    let query = supabaseAdmin
+      .from('leads')
+      .select('id, full_name, name, phone, phone_e164, email, email_lower, status, source_type, source, created_at, listing_id')
+      .eq('listing_id', listingId)
+      .order('created_at', { ascending: false });
+
+    if (agentId) {
+      query = query.eq('agent_id', agentId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      leads: (data || []).map((lead) => ({
+        id: lead.id,
+        name: lead.full_name || lead.name || 'Unknown',
+        phone: lead.phone_e164 || lead.phone || null,
+        email: lead.email_lower || lead.email || null,
+        status: lead.status || 'New',
+        source_type: lead.source_type || lead.source || 'unknown',
+        created_at: lead.created_at
+      }))
+    });
+  } catch (error) {
+    console.error('[LeadCapture] Failed to load listing leads:', error);
+    res.status(500).json({ error: 'failed_to_load_listing_leads' });
   }
 });
 
@@ -14330,6 +15061,13 @@ app.post('/api/sms/send', async (req, res) => {
     const { to, message, userId } = req.body;
     if (!to || !message) {
       return res.status(400).json({ error: 'Missing to or message' });
+    }
+
+    if (SMS_COMING_SOON) {
+      return res.status(503).json({
+        error: 'sms_coming_soon',
+        message: 'SMS is temporarily paused and marked as coming soon.'
+      });
     }
 
     // Optional rate limiting check

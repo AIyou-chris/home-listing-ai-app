@@ -1,4 +1,6 @@
 const { supabaseAdmin } = require('../services/supabase');
+const SMS_COMING_SOON =
+  String(process.env.SMS_COMING_SOON || 'true').toLowerCase() !== 'false';
 
 const DEFAULT_NOTIFICATION_SETTINGS = {
   newLead: true,
@@ -16,7 +18,7 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   weekendNotifications: false,
   weeklyReport: true,
   monthlyInsights: true,
-  smsNewLeadAlerts: true,
+  smsNewLeadAlerts: false,
   notificationPhone: '+15550000000',
   smsActiveHoursStart: '09:00',
   smsActiveHoursEnd: '17:00',
@@ -76,6 +78,10 @@ const updatePreferences = async (userId, updates = {}) => {
 
   Object.entries(updates).forEach(([key, value]) => {
     if (Object.hasOwn(DEFAULT_NOTIFICATION_SETTINGS, key)) {
+      if (SMS_COMING_SOON && key === 'smsNewLeadAlerts') {
+        next[key] = false;
+        return;
+      }
       next[key] = value;
     }
   });
@@ -119,6 +125,11 @@ const shouldSend = async (userId, channel, eventKey) => {
 
   // 2. CHANNEL-SPECIFIC RULES
   if (channel === 'sms') {
+    if (SMS_COMING_SOON) {
+      console.log(`📵 [Notifications] SMS disabled (coming soon) for User ${userId}`);
+      return false;
+    }
+
     // Check SMS Consent
     if (!settings.smsConsent) {
       console.warn(`🛑 [Notifications] Blocked SMS to User ${userId}: No SMS Consent.`);
@@ -168,6 +179,5 @@ module.exports = {
   shouldSend,
   DEFAULT_NOTIFICATION_SETTINGS
 };
-
 
 

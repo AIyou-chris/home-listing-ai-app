@@ -59,7 +59,6 @@ const DemoListingPage: React.FC = () => {
         <PublicPropertyApp
           property={demo}
           onExit={() => setOpen(false)}
-          onTalkToHome={() => {}}
           showBackButton={false}
         />
       )}
@@ -68,5 +67,4 @@ const DemoListingPage: React.FC = () => {
 }
 
 export default DemoListingPage
-
 

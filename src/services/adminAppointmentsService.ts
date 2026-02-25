@@ -73,5 +73,3 @@ export const adminAppointmentsService = {
     await ensureOk(response, 'Delete appointment');
   }
 };
-
-export type { Appointment, UpdateAdminAppointmentPayload };

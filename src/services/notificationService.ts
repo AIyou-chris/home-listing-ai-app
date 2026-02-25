@@ -162,18 +162,21 @@ export default class NotificationService {
             return [];
         }
 
-        return data.map((n: Record<string, unknown>) => ({
-            id: n.id,
-            userId: n.user_id,
-            title: n.title,
-            content: n.content,
-            type: n.type,
-            priority: n.priority,
-            read: n.is_read,
-            createdAt: n.created_at,
-            expiresAt: n.expires_at,
-            link: n.link
-        }));
+        return data.map((n: Record<string, unknown>): UserNotification => {
+            const type = n.type;
+            const priority = n.priority;
+            return {
+                id: String(n.id ?? ''),
+                userId: String(n.user_id ?? userId),
+                title: String(n.title ?? ''),
+                content: String(n.content ?? ''),
+                type: (type === 'broadcast' || type === 'system' || type === 'billing' || type === 'feature') ? type : 'system',
+                priority: (priority === 'low' || priority === 'medium' || priority === 'high' || priority === 'urgent') ? priority : 'medium',
+                read: Boolean(n.is_read),
+                createdAt: String(n.created_at ?? new Date().toISOString()),
+                expiresAt: typeof n.expires_at === 'string' ? n.expires_at : undefined
+            };
+        });
     }
 
     static async markNotificationAsRead(notificationId: string): Promise<void> {

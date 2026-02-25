@@ -18,6 +18,7 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
 }) => {
     const [formData, setFormData] = useState<CalendarSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
+    const smsComingSoon = true;
     const [isConnecting, setIsConnecting] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
 
@@ -234,13 +235,24 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                     </div>
                     <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                         <div>
-                            <h4 className="font-semibold text-slate-800">SMS Reminders</h4>
-                            <p className="text-sm text-slate-500">Send text message reminders before appointments</p>
+                            <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                                SMS Reminders
+                                {smsComingSoon && (
+                                    <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                                        Coming Soon
+                                    </span>
+                                )}
+                            </h4>
+                            <p className="text-sm text-slate-500">
+                                {smsComingSoon
+                                    ? 'SMS reminders are paused while carrier registration is completed.'
+                                    : 'Send text message reminders before appointments'}
+                            </p>
                         </div>
                         <ToggleSwitch
-                            enabled={!!formData.smsReminders}
+                            enabled={smsComingSoon ? false : !!formData.smsReminders}
                             onChange={(val) => handleToggle('smsReminders', val)}
-                            disabled={isLoading || isSaving}
+                            disabled={isLoading || isSaving || smsComingSoon}
                         />
                     </div>
                 </div>

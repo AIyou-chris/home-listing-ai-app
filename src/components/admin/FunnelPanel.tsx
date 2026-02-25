@@ -510,7 +510,7 @@ export const FunnelPanel: React.FC<FunnelPanelProps> = ({
                                                                                 type="checkbox"
                                                                                 id={`unsub-${step.id}`}
                                                                                 className="rounded text-violet-600 focus:ring-violet-500"
-                                                                                checked={step.includeUnsubscribe !== 'false'}
+                                                                                checked={step.includeUnsubscribe !== false}
                                                                                 onChange={(e) => onUpdateStep(step.id, 'includeUnsubscribe', e.target.checked ? 'true' : 'false')}
                                                                             />
                                                                             <label htmlFor={`unsub-${step.id}`} className="text-xs font-semibold text-slate-600">

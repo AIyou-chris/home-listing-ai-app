@@ -744,27 +744,32 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           const blueprintId = '55555555-5555-5555-5555-555555555555';
           const response = await fetch(`/api/blueprint/leads?userId=${blueprintId}`);
           if (response.ok) {
-            const rows = await response.json();
+            const rows = await response.json() as Array<Record<string, unknown>>;
             // Map DB rows to Lead objects (similar to leadsService mapping)
             // We can reuse leadsService.mapLeadRow if exported, or just map manually here for safety
-            databaseLeads = rows.map((row: any) => ({
-              id: row.id,
-              name: row.name,
-              email: row.email || '',
-              phone: row.phone || '',
-              status: row.status || 'New',
-              date: row.created_at ? new Date(row.created_at).toLocaleDateString() : '',
-              lastMessage: row.last_message || '',
-              source: row.source || 'Unknown',
-              notes: row.notes || '',
-              score: row.score ? {
-                totalScore: row.score,
-                tier: row.score >= 90 ? 'Hot' : row.score >= 70 ? 'Qualified' : row.score >= 40 ? 'Warm' : 'Cold',
-                leadId: row.id,
-                lastUpdated: row.created_at || new Date().toISOString(),
-                scoreHistory: []
-              } : undefined
-            }));
+            databaseLeads = rows.map((row) => {
+              const id = String(row.id || `lead-${Date.now()}`);
+              const scoreValue = typeof row.score === 'number' ? row.score : Number(row.score || 0);
+              const createdAt = typeof row.created_at === 'string' ? row.created_at : new Date().toISOString();
+              return {
+                id,
+                name: String(row.name || 'Unknown'),
+                email: String(row.email || ''),
+                phone: String(row.phone || ''),
+                status: (typeof row.status === 'string' ? row.status : 'New') as LeadStatus,
+                date: createdAt ? new Date(createdAt).toLocaleDateString() : '',
+                lastMessage: String(row.last_message || ''),
+                source: String(row.source || 'Unknown'),
+                notes: String(row.notes || ''),
+                score: Number.isFinite(scoreValue) && scoreValue > 0 ? {
+                  totalScore: scoreValue,
+                  tier: scoreValue >= 90 ? 'Hot' : scoreValue >= 70 ? 'Qualified' : scoreValue >= 40 ? 'Warm' : 'Cold',
+                  leadId: id,
+                  lastUpdated: createdAt,
+                  scoreHistory: []
+                } : undefined
+              };
+            });
             console.log('✅ Loaded real blueprint leads:', databaseLeads.length);
           }
         } catch (e) {
@@ -1420,7 +1425,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
           <MarketingHub
             agentProfile={agentProfile}
             properties={properties}
-            isDemoMode={isDemoMode}
           />
         );
 

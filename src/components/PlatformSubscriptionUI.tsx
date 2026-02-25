@@ -9,7 +9,10 @@ interface PlatformSubscriptionUIProps {
 export const PlatformSubscriptionUI: React.FC<PlatformSubscriptionUIProps> = ({ accountId, currentPlan = 'free' }) => {
     const [loading, setLoading] = useState(false);
 
-    const PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_PLACEHOLDER_MISSING'; // Must be set in .env
+    const rawProPriceId = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_STRIPE_PRO_PRICE_ID;
+    const PRO_PRICE_ID = typeof rawProPriceId === 'string' && rawProPriceId.trim()
+        ? rawProPriceId
+        : 'price_PLACEHOLDER_MISSING'; // Must be set in .env
 
     const handleSubscribe = async () => {
         setLoading(true);

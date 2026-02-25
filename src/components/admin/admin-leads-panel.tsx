@@ -51,7 +51,10 @@ const statusStyles: Record<LeadStatus, string> = {
   Contacted: 'bg-yellow-100 text-yellow-700',
   Showing: 'bg-purple-100 text-purple-700',
   Lost: 'bg-red-100 text-red-700',
-  Bounced: 'bg-red-50 text-red-600'
+  Bounced: 'bg-red-50 text-red-600',
+  Unsubscribed: 'bg-slate-100 text-slate-600',
+  Won: 'bg-emerald-100 text-emerald-700',
+  'Marketing Only': 'bg-indigo-100 text-indigo-700'
 }
 
 const getLeadStatusStyle = (status: LeadStatus) => statusStyles[status]
@@ -802,4 +805,3 @@ const ScheduleLeadModal: React.FC<{
 )
 
 export default AdminLeadsPanel
-

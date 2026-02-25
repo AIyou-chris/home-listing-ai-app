@@ -126,5 +126,3 @@ export const shareAdminAICard = async (method: string, recipient?: string): Prom
   await ensureOk(response, 'Share admin AI Card');
   return (await response.json()) as AdminAICardShareResponse;
 };
-
-export type { AdminAICardProfile };

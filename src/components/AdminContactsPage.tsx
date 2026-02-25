@@ -43,6 +43,7 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 	const [scheduleDate, setScheduleDate] = useState('');
 	const [scheduleTime, setScheduleTime] = useState('');
 	const [scheduleMsg, setScheduleMsg] = useState('');
+	const [googleConnected, setGoogleConnected] = useState<boolean>(() => googleOAuthService.isAuthenticated('calendar'));
 	const { openScheduler } = useScheduler();
 
 	useEffect(() => {
@@ -56,6 +57,10 @@ const AdminContactsPage: React.FC<AdminContactsPageProps> = ({
 	useEffect(() => {
 		setLocalLeads(leads || []);
 	}, [leads]);
+
+	useEffect(() => {
+		setGoogleConnected(googleOAuthService.isAuthenticated('calendar'));
+	}, []);
 
 	const filteredUsers = useMemo(() => {
 		const q = query.trim().toLowerCase();

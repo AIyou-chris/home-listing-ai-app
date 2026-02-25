@@ -2,6 +2,8 @@ const axios = require('axios');
 
 const API_URL = 'https://api.telnyx.com/v2/messages';
 const LOOKUP_URL = 'https://api.telnyx.com/v2/number_lookups';
+const SMS_COMING_SOON =
+    String(process.env.SMS_COMING_SOON || 'true').toLowerCase() !== 'false';
 
 // SAFETY: In-memory rate limiter
 // Map<normalizedPhone, timestamp>
@@ -86,6 +88,11 @@ const validatePhoneNumber = async (phoneNumber) => {
 
 // Updated signature to accept userId for billing
 const sendSms = async (to, message, mediaUrls = [], userId = null) => {
+    if (SMS_COMING_SOON) {
+        console.log('📵 [SMS] Skipping send: SMS channel is marked as coming soon.');
+        return false;
+    }
+
     const apiKey = process.env.VITE_TELNYX_API_KEY;
     const fromNumber = process.env.VITE_TELNYX_PHONE_NUMBER;
     const { supabaseAdmin } = require('./supabase'); // Ensure we have DB access

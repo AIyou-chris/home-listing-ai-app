@@ -243,7 +243,12 @@ const AdminClientsPage: React.FC<AdminClientsPageProps> = ({
   onAddNew: _onAddNew,
   onBackToDashboard
 }) => {
-  void (_agentProfile, _properties, _leads, _appointments, _onSelectProperty, _onAddNew);
+  void _agentProfile;
+  void _properties;
+  void _leads;
+  void _appointments;
+  void _onSelectProperty;
+  void _onAddNew;
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);

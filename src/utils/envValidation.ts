@@ -10,6 +10,11 @@ export class EnvValidation {
 
   private static optionalEnvVars: string[] = [];
 
+  private static getEnvString(envVar: string): string | null {
+    const value = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.[envVar];
+    return typeof value === 'string' ? value : null;
+  }
+
   static validateEnvironment(): { isValid: boolean; errors: string[]; warnings: string[] } {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -20,7 +25,7 @@ export class EnvValidation {
     const requiredVars = this.requiredEnvVars[environment];
 
     for (const envVar of requiredVars) {
-      const value = import.meta.env[envVar];
+      const value = this.getEnvString(envVar);
 
       if (!value) {
         errors.push(`Missing required environment variable: ${envVar}`);
@@ -31,7 +36,7 @@ export class EnvValidation {
 
     // Check optional environment variables
     for (const envVar of this.optionalEnvVars) {
-      const value = import.meta.env[envVar];
+      const value = this.getEnvString(envVar);
 
       if (!value) {
         warnings.push(`Optional environment variable not set: ${envVar}`);

@@ -90,6 +90,7 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
 }) => {
     const [localSettings, setLocalSettings] = useState<NotificationSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
+    const smsComingSoon = true;
     // const [sendingTest, setSendingTest] = useState(false); // Removed unused state
 
     useEffect(() => {
@@ -99,6 +100,7 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
     }, [settings]);
 
     const handleToggle = (key: NotificationSettingKey, enabled: boolean) => {
+        if (smsComingSoon && key === 'smsNewLeadAlerts') return;
         setLocalSettings(prev => ({ ...prev, [key]: enabled }));
     };
 
@@ -128,13 +130,24 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                         {group.items.map((item) => (
                             <div key={item.key} className="flex justify-between items-center p-4 bg-slate-50 rounded-lg">
                                 <div>
-                                    <h4 className="font-medium text-slate-900">{item.label}</h4>
-                                    <p className="text-sm text-slate-500">{item.description}</p>
+                                    <h4 className="font-medium text-slate-900 flex items-center gap-2">
+                                        {item.label}
+                                        {smsComingSoon && item.key === 'smsNewLeadAlerts' && (
+                                            <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                                                Coming Soon
+                                            </span>
+                                        )}
+                                    </h4>
+                                    <p className="text-sm text-slate-500">
+                                        {smsComingSoon && item.key === 'smsNewLeadAlerts'
+                                            ? 'SMS alerts are temporarily paused while we finish carrier setup.'
+                                            : item.description}
+                                    </p>
                                 </div>
                                 <ToggleSwitch
                                     enabled={!!localSettings[item.key]}
                                     onChange={(val) => handleToggle(item.key, val)}
-                                    disabled={isLoading || isSaving}
+                                    disabled={isLoading || isSaving || (smsComingSoon && item.key === 'smsNewLeadAlerts')}
                                 />
                             </div>
                         ))}

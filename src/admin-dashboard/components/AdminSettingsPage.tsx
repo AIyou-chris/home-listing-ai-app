@@ -87,6 +87,7 @@ const Toggle: React.FC<{ value: boolean; onChange: (val: boolean) => void }> = (
 )
 
 const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const auth = useMemo(() => AuthService.getInstance(), [])
   const [activeTab, setActiveTab] = useState<'billing' | 'security' | 'analytics' | 'system' | 'deliverability'>('billing')
   const [billingSummary, setBillingSummary] = useState<BillingSummary>({ plan: 'Pro', status: 'active', nextBillingDate: '' })
   const [billingUsers, setBillingUsers] = useState<BillingUser[]>([])
@@ -121,14 +122,19 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   useEffect(() => {
     const load = async () => {
+      const fetchJson = async (url: string) => {
+        const response = await auth.makeAuthenticatedRequest(url)
+        if (!response.ok) return null
+        return response.json()
+      }
       try {
         const [billingRes, usersRes, invoicesRes, securityRes, analyticsRes, systemRes] = await Promise.all([
-          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/billing`).catch(() => null),
-          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/users/billing`).catch(() => null),
-          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/billing/invoices`).catch(() => null),
-          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/security`).catch(() => null),
-          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/analytics/overview?range=${analyticsRange}`).catch(() => null),
-          AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/system-settings`).catch(() => null)
+          fetchJson(`${apiBase}/api/admin/billing`).catch(() => null),
+          fetchJson(`${apiBase}/api/admin/users/billing`).catch(() => null),
+          fetchJson(`${apiBase}/api/admin/billing/invoices`).catch(() => null),
+          fetchJson(`${apiBase}/api/admin/security`).catch(() => null),
+          fetchJson(`${apiBase}/api/admin/analytics/overview?range=${analyticsRange}`).catch(() => null),
+          fetchJson(`${apiBase}/api/admin/system-settings`).catch(() => null)
         ])
 
         if (billingRes) setBillingSummary(billingRes)
@@ -147,14 +153,14 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         }
         if (systemRes) setSystemSettings(systemRes)
 
-        const couponsRes = await AuthService.makeAuthenticatedRequest(`${apiBase}/api/admin/coupons`).catch(() => null)
+        const couponsRes = await fetchJson(`${apiBase}/api/admin/coupons`).catch(() => null)
         if (couponsRes) setCoupons(couponsRes)
       } catch (error) {
         console.warn('Failed to load admin settings', error)
       }
     }
     void load()
-  }, [apiBase, analyticsRange])
+  }, [apiBase, analyticsRange, auth])
 
   const handleSaveSystem = async () => {
     try {
