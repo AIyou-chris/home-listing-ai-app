@@ -9469,33 +9469,47 @@ app.get('/api/dashboard/leads', async (req, res) => {
       fromDateIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     }
 
-    let query = supabaseAdmin
-      .from('leads')
-      .select('id, listing_id, full_name, name, phone, phone_e164, email, email_lower, source_type, source, status, intent_score, intent_level, timeline, financing, last_message_at, last_message_preview, lead_summary, next_best_action, created_at, updated_at, agent_id, user_id')
-      .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
-      .order('created_at', { ascending: false });
+    const buildLeadQuery = (ownerMode = 'agent_or_user') => {
+      let scoped = supabaseAdmin
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (tab.toLowerCase() === 'new') {
-      query = query.eq('status', 'New');
+      if (ownerMode === 'agent_or_user') {
+        scoped = scoped.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
+      } else {
+        scoped = scoped.eq('user_id', agentId);
+      }
+
+      if (tab.toLowerCase() === 'new') {
+        scoped = scoped.eq('status', 'New');
+      }
+
+      if (statusFilter && statusFilter.toLowerCase() !== 'all') {
+        scoped = scoped.eq('status', statusFilter);
+      }
+
+      if (intentFilter && intentFilter.toLowerCase() !== 'all') {
+        scoped = scoped.eq('intent_level', intentFilter);
+      }
+
+      if (listingId) {
+        scoped = scoped.eq('listing_id', listingId);
+      }
+
+      if (fromDateIso) {
+        scoped = scoped.gte('created_at', fromDateIso);
+      }
+
+      return scoped;
+    };
+
+    let { data: leads, error } = await buildLeadQuery('agent_or_user');
+    if (error && /agent_id/i.test(error.message || '')) {
+      const fallback = await buildLeadQuery('user_only');
+      leads = fallback.data;
+      error = fallback.error;
     }
-
-    if (statusFilter && statusFilter.toLowerCase() !== 'all') {
-      query = query.eq('status', statusFilter);
-    }
-
-    if (intentFilter && intentFilter.toLowerCase() !== 'all') {
-      query = query.eq('intent_level', intentFilter);
-    }
-
-    if (listingId) {
-      query = query.eq('listing_id', listingId);
-    }
-
-    if (fromDateIso) {
-      query = query.gte('created_at', fromDateIso);
-    }
-
-    const { data: leads, error } = await query;
     if (error) throw error;
 
     const listingIds = Array.from(new Set((leads || []).map((lead) => lead.listing_id).filter(Boolean)));
@@ -9503,7 +9517,7 @@ app.get('/api/dashboard/leads', async (req, res) => {
     if (listingIds.length > 0) {
       const { data: listingRows } = await supabaseAdmin
         .from('properties')
-        .select('id, address, city, state, zip')
+        .select('*')
         .in('id', listingIds);
       listingMap = (listingRows || []).reduce((acc, row) => {
         acc[row.id] = row;
@@ -9573,17 +9587,27 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
     const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
     const shouldRefreshIntel = String(req.query.refreshIntel || 'false').toLowerCase() === 'true';
 
-    let leadQuery = supabaseAdmin
+    const baseLeadQuery = supabaseAdmin
       .from('leads')
       .select('*')
       .eq('id', leadId)
       .limit(1);
+    const runLeadScopeQuery = (ownerMode = 'agent_or_user') => {
+      let scoped = baseLeadQuery;
+      if (agentId) {
+        scoped = ownerMode === 'agent_or_user'
+          ? scoped.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+          : scoped.eq('user_id', agentId);
+      }
+      return scoped;
+    };
 
-    if (agentId) {
-      leadQuery = leadQuery.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
+    let { data: leadRows, error: leadError } = await runLeadScopeQuery('agent_or_user');
+    if (leadError && /agent_id/i.test(leadError.message || '')) {
+      const fallback = await runLeadScopeQuery('user_only');
+      leadRows = fallback.data;
+      leadError = fallback.error;
     }
-
-    const { data: leadRows, error: leadError } = await leadQuery;
     if (leadError) throw leadError;
     if (!leadRows || leadRows.length === 0) {
       return res.status(404).json({ error: 'lead_not_found' });
@@ -9821,13 +9845,18 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
     const { listingId } = req.params;
     const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
 
-    const leadQuery = supabaseAdmin
-      .from('leads')
-      .select('id, status, created_at')
-      .eq('listing_id', listingId);
-    if (agentId) {
-      leadQuery.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
-    }
+    const runLeadQuery = async (ownerMode = 'agent_or_user') => {
+      let q = supabaseAdmin
+        .from('leads')
+        .select('*')
+        .eq('listing_id', listingId);
+      if (agentId) {
+        q = ownerMode === 'agent_or_user'
+          ? q.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+          : q.eq('user_id', agentId);
+      }
+      return q;
+    };
 
     let appointmentQuery = supabaseAdmin
       .from('appointments')
@@ -9836,7 +9865,22 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
       appointmentQuery = appointmentQuery.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
     }
 
-    const [leadRes, appointmentRes] = await Promise.all([leadQuery, appointmentQuery]);
+    let leadRes = await runLeadQuery('agent_or_user');
+    if (leadRes.error && /agent_id/i.test(leadRes.error.message || '')) {
+      leadRes = await runLeadQuery('user_only');
+    }
+
+    if (appointmentQuery && agentId) {
+      const appointmentProbe = await appointmentQuery.limit(1);
+      if (appointmentProbe.error && /agent_id/i.test(appointmentProbe.error.message || '')) {
+        appointmentQuery = supabaseAdmin
+          .from('appointments')
+          .select('id, status, listing_id, property_id')
+          .eq('user_id', agentId);
+      }
+    }
+
+    const appointmentRes = await appointmentQuery;
     if (leadRes.error) throw leadRes.error;
     if (appointmentRes.error && !/does not exist/i.test(appointmentRes.error.message || '')) throw appointmentRes.error;
 
@@ -9880,18 +9924,50 @@ app.get('/api/dashboard/appointments', async (req, res) => {
       ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
       : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    let appointmentQuery = supabaseAdmin
-      .from('appointments')
-      .select(APPOINTMENT_SELECT_FIELDS)
-      .gte('start_iso', start.toISOString())
-      .lte('start_iso', end.toISOString())
-      .order('start_iso', { ascending: true });
+    const runAppointmentsQuery = async ({ ownerMode = 'agent_or_user', timeField = 'start_iso' } = {}) => {
+      let q = supabaseAdmin
+        .from('appointments')
+        .select(APPOINTMENT_SELECT_FIELDS)
+        .gte(timeField, start.toISOString())
+        .lte(timeField, end.toISOString())
+        .order(timeField, { ascending: true });
 
-    if (agentId) {
-      appointmentQuery = appointmentQuery.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
+      if (agentId) {
+        q = ownerMode === 'agent_or_user'
+          ? q.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+          : q.eq('user_id', agentId);
+      }
+      return q;
+    };
+
+    let { data: appointmentRows, error: appointmentError } = await runAppointmentsQuery({
+      ownerMode: 'agent_or_user',
+      timeField: 'start_iso'
+    });
+    if (appointmentError && /column .*start_iso.* does not exist/i.test(appointmentError.message || '')) {
+      const fallbackByTime = await runAppointmentsQuery({
+        ownerMode: 'agent_or_user',
+        timeField: 'starts_at'
+      });
+      appointmentRows = fallbackByTime.data;
+      appointmentError = fallbackByTime.error;
     }
-
-    const { data: appointmentRows, error: appointmentError } = await appointmentQuery;
+    if (appointmentError && /agent_id/i.test(appointmentError.message || '')) {
+      const fallbackByOwner = await runAppointmentsQuery({
+        ownerMode: 'user_only',
+        timeField: 'start_iso'
+      });
+      appointmentRows = fallbackByOwner.data;
+      appointmentError = fallbackByOwner.error;
+      if (appointmentError && /column .*start_iso.* does not exist/i.test(appointmentError.message || '')) {
+        const fallbackByOwnerAndTime = await runAppointmentsQuery({
+          ownerMode: 'user_only',
+          timeField: 'starts_at'
+        });
+        appointmentRows = fallbackByOwnerAndTime.data;
+        appointmentError = fallbackByOwnerAndTime.error;
+      }
+    }
     if (appointmentError) throw appointmentError;
 
     const leadIds = Array.from(new Set((appointmentRows || []).map((row) => row.lead_id).filter(Boolean)));
@@ -9900,10 +9976,10 @@ app.get('/api/dashboard/appointments', async (req, res) => {
 
     const [leadRes, listingRes, reminderRes] = await Promise.all([
       leadIds.length > 0
-        ? supabaseAdmin.from('leads').select('id, full_name, name, phone, phone_e164, email, email_lower').in('id', leadIds)
+        ? supabaseAdmin.from('leads').select('*').in('id', leadIds)
         : Promise.resolve({ data: [], error: null }),
       listingIds.length > 0
-        ? supabaseAdmin.from('properties').select('id, address, city, state, zip').in('id', listingIds)
+        ? supabaseAdmin.from('properties').select('*').in('id', listingIds)
         : Promise.resolve({ data: [], error: null }),
       appointmentIds.length > 0
         ? supabaseAdmin
