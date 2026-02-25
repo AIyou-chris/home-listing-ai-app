@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const createEmailService = require('./emailService');
+const { updateLeadIntelligence } = require('./leadIntelligenceService');
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
@@ -20,6 +22,7 @@ const finalizedCalls = new Set();
 
 const FINAL_MESSAGE_TYPES = new Set(['end-of-call-report']);
 const FINAL_STATUSES = new Set(['ended']);
+const APPOINTMENT_REMINDER_SOURCE = 'appointment_reminder';
 
 const pickFirst = (...values) => values.find((value) => value !== null && value !== undefined && value !== '') || null;
 
@@ -109,6 +112,163 @@ const extractTranscriptFromMessage = (message = {}) => {
     if (artifactTranscript) return artifactTranscript;
 
     return '';
+};
+
+const normalizeAppointmentStatus = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) return null;
+    if (normalized === 'confirmed') return 'confirmed';
+    if (normalized === 'rescheduled' || normalized === 'rescheduled_requested' || normalized === 'reschedule_requested') return 'reschedule_requested';
+    if (normalized === 'cancelled' || normalized === 'canceled') return 'canceled';
+    if (normalized === 'completed') return 'completed';
+    if (normalized === 'scheduled') return 'scheduled';
+    return normalized;
+};
+
+const normalizeOutcomeText = (value) => String(value || '').trim().toLowerCase();
+
+const parseMaybeJson = (value) => {
+    if (!value) return null;
+    if (typeof value === 'object') return value;
+    if (typeof value !== 'string') return null;
+    try {
+        return JSON.parse(value);
+    } catch (_) {
+        return null;
+    }
+};
+
+const extractAgentIdFromAppointment = (appointment = {}) =>
+    pickFirst(toScalar(appointment.agent_id), toScalar(appointment.user_id));
+
+const extractReminderContext = (context = {}) => ({
+    reminderId: pickFirst(toScalar(context.reminder_id), toScalar(context.reminderId)),
+    appointmentId: pickFirst(toScalar(context.appointment_id), toScalar(context.appointmentId)),
+    leadId: pickFirst(toScalar(context.lead_id), toScalar(context.leadId)),
+    source: pickFirst(toScalar(context.source), toScalar(context.bot_type), toScalar(context.assistant_key))
+});
+
+const extractPressDigit = (message = {}, transcript = '') => {
+    const candidates = [
+        message.dtmf,
+        message.call?.dtmf,
+        message.call?.artifact?.dtmf,
+        message.artifact?.dtmf,
+        message.result?.dtmf,
+        message.response?.dtmf,
+        message.analysis?.dtmf
+    ];
+
+    for (const candidate of candidates) {
+        const scalar = toScalar(candidate);
+        if (!scalar) continue;
+        const digit = scalar.trim();
+        if (/^[129]$/.test(digit)) return digit;
+    }
+
+    const normalizedTranscript = normalizeOutcomeText(transcript);
+    if (!normalizedTranscript) return null;
+
+    const digitMatch = normalizedTranscript.match(/\b([129])\b/);
+    if (digitMatch?.[1]) return digitMatch[1];
+
+    if (/\bconfirm(ed|ation)?\b/.test(normalizedTranscript)) return '1';
+    if (/\breschedul(e|ing|ed)|different time|another time\b/.test(normalizedTranscript)) return '2';
+    if (/\bagent|human|representative|call me\b/.test(normalizedTranscript)) return '9';
+
+    return null;
+};
+
+const deriveReminderOutcome = (message = {}, transcript = '') => {
+    const endedReason = normalizeOutcomeText(
+        pickFirst(
+            toScalar(message.endedReason),
+            toScalar(message.call?.endedReason),
+            toScalar(message.call?.ended_reason),
+            toScalar(message.reason)
+        )
+    );
+
+    if (endedReason.includes('voicemail')) return { key: 'voicemail_left', eventType: 'VOICEMAIL_LEFT' };
+    if (endedReason.includes('no-answer') || endedReason.includes('no answer') || endedReason.includes('busy')) {
+        return { key: 'no_answer', eventType: 'NO_ANSWER' };
+    }
+
+    const digit = extractPressDigit(message, transcript);
+    if (digit === '1') return { key: 'confirmed', eventType: 'APPOINTMENT_CONFIRMED', nextStatus: 'confirmed' };
+    if (digit === '2') return { key: 'reschedule_requested', eventType: 'APPOINTMENT_RESCHEDULE_REQUESTED', nextStatus: 'reschedule_requested' };
+    if (digit === '9') return { key: 'human_handoff_requested', eventType: 'HUMAN_HANDOFF_REQUESTED' };
+
+    const sentiment = normalizeOutcomeText(
+        pickFirst(toScalar(message.analysis?.summary), toScalar(message.analysis?.result))
+    );
+    if (sentiment.includes('confirm')) {
+        return { key: 'confirmed', eventType: 'APPOINTMENT_CONFIRMED', nextStatus: 'confirmed' };
+    }
+
+    return { key: 'completed', eventType: 'REMINDER_SENT' };
+};
+
+const recordLeadEvent = async ({ leadId, type, payload }) => {
+    if (!leadId || !type) return;
+    try {
+        await supabase.from('lead_events').insert({
+            lead_id: leadId,
+            type,
+            payload: payload || {},
+            created_at: new Date().toISOString()
+        });
+    } catch (error) {
+        console.warn('[Vapi] Failed to record lead event:', error.message);
+    }
+};
+
+const fetchAgentEmail = async (agentId) => {
+    if (!agentId) return null;
+    const { data, error } = await supabase
+        .from('agents')
+        .select('email')
+        .eq('id', agentId)
+        .maybeSingle();
+    if (error) return null;
+    return data?.email || null;
+};
+
+const sendAgentAppointmentUpdateEmail = async ({ agentId, appointment, lead, outcome, dashboardPath }) => {
+    const to = await fetchAgentEmail(agentId);
+    if (!to) return false;
+
+    const listingAddress =
+        appointment?.property_address ||
+        appointment?.location ||
+        'Listing';
+    const appointmentTime = pickFirst(
+        toScalar(appointment?.starts_at),
+        toScalar(appointment?.start_iso)
+    ) || 'unknown time';
+    const leadContact = [
+        lead?.full_name || lead?.name || 'Unknown lead',
+        lead?.phone_e164 || lead?.phone || 'no phone',
+        lead?.email_lower || lead?.email || 'no email'
+    ].join(' | ');
+    const dashboardBase = (process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+
+    const emailService = createEmailService();
+    await emailService.sendEmail({
+        to,
+        subject: `Appointment update — ${listingAddress}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <h3>Appointment update</h3>
+            <p><strong>Update:</strong> ${outcome}</p>
+            <p><strong>Lead:</strong> ${leadContact}</p>
+            <p><strong>Time:</strong> ${appointmentTime}</p>
+            <p><a href="${dashboardBase}${dashboardPath}">Open lead in dashboard</a></p>
+          </div>
+        `
+    });
+
+    return true;
 };
 
 const resolveUserIdFromLead = async (leadId) => {
@@ -245,6 +405,138 @@ const persistTranscriptForCall = async ({ callId, eventType, message, transcript
     transcriptBufferMap.delete(callId);
 };
 
+const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcript }) => {
+    const webhookContext = callContextFromObject(message.call || {});
+    const cachedContext = callContextMap.get(callId) || {};
+    const mergedContext = { ...cachedContext, ...webhookContext };
+    const reminderContext = extractReminderContext(mergedContext);
+
+    if (reminderContext.source !== APPOINTMENT_REMINDER_SOURCE && !reminderContext.reminderId) {
+        return;
+    }
+
+    let reminder = null;
+    if (reminderContext.reminderId) {
+        const { data, error } = await supabase
+            .from('appointment_reminders')
+            .select('*')
+            .eq('id', reminderContext.reminderId)
+            .maybeSingle();
+        if (error) {
+            console.warn('[Vapi] Failed to load appointment reminder:', error.message);
+            return;
+        }
+        reminder = data || null;
+    }
+
+    const appointmentId = pickFirst(
+        reminder?.appointment_id,
+        reminderContext.appointmentId
+    );
+    if (!appointmentId) return;
+
+    const [{ data: appointment }, { data: lead }] = await Promise.all([
+        supabase
+            .from('appointments')
+            .select('id, lead_id, agent_id, user_id, starts_at, start_iso, status, location, property_address, timezone')
+            .eq('id', appointmentId)
+            .maybeSingle(),
+        (() => {
+            const leadId = pickFirst(reminder?.payload?.lead_id, reminderContext.leadId, reminder?.lead_id);
+            if (!leadId) return Promise.resolve({ data: null });
+            return supabase
+                .from('leads')
+                .select('id, full_name, name, phone, phone_e164, email, email_lower')
+                .eq('id', leadId)
+                .maybeSingle();
+        })()
+    ]);
+
+    const resolvedLeadId = pickFirst(
+        appointment?.lead_id,
+        lead?.id,
+        reminder?.payload?.lead_id,
+        reminderContext.leadId
+    );
+    const outcome = deriveReminderOutcome(message, transcript || '');
+    const endedReason = pickFirst(
+        toScalar(message.endedReason),
+        toScalar(message.call?.endedReason),
+        toScalar(message.reason)
+    );
+
+    if (reminder?.id) {
+        const existingProviderResponse = parseMaybeJson(reminder.provider_response) || {};
+        const providerResponse = {
+            ...existingProviderResponse,
+            call_id: callId,
+            transcript: transcript || null,
+            ended_reason: endedReason || null,
+            outcome: outcome.key,
+            updated_at: new Date().toISOString()
+        };
+
+        await supabase
+            .from('appointment_reminders')
+            .update({
+                status: reminder.status === 'suppressed' ? 'suppressed' : 'sent',
+                provider_response: providerResponse,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', reminder.id);
+    }
+
+    if (appointment?.id && outcome.nextStatus) {
+        const nextStatus = normalizeAppointmentStatus(outcome.nextStatus);
+        if (nextStatus) {
+            await supabase
+                .from('appointments')
+                .update({
+                    status: nextStatus,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', appointment.id);
+        }
+    }
+
+    await recordLeadEvent({
+        leadId: resolvedLeadId,
+        type: outcome.eventType,
+        payload: {
+            appointment_id: appointmentId,
+            reminder_id: reminder?.id || reminderContext.reminderId || null,
+            call_id: callId,
+            ended_reason: endedReason || null,
+            outcome: outcome.key
+        }
+    });
+
+    if (resolvedLeadId) {
+        updateLeadIntelligence({
+            leadId: resolvedLeadId,
+            trigger: 'reminder_outcome'
+        }).catch((error) => {
+            console.warn('[Vapi] Failed to refresh lead intelligence after reminder outcome:', error?.message || error);
+        });
+    }
+
+    if (outcome.eventType === 'APPOINTMENT_CONFIRMED' || outcome.eventType === 'APPOINTMENT_RESCHEDULE_REQUESTED' || outcome.eventType === 'HUMAN_HANDOFF_REQUESTED') {
+        const agentId = extractAgentIdFromAppointment(appointment || {});
+        const dashboardPath = `/dashboard/leads/${resolvedLeadId || ''}`;
+        try {
+            await sendAgentAppointmentUpdateEmail({
+                agentId,
+                appointment,
+                lead,
+                outcome: outcome.key,
+                dashboardPath
+            });
+        } catch (error) {
+            console.warn('[Vapi] Failed to send appointment update email:', error.message);
+        }
+    }
+};
+
 const appendTranscriptLine = ({ callId, role, transcript }) => {
     if (!callId || !transcript) return;
 
@@ -294,10 +586,16 @@ const processVapiWebhook = async (payload = {}) => {
     const isTerminalType = FINAL_MESSAGE_TYPES.has(messageType);
 
     if (isTerminalType || isTerminalStatus) {
+        const finalTranscript = extractTranscriptFromMessage(message) || (transcriptBufferMap.get(callId) || []).join('\n').trim();
         await persistTranscriptForCall({
             callId,
             eventType: messageType,
             message
+        });
+        await finalizeAppointmentReminderFromWebhook({
+            callId,
+            message,
+            transcript: finalTranscript
         });
 
         setTimeout(() => {
@@ -328,7 +626,13 @@ const createCallPayload = ({ to, context, selectedAssistantId, conversationId })
         source: toScalar(context.source) || 'voice_api',
         user_id: toScalar(context.userId),
         lead_id: toScalar(context.leadId),
-        conversation_id: toScalar(conversationId)
+        conversation_id: toScalar(conversationId),
+        appointment_id: pickFirst(toScalar(context.appointmentId), toScalar(context.appointment_id)),
+        reminder_id: pickFirst(toScalar(context.reminderId), toScalar(context.reminder_id)),
+        listing_id: pickFirst(toScalar(context.listingId), toScalar(context.listing_id)),
+        listing_address: pickFirst(toScalar(context.listingAddress), toScalar(context.listing_address)),
+        appointment_starts_at: pickFirst(toScalar(context.appointmentStartsAt), toScalar(context.appointment_starts_at)),
+        appointment_timezone: pickFirst(toScalar(context.appointmentTimezone), toScalar(context.appointment_timezone))
     };
 
     const compactMetadata = Object.fromEntries(
@@ -478,7 +782,13 @@ const initiateOutboundCall = async (to, _prompt = '', context = {}, _req = null)
             source: toScalar(context.source) || 'voice_api',
             user_id: toScalar(context.userId),
             lead_id: toScalar(context.leadId),
-            conversation_id: toScalar(conversationId)
+            conversation_id: toScalar(conversationId),
+            appointment_id: pickFirst(toScalar(context.appointmentId), toScalar(context.appointment_id)),
+            reminder_id: pickFirst(toScalar(context.reminderId), toScalar(context.reminder_id)),
+            listing_id: pickFirst(toScalar(context.listingId), toScalar(context.listing_id)),
+            listing_address: pickFirst(toScalar(context.listingAddress), toScalar(context.listing_address)),
+            appointment_starts_at: pickFirst(toScalar(context.appointmentStartsAt), toScalar(context.appointment_starts_at)),
+            appointment_timezone: pickFirst(toScalar(context.appointmentTimezone), toScalar(context.appointment_timezone))
         });
     }
 

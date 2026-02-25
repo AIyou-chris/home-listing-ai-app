@@ -43,10 +43,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const basePath = isBlueprintMode ? '/agent-blueprint-dashboard' : (isDemoMode ? '/demo-dashboard' : '');
 
   const getPath = (path: string) => `${basePath}${path}`;
+  const commandCenterPath = isDemoMode || isBlueprintMode ? getPath('/daily-pulse') : '/dashboard';
+  const leadsPath = isDemoMode || isBlueprintMode ? getPath('/leads') : '/dashboard/leads';
+  const appointmentsPath = isDemoMode || isBlueprintMode ? getPath('/leads') : '/dashboard/appointments';
 
   const primaryItems = [
-    { to: getPath('/daily-pulse'), icon: 'home', label: 'My Daily Pulse' },
-    { to: getPath('/leads'), icon: 'groups', label: 'Leads & Appointments' },
+    { to: commandCenterPath, icon: 'home', label: 'My Daily Pulse' },
+    { to: leadsPath, icon: 'groups', label: 'Leads & Appointments' },
+    ...(!(isDemoMode || isBlueprintMode)
+      ? [{ to: appointmentsPath, icon: 'event_available', label: 'Appointments' }]
+      : [])
   ];
 
   const aiToolsItems = [

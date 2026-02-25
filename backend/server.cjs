@@ -51,6 +51,15 @@ if (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
 const APP_URL = process.env.VITE_APP_URL || process.env.APP_URL || 'http://localhost:5173';
 const SMS_COMING_SOON =
   String(process.env.SMS_COMING_SOON || 'true').toLowerCase() !== 'false';
+const FEATURE_FLAG_EMAIL_ENABLED =
+  String(process.env.FEATURE_FLAG_EMAIL_ENABLED || 'true').toLowerCase() !== 'false';
+const FEATURE_FLAG_VOICE_ENABLED =
+  String(process.env.FEATURE_FLAG_VOICE_ENABLED || 'true').toLowerCase() !== 'false';
+const FEATURE_FLAG_SMS_ENABLED =
+  !SMS_COMING_SOON && String(process.env.FEATURE_FLAG_SMS_ENABLED || 'false').toLowerCase() === 'true';
+const APPOINTMENT_REMINDER_TIMEZONE = process.env.APPOINTMENT_REMINDER_TIMEZONE || 'America/Los_Angeles';
+const APPOINTMENT_REMINDER_OFFSETS_MINUTES = [24 * 60, 2 * 60];
+const REMINDER_EXECUTION_BATCH_SIZE = 50;
 
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -82,6 +91,15 @@ const {
   DEFAULT_NOTIFICATION_SETTINGS
 } = require('./utils/notificationPreferences');
 const {
+  updateLeadIntelligence,
+  calculateRoiMetrics
+} = require('./services/leadIntelligenceService');
+const {
+  listRecipes: listAutomationRecipes,
+  setRecipeEnabled: setAutomationRecipeEnabled,
+  isRecipeEnabled
+} = require('./services/automationRulesService');
+const {
   getEmailSettings,
   updateEmailSettings,
   connectEmailProvider,
@@ -96,24 +114,7 @@ const {
   updateSecuritySettings
 } = require('./utils/securitySettings');
 
-const APPOINTMENT_SELECT_FIELDS = `
-  id,
-  user_id,
-  lead_id,
-  property_id,
-  kind,
-  name,
-  email,
-  phone,
-  date,
-  time_label,
-  start_iso,
-  end_iso,
-  meet_link,
-  notes,
-  status,
-  created_at
-`;
+const APPOINTMENT_SELECT_FIELDS = '*';
 const {
   getCalendarSettings,
   updateCalendarSettings: updateCalendarPreferences,
@@ -415,13 +416,17 @@ app.use((req, res, next) => {
 // [REMOVED] Scraper endpoint deprecated per user request
 
 // Vapi webhook endpoint (status + transcript events)
-app.post(['/api/vapi/webhook', '/api/voice/vapi/webhook'], async (req, res) => {
+app.post(['/api/vapi/webhook', '/api/voice/vapi/webhook', '/webhooks/vapi'], async (req, res) => {
   const { handleVapiWebhook } = require('./services/vapiVoiceService');
   await handleVapiWebhook(req, res);
 });
 
-app.get(['/api/vapi/webhook', '/api/voice/vapi/webhook'], async (req, res) => {
+app.get(['/api/vapi/webhook', '/api/voice/vapi/webhook', '/webhooks/vapi'], async (req, res) => {
   res.status(200).json({ ok: true, provider: 'vapi' });
+});
+
+app.get('/webhooks/telnyx', async (_req, res) => {
+  res.status(200).json({ ok: true, provider: 'telnyx' });
 });
 
 // STRIPE CHECKOUT ENDPOINT
@@ -2181,6 +2186,19 @@ const resolveSidekickOwner = (explicitUserId) => {
 };
 
 const nowIso = () => new Date().toISOString();
+const computeRelativeTime = (value) => {
+  if (!value) return 'unknown';
+  const ts = new Date(value).getTime();
+  if (Number.isNaN(ts)) return 'unknown';
+  const delta = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+  if (delta < 60) return `${delta}s ago`;
+  const minutes = Math.floor(delta / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
 
 const normalizeEmailLower = (value) => {
   if (!value || typeof value !== 'string') return null;
@@ -2290,6 +2308,17 @@ const sendLeadCaptureNotifications = async ({
   emailLower
 }) => {
   const attempts = [];
+  const leadNotifyRecipeEnabled = await isRecipeEnabled({
+    agentId: lead.agent_id,
+    recipeKey: 'new_lead_email',
+    defaultValue: true
+  }).catch(() => true);
+
+  if (!leadNotifyRecipeEnabled) {
+    attempts.push({ channel: 'recipe', status: 'disabled', recipe: 'new_lead_email' });
+    return { attempts, cta_url: null };
+  }
+
   const dashboardBase = process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com';
   const ctaUrl = `${dashboardBase.replace(/\/$/, '')}/dashboard/leads/${lead.id}`;
 
@@ -2384,6 +2413,524 @@ const sendLeadCaptureNotifications = async ({
     attempts,
     cta_url: ctaUrl
   };
+};
+
+const resolveAppointmentReminderFlags = async (agentId) => {
+  const prefs = await getNotificationPreferences(agentId);
+  return {
+    prefs,
+    emailEnabled: FEATURE_FLAG_EMAIL_ENABLED && prefs.email_enabled !== false,
+    voiceEnabled:
+      FEATURE_FLAG_VOICE_ENABLED &&
+      prefs.voice_enabled !== false &&
+      prefs.appointmentReminders !== false &&
+      prefs.voiceAppointmentReminders !== false,
+    smsEnabled:
+      FEATURE_FLAG_SMS_ENABLED &&
+      prefs.sms_enabled === true &&
+      prefs.smsNewLeadAlerts === true
+  };
+};
+
+const mapReminderProvider = (reminderType) => {
+  if (reminderType === 'voice') return 'vapi';
+  if (reminderType === 'sms') return 'telnyx';
+  return 'mailgun';
+};
+
+const resolveAppointmentStart = (appointmentRow) =>
+  appointmentRow?.starts_at ||
+  appointmentRow?.start_iso ||
+  appointmentRow?.startIso ||
+  null;
+
+const resolveAppointmentAgentId = (appointmentRow) =>
+  appointmentRow?.agent_id ||
+  appointmentRow?.user_id ||
+  appointmentRow?.agentId ||
+  appointmentRow?.userId ||
+  null;
+
+const resolveAppointmentListingId = (appointmentRow) =>
+  appointmentRow?.listing_id ||
+  appointmentRow?.property_id ||
+  appointmentRow?.listingId ||
+  appointmentRow?.propertyId ||
+  null;
+
+const resolveAppointmentTimezone = (appointmentRow) =>
+  appointmentRow?.timezone || APPOINTMENT_REMINDER_TIMEZONE;
+
+const scheduleAppointmentReminders = async ({ appointmentRow, source = 'appointment_create' }) => {
+  if (!appointmentRow?.id) return { scheduled: [], skipped: true, reason: 'missing_appointment_id' };
+  const agentId = resolveAppointmentAgentId(appointmentRow);
+  const reminderRecipeEnabled = await isRecipeEnabled({
+    agentId,
+    recipeKey: 'appointment_queue_reminders',
+    defaultValue: true
+  }).catch(() => true);
+
+  if (!reminderRecipeEnabled) {
+    return { scheduled: [], skipped: true, reason: 'recipe_disabled' };
+  }
+
+  try {
+    const { count: existingCount, error: existingError } = await supabaseAdmin
+      .from('appointment_reminders')
+      .select('id', { count: 'exact', head: true })
+      .eq('appointment_id', appointmentRow.id);
+
+    if (existingError && !/does not exist/i.test(existingError.message || '')) {
+      throw existingError;
+    }
+
+    if (existingCount > 0) {
+      return { scheduled: [], skipped: true, reason: 'already_scheduled' };
+    }
+  } catch (error) {
+    if (!/does not exist/i.test(error?.message || '')) {
+      throw error;
+    }
+    console.warn('[AppointmentReminder] appointment_reminders table missing. Run migration phase1_voice_appointment_reminders.sql');
+    return { scheduled: [], skipped: true, reason: 'table_missing' };
+  }
+
+  const startsAt = resolveAppointmentStart(appointmentRow);
+  const leadId = appointmentRow.lead_id || appointmentRow.leadId || null;
+  const listingId = resolveAppointmentListingId(appointmentRow);
+  const timezone = resolveAppointmentTimezone(appointmentRow);
+
+  if (!startsAt || !agentId || !leadId) {
+    return { scheduled: [], skipped: true, reason: 'missing_required_fields' };
+  }
+
+  const startDate = new Date(startsAt);
+  if (Number.isNaN(startDate.getTime())) {
+    return { scheduled: [], skipped: true, reason: 'invalid_starts_at' };
+  }
+
+  const flags = await resolveAppointmentReminderFlags(agentId);
+  const scheduledRows = [];
+
+  for (const offsetMinutes of APPOINTMENT_REMINDER_OFFSETS_MINUTES) {
+    const scheduledFor = new Date(startDate.getTime() - offsetMinutes * 60 * 1000).toISOString();
+    const basePayload = {
+      source,
+      offset_minutes: offsetMinutes,
+      appointment_id: appointmentRow.id,
+      lead_id: leadId,
+      listing_id: listingId || null,
+      agent_id: agentId,
+      starts_at: startDate.toISOString(),
+      timezone
+    };
+
+    const reminderDefinitions = [
+      {
+        reminder_type: 'voice',
+        status: flags.voiceEnabled ? 'queued' : 'suppressed',
+        provider: 'vapi',
+        payload: {
+          ...basePayload,
+          reason: flags.voiceEnabled ? null : 'voice_disabled'
+        }
+      },
+      {
+        reminder_type: 'sms',
+        status: flags.smsEnabled ? 'queued' : 'suppressed',
+        provider: 'telnyx',
+        payload: {
+          ...basePayload,
+          reason: flags.smsEnabled ? null : SMS_COMING_SOON ? 'sms_coming_soon' : 'sms_disabled'
+        }
+      }
+    ];
+
+    for (const definition of reminderDefinitions) {
+      const { data: reminderRow, error: reminderError } = await supabaseAdmin
+        .from('appointment_reminders')
+        .insert({
+          appointment_id: appointmentRow.id,
+          reminder_type: definition.reminder_type,
+          scheduled_for: scheduledFor,
+          status: definition.status,
+          provider: definition.provider,
+          payload: definition.payload,
+          created_at: nowIso(),
+          updated_at: nowIso()
+        })
+        .select('id, reminder_type, scheduled_for, status')
+        .single();
+
+      if (reminderError) {
+        throw reminderError;
+      }
+
+      const eventType =
+        definition.status === 'suppressed' ? 'REMINDER_SUPPRESSED' : 'REMINDER_QUEUED';
+      await recordLeadEvent({
+        leadId,
+        type: eventType,
+        payload: {
+          reminder_id: reminderRow.id,
+          appointment_id: appointmentRow.id,
+          reminder_type: definition.reminder_type,
+          scheduled_for: scheduledFor,
+          status: definition.status,
+          source
+        }
+      });
+
+      scheduledRows.push(reminderRow);
+    }
+  }
+
+  return { scheduled: scheduledRows, skipped: false };
+};
+
+const formatReminderTimeForPrompt = (startsAt, timezone) => {
+  try {
+    return new Date(startsAt).toLocaleString('en-US', {
+      timeZone: timezone || APPOINTMENT_REMINDER_TIMEZONE,
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  } catch (_error) {
+    return startsAt;
+  }
+};
+
+const formatReminderTimeLabel = (startsAt, timezone) => {
+  try {
+    return new Date(startsAt).toLocaleTimeString('en-US', {
+      timeZone: timezone || APPOINTMENT_REMINDER_TIMEZONE,
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  } catch (_error) {
+    return '';
+  }
+};
+
+const buildVoiceReminderScript = ({ lead, listing, appointment, agentProfile }) => {
+  const firstName =
+    (lead?.full_name || lead?.name || appointment?.name || 'there').split(' ')[0] || 'there';
+  const listingAddress =
+    listing?.address ||
+    appointment?.property_address ||
+    appointment?.location ||
+    'the scheduled property';
+  const whenText = formatReminderTimeForPrompt(
+    resolveAppointmentStart(appointment),
+    resolveAppointmentTimezone(appointment)
+  );
+  const agentName = agentProfile?.fullName || agentProfile?.name || 'your agent';
+
+  return `Hi ${firstName}, quick reminder: your showing at ${listingAddress} is scheduled for ${whenText}. Press 1 to confirm, press 2 to reschedule, or press 9 to speak with ${agentName}.`;
+};
+
+const updateReminderStatus = async ({ reminderId, status, providerResponse, reason }) => {
+  const payload = {
+    status,
+    provider_response: providerResponse || {},
+    updated_at: nowIso()
+  };
+  if (reason) {
+    payload.provider_response = {
+      ...(providerResponse || {}),
+      reason
+    };
+  }
+
+  await supabaseAdmin
+    .from('appointment_reminders')
+    .update(payload)
+    .eq('id', reminderId);
+};
+
+const markReminderAsSuppressed = async ({ reminder, reason, leadId }) => {
+  await updateReminderStatus({
+    reminderId: reminder.id,
+    status: 'suppressed',
+    reason,
+    providerResponse: {
+      suppressed_at: nowIso(),
+      reason
+    }
+  });
+
+  await recordLeadEvent({
+    leadId,
+    type: 'REMINDER_SUPPRESSED',
+    payload: {
+      reminder_id: reminder.id,
+      appointment_id: reminder.appointment_id,
+      reminder_type: reminder.reminder_type,
+      scheduled_for: reminder.scheduled_for,
+      reason
+    }
+  });
+};
+
+const refreshLeadIntelligenceSafely = async (leadId, trigger) => {
+  if (!leadId) return;
+  await updateLeadIntelligence({ leadId, trigger }).catch((error) => {
+    console.warn('[LeadIntelligence] Refresh failed:', error?.message || error);
+  });
+};
+
+let appointmentReminderWorkerRunning = false;
+const processQueuedAppointmentReminders = async () => {
+  if (appointmentReminderWorkerRunning) return;
+  appointmentReminderWorkerRunning = true;
+
+  try {
+    const { data: dueReminders, error: reminderError } = await supabaseAdmin
+      .from('appointment_reminders')
+      .select('*')
+      .eq('status', 'queued')
+      .lte('scheduled_for', nowIso())
+      .order('scheduled_for', { ascending: true })
+      .limit(REMINDER_EXECUTION_BATCH_SIZE);
+
+    if (reminderError) {
+      if (/does not exist/i.test(reminderError.message || '')) return;
+      throw reminderError;
+    }
+
+    if (!dueReminders || dueReminders.length === 0) return;
+
+    const appointmentIds = Array.from(new Set(dueReminders.map((row) => row.appointment_id).filter(Boolean)));
+    const { data: appointmentRows, error: appointmentError } = await supabaseAdmin
+      .from('appointments')
+      .select(APPOINTMENT_SELECT_FIELDS)
+      .in('id', appointmentIds);
+    if (appointmentError) throw appointmentError;
+
+    const appointmentMap = new Map((appointmentRows || []).map((row) => [row.id, row]));
+    const leadIds = Array.from(
+      new Set((appointmentRows || []).map((row) => row.lead_id).filter(Boolean))
+    );
+    const listingIds = Array.from(
+      new Set((appointmentRows || []).map((row) => resolveAppointmentListingId(row)).filter(Boolean))
+    );
+    const agentIds = Array.from(
+      new Set((appointmentRows || []).map((row) => resolveAppointmentAgentId(row)).filter(Boolean))
+    );
+
+    const [{ data: leadRows }, { data: listingRows }] = await Promise.all([
+      leadIds.length > 0
+        ? supabaseAdmin
+          .from('leads')
+          .select('id, full_name, name, phone, phone_e164, email, email_lower')
+          .in('id', leadIds)
+        : Promise.resolve({ data: [] }),
+      listingIds.length > 0
+        ? supabaseAdmin
+          .from('properties')
+          .select('id, address, city, state, zip')
+          .in('id', listingIds)
+        : Promise.resolve({ data: [] })
+    ]);
+
+    const leadMap = new Map((leadRows || []).map((row) => [row.id, row]));
+    const listingMap = new Map((listingRows || []).map((row) => [row.id, row]));
+
+    const reminderFlagMap = new Map();
+    for (const agentId of agentIds) {
+      try {
+        reminderFlagMap.set(agentId, await resolveAppointmentReminderFlags(agentId));
+      } catch (error) {
+        reminderFlagMap.set(agentId, {
+          prefs: {},
+          emailEnabled: FEATURE_FLAG_EMAIL_ENABLED,
+          voiceEnabled: FEATURE_FLAG_VOICE_ENABLED,
+          smsEnabled: FEATURE_FLAG_SMS_ENABLED
+        });
+      }
+    }
+
+    for (const reminder of dueReminders) {
+      const appointment = appointmentMap.get(reminder.appointment_id);
+      if (!appointment) {
+        await updateReminderStatus({
+          reminderId: reminder.id,
+          status: 'failed',
+          providerResponse: {
+            failed_at: nowIso(),
+            reason: 'appointment_not_found'
+          }
+        });
+        continue;
+      }
+
+      const leadId = appointment.lead_id || reminder.payload?.lead_id || null;
+      const agentId = resolveAppointmentAgentId(appointment);
+      const listingId = resolveAppointmentListingId(appointment);
+      const flags = reminderFlagMap.get(agentId) || {
+        emailEnabled: FEATURE_FLAG_EMAIL_ENABLED,
+        voiceEnabled: FEATURE_FLAG_VOICE_ENABLED,
+        smsEnabled: FEATURE_FLAG_SMS_ENABLED
+      };
+
+      if (reminder.reminder_type === 'sms' && !flags.smsEnabled) {
+        await markReminderAsSuppressed({
+          reminder,
+          reason: SMS_COMING_SOON ? 'sms_coming_soon' : 'sms_disabled',
+          leadId
+        });
+        await refreshLeadIntelligenceSafely(leadId, 'reminder_suppressed');
+        continue;
+      }
+
+      if (reminder.reminder_type === 'voice' && !flags.voiceEnabled) {
+        await markReminderAsSuppressed({
+          reminder,
+          reason: 'voice_disabled',
+          leadId
+        });
+        await refreshLeadIntelligenceSafely(leadId, 'reminder_suppressed');
+        continue;
+      }
+
+      if (reminder.reminder_type === 'email' && !flags.emailEnabled) {
+        await markReminderAsSuppressed({
+          reminder,
+          reason: 'email_disabled',
+          leadId
+        });
+        await refreshLeadIntelligenceSafely(leadId, 'reminder_suppressed');
+        continue;
+      }
+
+      try {
+        if (reminder.reminder_type === 'voice') {
+          const lead = leadMap.get(leadId) || null;
+          const listing = listingMap.get(listingId) || null;
+          const destination =
+            normalizePhoneE164(lead?.phone_e164 || lead?.phone || appointment.phone || '');
+
+          if (!destination) {
+            throw new Error('missing_destination_phone');
+          }
+
+          const agentProfile =
+            (await fetchAiCardProfileForUser(agentId)) || DEFAULT_AI_CARD_PROFILE;
+          const prompt = buildVoiceReminderScript({
+            lead,
+            listing,
+            appointment,
+            agentProfile
+          });
+
+          const { initiateOutboundCall } = require('./services/vapiVoiceService');
+          const result = await initiateOutboundCall(destination, prompt, {
+            userId: agentId,
+            leadId: leadId || undefined,
+            assistantKey: 'appointment_reminder',
+            botType: 'appointment_reminder',
+            configId:
+              process.env.VAPI_APPOINTMENT_REMINDER_ASSISTANT_ID ||
+              process.env.VAPI_DEFAULT_ASSISTANT_ID ||
+              process.env.VOICE_PHASE1_FOLLOWUP_CONFIG_ID ||
+              process.env.HUME_CONFIG_ID ||
+              undefined,
+            source: 'appointment_reminder',
+            appointmentId: appointment.id,
+            reminderId: reminder.id,
+            listingId: listingId || undefined,
+            listingAddress: listing?.address || appointment.property_address || appointment.location || '',
+            appointmentStartsAt: resolveAppointmentStart(appointment),
+            appointmentTimezone: resolveAppointmentTimezone(appointment)
+          });
+
+          await updateReminderStatus({
+            reminderId: reminder.id,
+            status: 'sent',
+            providerResponse: {
+              sent_at: nowIso(),
+              reminder_type: 'voice',
+              result
+            }
+          });
+
+          await recordLeadEvent({
+            leadId,
+            type: 'REMINDER_SENT',
+            payload: {
+              reminder_id: reminder.id,
+              appointment_id: appointment.id,
+              reminder_type: 'voice',
+              scheduled_for: reminder.scheduled_for,
+              provider: mapReminderProvider('voice')
+            }
+          });
+          await refreshLeadIntelligenceSafely(leadId, 'reminder_sent');
+          continue;
+        }
+
+        if (reminder.reminder_type === 'email') {
+          await updateReminderStatus({
+            reminderId: reminder.id,
+            status: 'failed',
+            providerResponse: {
+              failed_at: nowIso(),
+              reason: 'email_reminder_not_enabled_in_phase1'
+            }
+          });
+
+          await recordLeadEvent({
+            leadId,
+            type: 'REMINDER_FAILED',
+            payload: {
+              reminder_id: reminder.id,
+              appointment_id: appointment.id,
+              reminder_type: 'email',
+              reason: 'email_reminder_not_enabled_in_phase1'
+            }
+          });
+          await refreshLeadIntelligenceSafely(leadId, 'reminder_failed');
+          continue;
+        }
+
+        await markReminderAsSuppressed({
+          reminder,
+          reason: 'sms_not_enabled_in_phase1',
+          leadId
+        });
+        await refreshLeadIntelligenceSafely(leadId, 'reminder_suppressed');
+      } catch (error) {
+        await updateReminderStatus({
+          reminderId: reminder.id,
+          status: 'failed',
+          providerResponse: {
+            failed_at: nowIso(),
+            reason: error?.message || 'send_failed'
+          }
+        });
+
+        await recordLeadEvent({
+          leadId,
+          type: 'REMINDER_FAILED',
+          payload: {
+            reminder_id: reminder.id,
+            appointment_id: appointment.id,
+            reminder_type: reminder.reminder_type,
+            scheduled_for: reminder.scheduled_for,
+            reason: error?.message || 'send_failed'
+          }
+        });
+        await refreshLeadIntelligenceSafely(leadId, 'reminder_failed');
+      }
+    }
+  } catch (error) {
+    console.error('[AppointmentReminder] Worker error:', error.message || error);
+  } finally {
+    appointmentReminderWorkerRunning = false;
+  }
 };
 
 const SIDEKICK_SCOPES = ['agent', 'marketing', 'listing', 'sales', 'support', 'helper', 'main', 'god'];
@@ -2917,31 +3464,59 @@ const computeAppointmentIsoRange = (dateValue, timeLabel, durationMinutes = 30) 
   };
 };
 
-'id, user_id, lead_id, property_id, kind, name, email, phone, date, time_label, start_iso, end_iso, meet_link, notes, status, remind_agent, remind_client, agent_reminder_minutes_before, client_reminder_minutes_before, created_at, updated_at';
+const normalizeAppointmentStatusValue = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return 'scheduled';
+  if (normalized === 'scheduled') return 'scheduled';
+  if (normalized === 'confirmed') return 'confirmed';
+  if (normalized === 'reschedule_requested' || normalized === 'rescheduled_requested' || normalized === 'rescheduled') return 'reschedule_requested';
+  if (normalized === 'cancelled' || normalized === 'canceled') return 'canceled';
+  if (normalized === 'completed') return 'completed';
+  return normalized;
+};
+
+const formatAppointmentStatusForUi = (status) => {
+  const normalized = normalizeAppointmentStatusValue(status);
+  if (normalized === 'scheduled') return 'Scheduled';
+  if (normalized === 'confirmed') return 'Confirmed';
+  if (normalized === 'reschedule_requested') return 'Reschedule Requested';
+  if (normalized === 'canceled') return 'Cancelled';
+  if (normalized === 'completed') return 'Completed';
+  return status || 'Scheduled';
+};
 
 const mapAppointmentFromRow = (row) => {
   if (!row) return null;
+  const startIso = row.starts_at || row.start_iso || null;
+  const endIso = row.ends_at || row.end_iso || null;
   return {
     id: row.id,
-    userId: row.user_id,
+    userId: row.user_id || row.agent_id,
+    agentId: row.agent_id || row.user_id,
     type: row.kind || 'Consultation',
-    date: normalizeDateOnly(row.date) || normalizeDateOnly(row.start_iso) || '',
+    date: normalizeDateOnly(row.date) || normalizeDateOnly(startIso) || '',
     time: row.time_label || '',
     leadId: row.lead_id || '',
     leadName: row.name || '',
-    propertyId: row.property_id || '',
+    propertyId: row.property_id || row.listing_id || '',
+    listingId: row.listing_id || row.property_id || '',
     propertyAddress: row.property_address || '',
     email: row.email || '',
     phone: row.phone || '',
     notes: row.notes || '',
-    status: row.status || 'Scheduled',
+    status: formatAppointmentStatusForUi(row.status),
+    normalizedStatus: normalizeAppointmentStatusValue(row.status),
     meetLink: row.meet_link || '',
+    location: row.location || row.meet_link || '',
+    timezone: row.timezone || APPOINTMENT_REMINDER_TIMEZONE,
     remindAgent: row.remind_agent !== undefined ? row.remind_agent : true,
     remindClient: row.remind_client !== undefined ? row.remind_client : true,
     agentReminderMinutes: row.agent_reminder_minutes_before ?? 60,
     clientReminderMinutes: row.client_reminder_minutes_before ?? 60,
-    startIso: row.start_iso,
-    endIso: row.end_iso,
+    startIso,
+    endIso,
+    startsAt: startIso,
+    endsAt: endIso,
     created_at: row.created_at,
     updated_at: row.updated_at
   };
@@ -4939,14 +5514,24 @@ app.get('/api/notifications/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const settings = await getNotificationPreferences(userId);
+    settings.email_enabled = settings.email_enabled !== false;
+    settings.voice_enabled = settings.voice_enabled !== false;
+    settings.sms_enabled = FEATURE_FLAG_SMS_ENABLED && settings.sms_enabled === true;
+    settings.voiceAppointmentReminders = settings.voiceAppointmentReminders !== false;
     if (SMS_COMING_SOON) {
       settings.smsNewLeadAlerts = false;
       settings.smsReminders = false;
+      settings.sms_enabled = false;
     }
     res.json({
       success: true,
       settings,
-      smsChannel: SMS_COMING_SOON ? 'coming_soon' : 'active'
+      smsChannel: SMS_COMING_SOON ? 'coming_soon' : 'active',
+      channelFlags: {
+        email_enabled: FEATURE_FLAG_EMAIL_ENABLED,
+        voice_enabled: FEATURE_FLAG_VOICE_ENABLED,
+        sms_enabled: FEATURE_FLAG_SMS_ENABLED
+      }
     });
   } catch (error) {
     console.error('Error fetching notification settings:', error);
@@ -4958,19 +5543,33 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const updates = req.body || {};
+    if (!FEATURE_FLAG_EMAIL_ENABLED) updates.email_enabled = false;
+    if (!FEATURE_FLAG_VOICE_ENABLED) updates.voice_enabled = false;
+    if (!FEATURE_FLAG_SMS_ENABLED) updates.sms_enabled = false;
     if (SMS_COMING_SOON) {
       updates.smsNewLeadAlerts = false;
       updates.smsReminders = false;
+      updates.sms_enabled = false;
     }
     const settings = await updateNotificationPreferences(userId, updates);
+    settings.email_enabled = FEATURE_FLAG_EMAIL_ENABLED && settings.email_enabled !== false;
+    settings.voice_enabled = FEATURE_FLAG_VOICE_ENABLED && settings.voice_enabled !== false;
+    settings.sms_enabled = FEATURE_FLAG_SMS_ENABLED && settings.sms_enabled === true;
+    settings.voiceAppointmentReminders = settings.voiceAppointmentReminders !== false;
     if (SMS_COMING_SOON) {
       settings.smsNewLeadAlerts = false;
       settings.smsReminders = false;
+      settings.sms_enabled = false;
     }
     res.json({
       success: true,
       settings,
-      smsChannel: SMS_COMING_SOON ? 'coming_soon' : 'active'
+      smsChannel: SMS_COMING_SOON ? 'coming_soon' : 'active',
+      channelFlags: {
+        email_enabled: FEATURE_FLAG_EMAIL_ENABLED,
+        voice_enabled: FEATURE_FLAG_VOICE_ENABLED,
+        sms_enabled: FEATURE_FLAG_SMS_ENABLED
+      }
     });
   } catch (error) {
     console.error('Error updating notification settings:', error);
@@ -6819,7 +7418,14 @@ app.get('/api/admin/leads', async (req, res) => {
 
     // Apply Filter: Status
     if (status && status !== 'all') {
-      query = query.eq('status', status);
+      const statusCandidates = Array.from(
+        new Set([
+          String(status),
+          normalizeAppointmentStatusValue(status),
+          formatAppointmentStatusForUi(status)
+        ].filter(Boolean))
+      );
+      query = query.in('status', statusCandidates);
     }
 
     // Apply Filter: Search (Supabase ILIKE)
@@ -7000,7 +7606,7 @@ If you don't know the answer, ask for clarification or offer to have the agent c
 };
 
 // Webhook for Telnyx Inbound SMS
-app.post('/api/webhooks/telnyx/inbound', async (req, res) => {
+app.post(['/api/webhooks/telnyx/inbound', '/webhooks/telnyx'], async (req, res) => {
   try {
     const event = req.body;
     const eventType = event?.data?.event_type;
@@ -8820,6 +9426,13 @@ app.post('/api/leads/capture', async (req, res) => {
       }
     });
 
+    await updateLeadIntelligence({
+      leadId,
+      trigger: 'lead_capture'
+    }).catch((error) => {
+      console.warn('[LeadIntelligence] Failed after lead capture:', error?.message || error);
+    });
+
     res.json({
       lead_id: leadId,
       is_deduped: isDeduped,
@@ -8837,23 +9450,49 @@ app.get('/api/dashboard/leads', async (req, res) => {
   try {
     const tab = (req.query.tab || 'New').toString();
     const listingId = req.query.listingId ? String(req.query.listingId) : null;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || DEFAULT_LEAD_USER_ID || '');
+    const statusFilter = req.query.status ? String(req.query.status) : null;
+    const intentFilter = req.query.intent ? String(req.query.intent) : null;
+    const timeframe = req.query.timeframe ? String(req.query.timeframe) : null;
+    const sortMode = req.query.sort ? String(req.query.sort) : 'hot_first';
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
 
     if (!agentId) {
       return res.status(400).json({ error: 'agent_id_required' });
     }
 
+    let fromDateIso = null;
+    if (timeframe === '24h') {
+      fromDateIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    } else if (timeframe === '7d') {
+      fromDateIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (timeframe === '30d') {
+      fromDateIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
     let query = supabaseAdmin
       .from('leads')
-      .select('id, listing_id, full_name, name, phone, phone_e164, email, email_lower, source_type, source, status, intent_level, created_at, updated_at')
-      .eq('agent_id', agentId)
+      .select('id, listing_id, full_name, name, phone, phone_e164, email, email_lower, source_type, source, status, intent_score, intent_level, timeline, financing, last_message_at, last_message_preview, lead_summary, next_best_action, created_at, updated_at, agent_id, user_id')
+      .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
       .order('created_at', { ascending: false });
 
     if (tab.toLowerCase() === 'new') {
       query = query.eq('status', 'New');
     }
+
+    if (statusFilter && statusFilter.toLowerCase() !== 'all') {
+      query = query.eq('status', statusFilter);
+    }
+
+    if (intentFilter && intentFilter.toLowerCase() !== 'all') {
+      query = query.eq('intent_level', intentFilter);
+    }
+
     if (listingId) {
       query = query.eq('listing_id', listingId);
+    }
+
+    if (fromDateIso) {
+      query = query.gte('created_at', fromDateIso);
     }
 
     const { data: leads, error } = await query;
@@ -8880,15 +9519,47 @@ app.get('/api/dashboard/leads', async (req, res) => {
       status: lead.status || 'New',
       source_type: lead.source_type || lead.source || 'unknown',
       intent_level: lead.intent_level || 'Warm',
+      intent_score: lead.intent_score ?? 0,
+      timeline: lead.timeline || 'unknown',
+      financing: lead.financing || 'unknown',
+      lead_summary: lead.lead_summary || null,
+      next_best_action: lead.next_best_action || null,
+      last_activity_at: lead.last_message_at || lead.updated_at || lead.created_at,
+      last_activity_relative: computeRelativeTime(lead.last_message_at || lead.updated_at || lead.created_at),
+      last_message_preview: lead.last_message_preview || null,
       created_at: lead.created_at,
       listing_id: lead.listing_id || null,
       listing: lead.listing_id ? (listingMap[lead.listing_id] || null) : null
     }));
 
+    const intentWeight = { Hot: 3, Warm: 2, Cold: 1 };
+    const sorted = mapped.slice().sort((a, b) => {
+      if (sortMode === 'newest') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+
+      const weightA = intentWeight[a.intent_level] || 0;
+      const weightB = intentWeight[b.intent_level] || 0;
+      if (weightA !== weightB) return weightB - weightA;
+
+      const scoreA = Number(a.intent_score || 0);
+      const scoreB = Number(b.intent_score || 0);
+      if (scoreA !== scoreB) return scoreB - scoreA;
+
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
     res.json({
       success: true,
       tab,
-      leads: mapped
+      filters: {
+        status: statusFilter || 'all',
+        intent: intentFilter || 'all',
+        listingId: listingId || null,
+        timeframe: timeframe || 'all',
+        sort: sortMode
+      },
+      leads: sorted
     });
   } catch (error) {
     console.error('[LeadCapture] Failed to load dashboard leads:', error);
@@ -8899,7 +9570,8 @@ app.get('/api/dashboard/leads', async (req, res) => {
 app.get('/api/dashboard/leads/:leadId', async (req, res) => {
   try {
     const { leadId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const shouldRefreshIntel = String(req.query.refreshIntel || 'false').toLowerCase() === 'true';
 
     let leadQuery = supabaseAdmin
       .from('leads')
@@ -8908,7 +9580,7 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
       .limit(1);
 
     if (agentId) {
-      leadQuery = leadQuery.eq('agent_id', agentId);
+      leadQuery = leadQuery.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
     }
 
     const { data: leadRows, error: leadError } = await leadQuery;
@@ -8954,11 +9626,99 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
       transcript = messages || [];
     }
 
+    const { data: appointmentRows, error: appointmentError } = await supabaseAdmin
+      .from('appointments')
+      .select(APPOINTMENT_SELECT_FIELDS)
+      .eq('lead_id', lead.id)
+      .order('start_iso', { ascending: true });
+    if (appointmentError && !/does not exist/i.test(appointmentError.message || '')) {
+      throw appointmentError;
+    }
+
+    const appointmentIds = Array.from(new Set((appointmentRows || []).map((row) => row.id)));
+    let remindersByAppointment = {};
+    if (appointmentIds.length > 0) {
+      const { data: reminderRows, error: reminderError } = await supabaseAdmin
+        .from('appointment_reminders')
+        .select('id, appointment_id, reminder_type, scheduled_for, status, provider, payload, provider_response, created_at, updated_at')
+        .in('appointment_id', appointmentIds)
+        .order('scheduled_for', { ascending: true });
+
+      if (!reminderError || /does not exist/i.test(reminderError?.message || '')) {
+        remindersByAppointment = (reminderRows || []).reduce((acc, row) => {
+          if (!acc[row.appointment_id]) acc[row.appointment_id] = [];
+          acc[row.appointment_id].push(row);
+          return acc;
+        }, {});
+      }
+    }
+
+    const appointments = (appointmentRows || []).map((row) => {
+      const mapped = mapAppointmentFromRow(row);
+      const reminders = remindersByAppointment[row.id] || [];
+      const lastReminder = reminders.length > 0 ? reminders[reminders.length - 1] : null;
+      return {
+        ...mapped,
+        reminders,
+        lastReminderResult: lastReminder
+          ? {
+            status: lastReminder.status,
+            reminder_type: lastReminder.reminder_type,
+            scheduled_for: lastReminder.scheduled_for,
+            provider_response: lastReminder.provider_response || null
+          }
+          : null
+      };
+    });
+
+    let intelSnapshot = {
+      intent_score: lead.intent_score ?? 0,
+      intent_level: lead.intent_level || 'Warm',
+      intent_tags: Array.isArray(lead.intent_tags) ? lead.intent_tags : [],
+      lead_summary: lead.lead_summary || null,
+      next_best_action: lead.next_best_action || null,
+      last_intent_at: lead.last_intent_at || null
+    };
+
+    if (shouldRefreshIntel) {
+      const refreshed = await updateLeadIntelligence({
+        leadId: lead.id,
+        trigger: 'lead_detail_view'
+      }).catch(() => null);
+      if (refreshed) {
+        intelSnapshot = {
+          intent_score: refreshed.intentScore,
+          intent_level: refreshed.intentLevel,
+          intent_tags: refreshed.intentTags,
+          lead_summary: refreshed.leadSummary,
+          next_best_action: refreshed.nextBestAction,
+          last_intent_at: nowIso()
+        };
+      }
+    }
+
+    const upcomingAppointment = appointments
+      .filter((appointment) => {
+        const startTime = appointment.startsAt || appointment.startIso;
+        if (!startTime) return false;
+        return new Date(startTime).getTime() >= Date.now();
+      })
+      .sort((a, b) => new Date(a.startsAt || a.startIso || 0).getTime() - new Date(b.startsAt || b.startIso || 0).getTime())[0] || null;
+
     res.json({
       success: true,
       lead,
       listing,
+      intel: intelSnapshot,
+      actionBar: {
+        canCall: Boolean(lead.phone_e164 || lead.phone),
+        canEmail: Boolean(lead.email_lower || lead.email),
+        statusOptions: ['New', 'Contacted', 'Nurture', 'Closed-Lost'],
+        appointmentQuickCreate: true
+      },
       events: events || [],
+      appointments,
+      upcoming_appointment: upcomingAppointment,
       transcript: transcript.length > 0 ? transcript : [{ type: 'placeholder', content: 'No conversation yet' }]
     });
   } catch (error) {
@@ -9006,6 +9766,13 @@ app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
       }
     });
 
+    await updateLeadIntelligence({
+      leadId,
+      trigger: 'status_updated'
+    }).catch((error) => {
+      console.warn('[LeadIntelligence] Failed after status update:', error?.message || error);
+    });
+
     res.json({ success: true, lead: updatedLead });
   } catch (error) {
     console.error('[LeadCapture] Failed to update lead status:', error);
@@ -9046,6 +9813,229 @@ app.get('/api/dashboard/listings/:listingId/leads', async (req, res) => {
   } catch (error) {
     console.error('[LeadCapture] Failed to load listing leads:', error);
     res.status(500).json({ error: 'failed_to_load_listing_leads' });
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+
+    const leadQuery = supabaseAdmin
+      .from('leads')
+      .select('id, status, created_at')
+      .eq('listing_id', listingId);
+    if (agentId) {
+      leadQuery.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
+    }
+
+    let appointmentQuery = supabaseAdmin
+      .from('appointments')
+      .select('id, status, listing_id, property_id');
+    if (agentId) {
+      appointmentQuery = appointmentQuery.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
+    }
+
+    const [leadRes, appointmentRes] = await Promise.all([leadQuery, appointmentQuery]);
+    if (leadRes.error) throw leadRes.error;
+    if (appointmentRes.error && !/does not exist/i.test(appointmentRes.error.message || '')) throw appointmentRes.error;
+
+    const leads = leadRes.data || [];
+    const appointments = (appointmentRes.data || []).filter((row) =>
+      String(row.listing_id || '') === String(listingId) || String(row.property_id || '') === String(listingId)
+    );
+
+    const statuses = leads.reduce((acc, lead) => {
+      const key = (lead.status || 'New').toString();
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      listing_id: listingId,
+      metrics: {
+        leads_count: leads.length,
+        appointments_count: appointments.length,
+        appointments_confirmed: appointments.filter((appointment) => normalizeAppointmentStatusValue(appointment.status) === 'confirmed').length,
+        status_breakdown: statuses,
+        qr_usage: null
+      }
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to load listing performance:', error);
+    res.status(500).json({ error: 'failed_to_load_listing_performance' });
+  }
+});
+
+app.get('/api/dashboard/appointments', async (req, res) => {
+  try {
+    const view = String(req.query.view || 'week').toLowerCase();
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const now = new Date();
+    const start = view === 'today'
+      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      : new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const end = view === 'today'
+      ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
+      : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    let appointmentQuery = supabaseAdmin
+      .from('appointments')
+      .select(APPOINTMENT_SELECT_FIELDS)
+      .gte('start_iso', start.toISOString())
+      .lte('start_iso', end.toISOString())
+      .order('start_iso', { ascending: true });
+
+    if (agentId) {
+      appointmentQuery = appointmentQuery.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
+    }
+
+    const { data: appointmentRows, error: appointmentError } = await appointmentQuery;
+    if (appointmentError) throw appointmentError;
+
+    const leadIds = Array.from(new Set((appointmentRows || []).map((row) => row.lead_id).filter(Boolean)));
+    const listingIds = Array.from(new Set((appointmentRows || []).map((row) => row.listing_id || row.property_id).filter(Boolean)));
+    const appointmentIds = Array.from(new Set((appointmentRows || []).map((row) => row.id).filter(Boolean)));
+
+    const [leadRes, listingRes, reminderRes] = await Promise.all([
+      leadIds.length > 0
+        ? supabaseAdmin.from('leads').select('id, full_name, name, phone, phone_e164, email, email_lower').in('id', leadIds)
+        : Promise.resolve({ data: [], error: null }),
+      listingIds.length > 0
+        ? supabaseAdmin.from('properties').select('id, address, city, state, zip').in('id', listingIds)
+        : Promise.resolve({ data: [], error: null }),
+      appointmentIds.length > 0
+        ? supabaseAdmin
+          .from('appointment_reminders')
+          .select('id, appointment_id, reminder_type, status, scheduled_for, provider_response')
+          .in('appointment_id', appointmentIds)
+          .order('scheduled_for', { ascending: true })
+        : Promise.resolve({ data: [], error: null })
+    ]);
+
+    if (leadRes.error) throw leadRes.error;
+    if (listingRes.error) throw listingRes.error;
+    if (reminderRes.error && !/does not exist/i.test(reminderRes.error.message || '')) throw reminderRes.error;
+
+    const leadMap = (leadRes.data || []).reduce((acc, row) => {
+      acc[row.id] = row;
+      return acc;
+    }, {});
+    const listingMap = (listingRes.data || []).reduce((acc, row) => {
+      acc[row.id] = row;
+      return acc;
+    }, {});
+    const reminderMap = (reminderRes.data || []).reduce((acc, row) => {
+      if (!acc[row.appointment_id]) acc[row.appointment_id] = [];
+      acc[row.appointment_id].push(row);
+      return acc;
+    }, {});
+
+    const mappedAppointments = (appointmentRows || []).map((row) => {
+      const mapped = mapAppointmentFromRow(row);
+      const lead = leadMap[mapped.leadId] || null;
+      const listing = listingMap[mapped.listingId || mapped.propertyId] || null;
+      const reminders = reminderMap[mapped.id] || [];
+      const lastReminder = reminders.length > 0 ? reminders[reminders.length - 1] : null;
+      return {
+        ...mapped,
+        lead: lead
+          ? {
+            id: lead.id,
+            name: lead.full_name || lead.name || 'Unknown',
+            phone: lead.phone_e164 || lead.phone || null,
+            email: lead.email_lower || lead.email || null
+          }
+          : null,
+        listing: listing || null,
+        reminder_statuses: reminders,
+        last_reminder_outcome: lastReminder
+          ? {
+            status: lastReminder.status,
+            reminder_type: lastReminder.reminder_type,
+            scheduled_for: lastReminder.scheduled_for,
+            provider_response: lastReminder.provider_response || null
+          }
+          : null
+      };
+    });
+
+    res.json({
+      success: true,
+      view,
+      range: { start: start.toISOString(), end: end.toISOString() },
+      appointments: mappedAppointments,
+      counts: {
+        total: mappedAppointments.length,
+        confirmed: mappedAppointments.filter((appointment) => appointment.normalizedStatus === 'confirmed').length,
+        reschedule_requested: mappedAppointments.filter((appointment) => appointment.normalizedStatus === 'reschedule_requested').length
+      }
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to load appointments command center:', error);
+    res.status(500).json({ error: 'failed_to_load_dashboard_appointments' });
+  }
+});
+
+app.get('/api/dashboard/automation-recipes', async (req, res) => {
+  try {
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    const recipes = await listAutomationRecipes(agentId);
+    res.json({ success: true, recipes });
+  } catch (error) {
+    console.error('[Automation] Failed to list recipes:', error);
+    res.status(500).json({ error: 'failed_to_load_automation_recipes' });
+  }
+});
+
+app.patch('/api/dashboard/automation-recipes/:recipeKey', async (req, res) => {
+  try {
+    const { recipeKey } = req.params;
+    const agentId = String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const rawEnabled = req.body?.enabled;
+    const enabled = rawEnabled === true || rawEnabled === 'true' || rawEnabled === 1 || rawEnabled === '1';
+    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+
+    const updated = await setAutomationRecipeEnabled({ agentId, recipeKey, enabled });
+    res.json({ success: true, recipe: updated });
+  } catch (error) {
+    console.error('[Automation] Failed to update recipe:', error);
+    res.status(500).json({ error: 'failed_to_update_automation_recipe', details: error.message });
+  }
+});
+
+app.get('/api/dashboard/roi-metrics', async (req, res) => {
+  try {
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+
+    const timeframe = String(req.query.timeframe || '7d');
+    const days = timeframe === '30d' ? 30 : timeframe === '14d' ? 14 : timeframe === '1d' ? 1 : 7;
+    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const to = new Date().toISOString();
+    const metrics = await calculateRoiMetrics({ agentId, from, to });
+
+    try {
+      await supabaseAdmin
+        .from('metrics_daily')
+        .upsert({
+          agent_id: agentId,
+          metric_date: new Date().toISOString().slice(0, 10),
+          metrics,
+          updated_at: nowIso()
+        }, { onConflict: 'agent_id,metric_date' });
+    } catch (error) {
+      if (!/does not exist/i.test(error?.message || '')) {
+        console.warn('[ROI] metrics_daily upsert failed:', error?.message || error);
+      }
+    }
+
+    res.json({ success: true, timeframe, metrics });
+  } catch (error) {
+    console.error('[ROI] Failed to calculate metrics:', error);
+    res.status(500).json({ error: 'failed_to_load_roi_metrics' });
   }
 });
 
@@ -12954,7 +13944,12 @@ app.get('/qr/:qrId', async (req, res) => {
 app.get('/api/appointments', async (req, res) => {
   try {
     const { status, leadId, date, userId, agentId } = req.query;
-    const ownerId = userId || DEFAULT_LEAD_USER_ID;
+    const ownerId =
+      userId ||
+      agentId ||
+      req.headers['x-user-id'] ||
+      req.headers['x-agent-id'] ||
+      DEFAULT_LEAD_USER_ID;
 
     if (!ownerId) {
       return res.status(400).json({ error: 'DEFAULT_LEAD_USER_ID is not configured' });
@@ -13014,15 +14009,24 @@ app.post('/api/appointments', async (req, res) => {
       timeLabel,
       startIso,
       endIso,
+      starts_at,
+      ends_at,
+      startsAt,
+      endsAt,
       leadId,
+      lead_id,
+      listingId,
+      listing_id,
       leadName,
       name,
       email,
       phone,
       propertyId,
       propertyAddress,
+      timezone,
+      location,
       notes,
-      status = 'Scheduled',
+      status = 'scheduled',
       remindAgent = true,
       remindClient = true,
       agentReminderMinutes = 60,
@@ -13032,46 +14036,114 @@ app.post('/api/appointments', async (req, res) => {
       userId
     } = req.body || {};
 
-    const ownerId = userId || DEFAULT_LEAD_USER_ID;
+    const ownerId =
+      userId ||
+      agentId ||
+      req.headers['x-user-id'] ||
+      req.headers['x-agent-id'] ||
+      DEFAULT_LEAD_USER_ID;
     if (!ownerId) {
       return res.status(400).json({ error: 'DEFAULT_LEAD_USER_ID is not configured' });
     }
 
-    const contactName = (name || leadName || '').trim();
-    const contactEmail = (email || '').trim();
+    const requestedLeadId = leadId || lead_id || null;
+    const requestedListingId = listingId || listing_id || propertyId || null;
+    const requestedTimezone = (timezone || APPOINTMENT_REMINDER_TIMEZONE || '').trim() || APPOINTMENT_REMINDER_TIMEZONE;
+
+    let leadRow = null;
+    if (requestedLeadId) {
+      const { data, error } = await supabaseAdmin
+        .from('leads')
+        .select('id, agent_id, user_id, listing_id, full_name, name, email, email_lower, phone, phone_e164')
+        .eq('id', requestedLeadId)
+        .single();
+
+      if (error || !data) {
+        return res.status(404).json({ error: 'lead_not_found' });
+      }
+
+      const leadOwner = data.agent_id || data.user_id;
+      if (leadOwner && leadOwner !== ownerId) {
+        return res.status(403).json({ error: 'forbidden_lead_scope' });
+      }
+      leadRow = data;
+    }
+
+    let listingRow = null;
+    const resolvedListingId = requestedListingId || leadRow?.listing_id || null;
+    if (resolvedListingId) {
+      const { data, error } = await supabaseAdmin
+        .from('properties')
+        .select('id, user_id, address, city, state, zip')
+        .eq('id', resolvedListingId)
+        .single();
+
+      if (error || !data) {
+        return res.status(404).json({ error: 'listing_not_found' });
+      }
+
+      if (data.user_id && data.user_id !== ownerId) {
+        return res.status(403).json({ error: 'forbidden_listing_scope' });
+      }
+      listingRow = data;
+    }
+
+    const contactName =
+      (name || leadName || leadRow?.full_name || leadRow?.name || '').trim() || 'Client';
+    const contactEmail =
+      (email || leadRow?.email_lower || leadRow?.email || '').trim().toLowerCase();
+    const contactPhone =
+      normalizePhoneE164(phone || leadRow?.phone_e164 || leadRow?.phone || '') || null;
+
+    const explicitStart =
+      starts_at ||
+      startsAt ||
+      startIso ||
+      (typeof req.body?.start_iso === 'string' ? req.body.start_iso : null);
+    const explicitEnd =
+      ends_at ||
+      endsAt ||
+      endIso ||
+      (typeof req.body?.end_iso === 'string' ? req.body.end_iso : null);
     const day = normalizeDateOnly(date);
     const label = (timeLabel || time || '').trim();
 
-    if (!day || !label || !contactName) {
-      return res.status(400).json({ error: 'Name, date, and time are required' });
+    if (!explicitStart && (!day || !label)) {
+      return res.status(400).json({ error: 'starts_at or date/time is required' });
     }
 
     const isoRange =
-      startIso && endIso ? { startIso, endIso } : computeAppointmentIsoRange(day, label);
+      explicitStart && explicitEnd
+        ? { startIso: explicitStart, endIso: explicitEnd }
+        : computeAppointmentIsoRange(day, label);
+    const normalizedStatus = normalizeAppointmentStatusValue(status || 'scheduled');
 
-    // Auto-Resolve or Create Lead if missing
-    let resolvedLeadId = leadId;
+    // Auto-resolve/create lead for legacy request bodies.
+    let resolvedLeadId = requestedLeadId;
     if (!resolvedLeadId && contactEmail) {
-      // 1. Try to find existing lead by email
       const { data: existingLead } = await supabaseAdmin
         .from('leads')
         .select('id')
-        .eq('user_id', ownerId)
-        .eq('email', contactEmail)
+        .or(`agent_id.eq.${ownerId},user_id.eq.${ownerId}`)
+        .eq('email_lower', contactEmail)
         .maybeSingle();
 
       if (existingLead) {
         resolvedLeadId = existingLead.id;
       } else {
-        // 2. Create new lead
-        console.log(`✨ Auto-creating lead for appointment: ${contactName}`);
+        console.log(`✨ Auto-creating lead for appointment: ${contactName} (${ownerId})`);
         const { data: newLead, error: leadError } = await supabaseAdmin
           .from('leads')
           .insert({
+            agent_id: ownerId,
             user_id: ownerId,
+            listing_id: listingRow?.id || null,
+            full_name: contactName,
             name: contactName,
             email: contactEmail,
-            phone: phone || null,
+            email_lower: contactEmail,
+            phone: contactPhone,
+            phone_e164: contactPhone,
             status: 'New',
             source: 'Appointment Scheduler',
             notes: `Auto-created from ${kind} appointment request.`,
@@ -13090,13 +14162,13 @@ app.post('/api/appointments', async (req, res) => {
     }
 
     // CRITICAL: Prevent Double Booking
-    // Check if any *active* appointment overlaps with this range for this user
-    // Standard Overlap Logic: (Active.Start < New.End) AND (Active.End > New.Start)
     const { count: strictOverlap } = await supabaseAdmin
       .from('appointments')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', ownerId)
       .neq('status', 'Cancelled')
+      .neq('status', 'cancelled')
+      .neq('status', 'canceled')
       .lt('start_iso', isoRange.endIso)
       .gt('end_iso', isoRange.startIso);
 
@@ -13110,20 +14182,26 @@ app.post('/api/appointments', async (req, res) => {
 
     const insertPayload = {
       user_id: ownerId,
+      agent_id: ownerId,
       lead_id: isUuid(resolvedLeadId) ? resolvedLeadId : null,
       property_id: propertyId || null,
-      property_address: propertyAddress || null,
+      listing_id: listingRow?.id || resolvedListingId || propertyId || null,
+      property_address: propertyAddress || listingRow?.address || null,
       kind,
       name: contactName,
       email: contactEmail || null,
-      phone: phone || null,
-      date: day,
-      time_label: label,
+      phone: contactPhone,
+      date: day || normalizeDateOnly(isoRange.startIso),
+      time_label: label || formatReminderTimeLabel(isoRange.startIso, requestedTimezone),
       start_iso: isoRange.startIso,
       end_iso: isoRange.endIso,
+      starts_at: isoRange.startIso,
+      ends_at: isoRange.endIso,
+      timezone: requestedTimezone,
+      location: location || meetLink || null,
       meet_link: meetLink || null,
       notes: notes || null,
-      status,
+      status: normalizedStatus,
       remind_agent: Boolean(remindAgent),
       remind_client: Boolean(remindClient),
       agent_reminder_minutes_before: Number.isFinite(agentReminderMinutes)
@@ -13136,14 +14214,50 @@ app.post('/api/appointments', async (req, res) => {
       updated_at: new Date().toISOString()
     };
 
-    const { data, error } = await supabaseAdmin
+    let appointmentInsertResponse = await supabaseAdmin
       .from('appointments')
       .insert(insertPayload)
       .select(APPOINTMENT_SELECT_FIELDS)
       .single();
 
-    if (error) {
-      throw error;
+    if (appointmentInsertResponse.error && /column .* does not exist/i.test(appointmentInsertResponse.error.message || '')) {
+      const legacyPayload = { ...insertPayload };
+      delete legacyPayload.agent_id;
+      delete legacyPayload.listing_id;
+      delete legacyPayload.starts_at;
+      delete legacyPayload.ends_at;
+      delete legacyPayload.timezone;
+      delete legacyPayload.location;
+
+      appointmentInsertResponse = await supabaseAdmin
+        .from('appointments')
+        .insert(legacyPayload)
+        .select(APPOINTMENT_SELECT_FIELDS)
+        .single();
+    }
+
+    const { data, error } = appointmentInsertResponse;
+    if (error) throw error;
+
+    if (isUuid(resolvedLeadId)) {
+      await recordLeadEvent({
+        leadId: resolvedLeadId,
+        type: 'APPOINTMENT_CREATED',
+        payload: {
+          appointment_id: data.id,
+          listing_id: data.listing_id || null,
+          starts_at: data.starts_at || data.start_iso,
+          timezone: data.timezone || requestedTimezone,
+          location: data.location || null
+        }
+      });
+
+      await updateLeadIntelligence({
+        leadId: resolvedLeadId,
+        trigger: 'appointment_created'
+      }).catch((intelligenceError) => {
+        console.warn('[LeadIntelligence] Failed after appointment create:', intelligenceError?.message || intelligenceError);
+      });
     }
 
     // Trigger Lead Scoring (Async)
@@ -13180,7 +14294,14 @@ app.post('/api/appointments', async (req, res) => {
       // Don't fail the appointment creation if sync fails
     }
 
-    // --- NEW: SEND APPOINTMENT CONFIRMATION EMAIL ---
+    const reminderScheduling = await scheduleAppointmentReminders({
+      appointmentRow: data,
+      source: 'api_appointments_create'
+    }).catch((error) => {
+      console.warn('[AppointmentReminder] Failed to schedule reminders:', error?.message || error);
+      return { scheduled: [], skipped: true, reason: 'scheduler_error' };
+    });
+
     if (contactEmail) {
       try {
         const emailService = createEmailService();
@@ -13203,7 +14324,11 @@ app.post('/api/appointments', async (req, res) => {
       }
     }
 
-    res.json(appointment);
+    res.json({
+      ...appointment,
+      remindersScheduled: reminderScheduling.scheduled || [],
+      reminderScheduling
+    });
   } catch (error) {
     console.error('Error creating appointment:', error);
     res.status(500).json({ error: 'Failed to create appointment' });
@@ -13215,6 +14340,7 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const updates = req.body || {};
+    let shouldRescheduleReminders = false;
 
     const updatePayload = {
       updated_at: new Date().toISOString()
@@ -13223,11 +14349,14 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
     if (updates.kind) updatePayload.kind = updates.kind;
     if (updates.name) updatePayload.name = updates.name;
     if (updates.email !== undefined) updatePayload.email = updates.email || null;
-    if (updates.phone !== undefined) updatePayload.phone = updates.phone || null;
+    if (updates.phone !== undefined) updatePayload.phone = normalizePhoneE164(updates.phone || '') || null;
     if (updates.notes !== undefined) updatePayload.notes = updates.notes || null;
-    if (updates.status) updatePayload.status = updates.status;
+    if (updates.status) updatePayload.status = normalizeAppointmentStatusValue(updates.status);
     if (updates.meetLink !== undefined) updatePayload.meet_link = updates.meetLink || null;
     if (updates.propertyId !== undefined) updatePayload.property_id = updates.propertyId || null;
+    if (updates.listingId !== undefined) updatePayload.listing_id = updates.listingId || null;
+    if (updates.timezone !== undefined) updatePayload.timezone = updates.timezone || APPOINTMENT_REMINDER_TIMEZONE;
+    if (updates.location !== undefined) updatePayload.location = updates.location || null;
     if (updates.propertyAddress !== undefined) {
       updatePayload.property_address = updates.propertyAddress || null;
     }
@@ -13252,23 +14381,30 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
     }
     if (updates.date) {
       updatePayload.date = normalizeDateOnly(updates.date);
+      shouldRescheduleReminders = true;
     }
 
-    const timeLabel = updates.timeLabel || updates.time;
+    const timeLabel = updates.timeLabel || updates.time || updates.time_label;
     if (timeLabel) {
       updatePayload.time_label = timeLabel;
       const dayForRange = updatePayload.date || normalizeDateOnly(updates.date);
-      const startIso = updates.startIso;
-      const endIso = updates.endIso;
+      const startIso = updates.startIso || updates.startsAt || updates.starts_at;
+      const endIso = updates.endIso || updates.endsAt || updates.ends_at;
       const isoRange =
         startIso && endIso
           ? { startIso, endIso }
           : computeAppointmentIsoRange(dayForRange || new Date(), timeLabel);
       updatePayload.start_iso = isoRange.startIso;
       updatePayload.end_iso = isoRange.endIso;
-    } else if (updates.startIso && updates.endIso) {
-      updatePayload.start_iso = updates.startIso;
-      updatePayload.end_iso = updates.endIso;
+      updatePayload.starts_at = isoRange.startIso;
+      updatePayload.ends_at = isoRange.endIso;
+      shouldRescheduleReminders = true;
+    } else if ((updates.startIso || updates.startsAt || updates.starts_at) && (updates.endIso || updates.endsAt || updates.ends_at)) {
+      updatePayload.start_iso = updates.startIso || updates.startsAt || updates.starts_at;
+      updatePayload.end_iso = updates.endIso || updates.endsAt || updates.ends_at;
+      updatePayload.starts_at = updatePayload.start_iso;
+      updatePayload.ends_at = updatePayload.end_iso;
+      shouldRescheduleReminders = true;
     }
 
     const { data, error } = await supabaseAdmin
@@ -13285,9 +14421,33 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
       throw error;
     }
 
+    if (shouldRescheduleReminders) {
+      await supabaseAdmin
+        .from('appointment_reminders')
+        .delete()
+        .eq('appointment_id', appointmentId)
+        .in('status', ['queued', 'suppressed', 'failed']);
+
+      await scheduleAppointmentReminders({
+        appointmentRow: data,
+        source: 'api_appointments_update'
+      }).catch((scheduleError) => {
+        console.warn('[AppointmentReminder] Failed to reschedule reminders:', scheduleError?.message || scheduleError);
+      });
+    }
+
     const agentProfile =
-      (await fetchAiCardProfileForUser(data.user_id)) || DEFAULT_AI_CARD_PROFILE;
+      (await fetchAiCardProfileForUser(data.agent_id || data.user_id)) || DEFAULT_AI_CARD_PROFILE;
     const appointment = decorateAppointmentWithAgent(mapAppointmentFromRow(data), agentProfile);
+
+    if (data.lead_id) {
+      await updateLeadIntelligence({
+        leadId: data.lead_id,
+        trigger: 'appointment_updated'
+      }).catch((intelligenceError) => {
+        console.warn('[LeadIntelligence] Failed after appointment update:', intelligenceError?.message || intelligenceError);
+      });
+    }
 
     console.log(`📅 Updated appointment: ${appointmentId}`);
     res.json(appointment);
@@ -13348,17 +14508,17 @@ app.get('/api/admin/appointments', async (req, res) => {
     const appointments = (data || []).map(row => ({
       id: row.id,
       type: row.kind,
-      date: row.date || (row.start_iso ? new Date(row.start_iso).toLocaleDateString() : null),
-      time: row.time_label || (row.start_iso ? new Date(row.start_iso).toLocaleTimeString() : null),
+      date: row.date || ((row.starts_at || row.start_iso) ? new Date(row.starts_at || row.start_iso).toLocaleDateString() : null),
+      time: row.time_label || ((row.starts_at || row.start_iso) ? new Date(row.starts_at || row.start_iso).toLocaleTimeString() : null),
       leadId: row.lead_id,
-      status: row.status,
+      status: formatAppointmentStatusForUi(row.status),
       name: row.name,
       email: row.email,
       phone: row.phone,
-      propertyAddress: row.property_id, // We'll show ID or a placeholder if address isn't in main table
+      propertyAddress: row.property_address || row.property_id,
       notes: row.notes,
-      startIso: row.start_iso,
-      endIso: row.end_iso,
+      startIso: row.starts_at || row.start_iso,
+      endIso: row.ends_at || row.end_iso,
       meetLink: row.meet_link,
       createdAt: row.created_at
     }));
@@ -15528,83 +16688,7 @@ const checkExpiredTrials = async () => {
 // Appointment Reminders (Sent before the event)
 const checkUpcomingAppointments = async () => {
   if (!supabaseAdmin) return;
-  try {
-    const now = new Date();
-    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
-    const nowIso = now.toISOString();
-
-    // Find appointments starting in the next 60 minutes that haven't sent reminders
-    const { data: appointments, error } = await supabaseAdmin
-      .from('appointments')
-      .select('*')
-      .gt('start_iso', nowIso)
-      .lt('start_iso', oneHourFromNow)
-      .eq('reminders_sent', false)
-      .eq('status', 'Scheduled')
-      .limit(50);
-
-    if (error) return;
-
-    if (appointments && appointments.length > 0) {
-      console.log(`⏰ [Scheduler] Found ${appointments.length} upcoming appointments for reminders.`);
-      const emailService = createEmailService();
-
-      for (const appt of appointments) {
-        try {
-          // Prepare reminder email
-          const agentProfile = (await fetchAiCardProfileForUser(appt.user_id)) || DEFAULT_AI_CARD_PROFILE;
-          const decorated = decorateAppointmentWithAgent(mapAppointmentFromRow(appt), agentProfile);
-
-          const reminderHtml = `
-            <div style="font-family: sans-serif; line-height: 1.5; color: #333;">
-              <h2 style="color: #0ea5e9;">Appointment Reminder</h2>
-              <p>Hello ${appt.name || 'there'},</p>
-              <p>This is a reminder for your upcoming <strong>${appt.kind}</strong> appointment.</p>
-              <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 5px 0;"><strong>Date:</strong> ${appt.date}</p>
-                <p style="margin: 5px 0;"><strong>Time:</strong> ${appt.time_label}</p>
-                ${appt.meet_link ? `<p style="margin: 5px 0;"><strong>Meeting Link:</strong> <a href="${appt.meet_link}">${appt.meet_link}</a></p>` : ''}
-              </div>
-              <p>We look forward to seeing you!</p>
-              <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;"/>
-              <p style="white-space: pre-line; font-size: 0.9em; color: #666;">${decorated.confirmationDetails.signature}</p>
-            </div>
-          `;
-
-          if (appt.remind_client && appt.email) {
-            await emailService.sendEmail({
-              to: appt.email,
-              subject: `Reminder: ${appt.kind} Appointment`,
-              html: reminderHtml
-            });
-            console.log(`📧 Sent appointment reminder to client: ${appt.email}`);
-          }
-
-          if (appt.remind_agent) {
-            // Also notify agent if requested (using agent email from profile)
-            if (agentProfile.email) {
-              await emailService.sendEmail({
-                to: agentProfile.email,
-                subject: `Agent Reminder: ${appt.kind} with ${appt.name}`,
-                html: `<p>Reminder: You have an appointment with <strong>${appt.name}</strong> at <strong>${appt.time_label}</strong> today.</p>`
-              });
-            }
-          }
-
-          // Mark as sent
-          await supabaseAdmin
-            .from('appointments')
-            .update({ reminders_sent: true })
-            .eq('id', appt.id);
-
-        } catch (apptErr) {
-          console.error(`[Scheduler] Failed reminder for appointment ${appt.id}:`, apptErr.message);
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[Scheduler] Error in checkUpcomingAppointments:', err);
-  }
+  await processQueuedAppointmentReminders();
 };
 
 // Background Lead Re-Scoring (Daily Refresh simulation)

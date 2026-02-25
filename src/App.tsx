@@ -29,6 +29,11 @@ const PropertyPage = lazy(() => import('./components/PropertyPage'));
 const ListingsPage = lazy(() => import('./components/ListingsPage'));
 const AddListingPage = lazy(() => import('./components/AddListingPage'));
 const ListingStudioV2Page = lazy(() => import('./components/listings/ListingStudioV2Page'));
+const ConversionDashboardHome = lazy(() => import('./components/dashboard-command/ConversionDashboardHome'));
+const LeadsInboxCommandPage = lazy(() => import('./components/dashboard-command/LeadsInboxCommandPage'));
+const LeadDetailCommandPage = lazy(() => import('./components/dashboard-command/LeadDetailCommandPage'));
+const AppointmentsCommandPage = lazy(() => import('./components/dashboard-command/AppointmentsCommandPage'));
+const ListingPerformancePage = lazy(() => import('./components/dashboard-command/ListingPerformancePage'));
 const LeadsAndAppointmentsPage = lazy(() => import('./components/LeadsAndAppointmentsPage'));
 const InteractionHubPage = lazy(() => import('./components/AIInteractionHubPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
@@ -1472,13 +1477,19 @@ const App: React.FC = () => {
                     <Route element={<ProtectedLayout />}>
                         <Route path="/dashboard" element={
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
-                                (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard preloadedProperties={properties} />)
+                                <ConversionDashboardHome />
                         } />
                         <Route path="/daily-pulse" element={
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
                                 (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard preloadedProperties={properties} />)
                         } />
                         <Route path="/dashboard/:slug" element={<AgentDashboard preloadedProperties={properties} />} />
+
+                        <Route path="/dashboard/command-center" element={<ConversionDashboardHome />} />
+                        <Route path="/dashboard/leads" element={<LeadsInboxCommandPage />} />
+                        <Route path="/dashboard/leads/:leadId" element={<LeadDetailCommandPage />} />
+                        <Route path="/dashboard/appointments" element={<AppointmentsCommandPage />} />
+                        <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
 
 
                         <Route path="/listings" element={
