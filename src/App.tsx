@@ -34,6 +34,7 @@ const LeadsInboxCommandPage = lazy(() => import('./components/dashboard-command/
 const LeadDetailCommandPage = lazy(() => import('./components/dashboard-command/LeadDetailCommandPage'));
 const AppointmentsCommandPage = lazy(() => import('./components/dashboard-command/AppointmentsCommandPage'));
 const ListingPerformancePage = lazy(() => import('./components/dashboard-command/ListingPerformancePage'));
+const BillingCommandPage = lazy(() => import('./components/dashboard-command/BillingCommandPage'));
 const LeadsAndAppointmentsPage = lazy(() => import('./components/LeadsAndAppointmentsPage'));
 const InteractionHubPage = lazy(() => import('./components/AIInteractionHubPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
@@ -1496,6 +1497,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/leads/:leadId" element={<LeadDetailCommandPage />} />
                         <Route path="/dashboard/appointments" element={<AppointmentsCommandPage />} />
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
+                        <Route path="/dashboard/billing" element={<BillingCommandPage />} />
 
 
                         <Route path="/listings" element={

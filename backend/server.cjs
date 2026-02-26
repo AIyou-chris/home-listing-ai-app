@@ -119,6 +119,7 @@ const {
   deriveWebhookEventId,
   isMissingTableError: isJobQueueMissingTableError
 } = require('./services/jobQueueService');
+const { createBillingEngine } = require('./services/billingEngine');
 const {
   getEmailSettings,
   updateEmailSettings,
@@ -141,6 +142,12 @@ const {
   saveCalendarConnection,
   getCalendarCredentials
 } = require('./utils/calendarSettings');
+const billingEngine = createBillingEngine({
+  supabaseAdmin,
+  stripe,
+  enqueueJob,
+  appBaseUrl: process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'https://homelistingai.com'
+});
 const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const emailTrackingService = require('./services/emailTrackingService');
@@ -512,110 +519,53 @@ app.post('/api/subscription/checkout', async (req, res) => {
 });
 
 
-// STRIPE WEBHOOK HANDLER
-app.post('/api/webhooks/stripe', async (req, res) => {
+// STRIPE WEBHOOK HANDLER (queued + idempotent)
+app.post(['/api/webhooks/stripe', '/webhooks/stripe'], async (req, res) => {
   const sig = req.headers['stripe-signature'];
-  let event;
+  if (!sig) return res.status(400).json({ error: 'missing_stripe_signature' });
 
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     console.error('🚨 STRIPE_WEBHOOK_SECRET is missing. Rejecting webhook for security.');
-    return res.status(500).send('Webhook Error: Server Misconfiguration');
+    return res.status(500).json({ error: 'stripe_webhook_secret_missing' });
   }
 
+  if (!process.env.STRIPE_SECRET_KEY) {
+    console.error('🚨 STRIPE_SECRET_KEY is missing. Rejecting webhook for security.');
+    return res.status(500).json({ error: 'stripe_secret_key_missing' });
+  }
+
+  let event;
   try {
     event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    console.error(`Webhook Signature Error: ${err.message}`);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error(`Stripe webhook signature error: ${err.message}`);
+    return res.status(400).json({ error: 'invalid_stripe_signature' });
   }
 
-  // Handle the event
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const userId = session.client_reference_id || session.metadata?.userId;
-    const slug = session.metadata?.slug; // Fallback to slug
+  try {
+    const queued = await billingEngine.receiveStripeWebhook({
+      eventId: event.id,
+      eventPayload: event
+    });
 
-    console.log(`💰 [Stripe] Checkout Success. User: ${userId}, Slug: ${slug}`);
-    sendAlert(`💰 New Subscription! User: ${userId || slug || 'Unknown'} just signed up for Pro Plan.`);
-
-    if (userId) {
-      const { error } = await supabaseAdmin
-        .from('agents')
-        .update({
-          status: 'active',
-          subscription_status: 'active',
-          plan: 'pro',
-          stripe_customer_id: session.customer,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
-
-      if (error) console.error('Failed to update agent status by ID', error);
-      else console.log('✅ Agent activated by ID');
-
-    } else if (slug) {
-      const { error } = await supabaseAdmin
-        .from('agents')
-        .update({
-          status: 'active',
-          subscription_status: 'active',
-          plan: 'pro',
-          stripe_customer_id: session.customer,
-          updated_at: new Date().toISOString()
-        })
-        .eq('slug', slug);
-
-      if (error) console.error('Failed to update agent status by slug', error);
-      else console.log('✅ Agent activated by Slug');
+    res.status(200).json({
+      received: true,
+      provider: 'stripe',
+      stripe_event_id: event.id,
+      billing_event_id: queued?.billingEvent?.id || null,
+      job_id: queued?.job?.id || null
+    });
+  } catch (error) {
+    if (billingEngine.isMissingTableError?.(error) || isJobQueueMissingTableError(error)) {
+      return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
     }
-
-    // --- LEAD CONVERSION TRACKING ---
-    const customerEmail = session.customer_email || session.metadata?.email;
-    if (customerEmail) {
-      console.log(`🔎 [Stripe] Checking for lead match for: ${customerEmail}`);
-      const { data: leads } = await supabaseAdmin
-        .from('leads')
-        .select('id, name')
-        .eq('email', customerEmail)
-        .limit(1);
-
-      if (leads && leads[0]) {
-        const lead = leads[0];
-        await supabaseAdmin
-          .from('leads')
-          .update({
-            status: 'Won',
-            notes: `Auto-Converted: Signed up for Pro Plan via Stripe on ${new Date().toLocaleDateString()}`
-          })
-          .eq('id', lead.id);
-        console.log(`🎉 [Stripe] Lead ${lead.name} (ID: ${lead.id}) converted to WON.`);
-      }
-    }
+    console.error('Stripe webhook enqueue failed:', error?.message || error);
+    res.status(500).json({ error: 'failed_to_enqueue_stripe_webhook' });
   }
+});
 
-  // HANDLE CANCELLATIONS
-  if (event.type === 'customer.subscription.deleted') {
-    const subscription = event.data.object;
-    const customerId = subscription.customer;
-
-    console.log(`🚫 Subscription deleted for Customer: ${customerId}`);
-    sendAlert(`🚫 Subscription Cancelled for Customer ID: ${customerId}`);
-
-    const { error } = await supabaseAdmin
-      .from('agents')
-      .update({
-        subscription_status: 'cancelled',
-        plan: 'free',
-        status: 'inactive', // or 'limited'
-        updated_at: new Date().toISOString()
-      })
-      .eq('stripe_customer_id', customerId); // Must match by CustomerID
-
-    if (error) console.error('Failed to cancel subscription:', error);
-    else console.log('✅ Agent access revoked (Subscription Deleted)');
-  }
-
-  res.json({ received: true });
+app.get(['/api/webhooks/stripe', '/webhooks/stripe'], async (_req, res) => {
+  res.status(200).json({ ok: true, provider: 'stripe' });
 });
 
 // STRIPE CONNECT WEBHOOK HANDLER (THIN EVENTS)
@@ -2703,6 +2653,47 @@ const toTrimmedOrNull = (value) => {
   return next ? next : null;
 };
 
+const resolveRequesterUserId = async (req, { allowDefault = false } = {}) => {
+  const explicitId =
+    req.body?.agentId ||
+    req.body?.userId ||
+    req.query?.agentId ||
+    req.query?.userId ||
+    req.headers['x-user-id'] ||
+    req.headers['x-agent-id'] ||
+    req.headers['x-admin-user-id'];
+
+  if (explicitId) return String(explicitId);
+
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+  if (authHeader && String(authHeader).startsWith('Bearer ')) {
+    const token = String(authHeader).replace('Bearer ', '').trim();
+    if (token) {
+      const { data: authData, error } = await supabaseAdmin.auth.getUser(token);
+      if (!error && authData?.user?.id) return String(authData.user.id);
+    }
+  }
+
+  return allowDefault ? String(DEFAULT_LEAD_USER_ID || '') : null;
+};
+
+const buildLimitReachedPayload = (entitlement, feature) => ({
+  error: 'limit_reached',
+  feature,
+  plan_id: entitlement?.plan_id || 'free',
+  plan_name: entitlement?.plan_name || 'Free',
+  limit: Number(entitlement?.limit || 0),
+  used: Number(entitlement?.used || 0),
+  projected: Number(entitlement?.projected || 0),
+  upgrade_required: true,
+  modal: {
+    title: "You're at your limit.",
+    body: 'Upgrade to keep capturing leads and sending reports without interruptions.',
+    primary: 'Upgrade now',
+    secondary: 'Not now'
+  }
+});
+
 const loadListingByIdForAgent = async ({ listingId, agentId }) => {
   if (!listingId) return null;
 
@@ -3227,18 +3218,23 @@ const enqueueLeadCaptureNotifications = async ({
 
 const resolveAppointmentReminderFlags = async (agentId) => {
   const prefs = await getNotificationPreferences(agentId);
+  const billingSnapshot = await billingEngine.getBillingSnapshot(agentId).catch(() => null);
+  const reminderCallsLimit = Number(billingSnapshot?.limits?.reminder_calls_per_month || 0);
+  const remindersAvailableByPlan = reminderCallsLimit > 0;
   return {
     prefs,
     emailEnabled: FEATURE_FLAG_EMAIL_ENABLED && prefs.email_enabled !== false,
     voiceEnabled:
       FEATURE_FLAG_VOICE_ENABLED &&
+      remindersAvailableByPlan &&
       prefs.voice_enabled !== false &&
       prefs.appointmentReminders !== false &&
       prefs.voiceAppointmentReminders !== false,
     smsEnabled:
       FEATURE_FLAG_SMS_ENABLED &&
       prefs.sms_enabled === true &&
-      prefs.smsNewLeadAlerts === true
+      prefs.smsNewLeadAlerts === true,
+    reminderCallsLimit
   };
 };
 
@@ -3885,6 +3881,41 @@ const dispatchAppointmentReminder = async (reminder) => {
     throw new Error('missing_destination_phone');
   }
 
+  const reminderEntitlement = await billingEngine.checkEntitlement({
+    agentId,
+    feature: 'reminder_calls_per_month',
+    requestedUnits: 1,
+    context: {
+      appointment_id: appointment.id,
+      reminder_id: reminder.id,
+      listing_id: listingId,
+      action: 'reminder_dispatch',
+      reference_id: reminder.id
+    }
+  });
+
+  if (!reminderEntitlement.allowed) {
+    await markReminderAsSuppressed({
+      reminder,
+      reason: 'billing_limit_reached',
+      leadId
+    });
+    await recordLeadEvent({
+      leadId,
+      type: 'REMINDER_SUPPRESSED',
+      payload: {
+        reminder_id: reminder.id,
+        appointment_id: appointment.id,
+        reason: 'billing_limit_reached',
+        plan_id: reminderEntitlement.plan_id,
+        limit: reminderEntitlement.limit,
+        used: reminderEntitlement.used
+      }
+    }).catch(() => undefined);
+    await refreshLeadIntelligenceSafely(leadId, 'reminder_suppressed');
+    return { status: 'suppressed', reason: 'billing_limit_reached' };
+  }
+
   const agentProfile =
     (await fetchAiCardProfileForUser(agentId)) || DEFAULT_AI_CARD_PROFILE;
   const prompt = buildVoiceReminderScript({
@@ -3969,6 +4000,22 @@ const dispatchAppointmentReminder = async (reminder) => {
       }
     })
     .eq('idempotency_key', reminder.idempotency_key || `voice:reminder:${appointment.id}:${reminder.scheduled_for}`);
+
+  await billingEngine.trackUsageEvent({
+    agentId,
+    type: 'reminder_call',
+    units: 1,
+    referenceId: reminder.id,
+    metadata: {
+      appointment_id: appointment.id,
+      lead_id: leadId,
+      listing_id: listingId,
+      provider: 'vapi'
+    },
+    idempotencyKey: `usage:reminder_call:${reminder.id}`
+  }).catch((error) => {
+    console.warn('[Billing] Failed to track reminder_call usage:', error?.message || error);
+  });
 
   await refreshLeadIntelligenceSafely(leadId, 'reminder_sent');
 
@@ -4274,6 +4321,20 @@ const processSmsSendJob = async (job) => {
     })
     .eq('idempotency_key', job.idempotency_key);
 
+  await billingEngine.trackUsageEvent({
+    agentId,
+    type: 'sms_message',
+    units: 1,
+    referenceId: telnyxId || payload.conversation_id || `${Date.now()}`,
+    metadata: {
+      kind,
+      conversation_id: payload.conversation_id || null
+    },
+    idempotencyKey: `usage:sms_message:${job.idempotency_key}`
+  }).catch((error) => {
+    console.warn('[Billing] Failed to track sms_message usage:', error?.message || error);
+  });
+
   if (kind === 'ai_auto_reply' && payload.conversation_id) {
     await supabaseAdmin.from('ai_conversation_messages').insert({
       conversation_id: payload.conversation_id,
@@ -4449,12 +4510,23 @@ const processTelnyxWebhookJob = async (job) => {
   return { processed: true, provider: 'telnyx', webhook_event_id: webhookEvent.id, result };
 };
 
+const processStripeWebhookJob = async (job) => {
+  const result = await billingEngine.processStripeWebhookJob(job.payload || {});
+  return {
+    processed: true,
+    provider: 'stripe',
+    billing_event_id: job.payload?.billing_event_id || null,
+    result
+  };
+};
+
 const queueJobHandlers = {
   email_send: processEmailSendJob,
   sms_send: processSmsSendJob,
   voice_reminder_call: processVoiceReminderCallJob,
   webhook_vapi_process: processVapiWebhookJob,
-  webhook_telnyx_process: processTelnyxWebhookJob
+  webhook_telnyx_process: processTelnyxWebhookJob,
+  webhook_stripe_process: processStripeWebhookJob
 };
 
 let jobWorkerRunning = false;
@@ -7060,10 +7132,13 @@ app.get('/api/notifications/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const settings = await getNotificationPreferences(userId);
+    const billingSnapshot = await billingEngine.getBillingSnapshot(userId).catch(() => null);
+    const reminderCallLimit = Number(billingSnapshot?.limits?.reminder_calls_per_month || 0);
+    const reminderCallsPlanEnabled = reminderCallLimit > 0;
     settings.email_enabled = settings.email_enabled !== false;
     settings.voice_enabled = settings.voice_enabled !== false;
     settings.sms_enabled = FEATURE_FLAG_SMS_ENABLED && settings.sms_enabled === true;
-    settings.voiceAppointmentReminders = settings.voiceAppointmentReminders !== false;
+    settings.voiceAppointmentReminders = reminderCallsPlanEnabled && settings.voiceAppointmentReminders !== false;
     if (SMS_COMING_SOON) {
       settings.smsNewLeadAlerts = false;
       settings.smsReminders = false;
@@ -7077,6 +7152,10 @@ app.get('/api/notifications/settings/:userId', async (req, res) => {
         email_enabled: FEATURE_FLAG_EMAIL_ENABLED,
         voice_enabled: FEATURE_FLAG_VOICE_ENABLED,
         sms_enabled: FEATURE_FLAG_SMS_ENABLED
+      },
+      billingGate: {
+        reminder_calls_per_month_limit: reminderCallLimit,
+        reminders_available: reminderCallsPlanEnabled
       }
     });
   } catch (error) {
@@ -7089,9 +7168,13 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const updates = req.body || {};
+    const billingSnapshot = await billingEngine.getBillingSnapshot(userId).catch(() => null);
+    const reminderCallLimit = Number(billingSnapshot?.limits?.reminder_calls_per_month || 0);
+    const reminderCallsPlanEnabled = reminderCallLimit > 0;
     if (!FEATURE_FLAG_EMAIL_ENABLED) updates.email_enabled = false;
     if (!FEATURE_FLAG_VOICE_ENABLED) updates.voice_enabled = false;
     if (!FEATURE_FLAG_SMS_ENABLED) updates.sms_enabled = false;
+    if (!reminderCallsPlanEnabled) updates.voiceAppointmentReminders = false;
     if (SMS_COMING_SOON) {
       updates.smsNewLeadAlerts = false;
       updates.smsReminders = false;
@@ -7101,7 +7184,7 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
     settings.email_enabled = FEATURE_FLAG_EMAIL_ENABLED && settings.email_enabled !== false;
     settings.voice_enabled = FEATURE_FLAG_VOICE_ENABLED && settings.voice_enabled !== false;
     settings.sms_enabled = FEATURE_FLAG_SMS_ENABLED && settings.sms_enabled === true;
-    settings.voiceAppointmentReminders = settings.voiceAppointmentReminders !== false;
+    settings.voiceAppointmentReminders = reminderCallsPlanEnabled && settings.voiceAppointmentReminders !== false;
     if (SMS_COMING_SOON) {
       settings.smsNewLeadAlerts = false;
       settings.smsReminders = false;
@@ -7115,6 +7198,10 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
         email_enabled: FEATURE_FLAG_EMAIL_ENABLED,
         voice_enabled: FEATURE_FLAG_VOICE_ENABLED,
         sms_enabled: FEATURE_FLAG_SMS_ENABLED
+      },
+      billingGate: {
+        reminder_calls_per_month_limit: reminderCallLimit,
+        reminders_available: reminderCallsPlanEnabled
       }
     });
   } catch (error) {
@@ -10983,6 +11070,25 @@ app.post('/api/leads/capture', async (req, res) => {
       if (data && data.length > 0) existingLead = data[0];
     }
 
+    if (!existingLead) {
+      const leadCapEntitlement = await billingEngine.checkEntitlement({
+        agentId,
+        feature: 'stored_leads_cap',
+        requestedUnits: 1,
+        context: {
+          listing_id: listingId,
+          source_type: effectiveSourceType,
+          source_key: effectiveSourceKey,
+          action: 'lead_capture',
+          reference_id: `${listingId}:${phoneE164 || emailLower || visitorId || nowIso()}`
+        }
+      });
+
+      if (!leadCapEntitlement.allowed) {
+        return res.status(403).json(buildLimitReachedPayload(leadCapEntitlement, 'stored_leads_cap'));
+      }
+    }
+
     let leadId = null;
     let isDeduped = false;
     let leadStatus = 'New';
@@ -11086,6 +11192,21 @@ app.post('/api/leads/capture', async (req, res) => {
           source_meta: attributionMeta,
           context
         }
+      });
+
+      await billingEngine.trackUsageEvent({
+        agentId,
+        type: 'lead_captured',
+        units: 1,
+        referenceId: leadId,
+        metadata: {
+          listing_id: listingId,
+          source_type: effectiveSourceType,
+          source_key: effectiveSourceKey
+        },
+        idempotencyKey: `usage:lead_captured:${leadId}`
+      }).catch((error) => {
+        console.warn('[Billing] Failed to track lead_captured usage:', error?.message || error);
       });
     }
 
@@ -11210,6 +11331,201 @@ app.post('/api/leads/capture', async (req, res) => {
 
 const resolveDashboardOwnerId = (req) =>
   String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+
+app.get('/api/dashboard/billing', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const snapshot = await billingEngine.getBillingSnapshot(agentId);
+    res.json({
+      success: true,
+      ...snapshot,
+      copy: {
+        header: 'Billing',
+        subhead: 'Clear limits. No surprise charges.',
+        warning_banner: "You're close to your limit. Upgrade to keep everything running."
+      }
+    });
+  } catch (error) {
+    if (billingEngine.isMissingTableError?.(error)) {
+      return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
+    }
+    console.error('[Billing] Failed to load billing snapshot:', error);
+    res.status(500).json({ error: 'failed_to_load_billing_snapshot' });
+  }
+});
+
+app.post('/api/billing/checkout-session', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const rawPlanId = String(req.body?.plan_id || req.body?.planId || '').trim().toLowerCase();
+    const planId = rawPlanId === 'starter' || rawPlanId === 'pro' ? rawPlanId : 'free';
+    if (!['starter', 'pro'].includes(planId)) {
+      return res.status(400).json({ error: 'invalid_plan_id' });
+    }
+
+    const agent = await billingEngine.resolveAgentRecord(agentId).catch(() => null);
+    const checkout = await billingEngine.createCheckoutSession({
+      agentId,
+      planId,
+      successUrl: toTrimmedOrNull(req.body?.success_url || req.body?.successUrl),
+      cancelUrl: toTrimmedOrNull(req.body?.cancel_url || req.body?.cancelUrl),
+      email: toTrimmedOrNull(req.body?.email || agent?.email || null)
+    });
+
+    res.json({
+      success: true,
+      url: checkout.url,
+      session_id: checkout.id,
+      plan_id: planId
+    });
+  } catch (error) {
+    if (billingEngine.isMissingTableError?.(error)) {
+      return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
+    }
+    console.error('[Billing] Failed to create checkout session:', error);
+    res.status(500).json({ error: error?.message || 'failed_to_create_checkout_session' });
+  }
+});
+
+app.post('/api/billing/portal-session', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const portal = await billingEngine.createPortalSession({
+      agentId,
+      returnUrl: toTrimmedOrNull(req.body?.return_url || req.body?.returnUrl)
+    });
+
+    res.json({
+      success: true,
+      url: portal.url
+    });
+  } catch (error) {
+    if (billingEngine.isMissingTableError?.(error)) {
+      return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
+    }
+    console.error('[Billing] Failed to create portal session:', error);
+    res.status(500).json({ error: error?.message || 'failed_to_create_portal_session' });
+  }
+});
+
+app.post('/api/dashboard/billing/check-entitlement', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const feature = String(req.body?.feature || '').trim();
+    if (!feature) return res.status(400).json({ error: 'feature_required' });
+
+    const entitlement = await billingEngine.checkEntitlement({
+      agentId,
+      feature,
+      requestedUnits: Number(req.body?.requested_units || req.body?.requestedUnits || 1),
+      context: req.body?.context && typeof req.body.context === 'object' ? req.body.context : {}
+    });
+
+    if (!entitlement.allowed) {
+      return res.status(403).json(buildLimitReachedPayload(entitlement, feature));
+    }
+
+    res.json({
+      success: true,
+      allowed: true,
+      entitlement
+    });
+  } catch (error) {
+    console.error('[Billing] Entitlement check failed:', error);
+    res.status(500).json({ error: 'failed_to_check_entitlement' });
+  }
+});
+
+app.post('/api/dashboard/reports/track-generation', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const listingId = toTrimmedOrNull(req.body?.listing_id || req.body?.listingId);
+    const referenceId = toTrimmedOrNull(req.body?.reference_id || req.body?.referenceId) || `${listingId || 'listing'}:${Date.now()}`;
+    const context = {
+      listing_id: listingId,
+      source: 'listing_studio_report',
+      reference_id: referenceId
+    };
+
+    const entitlement = await billingEngine.checkEntitlement({
+      agentId,
+      feature: 'reports_per_month',
+      requestedUnits: 1,
+      context
+    });
+
+    if (!entitlement.allowed) {
+      return res.status(403).json(buildLimitReachedPayload(entitlement, 'reports_per_month'));
+    }
+
+    await billingEngine.trackUsageEvent({
+      agentId,
+      type: 'report_generated',
+      units: 1,
+      referenceId,
+      metadata: context,
+      idempotencyKey: `usage:report_generated:${agentId}:${referenceId}`
+    });
+
+    const snapshot = await billingEngine.getBillingSnapshot(agentId);
+    res.json({
+      success: true,
+      tracked: true,
+      billing: snapshot
+    });
+  } catch (error) {
+    if (billingEngine.isMissingTableError?.(error)) {
+      return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
+    }
+    console.error('[Billing] Failed to track report generation usage:', error);
+    res.status(500).json({ error: 'failed_to_track_report_generation' });
+  }
+});
+
+app.post('/api/dashboard/billing/allow-overages', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const allowOverages = Boolean(req.body?.allow_overages ?? req.body?.allowOverages);
+
+    const subscription = await billingEngine.getOrCreateSubscription(agentId);
+    if (!subscription?.id) {
+      return res.status(500).json({ error: 'subscription_not_available' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('subscriptions')
+      .update({
+        allow_overages: allowOverages,
+        updated_at: nowIso()
+      })
+      .eq('id', subscription.id)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+
+    const snapshot = await billingEngine.getBillingSnapshot(agentId);
+    res.json({
+      success: true,
+      allow_overages: Boolean(data?.allow_overages),
+      billing: snapshot
+    });
+  } catch (error) {
+    console.error('[Billing] Failed to update overage preference:', error);
+    res.status(500).json({ error: 'failed_to_update_overage_preference' });
+  }
+});
 
 const loadDashboardAppointmentsWindow = async ({ agentId, fromIso, toIso }) => {
   const runAppointmentsQuery = async ({ ownerMode = 'agent_or_user', timeField = 'start_iso' } = {}) => {
@@ -12414,6 +12730,26 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
     if (!listing) return res.status(404).json({ error: 'listing_not_found' });
 
     const ownerId = listing.agent_id || listing.user_id || agentId;
+    const publishTransition = nextPublished && !Boolean(listing.is_published);
+    const unpublishTransition = !nextPublished && Boolean(listing.is_published);
+
+    if (publishTransition) {
+      const entitlement = await billingEngine.checkEntitlement({
+        agentId: ownerId,
+        feature: 'active_listings',
+        requestedUnits: 1,
+        context: {
+          listing_id: listing.id,
+          action: 'publish_listing',
+          reference_id: listing.id
+        }
+      });
+
+      if (!entitlement.allowed) {
+        return res.status(403).json(buildLimitReachedPayload(entitlement, 'active_listings'));
+      }
+    }
+
     const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
       listingId: listing.id,
       title: listing.title,
@@ -12482,6 +12818,32 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
       listingId: listing.id,
       agentId: ownerId
     });
+
+    if (publishTransition) {
+      await billingEngine.trackUsageEvent({
+        agentId: ownerId,
+        type: 'listing_published',
+        units: 1,
+        referenceId: listing.id,
+        metadata: { listing_id: listing.id, action: 'publish' },
+        idempotencyKey: `usage:listing_published:${listing.id}:${String(updatedRow.published_at || timestamp).slice(0, 16)}`
+      }).catch((error) => {
+        console.warn('[Billing] Failed to track listing_published usage:', error?.message || error);
+      });
+    }
+
+    if (unpublishTransition) {
+      await billingEngine.trackUsageEvent({
+        agentId: ownerId,
+        type: 'listing_unpublished',
+        units: 1,
+        referenceId: listing.id,
+        metadata: { listing_id: listing.id, action: 'unpublish' },
+        idempotencyKey: `usage:listing_unpublished:${listing.id}:${String(timestamp).slice(0, 16)}`
+      }).catch((error) => {
+        console.warn('[Billing] Failed to track listing_unpublished usage:', error?.message || error);
+      });
+    }
 
     res.json({
       success: true,

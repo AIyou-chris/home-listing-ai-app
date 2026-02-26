@@ -1,5 +1,6 @@
 import { buildApiUrl } from '../lib/api';
 import { supabase } from './supabase';
+import { BillingLimitError } from './dashboardBillingService';
 
 export type LeadIntentLevel = 'Hot' | 'Warm' | 'Cold';
 
@@ -246,8 +247,23 @@ const defaultJsonHeaders = (agentId: string | null): HeadersInit => ({
 
 const parseResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed (${response.status})`);
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (String(payload.error || '') === 'limit_reached') {
+      throw new BillingLimitError('limit_reached', {
+        feature: String(payload.feature || 'unknown'),
+        modal: (payload.modal as { title: string; body: string; primary: string; secondary: string }) || {
+          title: "You're at your limit.",
+          body: 'Upgrade to keep capturing leads and sending reports without interruptions.',
+          primary: 'Upgrade now',
+          secondary: 'Not now'
+        },
+        planId: String(payload.plan_id || 'free'),
+        used: Number(payload.used || 0),
+        limit: Number(payload.limit || 0)
+      });
+    }
+    const textError = typeof payload.error === 'string' ? payload.error : '';
+    throw new Error(textError || `Request failed (${response.status})`);
   }
   return response.json() as Promise<T>;
 };

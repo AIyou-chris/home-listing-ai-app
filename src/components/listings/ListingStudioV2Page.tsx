@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AgentProfile, Property, isAIDescription } from '../../types';
 import { listingsService, type ListingMarketSnapshot } from '../../services/listingsService';
 import {
@@ -6,6 +7,8 @@ import {
   generateListingStudioPdf
 } from '../../services/listingStudioReportService';
 import { showToast } from '../../utils/toastService';
+import UpgradePromptModal from '../billing/UpgradePromptModal';
+import { BillingLimitError, trackDashboardReportGeneration } from '../../services/dashboardBillingService';
 
 interface ListingStudioV2PageProps {
   properties: Property[];
@@ -77,6 +80,7 @@ const buildMockProperty = (property: Property): Property => ({
 });
 
 export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ properties, agentProfile, onBackToListings }) => {
+  const navigate = useNavigate();
   const firstProperty = properties[0] || null;
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(firstProperty?.id || '');
   const selectedProperty = useMemo(
@@ -99,6 +103,11 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [useMockDataPack, setUseMockDataPack] = useState(true);
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; title: string; body: string }>({
+    open: false,
+    title: "You're at your limit.",
+    body: 'Upgrade to keep capturing leads and sending reports without interruptions.'
+  });
 
   useEffect(() => {
     if (!selectedProperty) return;
@@ -186,6 +195,7 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
     if (!selectedProperty || !marketSnapshot) return;
     setIsGenerating(true);
     try {
+      await trackDashboardReportGeneration(selectedProperty.id, `listing_report_${selectedProperty.id}_${Date.now()}`);
       const reportProperty = useMockDataPack ? buildMockProperty(selectedProperty) : selectedProperty;
       const reportSnapshot = useMockDataPack ? getMockMarketSnapshot() : marketSnapshot;
       await generateListingStudioPdf({
@@ -202,6 +212,14 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
       });
       showToast.success('Report PDF generated.');
     } catch (error) {
+      if (error instanceof BillingLimitError) {
+        setUpgradeModal({
+          open: true,
+          title: error.modal.title,
+          body: error.modal.body
+        });
+        return;
+      }
       console.error('Failed generating listing report PDF', error);
       showToast.error('Failed to generate PDF.');
     } finally {
@@ -434,6 +452,14 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
           </label>
         </div>
       </section>
+
+      <UpgradePromptModal
+        isOpen={upgradeModal.open}
+        title={upgradeModal.title}
+        body={upgradeModal.body}
+        onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
+        onUpgrade={() => navigate('/dashboard/billing')}
+      />
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   fetchListingPerformance,
@@ -11,11 +11,14 @@ import {
 } from '../../services/dashboardCommandService';
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore';
 import { ShareKitPanel } from '../dashboard/ShareKitPanel';
+import UpgradePromptModal from '../billing/UpgradePromptModal';
+import { BillingLimitError } from '../../services/dashboardBillingService';
 
 type RangeValue = '7d' | '30d';
 type TestCaptureContext = 'report_requested' | 'showing_requested';
 
 const ListingPerformancePage: React.FC = () => {
+  const navigate = useNavigate();
   const { listingId = '' } = useParams<{ listingId: string }>();
   const listingRealtimeSignal = useDashboardRealtimeStore((state) =>
     listingId ? state.listingSignalsById[listingId] : undefined
@@ -28,6 +31,11 @@ const ListingPerformancePage: React.FC = () => {
   const [sourceBreakdown, setSourceBreakdown] = useState<Array<{ source_type: string; total: number }>>([]);
   const [sourceKeyBreakdown, setSourceKeyBreakdown] = useState<Array<{ source_key: string; total: number }>>([]);
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null);
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; title: string; body: string }>({
+    open: false,
+    title: "You're at your limit.",
+    body: 'Upgrade to keep capturing leads and sending reports without interruptions.'
+  });
 
   const loadShareKit = useCallback(async () => {
     if (!listingId) return;
@@ -73,6 +81,14 @@ const ListingPerformancePage: React.FC = () => {
       toast.success('Listing published.');
       await loadPerformance();
     } catch (err) {
+      if (err instanceof BillingLimitError) {
+        setUpgradeModal({
+          open: true,
+          title: err.modal.title,
+          body: err.modal.body
+        });
+        return;
+      }
       toast.error(err instanceof Error ? err.message : 'Failed to publish listing.');
     }
   };
@@ -109,16 +125,28 @@ const ListingPerformancePage: React.FC = () => {
         onPublish={onPublish}
         onTestLeadSubmit={async (data) => {
           if (!listingId) return;
-          await sendListingTestLeadCapture(listingId, {
-            full_name: data.name,
-            email: data.contact.includes('@') ? data.contact : undefined,
-            phone: !data.contact.includes('@') ? data.contact : undefined,
-            consent_sms: !data.contact.includes('@') ? true : undefined,
-            context: data.context as TestCaptureContext,
-            source_key: 'dashboard_test'
-          });
-          toast.success('Test lead created — open in Leads.');
-          await loadPerformance();
+          try {
+            await sendListingTestLeadCapture(listingId, {
+              full_name: data.name,
+              email: data.contact.includes('@') ? data.contact : undefined,
+              phone: !data.contact.includes('@') ? data.contact : undefined,
+              consent_sms: !data.contact.includes('@') ? true : undefined,
+              context: data.context as TestCaptureContext,
+              source_key: 'dashboard_test'
+            });
+            toast.success('Test lead created — open in Leads.');
+            await loadPerformance();
+          } catch (err) {
+            if (err instanceof BillingLimitError) {
+              setUpgradeModal({
+                open: true,
+                title: err.modal.title,
+                body: err.modal.body
+              });
+              return;
+            }
+            toast.error(err instanceof Error ? err.message : 'Failed to create test lead.');
+          }
         }}
         stats={{
           leadsCaptured: metrics?.leads_count || 0,
@@ -197,6 +225,14 @@ const ListingPerformancePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <UpgradePromptModal
+        isOpen={upgradeModal.open}
+        title={upgradeModal.title}
+        body={upgradeModal.body}
+        onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
+        onUpgrade={() => navigate('/dashboard/billing')}
+      />
     </div>
   );
 };

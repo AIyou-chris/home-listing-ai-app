@@ -46,12 +46,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const commandCenterPath = isDemoMode || isBlueprintMode ? getPath('/daily-pulse') : '/dashboard';
   const leadsPath = isDemoMode || isBlueprintMode ? getPath('/leads') : '/dashboard/leads';
   const appointmentsPath = isDemoMode || isBlueprintMode ? getPath('/leads') : '/dashboard/appointments';
+  const billingPath = isDemoMode || isBlueprintMode ? getPath('/settings') : '/dashboard/billing';
 
   const primaryItems = [
     { to: commandCenterPath, icon: 'home', label: 'My Daily Pulse' },
     { to: leadsPath, icon: 'groups', label: 'Leads & Appointments' },
     ...(!(isDemoMode || isBlueprintMode)
       ? [{ to: appointmentsPath, icon: 'event_available', label: 'Appointments' }]
+      : [])
+    ,
+    ...(!(isDemoMode || isBlueprintMode)
+      ? [{ to: billingPath, icon: 'credit_card', label: 'Billing' }]
       : [])
   ];
 
