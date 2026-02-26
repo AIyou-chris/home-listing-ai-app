@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AuthHeader } from './AuthHeader';
-import { AuthFooter } from './AuthFooter';
+import { PublicHeader } from './layout/PublicHeader';
+import { PublicFooter } from './layout/PublicFooter';
+import { BackgroundTechIcons } from './BackgroundTechIcons';
 
 const ResetPasswordPage: React.FC = () => {
     const navigate = useNavigate();
@@ -151,36 +152,40 @@ const ResetPasswordPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
-            <AuthHeader
+        <div className="min-h-screen bg-[#02050D] font-sans flex flex-col relative overflow-hidden text-white">
+            <PublicHeader
                 onNavigateToSignUp={() => navigate('/signup')}
                 onNavigateToSignIn={() => navigate('/signin')}
-                onNavigateToLanding={() => navigate('/')}
-                onNavigateToSection={() => { }}
                 onEnterDemoMode={() => { }}
             />
-            <main className="flex-grow flex items-center justify-center py-12">
+
+            {/* Ambient Background Glows */}
+            <BackgroundTechIcons />
+            <div className="absolute top-1/4 left-0 w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none -translate-x-1/2"></div>
+            <div className="absolute bottom-1/4 right-0 w-[600px] h-[600px] bg-cyan-900/10 rounded-full blur-[120px] pointer-events-none translate-x-1/2"></div>
+
+            <main className="flex-grow flex items-center justify-center py-24 sm:py-32 relative z-10">
                 <div className="w-full max-w-md px-4 sm:px-0">
-                    <div className="bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-200/70">
-                        <div className="text-center">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Set New Password</h1>
-                            <p className="text-slate-500 mt-2">Please enter your new password below.</p>
+                    <div className="bg-[#0B1121]/80 backdrop-blur-md p-8 sm:p-10 rounded-3xl shadow-[0_0_40px_rgba(6,182,212,0.1)] border border-cyan-900/30">
+                        <div className="text-center mb-8">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Set New Password</h1>
+                            <p className="text-slate-400 mt-3 font-light">Please enter your new password below.</p>
                         </div>
 
                         {message && (
-                            <div className="mt-4 p-3 bg-green-50 text-green-800 border border-green-200 rounded-lg text-sm" role="alert">
+                            <div className="mt-4 p-4 mb-6 bg-green-900/20 text-green-400 border border-green-900/50 rounded-xl text-sm" role="alert">
                                 {message}
                             </div>
                         )}
 
                         {error && (
-                            <div className="mt-4 p-3 bg-red-50 text-red-800 border border-red-200 rounded-lg text-sm" role="alert">
+                            <div className="mt-4 p-4 mb-6 bg-red-900/20 text-red-400 border border-red-900/50 rounded-xl text-sm" role="alert">
                                 {error}
                             </div>
                         )}
 
                         {/* Debug Indicator (Subtle) */}
-                        <div className="text-xs text-slate-400 text-center mt-2 font-mono">
+                        <div className="text-xs text-slate-600 text-center mt-2 font-mono">
                             Status: {debugSessionStatus}
                         </div>
 
@@ -188,7 +193,7 @@ const ResetPasswordPage: React.FC = () => {
                             <div className="mt-8">
                                 <button
                                     onClick={() => navigate('/forgot-password')}
-                                    className="w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-primary-600 rounded-lg shadow-md hover:bg-primary-700 transition-colors"
+                                    className="w-full flex justify-center items-center px-4 py-4 text-base font-bold text-slate-950 bg-white rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:bg-slate-200 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transition-all"
                                 >
                                     Request New Link
                                 </button>
@@ -197,7 +202,7 @@ const ResetPasswordPage: React.FC = () => {
                             <form className="mt-8 space-y-6" onSubmit={handleUpdatePassword}>
                                 <div className="space-y-4">
                                     <div>
-                                        <label htmlFor="new-password" className="block text-sm font-semibold text-slate-700 mb-1.5">New Password</label>
+                                        <label htmlFor="new-password" className="block text-sm font-semibold text-slate-300 mb-2">New Password</label>
                                         <div className="relative">
                                             <input
                                                 type={isPasswordVisible ? "text" : "password"}
@@ -205,34 +210,34 @@ const ResetPasswordPage: React.FC = () => {
                                                 required
                                                 value={password}
                                                 onChange={e => setPassword(e.target.value)}
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
+                                                className="w-full px-4 py-3.5 bg-white/5 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-light"
                                                 placeholder="••••••••"
                                             />
-                                            <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-500 hover:text-primary-600">
+                                            <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-cyan-400 transition-colors">
                                                 <span className="material-symbols-outlined w-5 h-5">{isPasswordVisible ? 'visibility_off' : 'visibility'}</span>
                                             </button>
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label htmlFor="confirm-password" className="block text-sm font-semibold text-slate-700 mb-1.5">Confirm Password</label>
+                                        <label htmlFor="confirm-password" className="block text-sm font-semibold text-slate-300 mb-2">Confirm Password</label>
                                         <input
                                             type={isPasswordVisible ? "text" : "password"}
                                             id="confirm-password"
                                             required
                                             value={confirmPassword}
                                             onChange={e => setConfirmPassword(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
+                                            className="w-full px-4 py-3.5 bg-white/5 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-light"
                                             placeholder="••••••••"
                                         />
                                     </div>
                                 </div>
 
-                                <div>
+                                <div className="pt-2">
                                     <button
                                         type="submit"
                                         disabled={isLoading}
-                                        className={`w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-primary-600 rounded-lg shadow-md hover:bg-primary-700 transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                        className={`w-full flex justify-center items-center px-4 py-4 text-base font-bold text-slate-950 bg-white rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:bg-slate-200 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transition-all ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                                     >
                                         {isLoading ? 'Updating...' : 'Update Password'}
                                     </button>
@@ -242,7 +247,10 @@ const ResetPasswordPage: React.FC = () => {
                     </div>
                 </div>
             </main>
-            <AuthFooter />
+
+            <div className="mt-auto relative z-10">
+                <PublicFooter onNavigateToAdmin={() => window.location.href = '/admin'} />
+            </div>
         </div>
     );
 };

@@ -7,11 +7,13 @@ import { StripeLogo } from './StripeLogo';
 const MultiToolShowcase = lazy(() => import('./MultiToolShowcase').then(module => ({ default: module.MultiToolShowcase })));
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
-
-// --- New Components for the Redesigned Page ---
-
-// Unused components removed to fix lint errors.
-// const DashboardShowcaseSection ...
+import { ConversionWedge } from './ConversionWedge';
+import { PlacementSection } from './PlacementSection';
+import { PricingSectionNew } from './PricingSectionNew';
+import { FaqSectionNew } from './FaqSectionNew';
+import { ProofSectionNew } from './ProofSectionNew';
+import { StatStripNew } from './StatStripNew';
+import { FinalCtaNew } from './FinalCtaNew';
 
 // Unused components removed to fix lint errors.
 // const DashboardShowcaseSection ...
@@ -711,170 +713,154 @@ const AboutUsSection: React.FC = () => (
     </section>
 );
 
-const FinalCtaNew: React.FC<{ onNavigateToSignUp: () => void; onEnterDemoMode: () => void; }> = ({ onNavigateToSignUp, onEnterDemoMode }) => (
-    <section className="bg-gradient-to-r from-indigo-700 via-purple-800 to-slate-900 text-white relative overflow-hidden">
-        {/* Background Elements */}
-        <div className="absolute inset-0 pointer-events-none">
-            {/* Floating Icons */}
-            <div className="absolute top-20 left-10 opacity-10 animate-float">
-                <span className="material-symbols-outlined text-5xl text-white">rocket_launch</span>
-            </div>
-            <div className="absolute top-40 right-20 opacity-10 animate-float-slow">
-                <span className="material-symbols-outlined text-4xl text-white">star</span>
-            </div>
-            <div className="absolute bottom-20 left-1/4 opacity-10 animate-float-slower">
-                <span className="material-symbols-outlined text-3xl text-white">auto_awesome</span>
-            </div>
 
-            {/* Geometric Shapes */}
-            <div className="absolute top-60 right-1/3 opacity-10 animate-pulse">
-                <div className="w-20 h-20 border-2 border-white rounded-full"></div>
-            </div>
-            <div className="absolute bottom-40 right-10 opacity-10 animate-bounce">
-                <div className="w-16 h-16 bg-white rounded-lg transform rotate-45"></div>
-            </div>
-
-            {/* Dots Pattern */}
-            <div className="absolute top-0 left-0 w-full h-full opacity-5">
-                <div className="grid grid-cols-20 gap-4 w-full h-full">
-                    {Array.from({ length: 30 }).map((_, i) => (
-                        <div key={i} className="w-1 h-1 bg-white rounded-full animate-pulse"
-                            style={{
-                                animationDelay: `${i * 0.3}s`,
-                                animationDuration: `${2 + Math.random() * 2}s`
-                            }}></div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Gradient Orbs */}
-            <div className="absolute top-1/3 left-1/4 w-32 h-32 bg-white rounded-full opacity-5 animate-pulse blur-xl"></div>
-            <div className="absolute bottom-1/3 right-1/4 w-24 h-24 bg-white rounded-full opacity-5 animate-pulse blur-xl"></div>
-        </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center relative z-10">
-            <h2 className="text-4xl font-extrabold animate-fade-in-up">Don't Let Another Lead Slip Away</h2>
-            <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-300 animate-fade-in-up animation-delay-200">
-                While you're thinking about it, your competitors are capturing leads 24/7.
-                Start your HomeListingAI journey today and see results within hours.
-            </p>
-            <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4 animate-fade-in-up animation-delay-400">
-                <button
-                    onClick={onNavigateToSignUp}
-                    className="flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-yellow-400 via-orange-400 to-purple-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all text-lg transform hover:scale-105 btn-animate"
-                >
-                    <span className="material-symbols-outlined animate-pulse">rocket_launch</span>
-                    Start Free Trial
-                </button>
-                <button
-                    onClick={onEnterDemoMode}
-                    className="flex items-center justify-center gap-2 px-8 py-4 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 transition-all text-lg transform hover:scale-105 btn-animate"
-                >
-                    <span className="material-symbols-outlined animate-pulse">visibility</span>
-                    See Demo
-                </button>
-            </div>
-            <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-slate-300 animate-fade-in-up animation-delay-600">
-                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>Setup in under 10 minutes</span>
-                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>60-day money-back guarantee</span>
-                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-green-400 animate-pulse">check_circle</span>Cancel anytime</span>
-            </div>
-        </div>
-    </section>
-);
 
 
 
 
 const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void }> = ({ onNavigateToSignUp, onEnterDemoMode, onOpenChatBot }) => (
-    <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-28 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-white"></div>
+    <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden bg-slate-950">
+        {/* Deep, dark gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0B0F19] via-[#0B1528] to-[#040814]"></div>
 
-        {/* Background Elements */}
-        <div className="absolute inset-0 pointer-events-none">
-            {/* Floating geometric shapes */}
-            <div className="absolute top-20 left-10 w-20 h-20 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full opacity-10 animate-float-slow"></div>
-            <div className="absolute top-40 right-20 w-16 h-16 bg-gradient-to-r from-green-400 to-blue-400 rounded-full opacity-8 animate-float"></div>
-            <div className="absolute bottom-20 left-1/4 w-12 h-12 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full opacity-6 animate-float-slower"></div>
+        {/* Subtle animated grid pattern */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik02MCAwaC0xdjYwaDFWMHptLTYwIDYwaDYwdi0xSDB2MXoiIGZpbGw9IiMzMzQxNTUiIGZpbGwtb3BhY2l0eT0iMC4yNCIvPjwvZz48L3N2Zz4=')] [mask-image:linear-gradient(to_bottom,white,transparent,transparent)] opacity-40 mix-blend-overlay"></div>
 
-            {/* Floating icons */}
-            <div className="absolute top-60 right-1/3 opacity-5 animate-float">
-                <span className="material-symbols-outlined text-4xl text-blue-500">home</span>
-            </div>
-            <div className="absolute bottom-40 left-1/3 opacity-5 animate-float-slow">
-                <span className="material-symbols-outlined text-3xl text-green-500">trending_up</span>
-            </div>
-
-            {/* Dots pattern */}
-            <div className="absolute top-0 left-0 w-full h-full opacity-3">
-                <div className="grid grid-cols-20 gap-4 w-full h-full">
-                    {Array.from({ length: 50 }).map((_, i) => (
-                        <div key={i} className="w-1 h-1 bg-blue-300 rounded-full animate-pulse"
-                            style={{
-                                animationDelay: `${i * 0.2}s`,
-                                animationDuration: `${2 + Math.random() * 2}s`
-                            }}></div>
-                    ))}
-                </div>
-            </div>
+        {/* Soft glowing accent lines */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {/* Top light beam */}
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent shadow-[0_0_15px_rgba(6,182,212,0.6)]"></div>
+            {/* Ambient glows */}
+            <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-600 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-pulse"></div>
+            <div className="absolute top-40 -left-40 w-96 h-96 bg-cyan-600 rounded-full mix-blend-screen filter blur-[120px] opacity-20 animate-[pulse_4s_ease-in-out_infinite]"></div>
         </div>
+
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
                 <div className="text-center lg:text-left relative z-10">
-                    <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight animate-fade-in-up">
-                        Imagine If You Had a <span className="text-primary-600 gradient-text">24/7 Real Estate Sidekick</span>
+                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-white tracking-tight leading-[1.1] animate-fade-in-up">
+                        Turn Every Listing <br className="hidden lg:block" />
+                        <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent drop-shadow-sm">Into a 24/7 Lead Machine.</span>
                     </h1>
-                    <p className="mt-6 max-w-lg mx-auto lg:mx-0 text-lg text-slate-600 animate-fade-in-up animation-delay-200">
-                        It never sleeps, always follows up, and sounds just like you... <a href="#what-you-get" className="font-semibold text-primary-600 hover:underline">and so much more</a>.
+                    <div className="sr-only">HomeListingAI is a web app for real estate agents that turns listings into lead-capture pages with an AI Listing Page and a 1-page Market Report.</div>
+                    <p className="mt-8 max-w-xl mx-auto lg:mx-0 text-xl text-slate-400 animate-fade-in-up font-light leading-relaxed" style={{ animationDelay: "200ms" }}>
+                        HomeListingAI turns every listing into a 24/7 AI sidekick that responds instantly, follows up relentlessly, and books real conversations — in your voice.
                     </p>
-                    <div className="mt-8 flex flex-col lg:flex-row justify-center lg:justify-start items-center gap-4 animate-fade-in-up animation-delay-400 px-4 lg:px-0">
-                        <button onClick={onEnterDemoMode} className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all transform hover:scale-105 btn-animate">
-                            <span className="material-symbols-outlined w-5 h-5 animate-pulse">visibility</span>
-                            See Demo
-                        </button>
-                        <button onClick={onNavigateToSignUp} className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-all transform hover:scale-105 btn-animate">
-                            <span className="material-symbols-outlined animate-bounce">rocket_launch</span>
+                    <div className="mt-10 flex flex-col sm:flex-row justify-center lg:justify-start items-center gap-5 animate-fade-in-up px-4 lg:px-0" style={{ animationDelay: "400ms" }}>
+                        <button onClick={onNavigateToSignUp} className="w-full sm:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all transform hover:scale-105 text-lg btn-animate group flex items-center justify-center gap-2">
                             Start Free Trial
+                            <span className="material-symbols-outlined text-xl transition-transform group-hover:translate-x-1">arrow_forward</span>
+                        </button>
+                        <button onClick={onEnterDemoMode} className="w-full sm:w-auto px-8 py-4 bg-transparent border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-lg transition-all text-lg hover:bg-slate-800/50 flex items-center justify-center gap-2">
+                            For Brokers <span className="text-cyan-500 ml-1">→</span>
                         </button>
                     </div>
-                    <div className="mt-4 flex justify-center lg:justify-start animate-fade-in-up animation-delay-500">
-                        <button onClick={onOpenChatBot} className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 animate-pulse-subtle">
-                            <span className="material-symbols-outlined text-xl">mic</span>
-                            🎤 Chat with AI Assistant
-                        </button>
-                    </div>
-                    <p className="mt-3 text-sm text-slate-500 text-center lg:text-left animate-fade-in-up animation-delay-600">Professional AI solution. No setup fees.</p>
                 </div>
-                <div className="relative animate-fade-in-up animation-delay-600">
-                    <div className="relative lg:animate-float">
-                        <div className="bg-white/60 backdrop-blur-lg p-6 rounded-2xl shadow-2xl border border-slate-200/80 hover-lift">
-                            <div className="flex justify-between items-center">
-                                <h3 className="font-bold text-slate-800">AI Agent Dashboard</h3>
-                                <div className="flex space-x-1.5">
-                                    <span className="w-3 h-3 bg-red-400 rounded-full"></span>
-                                    <span className="w-3 h-3 bg-yellow-400 rounded-full"></span>
-                                    <span className="w-3 h-3 bg-green-400 rounded-full"></span>
+
+                <div className="relative animate-fade-in-up" style={{ animationDelay: "600ms" }}>
+                    {/* Modern Dashboard Mockup */}
+                    <div className="relative w-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl shadow-cyan-900/20 overflow-hidden group hover:border-slate-700 transition-colors duration-500">
+                        {/* Mockup Header */}
+                        <div className="bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+                            <div className="flex gap-2">
+                                <div className="w-3 h-3 rounded-full bg-slate-700"></div>
+                                <div className="w-3 h-3 rounded-full bg-slate-700"></div>
+                                <div className="w-3 h-3 rounded-full bg-slate-700"></div>
+                            </div>
+                            <div className="text-xs font-mono text-slate-500 flex gap-4">
+                                <span>homelistingai.com/admin</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                <span className="text-xs text-slate-500">Active</span>
+                            </div>
+                        </div>
+
+                        {/* Mockup Body Container */}
+                        <div className="p-5 grid grid-cols-12 gap-5 relative bg-[#090E17]">
+                            {/* Main Chart Area */}
+                            <div className="col-span-12 sm:col-span-8 space-y-5">
+                                <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 relative overflow-hidden group-hover:border-cyan-900/40 transition-colors duration-500">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h4 className="text-slate-300 text-sm font-medium">Pipeline Velocity</h4>
+                                    </div>
+                                    <div className="h-28 w-full flex items-end gap-2 px-2 relative">
+                                        {/* Abstract glowing chart line */}
+                                        <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                            <path d="M0,80 Q20,20 40,60 T80,30 T100,50 L100,100 L0,100 Z" fill="url(#blue-gradient)" opacity="0.1" />
+                                            <path d="M0,80 Q20,20 40,60 T80,30 T100,50" fill="none" stroke="currentColor" className="text-cyan-500" strokeWidth="2" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0px 0px 4px rgba(6,182,212,0.8))' }} />
+                                            <defs>
+                                                <linearGradient id="blue-gradient" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor="rgba(6,182,212,1)" />
+                                                    <stop offset="100%" stopColor="transparent" />
+                                                </linearGradient>
+                                            </defs>
+                                        </svg>
+                                        <div className="absolute right-4 top-4 bg-slate-950/80 border border-slate-800 rounded px-2 py-1 text-xs text-white flex items-center gap-1 backdrop-blur-sm shadow-lg">
+                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                                            +42% Response Speed
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-5">
+                                    <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 hover:border-slate-700 transition-colors">
+                                        <div className="text-slate-500 text-xs mb-1">New Leads Captured</div>
+                                        <div className="text-2xl font-bold text-white flex items-baseline gap-2">
+                                            1,248
+                                            <span className="text-cyan-400 text-xs font-normal">+18.5%</span>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 hover:border-slate-700 transition-colors">
+                                        <div className="text-slate-500 text-xs mb-1">Appointments Booked</div>
+                                        <div className="text-2xl font-bold text-white flex items-baseline gap-2">
+                                            86
+                                            <span className="text-cyan-400 text-xs font-normal">+33%</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="mt-6 grid grid-cols-2 gap-4">
-                                <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200/60">
-                                    <span className="material-symbols-outlined w-6 h-6 text-blue-500">group</span>
-                                    <p className="text-2xl font-bold text-slate-900 mt-2">1,247</p>
-                                    <p className="text-sm text-slate-500">Active Leads</p>
+
+                            {/* Live Chat Panel */}
+                            <div className="hidden sm:flex col-span-4 bg-slate-900 border border-slate-800 rounded-xl flex-col overflow-hidden relative shadow-lg">
+                                {/* Soft glow originating from chat */}
+                                <div className="absolute top-0 inset-x-0 h-[40%] bg-cyan-900/10 blur-[20px]"></div>
+
+                                <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/80 backdrop-blur z-10">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center shadow-[0_0_10px_rgba(6,182,212,0.4)]">
+                                            <span className="material-symbols-outlined text-[10px] text-white">smart_toy</span>
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-200">AI Agent</div>
+                                    </div>
                                 </div>
-                                <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200/60">
-                                    <span className="material-symbols-outlined w-6 h-6 text-green-500">trending_up</span>
-                                    <p className="text-2xl font-bold text-slate-900 mt-2">+23%</p>
-                                    <p className="text-sm text-slate-500">Conversion Rate</p>
+                                <div className="flex-1 p-3 space-y-3 relative z-10 font-sans">
+                                    {/* Simulated Chat */}
+                                    <div className="flex flex-col gap-1 items-start">
+                                        <div className="bg-slate-800 text-slate-300 text-[10px] py-1.5 px-3 rounded-2xl rounded-tl-sm max-w-[90%] leading-relaxed border border-slate-700/50">
+                                            Hi! I'm looking for a 3 bed / 2 bath under $500k.
+                                        </div>
+                                        <div className="text-[8px] text-slate-600 pl-1">New Buyer • Just now</div>
+                                    </div>
+                                    <div className="flex flex-col gap-1 items-end pt-2">
+                                        <div className="bg-cyan-600 border border-cyan-500 text-white shadow-[0_0_10px_rgba(6,182,212,0.2)] text-[10px] py-1.5 px-3 rounded-2xl rounded-tr-sm max-w-[90%] leading-relaxed">
+                                            I'd be happy to show you our current matches! I have availability tomorrow at 2PM or Thursday at 10AM to tour 123 Maple St. Which works for you?
+                                        </div>
+                                        <div className="text-[8px] text-slate-500 flex items-center gap-1 pr-1">
+                                            AI Sidekick
+                                            <span className="material-symbols-outlined text-[8px] text-cyan-400">check_all</span>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="mt-4 bg-white p-4 rounded-lg shadow-sm border border-slate-200/60">
-                                <div className="flex justify-between items-center">
-                                    <p className="text-sm text-slate-500">Monthly Revenue</p>
-                                    <p className="text-sm font-bold text-green-600">+12%</p>
-                                </div>
-                                <p className="text-3xl font-bold text-slate-900 mt-1">$45,892</p>
-                                <div className="mt-2 w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-gradient-to-r from-blue-500 to-green-400 h-full w-3/4"></div>
+                                {/* Typing Indicator Block */}
+                                <div className="p-2 border-t border-slate-800/80 bg-slate-900 z-10">
+                                    <div className="w-full bg-slate-950 border border-slate-800 rounded-md px-2 py-1.5 flex justify-between items-center opacity-70">
+                                        <span className="text-[9px] text-slate-500">Type a message...</span>
+                                        <div className="flex gap-2">
+                                            <span className="material-symbols-outlined text-[10px] text-slate-500 hover:text-cyan-400 transition-colors">sms</span>
+                                            <span className="material-symbols-outlined text-[10px] text-slate-500 hover:text-cyan-400 transition-colors">mail</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -937,20 +923,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} />
 
-                <Suspense fallback={<div className="h-96 animate-pulse bg-slate-100 rounded-xl" />}>
-                    <MultiToolShowcase />
-                </Suspense>
+                <ConversionWedge onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
 
-                <FeaturesGridSection />
-                <WhatYouGetSectionNew />
-                <TestimonialsSection />
+                <PlacementSection onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
 
-                <PricingSection onNavigateToSignUp={onNavigateToSignUp} onOpenContact={handleOpenContact} />
+                <ProofSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
 
-                <AboutUsSection />
-                <WhiteLabelSection />
+                <StatStripNew />
 
-                <FaqSection />
+                <PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+
+                <FaqSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+
                 <FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
             </main>
             <PublicFooter onNavigateToAdmin={onNavigateToAdmin} />
@@ -978,7 +962,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             </Suspense>
 
             {/* <AIContactOverlay isOpen={false} onClose={() => {}} /> Unused - replaced by ConsultationModal */}
-        </div>
+        </div >
     );
 };
 

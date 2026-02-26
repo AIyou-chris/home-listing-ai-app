@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabase';
-import { AuthHeader } from './AuthHeader';
-import { AuthFooter } from './AuthFooter';
+import { PublicHeader } from './layout/PublicHeader';
+import { PublicFooter } from './layout/PublicFooter';
+import { BackgroundTechIcons } from './BackgroundTechIcons';
 
 interface ForgotPasswordPageProps {
     onNavigateToSignUp: () => void;
@@ -40,37 +41,42 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigateToSig
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
-            <AuthHeader
+        <div className="min-h-screen bg-[#02050D] font-sans flex flex-col relative overflow-hidden text-white">
+
+            <PublicHeader
                 onNavigateToSignUp={onNavigateToSignUp}
-                onNavigateToSignIn={onNavigateToSignIn} // Important: Allow going back
-                onNavigateToLanding={onNavigateToLanding}
-                onNavigateToSection={() => { }}
+                onNavigateToSignIn={onNavigateToSignIn}
                 onEnterDemoMode={() => { }}
             />
-            <main className="flex-grow flex items-center justify-center py-12">
+
+            {/* Ambient Background Glows */}
+            <BackgroundTechIcons />
+            <div className="absolute top-1/4 left-0 w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none -translate-x-1/2"></div>
+            <div className="absolute bottom-1/4 right-0 w-[600px] h-[600px] bg-cyan-900/10 rounded-full blur-[120px] pointer-events-none translate-x-1/2"></div>
+
+            <main className="flex-grow flex items-center justify-center py-24 sm:py-32 relative z-10">
                 <div className="w-full max-w-md px-4 sm:px-0">
-                    <div className="bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-200/70">
-                        <div className="text-center">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Reset Password</h1>
-                            <p className="text-slate-500 mt-2">Enter your email to receive recovery instructions.</p>
+                    <div className="bg-[#0B1121]/80 backdrop-blur-md p-8 sm:p-10 rounded-3xl shadow-[0_0_40px_rgba(6,182,212,0.1)] border border-cyan-900/30">
+                        <div className="text-center mb-8">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Reset Password</h1>
+                            <p className="text-slate-400 mt-3 font-light">Enter your email to receive recovery instructions.</p>
                         </div>
 
                         {message && (
-                            <div className="mt-4 p-3 bg-green-50 text-green-800 border border-green-200 rounded-lg text-sm" role="alert">
+                            <div className="mt-4 p-4 mb-6 bg-green-900/20 text-green-400 border border-green-900/50 rounded-xl text-sm" role="alert">
                                 {message}
                             </div>
                         )}
 
                         {error && (
-                            <div className="mt-4 p-3 bg-red-50 text-red-800 border border-red-200 rounded-lg text-sm" role="alert">
+                            <div className="mt-4 p-4 mb-6 bg-red-900/20 text-red-400 border border-red-900/50 rounded-xl text-sm" role="alert">
                                 {error}
                             </div>
                         )}
 
                         <form className="mt-8 space-y-6" onSubmit={handleReset}>
                             <div>
-                                <label htmlFor="email-address" className="block text-sm font-semibold text-slate-700 mb-1.5">Email Address</label>
+                                <label htmlFor="email-address" className="block text-sm font-semibold text-slate-300 mb-2">Email Address</label>
                                 <input
                                     type="email"
                                     id="email-address"
@@ -78,32 +84,35 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigateToSig
                                     required
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
-                                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
+                                    className="w-full px-4 py-3.5 bg-white/5 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-light"
                                     placeholder="you@example.com"
                                 />
                             </div>
 
-                            <div>
+                            <div className="pt-2">
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    className={`w-full flex justify-center items-center px-4 py-3.5 text-base font-semibold text-white bg-primary-600 rounded-lg shadow-md hover:bg-primary-700 transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    className={`w-full flex justify-center items-center px-4 py-4 text-base font-bold text-slate-950 bg-white rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:bg-slate-200 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transition-all ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                                 >
                                     {isLoading ? 'Sending...' : 'Send Reset Link'}
                                 </button>
                             </div>
                         </form>
 
-                        <p className="text-center text-sm text-slate-600 mt-8">
+                        <p className="text-center text-sm text-slate-500 mt-8 font-medium">
                             Remember your password?{' '}
-                            <button onClick={onNavigateToSignIn} className="font-semibold text-primary-600 hover:text-primary-500">
+                            <button onClick={onNavigateToSignIn} className="font-bold text-white hover:text-cyan-400 transition-colors ml-1">
                                 Sign In
                             </button>
                         </p>
                     </div>
                 </div>
             </main>
-            <AuthFooter />
+
+            <div className="mt-auto relative z-10">
+                <PublicFooter onNavigateToAdmin={() => window.location.href = '/admin'} />
+            </div>
         </div>
     );
 };

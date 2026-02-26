@@ -259,6 +259,34 @@ VITE_OPENAI_API_KEY=your_openai_api_key
 - `npm run lint` - Run ESLint
 - `npm run deploy` - Build and run the project-specific deployment script
 
+## Phase 3.1 Jobs Worker (Reliability)
+
+Phase 3.1 adds a DB-backed queue for outbound email/voice/sms and webhook processing.
+
+### Apply migration
+
+```bash
+export DATABASE_URL='postgresql://...'
+node scripts/db/apply_phase3_1_jobs_idempotency.cjs
+```
+
+### Worker env vars
+
+Set on backend service:
+
+- `JOB_WORKER_ENABLED=true`
+- `JOB_WORKER_POLL_MS=3000`
+- `JOB_WORKER_BATCH_SIZE=15`
+- `JOB_REAPER_MINUTES=10`
+- `JOB_REAPER_POLL_MS=60000`
+
+### Admin ops endpoints
+
+- `GET /api/admin/jobs?status=dead&type=email_send`
+- `POST /api/admin/jobs/:jobId/replay`
+- `GET /api/admin/webhooks?provider=vapi&status=failed`
+- `POST /api/admin/webhooks/:id/replay`
+
 ### Code Style
 
 - TypeScript for type safety

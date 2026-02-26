@@ -191,6 +191,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                         onClose={() => setModalSubState(prev => ({ ...prev, viewing: false }))}
                         propertyAddress={property.address}
                         agentEmail={property.agent.email}
+                        listingId={property.id}
                     />
                 )}
                 {modalSubState.info && (

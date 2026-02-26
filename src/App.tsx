@@ -1431,6 +1431,11 @@ const App: React.FC = () => {
                             <PublicListingPage />
                         </Suspense>
                     } />
+                    <Route path="/l/:publicSlug" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <PublicListingPage />
+                        </Suspense>
+                    } />
 
                     {/* Demo Dashboard */}
                     <Route path="/admin" element={

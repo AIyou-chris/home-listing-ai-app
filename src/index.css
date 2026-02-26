@@ -113,6 +113,57 @@
   animation-delay: 600ms;
 }
 
+.animation-delay-800 {
+  animation-delay: 800ms;
+}
+
+.animation-delay-1000 {
+  animation-delay: 1000ms;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-15px) translateX(10px); }
+}
+
+.animate-marquee {
+  animation: marquee 50s linear infinite;
+  display: flex;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+.animate-drift {
+  animation: drift 20s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-float-slow,
+  .animate-float-slower,
+  .animate-pulse-slow,
+  .animate-pulse-subtle,
+  .animate-fade-in-up,
+  .animate-fade-in-left,
+  .animate-fade-in-right,
+  .animate-marquee,
+  .animate-drift {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
+.mask-marquee {
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
 /* Parallax effect for background elements */
 .parallax-bg {
   transform: translateZ(0);

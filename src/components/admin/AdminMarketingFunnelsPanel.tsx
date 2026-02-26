@@ -421,7 +421,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         const name = window.prompt('Call bot name (example: Broker Follow-Up Bot):');
         if (!name) return;
 
-        const configId = window.prompt('Hume Config ID for this bot:');
+        const configId = window.prompt('Call Bot Agent ID for this bot:');
         if (!configId) return;
 
         const suggestedKey = slugifyBotKey(name) || `call_bot_${Date.now()}`;
@@ -451,7 +451,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
         if (!userId || isSavingBot) return;
         const nextName = window.prompt('Call bot name:', bot.name);
         if (!nextName) return;
-        const nextConfigId = window.prompt('Hume Config ID:', bot.configId);
+        const nextConfigId = window.prompt('Call Bot Agent ID:', bot.configId);
         if (!nextConfigId) return;
         const nextDescription = window.prompt('Description:', bot.description || '') || '';
 
@@ -522,8 +522,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     import.meta.env.VITE_API_BASE_URL ||
                     'http://localhost:3002';
 
-                // Call Hume Outbound Endpoint
-                const response = await fetch(`${voiceApiUrl}/api/voice/hume/outbound-call`, {
+                // Call outbound voice endpoint
+                const response = await fetch(`${voiceApiUrl}/api/voice/outbound-call`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -532,13 +532,13 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         to: testPhone.trim(),
                         botType: callBotId,
                         assistantKey: callBotId,
-                        humeConfigId: callBot?.configId,
+                        configId: callBot?.configId,
                         userId
                     })
                 });
 
                 if (response.ok) {
-                    alert(`Test call initiated to ${testPhone} via Hume AI!`);
+                    alert(`Test call initiated to ${testPhone}.`);
                 } else {
                     const err = await response.json();
                     throw new Error(err.error || 'Failed to initiate call');
@@ -1121,7 +1121,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                         <div>
                                                                             <h4 className="text-blue-900 font-bold text-lg mb-1">AI Call Configured</h4>
                                                                             <p className="text-blue-700/80 text-sm leading-relaxed max-w-md">
-                                                                                This call step uses a prebuilt Hume assistant. Script editing is disabled here to keep behavior stable.
+                                                                                This call step uses a prebuilt call bot profile. Script editing is disabled here to keep behavior stable.
                                                                             </p>
                                                                         </div>
                                                                     </div>
@@ -1134,7 +1134,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                                 </label>
                                                                                 <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                                                                                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
-                                                                                    Hume Managed
+                                                                                    Provider Managed
                                                                                 </span>
                                                                             </div>
                                                                             <select
@@ -1151,7 +1151,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                             <div className="flex justify-between items-start mt-1.5">
                                                                                 <p className="text-[10px] text-slate-400 flex items-center gap-1">
                                                                                     <span className="material-symbols-outlined text-[10px]">info</span>
-                                                                                    Edit the prompt/script in Hume Config, not in this funnel step.
+                                                                                    Edit the prompt/script in your provider config, not in this funnel step.
                                                                                 </p>
                                                                                 <span className="text-[10px] text-slate-400">
                                                                                     {getBotOptions().find((bot) => bot.key === resolveCallBotIdForStep(step.content))?.configId}

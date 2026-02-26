@@ -175,6 +175,26 @@ export interface ListingPerformanceMetrics {
   appointments_confirmed: number;
   status_breakdown: Record<string, number>;
   qr_usage: number | null;
+  leads_by_source?: Record<string, number>;
+  last_lead_captured_at?: string | null;
+}
+
+export interface ListingSourceDefault {
+  id: string | null;
+  source_type: string;
+  source_key: string;
+}
+
+export interface ListingShareKitResponse {
+  success: boolean;
+  listing_id: string;
+  is_published: boolean;
+  published_at: string | null;
+  public_slug: string | null;
+  share_url: string | null;
+  qr_code_url: string | null;
+  qr_code_svg: string | null;
+  source_defaults: Record<string, ListingSourceDefault>;
 }
 
 export interface AutomationRecipe {
@@ -329,13 +349,116 @@ export const fetchRoiMetrics = async (timeframe: '1d' | '7d' | '14d' | '30d' = '
   return parseResponse<{ success: boolean; metrics: RoiMetrics }>(response);
 };
 
-export const fetchListingPerformance = async (listingId: string, agentIdOverride?: string | null) => {
+export const fetchListingPerformance = async (
+  listingId: string,
+  options: { range?: '7d' | '30d' } = {},
+  agentIdOverride?: string | null
+) => {
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const range = options.range || '30d';
   const response = await fetch(
-    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/performance`, agentId)),
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/performance?range=${encodeURIComponent(range)}`, agentId)),
     { headers: defaultJsonHeaders(agentId) }
   );
-  return parseResponse<{ success: boolean; listing_id: string; metrics: ListingPerformanceMetrics }>(response);
+  return parseResponse<{
+    success: boolean;
+    listing_id: string;
+    range: string;
+    metrics: ListingPerformanceMetrics;
+    breakdown?: {
+      by_source_type: Array<{ source_type: string; total: number }>;
+      by_source_key: Array<{ source_key: string; total: number }>;
+    };
+  }>(response);
+};
+
+export const fetchListingShareKit = async (listingId: string, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/share-kit`, agentId)),
+    { headers: defaultJsonHeaders(agentId) }
+  );
+  return parseResponse<ListingShareKitResponse>(response);
+};
+
+export const publishListingShareKit = async (listingId: string, isPublished = true, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/publish`, agentId)),
+    {
+      method: 'PATCH',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify({ is_published: isPublished, agentId })
+    }
+  );
+  return parseResponse<ListingShareKitResponse>(response);
+};
+
+export const generateListingQrCode = async (
+  listingId: string,
+  payload: {
+    source_type?: string;
+    source_key?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+  },
+  agentIdOverride?: string | null
+) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/generate-qr`, agentId)),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify({ ...payload, agentId })
+    }
+  );
+  return parseResponse<{
+    success: boolean;
+    listing_id: string;
+    source_key: string;
+    source_type: string;
+    share_url: string;
+    tracked_url: string;
+    qr_code_url: string;
+    qr_code_svg: string;
+  }>(response);
+};
+
+export const sendListingTestLeadCapture = async (
+  listingId: string,
+  payload: {
+    full_name?: string;
+    email?: string;
+    phone?: string;
+    consent_sms?: boolean;
+    context?: 'report_requested' | 'showing_requested';
+    source_key?: string;
+    source_type?: string;
+    source_meta?: Record<string, unknown>;
+  },
+  agentIdOverride?: string | null
+) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/test-capture`, agentId)),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify({ ...payload, agentId })
+    }
+  );
+  return parseResponse<{
+    success: boolean;
+    message: string;
+    lead_id: string;
+    is_deduped: boolean;
+    status: string;
+    intent_level: LeadIntentLevel;
+    source_key: string | null;
+    source_type: string;
+  }>(response);
 };
 
 export const fetchCommandCenterSnapshot = async (agentIdOverride?: string | null) => {

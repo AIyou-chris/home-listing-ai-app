@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>app-audit-2026-02-21</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<h1 id="homelistingai-system-audit-engineering-deep-dive">HomeListingAI
+System Audit (Engineering Deep Dive)</h1>
+<p>Date: 2026-02-21<br />
+Scope: Backend/API wiring, funnel execution logic, lead-to-funnel flow,
+email analytics flow, voice call pipeline, route/page bloat risks, and
+reliability gaps.<br />
+Requested by: Product owner (“do not remove anything now; produce
+actionable audit + recommendations”).</p>
+<hr />
+<h2 id="executive-summary">1) Executive Summary</h2>
+<p>The app has strong feature depth, but core reliability is being
+reduced by <strong>architecture drift</strong> and <strong>duplicate
+wiring paths</strong>.</p>
+<p>Top 3 issues to solve first:</p>
+<ol type="1">
+<li><strong>Funnel system is split across multiple engines/data
+models</strong> (inconsistent execution + analytics behavior).</li>
+<li><strong>Server route duplication and monolith growth</strong> (hard
+to reason about, easy to regress).</li>
+<li><strong>Schema/code mismatch in production logs</strong> (scheduler
++ funnel analytics warnings show DB drift).</li>
+</ol>
+<p>Good news: the core plumbing for lead import, enrollment, and voice
+call initiation exists and can be stabilized quickly with focused
+cleanup.</p>
+<hr />
+<h2 id="current-state-what-exists-today">2) Current State (What Exists
+Today)</h2>
+<h3 id="core-code-footprint">2.1 Core code footprint</h3>
+<ul>
+<li>Backend monolith file: <code>backend/server.cjs</code> (~14,978
+LOC).</li>
+<li>Frontend app shell: <code>src/App.tsx</code> (~1,618 LOC).</li>
+<li>Route handlers in <code>server.cjs</code>: ~244
+(<code>get/post/put/delete/patch</code>).</li>
+<li>Funnel-related engines/services found:
+<ul>
+<li><code>backend/services/FunnelEngine.js</code></li>
+<li><code>backend/services/funnelExecutionService.js</code></li>
+<li>Additional ad-hoc funnel trigger logic directly in
+<code>backend/server.cjs</code></li>
+</ul></li>
+</ul>
+<h3 id="lead-funnel-first-touch-flow-as-currently-wired">2.2 Lead →
+Funnel → First-touch flow (as currently wired)</h3>
+<p>There are <strong>multiple entry points</strong> for lead
+creation/import, each with different funnel logic:</p>
+<ul>
+<li><code>/api/admin/leads/import</code> inserts leads, then inserts
+<code>funnel_enrollments</code> and relies on scheduler loop.</li>
+<li><code>/api/admin/leads</code> creates lead and calls
+<code>funnelEngine.assignFunnel(...)</code> (different execution
+model).</li>
+<li><code>/api/leads/public</code> also calls funnel assignment
+logic.</li>
+</ul>
+<p>This means behavior differs depending on which endpoint creates the
+lead.</p>
+<h3 id="voice-telnyx-hume">2.3 Voice (Telnyx ↔︎ Hume)</h3>
+<p>Voice path is implemented and reachable. Recent issue root cause was
+config mismatch (<code>c6cd...</code> vs <code>6cd6...</code>).</p>
+<hr />
+<h2 id="key-findings-prioritized">3) Key Findings (Prioritized)</h2>
+<h2 id="p0-high-risk-immediate">P0 (High Risk / immediate)</h2>
+<h3 id="p0-1-funnel-architecture-is-fragmented-multiple-models">P0-1:
+Funnel architecture is fragmented (multiple models)</h3>
+<p>Evidence: - <code>backend/services/FunnelEngine.js</code> uses
+<code>lead_funnel_progress</code> + <code>funnel_steps</code>. -
+<code>backend/services/funnelExecutionService.js</code> uses
+<code>funnel_enrollments</code> + <code>funnels.steps</code> JSON. -
+<code>/api/funnels/:userId/:funnelType</code> writes to
+<code>funnel_steps</code> and explicitly marks
+<code>funnels.steps</code> as deprecated
+(<code>backend/server.cjs</code> around line 770).</p>
+<p>Impact: - The funnel a user edits is not guaranteed to be the funnel
+the scheduler executes. - Metrics and progression can look inconsistent
+across pages/endpoints.</p>
+<hr />
+<h3 id="p0-2-duplicate-route-definitions-in-the-same-server-file">P0-2:
+Duplicate route definitions in the same server file</h3>
+<p>Evidence in <code>backend/server.cjs</code>: -
+<code>/api/track/email/open/:messageId</code> appears at lines ~1981,
+~4852, ~9974. - <code>/api/track/email/click/:messageId</code> appears
+at lines ~2028, ~4917, ~10011. - <code>/api/leads/stats</code> appears
+twice (~8129 and ~8382). - <code>/api/email/settings/:userId</code>
+PATCH appears twice (~13878 and ~13997). - <code>/api/listings</code>
+POST appears twice (~5829 and ~12901).</p>
+<p>Impact: - Last registered handler wins, earlier handlers become
+misleading/dead. - Hotfixes can appear “applied” but hit different
+handler in runtime.</p>
+<hr />
+<h3 id="p0-3-missing-module-reference-in-active-code-path">P0-3: Missing
+module reference in active code path</h3>
+<p>Evidence: - <code>backend/server.cjs</code> around line ~4289 calls
+<code>require('./services/funnelService')</code>, but that file does not
+exist in <code>backend/services</code>.</p>
+<p>Impact: - Runtime failures when that branch executes. - Hidden
+breakage risk during chatbot/lead auto-enroll branch.</p>
+<hr />
+<h2 id="p1-important-reliability">P1 (Important reliability)</h2>
+<h3 id="p1-1-schema-drift-errors-are-visible-in-runtime-logs">P1-1:
+Schema drift errors are visible in runtime logs</h3>
+<p>Observed errors: -
+<code>column email_tracking_events.status does not exist</code> -
+<code>column agents.metadata does not exist</code></p>
+<p>Likely sources: - Funnel analytics fallback query selecting
+<code>status</code> from <code>email_tracking_events</code>
+(<code>backend/server.cjs</code> ~650). - Trial scheduler
+selecting/updating <code>agents.metadata</code>
+(<code>backend/services/schedulerService.js</code> ~84 onward).</p>
+<p>Impact: - Analytics not updating cleanly. - Scheduler features
+silently degraded.</p>
+<hr />
+<h3 id="p1-2-apifunnelsassign-likely-incorrect-argument-contract">P1-2:
+<code>/api/funnels/assign</code> likely incorrect argument contract</h3>
+<p>Evidence: -
+<code>funnelService.enrollLead(user.id, leadId, funnelType)</code>
+called in <code>backend/server.cjs</code> (~1278). -
+<code>funnelExecutionService.enrollLead(...)</code> expects a
+<strong>funnel ID</strong> and queries <code>funnels</code> by
+<code>id</code>.</p>
+<p>Impact: - Enrollment route can fail or behave unpredictably if passed
+a funnel key/type instead of UUID.</p>
+<hr />
+<h3 id="p1-3-backend-depends-on-vite_-env-variables">P1-3: Backend
+depends on <code>VITE_</code> env variables</h3>
+<p>Evidence examples: - Mixed usage of <code>VITE_*</code> vars in
+backend runtime logic.</p>
+<p>Impact: - Environment confusion between frontend build-time and
+backend runtime. - Harder production ops/debugging.</p>
+<hr />
+<h2 id="p2-performancemaintainability">P2
+(Performance/maintainability)</h2>
+<h3
+id="p2-1-app-shell-and-route-model-includes-legacydev-leftovers">P2-1:
+App shell and route model includes legacy/dev leftovers</h3>
+<p>Evidence: - <code>src/types.ts</code> <code>View</code> union
+contains duplicates (<code>'payments'</code>, <code>'checkout'</code>)
+and many dev/test routes.</p>
+<p>Impact: - Increased cognitive overhead. - Harder to enforce stable
+routing contract.</p>
+<hr />
+<h3 id="p2-2-repo-contains-tracked-artifactsloghistory-files">P2-2: Repo
+contains tracked artifacts/log/history files</h3>
+<p>Tracked files include: - <code>server_history.txt</code> -
+<code>logs/server.out</code> - <code>logs/vite.out</code> -
+<code>debug_leads_request.log</code> (and backend variant)</p>
+<p>Impact: - Repository noise and accidental merge conflicts. - Larger
+clone/build contexts and harder code review.</p>
+<hr />
+<h2 id="end-to-end-wiring-check-your-example">4) End-to-End Wiring Check
+(Your Example)</h2>
+<p>Target path: <strong>New lead → assigned funnel → first notification
+→ analytics update</strong></p>
+<p>Current status:</p>
+<ol type="1">
+<li><strong>Lead ingest</strong>: Implemented via multiple endpoints
+(works, but inconsistent path selection).</li>
+<li><strong>Funnel assignment/enrollment</strong>: Implemented, but
+split between two execution models.</li>
+<li><strong>First notification</strong>: Implemented (email/sms/call
+step execution exists), timing differs by endpoint/scheduler path.</li>
+<li><strong>Analytics update</strong>: Implemented in concept (mailgun +
+tracking + fallback query), but schema mismatch currently causes partial
+failure/warnings.</li>
+</ol>
+<p>Conclusion: - Wiring exists but is <strong>not fully
+coherent</strong> yet across all entry points. It needs consolidation
+into one canonical flow.</p>
+<hr />
+<h2 id="recommended-plan-no-destructive-changes-first">5) Recommended
+Plan (No destructive changes first)</h2>
+<h2 id="phase-a-stabilize-production-logic-12-days">Phase A — Stabilize
+Production Logic (1–2 days)</h2>
+<ol type="1">
+<li>Define one canonical funnel execution engine (recommend
+<code>funnel_enrollments</code> +
+<code>funnelExecutionService</code>).</li>
+<li>Add adapter layer so all lead-creation paths call same enrollment
+function.</li>
+<li>Remove route collisions by introducing a centralized route registry
+(without deleting old code yet, just stop mounting duplicates).</li>
+<li>Add startup validation checks for required tables/columns and
+fail-fast warnings.</li>
+</ol>
+<p>Deliverable: deterministic lead→funnel behavior with clear logs.</p>
+<hr />
+<h2 id="phase-b-schema-contract-alignment-1-day">Phase B — Schema
+Contract Alignment (1 day)</h2>
+<ol type="1">
+<li>Add migration(s) for missing production columns used by code
+(<code>email_tracking_events.status</code>,
+<code>agents.metadata</code>) OR update code to current schema.</li>
+<li>Create DB contract document for analytics/tracking tables.</li>
+<li>Add <code>/api/health/schema</code> endpoint to assert required
+columns/indexes.</li>
+</ol>
+<p>Deliverable: analytics and scheduler stop throwing schema errors.</p>
+<hr />
+<h2 id="phase-c-performance-maintainability-24-days">Phase C —
+Performance + Maintainability (2–4 days)</h2>
+<ol type="1">
+<li>Split <code>backend/server.cjs</code> into domain routers
+(<code>voice</code>, <code>funnels</code>, <code>leads</code>,
+<code>analytics</code>, <code>admin</code>).</li>
+<li>Keep compatibility wrapper routes, then deprecate safely after
+traffic check.</li>
+<li>Move repo artifacts/log outputs to ignored runtime directories and
+stop tracking them.</li>
+<li>Trim legacy route/view unions and test-only pages behind feature
+flags.</li>
+</ol>
+<p>Deliverable: lower regression risk and faster iteration velocity.</p>
+<hr />
+<h2 id="concrete-suggestions-what-id-do-next">6) Concrete Suggestions
+(What I’d do next)</h2>
+<ol type="1">
+<li><strong>Single source of truth for funnel steps</strong>:
+<ul>
+<li>Persist and execute from one schema only (recommend
+<code>funnel_steps</code> + <code>funnel_enrollments</code> with
+explicit joins), or fully commit to JSON <code>funnels.steps</code> and
+remove step table writes.</li>
+</ul></li>
+<li><strong>Canonical “Lead Created” pipeline function</strong>:
+<ul>
+<li>Create one service method:
+<code>createLeadAndEnroll({source, userId, lead, funnelKey})</code> and
+call it from every endpoint.</li>
+</ul></li>
+<li><strong>Analytics event normalization</strong>:
+<ul>
+<li>Ensure all email events pass through one function that maps
+status/open/click/reply consistently.</li>
+</ul></li>
+<li><strong>Voice safety checks</strong>:
+<ul>
+<li>Validate Hume config ID existence at startup and before
+dialing.</li>
+<li>Add log marker per call with stage transitions and outcome
+code.</li>
+</ul></li>
+<li><strong>Operational guardrails</strong>:
+<ul>
+<li>Add an internal admin page that shows: queue depth, due enrollments,
+failed steps, last 50 voice call outcomes.</li>
+</ul></li>
+</ol>
+<hr />
+<h2 id="what-i-did-during-this-audit">7) What I Did During This
+Audit</h2>
+<ul>
+<li>Verified call bot table wiring/API behavior after migration.</li>
+<li>Confirmed live bot config ID can be updated and retrieved.</li>
+<li>Isolated previous no-audio root cause to invalid Hume config ID and
+env duplication pattern.</li>
+<li>Audited route and funnel wiring for duplication/contract
+mismatches.</li>
+</ul>
+<hr />
+<h2 id="immediate-action-checklist-practical">8) Immediate Action
+Checklist (Practical)</h2>
+<ol type="1">
+<li>Keep only one value for <code>VOICE_PHASE1_FOLLOWUP_CONFIG_ID</code>
+and use the verified valid ID.</li>
+<li>Confirm <code>VOICE_PUBLIC_BASE_URL</code> and
+<code>PUBLIC_URL</code> point to Render backend URL.</li>
+<li>Prioritize Phase A item #1 (choose one funnel engine and align all
+lead entry points).</li>
+<li>Fix schema drift (Phase B) to restore analytics/scheduler
+confidence.</li>
+<li>Freeze feature additions for 48 hours while this stabilization
+lands.</li>
+</ol>
+<hr />
+<h2 id="final-recommendation">9) Final Recommendation</h2>
+<p>Do <strong>not</strong> migrate providers yet (Hume → Retell) until
+this architecture cleanup is done.<br />
+The current blockers are mostly <strong>wiring and schema
+consistency</strong>, not provider capability.<br />
+Once flow is unified, you can evaluate providers with objective A/B
+metrics instead of debugging infrastructure noise.</p>
+</body>
+</html>

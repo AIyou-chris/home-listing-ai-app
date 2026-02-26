@@ -12,6 +12,8 @@ type RealtimeEventType =
   | 'appointment.created'
   | 'appointment.updated'
   | 'reminder.outcome'
+  | 'listing.updated'
+  | 'listing.performance.updated'
   | 'system.ready'
 
 export interface DashboardRealtimeEventEnvelope {
@@ -25,6 +27,7 @@ export interface DashboardRealtimeEventEnvelope {
 interface DashboardRealtimeState {
   leadsById: Record<string, DashboardLeadItem>
   appointmentsById: Record<string, DashboardAppointmentRow>
+  listingSignalsById: Record<string, string>
   commandCenter: DashboardCommandCenterSnapshot | null
   setInitialLeads: (leads: DashboardLeadItem[]) => void
   setInitialAppointments: (appointments: DashboardAppointmentRow[]) => void
@@ -124,6 +127,7 @@ const mapAppointmentPayload = (
 export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) => ({
   leadsById: {},
   appointmentsById: {},
+  listingSignalsById: {},
   commandCenter: null,
   setInitialLeads: (leads) =>
     set(() => ({
@@ -201,6 +205,17 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
                 }
               }
             }
+          }
+        }
+      }
+
+      if (event.type === 'listing.updated' || event.type === 'listing.performance.updated') {
+        const listingId = asString(payload.listing_id)
+        if (!listingId) return {}
+        return {
+          listingSignalsById: {
+            ...state.listingSignalsById,
+            [listingId]: event.ts
           }
         }
       }

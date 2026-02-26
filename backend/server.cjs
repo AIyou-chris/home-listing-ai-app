@@ -2542,20 +2542,312 @@ const normalizePhoneE164 = (value) => {
   return `+${digits}`;
 };
 
+const LISTING_PUBLIC_BASE_URL = (
+  process.env.FRONTEND_URL ||
+  process.env.APP_BASE_URL ||
+  'https://homelistingai.com'
+).replace(/\/+$/, '');
+
+const toSourceType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  const allowed = new Set(['link', 'qr', 'open_house', 'social', 'email', 'unknown', 'sign', 'flyer']);
+  if (!normalized) return 'unknown';
+  if (normalized === 'sign' || normalized === 'flyer') return 'qr';
+  return allowed.has(normalized) ? normalized : 'unknown';
+};
+
+const toSourceKey = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized || null;
+};
+
+const slugifyListing = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+
+const toReferrerDomain = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname || null;
+  } catch (_) {
+    return null;
+  }
+};
+
+const buildListingShareUrl = (publicSlug) =>
+  `${LISTING_PUBLIC_BASE_URL}/l/${encodeURIComponent(String(publicSlug || '').trim())}`;
+
+const buildTrackedListingUrl = ({ publicSlug, sourceKey, utmSource, utmMedium, utmCampaign }) => {
+  const base = buildListingShareUrl(publicSlug);
+  const params = new URLSearchParams();
+  if (sourceKey) params.set('src', sourceKey);
+  if (utmSource) params.set('utm_source', utmSource);
+  if (utmMedium) params.set('utm_medium', utmMedium);
+  if (utmCampaign) params.set('utm_campaign', utmCampaign);
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
+};
+
+const generateListingQrAssets = async (targetUrl) => {
+  if (!targetUrl) {
+    throw new Error('target_url_required');
+  }
+
+  const qrDataUrl = await QRCode.toDataURL(targetUrl, {
+    margin: 2,
+    width: 420,
+    color: {
+      dark: '#0f172a',
+      light: '#ffffffff'
+    }
+  });
+
+  const qrSvg = await QRCode.toString(targetUrl, {
+    type: 'svg',
+    margin: 1,
+    color: {
+      dark: '#0f172a',
+      light: '#ffffff'
+    }
+  });
+
+  return {
+    qr_code_url: qrDataUrl,
+    qr_code_svg: qrSvg
+  };
+};
+
+const inferSourceTypeFromKey = (sourceKey) => {
+  const key = toSourceKey(sourceKey);
+  if (!key) return 'unknown';
+  if (key.includes('open_house')) return 'open_house';
+  if (key.includes('social')) return 'social';
+  if (key.includes('email')) return 'email';
+  if (key.includes('sign') || key.includes('flyer') || key.includes('qr')) return 'qr';
+  if (key === 'link') return 'link';
+  return 'unknown';
+};
+
+const toTrimmedOrNull = (value) => {
+  if (value === null || value === undefined) return null;
+  const next = String(value).trim();
+  return next ? next : null;
+};
+
+const loadListingByIdForAgent = async ({ listingId, agentId }) => {
+  if (!listingId) return null;
+
+  const queryForOwner = async (ownerMode = 'agent_or_user') => {
+    let query = supabaseAdmin
+      .from('properties')
+      .select('*')
+      .eq('id', listingId)
+      .limit(1);
+
+    if (agentId) {
+      query = ownerMode === 'agent_or_user'
+        ? query.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+        : query.eq('user_id', agentId);
+    }
+
+    return query;
+  };
+
+  let { data, error } = await queryForOwner('agent_or_user');
+  if (error && /agent_id/i.test(error.message || '')) {
+    const fallback = await queryForOwner('user_only');
+    data = fallback.data;
+    error = fallback.error;
+  }
+  if (error) throw error;
+  if (!Array.isArray(data) || data.length === 0) return null;
+  return data[0];
+};
+
+const recordListingEvent = async ({ listingId, type, payload }) => {
+  if (!listingId || !type) return;
+  try {
+    const { error } = await supabaseAdmin
+      .from('listing_events')
+      .insert({
+        listing_id: listingId,
+        type,
+        payload: payload || {},
+        created_at: nowIso()
+      });
+    if (error && !/does not exist|listing_events/i.test(error.message || '')) {
+      throw error;
+    }
+  } catch (error) {
+    if (!/does not exist|listing_events/i.test(error?.message || '')) {
+      console.warn('[Listing] Failed to record listing event:', error?.message || error);
+    }
+  }
+};
+
+const ensureListingSource = async ({
+  listingId,
+  agentId,
+  sourceType,
+  sourceKey,
+  utmSource = null,
+  utmMedium = null,
+  utmCampaign = null,
+  referrerDomain = null
+}) => {
+  const normalizedSourceKey = toSourceKey(sourceKey);
+  if (!listingId || !agentId || !normalizedSourceKey) return null;
+
+  const rowPayload = {
+    listing_id: listingId,
+    agent_id: agentId,
+    source_type: toSourceType(sourceType),
+    source_key: normalizedSourceKey,
+    utm_source: utmSource || null,
+    utm_medium: utmMedium || null,
+    utm_campaign: utmCampaign || null,
+    referrer_domain: referrerDomain || null,
+    created_at: nowIso()
+  };
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('listing_sources')
+      .upsert(rowPayload, { onConflict: 'listing_id,source_key' })
+      .select('*')
+      .single();
+
+    if (error) {
+      if (/does not exist|listing_sources/i.test(error.message || '')) {
+        return {
+          ...rowPayload,
+          id: null
+        };
+      }
+      throw error;
+    }
+
+    return data || rowPayload;
+  } catch (error) {
+    if (/does not exist|listing_sources/i.test(error?.message || '')) {
+      return {
+        ...rowPayload,
+        id: null
+      };
+    }
+    throw error;
+  }
+};
+
+const ensureDefaultListingSources = async ({ listingId, agentId }) => {
+  const defaults = [
+    { source_type: 'link', source_key: 'link' },
+    { source_type: 'open_house', source_key: 'open_house' },
+    { source_type: 'qr', source_key: 'sign' }
+  ];
+
+  const results = [];
+  for (const source of defaults) {
+    // Keep each source available as a stable attribution key.
+    const row = await ensureListingSource({
+      listingId,
+      agentId,
+      sourceType: source.source_type,
+      sourceKey: source.source_key
+    });
+    if (row) results.push(row);
+  }
+  return results;
+};
+
+const ensureUniquePublicSlug = async ({ listingId, title, address }) => {
+  const baseSeed = slugifyListing(title || address || `listing-${listingId}`) || `listing-${String(listingId).slice(0, 8)}`;
+  let candidate = baseSeed;
+  let suffix = 1;
+
+  while (suffix < 1000) {
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .select('id')
+      .eq('public_slug', candidate)
+      .limit(1);
+
+    if (error && !/does not exist/i.test(error.message || '')) throw error;
+    const conflict = Array.isArray(data) && data.some((row) => row.id !== listingId);
+    if (!conflict) return candidate;
+    suffix += 1;
+    candidate = `${baseSeed}-${suffix}`;
+  }
+
+  return `${baseSeed}-${Date.now()}`;
+};
+
+const buildListingRealtimePayload = (listingRow) => ({
+  listing_id: listingRow.id,
+  is_published: Boolean(listingRow.is_published),
+  published_at: listingRow.published_at || null,
+  public_slug: listingRow.public_slug || null,
+  share_url: listingRow.share_url || (listingRow.public_slug ? buildListingShareUrl(listingRow.public_slug) : null),
+  qr_code_url: listingRow.qr_code_url || null,
+  open_house_mode_enabled: Boolean(listingRow.open_house_mode_enabled)
+});
+
+const emitListingRealtimeEvent = ({ type, listingRow }) => {
+  const agentId = listingRow?.agent_id || listingRow?.user_id || null;
+  if (!type || !agentId || !listingRow?.id) return;
+  emitRealtimeEvent({
+    type,
+    agentId,
+    payload: buildListingRealtimePayload(listingRow)
+  });
+};
+
+const emitListingPerformanceUpdated = ({ listingId, agentId, payload = {} }) => {
+  if (!listingId || !agentId) return;
+  emitRealtimeEvent({
+    type: 'listing.performance.updated',
+    agentId,
+    payload: {
+      listing_id: listingId,
+      updated_at: nowIso(),
+      ...payload
+    }
+  });
+};
+
 const resolveListingForCapture = async (listingId) => {
   if (!listingId) return null;
   try {
-    const { data, error } = await supabaseAdmin
+    const runQuery = async (includeAgentId = true) => supabaseAdmin
       .from('properties')
-      .select('id, user_id, address, city, state, zip, price, bedrooms, bathrooms, sqft, status')
+      .select(includeAgentId
+        ? 'id, user_id, agent_id, title, address, city, state, zip, price, bedrooms, bathrooms, sqft, status, public_slug, is_published'
+        : 'id, user_id, title, address, city, state, zip, price, bedrooms, bathrooms, sqft, status, public_slug, is_published')
       .eq('id', listingId)
       .single();
+
+    let { data, error } = await runQuery(true);
+    if (error && /agent_id/i.test(error.message || '')) {
+      const fallback = await runQuery(false);
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error || !data) return null;
 
     return {
       id: data.id,
-      agentId: data.user_id,
+      agentId: data.agent_id || data.user_id,
+      title: data.title,
       address: data.address,
       city: data.city,
       state: data.state,
@@ -2564,12 +2856,99 @@ const resolveListingForCapture = async (listingId) => {
       beds: data.bedrooms,
       baths: data.bathrooms,
       sqft: data.sqft,
-      status: data.status
+      status: data.status,
+      public_slug: data.public_slug || null,
+      is_published: Boolean(data.is_published)
     };
   } catch (error) {
     console.warn('[LeadCapture] Listing lookup failed:', error?.message || error);
     return null;
   }
+};
+
+const resolveListingByPublicSlug = async (publicSlug) => {
+  const normalizedSlug = slugifyListing(publicSlug || '');
+  if (!normalizedSlug) return null;
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .select('*')
+      .eq('public_slug', normalizedSlug)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data;
+  } catch (error) {
+    console.warn('[Listing] Public slug lookup failed:', error?.message || error);
+    return null;
+  }
+};
+
+const mapPublicListingPayload = async (listingRow) => {
+  if (!listingRow?.id) return null;
+
+  const agentId = listingRow.agent_id || listingRow.user_id || null;
+  let agentProfile = null;
+  if (agentId) {
+    try {
+      const { data } = await supabaseAdmin
+        .from('agents')
+        .select('id, first_name, last_name, email, phone, headshot_url')
+        .eq('id', agentId)
+        .maybeSingle();
+      agentProfile = data || null;
+    } catch (_error) {
+      agentProfile = null;
+    }
+  }
+
+  const heroPhotos = Array.isArray(listingRow.hero_photos)
+    ? listingRow.hero_photos.filter((item) => typeof item === 'string')
+    : [];
+  const galleryPhotos = Array.isArray(listingRow.gallery_photos)
+    ? listingRow.gallery_photos.filter((item) => typeof item === 'string')
+    : [];
+  const allPhotos = [...heroPhotos, ...galleryPhotos].filter(Boolean);
+  const imageUrl = allPhotos[0] || null;
+  const descriptionText = typeof listingRow.description === 'string'
+    ? listingRow.description
+    : (
+      listingRow.description &&
+      typeof listingRow.description === 'object' &&
+      Array.isArray(listingRow.description.paragraphs)
+    )
+      ? listingRow.description.paragraphs.join(' ')
+      : '';
+
+  return {
+    id: listingRow.id,
+    title: listingRow.title || 'Listing',
+    address: listingRow.address || '',
+    city: listingRow.city || '',
+    state: listingRow.state || '',
+    zip: listingRow.zip || '',
+    price: Number(listingRow.price || 0),
+    bedrooms: Number(listingRow.bedrooms || 0),
+    bathrooms: Number(listingRow.bathrooms || 0),
+    squareFeet: Number(listingRow.sqft || listingRow.square_feet || 0),
+    status: listingRow.status || 'active',
+    description: listingRow.description || descriptionText || '',
+    features: Array.isArray(listingRow.features) ? listingRow.features : [],
+    heroPhotos,
+    galleryPhotos,
+    imageUrl,
+    ctaListingUrl: listingRow.cta_listing_url || null,
+    ctaContactMode: listingRow.cta_contact_mode || 'form',
+    publicSlug: listingRow.public_slug || null,
+    shareUrl: listingRow.share_url || (listingRow.public_slug ? buildListingShareUrl(listingRow.public_slug) : null),
+    agent: {
+      id: agentProfile?.id || agentId || 'unknown',
+      name: `${agentProfile?.first_name || ''} ${agentProfile?.last_name || ''}`.trim() || 'HomeListingAI Agent',
+      email: agentProfile?.email || listingRow.contact_email || '',
+      phone: agentProfile?.phone || listingRow.contact_phone || '',
+      headshotUrl: agentProfile?.headshot_url || null
+    }
+  };
 };
 
 const recordLeadEvent = async ({ leadId, type, payload }) => {
@@ -2592,7 +2971,10 @@ const attachLeadToConversation = async ({
   listingId,
   visitorId,
   agentId,
-  context
+  context,
+  sourceType = 'unknown',
+  sourceKey = null,
+  sourceMeta = null
 }) => {
   if (!conversationId || !leadId) return false;
   try {
@@ -2606,7 +2988,10 @@ const attachLeadToConversation = async ({
       ...(conversation?.metadata || {}),
       listing_id: listingId,
       visitor_id: visitorId,
-      capture_context: context || 'general_info'
+      capture_context: context || 'general_info',
+      source_type: sourceType || 'unknown',
+      source_key: sourceKey || null,
+      source_meta: sourceMeta || null
     };
 
     await supabaseAdmin
@@ -9883,11 +10268,67 @@ app.post('/api/leads', async (req, res) => {
   }
 });
 
+app.get('/api/public/listings/slug/:publicSlug', async (req, res) => {
+  try {
+    const { publicSlug } = req.params;
+    const listingRow = await resolveListingByPublicSlug(publicSlug);
+    if (!listingRow || !listingRow.id) {
+      return res.status(404).json({ error: 'listing_not_found' });
+    }
+
+    if (!listingRow.is_published) {
+      return res.status(404).json({ error: 'listing_not_published' });
+    }
+
+    const payload = await mapPublicListingPayload(listingRow);
+    return res.json({
+      success: true,
+      listing: payload
+    });
+  } catch (error) {
+    console.error('[PublicListing] Failed to load listing by slug:', error);
+    return res.status(500).json({ error: 'failed_to_load_public_listing' });
+  }
+});
+
+app.get('/api/public/listings/:listingId', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const listing = await resolveListingForCapture(listingId);
+    if (!listing || !listing.id) {
+      return res.status(404).json({ error: 'listing_not_found' });
+    }
+
+    const { data: listingRow, error } = await supabaseAdmin
+      .from('properties')
+      .select('*')
+      .eq('id', listingId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const payload = await mapPublicListingPayload(listingRow);
+    return res.json({
+      success: true,
+      listing: payload
+    });
+  } catch (error) {
+    console.error('[PublicListing] Failed to load listing by id:', error);
+    return res.status(500).json({ error: 'failed_to_load_public_listing' });
+  }
+});
+
 // Bootstrap a visitor session for public listing capture.
 app.post('/api/public/listings/:listingId/session', async (req, res) => {
   try {
     const { listingId } = req.params;
     const visitorId = (req.body?.visitor_id || req.headers['x-visitor-id'] || crypto.randomUUID()).toString();
+    const sourceKey = toSourceKey(req.body?.source_key || req.query?.src || req.body?.src);
+    const utmSource = toTrimmedOrNull(req.body?.utm_source || req.query?.utm_source);
+    const utmMedium = toTrimmedOrNull(req.body?.utm_medium || req.query?.utm_medium);
+    const utmCampaign = toTrimmedOrNull(req.body?.utm_campaign || req.query?.utm_campaign);
+    const referrer = toTrimmedOrNull(req.body?.referrer || req.headers.referer || req.headers.referrer);
+    const referrerDomain = toReferrerDomain(referrer);
 
     const listing = await resolveListingForCapture(listingId);
     if (!listing) {
@@ -9907,7 +10348,15 @@ app.post('/api/public/listings/:listingId/session', async (req, res) => {
           listing_id: listingId,
           visitor_id: visitorId,
           source: 'public_listing',
-          channel: 'web'
+          channel: 'web',
+          source_key: sourceKey || null,
+          source_type: toSourceType(req.body?.source_type || inferSourceTypeFromKey(sourceKey)),
+          utm_source: utmSource,
+          utm_medium: utmMedium,
+          utm_campaign: utmCampaign,
+          referrer,
+          referrer_domain: referrerDomain,
+          landing_path: toTrimmedOrNull(req.body?.landing_path)
         },
         created_at: timestamp,
         updated_at: timestamp
@@ -9921,7 +10370,14 @@ app.post('/api/public/listings/:listingId/session', async (req, res) => {
       success: true,
       visitor_id: visitorId,
       conversation_id: conversation.id,
-      listing_id: listingId
+      listing_id: listingId,
+      attribution: {
+        source_key: sourceKey,
+        utm_source: utmSource,
+        utm_medium: utmMedium,
+        utm_campaign: utmCampaign,
+        referrer_domain: referrerDomain
+      }
     });
   } catch (error) {
     console.error('[LeadCapture] Failed to create public listing session:', error);
@@ -9941,6 +10397,7 @@ app.post('/api/leads/capture', async (req, res) => {
       email,
       consent_sms: consentSms,
       source_type: sourceType = 'unknown',
+      source_key: sourceKeyInput,
       source_meta: sourceMeta = {},
       context = 'general_info'
     } = req.body || {};
@@ -9967,6 +10424,41 @@ app.post('/api/leads/capture', async (req, res) => {
 
     const agentId = listing.agentId || DEFAULT_LEAD_USER_ID;
     const timestamp = nowIso();
+    const normalizedSourceKey = toSourceKey(sourceKeyInput);
+    const normalizedSourceType = toSourceType(sourceType || inferSourceTypeFromKey(normalizedSourceKey));
+    let conversationMetadata = {};
+
+    if (conversationId) {
+      try {
+        const { data: conversationRow } = await supabaseAdmin
+          .from('ai_conversations')
+          .select('metadata')
+          .eq('id', conversationId)
+          .maybeSingle();
+        conversationMetadata = conversationRow?.metadata && typeof conversationRow.metadata === 'object'
+          ? conversationRow.metadata
+          : {};
+      } catch (_error) {
+        conversationMetadata = {};
+      }
+    }
+
+    const effectiveSourceKey = normalizedSourceKey || toSourceKey(conversationMetadata.source_key) || null;
+    const effectiveSourceType = toSourceType(
+      normalizedSourceType ||
+      conversationMetadata.source_type ||
+      inferSourceTypeFromKey(effectiveSourceKey)
+    );
+    const attributionMeta = {
+      source_key: effectiveSourceKey,
+      utm_source: toTrimmedOrNull(sourceMeta?.utm_source || conversationMetadata.utm_source),
+      utm_medium: toTrimmedOrNull(sourceMeta?.utm_medium || conversationMetadata.utm_medium),
+      utm_campaign: toTrimmedOrNull(sourceMeta?.utm_campaign || conversationMetadata.utm_campaign),
+      referrer: toTrimmedOrNull(sourceMeta?.referrer || conversationMetadata.referrer),
+      referrer_domain: toTrimmedOrNull(sourceMeta?.referrer_domain || conversationMetadata.referrer_domain),
+      landing_path: toTrimmedOrNull(sourceMeta?.landing_path || conversationMetadata.landing_path),
+      context
+    };
 
     let existingLead = null;
     if (phoneE164) {
@@ -10010,13 +10502,15 @@ app.post('/api/leads/capture', async (req, res) => {
         phone_e164: phoneE164 || undefined,
         email: emailLower || undefined,
         email_lower: emailLower || undefined,
-        source_type: sourceType,
-        source: sourceType,
-        source_meta: sourceMeta || {},
+        source_type: effectiveSourceType,
+        source: effectiveSourceType,
+        source_key: effectiveSourceKey || undefined,
+        source_meta: attributionMeta,
         last_message: 'Contact captured',
         last_message_preview: 'Contact captured',
         last_message_at: timestamp,
-        last_contact: timestamp
+        last_contact: timestamp,
+        last_touch_at: timestamp
       };
 
       await supabaseAdmin
@@ -10027,7 +10521,13 @@ app.post('/api/leads/capture', async (req, res) => {
       await recordLeadEvent({
         leadId,
         type: 'LEAD_DEDUPED',
-        payload: { listing_id: listingId, source_type: sourceType, context }
+        payload: {
+          listing_id: listingId,
+          source_type: effectiveSourceType,
+          source_key: effectiveSourceKey,
+          source_meta: attributionMeta,
+          context
+        }
       });
     } else {
       const insertPayload = {
@@ -10040,9 +10540,10 @@ app.post('/api/leads/capture', async (req, res) => {
         phone_e164: phoneE164 || null,
         email: emailLower || null,
         email_lower: emailLower || null,
-        source_type: sourceType,
-        source: sourceType,
-        source_meta: sourceMeta || {},
+        source_type: effectiveSourceType,
+        source: effectiveSourceType,
+        source_key: effectiveSourceKey,
+        source_meta: attributionMeta,
         consent_sms: !!(phoneE164 && consentSms === true),
         consent_timestamp: phoneE164 && consentSms === true ? timestamp : null,
         status: 'New',
@@ -10054,6 +10555,8 @@ app.post('/api/leads/capture', async (req, res) => {
         last_message_preview: 'Contact captured',
         last_message_at: timestamp,
         last_contact: timestamp,
+        first_touch_at: timestamp,
+        last_touch_at: timestamp,
         notes: `Capture context: ${context}`,
         created_at: timestamp,
         updated_at: timestamp
@@ -10076,7 +10579,28 @@ app.post('/api/leads/capture', async (req, res) => {
       await recordLeadEvent({
         leadId,
         type: 'LEAD_CREATED',
-        payload: { listing_id: listingId, source_type: sourceType, context }
+        payload: {
+          listing_id: listingId,
+          source_type: effectiveSourceType,
+          source_key: effectiveSourceKey,
+          source_meta: attributionMeta,
+          context
+        }
+      });
+    }
+
+    if (effectiveSourceKey) {
+      await ensureListingSource({
+        listingId,
+        agentId,
+        sourceType: effectiveSourceType,
+        sourceKey: effectiveSourceKey,
+        utmSource: attributionMeta.utm_source,
+        utmMedium: attributionMeta.utm_medium,
+        utmCampaign: attributionMeta.utm_campaign,
+        referrerDomain: attributionMeta.referrer_domain
+      }).catch((error) => {
+        console.warn('[LeadCapture] Failed to ensure listing source:', error?.message || error);
       });
     }
 
@@ -10087,6 +10611,9 @@ app.post('/api/leads/capture', async (req, res) => {
         listing_id: listingId,
         visitor_id: visitorId || null,
         context,
+        source_type: effectiveSourceType,
+        source_key: effectiveSourceKey,
+        source_meta: attributionMeta,
         has_phone: !!phoneE164,
         has_email: !!emailLower
       }
@@ -10109,7 +10636,10 @@ app.post('/api/leads/capture', async (req, res) => {
       listingId,
       visitorId,
       agentId,
-      context
+      context,
+      sourceType: effectiveSourceType,
+      sourceKey: effectiveSourceKey,
+      sourceMeta: attributionMeta
     });
 
     const notificationResult = await enqueueLeadCaptureNotifications({
@@ -10146,12 +10676,31 @@ app.post('/api/leads/capture', async (req, res) => {
       console.warn('[Realtime] Lead capture emit failed:', error?.message || error);
     });
 
+    await recordListingEvent({
+      listingId,
+      type: 'lead_captured',
+      payload: {
+        lead_id: leadId,
+        is_deduped: isDeduped,
+        source_type: effectiveSourceType,
+        source_key: effectiveSourceKey,
+        source_meta: attributionMeta
+      }
+    });
+
+    emitListingPerformanceUpdated({
+      listingId,
+      agentId
+    });
+
     res.json({
       lead_id: leadId,
       is_deduped: isDeduped,
       status: leadStatus,
       intent_level: intentLevel,
-      sms_channel: SMS_COMING_SOON ? 'coming_soon' : 'active'
+      sms_channel: SMS_COMING_SOON ? 'coming_soon' : 'active',
+      source_type: effectiveSourceType,
+      source_key: effectiveSourceKey
     });
   } catch (error) {
     console.error('[LeadCapture] Failed to capture lead:', error);
@@ -11071,16 +11620,327 @@ app.get('/api/dashboard/listings/:listingId/leads', async (req, res) => {
   }
 });
 
+app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const listing = await loadListingByIdForAgent({ listingId, agentId });
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+
+    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
+      listingId: listing.id,
+      title: listing.title,
+      address: listing.address
+    });
+    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+
+    const sourceRows = await ensureDefaultListingSources({
+      listingId: listing.id,
+      agentId: listing.agent_id || listing.user_id || agentId
+    });
+    const sources = sourceRows.reduce((acc, row) => {
+      if (row?.source_key) {
+        acc[row.source_key] = {
+          id: row.id || null,
+          source_type: row.source_type,
+          source_key: row.source_key
+        };
+      }
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      listing_id: listing.id,
+      is_published: Boolean(listing.is_published),
+      published_at: listing.published_at || null,
+      public_slug: publicSlug,
+      share_url: shareUrl,
+      qr_code_url: listing.qr_code_url || null,
+      qr_code_svg: listing.qr_code_svg || null,
+      source_defaults: sources
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to load listing share kit:', error);
+    res.status(500).json({ error: 'failed_to_load_listing_share_kit' });
+  }
+});
+
+app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const agentId = String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const requestedPublishState = req.body?.is_published;
+    const nextPublished = requestedPublishState === undefined ? true : Boolean(requestedPublishState);
+    const listing = await loadListingByIdForAgent({ listingId, agentId });
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = listing.agent_id || listing.user_id || agentId;
+    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
+      listingId: listing.id,
+      title: listing.title,
+      address: listing.address
+    });
+    const shareUrl = buildListingShareUrl(publicSlug);
+    const timestamp = nowIso();
+
+    const patchPayload = {
+      is_published: nextPublished,
+      published_at: nextPublished ? (listing.published_at || timestamp) : null,
+      public_slug: publicSlug,
+      share_url: shareUrl,
+      updated_at: timestamp
+    };
+
+    let qrCodeUrl = listing.qr_code_url || null;
+    let qrCodeSvg = listing.qr_code_svg || null;
+    let sourceRows = [];
+    if (nextPublished) {
+      sourceRows = await ensureDefaultListingSources({
+        listingId: listing.id,
+        agentId: ownerId
+      });
+      if (!qrCodeUrl) {
+        const signSource = sourceRows.find((row) => row.source_key === 'sign');
+        const trackedUrl = buildTrackedListingUrl({
+          publicSlug,
+          sourceKey: signSource?.source_key || 'sign',
+          utmSource: signSource?.utm_source,
+          utmMedium: signSource?.utm_medium,
+          utmCampaign: signSource?.utm_campaign
+        });
+        const qrAssets = await generateListingQrAssets(trackedUrl);
+        qrCodeUrl = qrAssets.qr_code_url;
+        qrCodeSvg = qrAssets.qr_code_svg;
+        patchPayload.qr_code_url = qrCodeUrl;
+        patchPayload.qr_code_svg = qrCodeSvg;
+      }
+    }
+
+    const { data: updatedRow, error: updateError } = await supabaseAdmin
+      .from('properties')
+      .update(patchPayload)
+      .eq('id', listing.id)
+      .select('*')
+      .single();
+    if (updateError) throw updateError;
+
+    await recordListingEvent({
+      listingId: listing.id,
+      type: 'published',
+      payload: {
+        is_published: nextPublished,
+        share_url: shareUrl,
+        public_slug: publicSlug
+      }
+    });
+
+    emitListingRealtimeEvent({
+      type: 'listing.updated',
+      listingRow: updatedRow
+    });
+
+    emitListingPerformanceUpdated({
+      listingId: listing.id,
+      agentId: ownerId
+    });
+
+    res.json({
+      success: true,
+      listing_id: listing.id,
+      is_published: Boolean(updatedRow.is_published),
+      published_at: updatedRow.published_at || null,
+      public_slug: updatedRow.public_slug || publicSlug,
+      share_url: updatedRow.share_url || shareUrl,
+      qr_code_url: updatedRow.qr_code_url || qrCodeUrl || null,
+      qr_code_svg: updatedRow.qr_code_svg || qrCodeSvg || null,
+      source_defaults: sourceRows.reduce((acc, row) => {
+        if (row?.source_key) {
+          acc[row.source_key] = {
+            id: row.id || null,
+            source_type: row.source_type,
+            source_key: row.source_key
+          };
+        }
+        return acc;
+      }, {})
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to publish listing:', error);
+    res.status(500).json({ error: 'failed_to_publish_listing' });
+  }
+});
+
+app.post('/api/dashboard/listings/:listingId/generate-qr', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const agentId = String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const listing = await loadListingByIdForAgent({ listingId, agentId });
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = listing.agent_id || listing.user_id || agentId;
+    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
+      listingId: listing.id,
+      title: listing.title,
+      address: listing.address
+    });
+    const sourceType = toSourceType(req.body?.source_type || inferSourceTypeFromKey(req.body?.source_key) || 'qr');
+    const sourceKey = toSourceKey(req.body?.source_key) || `${sourceType}_${Date.now().toString(36).slice(-4)}`;
+    const utmSource = toTrimmedOrNull(req.body?.utm_source);
+    const utmMedium = toTrimmedOrNull(req.body?.utm_medium);
+    const utmCampaign = toTrimmedOrNull(req.body?.utm_campaign);
+
+    const sourceRow = await ensureListingSource({
+      listingId: listing.id,
+      agentId: ownerId,
+      sourceType,
+      sourceKey,
+      utmSource,
+      utmMedium,
+      utmCampaign
+    });
+
+    const trackedUrl = buildTrackedListingUrl({
+      publicSlug,
+      sourceKey: sourceRow?.source_key || sourceKey,
+      utmSource: sourceRow?.utm_source || utmSource,
+      utmMedium: sourceRow?.utm_medium || utmMedium,
+      utmCampaign: sourceRow?.utm_campaign || utmCampaign
+    });
+    const qrAssets = await generateListingQrAssets(trackedUrl);
+
+    const patchPayload = {
+      public_slug: publicSlug,
+      share_url: buildListingShareUrl(publicSlug),
+      qr_code_url: qrAssets.qr_code_url,
+      qr_code_svg: qrAssets.qr_code_svg,
+      updated_at: nowIso()
+    };
+
+    const { data: updatedRow, error: updateError } = await supabaseAdmin
+      .from('properties')
+      .update(patchPayload)
+      .eq('id', listing.id)
+      .select('*')
+      .single();
+    if (updateError) throw updateError;
+
+    await recordListingEvent({
+      listingId: listing.id,
+      type: 'qr_generated',
+      payload: {
+        source_key: sourceRow?.source_key || sourceKey,
+        source_type: sourceRow?.source_type || sourceType,
+        tracked_url: trackedUrl
+      }
+    });
+
+    emitListingRealtimeEvent({
+      type: 'listing.updated',
+      listingRow: updatedRow
+    });
+
+    emitListingPerformanceUpdated({
+      listingId: listing.id,
+      agentId: ownerId
+    });
+
+    res.json({
+      success: true,
+      listing_id: listing.id,
+      source_key: sourceRow?.source_key || sourceKey,
+      source_type: sourceRow?.source_type || sourceType,
+      share_url: buildListingShareUrl(publicSlug),
+      tracked_url: trackedUrl,
+      qr_code_url: qrAssets.qr_code_url,
+      qr_code_svg: qrAssets.qr_code_svg
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to generate listing QR:', error);
+    res.status(500).json({ error: 'failed_to_generate_listing_qr' });
+  }
+});
+
+app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const agentId = String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const listing = await loadListingByIdForAgent({ listingId, agentId });
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+
+    const fullName = toTrimmedOrNull(req.body?.full_name || req.body?.name || 'Test Lead');
+    const emailLower = normalizeEmailLower(req.body?.email || '');
+    const phoneE164 = normalizePhoneE164(req.body?.phone || '');
+    const context = toTrimmedOrNull(req.body?.context) || 'report_requested';
+    const sourceKey = toSourceKey(req.body?.source_key || 'link');
+    const sourceType = toSourceType(req.body?.source_type || inferSourceTypeFromKey(sourceKey));
+
+    if (!emailLower && !phoneE164) {
+      return res.status(400).json({ error: 'phone_or_email_required' });
+    }
+    if (phoneE164 && req.body?.consent_sms !== true) {
+      return res.status(400).json({ error: 'consent_sms_required_when_phone_present' });
+    }
+
+    const visitorId = `test-${crypto.randomUUID()}`;
+    const sourceMeta = {
+      ...(req.body?.source_meta && typeof req.body.source_meta === 'object' ? req.body.source_meta : {}),
+      test: true,
+      source_key: sourceKey
+    };
+
+    const captureResponse = await fetch(`http://127.0.0.1:${PORT}/api/leads/capture`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': agentId
+      },
+      body: JSON.stringify({
+        listing_id: listing.id,
+        visitor_id: visitorId,
+        full_name: fullName,
+        phone: phoneE164 || undefined,
+        email: emailLower || undefined,
+        consent_sms: phoneE164 ? true : false,
+        source_type: sourceType,
+        source_key: sourceKey,
+        source_meta: sourceMeta,
+        context
+      })
+    });
+
+    const payload = await captureResponse.json();
+    if (!captureResponse.ok) {
+      return res.status(captureResponse.status).json(payload);
+    }
+
+    res.json({
+      success: true,
+      message: 'Test lead created — open in Leads.',
+      ...payload
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to create test capture:', error);
+    res.status(500).json({ error: 'failed_to_create_test_capture' });
+  }
+});
+
 app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
   try {
     const { listingId } = req.params;
     const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const range = String(req.query.range || '30d').toLowerCase();
+    const rangeDays = range === '7d' ? 7 : 30;
+    const rangeStartIso = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000).toISOString();
 
     const runLeadQuery = async (ownerMode = 'agent_or_user') => {
       let q = supabaseAdmin
         .from('leads')
         .select('*')
         .eq('listing_id', listingId);
+      if (rangeStartIso) {
+        q = q.gte('created_at', rangeStartIso);
+      }
       if (agentId) {
         q = ownerMode === 'agent_or_user'
           ? q.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
@@ -11091,7 +11951,7 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
 
     let appointmentQuery = supabaseAdmin
       .from('appointments')
-      .select('id, status, listing_id, property_id');
+      .select('id, status, listing_id, property_id, starts_at, start_iso, created_at');
     if (agentId) {
       appointmentQuery = appointmentQuery.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
     }
@@ -11120,21 +11980,47 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
       String(row.listing_id || '') === String(listingId) || String(row.property_id || '') === String(listingId)
     );
 
-    const statuses = leads.reduce((acc, lead) => {
+    const statusBreakdown = leads.reduce((acc, lead) => {
       const key = (lead.status || 'New').toString();
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
+    const leadsBySource = leads.reduce((acc, lead) => {
+      const sourceType = toSourceType(lead.source_type || lead.source || 'unknown');
+      if (!acc[sourceType]) acc[sourceType] = 0;
+      acc[sourceType] += 1;
+      return acc;
+    }, {});
+    const sourceKeyTotals = leads.reduce((acc, lead) => {
+      const sourceKey = toSourceKey(lead.source_key || '');
+      if (!sourceKey) return acc;
+      acc[sourceKey] = (acc[sourceKey] || 0) + 1;
+      return acc;
+    }, {});
+    const lastLeadCapturedAt = leads.length > 0
+      ? leads
+        .map((row) => row.created_at || row.updated_at || null)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+      : null;
+    const qrUsage = Number(leadsBySource.qr || 0) + Number(leadsBySource.open_house || 0);
 
     res.json({
       success: true,
       listing_id: listingId,
+      range,
       metrics: {
         leads_count: leads.length,
         appointments_count: appointments.length,
         appointments_confirmed: appointments.filter((appointment) => normalizeAppointmentStatusValue(appointment.status) === 'confirmed').length,
-        status_breakdown: statuses,
-        qr_usage: null
+        status_breakdown: statusBreakdown,
+        qr_usage: qrUsage,
+        leads_by_source: leadsBySource,
+        last_lead_captured_at: lastLeadCapturedAt
+      },
+      breakdown: {
+        by_source_type: Object.entries(leadsBySource).map(([sourceType, total]) => ({ source_type: sourceType, total })),
+        by_source_key: Object.entries(sourceKeyTotals).map(([sourceKey, total]) => ({ source_key: sourceKey, total }))
       }
     });
   } catch (error) {

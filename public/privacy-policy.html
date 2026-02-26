@@ -5,17 +5,103 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Privacy Policy - HomeListingAI</title>
     <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1, h2, h3 { color: #333; }
-        .section { margin-bottom: 30px; }
-        .highlight { background-color: #f8f9fa; padding: 15px; border-left: 4px solid #28a745; margin: 15px 0; }
-        .warning { background-color: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 15px 0; }
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #e9ecef; }
-        .logo { display: flex; align-items: center; gap: 10px; }
-        .logo-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
-        .logo-text { font-size: 24px; font-weight: bold; color: #333; }
-        .back-btn { background: #f97316; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; text-decoration: none; display: inline-block; }
-        .back-btn:hover { background: #ea580c; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+            line-height: 1.6; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 40px 20px; 
+            background-color: #02050D;
+            color: #cbd5e1; /* slate-300 */
+        }
+        h1, h2, h3 { color: #ffffff; letter-spacing: -0.025em; }
+        h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; }
+        h2 { font-size: 1.5rem; font-weight: 700; margin-top: 2rem; border-bottom: 1px solid rgba(15, 23, 42, 0.6); padding-bottom: 0.5rem; }
+        h3 { font-size: 1.25rem; font-weight: 600; color: #e2e8f0; margin-top: 1.5rem; }
+        p, li { font-weight: 300; }
+        a { color: #22d3ee; text-decoration: none; }
+        a:hover { color: #67e8f9; text-decoration: underline; }
+        ul { padding-left: 20px; }
+        li { margin-bottom: 0.5rem; }
+        
+        .section { margin-bottom: 40px; }
+        .highlight { 
+            background-color: rgba(6, 182, 212, 0.1); 
+            padding: 20px; 
+            border-left: 4px solid #06b6d4; 
+            margin: 20px 0; 
+            border-radius: 0 8px 8px 0;
+        }
+        .warning { 
+            background-color: rgba(234, 179, 8, 0.1); 
+            padding: 20px; 
+            border-left: 4px solid #eab308; 
+            margin: 20px 0; 
+            border-radius: 0 8px 8px 0;
+        }
+        .warning p, .warning li, .highlight p, .highlight li { color: #f8fafc; }
+        
+        .header { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            margin-bottom: 40px; 
+            padding-bottom: 20px; 
+            border-bottom: 1px solid rgba(15, 23, 42, 0.6); 
+        }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo-icon { 
+            width: 40px; 
+            height: 40px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .logo-text { font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.025em; }
+        .back-btn { 
+            background: rgba(255,255,255,0.05); 
+            color: #ffffff; 
+            border: 1px solid rgba(255,255,255,0.1); 
+            padding: 8px 16px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            font-size: 14px;
+            text-decoration: none; 
+            display: inline-block; 
+            transition: all 0.2s;
+        }
+        .back-btn:hover { 
+            background: rgba(255,255,255,0.1); 
+            text-decoration: none;
+        }
+
+        /* Ambient glow effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -200px;
+            left: -200px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(30, 58, 138, 0.15) 0%, rgba(2, 5, 13, 0) 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -200px;
+            right: -200px;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(8, 145, 178, 0.1) 0%, rgba(2, 5, 13, 0) 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>

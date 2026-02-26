@@ -69,6 +69,11 @@ const NOTIFICATION_GROUPS: Array<{
             icon: 'smartphone',
             items: [
                 {
+                    key: 'voiceAppointmentReminders',
+                    label: 'Appointment reminder calls',
+                    description: 'Allow AI voice calls only for scheduled appointment reminders'
+                },
+                {
                     key: 'smsNewLeadAlerts',
                     label: 'New Lead SMS',
                     description: 'Receive instant text messages when a new lead is captured'

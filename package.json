@@ -34,7 +34,6 @@
     "googleapis": "^171.1.0",
     "helmet": "^8.1.0",
     "html2canvas": "^1.4.1",
-    "hume": "^0.15.13",
     "immer": "^10.1.1",
     "jspdf": "^3.0.4",
     "lucide-react": "^0.552.0",

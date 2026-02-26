@@ -483,11 +483,15 @@ export interface SocialPost {
 }
 
 export interface NotificationSettings {
+    email_enabled?: boolean;
+    voice_enabled?: boolean;
+    sms_enabled?: boolean;
     newLead: boolean;
     appointmentScheduled: boolean;
     aiInteraction: boolean;
     weeklySummary: boolean;
     appointmentReminders: boolean;
+    voiceAppointmentReminders?: boolean;
     taskReminders: boolean;
     propertyInquiries: boolean;
     showingConfirmations: boolean;

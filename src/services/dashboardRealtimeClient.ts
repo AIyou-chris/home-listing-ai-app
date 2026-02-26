@@ -35,6 +35,7 @@ const getEventIdentityKey = (event: DashboardRealtimeEventEnvelope) => {
   const entityId =
     (payload.lead_id as string | undefined) ||
     (payload.appointment_id as string | undefined) ||
+    (payload.listing_id as string | undefined) ||
     event.type
   return `${event.type}:${entityId || 'none'}:${event.ts}`
 }

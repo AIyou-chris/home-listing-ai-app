@@ -3,12 +3,16 @@ const SMS_COMING_SOON =
   String(process.env.SMS_COMING_SOON || 'true').toLowerCase() !== 'false';
 
 const DEFAULT_NOTIFICATION_SETTINGS = {
+  email_enabled: true,
+  voice_enabled: true,
+  sms_enabled: false,
   newLead: true,
   leadAction: true,
   appointmentScheduled: true,
   aiInteraction: false,
   weeklySummary: true,
   appointmentReminders: true,
+  voiceAppointmentReminders: true,
   taskReminders: true,
   marketingUpdates: true,
   propertyInquiries: true,
@@ -78,7 +82,7 @@ const updatePreferences = async (userId, updates = {}) => {
 
   Object.entries(updates).forEach(([key, value]) => {
     if (Object.hasOwn(DEFAULT_NOTIFICATION_SETTINGS, key)) {
-      if (SMS_COMING_SOON && key === 'smsNewLeadAlerts') {
+      if (SMS_COMING_SOON && (key === 'smsNewLeadAlerts' || key === 'sms_enabled')) {
         next[key] = false;
         return;
       }
@@ -124,7 +128,19 @@ const shouldSend = async (userId, channel, eventKey) => {
   }
 
   // 2. CHANNEL-SPECIFIC RULES
+  if (channel === 'email' && settings.email_enabled === false) {
+    return false;
+  }
+
+  if (channel === 'voice' && settings.voice_enabled === false) {
+    return false;
+  }
+
   if (channel === 'sms') {
+    if (settings.sms_enabled === false) {
+      return false;
+    }
+
     if (SMS_COMING_SOON) {
       console.log(`📵 [Notifications] SMS disabled (coming soon) for User ${userId}`);
       return false;
@@ -179,5 +195,4 @@ module.exports = {
   shouldSend,
   DEFAULT_NOTIFICATION_SETTINGS
 };
-
 

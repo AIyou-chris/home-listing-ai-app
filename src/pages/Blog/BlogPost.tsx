@@ -1,11 +1,12 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { Helmet } from 'react-helmet-async';
 import { PublicHeader } from '../../components/layout/PublicHeader';
 import { PublicFooter } from '../../components/layout/PublicFooter';
+import { BackgroundTechIcons } from '../../components/BackgroundTechIcons';
 import { Calendar, ArrowLeft } from 'lucide-react';
+import { FadeIn } from '../../components/FadeIn';
 
 interface BlogPost {
     id: string;
@@ -44,11 +45,15 @@ const BlogPost: React.FC = () => {
         setLoading(false);
     };
 
-    if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center">Loading...</div>;
+    if (loading) return (
+        <div className="min-h-screen bg-[#02050D] flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-400"></div>
+        </div>
+    );
     if (!post) return null;
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans">
+        <div className="min-h-screen bg-[#02050D] font-sans flex flex-col relative overflow-hidden text-white">
             <Helmet>
                 <title>{post.seo_title || post.title} - HomeListingAI</title>
                 <meta name="description" content={post.seo_description} />
@@ -57,35 +62,48 @@ const BlogPost: React.FC = () => {
 
             <PublicHeader />
 
-            <main className="pt-24 pb-16">
+            {/* Ambient Background Glows */}
+            <BackgroundTechIcons />
+            <div className="absolute top-1/4 left-0 w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none -translate-x-1/2"></div>
+            <div className="absolute bottom-1/4 right-0 w-[600px] h-[600px] bg-cyan-900/10 rounded-full blur-[120px] pointer-events-none translate-x-1/2"></div>
+
+            <main className="flex-grow pt-24 pb-16 relative z-10">
                 <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <button onClick={() => navigate('/blog')} className="flex items-center text-slate-500 hover:text-indigo-600 mb-8 transition-colors">
+                    <button onClick={() => navigate('/blog')} className="flex items-center text-slate-400 hover:text-cyan-400 mb-8 transition-colors font-medium">
                         <ArrowLeft size={20} className="mr-2" /> Back to Blog
                     </button>
 
-                    <header className="mb-10 text-center">
-                        <div className="flex justify-center mb-4">
-                            <span className="flex items-center text-sm text-slate-500 bg-white px-3 py-1 rounded-full shadow-sm border border-slate-100">
-                                <Calendar size={14} className="mr-2" />
-                                {new Date(post.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                            </span>
-                        </div>
-                        <h1 className="text-3xl md:text-5xl font-bold text-slate-900 mb-6 leading-tight">{post.title}</h1>
-                    </header>
+                    <FadeIn delay={100}>
+                        <header className="mb-10 text-center">
+                            <div className="flex justify-center mb-4">
+                                <span className="flex items-center text-sm text-cyan-400 bg-cyan-950/30 px-4 py-1.5 rounded-full shadow-sm border border-cyan-900/50 uppercase tracking-widest font-bold">
+                                    <Calendar size={14} className="mr-2" />
+                                    {new Date(post.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                </span>
+                            </div>
+                            <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight tracking-tight">{post.title}</h1>
+                        </header>
+                    </FadeIn>
 
                     {post.featured_image && (
-                        <div className="rounded-2xl overflow-hidden shadow-lg mb-10">
-                            <img src={post.featured_image} alt={post.title} className="w-full h-auto max-h-[600px] object-cover" />
-                        </div>
+                        <FadeIn delay={200}>
+                            <div className="rounded-3xl overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.15)] mb-12 border border-cyan-900/30">
+                                <img src={post.featured_image} alt={post.title} className="w-full h-auto max-h-[600px] object-cover" />
+                            </div>
+                        </FadeIn>
                     )}
 
-                    <div className="prose prose-lg prose-indigo mx-auto bg-white p-8 md:p-12 rounded-2xl shadow-sm border border-slate-100">
-                        <div dangerouslySetInnerHTML={{ __html: post.content }} />
-                    </div>
+                    <FadeIn delay={300}>
+                        <div className="prose prose-lg prose-invert mx-auto bg-[#0B1121]/80 backdrop-blur-md p-8 md:p-12 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-cyan-900/30">
+                            <div dangerouslySetInnerHTML={{ __html: post.content }} />
+                        </div>
+                    </FadeIn>
                 </article>
             </main>
 
-            <PublicFooter />
+            <div className="border-t border-slate-900/60 relative z-10">
+                <PublicFooter />
+            </div>
         </div>
     );
 };

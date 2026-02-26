@@ -1,15 +1,21 @@
 import React, { useState } from 'react'
 import Modal from './Modal'
 import { scheduleAppointment } from '../services/schedulerService'
+import { buildApiUrl } from '../lib/api'
 
 interface ViewingModalProps {
   onClose: () => void
   onSuccess?: () => void
   propertyAddress?: string
   agentEmail?: string
+  listingId?: string
 }
 
-const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propertyAddress, agentEmail }) => {
+const VISITOR_STORAGE_KEY = 'hlai_public_listing_visitor_id'
+const SESSION_STORAGE_PREFIX = 'hlai_public_listing_session_'
+const ATTRIBUTION_STORAGE_PREFIX = 'hlai_public_listing_attribution_'
+
+const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propertyAddress, agentEmail, listingId }) => {
   const [form, setForm] = useState({ name: '', email: '', phone: '', date: '', time: 'Afternoon', notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
@@ -36,6 +42,48 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
     }
 
     try {
+      if (listingId) {
+        const visitorId = localStorage.getItem(VISITOR_STORAGE_KEY) || undefined
+        const conversationId = localStorage.getItem(`${SESSION_STORAGE_PREFIX}${listingId}`) || undefined
+        const attributionRaw = localStorage.getItem(`${ATTRIBUTION_STORAGE_PREFIX}${listingId}`)
+        let attribution: Record<string, unknown> = {}
+        if (attributionRaw) {
+          try {
+            attribution = JSON.parse(attributionRaw) as Record<string, unknown>
+          } catch (_error) {
+            attribution = {}
+          }
+        }
+
+        try {
+          await fetch(buildApiUrl('/api/leads/capture'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              listing_id: listingId,
+              visitor_id: visitorId,
+              conversation_id: conversationId,
+              full_name: form.name,
+              email: form.email || undefined,
+              phone: form.phone || undefined,
+              consent_sms: form.phone ? true : false,
+              source_type: attribution.source_type || 'link',
+              source_key: attribution.source_key || 'link',
+              source_meta: {
+                utm_source: attribution.utm_source || null,
+                utm_medium: attribution.utm_medium || null,
+                utm_campaign: attribution.utm_campaign || null,
+                referrer: attribution.referrer || document.referrer || null,
+                landing_path: window.location.pathname + window.location.search
+              },
+              context: 'showing_requested'
+            })
+          })
+        } catch (_captureError) {
+          // Scheduling should still proceed if capture fails.
+        }
+      }
+
       const result = await scheduleAppointment({
         name: form.name,
         email: form.email,
@@ -126,4 +174,3 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
 }
 
 export default ViewingModal
-

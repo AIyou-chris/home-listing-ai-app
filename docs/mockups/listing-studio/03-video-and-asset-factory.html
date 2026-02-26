@@ -1,0 +1,55 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+:root {
+  --bg: #eef3fb;
+  --card: #ffffff;
+  --ink: #0f172a;
+  --muted: #5b6b89;
+  --line: #d8e0ef;
+  --brand: #2455d6;
+  --accent: #2ca58d;
+  --warm: #f4a261;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  color: var(--ink);
+  background: radial-gradient(1200px 500px at 20% -10%, #dfe8fb, #f4f7fd 55%, #eef3fb);
+}
+.wrap { width: 1365px; height: 768px; margin: 0 auto; padding: 18px; }
+.chrome { background:#21232b; color:#dce4ff; border-radius:14px 14px 0 0; height:50px; display:flex; align-items:center; padding:0 16px; gap:10px; }
+.dot { width:11px; height:11px; border-radius:50%; background:#6f7482; }
+.dot.red{background:#ff6059}.dot.yellow{background:#ffbd2e}.dot.green{background:#28ca42}
+.app { background: #f6f9ff; border:1px solid #cad5ed; height:680px; border-top:none; border-radius:0 0 14px 14px; display:grid; grid-template-columns:255px 1fr; overflow:hidden; }
+.side { background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%); border-right:1px solid #d7e0f5; padding:20px 16px; }
+.brand { font-size:30px; font-weight:800; letter-spacing:-.02em; margin:2px 0 20px; }
+.nav { display:grid; gap:10px; }
+.item { background:#fff; border:1px solid #d6e0f3; color:#2b3d63; border-radius:12px; padding:12px 14px; font-weight:600; }
+.item.active { border-color:#2960dd; background:#ebf2ff; color:#1f3f95; box-shadow:inset 0 0 0 1px #2960dd; }
+.main { padding:18px 22px; overflow:hidden; }
+.top { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.h1 { font-size:34px; font-weight:800; letter-spacing:-.02em; }
+.pill { border:1px solid #bed2ff; color:#214db6; background:#eff4ff; padding:8px 12px; border-radius:999px; font-weight:700; font-size:13px; }
+.grid2 { display:grid; grid-template-columns: 1.25fr .95fr; gap:14px; }
+.card { background: var(--card); border:1px solid var(--line); border-radius:18px; padding:16px; box-shadow:0 8px 30px rgba(32,53,104,.06); }
+.card h3 { margin:0 0 8px; font-size:22px; }
+.kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
+.kpi { border:1px solid var(--line); border-radius:12px; padding:10px; }
+.kpi .v { font-size:24px; font-weight:800; }
+.kpi .l { color:var(--muted); font-size:12px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+.row { display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px; }
+.input { border:1px solid var(--line); border-radius:10px; background:#f8fbff; padding:10px 12px; color:#1d335f; font-weight:600; }
+.stack { display:grid; gap:12px; }
+.tile { border:1px dashed #b8c8ea; border-radius:14px; padding:14px; background:#f8fbff; }
+.tile strong { display:block; font-size:14px; margin-bottom:6px; }
+.cta { margin-top:12px; display:flex; gap:10px; }
+.btn { padding:10px 14px; border-radius:10px; font-weight:700; border:1px solid #b4c7f3; background:#fff; color:#1a3f9f; }
+.btn.primary { background:linear-gradient(135deg,#2357da,#173f9f); color:#fff; border-color:#1f4ec4; }
+.timeline { margin-top:10px; display:grid; gap:8px; }
+.step { border:1px solid #d8e2f5; border-radius:12px; background:#f9fbff; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; font-weight:700; }
+.tag { font-size:11px; background:#e8fff6; color:#08634a; border:1px solid #9adac2; border-radius:999px; padding:4px 8px; }
+.chart { height:130px; border-radius:12px; background:linear-gradient(180deg,#edf3ff,#f9fbff); border:1px solid #d8e2f5; margin-top:10px; position:relative; overflow:hidden; }
+.bar { position:absolute; bottom:12px; width:48px; background:linear-gradient(180deg,#4e7df0,#2455d6); border-radius:8px 8px 4px 4px; }
+.bar.b1{left:28px;height:34px}.bar.b2{left:98px;height:60px}.bar.b3{left:168px;height:92px}.bar.b4{left:238px;height:68px}
+.subtle { color:var(--muted); font-size:13px; }
+</style></head><body><div class="wrap"><div class="chrome"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div><div style="margin-left:8px;font-weight:700;">HomeListingAI • Video + Asset Factory (Mock)</div></div><div class="app"><aside class="side"><div class="brand">HomeListingAI</div><div class="nav"><div class="item">Property Core</div><div class="item active">Asset Factory</div><div class="item">Social Pack</div><div class="item">Flyer + QR</div><div class="item">Launch</div></div></aside><main class="main"><div class="top"><div class="h1">Asset Factory</div><div class="pill">Generate once, publish everywhere</div></div><div class="grid2"><section class="card"><h3>Video Lite Builder (Free)</h3><div class="tile"><strong>Scene Sequence</strong>1) Hero exterior • 2) Kitchen • 3) Primary suite • 4) Backyard</div><div class="row"><div class="input">Voiceover style: Warm + concise</div><div class="input">Duration: 30s</div></div><div class="row"><div class="input">Caption set: Instagram + Reels</div><div class="input">Watermark: On (Free)</div></div><div class="cta"><button class="btn primary">Render Video Lite</button><button class="btn">Open Script Editor</button></div><div class="chart" style="margin-top:14px;"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#6a7ca5;font-weight:700;">Preview frame timeline (mock)</div></div></section><section class="stack"><div class="card"><h3>Instant Deliverables</h3><div class="tile"><strong>MLS Description</strong>1 formal + 1 SEO variant</div><div class="tile"><strong>Social Kit</strong>6 posts + 4 stories + 3 hooks</div><div class="tile"><strong>Flyer PDF</strong>Auto QR to lead capture</div><div class="tile"><strong>Listing Page Copy</strong>Hero, highlights, FAQ, CTA</div><div class="cta"><button class="btn primary">Download Zip Pack</button><button class="btn">Publish to Funnel</button></div></div><div class="card"><h3>Quality Checks</h3><div class="timeline"><div class="step"><span>Fair Housing language scan</span><span class="tag">Pass</span></div><div class="step"><span>Character limits by channel</span><span class="tag">Pass</span></div><div class="step"><span>Brand consistency</span><span class="tag">Pass</span></div></div></div></section></div></main></div></div></body></html>

@@ -1,0 +1,17 @@
+Name: HomeListingAI
+Description: Turn Every Listing Into a 24/7 Lead Machine.
+HomeListingAI is a web app for real estate agents that turns listings into lead-capture pages with an AI Listing Page and a 1-page Market Report.
+
+Core Value Proposition: 
+Share a link or QR code, capture buyer/seller leads automatically. AI handles inquiries 24/7.
+
+Pricing:
+- Free tier available
+- Starter $34/mo
+- Pro $79/mo
+
+Key URLs:
+- Main Website: https://homelistingai.com
+- Privacy Policy: https://homelistingai.com/privacy-policy
+- Terms of Service: https://homelistingai.com/terms-of-service
+- Contact / Support: https://homelistingai.com

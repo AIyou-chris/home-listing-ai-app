@@ -24,9 +24,8 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
     const isHome = location.pathname === '/';
 
     const navLinks = [
-        { name: "Price", href: "/#pricing" },
+        { name: "Pricing", href: "/#pricing" },
         { name: "Demo", href: "/#demo" },
-        { name: "White Label", href: "/#white-label" },
         { name: "Contact", href: "/#contact" },
         { name: "Blog", href: "/blog" }
     ];
