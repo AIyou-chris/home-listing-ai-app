@@ -90,6 +90,8 @@ const handleRealtimeToast = (event: DashboardRealtimeEventEnvelope) => {
     showToast('Appointment confirmed', 'Nice — one less no-show.')
   } else if (outcome === 'reschedule_requested') {
     showToast('Reschedule requested', 'Tap to pick a new time.')
+  } else if (outcome === 'voicemail_left') {
+    showToast('Voicemail left', 'We’ll try again if needed.')
   } else if (outcome === 'failed') {
     showToast('Reminder failed', 'Tap to retry or call the lead.')
   }

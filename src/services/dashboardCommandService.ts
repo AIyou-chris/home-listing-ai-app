@@ -109,6 +109,29 @@ export interface DashboardAppointmentRow {
     scheduled_for: string;
     provider_response?: Record<string, unknown> | null;
   } | null;
+  reminder_statuses?: Array<{
+    id: string;
+    reminder_type: string;
+    status: string;
+    scheduled_for: string;
+    provider_response?: Record<string, unknown> | null;
+  }>;
+  confirmation_status?: 'needs_confirmation' | 'confirmed' | 'unknown' | string;
+}
+
+export interface AppointmentReminderRow {
+  id: string;
+  appointment_id: string;
+  reminder_type: 'voice' | 'sms' | 'email' | string;
+  scheduled_for: string;
+  status: 'queued' | 'sent' | 'delivered' | 'failed' | 'suppressed' | 'canceled' | string;
+  provider?: string | null;
+  payload?: Record<string, unknown> | null;
+  provider_response?: Record<string, unknown> | null;
+  idempotency_key?: string | null;
+  normalized_outcome?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface CommandCenterLeadQueueItem {
@@ -500,4 +523,70 @@ export const retryDashboardReminder = async (appointmentId: string, agentIdOverr
     idempotency_key: string;
     reminder_id?: string | null;
   }>(response);
+};
+
+export const fetchAppointmentReminders = async (appointmentId: string, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders`, agentId)),
+    { headers: defaultJsonHeaders(agentId) }
+  );
+  return parseResponse<{ success: boolean; appointment_id: string; reminders: AppointmentReminderRow[] }>(response);
+};
+
+export const retryAppointmentReminder = async (
+  appointmentId: string,
+  reminderId: string,
+  agentIdOverride?: string | null
+) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders/${encodeURIComponent(reminderId)}/retry`),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify({ agentId })
+    }
+  );
+  return parseResponse<{
+    success: boolean;
+    queued: boolean;
+    duplicate: boolean;
+    job_id: string | null;
+    reminder_id?: string | null;
+    idempotency_key: string;
+  }>(response);
+};
+
+export const sendAppointmentReminderNow = async (appointmentId: string, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders/send-now`),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify({ agentId })
+    }
+  );
+  return parseResponse<{
+    success: boolean;
+    queued: boolean;
+    duplicate: boolean;
+    job_id: string | null;
+    reminder_id?: string | null;
+    idempotency_key: string;
+  }>(response);
+};
+
+export const disableAppointmentReminders = async (appointmentId: string, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders/disable`),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify({ agentId })
+    }
+  );
+  return parseResponse<{ success: boolean; appointment_id: string; canceled_count: number }>(response);
 };

@@ -2435,7 +2435,7 @@ const mapAppointmentForRealtime = async (appointmentRow) => {
     leadId
       ? supabaseAdmin
         .from('leads')
-        .select('id, full_name, name')
+        .select('id, full_name, name, phone, phone_e164, email, email_lower')
         .eq('id', leadId)
         .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -2463,8 +2463,15 @@ const mapAppointmentForRealtime = async (appointmentRow) => {
     listing_address: listingRes?.data?.address || appointmentRow.property_address || null,
     starts_at: appointmentRow.starts_at || appointmentRow.start_iso || null,
     status: normalizeAppointmentStatusValue(appointmentRow.status || 'scheduled'),
-    last_reminder_outcome: reminderRow?.status || null,
-    lead_name: leadRes?.data?.full_name || leadRes?.data?.name || 'Unknown'
+    confirmation_status: appointmentRow.confirmation_status || null,
+    last_reminder_outcome:
+      appointmentRow.last_reminder_outcome ||
+      reminderRow?.provider_response?.outcome ||
+      reminderRow?.status ||
+      null,
+    lead_name: leadRes?.data?.full_name || leadRes?.data?.name || 'Unknown',
+    lead_phone: leadRes?.data?.phone_e164 || leadRes?.data?.phone || null,
+    lead_email: leadRes?.data?.email_lower || leadRes?.data?.email || null
   };
 };
 
@@ -2490,6 +2497,47 @@ const emitAppointmentRealtimeEvent = async ({ appointmentId, type = 'appointment
   });
 };
 
+const emitReminderRealtimeEvent = async ({
+  reminderId,
+  appointmentId,
+  leadId = null,
+  agentId = null,
+  reminderType = 'voice',
+  status,
+  scheduledFor = null,
+  providerResponse = null,
+  outcome = null
+}) => {
+  if (!appointmentId || !status) return;
+  let resolvedAgentId = agentId || null;
+
+  if (!resolvedAgentId) {
+    const { data: appointmentRow } = await supabaseAdmin
+      .from('appointments')
+      .select('agent_id, user_id')
+      .eq('id', appointmentId)
+      .maybeSingle();
+    resolvedAgentId = appointmentRow?.agent_id || appointmentRow?.user_id || null;
+  }
+
+  if (!resolvedAgentId) return;
+
+  emitRealtimeEvent({
+    type: 'reminder.updated',
+    agentId: resolvedAgentId,
+    payload: {
+      reminder_id: reminderId || null,
+      appointment_id: appointmentId,
+      lead_id: leadId || null,
+      reminder_type: reminderType,
+      status,
+      scheduled_for: scheduledFor,
+      provider_response: providerResponse || null,
+      outcome: outcome || null
+    }
+  });
+};
+
 const { setRealtimePublisher: setVapiRealtimePublisher } = require('./services/vapiVoiceService');
 setVapiRealtimePublisher(async ({ appointmentId, leadId, agentId, outcome, provider, occurredAt, notes }) => {
   if (agentId && appointmentId && outcome) {
@@ -2505,6 +2553,18 @@ setVapiRealtimePublisher(async ({ appointmentId, leadId, agentId, outcome, provi
         notes: notes || null
       }
     });
+
+    await emitReminderRealtimeEvent({
+      reminderId: null,
+      appointmentId,
+      leadId: leadId || null,
+      agentId,
+      reminderType: 'voice',
+      status: normalizeReminderOutcomeValue(outcome) || 'sent',
+      scheduledFor: occurredAt || nowIso(),
+      providerResponse: { provider: provider || 'vapi', notes: notes || null },
+      outcome: normalizeReminderOutcomeValue(outcome)
+    }).catch(() => undefined);
   }
 
   if (appointmentId) {
@@ -3188,6 +3248,186 @@ const mapReminderProvider = (reminderType) => {
   return 'mailgun';
 };
 
+const REMINDER_PENDING_STATUSES = ['queued', 'suppressed', 'failed'];
+const TERMINAL_APPOINTMENT_STATUSES = new Set(['canceled', 'completed']);
+
+const isMissingAppointmentReminderColumnError = (error, columnName) =>
+  /column/i.test(error?.message || '') && new RegExp(columnName, 'i').test(error?.message || '');
+
+const normalizeReminderOutcomeValue = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'confirmed') return 'confirmed';
+  if (normalized === 'reschedule_requested' || normalized === 'rescheduled_requested' || normalized === 'rescheduled') {
+    return 'reschedule_requested';
+  }
+  if (normalized === 'human_handoff_requested' || normalized === 'handoff_requested') return 'handoff_requested';
+  if (normalized === 'voicemail_left') return 'voicemail_left';
+  if (normalized === 'no_answer' || normalized === 'no-answer') return 'no_answer';
+  if (normalized === 'failed') return 'failed';
+  return normalized;
+};
+
+const reminderOutcomeToLeadEventType = (outcome) => {
+  const normalizedOutcome = normalizeReminderOutcomeValue(outcome);
+  if (normalizedOutcome === 'confirmed') return 'APPOINTMENT_CONFIRMED';
+  if (normalizedOutcome === 'reschedule_requested') return 'APPOINTMENT_RESCHEDULE_REQUESTED';
+  if (normalizedOutcome === 'handoff_requested') return 'HUMAN_HANDOFF_REQUESTED';
+  if (normalizedOutcome === 'voicemail_left') return 'VOICEMAIL_LEFT';
+  if (normalizedOutcome === 'no_answer') return 'NO_ANSWER';
+  if (normalizedOutcome === 'failed') return 'REMINDER_FAILED';
+  return 'REMINDER_SENT';
+};
+
+const shouldNotifyAgentForReminderOutcome = (outcome) =>
+  ['confirmed', 'reschedule_requested', 'handoff_requested', 'failed'].includes(
+    normalizeReminderOutcomeValue(outcome) || ''
+  );
+
+const toMinuteBucketIso = (value) => {
+  const date = new Date(value || nowIso());
+  if (Number.isNaN(date.getTime())) return nowIso();
+  date.setSeconds(0, 0);
+  return date.toISOString();
+};
+
+const buildReminderIdempotencyKey = ({ appointmentId, scheduledFor, namespace = 'voice:reminder' }) =>
+  `${namespace}:${appointmentId}:${scheduledFor}`;
+
+const computeDefaultReminderOffsets = (startDate) => {
+  const minutesUntilStart = Math.floor((startDate.getTime() - Date.now()) / 60000);
+  if (minutesUntilStart < 0) return [];
+  if (minutesUntilStart < 24 * 60) return [2 * 60];
+  return [...APPOINTMENT_REMINDER_OFFSETS_MINUTES];
+};
+
+const cancelPendingRemindersForAppointment = async ({
+  appointmentId,
+  leadId,
+  reason = 'appointment_updated',
+  source = 'appointment_update'
+}) => {
+  if (!appointmentId) return { canceled: [] };
+  const { data: rows, error } = await supabaseAdmin
+    .from('appointment_reminders')
+    .select('id, reminder_type, scheduled_for, status')
+    .eq('appointment_id', appointmentId)
+    .in('status', REMINDER_PENDING_STATUSES);
+
+  if (error) {
+    if (/does not exist/i.test(error.message || '')) return { canceled: [] };
+    throw error;
+  }
+
+  const canceled = [];
+  for (const row of rows || []) {
+    const providerResponse = {
+      canceled_at: nowIso(),
+      reason,
+      source
+    };
+    const { error: updateError } = await supabaseAdmin
+      .from('appointment_reminders')
+      .update({
+        status: 'canceled',
+        provider_response: providerResponse,
+        updated_at: nowIso()
+      })
+      .eq('id', row.id);
+    if (updateError) throw updateError;
+
+    await recordLeadEvent({
+      leadId,
+      type: 'REMINDER_CANCELED',
+      payload: {
+        reminder_id: row.id,
+        appointment_id: appointmentId,
+        reminder_type: row.reminder_type,
+        scheduled_for: row.scheduled_for,
+        reason,
+        source
+      }
+    });
+
+    await emitReminderRealtimeEvent({
+      reminderId: row.id,
+      appointmentId,
+      leadId: leadId || null,
+      reminderType: row.reminder_type,
+      status: 'canceled',
+      scheduledFor: row.scheduled_for,
+      providerResponse: providerResponse
+    }).catch(() => undefined);
+
+    canceled.push({ ...row, status: 'canceled' });
+  }
+
+  return { canceled };
+};
+
+const upsertAppointmentReminder = async ({
+  appointmentId,
+  agentId,
+  leadId,
+  reminderType,
+  scheduledFor,
+  status,
+  provider,
+  payload,
+  idempotencyKey
+}) => {
+  const baseInsert = {
+    appointment_id: appointmentId,
+    agent_id: agentId || null,
+    lead_id: leadId || null,
+    reminder_type: reminderType,
+    scheduled_for: scheduledFor,
+    status,
+    provider,
+    payload: payload || {},
+    idempotency_key: idempotencyKey,
+    created_at: nowIso(),
+    updated_at: nowIso()
+  };
+
+  let { data, error } = await supabaseAdmin
+    .from('appointment_reminders')
+    .upsert(baseInsert, { onConflict: 'idempotency_key', ignoreDuplicates: false })
+    .select('id, appointment_id, reminder_type, scheduled_for, status, provider, idempotency_key')
+    .maybeSingle();
+
+  if (!error) return data;
+
+  if (!isMissingAppointmentReminderColumnError(error, 'idempotency_key')) {
+    throw error;
+  }
+
+  const legacyPayload = { ...baseInsert };
+  delete legacyPayload.idempotency_key;
+  delete legacyPayload.agent_id;
+  delete legacyPayload.lead_id;
+
+  const { data: existingLegacy, error: existingLegacyError } = await supabaseAdmin
+    .from('appointment_reminders')
+    .select('id, appointment_id, reminder_type, scheduled_for, status, provider')
+    .eq('appointment_id', appointmentId)
+    .eq('reminder_type', reminderType)
+    .eq('scheduled_for', scheduledFor)
+    .maybeSingle();
+  if (existingLegacyError && !/does not exist/i.test(existingLegacyError.message || '')) {
+    throw existingLegacyError;
+  }
+  if (existingLegacy) return existingLegacy;
+
+  const legacyInsert = await supabaseAdmin
+    .from('appointment_reminders')
+    .insert(legacyPayload)
+    .select('id, appointment_id, reminder_type, scheduled_for, status, provider')
+    .single();
+  if (legacyInsert.error) throw legacyInsert.error;
+  return legacyInsert.data;
+};
+
 const resolveAppointmentStart = (appointmentRow) =>
   appointmentRow?.starts_at ||
   appointmentRow?.start_iso ||
@@ -3224,25 +3464,17 @@ const scheduleAppointmentReminders = async ({ appointmentRow, source = 'appointm
     return { scheduled: [], skipped: true, reason: 'recipe_disabled' };
   }
 
-  try {
-    const { count: existingCount, error: existingError } = await supabaseAdmin
-      .from('appointment_reminders')
-      .select('id', { count: 'exact', head: true })
-      .eq('appointment_id', appointmentRow.id);
-
-    if (existingError && !/does not exist/i.test(existingError.message || '')) {
-      throw existingError;
-    }
-
-    if (existingCount > 0) {
-      return { scheduled: [], skipped: true, reason: 'already_scheduled' };
-    }
-  } catch (error) {
-    if (!/does not exist/i.test(error?.message || '')) {
-      throw error;
-    }
-    console.warn('[AppointmentReminder] appointment_reminders table missing. Run migration phase1_voice_appointment_reminders.sql');
-    return { scheduled: [], skipped: true, reason: 'table_missing' };
+  if (TERMINAL_APPOINTMENT_STATUSES.has(normalizeAppointmentStatusValue(appointmentRow.status || 'scheduled'))) {
+    const leadId = appointmentRow.lead_id || appointmentRow.leadId || null;
+    await cancelPendingRemindersForAppointment({
+      appointmentId: appointmentRow.id,
+      leadId,
+      reason: 'appointment_terminal_status',
+      source
+    }).catch((error) => {
+      console.warn('[AppointmentReminder] Failed to cancel pending reminders:', error?.message || error);
+    });
+    return { scheduled: [], skipped: true, reason: 'appointment_terminal_status' };
   }
 
   const startsAt = resolveAppointmentStart(appointmentRow);
@@ -3261,9 +3493,18 @@ const scheduleAppointmentReminders = async ({ appointmentRow, source = 'appointm
 
   const flags = await resolveAppointmentReminderFlags(agentId);
   const scheduledRows = [];
+  const startOffsets = computeDefaultReminderOffsets(startDate);
+  if (startOffsets.length === 0) {
+    return { scheduled: [], skipped: true, reason: 'appointment_in_past' };
+  }
 
-  for (const offsetMinutes of APPOINTMENT_REMINDER_OFFSETS_MINUTES) {
-    const scheduledFor = new Date(startDate.getTime() - offsetMinutes * 60 * 1000).toISOString();
+  for (const offsetMinutes of startOffsets) {
+    const computedScheduledFor = new Date(startDate.getTime() - offsetMinutes * 60 * 1000);
+    const scheduledFor = toMinuteBucketIso(
+      computedScheduledFor.getTime() <= Date.now()
+        ? new Date(Date.now() + 5000).toISOString()
+        : computedScheduledFor.toISOString()
+    );
     const basePayload = {
       source,
       offset_minutes: offsetMinutes,
@@ -3275,110 +3516,96 @@ const scheduleAppointmentReminders = async ({ appointmentRow, source = 'appointm
       timezone
     };
 
-    const reminderDefinitions = [
-      {
-        reminder_type: 'voice',
-        status: flags.voiceEnabled ? 'queued' : 'suppressed',
-        provider: 'vapi',
-        payload: {
-          ...basePayload,
-          reason: flags.voiceEnabled ? null : 'voice_disabled'
-        }
-      },
-      {
-        reminder_type: 'sms',
-        status: flags.smsEnabled ? 'queued' : 'suppressed',
-        provider: 'telnyx',
-        payload: {
-          ...basePayload,
-          reason: flags.smsEnabled ? null : SMS_COMING_SOON ? 'sms_coming_soon' : 'sms_disabled'
-        }
-      }
-    ];
+    const reminderType = 'voice';
+    const reminderStatus = flags.voiceEnabled ? 'queued' : 'suppressed';
+    const reminderPayload = {
+      ...basePayload,
+      reason: flags.voiceEnabled ? null : 'voice_disabled'
+    };
+    const reminderIdempotencyKey = buildReminderIdempotencyKey({
+      appointmentId: appointmentRow.id,
+      scheduledFor,
+      namespace: `${reminderType}:reminder`
+    });
 
-    for (const definition of reminderDefinitions) {
-      const { data: reminderRow, error: reminderError } = await supabaseAdmin
-        .from('appointment_reminders')
-        .insert({
-          appointment_id: appointmentRow.id,
-          reminder_type: definition.reminder_type,
-          scheduled_for: scheduledFor,
-          status: definition.status,
-          provider: definition.provider,
-          payload: definition.payload,
-          created_at: nowIso(),
-          updated_at: nowIso()
-        })
-        .select('id, reminder_type, scheduled_for, status')
-        .single();
+    const reminderRow = await upsertAppointmentReminder({
+      appointmentId: appointmentRow.id,
+      agentId,
+      leadId,
+      reminderType,
+      scheduledFor,
+      status: reminderStatus,
+      provider: 'vapi',
+      payload: reminderPayload,
+      idempotencyKey: reminderIdempotencyKey
+    });
 
-      if (reminderError) {
-        throw reminderError;
-      }
+    const outboundPayload = {
+      reminder_id: reminderRow.id,
+      appointment_id: appointmentRow.id,
+      lead_id: leadId,
+      listing_id: listingId || null,
+      agent_id: agentId,
+      scheduled_for: scheduledFor,
+      reminder_type: reminderType,
+      source
+    };
 
-      const eventType =
-        definition.status === 'suppressed' ? 'REMINDER_SUPPRESSED' : 'REMINDER_QUEUED';
-      await recordLeadEvent({
-        leadId,
-        type: eventType,
-        payload: {
-          reminder_id: reminderRow.id,
-          appointment_id: appointmentRow.id,
-          reminder_type: definition.reminder_type,
-          scheduled_for: scheduledFor,
-          status: definition.status,
-          source
-        }
-      });
-
-      const reminderIdempotencyKey = `${definition.reminder_type}:reminder:${appointmentRow.id}:${scheduledFor}`;
-      const outboundPayload = {
+    const eventType = reminderStatus === 'suppressed' ? 'REMINDER_SUPPRESSED' : 'REMINDER_QUEUED';
+    await recordLeadEvent({
+      leadId,
+      type: eventType,
+      payload: {
         reminder_id: reminderRow.id,
         appointment_id: appointmentRow.id,
-        lead_id: leadId,
-        listing_id: listingId || null,
-        agent_id: agentId,
+        reminder_type: reminderType,
         scheduled_for: scheduledFor,
-        reminder_type: definition.reminder_type,
+        status: reminderStatus,
         source
-      };
-
-      if (definition.status === 'queued') {
-        await enqueueJob({
-          type: definition.reminder_type === 'voice' ? 'voice_reminder_call' : 'sms_send',
-          payload: outboundPayload,
-          idempotencyKey: reminderIdempotencyKey,
-          priority: definition.reminder_type === 'voice' ? 2 : 4,
-          runAt: scheduledFor,
-          maxAttempts: 3
-        });
-
-        await recordOutboundAttempt({
-          agentId,
-          leadId,
-          appointmentId: appointmentRow.id,
-          channel: definition.reminder_type === 'voice' ? 'voice' : 'sms',
-          provider: definition.provider,
-          status: 'queued',
-          idempotencyKey: reminderIdempotencyKey,
-          payload: outboundPayload
-        });
-      } else {
-        await recordOutboundAttempt({
-          agentId,
-          leadId,
-          appointmentId: appointmentRow.id,
-          channel: definition.reminder_type === 'voice' ? 'voice' : 'sms',
-          provider: definition.provider,
-          status: 'suppressed',
-          idempotencyKey: reminderIdempotencyKey,
-          payload: outboundPayload,
-          providerResponse: { reason: definition.payload?.reason || 'suppressed' }
-        });
       }
+    });
 
-      scheduledRows.push(reminderRow);
+    if (reminderStatus === 'queued') {
+      await enqueueJob({
+        type: 'voice_reminder_call',
+        payload: outboundPayload,
+        idempotencyKey: reminderIdempotencyKey,
+        priority: 2,
+        runAt: scheduledFor,
+        maxAttempts: 3
+      });
+
+      await recordOutboundAttempt({
+        agentId,
+        leadId,
+        appointmentId: appointmentRow.id,
+        channel: 'voice',
+        provider: 'vapi',
+        status: 'queued',
+        idempotencyKey: reminderIdempotencyKey,
+        payload: outboundPayload
+      });
+    } else {
+      await recordOutboundAttempt({
+        agentId,
+        leadId,
+        appointmentId: appointmentRow.id,
+        channel: 'voice',
+        provider: 'vapi',
+        status: 'suppressed',
+        idempotencyKey: reminderIdempotencyKey,
+        payload: outboundPayload,
+        providerResponse: { reason: 'voice_disabled' }
+      });
     }
+
+    scheduledRows.push({
+      id: reminderRow.id,
+      reminder_type: reminderType,
+      scheduled_for: scheduledFor,
+      status: reminderStatus,
+      idempotency_key: reminderIdempotencyKey
+    });
   }
 
   return { scheduled: scheduledRows, skipped: false };
@@ -3469,6 +3696,17 @@ const markReminderAsSuppressed = async ({ reminder, reason, leadId }) => {
       reason
     }
   });
+
+  await emitReminderRealtimeEvent({
+    reminderId: reminder.id,
+    appointmentId: reminder.appointment_id,
+    leadId: leadId || reminder.lead_id || null,
+    agentId: reminder.agent_id || reminder.payload?.agent_id || null,
+    reminderType: reminder.reminder_type || 'voice',
+    status: 'suppressed',
+    scheduledFor: reminder.scheduled_for,
+    providerResponse: { reason }
+  }).catch(() => undefined);
 };
 
 const refreshLeadIntelligenceSafely = async (leadId, trigger) => {
@@ -3476,6 +3714,66 @@ const refreshLeadIntelligenceSafely = async (leadId, trigger) => {
   await updateLeadIntelligence({ leadId, trigger }).catch((error) => {
     console.warn('[LeadIntelligence] Refresh failed:', error?.message || error);
   });
+};
+
+const enqueueAppointmentOutcomeEmail = async ({
+  appointment,
+  reminder,
+  lead,
+  listingAddress,
+  outcome,
+  reason
+}) => {
+  const normalizedOutcome = normalizeReminderOutcomeValue(outcome);
+  if (!normalizedOutcome || !shouldNotifyAgentForReminderOutcome(normalizedOutcome)) {
+    return null;
+  }
+
+  const appointmentId = appointment?.id || reminder?.appointment_id || null;
+  const leadId = appointment?.lead_id || reminder?.lead_id || lead?.id || null;
+  const agentId = resolveAppointmentAgentId(appointment) || reminder?.agent_id || null;
+  if (!appointmentId || !agentId) return null;
+
+  const idempotencyKey = `email:appt_outcome:${appointmentId}:${normalizedOutcome}`;
+  const payload = {
+    kind: 'appointment_update_agent',
+    agent_id: agentId,
+    lead_id: leadId || null,
+    appointment_id: appointmentId,
+    outcome: normalizedOutcome,
+    listing_address: listingAddress || appointment?.property_address || appointment?.location || null,
+    appointment_starts_at: resolveAppointmentStart(appointment),
+    location: appointment?.location || null,
+    lead_name: lead?.full_name || lead?.name || appointment?.name || 'Unknown lead',
+    lead_phone: lead?.phone_e164 || lead?.phone || appointment?.phone || null,
+    lead_email: lead?.email_lower || lead?.email || appointment?.email || null,
+    reason: reason || null,
+    reminder_id: reminder?.id || null,
+    dashboard_path: '/dashboard/appointments',
+    lead_dashboard_path: `/dashboard/leads/${leadId || ''}`
+  };
+
+  await enqueueJob({
+    type: 'email_send',
+    payload,
+    idempotencyKey,
+    priority: 3,
+    runAt: nowIso(),
+    maxAttempts: 3
+  });
+
+  await recordOutboundAttempt({
+    agentId,
+    leadId,
+    appointmentId,
+    channel: 'email',
+    provider: 'mailgun',
+    status: 'queued',
+    idempotencyKey,
+    payload
+  });
+
+  return idempotencyKey;
 };
 
 const dispatchAppointmentReminder = async (reminder) => {
@@ -3497,6 +3795,28 @@ const dispatchAppointmentReminder = async (reminder) => {
       }
     });
     return { status: 'failed', reason: 'appointment_not_found' };
+  }
+
+  const appointmentStatus = normalizeAppointmentStatusValue(appointment.status || 'scheduled');
+  if (TERMINAL_APPOINTMENT_STATUSES.has(appointmentStatus)) {
+    await updateReminderStatus({
+      reminderId: reminder.id,
+      status: 'canceled',
+      providerResponse: {
+        canceled_at: nowIso(),
+        reason: `appointment_${appointmentStatus}`
+      }
+    });
+    await emitReminderRealtimeEvent({
+      reminderId: reminder.id,
+      appointmentId: reminder.appointment_id,
+      agentId: resolveAppointmentAgentId(appointment),
+      reminderType: reminder.reminder_type,
+      status: 'canceled',
+      scheduledFor: reminder.scheduled_for,
+      providerResponse: { reason: `appointment_${appointmentStatus}` }
+    }).catch(() => undefined);
+    return { status: 'canceled', reason: `appointment_${appointmentStatus}` };
   }
 
   const leadId = appointment.lead_id || reminder.payload?.lead_id || null;
@@ -3524,6 +3844,8 @@ const dispatchAppointmentReminder = async (reminder) => {
         .maybeSingle()
       : Promise.resolve({ data: null })
   ]);
+
+  const listingAddress = listing?.address || appointment.property_address || appointment.location || 'the scheduled property';
 
   if (reminder.reminder_type === 'sms') {
     await markReminderAsSuppressed({
@@ -3603,6 +3925,15 @@ const dispatchAppointmentReminder = async (reminder) => {
     }
   });
 
+  await supabaseAdmin
+    .from('appointments')
+    .update({
+      last_reminder_at: nowIso(),
+      last_reminder_outcome: 'sent',
+      updated_at: nowIso()
+    })
+    .eq('id', appointment.id);
+
   await recordLeadEvent({
     leadId,
     type: 'REMINDER_SENT',
@@ -3615,6 +3946,19 @@ const dispatchAppointmentReminder = async (reminder) => {
     }
   });
 
+  await emitReminderRealtimeEvent({
+    reminderId: reminder.id,
+    appointmentId: appointment.id,
+    leadId,
+    agentId,
+    reminderType: 'voice',
+    status: 'sent',
+    scheduledFor: reminder.scheduled_for,
+    providerResponse: {
+      result
+    }
+  }).catch(() => undefined);
+
   await supabaseAdmin
     .from('outbound_attempts')
     .update({
@@ -3624,9 +3968,23 @@ const dispatchAppointmentReminder = async (reminder) => {
         result
       }
     })
-    .eq('idempotency_key', `voice:reminder:${appointment.id}:${reminder.scheduled_for}`);
+    .eq('idempotency_key', reminder.idempotency_key || `voice:reminder:${appointment.id}:${reminder.scheduled_for}`);
 
   await refreshLeadIntelligenceSafely(leadId, 'reminder_sent');
+
+  await enqueueAppointmentOutcomeEmail({
+    appointment,
+    reminder,
+    lead,
+    listingAddress,
+    outcome: 'sent'
+  }).catch(() => undefined);
+
+  await emitAppointmentRealtimeEvent({
+    appointmentId: appointment.id,
+    type: 'appointment.updated'
+  }).catch(() => undefined);
+
   return { status: 'sent', provider: 'vapi', result };
 };
 
@@ -3797,15 +4155,48 @@ const processEmailSendJob = async (job) => {
     const targetEmail = agent?.email || process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
     if (!targetEmail) throw new Error('missing_target_email');
 
+    const normalizedOutcome = normalizeReminderOutcomeValue(payload.outcome || payload.reminder_outcome || 'updated') || 'updated';
+    const listingAddress = String(payload.listing_address || payload.location || 'Listing');
+    const outcomeLabelMap = {
+      confirmed: 'confirmed',
+      reschedule_requested: 'reschedule requested',
+      handoff_requested: 'requested a call',
+      failed: 'failed',
+      voicemail_left: 'voicemail left',
+      no_answer: 'no answer',
+      updated: 'updated'
+    };
+    const subjectMap = {
+      confirmed: `Appointment confirmed — ${listingAddress}`,
+      reschedule_requested: `Reschedule requested — ${listingAddress}`,
+      handoff_requested: `Lead requested a call — ${listingAddress}`,
+      failed: `Reminder failed — ${listingAddress}`,
+      voicemail_left: `Voicemail left — ${listingAddress}`,
+      no_answer: `No answer — ${listingAddress}`,
+      updated: `Appointment update — ${listingAddress}`
+    };
+    const outcomeLabel = outcomeLabelMap[normalizedOutcome] || outcomeLabelMap.updated;
+    const subject = subjectMap[normalizedOutcome] || subjectMap.updated;
+    const leadName = payload.lead_name || payload.full_name || 'Unknown lead';
+    const leadPhone = payload.lead_phone || payload.phone_e164 || payload.phone || 'N/A';
+    const leadEmail = payload.lead_email || payload.email_lower || payload.email || 'N/A';
+    const appointmentTime = payload.appointment_starts_at || payload.starts_at || payload.start_iso || 'Unknown';
+    const appointmentLocation = payload.location || 'Not set';
     const dashboardBase = (process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
     await emailService.sendEmail({
       to: targetEmail,
-      subject: `Appointment update — ${payload.outcome || 'status change'}`,
+      subject,
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.5;">
           <h3>Appointment update</h3>
-          <p><strong>Outcome:</strong> ${payload.outcome || 'updated'}</p>
-          <p><a href="${dashboardBase}${payload.dashboard_path || '/dashboard/leads'}">Open lead in dashboard</a></p>
+          <p><strong>Update:</strong> ${outcomeLabel}</p>
+          <p><strong>Lead:</strong> ${leadName}</p>
+          <p><strong>Phone:</strong> ${leadPhone}</p>
+          <p><strong>Email:</strong> ${leadEmail}</p>
+          <p><strong>Time:</strong> ${appointmentTime}</p>
+          <p><strong>Location:</strong> ${appointmentLocation}</p>
+          <p><a href="${dashboardBase}${payload.dashboard_path || '/dashboard/appointments'}">Open in Appointments</a></p>
+          <p><a href="${dashboardBase}${payload.lead_dashboard_path || `/dashboard/leads/${payload.lead_id || ''}`}">Open Lead Detail</a></p>
         </div>
       `
     });
@@ -3909,19 +4300,134 @@ const processSmsSendJob = async (job) => {
 };
 
 const processVoiceReminderCallJob = async (job) => {
-  const reminderId = job.payload?.reminder_id;
-  if (!reminderId) throw new Error('missing_reminder_id');
+  const reminderId = job.payload?.reminder_id || null;
+  const appointmentId = job.payload?.appointment_id || null;
+  let reminder = null;
 
-  const { data: reminder, error } = await supabaseAdmin
-    .from('appointment_reminders')
-    .select('*')
-    .eq('id', reminderId)
-    .maybeSingle();
-  if (error) throw error;
+  if (reminderId) {
+    const reminderResult = await supabaseAdmin
+      .from('appointment_reminders')
+      .select('*')
+      .eq('id', reminderId)
+      .maybeSingle();
+    if (reminderResult.error) throw reminderResult.error;
+    reminder = reminderResult.data || null;
+  }
+
+  if (!reminder && appointmentId) {
+    const reminderResult = await supabaseAdmin
+      .from('appointment_reminders')
+      .select('*')
+      .eq('appointment_id', appointmentId)
+      .eq('reminder_type', 'voice')
+      .in('status', ['queued', 'failed'])
+      .order('scheduled_for', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (reminderResult.error) throw reminderResult.error;
+    reminder = reminderResult.data || null;
+  }
+
   if (!reminder) return { status: 'skipped', reason: 'reminder_not_found' };
+  if (String(reminder.status || '').toLowerCase() === 'canceled') {
+    return { status: 'skipped', reason: 'reminder_canceled' };
+  }
 
-  const result = await dispatchAppointmentReminder(reminder);
-  return { status: result?.status || 'processed', result };
+  try {
+    const result = await dispatchAppointmentReminder(reminder);
+    return { status: result?.status || 'processed', result };
+  } catch (error) {
+    const reason = error?.message || 'send_failed';
+    const normalizedOutcome = normalizeReminderOutcomeValue('failed');
+    const leadId = reminder.lead_id || reminder.payload?.lead_id || null;
+
+    await updateReminderStatus({
+      reminderId: reminder.id,
+      status: 'failed',
+      providerResponse: {
+        failed_at: nowIso(),
+        reason
+      }
+    }).catch(() => undefined);
+
+    await recordLeadEvent({
+      leadId,
+      type: 'REMINDER_FAILED',
+      payload: {
+        reminder_id: reminder.id,
+        appointment_id: reminder.appointment_id,
+        reminder_type: reminder.reminder_type,
+        scheduled_for: reminder.scheduled_for,
+        reason
+      }
+    }).catch(() => undefined);
+
+    await recordLeadEvent({
+      leadId,
+      type: 'REMINDER_OUTCOME',
+      payload: {
+        reminder_id: reminder.id,
+        appointment_id: reminder.appointment_id,
+        reminder_type: reminder.reminder_type,
+        outcome: normalizedOutcome,
+        reason
+      }
+    }).catch(() => undefined);
+
+    await emitReminderRealtimeEvent({
+      reminderId: reminder.id,
+      appointmentId: reminder.appointment_id,
+      leadId,
+      agentId: reminder.agent_id || job.payload?.agent_id || null,
+      reminderType: reminder.reminder_type || 'voice',
+      status: 'failed',
+      scheduledFor: reminder.scheduled_for,
+      providerResponse: { reason },
+      outcome: normalizedOutcome
+    }).catch(() => undefined);
+
+    const appointmentResult = await supabaseAdmin
+      .from('appointments')
+      .select('*')
+      .eq('id', reminder.appointment_id)
+      .maybeSingle();
+    const appointment = appointmentResult.data || null;
+    const listingAddress = appointment?.property_address || appointment?.location || 'Listing';
+    const leadResult = leadId
+      ? await supabaseAdmin
+        .from('leads')
+        .select('id, full_name, name, phone, phone_e164, email, email_lower')
+        .eq('id', leadId)
+        .maybeSingle()
+      : { data: null };
+
+    await enqueueAppointmentOutcomeEmail({
+      appointment,
+      reminder,
+      lead: leadResult.data || null,
+      listingAddress,
+      outcome: normalizedOutcome,
+      reason
+    }).catch(() => undefined);
+
+    if (appointment?.id) {
+      await supabaseAdmin
+        .from('appointments')
+        .update({
+          last_reminder_outcome: 'failed',
+          last_reminder_at: nowIso(),
+          updated_at: nowIso()
+        })
+        .eq('id', appointment.id)
+        .catch(() => undefined);
+      await emitAppointmentRealtimeEvent({
+        appointmentId: appointment.id,
+        type: 'appointment.updated'
+      }).catch(() => undefined);
+    }
+
+    throw error;
+  }
 };
 
 const processVapiWebhookJob = async (job) => {
@@ -4554,6 +5060,9 @@ const mapAppointmentFromRow = (row) => {
     endIso,
     startsAt: startIso,
     endsAt: endIso,
+    confirmation_status: row.confirmation_status || 'needs_confirmation',
+    last_reminder_outcome: row.last_reminder_outcome || null,
+    last_reminder_at: row.last_reminder_at || null,
     created_at: row.created_at,
     updated_at: row.updated_at
   };
@@ -10819,132 +11328,329 @@ app.post('/api/dashboard/agent-actions', async (req, res) => {
   }
 });
 
-app.post('/api/dashboard/reminders/:appointmentId/retry', async (req, res) => {
+const loadScopedAppointmentForDashboard = async ({ appointmentId, agentId }) => {
+  const { data: appointment, error: appointmentError } = await supabaseAdmin
+    .from('appointments')
+    .select(APPOINTMENT_SELECT_FIELDS)
+    .eq('id', appointmentId)
+    .maybeSingle();
+  if (appointmentError) throw appointmentError;
+  if (!appointment) return { appointment: null, error: 'appointment_not_found', status: 404 };
+
+  const ownerId = appointment.agent_id || appointment.user_id || null;
+  if (ownerId && agentId && ownerId !== agentId) {
+    return { appointment: null, error: 'forbidden_appointment_scope', status: 403 };
+  }
+
+  return { appointment, ownerId };
+};
+
+const enqueueManualReminderForAppointment = async ({
+  appointment,
+  ownerId,
+  reminder,
+  idempotencyKey,
+  source = 'manual_retry',
+  reason = null
+}) => {
+  const appointmentId = appointment.id;
+  const leadId = appointment.lead_id || reminder?.lead_id || null;
+  const listingId = appointment.listing_id || appointment.property_id || null;
+  const agentId = ownerId || resolveAppointmentAgentId(appointment);
+  const scheduledFor = toMinuteBucketIso(nowIso());
+
+  const reminderPayload = {
+    appointment_id: appointmentId,
+    lead_id: leadId,
+    listing_id: listingId,
+    agent_id: agentId,
+    reminder_type: 'voice',
+    source,
+    retry_of: reminder?.id || null,
+    reason
+  };
+
+  const reminderRow = await upsertAppointmentReminder({
+    appointmentId,
+    agentId,
+    leadId,
+    reminderType: 'voice',
+    scheduledFor,
+    status: 'queued',
+    provider: 'vapi',
+    payload: reminderPayload,
+    idempotencyKey
+  });
+
+  const enqueueResult = await enqueueJob({
+    type: 'voice_reminder_call',
+    payload: {
+      ...reminderPayload,
+      reminder_id: reminderRow.id,
+      scheduled_for: scheduledFor
+    },
+    idempotencyKey,
+    priority: 1,
+    runAt: new Date(Date.now() + 5000).toISOString(),
+    maxAttempts: 3
+  });
+
+  if (!enqueueResult?.created) {
+    return {
+      queued: false,
+      duplicate: true,
+      job_id: enqueueResult?.job?.id || null,
+      reminder_id: reminderRow.id,
+      idempotency_key: idempotencyKey
+    };
+  }
+
+  await recordOutboundAttempt({
+    agentId,
+    leadId,
+    appointmentId,
+    channel: 'voice',
+    provider: 'vapi',
+    status: 'queued',
+    idempotencyKey,
+    payload: {
+      ...reminderPayload,
+      reminder_id: reminderRow.id
+    }
+  });
+
+  await recordLeadEvent({
+    leadId,
+    type: 'REMINDER_QUEUED',
+    payload: {
+      reminder_id: reminderRow.id,
+      appointment_id: appointmentId,
+      reminder_type: 'voice',
+      scheduled_for: scheduledFor,
+      source
+    }
+  });
+
+  await emitReminderRealtimeEvent({
+    reminderId: reminderRow.id,
+    appointmentId,
+    leadId,
+    agentId,
+    reminderType: 'voice',
+    status: 'queued',
+    scheduledFor,
+    providerResponse: {
+      source
+    }
+  }).catch(() => undefined);
+
+  await emitAppointmentRealtimeEvent({
+    appointmentId,
+    type: 'appointment.updated'
+  }).catch(() => undefined);
+
+  return {
+    queued: true,
+    duplicate: false,
+    job_id: enqueueResult.job.id,
+    reminder_id: reminderRow.id,
+    idempotency_key: idempotencyKey
+  };
+};
+
+app.get('/api/dashboard/appointments/:appointmentId/reminders', async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const agentId = resolveDashboardOwnerId(req);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
     if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
 
-    const { data: appointment, error: appointmentError } = await supabaseAdmin
-      .from('appointments')
-      .select(APPOINTMENT_SELECT_FIELDS)
-      .eq('id', appointmentId)
-      .maybeSingle();
-    if (appointmentError) throw appointmentError;
-    if (!appointment) return res.status(404).json({ error: 'appointment_not_found' });
+    const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
+    if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
 
-    const ownerId = appointment.agent_id || appointment.user_id || null;
-    if (ownerId && ownerId !== agentId) return res.status(403).json({ error: 'forbidden_appointment_scope' });
+    const { data: reminders, error } = await supabaseAdmin
+      .from('appointment_reminders')
+      .select('id, appointment_id, reminder_type, scheduled_for, status, provider, payload, provider_response, idempotency_key, created_at, updated_at')
+      .eq('appointment_id', appointmentId)
+      .order('scheduled_for', { ascending: true });
 
-    const minuteBucketIso = new Date(Math.floor(Date.now() / 60000) * 60000).toISOString();
-    const idempotencyKey = `voice:manual_retry:${appointmentId}:${minuteBucketIso}`;
-    const basePayload = {
-      appointment_id: appointmentId,
-      lead_id: appointment.lead_id || null,
-      listing_id: appointment.listing_id || appointment.property_id || null,
-      agent_id: ownerId || agentId,
-      manual_retry: true,
-      requested_at: nowIso()
-    };
-
-    const enqueueResult = await enqueueJob({
-      type: 'voice_reminder_call',
-      payload: basePayload,
-      idempotencyKey,
-      priority: 1,
-      runAt: new Date(Date.now() + 5000).toISOString(),
-      maxAttempts: 3
-    });
-
-    if (!enqueueResult?.created) {
-      return res.json({
-        success: true,
-        queued: false,
-        duplicate: true,
-        job_id: enqueueResult?.job?.id || null,
-        idempotency_key: idempotencyKey
-      });
+    if (error) {
+      if (/does not exist/i.test(error.message || '')) {
+        return res.json({ success: true, reminders: [] });
+      }
+      throw error;
     }
 
-    const reminderPayload = {
-      ...basePayload,
-      manual_retry_key: idempotencyKey
-    };
+    const normalized = (reminders || []).map((row) => ({
+      ...row,
+      normalized_outcome: normalizeReminderOutcomeValue(
+        row?.provider_response?.outcome || row?.status || ''
+      ) || null
+    }));
 
-    const { data: reminderRow, error: reminderError } = await supabaseAdmin
+    res.json({
+      success: true,
+      appointment_id: appointmentId,
+      reminders: normalized
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to list appointment reminders:', error);
+    res.status(500).json({ error: 'failed_to_list_appointment_reminders' });
+  }
+});
+
+app.post('/api/dashboard/appointments/:appointmentId/reminders/:reminderId/retry', async (req, res) => {
+  try {
+    const { appointmentId, reminderId } = req.params;
+    const agentId = resolveDashboardOwnerId(req);
+    if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
+    if (!reminderId) return res.status(400).json({ error: 'reminder_id_required' });
+    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+
+    const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
+    if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
+
+    const { data: reminder, error: reminderError } = await supabaseAdmin
       .from('appointment_reminders')
-      .insert({
-        appointment_id: appointmentId,
-        reminder_type: 'voice',
-        scheduled_for: nowIso(),
-        status: 'queued',
-        provider: 'vapi',
-        payload: reminderPayload,
-        created_at: nowIso(),
-        updated_at: nowIso()
-      })
-      .select('id')
-      .single();
+      .select('*')
+      .eq('id', reminderId)
+      .eq('appointment_id', appointmentId)
+      .maybeSingle();
     if (reminderError) throw reminderError;
+    if (!reminder) return res.status(404).json({ error: 'reminder_not_found' });
+
+    const minuteBucketIso = toMinuteBucketIso(nowIso());
+    const idempotencyKey = `voice:retry:${reminderId}:${minuteBucketIso}`;
+    const result = await enqueueManualReminderForAppointment({
+      appointment: scoped.appointment,
+      ownerId: scoped.ownerId || agentId,
+      reminder,
+      idempotencyKey,
+      source: 'manual_retry'
+    });
+
+    if (scoped.appointment.lead_id) {
+      await supabaseAdmin
+        .from('agent_actions')
+        .insert({
+          agent_id: scoped.ownerId || agentId,
+          lead_id: scoped.appointment.lead_id,
+          action: 'appointment_updated',
+          metadata: { retry: true, appointment_id: appointmentId, reminder_id: reminderId },
+          created_at: nowIso()
+        })
+        .then(({ error }) => {
+          if (error && !/agent_actions|does not exist|relation/i.test(error.message || '')) throw error;
+        });
+    }
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    if (isJobQueueMissingTableError(error)) {
+      return res.status(500).json({ error: 'job_queue_tables_missing_run_phase3_1_migration' });
+    }
+    console.error('[Dashboard] Failed to retry reminder:', error);
+    res.status(500).json({ error: 'failed_to_retry_reminder' });
+  }
+});
+
+app.post('/api/dashboard/appointments/:appointmentId/reminders/send-now', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const agentId = resolveDashboardOwnerId(req);
+    if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
+    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+
+    const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
+    if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
+
+    const { data: nextReminder, error: nextReminderError } = await supabaseAdmin
+      .from('appointment_reminders')
+      .select('*')
+      .eq('appointment_id', appointmentId)
+      .eq('reminder_type', 'voice')
+      .in('status', REMINDER_PENDING_STATUSES)
+      .order('scheduled_for', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (nextReminderError && !/does not exist/i.test(nextReminderError.message || '')) throw nextReminderError;
+
+    if (nextReminder?.id) {
+      await updateReminderStatus({
+        reminderId: nextReminder.id,
+        status: 'canceled',
+        providerResponse: {
+          canceled_at: nowIso(),
+          reason: 'manual_send_now_override'
+        }
+      });
+      await recordLeadEvent({
+        leadId: scoped.appointment.lead_id || nextReminder.lead_id || null,
+        type: 'REMINDER_CANCELED',
+        payload: {
+          reminder_id: nextReminder.id,
+          appointment_id: appointmentId,
+          reminder_type: nextReminder.reminder_type,
+          scheduled_for: nextReminder.scheduled_for,
+          reason: 'manual_send_now_override'
+        }
+      });
+      await emitReminderRealtimeEvent({
+        reminderId: nextReminder.id,
+        appointmentId,
+        leadId: scoped.appointment.lead_id || nextReminder.lead_id || null,
+        agentId: scoped.ownerId || agentId,
+        reminderType: nextReminder.reminder_type,
+        status: 'canceled',
+        scheduledFor: nextReminder.scheduled_for,
+        providerResponse: { reason: 'manual_send_now_override' }
+      }).catch(() => undefined);
+    }
+
+    const minuteBucketIso = toMinuteBucketIso(nowIso());
+    const idempotencyKey = `voice:send_now:${appointmentId}:${minuteBucketIso}`;
+    const result = await enqueueManualReminderForAppointment({
+      appointment: scoped.appointment,
+      ownerId: scoped.ownerId || agentId,
+      reminder: nextReminder || null,
+      idempotencyKey,
+      source: 'manual_send_now'
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    if (isJobQueueMissingTableError(error)) {
+      return res.status(500).json({ error: 'job_queue_tables_missing_run_phase3_1_migration' });
+    }
+    console.error('[Dashboard] Failed to send reminder now:', error);
+    res.status(500).json({ error: 'failed_to_send_reminder_now' });
+  }
+});
+
+app.post('/api/dashboard/appointments/:appointmentId/reminders/disable', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const agentId = resolveDashboardOwnerId(req);
+    if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
+    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+
+    const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
+    if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
+
+    const canceled = await cancelPendingRemindersForAppointment({
+      appointmentId,
+      leadId: scoped.appointment.lead_id || null,
+      reason: 'manual_disable',
+      source: 'manual_disable'
+    });
 
     await supabaseAdmin
-      .from('jobs')
+      .from('appointments')
       .update({
-        payload: {
-          ...basePayload,
-          reminder_id: reminderRow.id
-        },
+        remind_agent: false,
+        remind_client: false,
         updated_at: nowIso()
       })
-      .eq('id', enqueueResult.job.id);
-
-    await recordOutboundAttempt({
-      agentId: ownerId || agentId,
-      leadId: appointment.lead_id || null,
-      appointmentId,
-      channel: 'voice',
-      provider: 'vapi',
-      status: 'queued',
-      idempotencyKey,
-      payload: {
-        ...basePayload,
-        reminder_id: reminderRow.id
-      }
-    });
-
-    if (appointment.lead_id) {
-      await recordLeadEvent({
-        leadId: appointment.lead_id,
-        type: 'REMINDER_QUEUED',
-        payload: {
-          reminder_id: reminderRow.id,
-          appointment_id: appointmentId,
-          reminder_type: 'voice',
-          scheduled_for: nowIso(),
-          source: 'manual_retry'
-        }
-      });
-
-      try {
-        const { error: agentActionError } = await supabaseAdmin
-          .from('agent_actions')
-          .insert({
-            agent_id: ownerId || agentId,
-            lead_id: appointment.lead_id,
-            action: 'appointment_updated',
-            metadata: { retry: true, appointment_id: appointmentId },
-            created_at: nowIso()
-          });
-        if (agentActionError && !/agent_actions|does not exist|relation/i.test(agentActionError.message || '')) {
-          throw agentActionError;
-        }
-      } catch (agentActionError) {
-        if (!/agent_actions|does not exist|relation/i.test(agentActionError?.message || '')) {
-          throw agentActionError;
-        }
-      }
-    }
+      .eq('id', appointmentId);
 
     await emitAppointmentRealtimeEvent({
       appointmentId,
@@ -10953,12 +11659,48 @@ app.post('/api/dashboard/reminders/:appointmentId/retry', async (req, res) => {
 
     res.json({
       success: true,
-      queued: true,
-      duplicate: false,
-      job_id: enqueueResult.job.id,
-      idempotency_key: idempotencyKey,
-      reminder_id: reminderRow.id
+      appointment_id: appointmentId,
+      canceled_count: (canceled?.canceled || []).length
     });
+  } catch (error) {
+    console.error('[Dashboard] Failed to disable reminders:', error);
+    res.status(500).json({ error: 'failed_to_disable_reminders' });
+  }
+});
+
+app.post('/api/dashboard/reminders/:appointmentId/retry', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const agentId = resolveDashboardOwnerId(req);
+    if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
+    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+
+    const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
+    if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
+
+    const { data: reminderRow, error: reminderError } = await supabaseAdmin
+      .from('appointment_reminders')
+      .select('*')
+      .eq('appointment_id', appointmentId)
+      .eq('reminder_type', 'voice')
+      .in('status', ['failed', 'queued', 'suppressed', 'sent'])
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (reminderError) throw reminderError;
+    if (!reminderRow?.id) return res.status(404).json({ error: 'reminder_not_found' });
+
+    const minuteBucketIso = toMinuteBucketIso(nowIso());
+    const idempotencyKey = `voice:retry:${reminderRow.id}:${minuteBucketIso}`;
+    const result = await enqueueManualReminderForAppointment({
+      appointment: scoped.appointment,
+      ownerId: scoped.ownerId || agentId,
+      reminder: reminderRow,
+      idempotencyKey,
+      source: 'manual_retry_legacy'
+    });
+
+    res.json({ success: true, ...result });
   } catch (error) {
     if (isJobQueueMissingTableError(error)) {
       return res.status(500).json({ error: 'job_queue_tables_missing_run_phase3_1_migration' });
@@ -11139,6 +11881,11 @@ app.get('/api/dashboard/command-center', async (req, res) => {
       const lead = row.lead_id ? appointmentLeadMap[row.lead_id] : null;
       const listing = appointmentListingMap[row.listing_id || row.property_id] || null;
       const lastReminder = reminderMap[row.id] || null;
+      const normalizedOutcome = normalizeReminderOutcomeValue(
+        row.last_reminder_outcome ||
+        lastReminder?.provider_response?.outcome ||
+        lastReminder?.status
+      );
       return {
         appointment_id: row.id,
         lead_id: row.lead_id || null,
@@ -11149,7 +11896,7 @@ app.get('/api/dashboard/command-center', async (req, res) => {
         lead_name: lead?.full_name || lead?.name || row.name || 'Unknown',
         lead_phone: lead?.phone_e164 || lead?.phone || row.phone || null,
         lead_email: lead?.email_lower || lead?.email || row.email || null,
-        last_reminder_outcome: lastReminder?.status || null
+        last_reminder_outcome: normalizedOutcome || null
       };
     });
 
@@ -12138,6 +12885,12 @@ app.get('/api/dashboard/appointments', async (req, res) => {
       const listing = listingMap[mapped.listingId || mapped.propertyId] || null;
       const reminders = reminderMap[mapped.id] || [];
       const lastReminder = reminders.length > 0 ? reminders[reminders.length - 1] : null;
+      const normalizedOutcome = normalizeReminderOutcomeValue(
+        mapped.last_reminder_outcome ||
+        row.last_reminder_outcome ||
+        lastReminder?.provider_response?.outcome ||
+        lastReminder?.status
+      );
       return {
         ...mapped,
         lead: lead
@@ -12149,15 +12902,23 @@ app.get('/api/dashboard/appointments', async (req, res) => {
           }
           : null,
         listing: listing || null,
+        confirmation_status: row.confirmation_status || 'needs_confirmation',
         reminder_statuses: reminders,
         last_reminder_outcome: lastReminder
           ? {
-            status: lastReminder.status,
+            status: normalizedOutcome || lastReminder.status,
             reminder_type: lastReminder.reminder_type,
             scheduled_for: lastReminder.scheduled_for,
             provider_response: lastReminder.provider_response || null
           }
-          : null
+          : normalizedOutcome
+            ? {
+              status: normalizedOutcome,
+              reminder_type: 'voice',
+              scheduled_for: row.last_reminder_at || row.updated_at || row.created_at || null,
+              provider_response: null
+            }
+            : null
       };
     });
 
@@ -16317,6 +17078,12 @@ app.post('/api/appointments', async (req, res) => {
         ? { startIso: explicitStart, endIso: explicitEnd }
         : computeAppointmentIsoRange(day, label);
     const normalizedStatus = normalizeAppointmentStatusValue(status || 'scheduled');
+    const confirmationStatus =
+      normalizedStatus === 'confirmed'
+        ? 'confirmed'
+        : TERMINAL_APPOINTMENT_STATUSES.has(normalizedStatus)
+          ? 'unknown'
+          : 'needs_confirmation';
 
     // Auto-resolve/create lead for legacy request bodies.
     let resolvedLeadId = requestedLeadId;
@@ -16402,6 +17169,7 @@ app.post('/api/appointments', async (req, res) => {
       meet_link: meetLink || null,
       notes: notes || null,
       status: normalizedStatus,
+      confirmation_status: confirmationStatus,
       remind_agent: Boolean(remindAgent),
       remind_client: Boolean(remindClient),
       agent_reminder_minutes_before: Number.isFinite(agentReminderMinutes)
@@ -16428,6 +17196,9 @@ app.post('/api/appointments', async (req, res) => {
       delete legacyPayload.ends_at;
       delete legacyPayload.timezone;
       delete legacyPayload.location;
+      delete legacyPayload.confirmation_status;
+      delete legacyPayload.last_reminder_outcome;
+      delete legacyPayload.last_reminder_at;
 
       appointmentInsertResponse = await supabaseAdmin
         .from('appointments')
@@ -16575,6 +17346,7 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
     const { appointmentId } = req.params;
     const updates = req.body || {};
     let shouldRescheduleReminders = false;
+    let shouldCancelPendingReminders = false;
 
     const updatePayload = {
       updated_at: new Date().toISOString()
@@ -16585,7 +17357,24 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
     if (updates.email !== undefined) updatePayload.email = updates.email || null;
     if (updates.phone !== undefined) updatePayload.phone = normalizePhoneE164(updates.phone || '') || null;
     if (updates.notes !== undefined) updatePayload.notes = updates.notes || null;
-    if (updates.status) updatePayload.status = normalizeAppointmentStatusValue(updates.status);
+    if (updates.status) {
+      updatePayload.status = normalizeAppointmentStatusValue(updates.status);
+      if (TERMINAL_APPOINTMENT_STATUSES.has(updatePayload.status)) {
+        shouldCancelPendingReminders = true;
+        updatePayload.confirmation_status = 'unknown';
+      }
+      if (updatePayload.status === 'confirmed') {
+        updatePayload.confirmation_status = 'confirmed';
+      } else if (updatePayload.status === 'reschedule_requested') {
+        updatePayload.confirmation_status = 'unknown';
+      }
+    }
+    if (updates.confirmation_status) {
+      const normalizedConfirmation = String(updates.confirmation_status).toLowerCase();
+      if (['needs_confirmation', 'confirmed', 'unknown'].includes(normalizedConfirmation)) {
+        updatePayload.confirmation_status = normalizedConfirmation;
+      }
+    }
     if (updates.meetLink !== undefined) updatePayload.meet_link = updates.meetLink || null;
     if (updates.propertyId !== undefined) updatePayload.property_id = updates.propertyId || null;
     if (updates.listingId !== undefined) updatePayload.listing_id = updates.listingId || null;
@@ -16633,20 +17422,42 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
       updatePayload.starts_at = isoRange.startIso;
       updatePayload.ends_at = isoRange.endIso;
       shouldRescheduleReminders = true;
-    } else if ((updates.startIso || updates.startsAt || updates.starts_at) && (updates.endIso || updates.endsAt || updates.ends_at)) {
-      updatePayload.start_iso = updates.startIso || updates.startsAt || updates.starts_at;
-      updatePayload.end_iso = updates.endIso || updates.endsAt || updates.ends_at;
+    } else if (updates.startIso || updates.startsAt || updates.starts_at) {
+      const nextStart = updates.startIso || updates.startsAt || updates.starts_at;
+      const nextEnd = updates.endIso || updates.endsAt || updates.ends_at || updates.ends_at;
+      const fallbackDurationMs = 30 * 60 * 1000;
+      const computedEnd = nextEnd
+        ? new Date(nextEnd).toISOString()
+        : new Date(new Date(nextStart).getTime() + fallbackDurationMs).toISOString();
+      updatePayload.start_iso = new Date(nextStart).toISOString();
+      updatePayload.end_iso = computedEnd;
       updatePayload.starts_at = updatePayload.start_iso;
       updatePayload.ends_at = updatePayload.end_iso;
       shouldRescheduleReminders = true;
     }
 
-    const { data, error } = await supabaseAdmin
+    let updateResult = await supabaseAdmin
       .from('appointments')
       .update(updatePayload)
       .eq('id', appointmentId)
       .select(APPOINTMENT_SELECT_FIELDS)
       .single();
+
+    if (updateResult.error && /column .* does not exist/i.test(updateResult.error.message || '')) {
+      const legacyPayload = { ...updatePayload };
+      delete legacyPayload.confirmation_status;
+      delete legacyPayload.last_reminder_outcome;
+      delete legacyPayload.last_reminder_at;
+
+      updateResult = await supabaseAdmin
+        .from('appointments')
+        .update(legacyPayload)
+        .eq('id', appointmentId)
+        .select(APPOINTMENT_SELECT_FIELDS)
+        .single();
+    }
+
+    const { data, error } = updateResult;
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -16655,13 +17466,18 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
       throw error;
     }
 
-    if (shouldRescheduleReminders) {
-      await supabaseAdmin
-        .from('appointment_reminders')
-        .delete()
-        .eq('appointment_id', appointmentId)
-        .in('status', ['queued', 'suppressed', 'failed']);
+    if (shouldRescheduleReminders || shouldCancelPendingReminders) {
+      await cancelPendingRemindersForAppointment({
+        appointmentId,
+        leadId: data.lead_id || null,
+        reason: shouldCancelPendingReminders ? 'appointment_terminal_status' : 'appointment_rescheduled',
+        source: 'api_appointments_update'
+      }).catch((cancelError) => {
+        console.warn('[AppointmentReminder] Failed to cancel old reminders:', cancelError?.message || cancelError);
+      });
+    }
 
+    if (shouldRescheduleReminders && !shouldCancelPendingReminders) {
       await scheduleAppointmentReminders({
         appointmentRow: data,
         source: 'api_appointments_update'

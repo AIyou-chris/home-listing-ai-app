@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   DashboardLeadAppointment,
@@ -53,7 +53,7 @@ const LeadDetailCommandPage: React.FC = () => {
     }).catch(() => undefined);
   };
 
-  const load = async (refreshIntel = false) => {
+  const load = useCallback(async (refreshIntel = false) => {
     if (!leadId) return;
     setLoading(true);
     setError(null);
@@ -71,11 +71,11 @@ const LeadDetailCommandPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [leadId]);
 
   useEffect(() => {
     void load(true);
-  }, [leadId]);
+  }, [load]);
 
   useEffect(() => {
     if (!realtimeLead) return;
@@ -298,6 +298,7 @@ const LeadDetailCommandPage: React.FC = () => {
   const leadPhone = String(lead.phone_e164 || lead.phone || '');
   const leadEmail = String(lead.email_lower || lead.email || '');
   const summaryLines = (detail.intel.lead_summary || '').split('\n').filter(Boolean);
+  const upcomingAppointment = detail.upcoming_appointment;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-8">
@@ -430,6 +431,41 @@ const LeadDetailCommandPage: React.FC = () => {
         >
           {saving ? 'Saving...' : 'Save Lead Profile'}
         </button>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-900">Upcoming Appointment</h2>
+        {!upcomingAppointment ? (
+          <p className="mt-2 text-sm text-slate-500">No upcoming appointment.</p>
+        ) : (
+          <div className="mt-3 space-y-2 text-sm text-slate-700">
+            <p><strong>Time:</strong> {formatDateTime(upcomingAppointment.startsAt || upcomingAppointment.startIso)}</p>
+            <p><strong>Status:</strong> {upcomingAppointment.status}</p>
+            <p>
+              <strong>Last reminder outcome:</strong>{' '}
+              {upcomingAppointment.lastReminderResult
+                ? `${upcomingAppointment.lastReminderResult.status} • ${formatDateTime(upcomingAppointment.lastReminderResult.scheduled_for)}`
+                : 'No reminder outcome yet'}
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard/appointments')}
+                className="rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700"
+              >
+                Open appointment
+              </button>
+              <button
+                type="button"
+                onClick={() => void setAppointmentState(upcomingAppointment, 'confirmed')}
+                disabled={saving}
+                className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 disabled:opacity-60"
+              >
+                Mark confirmed
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">

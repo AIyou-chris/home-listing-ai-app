@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
+  disableAppointmentReminders,
+  fetchAppointmentReminders,
   fetchDashboardAppointments,
   logDashboardAgentAction,
+  retryAppointmentReminder,
   retryDashboardReminder,
+  sendAppointmentReminderNow,
   updateAppointmentStatus,
+  type AppointmentReminderRow,
   type DashboardAppointmentRow
 } from '../../services/dashboardCommandService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
@@ -14,23 +18,6 @@ const formatDateTime = (value?: string | null) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Unknown time'
   return date.toLocaleString()
-}
-
-const isSameCalendarDay = (dateValue: string, targetDate: Date) => {
-  const date = new Date(dateValue)
-  if (Number.isNaN(date.getTime())) return false
-  return (
-    date.getFullYear() === targetDate.getFullYear() &&
-    date.getMonth() === targetDate.getMonth() &&
-    date.getDate() === targetDate.getDate()
-  )
-}
-
-const isWithinWeek = (dateValue: string, fromDate: Date) => {
-  const date = new Date(dateValue)
-  if (Number.isNaN(date.getTime())) return false
-  const end = new Date(fromDate.getTime() + 7 * 24 * 60 * 60 * 1000)
-  return date >= fromDate && date <= end
 }
 
 const normalizeAppointmentStatus = (status?: string | null) => {
@@ -44,18 +31,32 @@ const normalizeAppointmentStatus = (status?: string | null) => {
   return 'scheduled'
 }
 
+const normalizeReminderOutcome = (status?: string | null) => {
+  const normalized = String(status || '').toLowerCase()
+  if (normalized === 'rescheduled' || normalized === 'rescheduled_requested') return 'reschedule_requested'
+  if (normalized === 'human_handoff_requested') return 'handoff_requested'
+  return normalized
+}
+
 const appointmentBadge = (appointment: DashboardAppointmentRow) => {
   const status = normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status)
-  if (status === 'confirmed') {
-    return {
-      label: 'Confirmed',
-      className: 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-    }
-  }
+  const lastOutcome = normalizeReminderOutcome(appointment.last_reminder_outcome?.status)
   if (status === 'reschedule_requested') {
     return {
       label: 'Reschedule requested',
       className: 'bg-amber-100 text-amber-700 border border-amber-200'
+    }
+  }
+  if (lastOutcome === 'failed') {
+    return {
+      label: 'Reminder failed',
+      className: 'bg-rose-100 text-rose-700 border border-rose-200'
+    }
+  }
+  if (status === 'confirmed') {
+    return {
+      label: 'Confirmed',
+      className: 'bg-emerald-100 text-emerald-700 border border-emerald-200'
     }
   }
   return {
@@ -64,14 +65,19 @@ const appointmentBadge = (appointment: DashboardAppointmentRow) => {
   }
 }
 
+const sortByStartAsc = (appointments: DashboardAppointmentRow[]) =>
+  [...appointments].sort(
+    (a, b) => new Date(a.startsAt || a.startIso || 0).getTime() - new Date(b.startsAt || b.startIso || 0).getTime()
+  )
+
 const AppointmentsCommandPage: React.FC = () => {
-  const navigate = useNavigate()
   const appointmentsById = useDashboardRealtimeStore((state) => state.appointmentsById)
   const setInitialAppointments = useDashboardRealtimeStore((state) => state.setInitialAppointments)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<'today' | 'week'>('today')
   const [workingId, setWorkingId] = useState<string | null>(null)
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null)
+  const [remindersByAppointment, setRemindersByAppointment] = useState<Record<string, AppointmentReminderRow[]>>({})
 
   useEffect(() => {
     const load = async () => {
@@ -92,33 +98,76 @@ const AppointmentsCommandPage: React.FC = () => {
 
   const allAppointments = useMemo(
     () =>
-      Object.values(appointmentsById)
-        .filter((appointment) => Boolean(appointment.startsAt || appointment.startIso))
-        .sort((a, b) => new Date(a.startsAt || a.startIso || 0).getTime() - new Date(b.startsAt || b.startIso || 0).getTime()),
+      sortByStartAsc(
+        Object.values(appointmentsById).filter((appointment) => Boolean(appointment.startsAt || appointment.startIso))
+      ),
     [appointmentsById]
   )
 
-  const now = new Date()
-  const upcomingAppointments = useMemo(() => {
-    return allAppointments.filter((appointment) => {
-      const startsAt = appointment.startsAt || appointment.startIso
-      if (!startsAt) return false
-      if (tab === 'today') return isSameCalendarDay(startsAt, now)
-      return isWithinWeek(startsAt, now)
-    })
-  }, [allAppointments, tab, now])
+  const now = Date.now()
+  const next24h = now + 24 * 60 * 60 * 1000
+
+  const needsConfirmation = useMemo(
+    () =>
+      allAppointments.filter((appointment) => {
+        const startsAt = new Date(appointment.startsAt || appointment.startIso || '').getTime()
+        if (!Number.isFinite(startsAt) || startsAt < now || startsAt > next24h) return false
+        return normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) !== 'confirmed'
+      }),
+    [allAppointments, now, next24h]
+  )
+
+  const confirmed = useMemo(
+    () =>
+      allAppointments.filter(
+        (appointment) => normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) === 'confirmed'
+      ),
+    [allAppointments]
+  )
 
   const needsAttention = useMemo(
     () =>
       allAppointments.filter((appointment) => {
         const status = normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status)
-        const lastOutcome = String(appointment.last_reminder_outcome?.status || '').toLowerCase()
-        return status === 'reschedule_requested' || lastOutcome === 'failed'
+        const outcome = normalizeReminderOutcome(appointment.last_reminder_outcome?.status)
+        return status === 'reschedule_requested' || outcome === 'failed'
       }),
     [allAppointments]
   )
 
-  const logAction = async (leadId: string | null | undefined, action: 'call_clicked' | 'email_clicked' | 'status_changed' | 'appointment_created' | 'appointment_updated', metadata?: Record<string, unknown>) => {
+  useEffect(() => {
+    if (selectedAppointmentId) return
+    const fallback = needsConfirmation[0] || needsAttention[0] || allAppointments[0] || null
+    setSelectedAppointmentId(fallback?.id || null)
+  }, [selectedAppointmentId, needsConfirmation, needsAttention, allAppointments])
+
+  const selectedAppointment = selectedAppointmentId ? appointmentsById[selectedAppointmentId] : null
+
+  const loadReminderTimeline = async (appointmentId: string) => {
+    try {
+      const response = await fetchAppointmentReminders(appointmentId)
+      setRemindersByAppointment((prev) => ({
+        ...prev,
+        [appointmentId]: (response.reminders || []).sort(
+          (a, b) => new Date(a.scheduled_for || 0).getTime() - new Date(b.scheduled_for || 0).getTime()
+        )
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load reminder timeline.')
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedAppointmentId) return
+    if (remindersByAppointment[selectedAppointmentId]) return
+    void loadReminderTimeline(selectedAppointmentId)
+  }, [selectedAppointmentId, remindersByAppointment])
+
+  const logAction = async (
+    leadId: string | null | undefined,
+    action: 'call_clicked' | 'email_clicked' | 'status_changed' | 'appointment_created' | 'appointment_updated',
+    metadata?: Record<string, unknown>
+  ) => {
     if (!leadId) return
     await logDashboardAgentAction({ lead_id: leadId, action, metadata }).catch(() => undefined)
   }
@@ -143,19 +192,6 @@ const AppointmentsCommandPage: React.FC = () => {
     }
   }
 
-  const handleRetryReminder = async (appointment: DashboardAppointmentRow) => {
-    setWorkingId(appointment.id)
-    setError(null)
-    try {
-      await retryDashboardReminder(appointment.id)
-      await logAction(appointment.lead?.id, 'appointment_updated', { appointment_id: appointment.id, retry: true })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to retry reminder.')
-    } finally {
-      setWorkingId(null)
-    }
-  }
-
   const handleReschedule = async (appointment: DashboardAppointmentRow) => {
     setWorkingId(appointment.id)
     setError(null)
@@ -172,151 +208,262 @@ const AppointmentsCommandPage: React.FC = () => {
     }
   }
 
-  const openAppointment = (appointment: DashboardAppointmentRow) => {
-    if (appointment.lead?.id) {
-      navigate(`/dashboard/leads/${appointment.lead.id}`)
-      return
+  const handleRetryReminder = async (appointment: DashboardAppointmentRow) => {
+    setWorkingId(appointment.id)
+    setError(null)
+    try {
+      await retryDashboardReminder(appointment.id)
+      await logAction(appointment.lead?.id, 'appointment_updated', { appointment_id: appointment.id, retry: true })
+      await loadReminderTimeline(appointment.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to retry reminder.')
+    } finally {
+      setWorkingId(null)
     }
-    navigate('/dashboard/leads')
+  }
+
+  const timelineRows = selectedAppointmentId ? remindersByAppointment[selectedAppointmentId] || [] : []
+
+  const renderCard = (appointment: DashboardAppointmentRow) => {
+    const badge = appointmentBadge(appointment)
+    const lastReminderStatus = normalizeReminderOutcome(appointment.last_reminder_outcome?.status)
+
+    return (
+      <article key={appointment.id} className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-base font-semibold text-slate-900">{appointment.lead?.name || 'Unknown'}</p>
+            <p className="text-xs text-slate-500">{appointment.listing?.address || 'No listing attached'}</p>
+            <p className="mt-1 text-xs text-slate-500">{formatDateTime(appointment.startsAt || appointment.startIso)}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Last reminder: {lastReminderStatus ? `${lastReminderStatus} • ${formatDateTime(appointment.last_reminder_outcome?.scheduled_for)}` : 'No reminders yet'}
+            </p>
+          </div>
+          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleCallLead(appointment)}
+            disabled={!appointment.lead?.phone}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Call lead
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedAppointmentId(appointment.id)
+              void loadReminderTimeline(appointment.id)
+            }}
+            className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
+          >
+            Open
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleMarkConfirmed(appointment)}
+            disabled={workingId === appointment.id}
+            className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 disabled:opacity-60"
+          >
+            Mark confirmed
+          </button>
+          {(lastReminderStatus === 'failed' || lastReminderStatus === 'no_answer') && (
+            <button
+              type="button"
+              onClick={() => void handleRetryReminder(appointment)}
+              disabled={workingId === appointment.id}
+              className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 disabled:opacity-60"
+            >
+              Retry reminder
+            </button>
+          )}
+          {normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) === 'reschedule_requested' && (
+            <button
+              type="button"
+              onClick={() => void handleReschedule(appointment)}
+              disabled={workingId === appointment.id}
+              className="rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800"
+            >
+              Reschedule
+            </button>
+          )}
+        </div>
+      </article>
+    )
   }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 md:px-8">
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Appointments</h1>
-        <p className="mt-1 text-sm text-slate-600">Upcoming showings and confirmations—so you waste less time.</p>
+        <p className="mt-1 text-sm text-slate-600">Confirm showings, reduce no-shows, and handle reschedules fast.</p>
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setTab('today')}
-            className={`rounded-lg border px-3 py-2 text-sm font-semibold ${tab === 'today' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('week')}
-            className={`rounded-lg border px-3 py-2 text-sm font-semibold ${tab === 'week' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}
-          >
-            This Week
-          </button>
+      {loading && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Loading appointments...</div>}
+      {!loading && error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
+
+      {!loading && !error && allAppointments.length === 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          <p className="text-base font-semibold text-slate-900">No upcoming appointments.</p>
+          <p className="mt-1">When you set a showing, reminders and updates appear here.</p>
         </div>
-      </section>
+      )}
 
-      <section className="space-y-3">
-        {loading && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Loading appointments...</div>}
-        {!loading && error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
+      {!loading && !error && allAppointments.length > 0 && (
+        <>
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Needs confirmation</h2>
+            </div>
+            {needsConfirmation.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Nothing awaiting confirmation in the next 24 hours.</div>
+            ) : (
+              needsConfirmation.map(renderCard)
+            )}
+          </section>
 
-        {!loading && !error && upcomingAppointments.length === 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
-            <p className="text-base font-semibold text-slate-900">No upcoming appointments.</p>
-            <p className="mt-1">When you set a showing, reminders and updates appear here.</p>
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Confirmed</h2>
+            </div>
+            {confirmed.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">No confirmed appointments yet.</div>
+            ) : (
+              confirmed.map(renderCard)
+            )}
+          </section>
+
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Needs attention</h2>
+            </div>
+            {needsAttention.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Nothing urgent right now.</div>
+            ) : (
+              needsAttention.map(renderCard)
+            )}
+          </section>
+        </>
+      )}
+
+      {selectedAppointment && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Reminder Timeline</h2>
+              <p className="text-xs text-slate-500">
+                {selectedAppointment.lead?.name || 'Unknown'} • {selectedAppointment.listing?.address || 'No listing attached'}
+              </p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+              {formatDateTime(selectedAppointment.startsAt || selectedAppointment.startIso)}
+            </span>
           </div>
-        )}
 
-        {!loading && !error && upcomingAppointments.map((appointment) => {
-          const badge = appointmentBadge(appointment)
-          return (
-            <article key={appointment.id} className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-base font-semibold text-slate-900">{appointment.lead?.name || 'Unknown'}</p>
-                  <p className="text-xs text-slate-500">{appointment.listing?.address || 'No listing attached'}</p>
-                  <p className="mt-1 text-xs text-slate-500">{formatDateTime(appointment.startsAt || appointment.startIso)}</p>
-                </div>
-                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
-              </div>
+          {timelineRows.length === 0 ? (
+            <p className="text-sm text-slate-500">No reminder schedule yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {timelineRows.map((row) => {
+                const providerOutcome =
+                  row.provider_response && typeof row.provider_response.outcome === 'string'
+                    ? row.provider_response.outcome
+                    : ''
+                const outcome = normalizeReminderOutcome(row.normalized_outcome || providerOutcome || row.status)
+                const canRetry = outcome === 'failed' || outcome === 'no_answer'
+                return (
+                  <div key={row.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{row.reminder_type.toUpperCase()} • {row.status}</p>
+                        <p className="text-xs text-slate-500">{formatDateTime(row.scheduled_for)}</p>
+                        {outcome && <p className="mt-1 text-xs text-slate-600">Outcome: {outcome}</p>}
+                      </div>
+                      {canRetry && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setWorkingId(row.id)
+                            setError(null)
+                            try {
+                              await retryAppointmentReminder(selectedAppointment.id, row.id)
+                              await logAction(selectedAppointment.lead?.id, 'appointment_updated', {
+                                appointment_id: selectedAppointment.id,
+                                reminder_id: row.id,
+                                retry: true
+                              })
+                              await loadReminderTimeline(selectedAppointment.id)
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : 'Failed to retry reminder.')
+                            } finally {
+                              setWorkingId(null)
+                            }
+                          }}
+                          disabled={workingId === row.id}
+                          className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 disabled:opacity-60"
+                        >
+                          Retry reminder
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleCallLead(appointment)}
-                  disabled={!appointment.lead?.phone}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Call lead
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openAppointment(appointment)}
-                  className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
-                >
-                  Open
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleMarkConfirmed(appointment)}
-                  disabled={workingId === appointment.id}
-                  className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 disabled:opacity-60"
-                >
-                  Mark confirmed
-                </button>
-              </div>
-            </article>
-          )
-        })}
-      </section>
-
-      <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <div className="mb-3">
-          <h2 className="text-base font-semibold text-amber-900">Needs attention</h2>
-          <p className="text-xs text-amber-700">Reschedule and failed reminder outcomes show up here in real time.</p>
-        </div>
-
-        {needsAttention.length === 0 ? (
-          <p className="text-sm text-amber-800">Nothing urgent right now.</p>
-        ) : (
-          <div className="space-y-2">
-            {needsAttention.map((appointment) => (
-              <div key={`attention-${appointment.id}`} className="rounded-lg border border-amber-200 bg-white px-3 py-3">
-                <p className="text-sm font-semibold text-slate-900">{appointment.lead?.name || 'Unknown'} • {appointment.listing?.address || 'No listing'}</p>
-                <p className="mt-1 text-xs text-slate-500">{formatDateTime(appointment.startsAt || appointment.startIso)}</p>
-                <p className="mt-1 text-xs text-amber-700">
-                  {normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) === 'reschedule_requested'
-                    ? 'Reschedule requested'
-                    : 'Reminder failed'}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleCallLead(appointment)}
-                    disabled={!appointment.lead?.phone}
-                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Call lead
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleReschedule(appointment)}
-                    disabled={workingId === appointment.id}
-                    className="rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800"
-                  >
-                    Reschedule
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleRetryReminder(appointment)}
-                    disabled={workingId === appointment.id}
-                    className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 disabled:opacity-60"
-                  >
-                    Retry reminder
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAppointment(appointment)}
-                    className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
-                  >
-                    Open
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                setWorkingId(selectedAppointment.id)
+                setError(null)
+                try {
+                  await sendAppointmentReminderNow(selectedAppointment.id)
+                  await logAction(selectedAppointment.lead?.id, 'appointment_updated', {
+                    appointment_id: selectedAppointment.id,
+                    send_now: true
+                  })
+                  await loadReminderTimeline(selectedAppointment.id)
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to send reminder now.')
+                } finally {
+                  setWorkingId(null)
+                }
+              }}
+              disabled={workingId === selectedAppointment.id}
+              className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 disabled:opacity-60"
+            >
+              Send now
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setWorkingId(selectedAppointment.id)
+                setError(null)
+                try {
+                  await disableAppointmentReminders(selectedAppointment.id)
+                  await logAction(selectedAppointment.lead?.id, 'appointment_updated', {
+                    appointment_id: selectedAppointment.id,
+                    reminders_disabled: true
+                  })
+                  await loadReminderTimeline(selectedAppointment.id)
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to disable reminders.')
+                } finally {
+                  setWorkingId(null)
+                }
+              }}
+              disabled={workingId === selectedAppointment.id}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-60"
+            >
+              Turn reminders off
+            </button>
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   )
 }

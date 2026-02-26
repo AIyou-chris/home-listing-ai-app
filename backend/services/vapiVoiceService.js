@@ -204,20 +204,42 @@ const deriveReminderOutcome = (message = {}, transcript = '') => {
     if (endedReason.includes('no-answer') || endedReason.includes('no answer') || endedReason.includes('busy')) {
         return { key: 'no_answer', eventType: 'NO_ANSWER' };
     }
+    if (endedReason.includes('failed') || endedReason.includes('error')) {
+        return { key: 'failed', eventType: 'REMINDER_FAILED' };
+    }
 
     const digit = extractPressDigit(message, transcript);
-    if (digit === '1') return { key: 'confirmed', eventType: 'APPOINTMENT_CONFIRMED', nextStatus: 'confirmed' };
-    if (digit === '2') return { key: 'reschedule_requested', eventType: 'APPOINTMENT_RESCHEDULE_REQUESTED', nextStatus: 'reschedule_requested' };
-    if (digit === '9') return { key: 'human_handoff_requested', eventType: 'HUMAN_HANDOFF_REQUESTED' };
+    if (digit === '1') {
+        return {
+            key: 'confirmed',
+            eventType: 'APPOINTMENT_CONFIRMED',
+            nextStatus: 'confirmed',
+            nextConfirmationStatus: 'confirmed'
+        };
+    }
+    if (digit === '2') {
+        return {
+            key: 'reschedule_requested',
+            eventType: 'APPOINTMENT_RESCHEDULE_REQUESTED',
+            nextStatus: 'reschedule_requested',
+            nextConfirmationStatus: 'unknown'
+        };
+    }
+    if (digit === '9') return { key: 'handoff_requested', eventType: 'HUMAN_HANDOFF_REQUESTED' };
 
     const sentiment = normalizeOutcomeText(
         pickFirst(toScalar(message.analysis?.summary), toScalar(message.analysis?.result))
     );
     if (sentiment.includes('confirm')) {
-        return { key: 'confirmed', eventType: 'APPOINTMENT_CONFIRMED', nextStatus: 'confirmed' };
+        return {
+            key: 'confirmed',
+            eventType: 'APPOINTMENT_CONFIRMED',
+            nextStatus: 'confirmed',
+            nextConfirmationStatus: 'confirmed'
+        };
     }
 
-    return { key: 'completed', eventType: 'REMINDER_SENT' };
+    return { key: 'no_answer', eventType: 'NO_ANSWER' };
 };
 
 const recordLeadEvent = async ({ leadId, type, payload }) => {
@@ -449,7 +471,7 @@ const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcr
     const [{ data: appointment }, { data: lead }] = await Promise.all([
         supabase
             .from('appointments')
-            .select('id, lead_id, agent_id, user_id, starts_at, start_iso, status, location, property_address, timezone')
+            .select('id, lead_id, agent_id, user_id, listing_id, starts_at, start_iso, status, confirmation_status, location, property_address, timezone')
             .eq('id', appointmentId)
             .maybeSingle(),
         (() => {
@@ -478,6 +500,12 @@ const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcr
 
     if (reminder?.id) {
         const existingProviderResponse = parseMaybeJson(reminder.provider_response) || {};
+        const reminderStatus =
+            reminder.status === 'suppressed'
+                ? 'suppressed'
+                : outcome.key === 'failed'
+                    ? 'failed'
+                    : 'delivered';
         const providerResponse = {
             ...existingProviderResponse,
             call_id: callId,
@@ -490,22 +518,41 @@ const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcr
         await supabase
             .from('appointment_reminders')
             .update({
-                status: reminder.status === 'suppressed' ? 'suppressed' : 'sent',
+                status: reminderStatus,
                 provider_response: providerResponse,
                 updated_at: new Date().toISOString()
             })
             .eq('id', reminder.id);
     }
 
-    if (appointment?.id && outcome.nextStatus) {
+    if (appointment?.id) {
         const nextStatus = normalizeAppointmentStatus(outcome.nextStatus);
-        if (nextStatus) {
+        const nextConfirmationStatus = pickFirst(
+            toScalar(outcome.nextConfirmationStatus),
+            nextStatus === 'confirmed' ? 'confirmed' : null,
+            nextStatus === 'reschedule_requested' ? 'unknown' : null
+        );
+        const appointmentPatch = {
+            last_reminder_outcome: outcome.key,
+            last_reminder_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        if (nextStatus) appointmentPatch.status = nextStatus;
+        if (nextConfirmationStatus) appointmentPatch.confirmation_status = nextConfirmationStatus;
+
+        const updateResult = await supabase
+            .from('appointments')
+            .update(appointmentPatch)
+            .eq('id', appointment.id);
+        if (updateResult.error && /column .* does not exist/i.test(updateResult.error.message || '')) {
+            const legacyPatch = { ...appointmentPatch };
+            delete legacyPatch.confirmation_status;
+            delete legacyPatch.last_reminder_outcome;
+            delete legacyPatch.last_reminder_at;
             await supabase
                 .from('appointments')
-                .update({
-                    status: nextStatus,
-                    updated_at: new Date().toISOString()
-                })
+                .update(legacyPatch)
                 .eq('id', appointment.id);
         }
     }
@@ -513,6 +560,18 @@ const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcr
     await recordLeadEvent({
         leadId: resolvedLeadId,
         type: outcome.eventType,
+        payload: {
+            appointment_id: appointmentId,
+            reminder_id: reminder?.id || reminderContext.reminderId || null,
+            call_id: callId,
+            ended_reason: endedReason || null,
+            outcome: outcome.key
+        }
+    });
+
+    await recordLeadEvent({
+        leadId: resolvedLeadId,
+        type: 'REMINDER_OUTCOME',
         payload: {
             appointment_id: appointmentId,
             reminder_id: reminder?.id || reminderContext.reminderId || null,
@@ -541,7 +600,7 @@ const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcr
         notes: endedReason || null
     });
 
-    if (outcome.eventType === 'APPOINTMENT_CONFIRMED' || outcome.eventType === 'APPOINTMENT_RESCHEDULE_REQUESTED' || outcome.eventType === 'HUMAN_HANDOFF_REQUESTED') {
+    if (['confirmed', 'reschedule_requested', 'handoff_requested', 'failed'].includes(outcome.key)) {
         const agentId = extractAgentIdFromAppointment(appointment || {});
         const dashboardPath = `/dashboard/leads/${resolvedLeadId || ''}`;
         try {
@@ -553,9 +612,16 @@ const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcr
                     lead_id: resolvedLeadId || null,
                     appointment_id: appointmentId,
                     outcome: outcome.key,
-                    dashboard_path: dashboardPath
+                    dashboard_path: '/dashboard/appointments',
+                    lead_dashboard_path: dashboardPath,
+                    listing_address: appointment?.property_address || appointment?.location || null,
+                    appointment_starts_at: pickFirst(toScalar(appointment?.starts_at), toScalar(appointment?.start_iso)),
+                    location: appointment?.location || null,
+                    lead_name: lead?.full_name || lead?.name || null,
+                    lead_phone: lead?.phone_e164 || lead?.phone || null,
+                    lead_email: lead?.email_lower || lead?.email || null
                 },
-                idempotencyKey: `email:appt_update:${appointmentId}:${outcome.key}`,
+                idempotencyKey: `email:appt_outcome:${appointmentId}:${outcome.key}`,
                 priority: 3,
                 runAt: new Date().toISOString(),
                 maxAttempts: 3

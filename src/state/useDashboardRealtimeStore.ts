@@ -12,6 +12,7 @@ type RealtimeEventType =
   | 'appointment.created'
   | 'appointment.updated'
   | 'reminder.outcome'
+  | 'reminder.updated'
   | 'listing.updated'
   | 'listing.performance.updated'
   | 'system.ready'
@@ -113,6 +114,7 @@ const mapAppointmentPayload = (
         address: asString(payload.listing_address, current?.listing?.address || '')
       }
       : current?.listing || null,
+    confirmation_status: asString(payload.confirmation_status, current?.confirmation_status || ''),
     last_reminder_outcome: asString(payload.last_reminder_outcome, current?.last_reminder_outcome?.status || '')
       ? {
         status: asString(payload.last_reminder_outcome, current?.last_reminder_outcome?.status || ''),
@@ -203,6 +205,31 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
                   provider: asString(payload.provider, 'vapi'),
                   notes: asString(payload.notes, '')
                 }
+              }
+            }
+          }
+        }
+      }
+
+      if (event.type === 'reminder.updated') {
+        const appointmentId = asString(payload.appointment_id)
+        if (!appointmentId) return {}
+        const existing = state.appointmentsById[appointmentId]
+        if (!existing) return {}
+        const normalized = asString(payload.outcome, asString(payload.status, existing.last_reminder_outcome?.status || ''))
+        return {
+          appointmentsById: {
+            ...state.appointmentsById,
+            [appointmentId]: {
+              ...existing,
+              last_reminder_outcome: {
+                status: normalized || existing.last_reminder_outcome?.status || 'unknown',
+                reminder_type: asString(payload.reminder_type, existing.last_reminder_outcome?.reminder_type || 'voice'),
+                scheduled_for: asString(payload.scheduled_for, existing.last_reminder_outcome?.scheduled_for || new Date().toISOString()),
+                provider_response:
+                  (payload.provider_response as Record<string, unknown> | undefined) ||
+                  existing.last_reminder_outcome?.provider_response ||
+                  null
               }
             }
           }
