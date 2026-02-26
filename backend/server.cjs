@@ -2827,20 +2827,11 @@ const emitListingPerformanceUpdated = ({ listingId, agentId, payload = {} }) => 
 const resolveListingForCapture = async (listingId) => {
   if (!listingId) return null;
   try {
-    const runQuery = async (includeAgentId = true) => supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('properties')
-      .select(includeAgentId
-        ? 'id, user_id, agent_id, title, address, city, state, zip, price, bedrooms, bathrooms, sqft, status, public_slug, is_published'
-        : 'id, user_id, title, address, city, state, zip, price, bedrooms, bathrooms, sqft, status, public_slug, is_published')
+      .select('*')
       .eq('id', listingId)
       .single();
-
-    let { data, error } = await runQuery(true);
-    if (error && /agent_id/i.test(error.message || '')) {
-      const fallback = await runQuery(false);
-      data = fallback.data;
-      error = fallback.error;
-    }
 
     if (error || !data) return null;
 
@@ -2849,13 +2840,13 @@ const resolveListingForCapture = async (listingId) => {
       agentId: data.agent_id || data.user_id,
       title: data.title,
       address: data.address,
-      city: data.city,
-      state: data.state,
-      zip: data.zip,
+      city: data.city || null,
+      state: data.state || null,
+      zip: data.zip || null,
       price: data.price,
-      beds: data.bedrooms,
-      baths: data.bathrooms,
-      sqft: data.sqft,
+      beds: data.bedrooms || null,
+      baths: data.bathrooms || null,
+      sqft: data.sqft || data.square_feet || null,
       status: data.status,
       public_slug: data.public_slug || null,
       is_published: Boolean(data.is_published)

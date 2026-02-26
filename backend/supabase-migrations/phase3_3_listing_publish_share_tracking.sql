@@ -57,14 +57,36 @@ CREATE INDEX IF NOT EXISTS idx_listing_sources_agent
   ON public.listing_sources (agent_id);
 
 ALTER TABLE IF EXISTS public.leads
+  ADD COLUMN IF NOT EXISTS agent_id uuid,
+  ADD COLUMN IF NOT EXISTS listing_id uuid REFERENCES public.properties(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS full_name text,
+  ADD COLUMN IF NOT EXISTS phone_e164 text,
+  ADD COLUMN IF NOT EXISTS email_lower text,
+  ADD COLUMN IF NOT EXISTS consent_sms boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS consent_timestamp timestamptz,
+  ADD COLUMN IF NOT EXISTS financing text,
+  ADD COLUMN IF NOT EXISTS working_with_agent text,
+  ADD COLUMN IF NOT EXISTS last_message_preview text,
+  ADD COLUMN IF NOT EXISTS last_message_at timestamptz,
   ADD COLUMN IF NOT EXISTS source_type text,
   ADD COLUMN IF NOT EXISTS source_key text,
   ADD COLUMN IF NOT EXISTS source_meta jsonb DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS first_touch_at timestamptz DEFAULT now(),
   ADD COLUMN IF NOT EXISTS last_touch_at timestamptz DEFAULT now();
 
-CREATE INDEX IF NOT EXISTS idx_leads_listing_source
-  ON public.leads (listing_id, source_type, source_key);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'leads'
+      AND column_name = 'listing_id'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_leads_listing_source
+      ON public.leads (listing_id, source_type, source_key);
+  END IF;
+END$$;
 
 CREATE TABLE IF NOT EXISTS public.listing_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
