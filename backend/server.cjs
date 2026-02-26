@@ -11880,7 +11880,15 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
       source_key: sourceKey
     };
 
-    const captureResponse = await fetch(`http://127.0.0.1:${PORT}/api/leads/capture`, {
+    const forwardedProtoRaw = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+    const protocol = forwardedProtoRaw === 'http' || forwardedProtoRaw === 'https'
+      ? forwardedProtoRaw
+      : 'https';
+    const host = String(req.headers.host || '').trim();
+    const captureBaseUrl = host
+      ? `${protocol}://${host}`
+      : (process.env.APP_BASE_URL || process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${PORT}`);
+    const captureResponse = await fetch(`${captureBaseUrl.replace(/\/+$/, '')}/api/leads/capture`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -11900,7 +11908,15 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
       })
     });
 
-    const payload = await captureResponse.json();
+    const payloadText = await captureResponse.text();
+    let payload = {};
+    if (payloadText) {
+      try {
+        payload = JSON.parse(payloadText);
+      } catch (_error) {
+        payload = { raw: payloadText };
+      }
+    }
     if (!captureResponse.ok) {
       return res.status(captureResponse.status).json(payload);
     }
