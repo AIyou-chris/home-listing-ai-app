@@ -435,11 +435,13 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
     };
 
     if (period?.id) {
-      await supabaseAdmin
+      const { error: usagePeriodUpdateError } = await supabaseAdmin
         .from('usage_periods')
         .update({ counters, updated_at: nowIso() })
-        .eq('id', period.id)
-        .catch(() => undefined);
+        .eq('id', period.id);
+      if (usagePeriodUpdateError) {
+        console.warn('[Billing] Failed to refresh usage_period counters:', usagePeriodUpdateError.message);
+      }
     }
 
     return counters;
@@ -766,11 +768,13 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         allowOverages: Boolean(subscription?.allow_overages)
       });
 
-      await supabaseAdmin
+      const { error: agentCustomerUpdateError } = await supabaseAdmin
         .from('agents')
         .update({ stripe_customer_id: customerId, updated_at: nowIso() })
-        .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
-        .catch(() => undefined);
+        .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`);
+      if (agentCustomerUpdateError) {
+        console.warn('[Billing] Failed to sync agent stripe_customer_id:', agentCustomerUpdateError.message);
+      }
     }
 
     return customerId;
@@ -886,7 +890,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
 
   const syncAgentBillingFields = async ({ agentId, planId, status, stripeCustomerId }) => {
     if (!agentId) return;
-    await supabaseAdmin
+    const { error: agentBillingSyncError } = await supabaseAdmin
       .from('agents')
       .update({
         plan: planId,
@@ -894,8 +898,10 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         stripe_customer_id: stripeCustomerId || null,
         updated_at: nowIso()
       })
-      .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
-      .catch(() => undefined);
+      .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`);
+    if (agentBillingSyncError) {
+      console.warn('[Billing] Failed to sync agent billing fields:', agentBillingSyncError.message);
+    }
   };
 
   const ensureCurrentUsagePeriodForSubscription = async ({ agentId, subscription }) => {
@@ -1189,11 +1195,13 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         outcome
       };
     } catch (error) {
-      await supabaseAdmin
+      const { error: markFailedError } = await supabaseAdmin
         .from('billing_events')
         .update({ status: 'failed' })
-        .eq('id', billingEvent.id)
-        .catch(() => undefined);
+        .eq('id', billingEvent.id);
+      if (markFailedError) {
+        console.warn('[Billing] Failed to mark billing event as failed:', markFailedError.message);
+      }
       throw error;
     }
   };
