@@ -60,11 +60,11 @@ const LeadsInboxCommandPage: React.FC = () => {
   const filteredLeads = useMemo(() => {
     const now = Date.now()
     const minTs =
-      timeframe === '24h'
+      timeframe === '24h' as string
         ? now - 24 * 60 * 60 * 1000
-        : timeframe === '7d'
+        : timeframe === '7d' as string
           ? now - 7 * 24 * 60 * 60 * 1000
-          : timeframe === '30d'
+          : timeframe === '30d' as string
             ? now - 30 * 24 * 60 * 60 * 1000
             : null
 

@@ -41,6 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const basePath = isBlueprintMode ? '/agent-blueprint-dashboard' : (isDemoMode ? '/demo-dashboard' : '');
 
   const getPath = (path: string) => `${basePath}${path}`;
+  const todayPath = isDemoMode || isBlueprintMode ? getPath('/daily-pulse') : '/dashboard/today';
   const commandCenterPath = isDemoMode || isBlueprintMode ? getPath('/daily-pulse') : '/dashboard/command-center';
   const listingsPath = isDemoMode || isBlueprintMode ? getPath('/listings') : '/listings';
   const leadsPath = isDemoMode || isBlueprintMode ? getPath('/leads') : '/dashboard/leads';
@@ -48,6 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const settingsPath = isDemoMode || isBlueprintMode ? getPath('/settings') : '/settings';
 
   const primaryItems = [
+    { to: todayPath, icon: 'today', label: 'Today' },
     { to: commandCenterPath, icon: 'space_dashboard', label: 'Command Center' },
     { to: listingsPath, icon: 'storefront', label: 'Listings' },
     { to: leadsPath, icon: 'groups', label: 'Leads' },

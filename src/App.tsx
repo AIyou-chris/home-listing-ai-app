@@ -1524,6 +1524,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/leads" element={<LeadsInboxCommandPage />} />
                         <Route path="/dashboard/leads/:leadId" element={<LeadDetailCommandPage />} />
                         <Route path="/dashboard/appointments" element={<AppointmentsCommandPage />} />
+                        <Route path="/dashboard/listings" element={<Navigate to="/listings" replace />} />
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="/dashboard/billing" element={<BillingCommandPage />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
