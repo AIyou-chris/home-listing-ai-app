@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchDashboardLeads,
-  logDashboardAgentAction,
-  updateDashboardLeadStatus,
   type DashboardLeadItem
 } from '../../services/dashboardCommandService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
@@ -31,16 +29,15 @@ const LeadsInboxCommandPage: React.FC = () => {
   const navigate = useNavigate()
   const leadsById = useDashboardRealtimeStore((state) => state.leadsById)
   const setInitialLeads = useDashboardRealtimeStore((state) => state.setInitialLeads)
-  const applyRealtimeEvent = useDashboardRealtimeStore((state) => state.applyRealtimeEvent)
-  const patchLeadAction = useDashboardRealtimeStore((state) => state.patchLeadAction)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<'New' | 'All'>('New')
-  const [status, setStatus] = useState('all')
-  const [intent, setIntent] = useState('all')
-  const [listingId, setListingId] = useState('all')
-  const [timeframe, setTimeframe] = useState<'all' | '24h' | '7d' | '30d'>('all')
+
+  const status = 'all'
+  const intent = 'all'
+  const listingId = 'all'
+  const timeframe = 'all' as const
 
   useEffect(() => {
     const load = async () => {
@@ -59,16 +56,6 @@ const LeadsInboxCommandPage: React.FC = () => {
   }, [setInitialLeads])
 
   const allLeads = useMemo(() => Object.values(leadsById), [leadsById])
-
-  const listingOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const lead of allLeads) {
-      if (!lead.listing_id) continue
-      const label = lead.listing?.address || lead.listing_id
-      map.set(lead.listing_id, label)
-    }
-    return Array.from(map.entries())
-  }, [allLeads])
 
   const filteredLeads = useMemo(() => {
     const now = Date.now()
@@ -96,171 +83,122 @@ const LeadsInboxCommandPage: React.FC = () => {
     return sortLeadsForInbox(rows)
   }, [allLeads, tab, status, intent, listingId, timeframe])
 
-  const runActionLog = async (leadId: string, action: 'call_clicked' | 'email_clicked' | 'status_changed' | 'appointment_created' | 'appointment_updated', metadata?: Record<string, unknown>) => {
-    const nowIso = new Date().toISOString()
-    patchLeadAction(leadId, nowIso)
-    await logDashboardAgentAction({ lead_id: leadId, action, metadata }).catch(() => undefined)
-  }
-
-  const handleMarkContacted = async (lead: DashboardLeadItem) => {
-    try {
-      await updateDashboardLeadStatus(lead.id, { status: 'Contacted' })
-      await runActionLog(lead.id, 'status_changed', { status: 'Contacted' })
-      applyRealtimeEvent({
-        type: 'lead.status_changed',
-        v: 1,
-        ts: new Date().toISOString(),
-        agent_id: 'local',
-        payload: {
-          lead_id: lead.id,
-          full_name: lead.name,
-          listing_id: lead.listing_id,
-          listing_address: lead.listing?.address || null,
-          status: 'Contacted',
-          intent_level: lead.intent_level,
-          timeline: lead.timeline,
-          financing: lead.financing,
-          last_activity_at: new Date().toISOString(),
-          lead_summary_preview: lead.lead_summary || lead.last_message_preview || 'No summary yet.',
-          source_type: lead.source_type,
-          phone: lead.phone,
-          email: lead.email
-        }
-      })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark contacted.')
-    }
-  }
-
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 md:px-8">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">Leads</h1>
-        <p className="mt-1 text-sm text-slate-600">New leads and listing inquiries—organized by what matters most.</p>
+    <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 md:px-8 font-sans">
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Leads</h1>
+        <p className="mt-2 text-lg text-slate-500 font-medium">New leads and listing inquiries—organized by what matters most.</p>
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="grid gap-2 md:grid-cols-6">
-          <button
-            type="button"
-            onClick={() => setTab('New')}
-            className={`rounded-lg border px-3 py-2 text-sm font-semibold ${tab === 'New' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}
-          >
-            New
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('All')}
-            className={`rounded-lg border px-3 py-2 text-sm font-semibold ${tab === 'All' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}
-          >
-            All
-          </button>
-          <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="all">Status: All</option>
-            <option value="New">New</option>
-            <option value="Contacted">Contacted</option>
-            <option value="Nurture">Nurture</option>
-            <option value="Closed-Lost">Closed-Lost</option>
-          </select>
-          <select value={intent} onChange={(event) => setIntent(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="all">Intent: All</option>
-            <option value="Hot">Hot</option>
-            <option value="Warm">Warm</option>
-            <option value="Cold">Cold</option>
-          </select>
-          <select value={listingId} onChange={(event) => setListingId(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="all">Listing: All</option>
-            {listingOptions.map(([id, label]) => (
-              <option key={id} value={id}>{label}</option>
-            ))}
-          </select>
-          <select value={timeframe} onChange={(event) => setTimeframe(event.target.value as 'all' | '24h' | '7d' | '30d')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="all">Any time</option>
-            <option value="24h">24h</option>
-            <option value="7d">7d</option>
-            <option value="30d">30d</option>
-          </select>
-        </div>
-      </section>
+      <div className="flex items-center gap-6 border-b border-slate-200 mb-6">
+        <button
+          onClick={() => setTab('New')}
+          className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors ${tab === 'New'
+            ? 'border-b-2 border-slate-900 text-slate-900'
+            : 'text-slate-400 hover:text-slate-600'
+            }`}
+        >
+          New
+        </button>
+        <button
+          onClick={() => setTab('All')}
+          className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors ${tab === 'All'
+            ? 'border-b-2 border-slate-900 text-slate-900'
+            : 'text-slate-400 hover:text-slate-600'
+            }`}
+        >
+          All
+        </button>
+      </div>
 
-      <section className="space-y-3">
-        {loading && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Loading leads...</div>}
-        {!loading && error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
+      <section className="space-y-4">
+        {loading && <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm font-medium text-slate-500">Loading leads...</div>}
+        {!loading && error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center text-sm font-medium text-rose-700">{error}</div>}
 
         {!loading && !error && filteredLeads.length === 0 && tab === 'New' && (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
-            <p className="text-base font-semibold text-slate-900">All caught up.</p>
-            <p className="mt-1">New leads will appear here automatically.</p>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-12 text-center shadow-sm">
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">All caught up.</h3>
+            <p className="text-slate-500 font-medium text-lg">New leads will appear here automatically.</p>
           </div>
         )}
 
         {!loading && !error && filteredLeads.length === 0 && tab === 'All' && (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">No leads match these filters.</div>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-12 text-center shadow-sm">
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">No leads yet.</h3>
+            <p className="text-slate-500 font-medium text-lg mb-8">Let's get your first property published.</p>
+            <button
+              onClick={() => navigate('/listings')}
+              className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg transition-colors shadow-lg"
+            >
+              Create your first listing
+            </button>
+          </div>
         )}
 
-        {!loading && !error && filteredLeads.map((lead) => (
-          <div key={lead.id} className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-base font-semibold text-slate-900">{lead.name || 'Unknown'}</p>
-                <p className="text-xs text-slate-500">{lead.listing?.address || 'No listing attached'}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {lead.status === 'New' && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">NEW</span>}
-                {lead.intent_level === 'Hot' && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">HOT</span>}
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{lead.status}</span>
-              </div>
-            </div>
+        {!loading && !error && filteredLeads.map((lead) => {
 
-            <p className="mt-2 text-sm text-slate-700 line-clamp-1">{lead.lead_summary || lead.last_message_preview || 'No summary yet.'}</p>
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-              <span>From: {lead.source_type || 'unknown'}</span>
-              {lead.phone && <span>{lead.phone}</span>}
-              {lead.email && <span>{lead.email}</span>}
-            </div>
+          // Format time ago
+          const timeAgo = () => {
+            const ms = Date.now() - new Date(lead.last_activity_at || lead.created_at).getTime();
+            const mins = Math.floor(ms / 60000);
+            if (mins < 60) return `${mins}m ago`;
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return `${hrs}h ago`;
+            return `${Math.floor(hrs / 24)}d ago`;
+          };
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (lead.phone) {
-                    void runActionLog(lead.id, 'call_clicked')
-                    window.location.href = `tel:${lead.phone}`
-                  }
-                }}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
-              >
-                Call
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (lead.email) {
-                    void runActionLog(lead.id, 'email_clicked')
-                    window.location.href = `mailto:${lead.email}`
-                  }
-                }}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
-              >
-                Email
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(`/dashboard/leads/${lead.id}`)}
-                className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
-              >
-                Open
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleMarkContacted(lead)}
-                className="ml-1 text-xs font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2"
-              >
-                Mark contacted
-              </button>
+          return (
+            <div key={lead.id} className="group rounded-2xl border border-slate-200 bg-white p-5 hover:border-slate-300 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer" onClick={() => navigate(`/dashboard/leads/${lead.id}`)}>
+              <div className="flex items-start gap-4 flex-1">
+
+                {/* Subtle Avatar */}
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 border border-slate-200">
+                  <span className="material-symbols-outlined text-slate-400">person</span>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h3 className="text-lg font-bold text-slate-900 truncate">{lead.name || 'Unknown'}</h3>
+
+                    {/* Badges */}
+                    <div className="flex gap-1.5 flex-shrink-0 mt-0.5">
+                      {lead.status === 'New' && <span className="rounded px-1.5 py-0.5 bg-blue-100 text-[10px] font-black uppercase tracking-wider text-blue-700">NEW</span>}
+                      {lead.intent_level === 'Hot' && <span className="rounded px-1.5 py-0.5 bg-rose-100 text-[10px] font-black uppercase tracking-wider text-rose-700">HOT</span>}
+                    </div>
+                  </div>
+
+                  {/* Quick Reason / Summary */}
+                  <p className="text-slate-700 font-medium text-sm truncate mb-1">
+                    {lead.lead_summary || lead.last_message_preview || 'New lead captured'}
+                  </p>
+
+                  {/* Metadata line */}
+                  <div className="flex items-center gap-3 text-xs font-medium text-slate-500">
+                    <span className="truncate max-w-[200px]">{lead.listing?.address || 'No listing attached'}</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                    <span className="capitalize">{lead.source_type?.replace(/_/g, ' ') || 'Unknown Source'}</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                    <span>{timeAgo()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* The ONE action */}
+              <div className="flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/dashboard/leads/${lead.id}`);
+                  }}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-lg transition-colors text-sm"
+                >
+                  Open
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </section>
     </div>
   )

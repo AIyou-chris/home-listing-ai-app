@@ -21,7 +21,10 @@ const formatDateTime = (value?: string | null) => {
   if (!value) return 'Unknown';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Unknown';
-  return date.toLocaleString();
+  return date.toLocaleString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit'
+  });
 };
 
 const LeadDetailCommandPage: React.FC = () => {
@@ -33,9 +36,16 @@ const LeadDetailCommandPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // UX State
+  const [activeTab, setActiveTab] = useState<'activity' | 'appointment' | 'notes'>('activity');
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+
+  // Form State
   const [appointmentDateTime, setAppointmentDateTime] = useState('');
   const [appointmentLocation, setAppointmentLocation] = useState('');
+
+  // Implicit Save State
   const [status, setStatus] = useState('New');
   const [timeline, setTimeline] = useState('unknown');
   const [financing, setFinancing] = useState('unknown');
@@ -281,6 +291,7 @@ const LeadDetailCommandPage: React.FC = () => {
       setSaving(false);
     }
   };
+  const activeAppointments = detail?.appointments?.filter(a => a.status !== 'canceled') || [];
 
   if (loading) {
     return <div className="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-500">Loading lead detail...</div>;
@@ -298,283 +309,260 @@ const LeadDetailCommandPage: React.FC = () => {
   const leadPhone = String(lead.phone_e164 || lead.phone || '');
   const leadEmail = String(lead.email_lower || lead.email || '');
   const summaryLines = (detail.intel.lead_summary || '').split('\n').filter(Boolean);
-  const upcomingAppointment = detail.upcoming_appointment;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-8 font-sans pb-32">
+
+      {/* ABOVE THE FOLD: Header & Context */}
+      <div className="mb-2">
         <button
-          type="button"
           onClick={() => navigate('/dashboard/leads')}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors mb-6"
         >
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
           Back to Inbox
         </button>
+
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{leadName}</h1>
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-slate-500 font-medium">{String(detail.listing?.address || 'No listing attached')}</span>
+          <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+          <span className="text-slate-500 font-medium">From: {detail.lead.source_type?.toString().replace(/_/g, ' ') || 'Unknown'}</span>
+        </div>
+      </div>
+
+      {/* STICKY ACTION BAR */}
+      <div className="sticky top-4 z-20 flex flex-wrap sm:flex-nowrap gap-3 p-3 bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200 shadow-sm mb-8">
         <button
-          type="button"
-          onClick={() => void load(true)}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          onClick={() => void handleCallLeadClick()}
+          disabled={!leadPhone}
+          className="flex-1 flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 rounded-xl font-bold transition-colors disabled:opacity-50"
         >
-          Refresh Intel
+          <span className="material-symbols-outlined text-[18px]">call</span>
+          Call
+        </button>
+        <button
+          onClick={() => void handleEmailLeadClick()}
+          disabled={!leadEmail}
+          className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-900 px-4 py-3 rounded-xl font-bold transition-colors disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-[18px]">mail</span>
+          Email
+        </button>
+        <button
+          onClick={() => void handleQuickMarkContacted()}
+          disabled={status === 'Contacted' || saving}
+          className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-900 px-4 py-3 rounded-xl font-bold transition-colors disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-[18px]">check_circle</span>
+          {status === 'Contacted' ? 'Contacted' : 'Mark contacted'}
+        </button>
+        <button
+          onClick={() => setShowAppointmentModal(true)}
+          className="flex-1 flex items-center justify-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-4 py-3 rounded-xl font-bold transition-colors"
+        >
+          <span className="material-symbols-outlined text-[18px]">event</span>
+          Set appointment
         </button>
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">{leadName}</h1>
-            <p className="text-sm text-slate-600">{String(detail.listing?.address || 'No listing attached')}</p>
-            <p className="mt-1 text-xs text-slate-500">Lead ID: {leadId}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-rose-100 px-2 py-1 text-xs font-bold text-rose-700">{detail.intel.intent_level}</span>
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">Score {detail.intel.intent_score}/100</span>
-            <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">{status}</span>
-          </div>
-        </div>
+      {/* SUMMARY */}
+      <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Summary</h3>
+        <ul className="space-y-3 text-slate-700 font-medium text-[15px]">
+          {summaryLines.length > 0
+            ? summaryLines.slice(0, 3).map((line, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="text-blue-500">•</span>
+                <span>{line.replace(/^[•-]\s*/, '')}</span>
+              </li>
+            ))
+            : <li className="text-slate-400 italic">No summary generated yet. Connect with the lead to populate.</li>}
+        </ul>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-5">
-          <button
-            type="button"
-            onClick={() => void handleCallLeadClick()}
-            disabled={!leadPhone}
-            className="rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+        {/* KEY CHIPS */}
+        <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-slate-200">
+          <select
+            value={timeline}
+            onChange={(e) => { setTimeline(e.target.value); setTimeout(saveLeadProfile, 100); }}
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer"
           >
-            Call
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleEmailLeadClick()}
-            disabled={!leadEmail}
-            className="rounded-lg bg-slate-800 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            <option value="unknown">Timeline: Unknown</option>
+            <option value="0-30">Timeline: 0-30 Days</option>
+            <option value="1-3mo">Timeline: 1-3 Months</option>
+            <option value="3+">Timeline: 3+ Months</option>
+          </select>
+
+          <select
+            value={financing}
+            onChange={(e) => { setFinancing(e.target.value); setTimeout(saveLeadProfile, 100); }}
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer"
           >
-            Email
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleQuickMarkContacted()}
-            disabled={saving}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            <option value="unknown">Financing: Unknown</option>
+            <option value="preapproved">Financing: Preapproved</option>
+            <option value="cash">Financing: Cash</option>
+            <option value="exploring">Financing: Exploring</option>
+          </select>
+
+          <select
+            value={workingWithAgent}
+            onChange={(e) => { setWorkingWithAgent(e.target.value); setTimeout(saveLeadProfile, 100); }}
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer"
           >
-            Mark Contacted
-          </button>
-          <button type="button" onClick={() => setShowAppointmentModal(true)} className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">Set Appointment</button>
-          <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            {detail.actionBar.statusOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
+            <option value="unknown">Agent: Unknown</option>
+            <option value="yes">Agent: Yes</option>
+            <option value="no">Agent: No</option>
           </select>
         </div>
-      </section>
+      </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Lead Intelligence</h2>
-        <div className="mt-3 grid gap-4 md:grid-cols-2">
-          <div>
-            <ul className="space-y-2 text-sm text-slate-700">
-              {summaryLines.length > 0
-                ? summaryLines.map((line) => <li key={line}>• {line}</li>)
-                : <li>• Summary will populate after first interaction.</li>}
-            </ul>
-            <p className="mt-3 rounded-lg bg-slate-100 p-2 text-sm text-slate-700">
-              <strong>Next best action:</strong> {detail.intel.next_best_action || 'Send intro + offer two appointment windows.'}
-            </p>
-          </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Intent tags</p>
-            <div className="flex flex-wrap gap-2">
-              {(detail.intel.intent_tags || []).length > 0
-                ? detail.intel.intent_tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700">{tag}</span>
-                ))
-                : <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">No tags yet</span>}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Lead Profile</h2>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <label className="space-y-1 text-xs text-slate-600">
-            <span>Timeline</span>
-            <select value={timeline} onChange={(event) => setTimeline(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="unknown">unknown</option>
-              <option value="0-30">0-30</option>
-              <option value="1-3mo">1-3mo</option>
-              <option value="3+">3+</option>
-            </select>
-          </label>
-          <label className="space-y-1 text-xs text-slate-600">
-            <span>Financing</span>
-            <select value={financing} onChange={(event) => setFinancing(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="unknown">unknown</option>
-              <option value="preapproved">preapproved</option>
-              <option value="cash">cash</option>
-              <option value="exploring">exploring</option>
-            </select>
-          </label>
-          <label className="space-y-1 text-xs text-slate-600">
-            <span>Working with agent</span>
-            <select value={workingWithAgent} onChange={(event) => setWorkingWithAgent(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="unknown">unknown</option>
-              <option value="yes">yes</option>
-              <option value="no">no</option>
-            </select>
-          </label>
-        </div>
+      {/* BELOW THE FOLD TABS */}
+      <div className="mt-12 flex border-b border-slate-200">
         <button
-          type="button"
-          onClick={() => void saveLeadProfile()}
-          disabled={saving}
-          className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          onClick={() => setActiveTab('activity')}
+          className={`px-4 py-3 text-sm font-bold uppercase tracking-widest transition-colors ${activeTab === 'activity' ? 'border-b-2 border-slate-900 text-slate-900' : 'text-slate-400 hover:text-slate-600'
+            }`}
         >
-          {saving ? 'Saving...' : 'Save Lead Profile'}
+          Activity
         </button>
-      </section>
+        <button
+          onClick={() => setActiveTab('appointment')}
+          className={`px-4 py-3 text-sm font-bold uppercase tracking-widest transition-colors flex items-center gap-2 ${activeTab === 'appointment' ? 'border-b-2 border-slate-900 text-slate-900' : 'text-slate-400 hover:text-slate-600'
+            }`}
+        >
+          Appointment
+          {activeAppointments.length > 0 && (
+            <span className="bg-rose-100 text-rose-700 py-0.5 px-1.5 rounded-full text-[10px]">{activeAppointments.length}</span>
+          )}
+        </button>
+      </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Upcoming Appointment</h2>
-        {!upcomingAppointment ? (
-          <p className="mt-2 text-sm text-slate-500">No upcoming appointment.</p>
-        ) : (
-          <div className="mt-3 space-y-2 text-sm text-slate-700">
-            <p><strong>Time:</strong> {formatDateTime(upcomingAppointment.startsAt || upcomingAppointment.startIso)}</p>
-            <p><strong>Status:</strong> {upcomingAppointment.status}</p>
-            <p>
-              <strong>Last reminder outcome:</strong>{' '}
-              {upcomingAppointment.lastReminderResult
-                ? `${upcomingAppointment.lastReminderResult.status} • ${formatDateTime(upcomingAppointment.lastReminderResult.scheduled_for)}`
-                : 'No reminder outcome yet'}
-            </p>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => navigate('/dashboard/appointments')}
-                className="rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700"
-              >
-                Open appointment
-              </button>
-              <button
-                type="button"
-                onClick={() => void setAppointmentState(upcomingAppointment, 'confirmed')}
-                disabled={saving}
-                className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 disabled:opacity-60"
-              >
-                Mark confirmed
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-900">Appointments</h2>
-          <button
-            type="button"
-            onClick={() => setShowAppointmentModal(true)}
-            className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700"
-          >
-            Create Appointment
-          </button>
-        </div>
-
-        {detail.appointments.length === 0 ? (
-          <p className="text-sm text-slate-500">No appointments yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {detail.appointments.map((appointment) => (
-              <div key={appointment.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{appointment.status}</p>
-                    <p className="text-xs text-slate-500">{formatDateTime(appointment.startsAt || appointment.startIso)}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={() => void setAppointmentState(appointment, 'confirmed')} className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Confirmed</button>
-                    <button onClick={() => void setAppointmentState(appointment, 'reschedule_requested')} className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">Reschedule Requested</button>
-                    <button onClick={() => void setAppointmentState(appointment, 'canceled')} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-600">Cancel</button>
-                  </div>
+      <div className="pt-6">
+        {/* ACTIVITY TAB */}
+        {activeTab === 'activity' && (
+          <div className="space-y-4">
+            {(detail.events || []).map((event) => (
+              <div key={event.id} className="flex gap-4 p-4 border border-slate-100 rounded-xl bg-white shadow-sm">
+                <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0 border border-slate-200">
+                  <span className="material-symbols-outlined text-[18px] text-slate-400">
+                    {event.type.includes('appointment') ? 'event' : event.type.includes('email') ? 'mail' : 'forum'}
+                  </span>
                 </div>
-                <div className="mt-2 text-xs text-slate-600">
-                  <p>Location: {appointment.location || 'Not set'}</p>
-                  <p>
-                    Last reminder:{' '}
-                    {appointment.lastReminderResult
-                      ? `${appointment.lastReminderResult.status} • ${formatDateTime(appointment.lastReminderResult.scheduled_for)}`
-                      : 'No reminders yet'}
-                  </p>
-                  {Array.isArray(appointment.reminders) && appointment.reminders.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {appointment.reminders.map((reminder) => (
-                        <span
-                          key={reminder.id}
-                          className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600"
-                        >
-                          {reminder.reminder_type.toUpperCase()} • {reminder.status}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                <div>
+                  <p className="text-sm font-bold text-slate-900 mb-0.5">{prettyEventName(event.type)}</p>
+                  <p className="text-xs font-medium text-slate-500">{formatDateTime(event.created_at)}</p>
                 </div>
               </div>
             ))}
+
+            {(detail.events || []).length === 0 && (
+              <p className="text-center text-slate-500 font-medium py-8 border border-dashed border-slate-200 rounded-xl">No activity recorded yet.</p>
+            )}
           </div>
         )}
-      </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Activity Timeline</h2>
-        <div className="mt-3 space-y-2">
-          {(detail.events || []).slice(0, 30).map((event) => (
-            <div key={event.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-sm font-semibold text-slate-800">{prettyEventName(event.type)}</p>
-              <p className="text-xs text-slate-500">{formatDateTime(event.created_at)}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+        {/* APPOINTMENT TAB */}
+        {activeTab === 'appointment' && (
+          <div className="space-y-4">
+            {activeAppointments.length === 0 ? (
+              <div className="text-center py-12 border border-dashed border-slate-200 rounded-xl">
+                <p className="text-slate-500 font-medium mb-4">No active appointments.</p>
+                <button
+                  onClick={() => setShowAppointmentModal(true)}
+                  className="bg-slate-900 text-white font-bold py-2 px-6 rounded-lg"
+                >
+                  Set appointment
+                </button>
+              </div>
+            ) : (
+              activeAppointments.map(appointment => (
+                <div key={appointment.id} className="border border-slate-200 rounded-xl bg-white overflow-hidden shadow-sm">
+                  <div className="p-5 border-b border-slate-100 flex items-start justify-between">
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-900 mb-1">{formatDateTime(appointment.startsAt || appointment.startIso)}</h4>
+                      <p className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[16px]">location_on</span>
+                        {appointment.location || 'Location TBD'}
+                      </p>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${appointment.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                      {appointment.status.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+
+                  <div className="p-5 bg-slate-50 flex gap-3">
+                    {appointment.status !== 'confirmed' && (
+                      <button
+                        onClick={() => void setAppointmentState(appointment, 'confirmed')}
+                        className="flex-1 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-bold py-2.5 px-4 rounded-lg text-sm transition-colors"
+                      >
+                        Mark confirmed
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowAppointmentModal(true)}
+                      className="flex-1 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold py-2.5 px-4 rounded-lg text-sm transition-colors"
+                    >
+                      Reschedule
+                    </button>
+                    <button
+                      onClick={() => void setAppointmentState(appointment, 'canceled')}
+                      className="px-4 py-2.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 font-bold rounded-lg text-sm transition-colors"
+                      aria-label="Cancel"
+                    >
+                      <span className="material-symbols-outlined text-[18px] translate-y-0.5">delete</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
 
       {showAppointmentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-4">
-            <h3 className="text-lg font-semibold text-slate-900">Create Appointment</h3>
-            <p className="mt-1 text-sm text-slate-600">Set in 10 seconds: pick a time and optional location.</p>
-
-            <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-slate-500">Date & time</label>
-            <input
-              type="datetime-local"
-              value={appointmentDateTime}
-              onChange={(event) => setAppointmentDateTime(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-
-            <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Location (optional)</label>
-            <input
-              type="text"
-              value={appointmentLocation}
-              onChange={(event) => setAppointmentLocation(event.target.value)}
-              placeholder="Listing address or virtual"
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAppointmentModal(false)}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-              >
-                Cancel
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-slate-900">Set Appointment</h3>
+              <button onClick={() => setShowAppointmentModal(false)} className="text-slate-400 hover:text-slate-600">
+                <span className="material-symbols-outlined">close</span>
               </button>
-              <button
-                type="button"
-                onClick={() => void createAppointment()}
-                disabled={saving}
-                className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {saving ? 'Saving...' : 'Create'}
-              </button>
+            </div>
+
+            <div className="p-6 space-y-4 bg-slate-50">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Date & time</label>
+                <input
+                  type="datetime-local"
+                  value={appointmentDateTime}
+                  onChange={(event) => setAppointmentDateTime(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 font-medium text-slate-900 outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Location (optional)</label>
+                <input
+                  type="text"
+                  value={appointmentLocation}
+                  onChange={(event) => setAppointmentLocation(event.target.value)}
+                  placeholder="E.g. Listing Address or Phone Call"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 font-medium text-slate-900 outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => void createAppointment()}
+                  disabled={saving}
+                  className="w-full rounded-xl bg-slate-900 py-3.5 text-sm font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Confirm Appointment'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
