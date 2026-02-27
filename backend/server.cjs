@@ -2694,6 +2694,174 @@ const buildLimitReachedPayload = (entitlement, feature) => ({
   }
 });
 
+const DEFAULT_ONBOARDING_CHECKLIST = Object.freeze({
+  brand_profile: false,
+  first_listing_created: false,
+  first_listing_published: false,
+  share_kit_copied: false,
+  test_lead_sent: false,
+  first_appointment_created: false,
+  first_listing_id: null,
+  last_test_lead_id: null
+});
+
+const ONBOARDING_REQUIRED_KEYS = ['first_listing_created', 'first_listing_published', 'share_kit_copied', 'test_lead_sent'];
+
+const normalizeOnboardingChecklist = (value) => {
+  const input = value && typeof value === 'object' ? value : {};
+  return {
+    ...DEFAULT_ONBOARDING_CHECKLIST,
+    ...input
+  };
+};
+
+const resolveOnboardingBrandProfile = (agentRow) => {
+  const metadata = agentRow?.metadata && typeof agentRow.metadata === 'object' ? agentRow.metadata : {};
+  const profile = metadata.onboarding_brand_profile && typeof metadata.onboarding_brand_profile === 'object'
+    ? metadata.onboarding_brand_profile
+    : {};
+  const fullName =
+    String(profile.full_name || '').trim() ||
+    [agentRow?.first_name, agentRow?.last_name].filter(Boolean).join(' ').trim() ||
+    '';
+
+  return {
+    full_name: fullName,
+    phone: toTrimmedOrNull(profile.phone || agentRow?.phone || null),
+    email: toTrimmedOrNull(profile.email || agentRow?.email || null),
+    brokerage: toTrimmedOrNull(profile.brokerage || null),
+    headshot_url: toTrimmedOrNull(profile.headshot_url || null)
+  };
+};
+
+const loadAgentOnboardingRow = async (agentId) => {
+  const scopedAgentId = toTrimmedOrNull(agentId);
+  if (!scopedAgentId) return null;
+
+  const baseFilter = (query) =>
+    query
+      .or(`id.eq.${scopedAgentId},auth_user_id.eq.${scopedAgentId}`)
+      .limit(1)
+      .maybeSingle();
+
+  const extendedColumns = 'id, auth_user_id, first_name, last_name, email, phone, metadata, onboarding_completed, onboarding_step, onboarding_checklist';
+  const fallbackColumns = 'id, auth_user_id, first_name, last_name, email, phone, metadata';
+
+  let result = await baseFilter(supabaseAdmin.from('agents').select(extendedColumns));
+  let hasOnboardingColumns = true;
+  if (result.error && /onboarding_/i.test(result.error.message || '')) {
+    hasOnboardingColumns = false;
+    result = await baseFilter(supabaseAdmin.from('agents').select(fallbackColumns));
+  }
+  if (result.error) throw result.error;
+
+  if (!result.data) return null;
+  return {
+    row: result.data,
+    hasOnboardingColumns
+  };
+};
+
+const buildOnboardingResponse = ({ agentRow, hasOnboardingColumns, billingSnapshot }) => {
+  const checklist = normalizeOnboardingChecklist(
+    hasOnboardingColumns ? agentRow?.onboarding_checklist : agentRow?.metadata?.onboarding_checklist
+  );
+  const onboardingStep = Number.isFinite(Number(agentRow?.onboarding_step))
+    ? Number(agentRow?.onboarding_step)
+    : Number(agentRow?.metadata?.onboarding_step || 0);
+  const completedFromRow = hasOnboardingColumns
+    ? Boolean(agentRow?.onboarding_completed)
+    : Boolean(agentRow?.metadata?.onboarding_completed);
+  const requiredSatisfied = ONBOARDING_REQUIRED_KEYS.every((key) => Boolean(checklist[key]));
+  const completed = completedFromRow || requiredSatisfied;
+  const planId = String(billingSnapshot?.plan?.id || 'free').toLowerCase();
+
+  return {
+    success: true,
+    onboarding_completed: completed,
+    onboarding_step: Math.max(0, Math.min(5, onboardingStep || 0)),
+    onboarding_checklist: checklist,
+    first_listing_id: toTrimmedOrNull(checklist.first_listing_id),
+    last_test_lead_id: toTrimmedOrNull(checklist.last_test_lead_id),
+    brand_profile: resolveOnboardingBrandProfile(agentRow),
+    plan_id: planId,
+    is_pro: planId === 'pro',
+    progress: {
+      completed_items: ONBOARDING_REQUIRED_KEYS.filter((key) => Boolean(checklist[key])).length,
+      total_items: ONBOARDING_REQUIRED_KEYS.length
+    }
+  };
+};
+
+const applyOnboardingChecklistPatch = async ({
+  agentId,
+  checklistPatch = {},
+  onboardingStep = null,
+  onboardingCompleted = null
+}) => {
+  const scopedAgentId = toTrimmedOrNull(agentId);
+  if (!scopedAgentId) return null;
+
+  const onboardingRow = await loadAgentOnboardingRow(scopedAgentId);
+  if (!onboardingRow?.row) return null;
+
+  const existingChecklist = normalizeOnboardingChecklist(
+    onboardingRow.hasOnboardingColumns
+      ? onboardingRow.row.onboarding_checklist
+      : onboardingRow.row?.metadata?.onboarding_checklist
+  );
+
+  const nextChecklist = normalizeOnboardingChecklist({
+    ...existingChecklist,
+    ...checklistPatch
+  });
+
+  const metadata = onboardingRow.row?.metadata && typeof onboardingRow.row.metadata === 'object'
+    ? { ...onboardingRow.row.metadata }
+    : {};
+
+  const currentStep = Number.isFinite(Number(onboardingRow.row?.onboarding_step))
+    ? Number(onboardingRow.row.onboarding_step)
+    : Number(metadata.onboarding_step || 0);
+  const nextStep = Number.isFinite(Number(onboardingStep))
+    ? Math.max(0, Math.min(5, Number(onboardingStep)))
+    : currentStep;
+
+  const currentCompleted = onboardingRow.hasOnboardingColumns
+    ? Boolean(onboardingRow.row?.onboarding_completed)
+    : Boolean(metadata.onboarding_completed);
+  const requiredSatisfied = ONBOARDING_REQUIRED_KEYS.every((key) => Boolean(nextChecklist[key]));
+  const nextCompleted = onboardingCompleted === null
+    ? currentCompleted || requiredSatisfied
+    : Boolean(onboardingCompleted) || requiredSatisfied;
+
+  metadata.onboarding_checklist = nextChecklist;
+  metadata.onboarding_step = nextStep;
+  metadata.onboarding_completed = nextCompleted;
+
+  const updatePayload = {
+    metadata,
+    updated_at: nowIso()
+  };
+  if (onboardingRow.hasOnboardingColumns) {
+    updatePayload.onboarding_checklist = nextChecklist;
+    updatePayload.onboarding_step = nextStep;
+    updatePayload.onboarding_completed = nextCompleted;
+  }
+
+  const { error } = await supabaseAdmin
+    .from('agents')
+    .update(updatePayload)
+    .eq('id', onboardingRow.row.id);
+  if (error) throw error;
+
+  return {
+    onboarding_completed: nextCompleted,
+    onboarding_step: nextStep,
+    onboarding_checklist: nextChecklist
+  };
+};
+
 const loadListingByIdForAgent = async ({ listingId, agentId }) => {
   if (!listingId) return null;
 
@@ -11332,6 +11500,199 @@ app.post('/api/leads/capture', async (req, res) => {
 const resolveDashboardOwnerId = (req) =>
   String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
 
+app.get('/api/dashboard/onboarding', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const onboardingRow = await loadAgentOnboardingRow(agentId);
+    const billingSnapshot = await billingEngine.getBillingSnapshot(agentId).catch(() => null);
+
+    if (!onboardingRow?.row) {
+      return res.json({
+        success: true,
+        onboarding_completed: false,
+        onboarding_step: 0,
+        onboarding_checklist: { ...DEFAULT_ONBOARDING_CHECKLIST },
+        first_listing_id: null,
+        last_test_lead_id: null,
+        brand_profile: {
+          full_name: '',
+          phone: null,
+          email: null,
+          brokerage: null,
+          headshot_url: null
+        },
+        plan_id: String(billingSnapshot?.plan?.id || 'free'),
+        is_pro: String(billingSnapshot?.plan?.id || 'free') === 'pro',
+        progress: {
+          completed_items: 0,
+          total_items: ONBOARDING_REQUIRED_KEYS.length
+        }
+      });
+    }
+
+    return res.json(
+      buildOnboardingResponse({
+        agentRow: onboardingRow.row,
+        hasOnboardingColumns: onboardingRow.hasOnboardingColumns,
+        billingSnapshot
+      })
+    );
+  } catch (error) {
+    console.error('[Onboarding] Failed to load onboarding state:', error);
+    res.status(500).json({ error: 'failed_to_load_onboarding_state' });
+  }
+});
+
+app.patch('/api/dashboard/onboarding', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const onboardingRow = await loadAgentOnboardingRow(agentId);
+    if (!onboardingRow?.row) return res.status(404).json({ error: 'agent_not_found' });
+
+    const existingChecklist = normalizeOnboardingChecklist(
+      onboardingRow.hasOnboardingColumns
+        ? onboardingRow.row.onboarding_checklist
+        : onboardingRow.row?.metadata?.onboarding_checklist
+    );
+    const checklistPatchInput =
+      req.body?.onboarding_checklist && typeof req.body.onboarding_checklist === 'object'
+        ? req.body.onboarding_checklist
+        : {};
+
+    const normalizedPatch = {
+      ...(Object.prototype.hasOwnProperty.call(checklistPatchInput, 'brand_profile')
+        ? { brand_profile: Boolean(checklistPatchInput.brand_profile) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(checklistPatchInput, 'first_listing_created')
+        ? { first_listing_created: Boolean(checklistPatchInput.first_listing_created) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(checklistPatchInput, 'first_listing_published')
+        ? { first_listing_published: Boolean(checklistPatchInput.first_listing_published) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(checklistPatchInput, 'share_kit_copied')
+        ? { share_kit_copied: Boolean(checklistPatchInput.share_kit_copied) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(checklistPatchInput, 'test_lead_sent')
+        ? { test_lead_sent: Boolean(checklistPatchInput.test_lead_sent) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(checklistPatchInput, 'first_appointment_created')
+        ? { first_appointment_created: Boolean(checklistPatchInput.first_appointment_created) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(checklistPatchInput, 'first_listing_id')
+        ? { first_listing_id: toTrimmedOrNull(checklistPatchInput.first_listing_id) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(checklistPatchInput, 'last_test_lead_id')
+        ? { last_test_lead_id: toTrimmedOrNull(checklistPatchInput.last_test_lead_id) }
+        : {})
+    };
+
+    const nextChecklist = normalizeOnboardingChecklist({
+      ...existingChecklist,
+      ...normalizedPatch
+    });
+    const requestedStep = Number(req.body?.onboarding_step);
+    const nextStep = Number.isFinite(requestedStep)
+      ? Math.max(0, Math.min(5, requestedStep))
+      : Math.max(
+        0,
+        Math.min(
+          5,
+          Number(
+            onboardingRow.hasOnboardingColumns
+              ? onboardingRow.row.onboarding_step
+              : onboardingRow.row?.metadata?.onboarding_step || 0
+          )
+        )
+      );
+
+    const metadata = onboardingRow.row?.metadata && typeof onboardingRow.row.metadata === 'object'
+      ? { ...onboardingRow.row.metadata }
+      : {};
+
+    const brandPatch = req.body?.brand_profile && typeof req.body.brand_profile === 'object'
+      ? req.body.brand_profile
+      : null;
+    if (brandPatch) {
+      const existingBrandProfile =
+        metadata.onboarding_brand_profile && typeof metadata.onboarding_brand_profile === 'object'
+          ? metadata.onboarding_brand_profile
+          : {};
+      metadata.onboarding_brand_profile = {
+        ...existingBrandProfile,
+        ...(Object.prototype.hasOwnProperty.call(brandPatch, 'full_name')
+          ? { full_name: toTrimmedOrNull(brandPatch.full_name) || '' }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(brandPatch, 'phone')
+          ? { phone: toTrimmedOrNull(brandPatch.phone) }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(brandPatch, 'email')
+          ? { email: toTrimmedOrNull(brandPatch.email) }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(brandPatch, 'brokerage')
+          ? { brokerage: toTrimmedOrNull(brandPatch.brokerage) }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(brandPatch, 'headshot_url')
+          ? { headshot_url: toTrimmedOrNull(brandPatch.headshot_url) }
+          : {})
+      };
+      if (metadata.onboarding_brand_profile.full_name) {
+        nextChecklist.brand_profile = true;
+      }
+    }
+
+    const requiredSatisfied = ONBOARDING_REQUIRED_KEYS.every((key) => Boolean(nextChecklist[key]));
+    const completedRequested =
+      req.body?.onboarding_completed === true
+        ? true
+        : req.body?.onboarding_completed === false
+          ? false
+          : null;
+    const currentCompleted = onboardingRow.hasOnboardingColumns
+      ? Boolean(onboardingRow.row.onboarding_completed)
+      : Boolean(metadata.onboarding_completed);
+    const nextCompleted = completedRequested === null
+      ? currentCompleted || requiredSatisfied
+      : completedRequested || requiredSatisfied;
+
+    metadata.onboarding_checklist = nextChecklist;
+    metadata.onboarding_step = nextStep;
+    metadata.onboarding_completed = nextCompleted;
+
+    const updatePayload = {
+      metadata,
+      updated_at: nowIso()
+    };
+    if (onboardingRow.hasOnboardingColumns) {
+      updatePayload.onboarding_checklist = nextChecklist;
+      updatePayload.onboarding_step = nextStep;
+      updatePayload.onboarding_completed = nextCompleted;
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('agents')
+      .update(updatePayload)
+      .eq('id', onboardingRow.row.id);
+    if (updateError) throw updateError;
+
+    const refreshed = await loadAgentOnboardingRow(agentId);
+    const billingSnapshot = await billingEngine.getBillingSnapshot(agentId).catch(() => null);
+    res.json(
+      buildOnboardingResponse({
+        agentRow: refreshed?.row || onboardingRow.row,
+        hasOnboardingColumns: refreshed?.hasOnboardingColumns ?? onboardingRow.hasOnboardingColumns,
+        billingSnapshot
+      })
+    );
+  } catch (error) {
+    console.error('[Onboarding] Failed to update onboarding state:', error);
+    res.status(500).json({ error: 'failed_to_update_onboarding_state' });
+  }
+});
+
 app.get('/api/dashboard/billing', async (req, res) => {
   try {
     const agentId = await resolveRequesterUserId(req, { allowDefault: false });
@@ -12830,6 +13191,18 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
       }).catch((error) => {
         console.warn('[Billing] Failed to track listing_published usage:', error?.message || error);
       });
+
+      await applyOnboardingChecklistPatch({
+        agentId: ownerId,
+        checklistPatch: {
+          first_listing_created: true,
+          first_listing_id: listing.id,
+          first_listing_published: true
+        },
+        onboardingStep: 3
+      }).catch((error) => {
+        console.warn('[Onboarding] Failed to patch checklist after listing publish:', error?.message || error);
+      });
     }
 
     if (unpublishTransition) {
@@ -13029,6 +13402,19 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
     if (!captureResponse.ok) {
       return res.status(captureResponse.status).json(payload);
     }
+
+    await applyOnboardingChecklistPatch({
+      agentId,
+      checklistPatch: {
+        first_listing_created: true,
+        first_listing_id: listing.id,
+        test_lead_sent: true,
+        last_test_lead_id: payload?.lead_id || null
+      },
+      onboardingStep: 4
+    }).catch((error) => {
+      console.warn('[Onboarding] Failed to patch checklist after test capture:', error?.message || error);
+    });
 
     res.json({
       success: true,
@@ -17635,6 +18021,19 @@ app.post('/api/appointments', async (req, res) => {
       return { scheduled: [], skipped: true, reason: 'scheduler_error' };
     });
 
+    const billingSnapshotForOnboarding = await billingEngine.getBillingSnapshot(ownerId).catch(() => null);
+    if (String(billingSnapshotForOnboarding?.plan?.id || '').toLowerCase() === 'pro') {
+      await applyOnboardingChecklistPatch({
+        agentId: ownerId,
+        checklistPatch: {
+          first_appointment_created: true
+        },
+        onboardingStep: 5
+      }).catch((error) => {
+        console.warn('[Onboarding] Failed to patch checklist after appointment create:', error?.message || error);
+      });
+    }
+
     if (contactEmail) {
       const idempotencyKey = `email:appt_update:${data.id}:scheduled`;
       const emailPayload = {
@@ -18704,6 +19103,17 @@ app.post('/api/properties', async (req, res) => {
       propertyId: data?.id,
       createdAt: payload.created_at
     }, 'info', requestId)
+
+    await applyOnboardingChecklistPatch({
+      agentId,
+      checklistPatch: {
+        first_listing_created: true,
+        first_listing_id: data?.id || null
+      },
+      onboardingStep: 2
+    }).catch((onboardingError) => {
+      console.warn(`[${requestId}] Failed to update onboarding after property create:`, onboardingError?.message || onboardingError)
+    });
 
     console.info(`[${requestId}] Property created`, { agentId, propertyId: data?.id })
     return res.json({ property: data })

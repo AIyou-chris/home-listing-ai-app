@@ -35,6 +35,7 @@ const LeadDetailCommandPage = lazy(() => import('./components/dashboard-command/
 const AppointmentsCommandPage = lazy(() => import('./components/dashboard-command/AppointmentsCommandPage'));
 const ListingPerformancePage = lazy(() => import('./components/dashboard-command/ListingPerformancePage'));
 const BillingCommandPage = lazy(() => import('./components/dashboard-command/BillingCommandPage'));
+const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/OnboardingCommandPage'));
 const LeadsAndAppointmentsPage = lazy(() => import('./components/LeadsAndAppointmentsPage'));
 const InteractionHubPage = lazy(() => import('./components/AIInteractionHubPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
@@ -97,6 +98,7 @@ import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
 import DashboardRealtimeBootstrap from './components/dashboard-command/DashboardRealtimeBootstrap';
+import { fetchOnboardingState } from './services/onboardingService';
 // SessionService removed
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
@@ -1296,6 +1298,43 @@ const App: React.FC = () => {
         return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
     };
 
+    const DashboardRouteGate = () => {
+        const [routeTarget, setRouteTarget] = useState<'loading' | 'home' | 'onboarding'>('loading');
+
+        useEffect(() => {
+            let cancelled = false;
+            const resolveTarget = async () => {
+                try {
+                    const onboarding = await fetchOnboardingState();
+                    if (cancelled) return;
+                    setRouteTarget(onboarding.onboarding_completed ? 'home' : 'onboarding');
+                } catch (_error) {
+                    if (cancelled) return;
+                    setRouteTarget('home');
+                }
+            };
+
+            void resolveTarget();
+            return () => {
+                cancelled = true;
+            };
+        }, []);
+
+        if (routeTarget === 'loading') {
+            return (
+                <div className="flex items-center justify-center p-10">
+                    <LoadingSpinner size="lg" type="dots" text="Loading your dashboard..." />
+                </div>
+            );
+        }
+
+        if (routeTarget === 'onboarding') {
+            return <Navigate to="/dashboard/onboarding" replace />;
+        }
+
+        return <ConversionDashboardHome />;
+    };
+
     const ProtectedLayout = () => (
         <div className="flex h-screen bg-slate-50 relative">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
@@ -1484,7 +1523,7 @@ const App: React.FC = () => {
                     <Route element={<ProtectedLayout />}>
                         <Route path="/dashboard" element={
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
-                                <ConversionDashboardHome />
+                                <DashboardRouteGate />
                         } />
                         <Route path="/daily-pulse" element={
                             isAdmin ? <Navigate to="/admin-dashboard" replace /> :
@@ -1498,6 +1537,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/appointments" element={<AppointmentsCommandPage />} />
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="/dashboard/billing" element={<BillingCommandPage />} />
+                        <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
 
 
                         <Route path="/listings" element={

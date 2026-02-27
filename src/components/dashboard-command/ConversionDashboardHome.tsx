@@ -9,6 +9,7 @@ import {
   type CommandCenterAppointmentQueueItem,
   type CommandCenterLeadQueueItem
 } from '../../services/dashboardCommandService'
+import { fetchOnboardingState, type OnboardingState } from '../../services/onboardingService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 
 const formatDateTime = (value?: string | null) => {
@@ -43,6 +44,7 @@ const ConversionDashboardHome: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [workingItemId, setWorkingItemId] = useState<string | null>(null)
+  const [onboarding, setOnboarding] = useState<OnboardingState | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -54,6 +56,10 @@ const ConversionDashboardHome: React.FC = () => {
           stats: response.stats,
           queues: response.queues
         })
+        const onboardingState = await fetchOnboardingState().catch(() => null)
+        if (onboardingState) {
+          setOnboarding(onboardingState)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load command center.')
       } finally {
@@ -202,6 +208,80 @@ const ConversionDashboardHome: React.FC = () => {
         <h1 className="text-3xl font-bold text-slate-900">Command Center</h1>
         <p className="mt-1 text-sm text-slate-600">Live pipeline view of what needs attention right now.</p>
       </div>
+
+      {onboarding && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Launch Checklist</h2>
+              <p className="text-xs text-slate-500">
+                {onboarding.onboarding_completed
+                  ? 'You’re live. Jump into your highest-value actions.'
+                  : 'Complete your first launch in under 5 minutes.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/onboarding')}
+              className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700"
+            >
+              {onboarding.onboarding_completed ? 'Open Checklist' : 'Launch Checklist'}
+            </button>
+          </div>
+
+          {!onboarding.onboarding_completed ? (
+            <div className="mt-3 space-y-2">
+              <div className="h-2 rounded-full bg-slate-100">
+                <div
+                  className="h-2 rounded-full bg-primary-600 transition-all"
+                  style={{
+                    width: `${Math.round((onboarding.progress.completed_items / Math.max(onboarding.progress.total_items, 1)) * 100)}%`
+                  }}
+                />
+              </div>
+              <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  ['Add agent profile', onboarding.onboarding_checklist.brand_profile, 1],
+                  ['Create first listing', onboarding.onboarding_checklist.first_listing_created, 2],
+                  ['Publish listing', onboarding.onboarding_checklist.first_listing_published, 3],
+                  ['Copy link', onboarding.onboarding_checklist.share_kit_copied, 3],
+                  ['Send test lead', onboarding.onboarding_checklist.test_lead_sent, 4],
+                  ['Create appointment (Pro)', onboarding.onboarding_checklist.first_appointment_created, 5]
+                ].map(([label, done, step]) => (
+                  <button
+                    key={String(label)}
+                    type="button"
+                    onClick={() => navigate(`/dashboard/onboarding?step=${step}`)}
+                    className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-left ${
+                      done
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    <span>{done ? '✓' : '○'}</span>
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => navigate('/add-listing')} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+                New Listing
+              </button>
+              <button type="button" onClick={() => onboarding.first_listing_id ? navigate(`/dashboard/listings/${onboarding.first_listing_id}`) : navigate('/dashboard')} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+                Share Kit
+              </button>
+              <button type="button" onClick={() => navigate('/dashboard/leads')} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+                Leads Inbox
+              </button>
+              <button type="button" onClick={() => navigate('/dashboard/command-center')} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+                Command Center
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       {error && !loading && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>
