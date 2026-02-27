@@ -110,13 +110,21 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                                 <p className="text-slate-400 font-medium uppercase tracking-wider text-sm">What buyers interact with</p>
                             </div>
 
-                            {/* Placeholder UI block representing phone screen */}
-                            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 mb-8 flex-1 relative flex flex-col gap-3">
-                                <div className="w-full h-32 bg-slate-800/50 rounded-lg animate-pulse"></div>
-                                <div className="w-3/4 h-4 bg-slate-800 rounded"></div>
-                                <div className="w-1/2 h-4 bg-slate-800 rounded"></div>
-                                <div className="mt-auto pt-4 flex gap-2">
-                                    <div className="h-10 flex-1 bg-cyan-600/20 border border-cyan-500/30 rounded-lg"></div>
+                            {/* Real Product Screenshot */}
+                            <div className="mb-8 flex-1 relative flex items-center justify-center group-hover:-translate-y-1 transition-transform duration-500">
+                                <div className="relative w-full aspect-[3/4] max-h-[320px] rounded-[24px] overflow-hidden border-4 border-slate-800 shadow-2xl bg-slate-900 flex items-center justify-center">
+                                    <img
+                                        src="/assets/landing/ai-listing-card.webp"
+                                        srcSet="/assets/landing/ai-listing-card.webp 1x, /assets/landing/ai-listing-card@2x.webp 2x"
+                                        alt="HomeListingAI mobile listing page preview"
+                                        className="w-full h-full object-cover object-top"
+                                        loading="lazy"
+                                    />
+                                    {/* Bonus Overlay */}
+                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-950/80 backdrop-blur-md border border-slate-700/50 text-slate-200 text-xs font-semibold px-4 py-2 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] whitespace-nowrap opacity-90 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-[14px] text-cyan-400">mic</span>
+                                        Ask a question...
+                                    </div>
                                 </div>
                             </div>
 
@@ -155,17 +163,22 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                                 <p className="text-slate-400 font-medium uppercase tracking-wider text-sm">What makes you look like the pro</p>
                             </div>
 
-                            {/* Placeholder UI block representing report document */}
-                            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 mb-8 flex-1 relative flex flex-col gap-4">
-                                <div className="flex justify-between items-start">
-                                    <div className="w-1/3 h-6 bg-slate-800 rounded"></div>
-                                    <div className="w-12 h-12 bg-slate-800 border border-slate-700 rounded-sm"></div>
+                            {/* Real Product Screenshot */}
+                            <div className="mb-8 flex-1 relative flex items-center justify-center group-hover:-translate-y-1 transition-transform duration-500">
+                                <div className="relative w-full aspect-[3/4] max-h-[320px] rounded-lg overflow-hidden border border-slate-700/50 shadow-[0_10px_40px_rgba(0,0,0,0.6)] bg-slate-900 flex items-center justify-center">
+                                    <img
+                                        src="/assets/landing/market-report-card.webp"
+                                        srcSet="/assets/landing/market-report-card.webp 1x, /assets/landing/market-report-card@2x.webp 2x"
+                                        alt="HomeListingAI one-page market report preview"
+                                        className="w-full h-full object-cover object-top"
+                                        loading="lazy"
+                                    />
+                                    {/* Bonus Overlay */}
+                                    <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md border border-slate-700/50 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg shadow-[0_0_15px_rgba(0,0,0,0.5)] flex items-center gap-2 opacity-95">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                                        Generated in minutes
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 mt-2">
-                                    <div className="h-16 bg-slate-800/50 rounded-lg"></div>
-                                    <div className="h-16 bg-slate-800/50 rounded-lg"></div>
-                                </div>
-                                <div className="w-full h-20 bg-slate-800/30 rounded-lg mt-auto border border-slate-800/50"></div>
                             </div>
 
                             <ul className="space-y-4 mb-8">
