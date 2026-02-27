@@ -67,6 +67,10 @@ const JOB_WORKER_BATCH_SIZE = Number(process.env.JOB_WORKER_BATCH_SIZE || 15);
 const JOB_REAPER_MINUTES = Number(process.env.JOB_REAPER_MINUTES || 10);
 const JOB_REAPER_POLL_MS = Number(process.env.JOB_REAPER_POLL_MS || 60000);
 const JOB_WORKER_ID = `${process.env.RENDER_SERVICE_ID || process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+const DEFAULT_DAILY_DIGEST_TIME_LOCAL = process.env.DEFAULT_DAILY_DIGEST_TIME_LOCAL || '08:00';
+const DEFAULT_DAILY_DIGEST_TIMEZONE = process.env.DEFAULT_DAILY_DIGEST_TIMEZONE || 'America/Los_Angeles';
+const NUDGE_CHECK_WINDOW_MINUTES = 10;
+const APPOINTMENT_CONFIRM_NUDGE_OFFSETS_MINUTES = [24 * 60, 2 * 60];
 
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -136,6 +140,18 @@ const {
 } = require('./utils/securitySettings');
 
 const APPOINTMENT_SELECT_FIELDS = '*';
+
+const DEFAULT_AGENT_NOTIFICATION_SETTINGS = {
+  email_enabled: true,
+  daily_digest_enabled: false,
+  unworked_lead_nudge_enabled: true,
+  appt_confirm_nudge_enabled: true,
+  reschedule_nudge_enabled: true,
+  digest_time_local: DEFAULT_DAILY_DIGEST_TIME_LOCAL,
+  timezone: DEFAULT_DAILY_DIGEST_TIMEZONE
+};
+
+const agentNotificationSettingsCache = new Map();
 const {
   getCalendarSettings,
   updateCalendarSettings: updateCalendarPreferences,
@@ -2183,6 +2199,99 @@ const resolveSidekickOwner = (explicitUserId) => {
 };
 
 const nowIso = () => new Date().toISOString();
+const normalizeTimeHm = (value, fallback = DEFAULT_DAILY_DIGEST_TIME_LOCAL) => {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  return /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(raw) ? raw : fallback;
+};
+
+const normalizeTimezoneValue = (value, fallback = DEFAULT_DAILY_DIGEST_TIMEZONE) => {
+  const candidate = typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: candidate });
+    return candidate;
+  } catch (_error) {
+    return fallback;
+  }
+};
+
+const mergeAgentNotificationSettings = (settings = {}) => ({
+  ...DEFAULT_AGENT_NOTIFICATION_SETTINGS,
+  ...settings,
+  digest_time_local: normalizeTimeHm(settings?.digest_time_local, DEFAULT_AGENT_NOTIFICATION_SETTINGS.digest_time_local),
+  timezone: normalizeTimezoneValue(settings?.timezone, DEFAULT_AGENT_NOTIFICATION_SETTINGS.timezone)
+});
+
+const getAgentNotificationSettings = async (agentId) => {
+  const normalizedAgentId = String(agentId || '').trim();
+  if (!isUuid(normalizedAgentId)) {
+    if (!agentNotificationSettingsCache.has(normalizedAgentId)) {
+      agentNotificationSettingsCache.set(normalizedAgentId, { ...DEFAULT_AGENT_NOTIFICATION_SETTINGS });
+    }
+    return mergeAgentNotificationSettings(agentNotificationSettingsCache.get(normalizedAgentId));
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('agent_notification_settings')
+    .select('*')
+    .eq('agent_id', normalizedAgentId)
+    .maybeSingle();
+
+  if (error) {
+    if (/agent_notification_settings|does not exist|relation/i.test(error.message || '')) {
+      return { ...DEFAULT_AGENT_NOTIFICATION_SETTINGS };
+    }
+    throw error;
+  }
+
+  if (!data) {
+    return { ...DEFAULT_AGENT_NOTIFICATION_SETTINGS };
+  }
+
+  return mergeAgentNotificationSettings(data);
+};
+
+const updateAgentNotificationSettings = async (agentId, updates = {}) => {
+  const normalizedAgentId = String(agentId || '').trim();
+  const current = await getAgentNotificationSettings(normalizedAgentId);
+  const next = mergeAgentNotificationSettings({
+    ...current,
+    ...updates
+  });
+
+  if (!isUuid(normalizedAgentId)) {
+    agentNotificationSettingsCache.set(normalizedAgentId, { ...next });
+    return next;
+  }
+
+  const upsertPayload = {
+    agent_id: normalizedAgentId,
+    email_enabled: Boolean(next.email_enabled),
+    daily_digest_enabled: Boolean(next.daily_digest_enabled),
+    unworked_lead_nudge_enabled: Boolean(next.unworked_lead_nudge_enabled),
+    appt_confirm_nudge_enabled: Boolean(next.appt_confirm_nudge_enabled),
+    reschedule_nudge_enabled: Boolean(next.reschedule_nudge_enabled),
+    digest_time_local: normalizeTimeHm(next.digest_time_local),
+    timezone: normalizeTimezoneValue(next.timezone),
+    updated_at: nowIso()
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from('agent_notification_settings')
+    .upsert(upsertPayload, { onConflict: 'agent_id' })
+    .select('*')
+    .maybeSingle();
+
+  if (error) {
+    if (/agent_notification_settings|does not exist|relation/i.test(error.message || '')) {
+      agentNotificationSettingsCache.set(normalizedAgentId, { ...next });
+      return next;
+    }
+    throw error;
+  }
+
+  return mergeAgentNotificationSettings(data || next);
+};
+
 const computeRelativeTime = (value) => {
   if (!value) return 'unknown';
   const ts = new Date(value).getTime();
@@ -3259,6 +3368,68 @@ const recordOutboundAttempt = async ({
   }
 };
 
+const getDashboardBaseUrl = () =>
+  (process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+
+const getAgentEmailAddress = async (agentId) => {
+  if (!agentId) return process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
+  const { data: agent } = await supabaseAdmin
+    .from('agents')
+    .select('email')
+    .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+    .maybeSingle();
+  return agent?.email || process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
+};
+
+const resolveNudgeChannelSettings = async (agentId) => {
+  const [legacyPrefs, nudgeSettings] = await Promise.all([
+    getNotificationPreferences(agentId).catch(() => ({ ...DEFAULT_NOTIFICATION_SETTINGS })),
+    getAgentNotificationSettings(agentId).catch(() => ({ ...DEFAULT_AGENT_NOTIFICATION_SETTINGS }))
+  ]);
+
+  return {
+    legacyPrefs,
+    nudgeSettings,
+    emailEnabled: FEATURE_FLAG_EMAIL_ENABLED && legacyPrefs.email_enabled !== false && nudgeSettings.email_enabled !== false
+  };
+};
+
+const getTimeZoneParts = (value, timezone) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: normalizeTimezoneValue(timezone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+
+  const parts = formatter.formatToParts(new Date(value));
+  const lookup = Object.create(null);
+  for (const part of parts) {
+    if (part.type !== 'literal') lookup[part.type] = part.value;
+  }
+  return {
+    dateKey: `${lookup.year}-${lookup.month}-${lookup.day}`,
+    timeHm: `${lookup.hour}:${lookup.minute}`
+  };
+};
+
+const formatDateTimeForTimezone = (value, timezone) => {
+  try {
+    return new Date(value).toLocaleString('en-US', {
+      timeZone: normalizeTimezoneValue(timezone),
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  } catch (_error) {
+    return new Date(value).toISOString();
+  }
+};
+
 const enqueueLeadCaptureNotifications = async ({
   lead,
   listing,
@@ -3384,6 +3555,69 @@ const enqueueLeadCaptureNotifications = async ({
   };
 };
 
+const prettifySourceLabel = (sourceType) => {
+  const normalized = String(sourceType || 'unknown').toLowerCase();
+  if (normalized === 'open_house') return 'Open House';
+  if (normalized === 'qr') return 'Sign';
+  if (normalized === 'social') return 'Social';
+  if (normalized === 'link') return 'Link';
+  return normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) || 'Unknown';
+};
+
+const enqueueUnworkedLeadNudge = async ({
+  leadId,
+  agentId,
+  listingAddress,
+  fullName,
+  sourceType,
+  capturedAt
+}) => {
+  const { emailEnabled, nudgeSettings } = await resolveNudgeChannelSettings(agentId);
+  if (!emailEnabled || nudgeSettings.unworked_lead_nudge_enabled !== true) {
+    return { queued: false, reason: 'disabled' };
+  }
+
+  const runAtDate = new Date(capturedAt || nowIso());
+  runAtDate.setMinutes(runAtDate.getMinutes() + NUDGE_CHECK_WINDOW_MINUTES);
+
+  const idempotencyKey = `email:unworked_lead:${leadId}`;
+  const payload = {
+    kind: 'unworked_lead_nudge',
+    agent_id: agentId,
+    lead_id: leadId,
+    listing_address: listingAddress || 'Unknown listing',
+    full_name: fullName || 'Unknown',
+    source_label: prettifySourceLabel(sourceType),
+    captured_at: capturedAt || nowIso()
+  };
+
+  const enqueueResult = await enqueueJob({
+    type: 'email_send',
+    payload,
+    idempotencyKey,
+    priority: 3,
+    runAt: runAtDate.toISOString(),
+    maxAttempts: 3
+  });
+
+  if (enqueueResult?.created) {
+    await recordOutboundAttempt({
+      agentId,
+      leadId,
+      channel: 'email',
+      provider: 'mailgun',
+      status: 'queued',
+      idempotencyKey,
+      payload
+    });
+  }
+
+  return {
+    queued: Boolean(enqueueResult?.created),
+    idempotency_key: idempotencyKey
+  };
+};
+
 const resolveAppointmentReminderFlags = async (agentId) => {
   const prefs = await getNotificationPreferences(agentId);
   const billingSnapshot = await billingEngine.getBillingSnapshot(agentId).catch(() => null);
@@ -3444,7 +3678,7 @@ const reminderOutcomeToLeadEventType = (outcome) => {
 };
 
 const shouldNotifyAgentForReminderOutcome = (outcome) =>
-  ['confirmed', 'reschedule_requested', 'handoff_requested', 'failed'].includes(
+  ['confirmed', 'handoff_requested', 'failed'].includes(
     normalizeReminderOutcomeValue(outcome) || ''
   );
 
@@ -3615,6 +3849,134 @@ const resolveAppointmentListingId = (appointmentRow) =>
 const resolveAppointmentTimezone = (appointmentRow) =>
   appointmentRow?.timezone || APPOINTMENT_REMINDER_TIMEZONE;
 
+const computeAppointmentEmailNudgeBuckets = (startDate) => {
+  const minutesUntilStart = Math.floor((startDate.getTime() - Date.now()) / 60000);
+  if (minutesUntilStart < 0) return [];
+  if (minutesUntilStart < 24 * 60) {
+    return [{ offsetMinutes: 2 * 60, bucket: '2h' }];
+  }
+  return [
+    { offsetMinutes: APPOINTMENT_CONFIRM_NUDGE_OFFSETS_MINUTES[0], bucket: '24h' },
+    { offsetMinutes: APPOINTMENT_CONFIRM_NUDGE_OFFSETS_MINUTES[1], bucket: '2h' }
+  ];
+};
+
+const enqueueAppointmentConfirmationNudges = async ({ appointmentRow, source = 'appointment_create' }) => {
+  if (!appointmentRow?.id) return { queued: [], skipped: true, reason: 'missing_appointment_id' };
+  const appointmentId = appointmentRow.id;
+  const agentId = resolveAppointmentAgentId(appointmentRow);
+  const leadId = appointmentRow.lead_id || appointmentRow.leadId || null;
+  const startsAt = resolveAppointmentStart(appointmentRow);
+  const listingAddress = appointmentRow.property_address || appointmentRow.location || 'Listing';
+  const timezone = resolveAppointmentTimezone(appointmentRow);
+  if (!agentId || !startsAt) return { queued: [], skipped: true, reason: 'missing_required_fields' };
+
+  const { emailEnabled, nudgeSettings } = await resolveNudgeChannelSettings(agentId);
+  if (!emailEnabled || nudgeSettings.appt_confirm_nudge_enabled !== true) {
+    return { queued: [], skipped: true, reason: 'disabled' };
+  }
+
+  const startDate = new Date(startsAt);
+  if (Number.isNaN(startDate.getTime())) {
+    return { queued: [], skipped: true, reason: 'invalid_starts_at' };
+  }
+
+  const buckets = computeAppointmentEmailNudgeBuckets(startDate);
+  if (buckets.length === 0) return { queued: [], skipped: true, reason: 'appointment_in_past' };
+
+  const queued = [];
+  for (const { offsetMinutes, bucket } of buckets) {
+    const scheduledAt = new Date(startDate.getTime() - offsetMinutes * 60 * 1000);
+    const runAt = scheduledAt.getTime() <= Date.now()
+      ? new Date(Date.now() + 5000).toISOString()
+      : toMinuteBucketIso(scheduledAt.toISOString());
+    const idempotencyKey = `email:appt_needs_confirmation:${appointmentId}:${bucket}`;
+    const payload = {
+      kind: 'appointment_confirmation_nudge',
+      appointment_id: appointmentId,
+      lead_id: leadId,
+      agent_id: agentId,
+      listing_address: listingAddress,
+      starts_at: new Date(startsAt).toISOString(),
+      timezone,
+      bucket,
+      source
+    };
+
+    const enqueueResult = await enqueueJob({
+      type: 'email_send',
+      payload,
+      idempotencyKey,
+      priority: 3,
+      runAt,
+      maxAttempts: 3
+    });
+
+    if (enqueueResult?.created) {
+      await recordOutboundAttempt({
+        agentId,
+        leadId,
+        appointmentId,
+        channel: 'email',
+        provider: 'mailgun',
+        status: 'queued',
+        idempotencyKey,
+        payload
+      });
+    }
+
+    queued.push({ bucket, idempotency_key: idempotencyKey, run_at: runAt, created: Boolean(enqueueResult?.created) });
+  }
+
+  return { queued, skipped: false };
+};
+
+const enqueueRescheduleRequestedNudge = async ({
+  appointmentId,
+  agentId,
+  leadId,
+  listingAddress
+}) => {
+  if (!appointmentId || !agentId) return { queued: false, reason: 'missing_required_fields' };
+  const { emailEnabled, nudgeSettings } = await resolveNudgeChannelSettings(agentId);
+  if (!emailEnabled || nudgeSettings.reschedule_nudge_enabled !== true) {
+    return { queued: false, reason: 'disabled' };
+  }
+
+  const idempotencyKey = `email:appt_reschedule:${appointmentId}`;
+  const payload = {
+    kind: 'reschedule_requested_nudge',
+    appointment_id: appointmentId,
+    agent_id: agentId,
+    lead_id: leadId || null,
+    listing_address: listingAddress || 'Listing'
+  };
+
+  const enqueueResult = await enqueueJob({
+    type: 'email_send',
+    payload,
+    idempotencyKey,
+    priority: 2,
+    runAt: nowIso(),
+    maxAttempts: 3
+  });
+
+  if (enqueueResult?.created) {
+    await recordOutboundAttempt({
+      agentId,
+      leadId: leadId || null,
+      appointmentId,
+      channel: 'email',
+      provider: 'mailgun',
+      status: 'queued',
+      idempotencyKey,
+      payload
+    });
+  }
+
+  return { queued: Boolean(enqueueResult?.created), idempotency_key: idempotencyKey };
+};
+
 const scheduleAppointmentReminders = async ({ appointmentRow, source = 'appointment_create' }) => {
   if (!appointmentRow?.id) return { scheduled: [], skipped: true, reason: 'missing_appointment_id' };
   const agentId = resolveAppointmentAgentId(appointmentRow);
@@ -3772,7 +4134,19 @@ const scheduleAppointmentReminders = async ({ appointmentRow, source = 'appointm
     });
   }
 
-  return { scheduled: scheduledRows, skipped: false };
+  const emailNudges = await enqueueAppointmentConfirmationNudges({
+    appointmentRow,
+    source
+  }).catch((error) => {
+    console.warn('[AppointmentReminder] Failed to enqueue confirmation nudges:', error?.message || error);
+    return { queued: [], skipped: true, reason: 'scheduler_error' };
+  });
+
+  return {
+    scheduled: scheduledRows,
+    email_nudges: emailNudges.queued || [],
+    skipped: false
+  };
 };
 
 const formatReminderTimeForPrompt = (startsAt, timezone) => {
@@ -3889,7 +4263,7 @@ const enqueueAppointmentOutcomeEmail = async ({
   reason
 }) => {
   const normalizedOutcome = normalizeReminderOutcomeValue(outcome);
-  if (!normalizedOutcome || !shouldNotifyAgentForReminderOutcome(normalizedOutcome)) {
+  if (!normalizedOutcome) {
     return null;
   }
 
@@ -3897,6 +4271,19 @@ const enqueueAppointmentOutcomeEmail = async ({
   const leadId = appointment?.lead_id || reminder?.lead_id || lead?.id || null;
   const agentId = resolveAppointmentAgentId(appointment) || reminder?.agent_id || null;
   if (!appointmentId || !agentId) return null;
+
+  if (normalizedOutcome === 'reschedule_requested') {
+    return enqueueRescheduleRequestedNudge({
+      appointmentId,
+      agentId,
+      leadId,
+      listingAddress: listingAddress || appointment?.property_address || appointment?.location || 'Listing'
+    });
+  }
+
+  if (!shouldNotifyAgentForReminderOutcome(normalizedOutcome)) {
+    return null;
+  }
 
   const idempotencyKey = `email:appt_outcome:${appointmentId}:${normalizedOutcome}`;
   const payload = {
@@ -4262,6 +4649,287 @@ const processQueuedAppointmentReminders = async () => {
 const processEmailSendJob = async (job) => {
   const payload = job.payload || {};
   const kind = payload.kind || 'generic';
+  const dashboardBase = getDashboardBaseUrl();
+  const updateOutboundAttemptStatus = async ({ status, providerResponse }) => {
+    await supabaseAdmin
+      .from('outbound_attempts')
+      .update({
+        status,
+        provider_response: providerResponse || {}
+      })
+      .eq('idempotency_key', job.idempotency_key);
+  };
+
+  if (kind === 'unworked_lead_nudge') {
+    const agentId = payload.agent_id || null;
+    const leadId = payload.lead_id || null;
+    const listingAddress = payload.listing_address || 'Listing';
+    const { emailEnabled, nudgeSettings } = await resolveNudgeChannelSettings(agentId);
+    if (!emailEnabled || nudgeSettings.unworked_lead_nudge_enabled !== true) {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: 'unworked_lead_nudge_disabled', updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: 'disabled' };
+    }
+
+    const capturedAtIso = payload.captured_at || nowIso();
+    const windowEndIso = new Date(new Date(capturedAtIso).getTime() + NUDGE_CHECK_WINDOW_MINUTES * 60 * 1000).toISOString();
+    const { data: actions, error: actionsError } = await supabaseAdmin
+      .from('agent_actions')
+      .select('id')
+      .eq('agent_id', agentId)
+      .eq('lead_id', leadId)
+      .in('action', ['call_clicked', 'email_clicked', 'status_changed', 'appointment_created', 'appointment_updated', 'lead_opened'])
+      .gte('created_at', capturedAtIso)
+      .lte('created_at', windowEndIso)
+      .limit(1);
+    if (actionsError && !/agent_actions|does not exist|relation/i.test(actionsError.message || '')) {
+      throw actionsError;
+    }
+
+    if (Array.isArray(actions) && actions.length > 0) {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: 'agent_action_detected', updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: 'agent_action_detected' };
+    }
+
+    const targetEmail = await getAgentEmailAddress(agentId);
+    if (!targetEmail) throw new Error('missing_target_email');
+
+    const subject = `Unworked lead — ${payload.full_name || 'Unknown'} (${listingAddress})`;
+    const sourceLabel = payload.source_label || 'Unknown';
+    const leadLink = `${dashboardBase}/dashboard/leads/${leadId}`;
+    await emailService.sendEmail({
+      to: targetEmail,
+      subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+          <p>New lead is still unworked.</p>
+          <p><strong>${payload.full_name || 'Unknown'}</strong> — ${listingAddress}</p>
+          <p>Source: ${sourceLabel}</p>
+          <p><a href="${leadLink}" style="display:inline-block;padding:10px 16px;background:#233074;color:#fff;text-decoration:none;border-radius:8px;">Open lead</a></p>
+        </div>
+      `
+    });
+
+    await updateOutboundAttemptStatus({
+      status: 'sent',
+      providerResponse: { sent_at: nowIso(), target_email: targetEmail }
+    });
+    return { kind, target_email: targetEmail };
+  }
+
+  if (kind === 'appointment_confirmation_nudge') {
+    const appointmentId = payload.appointment_id || null;
+    const agentId = payload.agent_id || null;
+    const { emailEnabled, nudgeSettings } = await resolveNudgeChannelSettings(agentId);
+    if (!emailEnabled || nudgeSettings.appt_confirm_nudge_enabled !== true) {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: 'appt_confirm_nudge_disabled', updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: 'disabled' };
+    }
+
+    const { data: appointment, error: appointmentError } = await supabaseAdmin
+      .from('appointments')
+      .select(APPOINTMENT_SELECT_FIELDS)
+      .eq('id', appointmentId)
+      .maybeSingle();
+    if (appointmentError) throw appointmentError;
+    if (!appointment) {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: 'appointment_not_found', updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: 'appointment_not_found' };
+    }
+
+    const normalizedStatus = normalizeAppointmentStatusValue(appointment.status || '');
+    if (['confirmed', 'canceled', 'completed'].includes(normalizedStatus)) {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: `appointment_${normalizedStatus}`, updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: `appointment_${normalizedStatus}` };
+    }
+
+    const targetEmail = await getAgentEmailAddress(agentId);
+    if (!targetEmail) throw new Error('missing_target_email');
+
+    const startsAt = payload.starts_at || appointment.starts_at || appointment.start_iso;
+    const whenText = formatDateTimeForTimezone(startsAt, payload.timezone || appointment.timezone || DEFAULT_DAILY_DIGEST_TIMEZONE);
+    const listingAddress = payload.listing_address || appointment.property_address || appointment.location || 'Listing';
+    const subject = `Needs confirmation — ${listingAddress} at ${whenText}`;
+    const appointmentLink = `${dashboardBase}/dashboard/appointments`;
+
+    await emailService.sendEmail({
+      to: targetEmail,
+      subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+          <p>Appointment is coming up and still needs confirmation.</p>
+          <p><strong>${listingAddress}</strong><br/>${whenText}</p>
+          <p><a href="${appointmentLink}" style="display:inline-block;padding:10px 16px;background:#233074;color:#fff;text-decoration:none;border-radius:8px;">Open appointment</a></p>
+        </div>
+      `
+    });
+
+    await updateOutboundAttemptStatus({
+      status: 'sent',
+      providerResponse: { sent_at: nowIso(), target_email: targetEmail }
+    });
+    return { kind, target_email: targetEmail };
+  }
+
+  if (kind === 'reschedule_requested_nudge') {
+    const appointmentId = payload.appointment_id || null;
+    const agentId = payload.agent_id || null;
+    const { emailEnabled, nudgeSettings } = await resolveNudgeChannelSettings(agentId);
+    if (!emailEnabled || nudgeSettings.reschedule_nudge_enabled !== true) {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: 'reschedule_nudge_disabled', updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: 'disabled' };
+    }
+
+    const targetEmail = await getAgentEmailAddress(agentId);
+    if (!targetEmail) throw new Error('missing_target_email');
+    const listingAddress = payload.listing_address || 'Listing';
+    const subject = `Reschedule requested — ${listingAddress}`;
+    const appointmentLink = `${dashboardBase}/dashboard/appointments`;
+
+    await emailService.sendEmail({
+      to: targetEmail,
+      subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+          <p>Lead requested to reschedule.</p>
+          <p><strong>${listingAddress}</strong></p>
+          <p><a href="${appointmentLink}" style="display:inline-block;padding:10px 16px;background:#233074;color:#fff;text-decoration:none;border-radius:8px;">Handle reschedule</a></p>
+        </div>
+      `
+    });
+
+    await updateOutboundAttemptStatus({
+      status: 'sent',
+      providerResponse: { sent_at: nowIso(), target_email: targetEmail }
+    });
+    return { kind, target_email: targetEmail };
+  }
+
+  if (kind === 'daily_digest') {
+    const agentId = payload.agent_id || null;
+    const { emailEnabled, nudgeSettings } = await resolveNudgeChannelSettings(agentId);
+    if (!emailEnabled || nudgeSettings.daily_digest_enabled !== true) {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: 'daily_digest_disabled', updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: 'disabled' };
+    }
+
+    const targetEmail = await getAgentEmailAddress(agentId);
+    if (!targetEmail) throw new Error('missing_target_email');
+    const timezone = payload.timezone || nudgeSettings.timezone || DEFAULT_DAILY_DIGEST_TIMEZONE;
+    const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const windowEnd = nowIso();
+
+    const { data: recentLeads, error: leadsError } = await supabaseAdmin
+      .from('leads')
+      .select('id, full_name, name, status, created_at, updated_at')
+      .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+      .eq('status', 'New')
+      .order('created_at', { ascending: false })
+      .limit(25);
+    if (leadsError) throw leadsError;
+
+    const leadIds = (recentLeads || []).map((lead) => lead.id).filter(Boolean);
+    const recentActions = await fetchRecentAgentActionsByLeadIds({
+      agentId,
+      leadIds,
+      sinceIso: windowStart
+    });
+    const unworkedLeads = (recentLeads || []).filter((lead) => !recentActions[lead.id]);
+
+    const { data: appointments, error: appointmentsError } = await supabaseAdmin
+      .from('appointments')
+      .select('id, name, starts_at, start_iso, status, property_address, location')
+      .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+      .gte('starts_at', nowIso())
+      .lte('starts_at', new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString())
+      .order('starts_at', { ascending: true })
+      .limit(25);
+    if (appointmentsError && !/column .*starts_at.* does not exist/i.test(appointmentsError.message || '')) {
+      throw appointmentsError;
+    }
+
+    let appointmentRows = appointments || [];
+    if (appointmentsError && /column .*starts_at.* does not exist/i.test(appointmentsError.message || '')) {
+      const fallbackResult = await supabaseAdmin
+        .from('appointments')
+        .select('id, name, start_iso, status, property_address, location')
+        .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+        .gte('start_iso', nowIso())
+        .lte('start_iso', new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString())
+        .order('start_iso', { ascending: true })
+        .limit(25);
+      if (fallbackResult.error) throw fallbackResult.error;
+      appointmentRows = fallbackResult.data || [];
+    }
+
+    const needsConfirmation = appointmentRows.filter((row) => {
+      const normalized = normalizeAppointmentStatusValue(row.status || '');
+      return normalized !== 'confirmed' && normalized !== 'canceled' && normalized !== 'completed';
+    });
+
+    const { count: rescheduleCountRaw, error: rescheduleCountError } = await supabaseAdmin
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+      .eq('status', 'reschedule_requested');
+    if (rescheduleCountError) throw rescheduleCountError;
+    const rescheduleCount = Number(rescheduleCountRaw || 0);
+
+    const leadCount = unworkedLeads.length;
+    const appointmentCount = needsConfirmation.length;
+    const subject = `Today's pulse — ${leadCount} leads, ${appointmentCount} appointments`;
+
+    const topLeadItems = unworkedLeads.slice(0, 3).map((lead) => `<li>${lead.full_name || lead.name || 'Unknown'}</li>`).join('');
+    const topAppointmentItems = needsConfirmation.slice(0, 3).map((row) => {
+      const startsAt = row.starts_at || row.start_iso;
+      const whenText = formatDateTimeForTimezone(startsAt, timezone);
+      const displayName = row.name || 'Appointment';
+      return `<li>${displayName} — ${whenText}</li>`;
+    }).join('');
+
+    await emailService.sendEmail({
+      to: targetEmail,
+      subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+          <h3>Today's pulse</h3>
+          <p><strong>${leadCount}</strong> new/unworked leads</p>
+          <ul>${topLeadItems || '<li>None</li>'}</ul>
+          <p><strong>${appointmentCount}</strong> appointments needing confirmation</p>
+          <ul>${topAppointmentItems || '<li>None</li>'}</ul>
+          <p><strong>${rescheduleCount}</strong> reschedule requests</p>
+          <p><a href="${dashboardBase}/dashboard/today" style="display:inline-block;padding:10px 16px;background:#233074;color:#fff;text-decoration:none;border-radius:8px;">Open Today</a></p>
+          <p style="font-size:12px;color:#6b7280;">Email alerts are live. SMS is coming soon.</p>
+        </div>
+      `
+    });
+
+    await updateOutboundAttemptStatus({
+      status: 'sent',
+      providerResponse: { sent_at: nowIso(), target_email: targetEmail }
+    });
+    return { kind, target_email: targetEmail };
+  }
 
   if (kind === 'new_lead_alert') {
     const targetAgentId = payload.agent_id;
@@ -4362,15 +5030,26 @@ const processEmailSendJob = async (job) => {
 
   if (kind === 'appointment_update_agent') {
     const targetAgentId = payload.agent_id;
-    const { data: agent } = await supabaseAdmin
-      .from('agents')
-      .select('email')
-      .or(`id.eq.${targetAgentId},auth_user_id.eq.${targetAgentId}`)
-      .maybeSingle();
-    const targetEmail = agent?.email || process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
+    const { emailEnabled, nudgeSettings } = await resolveNudgeChannelSettings(targetAgentId);
+    if (!emailEnabled) {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: 'email_disabled', updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: 'email_disabled' };
+    }
+
+    const targetEmail = await getAgentEmailAddress(targetAgentId);
     if (!targetEmail) throw new Error('missing_target_email');
 
     const normalizedOutcome = normalizeReminderOutcomeValue(payload.outcome || payload.reminder_outcome || 'updated') || 'updated';
+    if (normalizedOutcome === 'reschedule_requested' && nudgeSettings.reschedule_nudge_enabled !== true) {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: 'reschedule_nudge_disabled', updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: 'reschedule_nudge_disabled' };
+    }
     const listingAddress = String(payload.listing_address || payload.location || 'Listing');
     const outcomeLabelMap = {
       confirmed: 'confirmed',
@@ -4397,7 +5076,6 @@ const processEmailSendJob = async (job) => {
     const leadEmail = payload.lead_email || payload.email_lower || payload.email || 'N/A';
     const appointmentTime = payload.appointment_starts_at || payload.starts_at || payload.start_iso || 'Unknown';
     const appointmentLocation = payload.location || 'Not set';
-    const dashboardBase = (process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
     await emailService.sendEmail({
       to: targetEmail,
       subject,
@@ -7300,6 +7978,7 @@ app.get('/api/notifications/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const settings = await getNotificationPreferences(userId);
+    const nudgeSettings = await getAgentNotificationSettings(userId).catch(() => ({ ...DEFAULT_AGENT_NOTIFICATION_SETTINGS }));
     const billingSnapshot = await billingEngine.getBillingSnapshot(userId).catch(() => null);
     const reminderCallLimit = Number(billingSnapshot?.limits?.reminder_calls_per_month || 0);
     const reminderCallsPlanEnabled = reminderCallLimit > 0;
@@ -7312,9 +7991,18 @@ app.get('/api/notifications/settings/:userId', async (req, res) => {
       settings.smsReminders = false;
       settings.sms_enabled = false;
     }
+    settings.dailyDigest = nudgeSettings.daily_digest_enabled === true;
+    settings.daily_digest_enabled = nudgeSettings.daily_digest_enabled === true;
+    settings.unworked_lead_nudge_enabled = nudgeSettings.unworked_lead_nudge_enabled === true;
+    settings.appt_confirm_nudge_enabled = nudgeSettings.appt_confirm_nudge_enabled === true;
+    settings.reschedule_nudge_enabled = nudgeSettings.reschedule_nudge_enabled === true;
+    settings.digest_time_local = nudgeSettings.digest_time_local || DEFAULT_DAILY_DIGEST_TIME_LOCAL;
+    settings.timeZone = nudgeSettings.timezone || settings.timeZone || DEFAULT_DAILY_DIGEST_TIMEZONE;
+
     res.json({
       success: true,
       settings,
+      nudgeSettings,
       smsChannel: SMS_COMING_SOON ? 'coming_soon' : 'active',
       channelFlags: {
         email_enabled: FEATURE_FLAG_EMAIL_ENABLED,
@@ -7336,19 +8024,60 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const updates = req.body || {};
+    const nudgeUpdates = {};
+    if (Object.prototype.hasOwnProperty.call(updates, 'daily_digest_enabled')) {
+      nudgeUpdates.daily_digest_enabled = Boolean(updates.daily_digest_enabled);
+    } else if (Object.prototype.hasOwnProperty.call(updates, 'dailyDigest')) {
+      nudgeUpdates.daily_digest_enabled = Boolean(updates.dailyDigest);
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'unworked_lead_nudge_enabled')) {
+      nudgeUpdates.unworked_lead_nudge_enabled = Boolean(updates.unworked_lead_nudge_enabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'appt_confirm_nudge_enabled')) {
+      nudgeUpdates.appt_confirm_nudge_enabled = Boolean(updates.appt_confirm_nudge_enabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'reschedule_nudge_enabled')) {
+      nudgeUpdates.reschedule_nudge_enabled = Boolean(updates.reschedule_nudge_enabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'digest_time_local')) {
+      nudgeUpdates.digest_time_local = normalizeTimeHm(updates.digest_time_local);
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'timeZone')) {
+      nudgeUpdates.timezone = normalizeTimezoneValue(updates.timeZone);
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'timezone')) {
+      nudgeUpdates.timezone = normalizeTimezoneValue(updates.timezone);
+    }
+
+    const preferenceUpdates = { ...updates };
+    delete preferenceUpdates.daily_digest_enabled;
+    delete preferenceUpdates.unworked_lead_nudge_enabled;
+    delete preferenceUpdates.appt_confirm_nudge_enabled;
+    delete preferenceUpdates.reschedule_nudge_enabled;
+    delete preferenceUpdates.digest_time_local;
+    delete preferenceUpdates.timezone;
+
     const billingSnapshot = await billingEngine.getBillingSnapshot(userId).catch(() => null);
     const reminderCallLimit = Number(billingSnapshot?.limits?.reminder_calls_per_month || 0);
     const reminderCallsPlanEnabled = reminderCallLimit > 0;
-    if (!FEATURE_FLAG_EMAIL_ENABLED) updates.email_enabled = false;
-    if (!FEATURE_FLAG_VOICE_ENABLED) updates.voice_enabled = false;
-    if (!FEATURE_FLAG_SMS_ENABLED) updates.sms_enabled = false;
-    if (!reminderCallsPlanEnabled) updates.voiceAppointmentReminders = false;
-    if (SMS_COMING_SOON) {
-      updates.smsNewLeadAlerts = false;
-      updates.smsReminders = false;
-      updates.sms_enabled = false;
+    if (!FEATURE_FLAG_EMAIL_ENABLED) {
+      preferenceUpdates.email_enabled = false;
+      nudgeUpdates.email_enabled = false;
+    } else if (Object.prototype.hasOwnProperty.call(preferenceUpdates, 'email_enabled')) {
+      nudgeUpdates.email_enabled = Boolean(preferenceUpdates.email_enabled);
     }
-    const settings = await updateNotificationPreferences(userId, updates);
+    if (!FEATURE_FLAG_VOICE_ENABLED) preferenceUpdates.voice_enabled = false;
+    if (!FEATURE_FLAG_SMS_ENABLED) preferenceUpdates.sms_enabled = false;
+    if (!reminderCallsPlanEnabled) preferenceUpdates.voiceAppointmentReminders = false;
+    if (SMS_COMING_SOON) {
+      preferenceUpdates.smsNewLeadAlerts = false;
+      preferenceUpdates.smsReminders = false;
+      preferenceUpdates.sms_enabled = false;
+    }
+    const [settings, nudgeSettings] = await Promise.all([
+      updateNotificationPreferences(userId, preferenceUpdates),
+      updateAgentNotificationSettings(userId, nudgeUpdates)
+    ]);
     settings.email_enabled = FEATURE_FLAG_EMAIL_ENABLED && settings.email_enabled !== false;
     settings.voice_enabled = FEATURE_FLAG_VOICE_ENABLED && settings.voice_enabled !== false;
     settings.sms_enabled = FEATURE_FLAG_SMS_ENABLED && settings.sms_enabled === true;
@@ -7358,9 +8087,17 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
       settings.smsReminders = false;
       settings.sms_enabled = false;
     }
+    settings.dailyDigest = nudgeSettings.daily_digest_enabled === true;
+    settings.daily_digest_enabled = nudgeSettings.daily_digest_enabled === true;
+    settings.unworked_lead_nudge_enabled = nudgeSettings.unworked_lead_nudge_enabled === true;
+    settings.appt_confirm_nudge_enabled = nudgeSettings.appt_confirm_nudge_enabled === true;
+    settings.reschedule_nudge_enabled = nudgeSettings.reschedule_nudge_enabled === true;
+    settings.digest_time_local = nudgeSettings.digest_time_local || DEFAULT_DAILY_DIGEST_TIME_LOCAL;
+    settings.timeZone = nudgeSettings.timezone || settings.timeZone || DEFAULT_DAILY_DIGEST_TIMEZONE;
     res.json({
       success: true,
       settings,
+      nudgeSettings,
       smsChannel: SMS_COMING_SOON ? 'coming_soon' : 'active',
       channelFlags: {
         email_enabled: FEATURE_FLAG_EMAIL_ENABLED,
@@ -11440,6 +12177,18 @@ app.post('/api/leads/capture', async (req, res) => {
       emailLower
     });
 
+    const unworkedNudgeResult = await enqueueUnworkedLeadNudge({
+      leadId,
+      agentId,
+      listingAddress: listing.address || 'Unknown listing',
+      fullName: fullName || null,
+      sourceType: effectiveSourceType,
+      capturedAt: timestamp
+    }).catch((error) => {
+      console.warn('[Nudge] Failed to enqueue unworked lead nudge:', error?.message || error);
+      return { queued: false, reason: 'enqueue_failed' };
+    });
+
     await recordLeadEvent({
       leadId,
       type: 'NOTIFIED_AGENT',
@@ -11447,6 +12196,7 @@ app.post('/api/leads/capture', async (req, res) => {
         context,
         listing_id: listingId,
         notification_attempts: notificationResult.attempts,
+        unworked_lead_nudge: unworkedNudgeResult,
         sms_channel: SMS_COMING_SOON ? 'coming_soon' : 'active'
       }
     });
@@ -11948,6 +12698,7 @@ app.post('/api/dashboard/agent-actions', async (req, res) => {
     const allowedActions = new Set([
       'call_clicked',
       'email_clicked',
+      'lead_opened',
       'status_changed',
       'appointment_created',
       'appointment_updated'
@@ -18260,6 +19011,17 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
       });
     }
 
+    if (normalizeAppointmentStatusValue(data.status || '') === 'reschedule_requested') {
+      await enqueueRescheduleRequestedNudge({
+        appointmentId: data.id,
+        agentId: data.agent_id || data.user_id || null,
+        leadId: data.lead_id || null,
+        listingAddress: data.property_address || data.location || 'Listing'
+      }).catch((nudgeError) => {
+        console.warn('[Nudge] Failed to enqueue reschedule requested nudge:', nudgeError?.message || nudgeError);
+      });
+    }
+
     await emitAppointmentRealtimeEvent({
       appointmentId,
       type: 'appointment.updated'
@@ -20659,10 +21421,79 @@ const checkLeadScores = async () => {
   }
 };
 
+const runDailyDigestSchedulerTick = async () => {
+  if (!FEATURE_FLAG_EMAIL_ENABLED) return;
+
+  let rows = [];
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('agent_notification_settings')
+      .select('agent_id, email_enabled, daily_digest_enabled, digest_time_local, timezone')
+      .eq('email_enabled', true)
+      .eq('daily_digest_enabled', true);
+
+    if (error) {
+      if (/agent_notification_settings|does not exist|relation/i.test(error.message || '')) return;
+      throw error;
+    }
+    rows = data || [];
+  } catch (error) {
+    console.warn('[Digest] Failed to load digest settings:', error?.message || error);
+    return;
+  }
+
+  if (!rows.length) return;
+
+  const now = new Date();
+  for (const row of rows) {
+    const timeHm = normalizeTimeHm(row.digest_time_local, DEFAULT_DAILY_DIGEST_TIME_LOCAL);
+    const timezone = normalizeTimezoneValue(row.timezone, DEFAULT_DAILY_DIGEST_TIMEZONE);
+    const localParts = getTimeZoneParts(now, timezone);
+    if (localParts.timeHm !== timeHm) continue;
+
+    const idempotencyKey = `email:daily_digest:${row.agent_id}:${localParts.dateKey}`;
+    const payload = {
+      kind: 'daily_digest',
+      agent_id: row.agent_id,
+      timezone,
+      digest_date: localParts.dateKey
+    };
+
+    try {
+      const enqueueResult = await enqueueJob({
+        type: 'email_send',
+        payload,
+        idempotencyKey,
+        priority: 4,
+        runAt: nowIso(),
+        maxAttempts: 3
+      });
+
+      if (enqueueResult?.created) {
+        await recordOutboundAttempt({
+          agentId: row.agent_id,
+          leadId: null,
+          appointmentId: null,
+          channel: 'email',
+          provider: 'mailgun',
+          status: 'queued',
+          idempotencyKey,
+          payload
+        });
+      }
+    } catch (error) {
+      console.warn('[Digest] Failed to enqueue daily digest:', error?.message || error);
+    }
+  }
+};
+
 // Start Scheduler (Every 60 seconds)
 setInterval(() => {
   checkTrialWarnings();
   checkExpiredTrials();
+  runDailyDigestSchedulerTick().catch((error) => {
+    console.warn('[Digest] Scheduler tick failed:', error?.message || error);
+  });
   // checkLeadScores(); // DISABLED: Using V2 Event-Driven Scoring (LeadScoringService)
   funnelService.processBatch().catch((err) => console.error('Funnel Engine Loop Error:', err));
 }, 60 * 1000);

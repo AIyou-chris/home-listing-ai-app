@@ -509,7 +509,7 @@ export const fetchCommandCenterSnapshot = async (agentIdOverride?: string | null
 };
 
 export const logDashboardAgentAction = async (
-  payload: { lead_id: string; action: 'call_clicked' | 'email_clicked' | 'status_changed' | 'appointment_created' | 'appointment_updated'; metadata?: Record<string, unknown> },
+  payload: { lead_id: string; action: 'call_clicked' | 'email_clicked' | 'lead_opened' | 'status_changed' | 'appointment_created' | 'appointment_updated'; metadata?: Record<string, unknown> },
   agentIdOverride?: string | null
 ) => {
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;

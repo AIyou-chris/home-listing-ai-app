@@ -165,7 +165,7 @@ const AppointmentsCommandPage: React.FC = () => {
 
   const logAction = async (
     leadId: string | null | undefined,
-    action: 'call_clicked' | 'email_clicked' | 'status_changed' | 'appointment_created' | 'appointment_updated',
+    action: 'call_clicked' | 'email_clicked' | 'lead_opened' | 'status_changed' | 'appointment_created' | 'appointment_updated',
     metadata?: Record<string, unknown>
   ) => {
     if (!leadId) return

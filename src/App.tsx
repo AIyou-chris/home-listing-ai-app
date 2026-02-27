@@ -1510,12 +1510,10 @@ const App: React.FC = () => {
                     {/* Protected Routes (Wrapped in Layout) */}
                     <Route element={<ProtectedLayout />}>
                         <Route path="/dashboard" element={
-                            isAdmin ? <Navigate to="/admin-dashboard" replace /> :
-                                <DashboardRouteGate />
+                            <DashboardRouteGate />
                         } />
                         <Route path="/daily-pulse" element={
-                            isAdmin ? <Navigate to="/admin-dashboard" replace /> :
-                                (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard preloadedProperties={properties} />)
+                            (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard preloadedProperties={properties} />)
                         } />
                         <Route path="/dashboard/:slug" element={<AgentDashboard preloadedProperties={properties} />} />
 
