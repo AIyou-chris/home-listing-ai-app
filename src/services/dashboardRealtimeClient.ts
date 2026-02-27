@@ -40,8 +40,8 @@ const getEventIdentityKey = (event: DashboardRealtimeEventEnvelope) => {
   return `${event.type}:${entityId || 'none'}:${event.ts}`
 }
 
-const showToast = (title: string, body: string) => {
-  toast(`${title}\n${body}`, { duration: 4000 })
+const showToast = (title: string, body?: string) => {
+  toast(body ? `${title}\n${body}` : title, { duration: 4000 })
 }
 
 const refreshCommandCenterSnapshot = async () => {
@@ -80,7 +80,7 @@ const scheduleCommandCenterRefresh = () => {
 
 const handleRealtimeToast = (event: DashboardRealtimeEventEnvelope) => {
   if (event.type === 'lead.created') {
-    showToast('New lead captured', 'Tap to open and follow up.')
+    showToast('New lead captured')
     return
   }
 

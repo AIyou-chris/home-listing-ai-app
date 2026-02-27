@@ -347,6 +347,7 @@ const OnboardingCommandPage: React.FC = () => {
       });
       setState(updated);
       showToast.success('Nice — you’re live.');
+      navigate('/dashboard/today');
     } catch (error) {
       showToast.error(error instanceof Error ? error.message : 'Failed to complete onboarding.');
     } finally {
@@ -481,13 +482,13 @@ const OnboardingCommandPage: React.FC = () => {
           <p className="mt-2 text-xs font-medium text-slate-500">Why this matters: one link can now be used on signs, flyers, open houses, and social.</p>
           <div className="mt-4 flex flex-wrap gap-3">
             <button type="button" onClick={() => void handlePublishListing()} disabled={saving || !listingId} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-              Publish Listing
+              Publish listing
             </button>
             <button type="button" onClick={() => void handleCopyShareLink()} disabled={saving || !shareKit?.share_url} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">
-              Copy Link
+              Copy link
             </button>
             <button type="button" onClick={() => downloadDataUrl('listing-sign-qr.png', shareKit?.qr_code_url)} disabled={!shareKit?.qr_code_url} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">
-              Download Sign QR
+              Download QR
             </button>
           </div>
 
@@ -539,7 +540,7 @@ const OnboardingCommandPage: React.FC = () => {
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <button type="button" onClick={() => void handleSendTestLead()} disabled={saving || (!testLeadForm.email && !testLeadForm.phone)} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-              Send a test lead
+              Send test lead
             </button>
             <button type="button" onClick={() => navigate('/dashboard/leads')} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
               View Lead in Inbox

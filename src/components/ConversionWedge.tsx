@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface ConversionWedgeProps {
     onNavigateToSignUp: () => void;
@@ -6,6 +6,64 @@ interface ConversionWedgeProps {
 }
 
 export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [step, setStep] = useState<1 | 2 | 'success'>(1);
+    const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
+    const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+    const [isTyping, setIsTyping] = useState(false);
+
+    // Form State
+    const [formName, setFormName] = useState('');
+    const [formContact, setFormContact] = useState('');
+
+    // Reset modal when opened
+    useEffect(() => {
+        if (isModalOpen) {
+            setStep(1);
+            setSelectedQuestion(null);
+            setAiAnswer(null);
+            setIsTyping(false);
+            setFormName('');
+            setFormContact('');
+        }
+    }, [isModalOpen]);
+
+    const handleQuestionClick = (question: string) => {
+        setSelectedQuestion(question);
+        setIsTyping(true);
+        setAiAnswer(null);
+
+        // Simulate AI thinking
+        setTimeout(() => {
+            setIsTyping(false);
+            if (question === 'Is it still available?') {
+                setAiAnswer('Yes — as of right now it’s still available. Want the 1-page market report and the best showing windows?');
+            } else if (question === 'Can I see it this weekend?') {
+                setAiAnswer('Yes. I can request a showing window for you. Want the 1-page report too so you have pricing context before you go?');
+            } else if (question === 'Any HOA or monthly cost?') {
+                setAiAnswer('Good question. HOA and monthly costs can vary by property. Want the 1-page report and I’ll send the details and showing options?');
+            }
+
+            // Advance to step 2 after answer
+            setTimeout(() => {
+                setStep(2);
+            }, 1000);
+        }, 1200);
+    };
+
+    const handleFormSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        setStep('success');
+    };
+
+    const handleScrollTo = (id: string) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
     return (
         <section id="how-it-works" className="relative py-24 lg:py-32 bg-slate-950 overflow-hidden border-t border-slate-900">
             {/* Background Gradients & Glows */}
@@ -135,6 +193,28 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
 
                 </div>
 
+                {/* Try It Live ACTION ROW */}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 max-w-2xl mx-auto">
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="w-full sm:w-auto px-6 py-3.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)] transform hover:-translate-y-0.5"
+                    >
+                        Try it live (10 seconds)
+                    </button>
+                    <a
+                        href="#report-demo-section"
+                        className="w-full sm:w-auto px-6 py-3.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white font-semibold rounded-xl text-center transition-colors"
+                    >
+                        View sample report
+                    </a>
+                    <a
+                        href="#live-listing-demo-section"
+                        className="w-full sm:w-auto px-6 py-3.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white font-semibold rounded-xl text-center transition-colors"
+                    >
+                        See a live example
+                    </a>
+                </div>
+
                 {/* 3) Three Outcome Cards Underneath */}
                 <div className="grid md:grid-cols-3 gap-6 mb-16">
                     {/* Capture Card */}
@@ -226,6 +306,143 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                 </div>
 
             </div>
+
+            {/* Modal Overlay */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Modal Header */}
+                        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-900 leading-tight">Try it live</h3>
+                                <p className="text-sm font-medium text-slate-500 mt-1">Ask a common buyer question. Watch what happens next.</p>
+                            </div>
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">close</span>
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 bg-slate-50 overflow-y-auto">
+                            {/* Step 1 & AI Response */}
+                            {step !== 'success' && (
+                                <div className="space-y-4">
+                                    <div className="flex flex-col gap-2">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Pick a question</p>
+                                        <button
+                                            onClick={() => handleQuestionClick('Is it still available?')}
+                                            disabled={!!selectedQuestion}
+                                            className={`text-left px-4 py-3 rounded-xl border font-bold transition-all ${selectedQuestion === 'Is it still available?' ? 'bg-cyan-50 border-cyan-500 text-cyan-800' : 'bg-white border-slate-200 text-slate-700 hover:border-cyan-300 hover:bg-slate-50'}`}
+                                        >
+                                            1) Is it still available?
+                                        </button>
+                                        <button
+                                            onClick={() => handleQuestionClick('Can I see it this weekend?')}
+                                            disabled={!!selectedQuestion}
+                                            className={`text-left px-4 py-3 rounded-xl border font-bold transition-all ${selectedQuestion === 'Can I see it this weekend?' ? 'bg-cyan-50 border-cyan-500 text-cyan-800' : 'bg-white border-slate-200 text-slate-700 hover:border-cyan-300 hover:bg-slate-50'}`}
+                                        >
+                                            2) Can I see it this weekend?
+                                        </button>
+                                        <button
+                                            onClick={() => handleQuestionClick('Any HOA or monthly cost?')}
+                                            disabled={!!selectedQuestion}
+                                            className={`text-left px-4 py-3 rounded-xl border font-bold transition-all ${selectedQuestion === 'Any HOA or monthly cost?' ? 'bg-cyan-50 border-cyan-500 text-cyan-800' : 'bg-white border-slate-200 text-slate-700 hover:border-cyan-300 hover:bg-slate-50'}`}
+                                        >
+                                            3) Any HOA or monthly cost?
+                                        </button>
+                                    </div>
+
+                                    {/* AI Answer Bubble */}
+                                    {isTyping && (
+                                        <div className="mt-6 flex items-center gap-2 text-slate-500 bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 max-w-[85%] animate-in fade-in zoom-in-95">
+                                            <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                            <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                            <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                        </div>
+                                    )}
+
+                                    {aiAnswer && (
+                                        <div className="mt-6 text-[15px] font-medium text-slate-800 leading-relaxed bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                                            {aiAnswer}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Step 2 Form */}
+                            {step === 2 && (
+                                <div className="mt-8 pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <h4 className="font-bold text-slate-900 text-lg mb-4">Want the 1-page report?</h4>
+                                    <form onSubmit={handleFormSubmit} className="space-y-3">
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder="Name"
+                                            value={formName}
+                                            onChange={(e) => setFormName(e.target.value)}
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white font-medium text-slate-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder:text-slate-400"
+                                        />
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder="Email or Phone"
+                                            value={formContact}
+                                            onChange={(e) => setFormContact(e.target.value)}
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white font-medium text-slate-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder:text-slate-400"
+                                        />
+                                        <p className="text-[11px] text-slate-500 font-medium px-1">Email alerts are live. SMS is coming soon.</p>
+
+                                        <div className="pt-2 flex flex-col gap-3">
+                                            <button
+                                                type="submit"
+                                                className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-transform active:scale-[0.98]"
+                                            >
+                                                Get the report
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsModalOpen(false)}
+                                                className="w-full py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+                                            >
+                                                Not now
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            )}
+
+                            {/* Success State */}
+                            {step === 'success' && (
+                                <div className="py-8 text-center animate-in zoom-in-95 duration-300">
+                                    <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+                                        <span className="material-symbols-outlined text-3xl">check_circle</span>
+                                    </div>
+                                    <h4 className="text-xl font-bold text-slate-900 mb-2">Done — report link sent.</h4>
+                                    <p className="text-slate-600 font-medium mb-8">Want to see a live example?</p>
+
+                                    <div className="flex flex-col gap-3">
+                                        <button
+                                            onClick={() => { setIsModalOpen(false); handleScrollTo('live-listing-demo-section'); }}
+                                            className="w-full py-3.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl transition-all shadow-md hover:-translate-y-0.5"
+                                        >
+                                            See a live example
+                                        </button>
+                                        <button
+                                            onClick={() => { setIsModalOpen(false); onNavigateToSignUp(); }}
+                                            className="w-full py-3.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl transition-all"
+                                        >
+                                            Start free trial
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </section>
     );
 };

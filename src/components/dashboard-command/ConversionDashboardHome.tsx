@@ -318,6 +318,13 @@ const ConversionDashboardHome: React.FC = () => {
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                 <p className="font-semibold text-slate-900">All caught up.</p>
                 <p className="mt-1">New leads will show up here automatically.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard/onboarding?step=4')}
+                  className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                >
+                  Send test lead
+                </button>
               </div>
             )}
 
@@ -365,7 +372,15 @@ const ConversionDashboardHome: React.FC = () => {
           <div className="mt-3 space-y-3">
             {queues.appointments_coming_up.length === 0 && (
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                Nothing scheduled in the next 24 hours.
+                <p className="font-semibold text-slate-900">Nothing scheduled in the next 24 hours.</p>
+                <p className="mt-1">Next action: open a lead and set an appointment.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard/leads')}
+                  className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                >
+                  Open Leads
+                </button>
               </div>
             )}
 
@@ -404,7 +419,15 @@ const ConversionDashboardHome: React.FC = () => {
           <div className="mt-3 space-y-3">
             {queues.needs_attention.length === 0 && (
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                Nothing urgent right now.
+                <p className="font-semibold text-slate-900">Nothing urgent right now.</p>
+                <p className="mt-1">Next action: review upcoming appointments.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard/appointments')}
+                  className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                >
+                  Open Appointments
+                </button>
               </div>
             )}
 

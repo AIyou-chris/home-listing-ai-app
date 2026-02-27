@@ -1,8 +1,8 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import { supabase } from './services/supabase';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, FollowUpSequence, LeadFunnelType } from './types';
-import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS, DEMO_SEQUENCES } from './demoConstants';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, LeadFunnelType } from './types';
+import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
 import {
     BLUEPRINT_AGENT,
@@ -30,6 +30,7 @@ const ListingsPage = lazy(() => import('./components/ListingsPage'));
 const AddListingPage = lazy(() => import('./components/AddListingPage'));
 const ListingStudioV2Page = lazy(() => import('./components/listings/ListingStudioV2Page'));
 const ConversionDashboardHome = lazy(() => import('./components/dashboard-command/ConversionDashboardHome'));
+const TodayDashboardPage = lazy(() => import('./components/dashboard-command/TodayDashboardPage'));
 const LeadsInboxCommandPage = lazy(() => import('./components/dashboard-command/LeadsInboxCommandPage'));
 const LeadDetailCommandPage = lazy(() => import('./components/dashboard-command/LeadDetailCommandPage'));
 const AppointmentsCommandPage = lazy(() => import('./components/dashboard-command/AppointmentsCommandPage'));
@@ -102,7 +103,7 @@ import { fetchOnboardingState } from './services/onboardingService';
 // SessionService removed
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
-import SequenceExecutionService, { SequenceTriggerType } from './services/sequenceExecutionService';
+import { SequenceTriggerType } from './services/sequenceExecutionService';
 import { leadsService, LeadPayload } from './services/leadsService';
 
 
@@ -288,7 +289,6 @@ const App: React.FC = () => {
     const [interactions, setInteractions] = useState<Interaction[]>([]);
 
 
-    const [sequences, setSequences] = useState<FollowUpSequence[]>([]);
 
     const resolvePropertyForLead = useCallback(
         (targetLead?: Lead | null): Property | undefined => {
@@ -560,7 +560,7 @@ const App: React.FC = () => {
                 // Add a small timeout race for the network check too, just in case
                 const { data: { session }, error: sessionError } = await Promise.race([
                     sessionPromise,
-                    new Promise<{ data: { session: any }, error: any }>((resolve) => setTimeout(() => resolve({ data: { session: null }, error: null }), 3000))
+                    new Promise<{ data: { session: null }, error: null }>((resolve) => setTimeout(() => resolve({ data: { session: null }, error: null }), 3000))
                 ]);
 
                 console.log('🔍 Network Session check complete. User:', session?.user?.email);
@@ -855,7 +855,6 @@ const App: React.FC = () => {
         setAppointments(DEMO_FAT_APPOINTMENTS);
         setInteractions(SAMPLE_INTERACTIONS);
 
-        setSequences(DEMO_SEQUENCES);
         setUserProfile(SAMPLE_AGENT);
         navigate('/demo-dashboard');
     };
@@ -870,7 +869,6 @@ const App: React.FC = () => {
         setLeads([]);
         setAppointments([]);
         setInteractions([]);
-        setSequences([]);
 
         // Keep the Blueprint Agent profile for context/sidebar branding
         setUserProfile(BLUEPRINT_AGENT);
@@ -1018,7 +1016,6 @@ const App: React.FC = () => {
 
     const handleDeleteProperty = (id: string) => {
         if (window.confirm('Are you sure you want to delete this listing?')) {
-            const removedProperty = properties.find(p => p.id === id);
             setProperties(prev => prev.filter(p => p.id !== id));
             if (selectedPropertyId === id) {
                 setSelectedPropertyId(null);
@@ -1032,7 +1029,7 @@ const App: React.FC = () => {
         async (
             lead: Lead,
             triggerType: SequenceTriggerType = 'Lead Capture',
-            propertyOverride?: Property
+            _propertyOverride?: Property
         ) => {
             try {
                 // [MIGRATION] Client-side execution disabled. Architecture moved to Server (funnelExecutionService.js)
@@ -1043,7 +1040,7 @@ const App: React.FC = () => {
                 console.error('❌ Error triggering sequences:', error);
             }
         },
-        [resolvePropertyForLead, sequences, userProfile]
+        []
     );
 
     const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
@@ -1148,16 +1145,7 @@ const App: React.FC = () => {
                     }
 
                     if (triggerType) {
-                        const sequenceContext = {
-                            lead: updatedLead,
-                            agent: userProfile
-                        };
                         // [MIGRATION] Client-side execution disabled.
-                        // await SequenceExecutionService.getInstance().triggerSequences(
-                        //     triggerType,
-                        //     sequenceContext,
-                        //     sequences
-                        // );
                         console.log('✅ [Backend] Lead status change automation handled by server');
                     }
                 } catch (automationError) {
@@ -1171,7 +1159,7 @@ const App: React.FC = () => {
             console.error('Failed to update lead:', error);
             // Revert state if needed - relying on next fetch for now or we could snapshot prev state
         }
-    }, [leads, userProfile, sequences]);
+    }, [leads]);
 
     const handleDeleteLead = useCallback(async (leadId: string) => {
         if (window.confirm('Are you sure you want to delete this lead?')) {
@@ -1299,7 +1287,7 @@ const App: React.FC = () => {
     };
 
     const DashboardRouteGate = () => {
-        const [routeTarget, setRouteTarget] = useState<'loading' | 'home' | 'onboarding'>('loading');
+        const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding'>('loading');
 
         useEffect(() => {
             let cancelled = false;
@@ -1307,10 +1295,10 @@ const App: React.FC = () => {
                 try {
                     const onboarding = await fetchOnboardingState();
                     if (cancelled) return;
-                    setRouteTarget(onboarding.onboarding_completed ? 'home' : 'onboarding');
+                    setRouteTarget(onboarding.onboarding_completed ? 'today' : 'onboarding');
                 } catch (_error) {
                     if (cancelled) return;
-                    setRouteTarget('home');
+                    setRouteTarget('today');
                 }
             };
 
@@ -1332,7 +1320,7 @@ const App: React.FC = () => {
             return <Navigate to="/dashboard/onboarding" replace />;
         }
 
-        return <ConversionDashboardHome />;
+        return <Navigate to="/dashboard/today" replace />;
     };
 
     const ProtectedLayout = () => (
@@ -1531,6 +1519,7 @@ const App: React.FC = () => {
                         } />
                         <Route path="/dashboard/:slug" element={<AgentDashboard preloadedProperties={properties} />} />
 
+                        <Route path="/dashboard/today" element={<TodayDashboardPage />} />
                         <Route path="/dashboard/command-center" element={<ConversionDashboardHome />} />
                         <Route path="/dashboard/leads" element={<LeadsInboxCommandPage />} />
                         <Route path="/dashboard/leads/:leadId" element={<LeadDetailCommandPage />} />

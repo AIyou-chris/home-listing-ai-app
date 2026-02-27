@@ -37,42 +37,21 @@ const NavItem: React.FC<{
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, isBlueprintMode = false }) => {
-  const [isAiToolsOpen, setIsAiToolsOpen] = React.useState(false);
-
   // BASE PATH LOGIC FOR BLUEPRINT AND DEMO
   const basePath = isBlueprintMode ? '/agent-blueprint-dashboard' : (isDemoMode ? '/demo-dashboard' : '');
 
   const getPath = (path: string) => `${basePath}${path}`;
-  const commandCenterPath = isDemoMode || isBlueprintMode ? getPath('/daily-pulse') : '/dashboard';
+  const commandCenterPath = isDemoMode || isBlueprintMode ? getPath('/daily-pulse') : '/dashboard/command-center';
+  const listingsPath = isDemoMode || isBlueprintMode ? getPath('/listings') : '/listings';
   const leadsPath = isDemoMode || isBlueprintMode ? getPath('/leads') : '/dashboard/leads';
   const appointmentsPath = isDemoMode || isBlueprintMode ? getPath('/leads') : '/dashboard/appointments';
-  const billingPath = isDemoMode || isBlueprintMode ? getPath('/settings') : '/dashboard/billing';
-  const onboardingPath = isDemoMode || isBlueprintMode ? getPath('/daily-pulse') : '/dashboard/onboarding';
+  const settingsPath = isDemoMode || isBlueprintMode ? getPath('/settings') : '/settings';
 
   const primaryItems = [
-    { to: commandCenterPath, icon: 'home', label: 'My Daily Pulse' },
-    { to: leadsPath, icon: 'groups', label: 'Leads & Appointments' },
-    ...(!(isDemoMode || isBlueprintMode)
-      ? [{ to: appointmentsPath, icon: 'event_available', label: 'Appointments' }]
-      : [])
-    ,
-    ...(!(isDemoMode || isBlueprintMode)
-      ? [{ to: billingPath, icon: 'credit_card', label: 'Billing' }]
-      : []),
-    ...(!(isDemoMode || isBlueprintMode)
-      ? [{ to: onboardingPath, icon: 'checklist', label: 'Launch Checklist' }]
-      : [])
-  ];
-
-  const aiToolsItems = [
-    { to: getPath('/ai-card'), icon: 'badge', label: 'AI Business Card' },
-    { to: getPath('/ai-agent'), icon: 'smart_toy', label: 'AI Agent' },
-    { to: getPath('/listings'), icon: 'storefront', label: 'AI Listings' },
-    { to: getPath('/listings-v2'), icon: 'auto_awesome', label: 'Listings Studio V2' },
-  ];
-
-  const communicationItems = [
-    { to: getPath('/inbox'), icon: 'bolt', label: 'AI Communication' },
+    { to: commandCenterPath, icon: 'space_dashboard', label: 'Command Center' },
+    { to: listingsPath, icon: 'storefront', label: 'Listings' },
+    { to: leadsPath, icon: 'groups', label: 'Leads' },
+    { to: appointmentsPath, icon: 'event_available', label: 'Appointments' }
   ];
 
   const handleLogoClick = () => {
@@ -118,7 +97,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
         <nav className="flex-1 flex flex-col gap-4">
           {/* Primary Section */}
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm flex flex-col">
-            {/* Top Items */}
             {primaryItems.map((item) => (
               <NavItem
                 key={item.to}
@@ -130,89 +108,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
               </NavItem>
             ))}
 
-            {/* AI Tools Expandable Section */}
-            <div className="border-t border-slate-100">
-              <button
-                onClick={() => setIsAiToolsOpen(!isAiToolsOpen)}
-                className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <Icon name="construction" className="text-slate-400" />
-                  <span>AI Tools</span>
-                </div>
-                <Icon name={isAiToolsOpen ? 'expand_less' : 'expand_more'} className="text-slate-400" />
-              </button>
+          </div>
 
-              {isAiToolsOpen && (
-                <div className="divide-y divide-slate-100 bg-slate-50/50">
-                  {aiToolsItems.map((item) => (
-                    <NavItem
-                      key={item.to}
-                      to={item.to}
-                      icon={item.icon}
-                      onClose={onClose}
-                    >
-                      {item.label}
-                    </NavItem>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* AI Funnels (Top Level) */}
-            <div className="border-t border-slate-100">
+          {!isDemoMode && (
+            <div className="mt-auto px-2 pb-6 border-t border-slate-100 pt-4">
               <NavItem
-                to={getPath("/funnel-analytics")}
-                icon="monitoring"
-                onClose={onClose}
-              >
-                AI Funnels
-              </NavItem>
-            </div>
-
-            {/* Marketing Hub */}
-            <div className="border-t border-slate-100">
-              <NavItem
-                to={getPath("/marketing")}
-                icon="campaign"
-                onClose={onClose}
-              >
-                Marketing Hub
-              </NavItem>
-            </div>
-
-            {/* AI Communication */}
-            <div className="border-t border-slate-100">
-              {communicationItems.map((item) => (
-                <NavItem
-                  key={item.to}
-                  to={item.to}
-                  icon={item.icon}
-                  onClose={onClose}
-                >
-                  {item.label}
-                </NavItem>
-              ))}
-            </div>
-
-            {/* Settings (Formerly Systems) */}
-            <div className="border-t border-slate-100">
-              <NavItem
-                to={getPath("/settings")}
+                to={settingsPath}
                 icon="settings"
                 onClose={onClose}
               >
                 Settings
               </NavItem>
-            </div>
-          </div>
-
-          {!isDemoMode && (
-            <div className="mt-auto px-2 pb-6 border-t border-slate-100 pt-4">
-              {/* UPGRADE BUTTON */}
-
-
-
 
               <button
                 onClick={() => adminAuthService.logout()}
