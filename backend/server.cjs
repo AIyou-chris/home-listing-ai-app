@@ -71,6 +71,11 @@ const DEFAULT_DAILY_DIGEST_TIME_LOCAL = process.env.DEFAULT_DAILY_DIGEST_TIME_LO
 const DEFAULT_DAILY_DIGEST_TIMEZONE = process.env.DEFAULT_DAILY_DIGEST_TIMEZONE || 'America/Los_Angeles';
 const NUDGE_CHECK_WINDOW_MINUTES = 10;
 const APPOINTMENT_CONFIRM_NUDGE_OFFSETS_MINUTES = [24 * 60, 2 * 60];
+const PUBLIC_CHAT_MAX_PER_MINUTE = Number(process.env.PUBLIC_CHAT_MAX_PER_MINUTE || 10);
+const PUBLIC_CHAT_MAX_PER_HOUR = Number(process.env.PUBLIC_CHAT_MAX_PER_HOUR || 60);
+const PUBLIC_CHAT_HISTORY_LIMIT = Number(process.env.PUBLIC_CHAT_HISTORY_LIMIT || 20);
+const PUBLIC_CHAT_SUMMARY_BUCKET_SIZE = Number(process.env.PUBLIC_CHAT_SUMMARY_BUCKET_SIZE || 3);
+const OPENAI_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o';
 
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -221,6 +226,32 @@ const checkRateLimit = (userId) => {
   recent.push(now);
   rateLimits.set(userId, recent);
   return true;
+};
+
+const publicChatRateLimits = new Map();
+const checkPublicChatRateLimit = (visitorId) => {
+  if (!visitorId) return { allowed: false, reason: 'visitor_id_required' };
+
+  const now = Date.now();
+  const oneMinuteAgo = now - 60 * 1000;
+  const oneHourAgo = now - 60 * 60 * 1000;
+  const bucket = publicChatRateLimits.get(visitorId) || [];
+  const recent = bucket.filter((ts) => ts > oneHourAgo);
+  const minuteCount = recent.filter((ts) => ts > oneMinuteAgo).length;
+  const hourCount = recent.length;
+
+  if (minuteCount >= PUBLIC_CHAT_MAX_PER_MINUTE || hourCount >= PUBLIC_CHAT_MAX_PER_HOUR) {
+    publicChatRateLimits.set(visitorId, recent);
+    return {
+      allowed: false,
+      reason: 'rate_limited',
+      retry_after_seconds: minuteCount >= PUBLIC_CHAT_MAX_PER_MINUTE ? 60 : 300
+    };
+  }
+
+  recent.push(now);
+  publicChatRateLimits.set(visitorId, recent);
+  return { allowed: true };
 };
 const port = process.env.PORT || 3002;
 
@@ -2786,22 +2817,60 @@ const resolveRequesterUserId = async (req, { allowDefault = false } = {}) => {
   return allowDefault ? String(DEFAULT_LEAD_USER_ID || '') : null;
 };
 
-const buildLimitReachedPayload = (entitlement, feature) => ({
-  error: 'limit_reached',
-  feature,
-  plan_id: entitlement?.plan_id || 'free',
-  plan_name: entitlement?.plan_name || 'Free',
-  limit: Number(entitlement?.limit || 0),
-  used: Number(entitlement?.used || 0),
-  projected: Number(entitlement?.projected || 0),
-  upgrade_required: true,
-  modal: {
-    title: "You're at your limit.",
-    body: 'Upgrade to keep capturing leads and sending reports without interruptions.',
-    primary: 'Upgrade now',
-    secondary: 'Not now'
+const limitReasonByFeature = (feature, limit) => {
+  const safeLimit = Number(limit || 0);
+  if (feature === 'active_listings') {
+    return `Your plan allows ${safeLimit} active listings.`;
   }
-});
+  if (feature === 'reports_per_month') {
+    return `Your plan includes ${safeLimit} reports per month.`;
+  }
+  if (feature === 'reminder_calls_per_month') {
+    return 'Reminder calls are included in Pro.';
+  }
+  if (feature === 'stored_leads_cap') {
+    return `Your plan stores up to ${safeLimit} leads.`;
+  }
+  return 'This action is blocked by your current plan limit.';
+};
+
+const resolveUpgradeTargetPlanId = (planId, feature) => {
+  const normalizedPlanId = String(planId || 'free').toLowerCase();
+  if (feature === 'reminder_calls_per_month' && normalizedPlanId !== 'pro') return 'pro';
+  if (normalizedPlanId === 'free') return 'starter';
+  if (normalizedPlanId === 'starter') return 'pro';
+  if (normalizedPlanId === 'pro' && feature === 'reminder_calls_per_month') return 'pro';
+  return null;
+};
+
+const buildLimitReachedPayload = (entitlement, feature) => {
+  const planId = String(entitlement?.plan_id || 'free');
+  const limit = Number(entitlement?.limit || 0);
+  const used = Number(entitlement?.used || 0);
+  const projected = Number(entitlement?.projected || 0);
+  const reasonLine = limitReasonByFeature(feature, limit);
+  const upgradePlanId = resolveUpgradeTargetPlanId(planId, feature);
+
+  return {
+    error: 'limit_reached',
+    feature,
+    plan_id: planId,
+    plan_name: entitlement?.plan_name || 'Free',
+    limit,
+    used,
+    projected,
+    upgrade_required: true,
+    reason_line: reasonLine,
+    upgrade_plan_id: upgradePlanId,
+    modal: {
+      title: "You're at your limit.",
+      body: 'Upgrade to keep capturing leads and sending reports without interruptions.',
+      reason_line: reasonLine,
+      primary: 'Upgrade now',
+      secondary: 'Not now'
+    }
+  };
+};
 
 const DEFAULT_ONBOARDING_CHECKLIST = Object.freeze({
   brand_profile: false,
@@ -3270,6 +3339,213 @@ const mapPublicListingPayload = async (listingRow) => {
   };
 };
 
+const PUBLIC_CHAT_SUGGESTED_QUESTIONS = [
+  'Is it still available?',
+  'Can I see it this weekend?',
+  'Any HOA or monthly cost?'
+];
+
+const PUBLIC_CHAT_CAPTURE_PROMPT = "Want the 1-page report + showing options? What's the best email or phone?";
+
+const normalizeWordLimitedText = (value, maxWords = 60) => {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  const words = text.split(' ');
+  if (words.length <= maxWords) return text;
+  return `${words.slice(0, maxWords).join(' ')}...`;
+};
+
+const detectPublicChatIntent = ({ text, priorVisitorTurns = 0 }) => {
+  const normalized = String(text || '').toLowerCase();
+  const tags = new Set();
+
+  if (/(showing|tour|see it|visit|walk through|weekend|availability|available)/i.test(normalized)) {
+    tags.add('showing');
+  }
+  if (/(offer|negotiat|price flex|price lower|comps|comp\b|best price|closing cost)/i.test(normalized)) {
+    tags.add('offer');
+    tags.add('price');
+  }
+  if (/(hoa|tax|disclosure|repair|roof|hvac|inspection|monthly cost|monthly fee)/i.test(normalized)) {
+    tags.add('disclosures');
+  }
+  if (/(preapproved|pre-approved|cash|loan|mortgage|financing)/i.test(normalized)) {
+    tags.add('financing');
+  }
+  if (/(move|timeline|when|asap|30 days|month)/i.test(normalized)) {
+    tags.add('timeline');
+  }
+  if (/(school|district)/i.test(normalized)) {
+    tags.add('schools');
+  }
+  if (priorVisitorTurns >= 2) {
+    tags.add('follow_up');
+  }
+
+  const shouldCapture =
+    tags.has('showing') ||
+    tags.has('offer') ||
+    tags.has('price') ||
+    tags.has('disclosures') ||
+    tags.has('financing') ||
+    tags.has('timeline') ||
+    tags.has('follow_up');
+
+  return {
+    tags: Array.from(tags),
+    shouldCapture
+  };
+};
+
+const inferTimelineFromMessages = (messages) => {
+  const joined = (messages || []).map((row) => row?.content || '').join(' ').toLowerCase();
+  if (!joined) return 'unknown';
+  if (/(asap|this week|next week|immediately|30 days|0-30)/.test(joined)) return '0-30';
+  if (/(1-3|one to three|few months|2 months|3 months)/.test(joined)) return '1-3mo';
+  if (/(6 months|later this year|not urgent|3\+|next year)/.test(joined)) return '3+';
+  return 'unknown';
+};
+
+const inferFinancingFromMessages = (messages) => {
+  const joined = (messages || []).map((row) => row?.content || '').join(' ').toLowerCase();
+  if (!joined) return 'unknown';
+  if (/(preapproved|pre-approved)/.test(joined)) return 'preapproved';
+  if (/\bcash\b/.test(joined)) return 'cash';
+  if (/(loan|mortgage|exploring|not sure)/.test(joined)) return 'exploring';
+  return 'unknown';
+};
+
+const inferWorkingWithAgentFromMessages = (messages) => {
+  const joined = (messages || []).map((row) => row?.content || '').join(' ').toLowerCase();
+  if (!joined) return 'unknown';
+  if (/(already have an agent|working with an agent|my agent)/.test(joined)) return 'yes';
+  if (/(not working with an agent|no agent|need an agent)/.test(joined)) return 'no';
+  return 'unknown';
+};
+
+const extractLastVisitorQuestion = (messages) => {
+  const lastVisitor = (messages || [])
+    .slice()
+    .reverse()
+    .find((row) => String(row?.sender || '').toLowerCase() === 'visitor');
+  return lastVisitor?.content || null;
+};
+
+const buildListingContext = async (listingId) => {
+  if (!listingId) return null;
+  const { data: row, error } = await supabaseAdmin
+    .from('properties')
+    .select('*')
+    .eq('id', listingId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) return null;
+
+  const pickText = (...values) => {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return null;
+  };
+
+  const numericOrNull = (value) => {
+    const next = Number(value);
+    return Number.isFinite(next) ? next : null;
+  };
+
+  const openHouseTimes = Array.isArray(row.open_house_times)
+    ? row.open_house_times.filter((item) => typeof item === 'string' && item.trim())
+    : [];
+  const features = Array.isArray(row.features)
+    ? row.features.filter((item) => typeof item === 'string' && item.trim())
+    : [];
+
+  const agentId = row.agent_id || row.user_id || null;
+  let agent = null;
+  if (agentId) {
+    const { data: agentRow } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name, email, phone')
+      .eq('id', agentId)
+      .maybeSingle();
+    agent = agentRow || null;
+  }
+
+  return {
+    listing_id: row.id,
+    agent_id: agentId,
+    title: row.title || 'Listing',
+    address: row.address || null,
+    city: row.city || null,
+    state: row.state || null,
+    zip: row.zip || null,
+    price: numericOrNull(row.price),
+    beds: numericOrNull(row.bedrooms),
+    baths: numericOrNull(row.bathrooms),
+    sqft: numericOrNull(row.sqft || row.square_feet),
+    features,
+    hoa: pickText(row.hoa, row.hoa_monthly, row.hoa_fee),
+    taxes: pickText(row.taxes, row.property_taxes, row.annual_taxes),
+    disclosures_status: pickText(row.disclosures_status, row.disclosures),
+    open_house_times: openHouseTimes,
+    showing_instructions: pickText(row.showing_instructions),
+    report_link: pickText(row.share_url, row.public_slug ? buildListingShareUrl(row.public_slug) : null),
+    agent: {
+      name:
+        `${agent?.first_name || ''} ${agent?.last_name || ''}`.trim() ||
+        'HomeListingAI Agent',
+      email: pickText(agent?.email),
+      phone: pickText(agent?.phone)
+    }
+  };
+};
+
+const buildPublicListingSystemPrompt = (context) => {
+  const jsonContext = JSON.stringify(context, null, 2);
+  return [
+    'You are the public listing AI for one specific home.',
+    'Objective:',
+    '1) Answer using listing context only.',
+    '2) If a detail is missing, say exactly: "I don\'t have that detail here, but I can have the agent confirm it for you."',
+    '3) Keep replies under 60 words when possible.',
+    '4) Ask only one question per message.',
+    '5) Never invent HOA, taxes, disclosures, or terms.',
+    '',
+    'Listing context JSON:',
+    jsonContext
+  ].join('\n');
+};
+
+const generatePublicChatAnswer = async ({ listingContext, recentMessages, question }) => {
+  const fallback =
+    'I can help with this home. I don’t have that detail here, but I can have the agent confirm it for you.';
+
+  if (!process.env.OPENAI_API_KEY) return fallback;
+
+  const messages = [
+    { role: 'system', content: buildPublicListingSystemPrompt(listingContext) },
+    ...(recentMessages || []).map((row) => ({
+      role: String(row?.sender || '').toLowerCase() === 'visitor' ? 'user' : 'assistant',
+      content: String(row?.content || '')
+    })),
+    { role: 'user', content: String(question || '') }
+  ];
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_CHAT_MODEL,
+      messages,
+      temperature: 0.2,
+      max_tokens: 180
+    });
+    const raw = completion?.choices?.[0]?.message?.content || '';
+    return normalizeWordLimitedText(raw, 65) || fallback;
+  } catch (error) {
+    console.warn('[PublicChat] LLM response failed, falling back:', error?.message || error);
+    return fallback;
+  }
+};
+
 const recordLeadEvent = async ({ leadId, type, payload }) => {
   if (!leadId || !type) return;
   try {
@@ -3318,10 +3594,35 @@ const attachLeadToConversation = async ({
       .update({
         lead_id: leadId,
         user_id: agentId,
+        agent_id: agentId,
+        listing_id: listingId || null,
+        visitor_id: visitorId || null,
+        channel: 'web',
+        last_activity_at: nowIso(),
         metadata: nextMetadata,
         updated_at: nowIso()
       })
       .eq('id', conversationId);
+
+    await supabaseAdmin
+      .from('ai_conversation_messages')
+      .insert({
+        conversation_id: conversationId,
+        user_id: agentId || null,
+        sender: 'system',
+        channel: 'web',
+        content: 'Contact captured from listing chat.',
+        metadata: {
+          event: 'contact_capture',
+          source_type: sourceType || 'unknown',
+          source_key: sourceKey || null
+        },
+        is_capture_event: true,
+        intent_tags: ['contact_capture'],
+        confidence: 1,
+        created_at: nowIso()
+      });
+
     return true;
   } catch (error) {
     console.warn('[LeadCapture] Failed to attach lead to conversation:', error?.message || error);
@@ -3615,6 +3916,44 @@ const enqueueUnworkedLeadNudge = async ({
   return {
     queued: Boolean(enqueueResult?.created),
     idempotency_key: idempotencyKey
+  };
+};
+
+const enqueueLeadConversationSummaryJob = async ({ leadId, conversationId }) => {
+  if (!leadId || !conversationId) return { queued: false, reason: 'missing_identifiers' };
+
+  let messageCount = 0;
+  try {
+    const { count } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId);
+    messageCount = Number(count || 0);
+  } catch (error) {
+    console.warn('[SummaryJob] Failed to count conversation messages:', error?.message || error);
+  }
+
+  const bucket = Math.max(1, Math.ceil(Math.max(1, messageCount) / PUBLIC_CHAT_SUMMARY_BUCKET_SIZE));
+  const idempotencyKey = `summary:${leadId}:${bucket}`;
+  const enqueueResult = await enqueueJob({
+    type: 'lead_summary_generate',
+    payload: {
+      lead_id: leadId,
+      conversation_id: conversationId,
+      message_count: messageCount,
+      bucket
+    },
+    idempotencyKey,
+    priority: 4,
+    runAt: nowIso(),
+    maxAttempts: 3
+  });
+
+  return {
+    queued: Boolean(enqueueResult?.created),
+    idempotency_key: idempotencyKey,
+    bucket,
+    message_count: messageCount
   };
 };
 
@@ -4696,6 +5035,20 @@ const processEmailSendJob = async (job) => {
       return { kind, status: 'suppressed', reason: 'agent_action_detected' };
     }
 
+    const { data: leadRow, error: leadRowError } = await supabaseAdmin
+      .from('leads')
+      .select('status')
+      .eq('id', leadId)
+      .maybeSingle();
+    if (leadRowError) throw leadRowError;
+    if (!leadRow || String(leadRow.status || '').toLowerCase() !== 'new') {
+      await updateOutboundAttemptStatus({
+        status: 'suppressed',
+        providerResponse: { reason: 'lead_not_new', updated_at: nowIso() }
+      });
+      return { kind, status: 'suppressed', reason: 'lead_not_new' };
+    }
+
     const targetEmail = await getAgentEmailAddress(agentId);
     if (!targetEmail) throw new Error('missing_target_email');
 
@@ -5366,13 +5719,237 @@ const processStripeWebhookJob = async (job) => {
   };
 };
 
+const scoreLeadIntentFromTags = (tags) => {
+  const set = new Set(tags || []);
+  let score = 15;
+  if (set.has('showing')) score += 28;
+  if (set.has('offer')) score += 24;
+  if (set.has('financing')) score += 12;
+  if (set.has('timeline')) score += 12;
+  if (set.has('disclosures')) score += 8;
+  if (set.has('follow_up')) score += 6;
+  score = Math.max(0, Math.min(100, score));
+  if (score >= 70) return { score, level: 'Hot' };
+  if (score >= 40) return { score, level: 'Warm' };
+  return { score, level: 'Cold' };
+};
+
+const buildRuleBasedLeadConversationSummary = ({ messages, listingContext }) => {
+  const visitorMessages = (messages || []).filter(
+    (row) => String(row?.sender || '').toLowerCase() === 'visitor'
+  );
+  const tags = new Set();
+  for (const message of visitorMessages) {
+    const detected = detectPublicChatIntent({
+      text: message?.content || '',
+      priorVisitorTurns: Math.max(0, visitorMessages.length - 1)
+    });
+    for (const tag of detected.tags) tags.add(tag);
+  }
+
+  const timeline = inferTimelineFromMessages(visitorMessages);
+  const financing = inferFinancingFromMessages(visitorMessages);
+  const workingWithAgent = inferWorkingWithAgentFromMessages(visitorMessages);
+  const lastQuestion = extractLastVisitorQuestion(visitorMessages);
+  if (timeline !== 'unknown') tags.add('timeline');
+  if (financing !== 'unknown') tags.add('financing');
+
+  const summaryBullets = [];
+  if (listingContext?.address) {
+    summaryBullets.push(`Interested in ${listingContext.address}.`);
+  }
+  summaryBullets.push(`Asked ${visitorMessages.length} question${visitorMessages.length === 1 ? '' : 's'} in chat.`);
+  if (tags.size > 0) {
+    summaryBullets.push(`Top intents: ${Array.from(tags).slice(0, 4).join(', ')}.`);
+  }
+  if (timeline !== 'unknown') {
+    summaryBullets.push(`Timeline signal: ${timeline}.`);
+  }
+  if (financing !== 'unknown') {
+    summaryBullets.push(`Financing signal: ${financing}.`);
+  }
+  if (lastQuestion) {
+    summaryBullets.push(`Latest question: ${normalizeWordLimitedText(lastQuestion, 14)}`);
+  }
+
+  while (summaryBullets.length < 3) {
+    summaryBullets.push('Lead is active in the listing chat and needs follow-up.');
+  }
+
+  let nextBestAction = 'Reply with two showing windows and ask what time works best.';
+  if (tags.has('offer')) {
+    nextBestAction = 'Call now and discuss pricing strategy before the lead cools off.';
+  } else if (tags.has('disclosures')) {
+    nextBestAction = 'Send disclosures/HOA details and offer a quick walkthrough call.';
+  } else if (tags.has('showing')) {
+    nextBestAction = 'Offer two concrete showing windows and lock one in today.';
+  }
+
+  return {
+    summary_bullets: summaryBullets.slice(0, 5),
+    last_question: lastQuestion,
+    intent_tags: Array.from(tags).slice(0, 12),
+    timeline,
+    financing,
+    working_with_agent: workingWithAgent,
+    next_best_action: nextBestAction
+  };
+};
+
+const processLeadSummaryGenerateJob = async (job) => {
+  const leadId = job.payload?.lead_id || null;
+  const conversationId = job.payload?.conversation_id || null;
+  if (!leadId) return { status: 'skipped', reason: 'lead_id_required' };
+
+  const { data: leadRow, error: leadError } = await supabaseAdmin
+    .from('leads')
+    .select('id, listing_id, agent_id, user_id, timeline, financing, working_with_agent')
+    .eq('id', leadId)
+    .maybeSingle();
+  if (leadError || !leadRow) {
+    throw leadError || new Error('lead_not_found');
+  }
+
+  let conversationRow = null;
+  if (conversationId) {
+    const { data } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id, listing_id, lead_id, agent_id, user_id, updated_at')
+      .eq('id', conversationId)
+      .maybeSingle();
+    conversationRow = data || null;
+  }
+
+  if (!conversationRow) {
+    const { data } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id, listing_id, lead_id, agent_id, user_id, updated_at')
+      .eq('lead_id', leadId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    conversationRow = data || null;
+  }
+
+  if (!conversationRow?.id) {
+    return { status: 'skipped', reason: 'conversation_not_found' };
+  }
+
+  const { data: messageRows, error: messageError } = await supabaseAdmin
+    .from('ai_conversation_messages')
+    .select('id, sender, content, created_at')
+    .eq('conversation_id', conversationRow.id)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (messageError) throw messageError;
+
+  const messages = messageRows || [];
+  if (messages.length === 0) {
+    return { status: 'skipped', reason: 'messages_not_found' };
+  }
+
+  const listingContext = await buildListingContext(conversationRow.listing_id || leadRow.listing_id);
+  const summary = buildRuleBasedLeadConversationSummary({
+    messages,
+    listingContext
+  });
+  const intentScore = scoreLeadIntentFromTags(summary.intent_tags);
+  const timestamp = nowIso();
+
+  const summaryPayload = {
+    lead_id: leadId,
+    conversation_id: conversationRow.id,
+    summary_bullets: summary.summary_bullets,
+    last_question: summary.last_question,
+    intent_tags: summary.intent_tags,
+    timeline: summary.timeline,
+    financing: summary.financing,
+    working_with_agent: summary.working_with_agent,
+    next_best_action: summary.next_best_action,
+    updated_at: timestamp
+  };
+
+  const summaryResult = await supabaseAdmin
+    .from('lead_conversation_summaries')
+    .upsert(summaryPayload, { onConflict: 'lead_id', ignoreDuplicates: false });
+  if (summaryResult.error && !isJobQueueMissingTableError(summaryResult.error)) {
+    throw summaryResult.error;
+  }
+
+  const leadPatch = {
+    lead_summary: summary.summary_bullets.map((line) => `• ${line}`).join('\n'),
+    next_best_action: summary.next_best_action,
+    intent_tags: summary.intent_tags,
+    intent_score: intentScore.score,
+    intent_level: intentScore.level,
+    last_message_preview: summary.summary_bullets[0] || 'Conversation updated',
+    last_intent_at: timestamp,
+    updated_at: timestamp
+  };
+
+  if ((leadRow.timeline || 'unknown') === 'unknown' && summary.timeline && summary.timeline !== 'unknown') {
+    leadPatch.timeline = summary.timeline;
+  }
+  if ((leadRow.financing || 'unknown') === 'unknown' && summary.financing && summary.financing !== 'unknown') {
+    leadPatch.financing = summary.financing;
+  }
+  if (
+    (leadRow.working_with_agent || 'unknown') === 'unknown' &&
+    summary.working_with_agent &&
+    summary.working_with_agent !== 'unknown'
+  ) {
+    leadPatch.working_with_agent = summary.working_with_agent;
+  }
+
+  const updateLeadResult = await supabaseAdmin
+    .from('leads')
+    .update(leadPatch)
+    .eq('id', leadId);
+  if (updateLeadResult.error) throw updateLeadResult.error;
+
+  if (summary.intent_tags.length > 0) {
+    await supabaseAdmin
+      .from('lead_intents')
+      .insert(
+        summary.intent_tags.map((tag) => ({
+          lead_id: leadId,
+          conversation_id: conversationRow.id,
+          intent_type: tag,
+          confidence: 0.7,
+          source: 'rule',
+          payload: { trigger: 'phase5_summary_job' },
+          created_at: timestamp
+        }))
+      )
+      .then(({ error }) => {
+        if (error && !isJobQueueMissingTableError(error)) {
+          console.warn('[SummaryJob] Failed to write lead_intents:', error?.message || error);
+        }
+      });
+  }
+
+  await emitLeadRealtimeEvent({
+    leadId,
+    type: 'lead.updated'
+  }).catch(() => undefined);
+
+  return {
+    status: 'updated',
+    lead_id: leadId,
+    conversation_id: conversationRow.id,
+    summary_bullets: summary.summary_bullets,
+    intent_tags: summary.intent_tags
+  };
+};
+
 const queueJobHandlers = {
   email_send: processEmailSendJob,
   sms_send: processSmsSendJob,
   voice_reminder_call: processVoiceReminderCallJob,
   webhook_vapi_process: processVapiWebhookJob,
   webhook_telnyx_process: processTelnyxWebhookJob,
-  webhook_stripe_process: processStripeWebhookJob
+  webhook_stripe_process: processStripeWebhookJob,
+  lead_summary_generate: processLeadSummaryGenerateJob
 };
 
 let jobWorkerRunning = false;
@@ -6199,10 +6776,10 @@ async function fetchAiCardProfileForUser(userId) {
 }
 
 const AI_CONVERSATION_SELECT_FIELDS =
-  'id, user_id, scope, listing_id, lead_id, title, contact_name, contact_email, contact_phone, type, last_message, last_message_at, status, message_count, property, tags, intent, language, voice_transcript, follow_up_task, metadata, created_at, updated_at';
+  'id, user_id, agent_id, scope, listing_id, lead_id, visitor_id, channel, title, contact_name, contact_email, contact_phone, type, last_message, last_message_at, last_activity_at, started_at, status, message_count, property, tags, intent, language, voice_transcript, follow_up_task, metadata, created_at, updated_at';
 
 const AI_CONVERSATION_MESSAGE_SELECT_FIELDS =
-  'id, conversation_id, user_id, sender, channel, content, translation, metadata, created_at';
+  'id, conversation_id, user_id, sender, channel, content, translation, metadata, is_capture_event, intent_tags, confidence, created_at';
 
 const mapAiConversationFromRow = (row) =>
   !row
@@ -6210,9 +6787,12 @@ const mapAiConversationFromRow = (row) =>
     : {
       id: row.id,
       userId: row.user_id,
+      agentId: row.agent_id || row.user_id,
       scope: row.scope || 'agent',
       listingId: row.listing_id,
       leadId: row.lead_id,
+      visitorId: row.visitor_id || row.metadata?.visitor_id || null,
+      channel: row.channel || 'chat',
       title: row.title,
       contactName: row.contact_name,
       contactEmail: row.contact_email,
@@ -6220,6 +6800,8 @@ const mapAiConversationFromRow = (row) =>
       type: row.type || 'chat',
       lastMessage: row.last_message,
       lastMessageAt: row.last_message_at,
+      lastActivityAt: row.last_activity_at || row.last_message_at || row.updated_at,
+      startedAt: row.started_at || row.created_at,
       status: row.status || 'active',
       messageCount: row.message_count || 0,
       property: row.property,
@@ -6243,8 +6825,12 @@ const mapAiConversationMessageFromRow = (row) =>
       sender: row.sender,
       channel: row.channel,
       content: row.content,
+      text: row.content,
       translation: row.translation,
       metadata: row.metadata || null,
+      isCaptureEvent: Boolean(row.is_capture_event),
+      intentTags: Array.isArray(row.intent_tags) ? row.intent_tags : [],
+      confidence: row.confidence ?? null,
       created_at: row.created_at
     };
 
@@ -11832,9 +12418,16 @@ app.post('/api/public/listings/:listingId/session', async (req, res) => {
       .from('ai_conversations')
       .insert({
         user_id: listing.agentId || DEFAULT_LEAD_USER_ID,
+        agent_id: listing.agentId || DEFAULT_LEAD_USER_ID,
+        listing_id: listingId,
+        visitor_id: visitorId,
+        channel: 'web',
+        scope: 'listing',
         contact_name: 'Visitor',
         type: 'chat',
         status: 'active',
+        started_at: timestamp,
+        last_activity_at: timestamp,
         last_message_at: timestamp,
         metadata: {
           listing_id: listingId,
@@ -11874,6 +12467,302 @@ app.post('/api/public/listings/:listingId/session', async (req, res) => {
   } catch (error) {
     console.error('[LeadCapture] Failed to create public listing session:', error);
     res.status(500).json({ error: 'failed_to_create_session' });
+  }
+});
+
+app.post('/api/public/conversations/start', async (req, res) => {
+  try {
+    const listingSlug = toTrimmedOrNull(req.body?.listing_slug);
+    const listingIdFromBody = toTrimmedOrNull(req.body?.listing_id);
+    const sourceKey = toSourceKey(req.body?.source_key || req.query?.src);
+    const utmSource = toTrimmedOrNull(req.body?.utm_source || req.query?.utm_source);
+    const utmMedium = toTrimmedOrNull(req.body?.utm_medium || req.query?.utm_medium);
+    const utmCampaign = toTrimmedOrNull(req.body?.utm_campaign || req.query?.utm_campaign);
+    const referrerDomain = toTrimmedOrNull(req.body?.referrer_domain || toReferrerDomain(req.body?.referrer));
+    const visitorId =
+      toTrimmedOrNull(req.body?.visitor_id || req.headers['x-visitor-id']) ||
+      (typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `visitor_${Date.now()}`);
+
+    let listingRow = null;
+    if (listingSlug) {
+      listingRow = await resolveListingByPublicSlug(listingSlug);
+    } else if (listingIdFromBody) {
+      const { data } = await supabaseAdmin
+        .from('properties')
+        .select('*')
+        .eq('id', listingIdFromBody)
+        .maybeSingle();
+      listingRow = data || null;
+    }
+
+    if (!listingRow?.id || !listingRow.is_published) {
+      return res.status(404).json({ error: 'listing_not_found' });
+    }
+
+    const listing = await mapPublicListingPayload(listingRow);
+    const listingId = listingRow.id;
+    const agentId = listingRow.agent_id || listingRow.user_id || DEFAULT_LEAD_USER_ID;
+    const timestamp = nowIso();
+    const sourceType = toSourceType(req.body?.source_type || inferSourceTypeFromKey(sourceKey));
+    const metadataPatch = {
+      listing_id: listingId,
+      visitor_id: visitorId,
+      source_type: sourceType,
+      source_key: sourceKey,
+      utm_source: utmSource,
+      utm_medium: utmMedium,
+      utm_campaign: utmCampaign,
+      referrer_domain: referrerDomain,
+      landing_path: toTrimmedOrNull(req.body?.landing_path),
+      channel: 'web'
+    };
+
+    let conversation = null;
+    const recentThresholdIso = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+    const { data: existingConversation, error: existingError } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id, lead_id, metadata')
+      .eq('listing_id', listingId)
+      .eq('visitor_id', visitorId)
+      .gte('updated_at', recentThresholdIso)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+
+    if (existingConversation?.id) {
+      const nextMetadata = {
+        ...(existingConversation.metadata || {}),
+        ...metadataPatch
+      };
+      const { data: updatedConversation, error: updateError } = await supabaseAdmin
+        .from('ai_conversations')
+        .update({
+          metadata: nextMetadata,
+          agent_id: agentId,
+          user_id: agentId,
+          channel: 'web',
+          last_activity_at: timestamp,
+          updated_at: timestamp
+        })
+        .eq('id', existingConversation.id)
+        .select('id, lead_id')
+        .single();
+      if (updateError) throw updateError;
+      conversation = updatedConversation;
+    } else {
+      const { data: createdConversation, error: createError } = await supabaseAdmin
+        .from('ai_conversations')
+        .insert({
+          user_id: agentId,
+          agent_id: agentId,
+          scope: 'listing',
+          listing_id: listingId,
+          lead_id: null,
+          visitor_id: visitorId,
+          channel: 'web',
+          title: listing?.title || 'Listing chat',
+          contact_name: 'Visitor',
+          type: 'chat',
+          status: 'active',
+          message_count: 0,
+          started_at: timestamp,
+          last_activity_at: timestamp,
+          last_message_at: timestamp,
+          metadata: metadataPatch,
+          created_at: timestamp,
+          updated_at: timestamp
+        })
+        .select('id, lead_id')
+        .single();
+      if (createError) throw createError;
+      conversation = createdConversation;
+    }
+
+    const { data: messageRows, error: messageError } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .select('id, sender, content, created_at')
+      .eq('conversation_id', conversation.id)
+      .order('created_at', { ascending: true })
+      .limit(PUBLIC_CHAT_HISTORY_LIMIT);
+    if (messageError) throw messageError;
+
+    return res.json({
+      success: true,
+      conversation_id: conversation.id,
+      visitor_id: visitorId,
+      lead_id: conversation.lead_id || null,
+      listing_id: listingId,
+      messages: (messageRows || []).map((row) => ({
+        id: row.id,
+        sender: row.sender,
+        text: row.content,
+        created_at: row.created_at
+      })),
+      suggested_questions: PUBLIC_CHAT_SUGGESTED_QUESTIONS
+    });
+  } catch (error) {
+    console.error('[PublicChat] Failed to start conversation:', error);
+    res.status(500).json({ error: 'failed_to_start_conversation' });
+  }
+});
+
+app.post('/api/public/conversations/:conversationId/message', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const text = String(req.body?.text || '').trim();
+    const visitorId = toTrimmedOrNull(req.body?.visitor_id || req.headers['x-visitor-id']);
+
+    if (!text) return res.status(400).json({ error: 'text_required' });
+    if (!visitorId) return res.status(400).json({ error: 'visitor_id_required' });
+    if (!isUuid(conversationId)) return res.status(400).json({ error: 'invalid_conversation_id' });
+
+    if (text.length > 1200) {
+      return res.status(400).json({ error: 'message_too_long' });
+    }
+
+    const rateCheck = checkPublicChatRateLimit(visitorId);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        error: 'rate_limited',
+        message: 'Try again in a moment.',
+        retry_after_seconds: rateCheck.retry_after_seconds || 60
+      });
+    }
+
+    const { data: conversationRow, error: conversationError } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id, listing_id, lead_id, user_id, agent_id, visitor_id, metadata, message_count')
+      .eq('id', conversationId)
+      .maybeSingle();
+    if (conversationError) throw conversationError;
+    if (!conversationRow?.id) return res.status(404).json({ error: 'conversation_not_found' });
+
+    const conversationVisitor =
+      toTrimmedOrNull(conversationRow.visitor_id) ||
+      toTrimmedOrNull(conversationRow.metadata?.visitor_id);
+    if (conversationVisitor && conversationVisitor !== visitorId) {
+      return res.status(403).json({ error: 'conversation_not_owned_by_visitor' });
+    }
+
+    const { data: latestMessageRows } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .select('content')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const latestMessage = latestMessageRows?.[0]?.content || null;
+    if (latestMessage && String(latestMessage).trim() === text) {
+      return res.status(200).json({
+        success: true,
+        ai_text: 'I got that. Want to ask anything else about this home?',
+        capture_required: false,
+        capture_prompt: null,
+        suggested_questions: PUBLIC_CHAT_SUGGESTED_QUESTIONS
+      });
+    }
+
+    const timestamp = nowIso();
+    const { tags: visitorIntentTags, shouldCapture } = detectPublicChatIntent({
+      text,
+      priorVisitorTurns: Number(conversationRow.message_count || 0)
+    });
+
+    const { error: visitorInsertError } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .insert({
+        conversation_id: conversationId,
+        user_id: conversationRow.agent_id || conversationRow.user_id || null,
+        sender: 'visitor',
+        channel: 'web',
+        content: text,
+        metadata: { source: 'public_listing_chat' },
+        is_capture_event: false,
+        intent_tags: visitorIntentTags,
+        confidence: visitorIntentTags.length ? 0.72 : null,
+        created_at: timestamp
+      });
+    if (visitorInsertError) throw visitorInsertError;
+
+    const listingContext = await buildListingContext(conversationRow.listing_id);
+    if (!listingContext) {
+      return res.status(404).json({ error: 'listing_context_not_found' });
+    }
+
+    const { data: historyRows, error: historyError } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .select('sender, content, created_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+      .limit(PUBLIC_CHAT_HISTORY_LIMIT);
+    if (historyError) throw historyError;
+
+    const aiText = await generatePublicChatAnswer({
+      listingContext,
+      recentMessages: historyRows || [],
+      question: text
+    });
+
+    const { error: aiInsertError } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .insert({
+        conversation_id: conversationId,
+        user_id: conversationRow.agent_id || conversationRow.user_id || null,
+        sender: 'ai',
+        channel: 'web',
+        content: aiText,
+        metadata: {
+          source: 'public_listing_chat',
+          capture_prompt: shouldCapture && !conversationRow.lead_id ? PUBLIC_CHAT_CAPTURE_PROMPT : null
+        },
+        intent_tags: visitorIntentTags,
+        confidence: 0.7,
+        created_at: nowIso()
+      });
+    if (aiInsertError) throw aiInsertError;
+
+    const nextMessageCount = Number(conversationRow.message_count || 0) + 2;
+    const nextMetadata = {
+      ...(conversationRow.metadata || {}),
+      listing_id: conversationRow.listing_id,
+      visitor_id: visitorId,
+      channel: 'web'
+    };
+
+    await supabaseAdmin
+      .from('ai_conversations')
+      .update({
+        message_count: nextMessageCount,
+        last_message: aiText,
+        last_message_at: nowIso(),
+        last_activity_at: nowIso(),
+        metadata: nextMetadata,
+        updated_at: nowIso()
+      })
+      .eq('id', conversationId);
+
+    if (conversationRow.lead_id && nextMessageCount % PUBLIC_CHAT_SUMMARY_BUCKET_SIZE === 0) {
+      await enqueueLeadConversationSummaryJob({
+        leadId: conversationRow.lead_id,
+        conversationId
+      }).catch((error) => {
+        console.warn('[PublicChat] Failed to enqueue summary job:', error?.message || error);
+      });
+    }
+
+    return res.json({
+      success: true,
+      ai_text: aiText,
+      capture_required: Boolean(shouldCapture && !conversationRow.lead_id),
+      capture_prompt: shouldCapture && !conversationRow.lead_id ? PUBLIC_CHAT_CAPTURE_PROMPT : null,
+      suggested_questions: PUBLIC_CHAT_SUGGESTED_QUESTIONS
+    });
+  } catch (error) {
+    console.error('[PublicChat] Failed to process message:', error);
+    res.status(500).json({ error: 'failed_to_process_message' });
   }
 });
 
@@ -12167,6 +13056,15 @@ app.post('/api/leads/capture', async (req, res) => {
       sourceKey: effectiveSourceKey,
       sourceMeta: attributionMeta
     });
+
+    if (conversationId) {
+      await enqueueLeadConversationSummaryJob({
+        leadId,
+        conversationId
+      }).catch((error) => {
+        console.warn('[LeadCapture] Failed to enqueue summary job after capture:', error?.message || error);
+      });
+    }
 
     const notificationResult = await enqueueLeadCaptureNotifications({
       lead: { id: leadId, agent_id: agentId },
@@ -12464,6 +13362,38 @@ app.get('/api/dashboard/billing', async (req, res) => {
     }
     console.error('[Billing] Failed to load billing snapshot:', error);
     res.status(500).json({ error: 'failed_to_load_billing_snapshot' });
+  }
+});
+
+app.get('/api/dashboard/billing/usage', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const snapshot = await billingEngine.getBillingSnapshot(agentId);
+    const usage = snapshot?.usage || {};
+    const percentUsed = Object.entries(usage).reduce((acc, [key, meter]) => {
+      const used = Number(meter?.used || 0);
+      const limit = Number(meter?.limit || 0);
+      acc[key] = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      plan_id: snapshot?.plan?.id || 'free',
+      limits: snapshot?.limits || {},
+      usage,
+      percent_used: percentUsed,
+      period_end: snapshot?.plan?.current_period_end || null,
+      warnings: snapshot?.warnings || []
+    });
+  } catch (error) {
+    if (billingEngine.isMissingTableError?.(error)) {
+      return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
+    }
+    console.error('[Billing] Failed to load usage payload:', error);
+    res.status(500).json({ error: 'failed_to_load_billing_usage' });
   }
 });
 
@@ -13556,6 +14486,12 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
       listing = listingRow || null;
     }
 
+    const { data: leadConversationSummary } = await supabaseAdmin
+      .from('lead_conversation_summaries')
+      .select('lead_id, conversation_id, summary_bullets, last_question, intent_tags, timeline, financing, working_with_agent, next_best_action, updated_at')
+      .eq('lead_id', lead.id)
+      .maybeSingle();
+
     const { data: events } = await supabaseAdmin
       .from('lead_events')
       .select('id, type, payload, created_at')
@@ -13630,10 +14566,16 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
     let intelSnapshot = {
       intent_score: lead.intent_score ?? 0,
       intent_level: lead.intent_level || 'Warm',
-      intent_tags: Array.isArray(lead.intent_tags) ? lead.intent_tags : [],
-      lead_summary: lead.lead_summary || null,
-      next_best_action: lead.next_best_action || null,
-      last_intent_at: lead.last_intent_at || null
+      intent_tags:
+        Array.isArray(leadConversationSummary?.intent_tags) && leadConversationSummary.intent_tags.length > 0
+          ? leadConversationSummary.intent_tags
+          : (Array.isArray(lead.intent_tags) ? lead.intent_tags : []),
+      lead_summary:
+        Array.isArray(leadConversationSummary?.summary_bullets) && leadConversationSummary.summary_bullets.length > 0
+          ? leadConversationSummary.summary_bullets.map((line) => `• ${line}`).join('\n')
+          : (lead.lead_summary || null),
+      next_best_action: leadConversationSummary?.next_best_action || lead.next_best_action || null,
+      last_intent_at: leadConversationSummary?.updated_at || lead.last_intent_at || null
     };
 
     if (shouldRefreshIntel) {
@@ -13675,11 +14617,112 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
       events: events || [],
       appointments,
       upcoming_appointment: upcomingAppointment,
-      transcript: transcript.length > 0 ? transcript : [{ type: 'placeholder', content: 'No conversation yet' }]
+      transcript: transcript.length > 0 ? transcript : [{ type: 'placeholder', content: 'No conversation yet' }],
+      conversation_summary: leadConversationSummary
+        ? {
+          summary_bullets: Array.isArray(leadConversationSummary.summary_bullets)
+            ? leadConversationSummary.summary_bullets
+            : [],
+          last_question: leadConversationSummary.last_question || null,
+          intent_tags: Array.isArray(leadConversationSummary.intent_tags)
+            ? leadConversationSummary.intent_tags
+            : [],
+          timeline: leadConversationSummary.timeline || null,
+          financing: leadConversationSummary.financing || null,
+          working_with_agent: leadConversationSummary.working_with_agent || null,
+          next_best_action: leadConversationSummary.next_best_action || null,
+          updated_at: leadConversationSummary.updated_at || null
+        }
+        : null
     });
   } catch (error) {
     console.error('[LeadCapture] Failed to load lead detail:', error);
     res.status(500).json({ error: 'failed_to_load_lead_detail' });
+  }
+});
+
+app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+
+    const runLeadScopeQuery = (ownerMode = 'agent_or_user') => {
+      let scoped = supabaseAdmin
+        .from('leads')
+        .select('id, agent_id, user_id, listing_id')
+        .eq('id', leadId)
+        .limit(1);
+      if (agentId) {
+        scoped = ownerMode === 'agent_or_user'
+          ? scoped.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+          : scoped.eq('user_id', agentId);
+      }
+      return scoped;
+    };
+
+    let { data: leadRows, error: leadError } = await runLeadScopeQuery('agent_or_user');
+    if (leadError && /agent_id/i.test(leadError.message || '')) {
+      const fallback = await runLeadScopeQuery('user_only');
+      leadRows = fallback.data;
+      leadError = fallback.error;
+    }
+    if (leadError) throw leadError;
+    if (!leadRows || leadRows.length === 0) return res.status(404).json({ error: 'lead_not_found' });
+
+    const { data: conversationRows, error: conversationError } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id, listing_id, visitor_id, channel, metadata, created_at, updated_at, started_at, last_activity_at')
+      .eq('lead_id', leadId)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    if (conversationError) throw conversationError;
+
+    const conversation = Array.isArray(conversationRows) && conversationRows.length > 0
+      ? conversationRows[0]
+      : null;
+
+    if (!conversation?.id) {
+      return res.json({
+        success: true,
+        conversation: null,
+        messages: []
+      });
+    }
+
+    const { data: messageRows, error: messageError } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .select('id, sender, channel, content, metadata, is_capture_event, intent_tags, confidence, created_at')
+      .eq('conversation_id', conversation.id)
+      .order('created_at', { ascending: true })
+      .limit(200);
+    if (messageError) throw messageError;
+
+    res.json({
+      success: true,
+      conversation: {
+        id: conversation.id,
+        listing_id: conversation.listing_id || null,
+        visitor_id: conversation.visitor_id || conversation.metadata?.visitor_id || null,
+        channel: conversation.channel || 'web',
+        metadata: conversation.metadata || {},
+        started_at: conversation.started_at || conversation.created_at || null,
+        last_activity_at: conversation.last_activity_at || conversation.updated_at || null
+      },
+      messages: (messageRows || []).map((row) => ({
+        id: row.id,
+        sender: row.sender,
+        channel: row.channel || 'web',
+        text: row.content,
+        is_capture_event: Boolean(row.is_capture_event),
+        intent_tags: Array.isArray(row.intent_tags) ? row.intent_tags : [],
+        confidence: row.confidence ?? null,
+        metadata: row.metadata || null,
+        created_at: row.created_at
+      }))
+    });
+  } catch (error) {
+    console.error('[LeadCapture] Failed to load lead conversation:', error);
+    res.status(500).json({ error: 'failed_to_load_lead_conversation' });
   }
 });
 
@@ -13815,6 +14858,26 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
       return acc;
     }, {});
 
+    let latestVideo = null;
+    try {
+      const { data: videoRows, error: videoError } = await supabaseAdmin
+        .from('listing_videos')
+        .select('id, title, caption, file_name, mime_type, status, created_at')
+        .eq('listing_id', listing.id)
+        .eq('agent_id', listing.agent_id || listing.user_id || agentId)
+        .in('status', ['ready', 'completed', 'published'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (videoError && !/does not exist|listing_videos/i.test(videoError.message || '')) {
+        throw videoError;
+      }
+      latestVideo = Array.isArray(videoRows) && videoRows.length > 0 ? videoRows[0] : null;
+    } catch (videoError) {
+      if (!/does not exist|listing_videos/i.test(videoError?.message || '')) {
+        console.warn('[Dashboard] Failed to load latest listing video:', videoError?.message || videoError);
+      }
+    }
+
     res.json({
       success: true,
       listing_id: listing.id,
@@ -13824,11 +14887,79 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
       share_url: shareUrl,
       qr_code_url: listing.qr_code_url || null,
       qr_code_svg: listing.qr_code_svg || null,
+      latest_video: latestVideo
+        ? {
+            id: latestVideo.id,
+            title: latestVideo.title || null,
+            caption: latestVideo.caption || null,
+            file_name: latestVideo.file_name || null,
+            mime_type: latestVideo.mime_type || 'video/mp4',
+            status: latestVideo.status || 'ready',
+            created_at: latestVideo.created_at || null
+          }
+        : null,
       source_defaults: sources
     });
   } catch (error) {
     console.error('[Dashboard] Failed to load listing share kit:', error);
     res.status(500).json({ error: 'failed_to_load_listing_share_kit' });
+  }
+});
+
+app.get('/api/dashboard/videos/:videoId/signed-url', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || '').trim();
+    if (!agentId) {
+      return res.status(401).json({ error: 'agent_auth_required' });
+    }
+
+    const requestedExpiresIn = Number(req.query.expiresIn || 1800);
+    const expiresIn = Number.isFinite(requestedExpiresIn)
+      ? Math.min(60 * 60 * 24, Math.max(60, Math.round(requestedExpiresIn)))
+      : 1800;
+
+    const { data: videoRow, error: videoError } = await supabaseAdmin
+      .from('listing_videos')
+      .select('id, agent_id, listing_id, storage_bucket, storage_path, file_name, mime_type, status')
+      .eq('id', videoId)
+      .maybeSingle();
+    if (videoError) {
+      if (/does not exist|listing_videos/i.test(videoError.message || '')) {
+        return res.status(501).json({ error: 'video_storage_not_configured' });
+      }
+      throw videoError;
+    }
+    if (!videoRow) {
+      return res.status(404).json({ error: 'video_not_found' });
+    }
+    if (String(videoRow.agent_id || '') !== agentId) {
+      return res.status(403).json({ error: 'video_access_denied' });
+    }
+    if ((videoRow.status || '').toLowerCase() !== 'ready' && (videoRow.status || '').toLowerCase() !== 'completed' && (videoRow.status || '').toLowerCase() !== 'published') {
+      return res.status(409).json({ error: 'video_not_ready' });
+    }
+
+    const bucket = String(videoRow.storage_bucket || 'videos');
+    const objectPath = String(videoRow.storage_path || '').trim();
+    if (!objectPath) {
+      return res.status(500).json({ error: 'video_storage_path_missing' });
+    }
+
+    const { data: signedData, error: signedError } = await supabaseAdmin.storage
+      .from(bucket)
+      .createSignedUrl(objectPath, expiresIn);
+    if (signedError) throw signedError;
+
+    return res.json({
+      signedUrl: signedData?.signedUrl || null,
+      expiresIn,
+      fileName: videoRow.file_name || `listing-video-${videoId}.mp4`,
+      mimeType: videoRow.mime_type || 'video/mp4'
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to create video signed URL:', error);
+    return res.status(500).json({ error: 'failed_to_create_video_signed_url' });
   }
 });
 
@@ -14178,6 +15309,210 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
   }
 });
 
+const resolveRoiRange = (value) => {
+  const normalized = String(value || '').toLowerCase();
+  return normalized === '30d' ? '30d' : '7d';
+};
+
+const resolveRoiRangeWindow = (range) => {
+  const days = range === '30d' ? 30 : 7;
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+  return {
+    range,
+    days,
+    fromIso: start.toISOString(),
+    toIso: end.toISOString()
+  };
+};
+
+const buildOwnerScopedQuery = ({ table, selectFields, agentId, ownerMode = 'agent_or_user' }) => {
+  let query = supabaseAdmin.from(table).select(selectFields);
+  if (!agentId) return query;
+  if (ownerMode === 'user_only') return query.eq('user_id', agentId);
+  return query.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
+};
+
+const queryRoiLeadRows = async ({ agentId, fromIso, toIso, listingId }) => {
+  const run = async (ownerMode = 'agent_or_user') => {
+    let query = buildOwnerScopedQuery({
+      table: 'leads',
+      selectFields: 'id, status, source_type, source_key, created_at, updated_at, listing_id, user_id, agent_id',
+      agentId,
+      ownerMode
+    });
+    query = query.gte('created_at', fromIso).lte('created_at', toIso);
+    if (listingId) query = query.eq('listing_id', listingId);
+    return query;
+  };
+
+  let result = await run('agent_or_user');
+  if (result.error && /agent_id/i.test(result.error.message || '')) {
+    result = await run('user_only');
+  }
+  if (result.error) throw result.error;
+  return result.data || [];
+};
+
+const queryRoiAppointmentRows = async ({ agentId, fromIso, toIso, listingId }) => {
+  const run = async (ownerMode = 'agent_or_user') => {
+    let query = buildOwnerScopedQuery({
+      table: 'appointments',
+      selectFields: 'id, status, created_at, updated_at, starts_at, start_iso, listing_id, property_id, lead_id, user_id, agent_id',
+      agentId,
+      ownerMode
+    });
+    query = query.gte('created_at', fromIso).lte('created_at', toIso);
+    return query;
+  };
+
+  let result = await run('agent_or_user');
+  if (result.error && /agent_id/i.test(result.error.message || '')) {
+    result = await run('user_only');
+  }
+  if (result.error) throw result.error;
+
+  const rows = result.data || [];
+  if (!listingId) return rows;
+  return rows.filter((row) => String(row.listing_id || row.property_id || '') === String(listingId));
+};
+
+const queryRoiConfirmationEvents = async ({ fromIso, toIso }) => {
+  const eventRes = await supabaseAdmin
+    .from('lead_events')
+    .select('id, lead_id, type, payload, created_at')
+    .eq('type', 'APPOINTMENT_CONFIRMED')
+    .gte('created_at', fromIso)
+    .lte('created_at', toIso);
+
+  if (eventRes.error) {
+    if (/does not exist/i.test(eventRes.error.message || '')) return [];
+    throw eventRes.error;
+  }
+
+  return eventRes.data || [];
+};
+
+const buildDashboardRoiSummary = async ({ agentId, range = '7d', listingId = null }) => {
+  const normalizedRange = resolveRoiRange(range);
+  const { fromIso, toIso } = resolveRoiRangeWindow(normalizedRange);
+  const [leads, appointments, confirmationEvents] = await Promise.all([
+    queryRoiLeadRows({ agentId, fromIso, toIso, listingId }),
+    queryRoiAppointmentRows({ agentId, fromIso, toIso, listingId }),
+    queryRoiConfirmationEvents({ fromIso, toIso }).catch((error) => {
+      console.warn('[ROI] Failed to load confirmation events:', error?.message || error);
+      return [];
+    })
+  ]);
+
+  const leadIds = new Set((leads || []).map((row) => String(row.id)));
+  const fallbackConfirmed = (appointments || []).filter(
+    (row) => normalizeAppointmentStatusValue(row.status) === 'confirmed'
+  ).length;
+
+  const confirmedFromEvents = (confirmationEvents || []).filter((event) => {
+    if (event?.lead_id && leadIds.has(String(event.lead_id))) return true;
+
+    const payload = event?.payload || {};
+    const payloadAgentId = String(payload.agent_id || payload.user_id || '');
+    if (payloadAgentId && String(payloadAgentId) !== String(agentId)) return false;
+
+    if (listingId) {
+      const payloadListingId = String(payload.listing_id || payload.property_id || '');
+      return payloadListingId && payloadListingId === String(listingId);
+    }
+
+    return Boolean(payloadAgentId);
+  }).length;
+
+  const sourceTotals = (leads || []).reduce((acc, row) => {
+    const sourceType = toSourceType(row.source_type || 'unknown');
+    acc[sourceType] = (acc[sourceType] || 0) + 1;
+    return acc;
+  }, {});
+
+  const topSourceEntry = Object.entries(sourceTotals)
+    .sort((a, b) => Number(b[1]) - Number(a[1]))[0] || null;
+  const lastLeadAt = (leads || [])
+    .map((row) => row.created_at || row.updated_at || null)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null;
+
+  return {
+    range: normalizedRange,
+    leads_captured: (leads || []).length,
+    appointments_set: (appointments || []).length,
+    confirmations: Math.max(confirmedFromEvents, fallbackConfirmed),
+    top_source: {
+      label: topSourceEntry ? prettifySourceLabel(topSourceEntry[0]) : 'None',
+      count: topSourceEntry ? Number(topSourceEntry[1]) : 0
+    },
+    last_lead_at: lastLeadAt,
+    updated_at: nowIso()
+  };
+};
+
+app.get('/api/dashboard/roi', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const range = resolveRoiRange(req.query.range);
+    const summary = await buildDashboardRoiSummary({ agentId, range });
+
+    res.json({
+      success: true,
+      ...summary
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to load ROI summary:', error);
+    res.status(500).json({ error: 'failed_to_load_dashboard_roi' });
+  }
+});
+
+app.get('/api/dashboard/billing/value-proof', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const range = resolveRoiRange(req.query.range);
+    const [snapshot, roi] = await Promise.all([
+      billingEngine.getBillingSnapshot(agentId),
+      buildDashboardRoiSummary({ agentId, range })
+    ]);
+
+    const usage = Object.entries(snapshot?.usage || {}).reduce((acc, [key, meter]) => {
+      const used = Number(meter?.used || 0);
+      const limit = Number(meter?.limit || 0);
+      acc[key] = {
+        used,
+        limit,
+        percent: limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0
+      };
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      range,
+      plan: snapshot?.plan || {
+        id: 'free',
+        name: 'Free',
+        status: 'free',
+        current_period_end: null
+      },
+      usage,
+      roi
+    });
+  } catch (error) {
+    if (billingEngine.isMissingTableError?.(error)) {
+      return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
+    }
+    console.error('[Billing] Failed to load value proof snapshot:', error);
+    res.status(500).json({ error: 'failed_to_load_billing_value_proof' });
+  }
+});
+
 app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
   try {
     const { listingId } = req.params;
@@ -14258,6 +15593,9 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
       : null;
     const qrUsage = Number(leadsBySource.qr || 0) + Number(leadsBySource.open_house || 0);
 
+    const topSourceEntry = Object.entries(leadsBySource)
+      .sort((a, b) => Number(b[1]) - Number(a[1]))[0] || null;
+
     res.json({
       success: true,
       listing_id: listingId,
@@ -14269,7 +15607,12 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
         status_breakdown: statusBreakdown,
         qr_usage: qrUsage,
         leads_by_source: leadsBySource,
-        last_lead_captured_at: lastLeadCapturedAt
+        last_lead_captured_at: lastLeadCapturedAt,
+        top_source: {
+          label: topSourceEntry ? prettifySourceLabel(topSourceEntry[0]) : 'None',
+          count: topSourceEntry ? Number(topSourceEntry[1]) : 0
+        },
+        updated_at: nowIso()
       },
       breakdown: {
         by_source_type: Object.entries(leadsBySource).map(([sourceType, total]) => ({ source_type: sourceType, total })),

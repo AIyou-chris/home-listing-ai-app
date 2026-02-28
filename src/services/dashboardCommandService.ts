@@ -82,6 +82,42 @@ export interface DashboardLeadDetail {
   appointments: DashboardLeadAppointment[];
   upcoming_appointment: DashboardLeadAppointment | null;
   transcript: Array<Record<string, unknown>>;
+  conversation_summary?: {
+    summary_bullets: string[];
+    last_question: string | null;
+    intent_tags: string[];
+    timeline: string | null;
+    financing: string | null;
+    working_with_agent: string | null;
+    next_best_action: string | null;
+    updated_at: string | null;
+  } | null;
+}
+
+export interface DashboardLeadConversationMessage {
+  id: string;
+  sender: string;
+  channel: string;
+  text: string;
+  is_capture_event: boolean;
+  intent_tags: string[];
+  confidence: number | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface DashboardLeadConversationResponse {
+  success: boolean;
+  conversation: {
+    id: string;
+    listing_id: string | null;
+    visitor_id: string | null;
+    channel: string;
+    metadata?: Record<string, unknown>;
+    started_at: string | null;
+    last_activity_at: string | null;
+  } | null;
+  messages: DashboardLeadConversationMessage[];
 }
 
 export interface DashboardAppointmentRow {
@@ -193,6 +229,31 @@ export interface RoiMetrics {
   top_listing_leads: number;
 }
 
+export interface DashboardRoiSummary {
+  range: '7d' | '30d';
+  leads_captured: number;
+  appointments_set: number;
+  confirmations: number;
+  top_source: {
+    label: string;
+    count: number;
+  };
+  last_lead_at?: string | null;
+  updated_at: string;
+}
+
+export interface BillingValueProofSnapshot {
+  range: '7d' | '30d';
+  plan: {
+    id: string;
+    name: string;
+    status: string;
+    current_period_end: string | null;
+  };
+  usage: Record<string, { used: number; limit: number; percent: number }>;
+  roi: DashboardRoiSummary;
+}
+
 export interface ListingPerformanceMetrics {
   leads_count: number;
   appointments_count: number;
@@ -201,6 +262,11 @@ export interface ListingPerformanceMetrics {
   qr_usage: number | null;
   leads_by_source?: Record<string, number>;
   last_lead_captured_at?: string | null;
+  top_source?: {
+    label: string;
+    count: number;
+  };
+  updated_at?: string;
 }
 
 export interface ListingSourceDefault {
@@ -218,6 +284,15 @@ export interface ListingShareKitResponse {
   share_url: string | null;
   qr_code_url: string | null;
   qr_code_svg: string | null;
+  latest_video?: {
+    id: string;
+    title: string | null;
+    caption: string | null;
+    file_name: string | null;
+    mime_type: string;
+    status: string;
+    created_at: string | null;
+  } | null;
   source_defaults: Record<string, ListingSourceDefault>;
 }
 
@@ -249,6 +324,11 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     if (String(payload.error || '') === 'limit_reached') {
+      const upgradePlanCandidate = String(payload.upgrade_plan_id || '').toLowerCase();
+      const upgradePlanId =
+        upgradePlanCandidate === 'starter' || upgradePlanCandidate === 'pro'
+          ? (upgradePlanCandidate as 'starter' | 'pro')
+          : null;
       throw new BillingLimitError('limit_reached', {
         feature: String(payload.feature || 'unknown'),
         modal: (payload.modal as { title: string; body: string; primary: string; secondary: string }) || {
@@ -258,6 +338,8 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
           secondary: 'Not now'
         },
         planId: String(payload.plan_id || 'free'),
+        upgradePlanId,
+        reasonLine: String(payload.reason_line || ''),
         used: Number(payload.used || 0),
         limit: Number(payload.limit || 0)
       });
@@ -304,6 +386,17 @@ export const fetchDashboardLeadDetail = async (leadId: string, refreshIntel = fa
     headers: defaultJsonHeaders(agentId)
   });
   return parseResponse<DashboardLeadDetail>(response);
+};
+
+export const fetchDashboardLeadConversation = async (leadId: string, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/leads/${encodeURIComponent(leadId)}/conversation`, agentId)),
+    {
+      headers: defaultJsonHeaders(agentId)
+    }
+  );
+  return parseResponse<DashboardLeadConversationResponse>(response);
 };
 
 export const updateDashboardLeadStatus = async (
@@ -388,6 +481,23 @@ export const fetchRoiMetrics = async (timeframe: '1d' | '7d' | '14d' | '30d' = '
   return parseResponse<{ success: boolean; metrics: RoiMetrics }>(response);
 };
 
+export const fetchDashboardRoi = async (range: '7d' | '30d' = '7d', agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/roi?range=${encodeURIComponent(range)}`, agentId)), {
+    headers: defaultJsonHeaders(agentId)
+  });
+  return parseResponse<{ success: boolean } & DashboardRoiSummary>(response);
+};
+
+export const fetchBillingValueProof = async (range: '7d' | '30d' = '30d', agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/billing/value-proof?range=${encodeURIComponent(range)}`, agentId)),
+    { headers: defaultJsonHeaders(agentId) }
+  );
+  return parseResponse<{ success: boolean } & BillingValueProofSnapshot>(response);
+};
+
 export const fetchListingPerformance = async (
   listingId: string,
   options: { range?: '7d' | '30d' } = {},
@@ -418,6 +528,27 @@ export const fetchListingShareKit = async (listingId: string, agentIdOverride?: 
     { headers: defaultJsonHeaders(agentId) }
   );
   return parseResponse<ListingShareKitResponse>(response);
+};
+
+export const fetchDashboardVideoSignedUrl = async (
+  videoId: string,
+  expiresIn = 1800,
+  agentIdOverride?: string | null
+) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const path = withAgentQuery(
+    `/api/dashboard/videos/${encodeURIComponent(videoId)}/signed-url?expiresIn=${encodeURIComponent(String(expiresIn))}`,
+    agentId
+  );
+  const response = await fetch(buildApiUrl(path), {
+    headers: defaultJsonHeaders(agentId)
+  });
+  return parseResponse<{
+    signedUrl: string;
+    expiresIn: number;
+    fileName: string;
+    mimeType: string;
+  }>(response);
 };
 
 export const publishListingShareKit = async (listingId: string, isPublished = true, agentIdOverride?: string | null) => {

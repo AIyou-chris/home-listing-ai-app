@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import VideoShareActions from './VideoShareActions';
 
 // Using dummy types for the prop signature to wire this up quickly
 export interface ShareKitPanelProps {
@@ -19,13 +20,20 @@ export interface ShareKitPanelProps {
         topSource: string;
         lastLeadAgo: string;
     };
+    latestVideo?: {
+        id: string;
+        title?: string | null;
+        caption?: string | null;
+        file_name?: string | null;
+    } | null;
 }
 
 export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     listing,
     onPublish,
     onTestLeadSubmit,
-    stats = { leadsCaptured: 0, topSource: 'None', lastLeadAgo: 'N/A' }
+    stats = { leadsCaptured: 0, topSource: 'None', lastLeadAgo: 'N/A' },
+    latestVideo = null
 }) => {
 
     const [qrSource, setQrSource] = useState<'sign' | 'open_house' | 'social'>('sign');
@@ -50,6 +58,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(trackingUrl)}`;
 
     const captionTemplate = `Just listed: ${listing.address} 🏡✨\nPrice: ${listing.price} | ${listing.beds} Beds | ${listing.baths} Baths\n\nGet the instant 1-page property report + request a showing right here: ${shareUrl}`;
+    const effectiveVideoCaption = latestVideo?.caption?.trim() || captionTemplate;
 
     const handleCopy = async (text: string, setCopiedState: (v: boolean) => void) => {
         try {
@@ -202,6 +211,26 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                                 {captionTemplate}
                             </p>
                         </div>
+
+                        {latestVideo ? (
+                            <div className="mt-4 rounded-lg border border-slate-800 bg-[#0B1121] p-4">
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Video Share</p>
+                                <p className="mt-2 text-sm text-slate-300">
+                                    {latestVideo.title || 'Listing video is ready to share.'}
+                                </p>
+                                <VideoShareActions
+                                    videoId={latestVideo.id}
+                                    fileName={latestVideo.file_name || `${listing.slug}.mp4`}
+                                    captionText={effectiveVideoCaption}
+                                    listingLink={shareUrl}
+                                />
+                            </div>
+                        ) : (
+                            <div className="mt-4 rounded-lg border border-slate-800 bg-[#0B1121] p-4">
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Video Share</p>
+                                <p className="mt-2 text-sm text-slate-400">No video ready yet. Generate a listing video to enable Share + Download.</p>
+                            </div>
+                        )}
                     </div>
 
                 </div>
