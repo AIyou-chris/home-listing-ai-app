@@ -8,7 +8,12 @@ import {
 } from '../../services/listingStudioReportService';
 import { showToast } from '../../utils/toastService';
 import UpgradePromptModal from '../billing/UpgradePromptModal';
-import { BillingLimitError, trackDashboardReportGeneration } from '../../services/dashboardBillingService';
+import {
+  BillingLimitError,
+  createBillingCheckoutSession,
+  fetchDashboardBilling,
+  trackDashboardReportGeneration
+} from '../../services/dashboardBillingService';
 
 interface ListingStudioV2PageProps {
   properties: Property[];
@@ -102,11 +107,21 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
   const [isLoadingMarket, setIsLoadingMarket] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [reportUsageWarning, setReportUsageWarning] = useState<string | null>(null);
   const [useMockDataPack, setUseMockDataPack] = useState(true);
-  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; title: string; body: string }>({
+  const [upgradeModal, setUpgradeModal] = useState<{
+    open: boolean;
+    title: string;
+    body: string;
+    reasonLine: string | null;
+    targetPlan: 'starter' | 'pro' | null;
+  }>({
     open: false,
     title: "You're at your limit.",
-    body: 'Upgrade to keep capturing leads and sending reports without interruptions.'
+    body: 'Upgrade to keep capturing leads and sending reports without interruptions.',
+    reasonLine: null,
+    targetPlan: null
   });
 
   useEffect(() => {
@@ -125,6 +140,29 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
     setExecutiveSummary(mockSummary(selectedProperty));
     setActionPlanText(mockActionPlan);
   }, [selectedProperty, useMockDataPack]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadBillingWarning = async () => {
+      try {
+        const snapshot = await fetchDashboardBilling();
+        if (!isMounted) return;
+        const reportMeter = snapshot.usage?.reports_per_month;
+        const warning = (snapshot.warnings || []).find((item) => item.key === 'reports_per_month' && Number(item.percent || 0) >= 80);
+        if (!reportMeter || !warning) {
+          setReportUsageWarning(null);
+          return;
+        }
+        setReportUsageWarning(`Reports: ${Number(reportMeter.used || 0)}/${Number(reportMeter.limit || 0)} used`);
+      } catch (_error) {
+        if (isMounted) setReportUsageWarning(null);
+      }
+    };
+    void loadBillingWarning();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -216,7 +254,9 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
         setUpgradeModal({
           open: true,
           title: error.modal.title,
-          body: error.modal.body
+          body: error.modal.body,
+          reasonLine: error.reasonLine || error.modal.reason_line || null,
+          targetPlan: error.upgradePlanId
         });
         return;
       }
@@ -279,6 +319,13 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
             </button>
           </div>
         </div>
+        {reportUsageWarning && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-semibold">You’re close to your limit.</p>
+            <p>Upgrade to keep everything running without interruptions.</p>
+            <p className="mt-1 text-xs">{reportUsageWarning}</p>
+          </div>
+        )}
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -457,8 +504,27 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
         isOpen={upgradeModal.open}
         title={upgradeModal.title}
         body={upgradeModal.body}
+        reasonLine={upgradeModal.reasonLine}
+        upgrading={upgradeLoading}
         onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
-        onUpgrade={() => navigate('/dashboard/billing')}
+        onUpgrade={() => {
+          if (!upgradeModal.targetPlan) {
+            navigate('/dashboard/billing');
+            return;
+          }
+          void (async () => {
+            try {
+              setUpgradeLoading(true);
+              const checkout = await createBillingCheckoutSession(upgradeModal.targetPlan);
+              if (!checkout.url) throw new Error('Missing checkout URL');
+              window.location.href = checkout.url;
+            } catch (err) {
+              showToast.error(err instanceof Error ? err.message : 'Failed to start checkout.');
+            } finally {
+              setUpgradeLoading(false);
+            }
+          })();
+        }}
       />
     </div>
   );

@@ -486,6 +486,12 @@ export interface NotificationSettings {
     email_enabled?: boolean;
     voice_enabled?: boolean;
     sms_enabled?: boolean;
+    daily_digest_enabled?: boolean;
+    unworked_lead_nudge_enabled?: boolean;
+    appt_confirm_nudge_enabled?: boolean;
+    reschedule_nudge_enabled?: boolean;
+    digest_time_local?: string;
+    timezone?: string;
     newLead: boolean;
     appointmentScheduled: boolean;
     aiInteraction: boolean;

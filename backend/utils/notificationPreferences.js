@@ -28,7 +28,7 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   smsActiveHoursEnd: '17:00',
   priceChanges: false,
   contractMilestones: true,
-  dailyDigest: true,
+  dailyDigest: false,
   securityAlerts: true,
   smsConsent: false,
   smsOptOutMsg: true,
@@ -195,4 +195,3 @@ module.exports = {
   shouldSend,
   DEFAULT_NOTIFICATION_SETTINGS
 };
-

@@ -36,6 +36,7 @@ export interface DashboardBillingSnapshot {
 export interface LimitModalPayload {
   title: string;
   body: string;
+  reason_line?: string;
   primary: string;
   secondary: string;
 }
@@ -44,6 +45,8 @@ export class BillingLimitError extends Error {
   readonly feature: string;
   readonly modal: LimitModalPayload;
   readonly planId: string;
+  readonly upgradePlanId: Exclude<PlanId, 'free'> | null;
+  readonly reasonLine: string | null;
   readonly used: number;
   readonly limit: number;
 
@@ -51,6 +54,8 @@ export class BillingLimitError extends Error {
     feature: string;
     modal: LimitModalPayload;
     planId: string;
+    upgradePlanId?: Exclude<PlanId, 'free'> | null;
+    reasonLine?: string | null;
     used: number;
     limit: number;
   }) {
@@ -59,6 +64,8 @@ export class BillingLimitError extends Error {
     this.feature = payload.feature;
     this.modal = payload.modal;
     this.planId = payload.planId;
+    this.upgradePlanId = payload.upgradePlanId || null;
+    this.reasonLine = payload.reasonLine || null;
     this.used = payload.used;
     this.limit = payload.limit;
   }
@@ -93,10 +100,17 @@ const assertResponse = async (response: Response) => {
   const errorCode = String(payload.error || `Request failed (${response.status})`);
 
   if (errorCode === 'limit_reached') {
+    const upgradePlanCandidate = String(payload.upgrade_plan_id || '').toLowerCase();
+    const upgradePlanId =
+      upgradePlanCandidate === 'starter' || upgradePlanCandidate === 'pro'
+        ? (upgradePlanCandidate as Exclude<PlanId, 'free'>)
+        : null;
     throw new BillingLimitError('limit_reached', {
       feature: String(payload.feature || 'unknown'),
       modal: (payload.modal as LimitModalPayload) || defaultModal,
       planId: String(payload.plan_id || 'free'),
+      upgradePlanId,
+      reasonLine: String(payload.reason_line || (payload.modal as LimitModalPayload | undefined)?.reason_line || ''),
       used: Number(payload.used || 0),
       limit: Number(payload.limit || 0)
     });
@@ -113,6 +127,26 @@ export const fetchDashboardBilling = async (): Promise<DashboardBillingSnapshot>
 
   await assertResponse(response);
   return (await parseJson(response)) as unknown as DashboardBillingSnapshot;
+};
+
+export interface DashboardBillingUsageResponse {
+  success: boolean;
+  plan_id: PlanId;
+  limits: Record<string, number>;
+  usage: DashboardBillingSnapshot['usage'];
+  percent_used: Record<string, number>;
+  period_end: string | null;
+  warnings: Array<{ key: string; percent: number }>;
+}
+
+export const fetchDashboardBillingUsage = async (): Promise<DashboardBillingUsageResponse> => {
+  const agentId = await resolveAgentId();
+  const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/billing/usage', agentId)), {
+    headers: agentId ? { 'x-user-id': agentId } : undefined
+  });
+
+  await assertResponse(response);
+  return (await parseJson(response)) as unknown as DashboardBillingUsageResponse;
 };
 
 export const createBillingCheckoutSession = async (planId: Exclude<PlanId, 'free'>): Promise<{ url: string }> => {

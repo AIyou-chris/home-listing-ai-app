@@ -4,6 +4,7 @@ import {
   fetchDashboardAppointments,
   fetchDashboardLeads,
   fetchListingShareKit,
+  logDashboardAgentAction,
   publishListingShareKit,
   type DashboardAppointmentRow,
   type DashboardLeadItem,
@@ -14,6 +15,7 @@ import { fetchOnboardingState, type OnboardingState } from '../../services/onboa
 import { listingsService } from '../../services/listingsService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 import { showToast } from '../../utils/toastService'
+import TodayROIStrip from '../dashboard-widgets/TodayROIStrip'
 
 const containerCardClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'
 
@@ -64,6 +66,19 @@ const percentUsed = (used?: number, limit?: number) => {
   const safeUsed = Math.max(0, Number(used || 0))
   if (safeLimit <= 0) return 0
   return Math.min(100, Math.round((safeUsed / safeLimit) * 100))
+}
+
+const formatWarningLine = (billing: DashboardBillingSnapshot, key: string) => {
+  const meter = billing.usage?.[key as keyof DashboardBillingSnapshot['usage']]
+  if (!meter) return null
+  const used = Number(meter.used || 0)
+  const limit = Number(meter.limit || 0)
+  if (limit <= 0) return null
+  if (key === 'active_listings') return `Active listings: ${used}/${limit} used`
+  if (key === 'reports_per_month') return `Reports: ${used}/${limit} used`
+  if (key === 'reminder_calls_per_month') return `Reminder calls: ${used}/${limit} used`
+  if (key === 'stored_leads_cap') return `Stored leads: ${used}/${limit} used`
+  return null
 }
 
 const TodayDashboardPage: React.FC = () => {
@@ -184,6 +199,14 @@ const TodayDashboardPage: React.FC = () => {
     return fullName.split(' ')[0] || 'there'
   }, [onboarding?.brand_profile?.full_name])
 
+  const billingWarningLines = useMemo(() => {
+    if (!billing) return []
+    return (billing.warnings || [])
+      .filter((warning) => Number(warning.percent || 0) >= 80 && Number(warning.percent || 0) < 100)
+      .map((warning) => formatWarningLine(billing, warning.key))
+      .filter((line): line is string => Boolean(line))
+  }, [billing])
+
   const handleCopyLink = async () => {
     if (!shareKit?.share_url) return
     try {
@@ -192,6 +215,15 @@ const TodayDashboardPage: React.FC = () => {
     } catch {
       showToast.error('Could not copy link')
     }
+  }
+
+  const handleOpenLead = async (leadId: string) => {
+    await logDashboardAgentAction({
+      lead_id: leadId,
+      action: 'lead_opened',
+      metadata: { source: 'today_dashboard' }
+    }).catch(() => undefined)
+    navigate(`/dashboard/leads/${leadId}`)
   }
 
   const handleDownloadQr = () => {
@@ -231,6 +263,8 @@ const TodayDashboardPage: React.FC = () => {
         <p className="mt-1 text-base text-slate-700">Good {dayPart()}, {greetingName}.</p>
         <p className="mt-1 text-sm text-slate-500">Here’s what needs your attention right now.</p>
       </header>
+
+      <TodayROIStrip />
 
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
@@ -275,7 +309,9 @@ const TodayDashboardPage: React.FC = () => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigate(`/dashboard/leads/${lead.id}`)}
+                      onClick={() => {
+                        void handleOpenLead(lead.id)
+                      }}
                       className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
                     >
                       Open
@@ -445,13 +481,19 @@ const TodayDashboardPage: React.FC = () => {
                     </div>
                   ))}
 
-                  {(billing.warnings || []).some((warning) => Number(warning.percent || 0) >= 80) && (
+                  {billingWarningLines.length > 0 && (
                     <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      You’re close to your limit. Upgrade to keep everything running.
+                      <p className="font-semibold">You’re close to your limit.</p>
+                      <p>Upgrade to keep everything running without interruptions.</p>
+                      <div className="mt-1 space-y-0.5">
+                        {billingWarningLines.map((line) => (
+                          <p key={line}>{line}</p>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {(billing.plan.id === 'free' || (billing.warnings || []).some((warning) => Number(warning.percent || 0) >= 80)) && (
+                  {(billing.plan.id === 'free' || billingWarningLines.length > 0) && (
                     <button
                       type="button"
                       onClick={() => navigate('/dashboard/billing')}

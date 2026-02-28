@@ -603,11 +603,16 @@ const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcr
     if (['confirmed', 'reschedule_requested', 'handoff_requested', 'failed'].includes(outcome.key)) {
         const agentId = extractAgentIdFromAppointment(appointment || {});
         const dashboardPath = `/dashboard/leads/${resolvedLeadId || ''}`;
+        const isReschedule = outcome.key === 'reschedule_requested';
+        const idempotencyKey = isReschedule
+            ? `email:appt_reschedule:${appointmentId}`
+            : `email:appt_outcome:${appointmentId}:${outcome.key}`;
+        const kind = isReschedule ? 'reschedule_requested_nudge' : 'appointment_update_agent';
         try {
             await enqueueJob({
                 type: 'email_send',
                 payload: {
-                    kind: 'appointment_update_agent',
+                    kind,
                     agent_id: agentId || null,
                     lead_id: resolvedLeadId || null,
                     appointment_id: appointmentId,
@@ -621,7 +626,7 @@ const finalizeAppointmentReminderFromWebhook = async ({ callId, message, transcr
                     lead_phone: lead?.phone_e164 || lead?.phone || null,
                     lead_email: lead?.email_lower || lead?.email || null
                 },
-                idempotencyKey: `email:appt_outcome:${appointmentId}:${outcome.key}`,
+                idempotencyKey,
                 priority: 3,
                 runAt: new Date().toISOString(),
                 maxAttempts: 3

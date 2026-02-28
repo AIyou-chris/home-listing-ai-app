@@ -26,6 +26,7 @@ interface SettingsPageProps {
     onNavigateToAICard?: () => void;
     isDemoMode?: boolean;
     isBlueprintMode?: boolean;
+    initialTab?: 'profile' | 'notifications' | 'email' | 'identity' | 'calendar' | 'security' | 'billing';
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -45,9 +46,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     onNavigateToAICard,
     userId,
     isDemoMode = false,
-    isBlueprintMode
+    isBlueprintMode,
+    initialTab = 'profile'
 }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'identity' | 'calendar' | 'security' | 'billing'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'identity' | 'calendar' | 'security' | 'billing'>(initialTab);
+
+    React.useEffect(() => {
+        setActiveTab(initialTab);
+    }, [initialTab]);
 
     const tabs = [
         { id: 'profile', label: 'Profile', icon: 'person' },

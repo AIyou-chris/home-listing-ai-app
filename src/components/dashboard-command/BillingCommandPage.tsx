@@ -6,6 +6,7 @@ import {
   fetchDashboardBilling,
   type DashboardBillingSnapshot
 } from '../../services/dashboardBillingService';
+import BillingValueProofWidget from '../dashboard-widgets/BillingValueProofWidget';
 
 const meterOrder: Array<keyof DashboardBillingSnapshot['usage']> = [
   'active_listings',
@@ -24,6 +25,19 @@ const meterLabels: Record<string, string> = {
 const formatPercent = (used: number, limit: number) => {
   if (!limit || limit <= 0) return 0;
   return Math.min(100, Math.round((used / limit) * 100));
+};
+
+const formatWarningLine = (snapshot: DashboardBillingSnapshot, key: keyof DashboardBillingSnapshot['usage']) => {
+  const meter = snapshot.usage?.[key];
+  if (!meter) return null;
+  const used = Number(meter.used || 0);
+  const limit = Number(meter.limit || 0);
+  if (limit <= 0) return null;
+  if (key === 'active_listings') return `Active listings: ${used}/${limit} used`;
+  if (key === 'reports_per_month') return `Reports: ${used}/${limit} used`;
+  if (key === 'reminder_calls_per_month') return `Reminder calls: ${used}/${limit} used`;
+  if (key === 'stored_leads_cap') return `Stored leads: ${used}/${limit} used`;
+  return null;
 };
 
 const BillingCommandPage: React.FC = () => {
@@ -50,9 +64,16 @@ const BillingCommandPage: React.FC = () => {
   }, [loadBilling]);
 
   const warningTriggered = useMemo(
-    () => (snapshot?.warnings || []).some((item) => item.percent >= 80),
+    () => (snapshot?.warnings || []).some((item) => item.percent >= 80 && item.percent < 100),
     [snapshot]
   );
+  const warningLines = useMemo(() => {
+    if (!snapshot) return [];
+    return (snapshot.warnings || [])
+      .filter((item) => Number(item.percent || 0) >= 80 && Number(item.percent || 0) < 100)
+      .map((item) => formatWarningLine(snapshot, item.key as keyof DashboardBillingSnapshot['usage']))
+      .filter((line): line is string => Boolean(line));
+  }, [snapshot]);
 
   const startUpgrade = async (plan: 'starter' | 'pro') => {
     try {
@@ -99,13 +120,23 @@ const BillingCommandPage: React.FC = () => {
 
       {warningTriggered && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          You’re close to your limit. Upgrade to keep everything running.
+          <p className="font-semibold">You’re close to your limit.</p>
+          <p>Upgrade to keep everything running without interruptions.</p>
+          {warningLines.length > 0 ? (
+            <div className="mt-1 space-y-0.5 text-xs">
+              {warningLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
 
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
       )}
+
+      <BillingValueProofWidget />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">

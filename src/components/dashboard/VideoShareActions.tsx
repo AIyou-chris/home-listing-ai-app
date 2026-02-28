@@ -1,6 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { fetchDashboardVideoSignedUrl } from '../../services/dashboardCommandService';
 import { showToast } from '../../utils/toastService';
+import {
+  downloadVideoFromSignedUrl,
+  getVideoSignedUrl,
+  isNativeShareAvailable,
+  shareVideo
+} from '../../services/videoShareService';
 
 interface VideoShareActionsProps {
   videoId: string;
@@ -17,25 +22,13 @@ const isLikelyMobileDevice = () => {
   return /android|iphone|ipad|ipod|mobile/i.test(ua);
 };
 
-const downloadFromSignedUrl = async (signedUrl: string, fileName: string) => {
-  const anchor = document.createElement('a');
-  anchor.href = signedUrl;
-  anchor.download = fileName;
-  anchor.rel = 'noopener';
-  anchor.target = '_blank';
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-};
-
 const VideoShareActions: React.FC<VideoShareActionsProps> = ({ videoId, fileName, captionText, listingLink }) => {
   const [isSharing, setIsSharing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
 
   const canNativeShare = useMemo(() => {
-    if (typeof navigator === 'undefined') return false;
-    return typeof navigator.share === 'function' && isLikelyMobileDevice();
+    return isNativeShareAvailable() && isLikelyMobileDevice();
   }, []);
 
   const resolvedFileName = useMemo(() => {
@@ -43,20 +36,12 @@ const VideoShareActions: React.FC<VideoShareActionsProps> = ({ videoId, fileName
     return safe || 'listing-video.mp4';
   }, [fileName]);
 
-  const getSignedVideo = async () => {
-    const payload = await fetchDashboardVideoSignedUrl(videoId, 1800);
-    if (!payload?.signedUrl) {
-      throw new Error('Missing signed URL for video');
-    }
-    return payload;
-  };
-
   const handleDownload = async () => {
     if (isDownloading) return;
     setIsDownloading(true);
     try {
-      const signed = await getSignedVideo();
-      await downloadFromSignedUrl(signed.signedUrl, resolvedFileName);
+      const signed = await getVideoSignedUrl(videoId, 1800);
+      await downloadVideoFromSignedUrl(signed.signedUrl, resolvedFileName);
       showToast.success('Downloaded');
     } catch (error) {
       console.error('Failed to download video', error);
@@ -84,39 +69,15 @@ const VideoShareActions: React.FC<VideoShareActionsProps> = ({ videoId, fileName
     if (!canNativeShare || isSharing) return;
     setIsSharing(true);
     try {
-      const signed = await getSignedVideo();
-      const response = await fetch(signed.signedUrl);
-      if (!response.ok) {
-        throw new Error(`Video fetch failed (${response.status})`);
-      }
-      const blob = await response.blob();
-      const mp4File = new File([blob], resolvedFileName, { type: 'video/mp4' });
-
-      const canShareFiles =
-        typeof navigator.canShare === 'function' &&
-        navigator.canShare({ files: [mp4File] });
-
-      if (canShareFiles) {
-        await navigator.share({
-          files: [mp4File],
-          text: captionText,
-          title: 'Listing video'
-        });
-      } else {
-        await navigator.share({
-          text: `${captionText}\n${listingLink}`,
-          title: 'Listing video'
-        });
-      }
+      await shareVideo({
+        videoId,
+        captionText,
+        listingLink,
+        title: 'Listing video',
+        fileName: resolvedFileName
+      });
     } catch (error) {
-      console.error('Native share failed; falling back to download', error);
-      showToast.error('Couldn’t share — downloading instead');
-      try {
-        const signed = await getSignedVideo();
-        await downloadFromSignedUrl(signed.signedUrl, resolvedFileName);
-      } catch (downloadError) {
-        console.error('Fallback download failed', downloadError);
-      }
+      console.error('Native share failed', error);
     } finally {
       setIsSharing(false);
     }

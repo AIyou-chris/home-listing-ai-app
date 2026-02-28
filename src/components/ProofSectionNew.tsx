@@ -70,30 +70,26 @@ const testimonials = [
         quote: "The yard sign QR brought in after-hours leads I would've missed.",
         tag: "Yard Sign QR",
         outcomes: ["More after-hours inquiries", "Better lead capture"],
-        name: "Top Producer",
-        isAnonymous: true
+        name: "Jane Frank",
+        isAnonymous: false
     },
     {
         quote: "We used it on social and the conversations got higher quality immediately.",
         tag: "Social",
         outcomes: ["More engaged inquiries", "Better quality leads"],
-        name: "Team Agent",
-        isAnonymous: true
-    },
-    {
-        quote: "Appointment reminders reduced no-shows. Pro pays for itself.",
-        tag: "Appointment Reminders",
-        outcomes: ["More confirmations", "Less wasted time"],
-        name: "Agent",
-        isAnonymous: true
+        name: "Francis M McLovin (just to see if you're paying attention)",
+        isAnonymous: false
     }
 ];
 
 export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
-    const [activeIndex, setActiveIndex] = useState(0);
-    const [isAtStart, setIsAtStart] = useState(true);
-    const [isAtEnd, setIsAtEnd] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [_activeIndex, setActiveIndex] = useState(0);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [_isAtStart, setIsAtStart] = useState(true);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [_isAtEnd, setIsAtEnd] = useState(false);
 
     const handleScroll = () => {
         if (!scrollRef.current) return;
@@ -118,7 +114,8 @@ export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignU
         }
     }, []);
 
-    const scrollToIndex = (index: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _scrollToIndex = (index: number) => {
         if (!scrollRef.current) return;
         const cardElement = scrollRef.current.children[index] as HTMLElement;
         if (cardElement) {
@@ -130,7 +127,8 @@ export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignU
         }
     };
 
-    const scrollNext = () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _scrollNext = () => {
         if (!scrollRef.current) return;
         const { scrollLeft, clientWidth } = scrollRef.current;
         scrollRef.current.scrollTo({
@@ -139,7 +137,8 @@ export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignU
         });
     };
 
-    const scrollPrev = () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _scrollPrev = () => {
         if (!scrollRef.current) return;
         const { scrollLeft, clientWidth } = scrollRef.current;
         scrollRef.current.scrollTo({

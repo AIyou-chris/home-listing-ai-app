@@ -14945,6 +14945,13 @@ app.get('/api/dashboard/videos/:videoId/signed-url', async (req, res) => {
     if (!objectPath) {
       return res.status(500).json({ error: 'video_storage_path_missing' });
     }
+    if (bucket !== 'videos') {
+      return res.status(409).json({ error: 'video_storage_bucket_invalid' });
+    }
+    const expectedPath = `agent/${agentId}/listing/${videoRow.listing_id}/${videoRow.id}.mp4`;
+    if (objectPath !== expectedPath) {
+      return res.status(409).json({ error: 'video_storage_path_invalid', expected_path: expectedPath });
+    }
 
     const { data: signedData, error: signedError } = await supabaseAdmin.storage
       .from(bucket)

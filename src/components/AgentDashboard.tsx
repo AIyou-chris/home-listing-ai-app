@@ -388,6 +388,13 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [agentProfile, setAgentProfile] = useState<AgentProfile>(uiProfile);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+    email_enabled: true,
+    daily_digest_enabled: false,
+    unworked_lead_nudge_enabled: true,
+    appt_confirm_nudge_enabled: true,
+    reschedule_nudge_enabled: true,
+    digest_time_local: '08:00',
+    timeZone: 'America/Los_Angeles',
     newLead: true,
     leadAction: true,
     appointmentScheduled: true,

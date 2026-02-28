@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import ViewingModal from './ViewingModal'
 import PropertyInfoModal from './PropertyInfoModal'
-import { PublicSidekickModal } from './PublicSidekickModal'
 import ContactModal from './ContactModal'
 import { Property, isAIDescription } from '../types';
 import SEO from './SEO';
@@ -31,9 +30,8 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
     const [modalSubState, setModalSubState] = useState<{
         viewing: boolean;
         info: boolean;
-        talk: boolean;
         contact: boolean;
-    }>({ viewing: false, info: false, talk: false, contact: false });
+    }>({ viewing: false, info: false, contact: false });
 
     const handleShare = async () => {
         if (navigator.share) {
@@ -136,17 +134,6 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                     </button>
                 </div>
 
-                {/* Talk to Home Floating Button */}
-                <div className="absolute top-24 z-20 animate-fade-in-up">
-                    <button
-                        onClick={() => setModalSubState(prev => ({ ...prev, talk: true }))}
-                        className="flex items-center gap-2 px-6 py-3 bg-white/20 backdrop-blur-xl border border-white/40 rounded-full shadow-2xl shadow-violet-900/30 group hover:scale-105 transition-all"
-                    >
-                        <span className="material-symbols-outlined text-white group-hover:animate-pulse">mic</span>
-                        <span className="font-bold text-white tracking-wide">Talk to the Home</span>
-                    </button>
-                </div>
-
                 {/* Glass Info Card Overlay */}
                 <div className="absolute bottom-32 left-4 right-4 z-20">
                     <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 text-center text-white shadow-2xl">
@@ -198,13 +185,6 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                     <PropertyInfoModal
                         property={property}
                         onClose={() => setModalSubState(prev => ({ ...prev, info: false }))}
-                    />
-                )}
-                {modalSubState.talk && (
-                    <PublicSidekickModal
-                        property={property}
-                        onClose={() => setModalSubState(prev => ({ ...prev, talk: false }))}
-                        initialMode="voice"
                     />
                 )}
                 {modalSubState.contact && (

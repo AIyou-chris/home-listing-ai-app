@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  DashboardLeadConversationMessage,
   DashboardLeadAppointment,
   DashboardLeadDetail,
   createLeadAppointment,
+  fetchDashboardLeadConversation,
   fetchDashboardLeadDetail,
   logDashboardAgentAction,
   updateAppointmentStatus,
@@ -36,6 +38,10 @@ const LeadDetailCommandPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showConversation, setShowConversation] = useState(false);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [conversationError, setConversationError] = useState<string | null>(null);
+  const [conversationMessages, setConversationMessages] = useState<DashboardLeadConversationMessage[]>([]);
 
   // UX State
   const [activeTab, setActiveTab] = useState<'activity' | 'appointment' | 'notes'>('activity');
@@ -291,6 +297,22 @@ const LeadDetailCommandPage: React.FC = () => {
       setSaving(false);
     }
   };
+
+  const loadConversation = async () => {
+    if (!leadId) return;
+    setConversationLoading(true);
+    setConversationError(null);
+    try {
+      const response = await fetchDashboardLeadConversation(leadId);
+      setConversationMessages(response.messages || []);
+    } catch (conversationLoadError) {
+      setConversationError(
+        conversationLoadError instanceof Error ? conversationLoadError.message : 'Failed to load conversation.'
+      );
+    } finally {
+      setConversationLoading(false);
+    }
+  };
   const activeAppointments = detail?.appointments?.filter(a => a.status !== 'canceled') || [];
 
   if (loading) {
@@ -308,7 +330,10 @@ const LeadDetailCommandPage: React.FC = () => {
   const leadName = String(lead.full_name || lead.name || 'Unknown');
   const leadPhone = String(lead.phone_e164 || lead.phone || '');
   const leadEmail = String(lead.email_lower || lead.email || '');
-  const summaryLines = (detail.intel.lead_summary || '').split('\n').filter(Boolean);
+  const summarySource = detail.conversation_summary?.summary_bullets?.length
+    ? detail.conversation_summary.summary_bullets.map((line) => `• ${line}`).join('\n')
+    : (detail.intel.lead_summary || '');
+  const summaryLines = summarySource.split('\n').filter(Boolean);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-8 font-sans pb-32">
@@ -368,7 +393,22 @@ const LeadDetailCommandPage: React.FC = () => {
 
       {/* SUMMARY */}
       <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Summary</h3>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Summary</h3>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !showConversation;
+              setShowConversation(next);
+              if (next && conversationMessages.length === 0 && !conversationLoading) {
+                void loadConversation();
+              }
+            }}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            View conversation
+          </button>
+        </div>
         <ul className="space-y-3 text-slate-700 font-medium text-[15px]">
           {summaryLines.length > 0
             ? summaryLines.slice(0, 3).map((line, i) => (
@@ -379,6 +419,34 @@ const LeadDetailCommandPage: React.FC = () => {
             ))
             : <li className="text-slate-400 italic">No summary generated yet. Connect with the lead to populate.</li>}
         </ul>
+
+        {showConversation && (
+          <div className="mt-6 rounded-xl border border-slate-200 bg-white p-3">
+            {conversationLoading ? (
+              <p className="text-xs text-slate-500">Loading conversation...</p>
+            ) : conversationError ? (
+              <p className="text-xs text-rose-600">{conversationError}</p>
+            ) : conversationMessages.length === 0 ? (
+              <p className="text-xs text-slate-500">No conversation yet.</p>
+            ) : (
+              <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                {conversationMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`rounded-lg px-3 py-2 text-sm ${
+                      message.sender === 'visitor' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-800'
+                    }`}
+                  >
+                    <p>{message.text}</p>
+                    <p className="mt-1 text-[10px] opacity-70">
+                      {message.sender} • {formatDateTime(message.created_at)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* KEY CHIPS */}
         <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-slate-200">

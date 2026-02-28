@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { listingsService } from '../services/listingsService';
 import PublicPropertyApp from '../components/PublicPropertyApp';
+import PublicListingChatModule from '../components/public/PublicListingChatModule';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Property } from '../types';
 import { buildApiUrl } from '../lib/api';
@@ -198,11 +199,14 @@ const PublicListingPage: React.FC = () => {
     }
 
     return (
-        <PublicPropertyApp
-            property={property}
-            onExit={() => navigate('/')}
-            showBackButton={false} // Clean look for standalone page
-        />
+        <>
+            <PublicPropertyApp
+                property={property}
+                onExit={() => navigate('/')}
+                showBackButton={false} // Clean look for standalone page
+            />
+            <PublicListingChatModule property={property} listingSlug={publicSlug} />
+        </>
     );
 };
 

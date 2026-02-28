@@ -37,6 +37,7 @@ const AppointmentsCommandPage = lazy(() => import('./components/dashboard-comman
 const ListingPerformancePage = lazy(() => import('./components/dashboard-command/ListingPerformancePage'));
 const BillingCommandPage = lazy(() => import('./components/dashboard-command/BillingCommandPage'));
 const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/OnboardingCommandPage'));
+const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
 const LeadsAndAppointmentsPage = lazy(() => import('./components/LeadsAndAppointmentsPage'));
 const InteractionHubPage = lazy(() => import('./components/AIInteractionHubPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
@@ -324,6 +325,13 @@ const App: React.FC = () => {
 
     const [, setIsProfileLoading] = useState(false);
     const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+        email_enabled: true,
+        daily_digest_enabled: false,
+        unworked_lead_nudge_enabled: true,
+        appt_confirm_nudge_enabled: true,
+        reschedule_nudge_enabled: true,
+        digest_time_local: '08:00',
+        timeZone: 'America/Los_Angeles',
         newLead: true,
         appointmentScheduled: true,
         aiInteraction: false,
@@ -1357,6 +1365,51 @@ const App: React.FC = () => {
     const renderRoutes = () => {
         if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
         console.log("📍 Rendering Routes");
+        const renderSettingsPage = (initialTab: 'profile' | 'notifications' | 'email' | 'identity' | 'calendar' | 'security' | 'billing' = 'profile') => (
+            <SettingsPage
+                userId={user?.uid ?? 'guest-agent'}
+                userProfile={userProfile}
+                onSaveProfile={async (profile) => setUserProfile(profile)}
+                notificationSettings={notificationSettings}
+                onSaveNotifications={async (settings) => {
+                    setNotificationSettings(settings);
+                    if (user?.uid) {
+                        await notificationSettingsService.update(user.uid, settings);
+                    }
+                }}
+                emailSettings={emailSettings}
+                onSaveEmailSettings={async (settings) => {
+                    setEmailSettings(settings);
+                    if (user?.uid) {
+                        try {
+                            await emailSettingsService.update(user.uid, settings);
+                        } catch (error) {
+                            console.error('Failed to save email settings:', error);
+                        }
+                    }
+                }}
+                calendarSettings={calendarSettings}
+                onSaveCalendarSettings={async (settings) => {
+                    setCalendarSettings(settings);
+                    if (user?.uid) {
+                        await calendarSettingsService.update(user.uid, settings);
+                    }
+                }}
+                billingSettings={billingSettings}
+                onSaveBillingSettings={async (settings) => {
+                    setBillingSettings(settings);
+                    if (user?.uid) {
+                        await billingSettingsService.update(user.uid, settings);
+                    }
+                }}
+                onBackToDashboard={() => navigate('/dashboard')}
+                onNavigateToAICard={() => navigate('/ai-card')}
+                securitySettings={{}}
+                onSaveSecuritySettings={async () => { }}
+                isBlueprintMode={isBlueprintMode}
+                initialTab={initialTab}
+            />
+        );
         return (
             <div className="h-full">
                 <Routes>
@@ -1526,6 +1579,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="/dashboard/billing" element={<BillingCommandPage />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
+                        <Route path="/dashboard/dev/share-test" element={<ShareTestPage />} />
 
 
                         <Route path="/listings" element={
@@ -1595,50 +1649,8 @@ const App: React.FC = () => {
                                 <VoiceLabPage />
                             </Suspense>
                         } />
-                        <Route path="/settings" element={
-                            <SettingsPage
-                                userId={user?.uid ?? 'guest-agent'}
-                                userProfile={userProfile}
-                                onSaveProfile={async (profile) => setUserProfile(profile)}
-                                notificationSettings={notificationSettings}
-                                onSaveNotifications={async (settings) => {
-                                    setNotificationSettings(settings);
-                                    if (user?.uid) {
-                                        await notificationSettingsService.update(user.uid, settings);
-                                    }
-                                }}
-                                emailSettings={emailSettings}
-                                onSaveEmailSettings={async (settings) => {
-                                    setEmailSettings(settings);
-                                    if (user?.uid) {
-                                        try {
-                                            await emailSettingsService.update(user.uid, settings);
-                                        } catch (error) {
-                                            console.error('Failed to save email settings:', error);
-                                        }
-                                    }
-                                }}
-                                calendarSettings={calendarSettings}
-                                onSaveCalendarSettings={async (settings) => {
-                                    setCalendarSettings(settings);
-                                    if (user?.uid) {
-                                        await calendarSettingsService.update(user.uid, settings);
-                                    }
-                                }}
-                                billingSettings={billingSettings}
-                                onSaveBillingSettings={async (settings) => {
-                                    setBillingSettings(settings);
-                                    if (user?.uid) {
-                                        await billingSettingsService.update(user.uid, settings);
-                                    }
-                                }}
-                                onBackToDashboard={() => navigate('/dashboard')}
-                                onNavigateToAICard={() => navigate('/ai-card')}
-                                securitySettings={{}}
-                                onSaveSecuritySettings={async () => { }}
-                                isBlueprintMode={isBlueprintMode}
-                            />
-                        } />
+                        <Route path="/settings" element={renderSettingsPage()} />
+                        <Route path="/dashboard/settings/notifications" element={renderSettingsPage('notifications')} />
                     </Route>
 
                     {/* Legacy/Misc Public Views */}

@@ -30,6 +30,7 @@ interface DashboardRealtimeState {
   appointmentsById: Record<string, DashboardAppointmentRow>
   listingSignalsById: Record<string, string>
   commandCenter: DashboardCommandCenterSnapshot | null
+  lastRealtimeEvent: DashboardRealtimeEventEnvelope | null
   setInitialLeads: (leads: DashboardLeadItem[]) => void
   setInitialAppointments: (appointments: DashboardAppointmentRow[]) => void
   setCommandCenter: (snapshot: DashboardCommandCenterSnapshot | null) => void
@@ -131,6 +132,7 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
   appointmentsById: {},
   listingSignalsById: {},
   commandCenter: null,
+  lastRealtimeEvent: null,
   setInitialLeads: (leads) =>
     set(() => ({
       leadsById: Object.fromEntries((leads || []).map((lead) => [lead.id, lead]))
@@ -159,8 +161,9 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
       const payload = event.payload || {}
       if (event.type === 'lead.created' || event.type === 'lead.updated' || event.type === 'lead.status_changed') {
         const lead = mapLeadPayload(payload, state.leadsById[asString(payload.lead_id)])
-        if (!lead) return {}
+        if (!lead) return { lastRealtimeEvent: event }
         return {
+          lastRealtimeEvent: event,
           leadsById: {
             ...state.leadsById,
             [lead.id]: {
@@ -173,8 +176,9 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
 
       if (event.type === 'appointment.created' || event.type === 'appointment.updated') {
         const appointment = mapAppointmentPayload(payload, state.appointmentsById[asString(payload.appointment_id)])
-        if (!appointment) return {}
+        if (!appointment) return { lastRealtimeEvent: event }
         return {
+          lastRealtimeEvent: event,
           appointmentsById: {
             ...state.appointmentsById,
             [appointment.id]: {
@@ -187,11 +191,12 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
 
       if (event.type === 'reminder.outcome') {
         const appointmentId = asString(payload.appointment_id)
-        if (!appointmentId) return {}
+        if (!appointmentId) return { lastRealtimeEvent: event }
         const existing = state.appointmentsById[appointmentId]
-        if (!existing) return {}
+        if (!existing) return { lastRealtimeEvent: event }
         const outcome = asString(payload.outcome, 'unknown')
         return {
+          lastRealtimeEvent: event,
           appointmentsById: {
             ...state.appointmentsById,
             [appointmentId]: {
@@ -213,11 +218,12 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
 
       if (event.type === 'reminder.updated') {
         const appointmentId = asString(payload.appointment_id)
-        if (!appointmentId) return {}
+        if (!appointmentId) return { lastRealtimeEvent: event }
         const existing = state.appointmentsById[appointmentId]
-        if (!existing) return {}
+        if (!existing) return { lastRealtimeEvent: event }
         const normalized = asString(payload.outcome, asString(payload.status, existing.last_reminder_outcome?.status || ''))
         return {
+          lastRealtimeEvent: event,
           appointmentsById: {
             ...state.appointmentsById,
             [appointmentId]: {
@@ -238,8 +244,9 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
 
       if (event.type === 'listing.updated' || event.type === 'listing.performance.updated') {
         const listingId = asString(payload.listing_id)
-        if (!listingId) return {}
+        if (!listingId) return { lastRealtimeEvent: event }
         return {
+          lastRealtimeEvent: event,
           listingSignalsById: {
             ...state.listingSignalsById,
             [listingId]: event.ts
@@ -247,6 +254,6 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
         }
       }
 
-      return {}
+      return { lastRealtimeEvent: event }
     })
 }))

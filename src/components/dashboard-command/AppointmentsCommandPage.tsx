@@ -12,6 +12,8 @@ import {
   type DashboardAppointmentRow
 } from '../../services/dashboardCommandService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
+import UpgradePromptModal from '../billing/UpgradePromptModal'
+import { createBillingCheckoutSession, fetchDashboardBilling, type PlanId } from '../../services/dashboardBillingService'
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return 'Unknown time'
@@ -78,14 +80,33 @@ const AppointmentsCommandPage: React.FC = () => {
   const [workingId, setWorkingId] = useState<string | null>(null)
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null)
   const [remindersByAppointment, setRemindersByAppointment] = useState<Record<string, AppointmentReminderRow[]>>({})
+  const [planId, setPlanId] = useState<PlanId>('free')
+  const [reminderUsageWarning, setReminderUsageWarning] = useState<string | null>(null)
+  const [upgradeLoading, setUpgradeLoading] = useState(false)
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       setError(null)
       try {
-        const response = await fetchDashboardAppointments({ view: 'week' })
+        const [response, billing] = await Promise.all([
+          fetchDashboardAppointments({ view: 'week' }),
+          fetchDashboardBilling().catch(() => null)
+        ])
         setInitialAppointments(response.appointments || [])
+        if (billing?.plan?.id) setPlanId(billing.plan.id)
+        const reminderMeter = billing?.usage?.reminder_calls_per_month
+        const warning = (billing?.warnings || []).find(
+          (item) => item.key === 'reminder_calls_per_month' && Number(item.percent || 0) >= 80 && Number(item.percent || 0) < 100
+        )
+        if (warning && reminderMeter) {
+          setReminderUsageWarning(
+            `Reminder calls: ${Number(reminderMeter.used || 0)}/${Number(reminderMeter.limit || 0)} used`
+          )
+        } else {
+          setReminderUsageWarning(null)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load appointments.')
       } finally {
@@ -223,6 +244,7 @@ const AppointmentsCommandPage: React.FC = () => {
   }
 
   const timelineRows = selectedAppointmentId ? remindersByAppointment[selectedAppointmentId] || [] : []
+  const remindersLocked = planId !== 'pro'
 
   const renderCard = (appointment: DashboardAppointmentRow) => {
     const badge = appointmentBadge(appointment)
@@ -272,7 +294,13 @@ const AppointmentsCommandPage: React.FC = () => {
           {(lastReminderStatus === 'failed' || lastReminderStatus === 'no_answer') && (
             <button
               type="button"
-              onClick={() => void handleRetryReminder(appointment)}
+              onClick={() => {
+                if (remindersLocked) {
+                  setUpgradeModalOpen(true)
+                  return
+                }
+                void handleRetryReminder(appointment)
+              }}
               disabled={workingId === appointment.id}
               className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 disabled:opacity-60"
             >
@@ -300,6 +328,30 @@ const AppointmentsCommandPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-slate-900">Appointments</h1>
         <p className="mt-1 text-sm text-slate-600">Confirm showings, reduce no-shows, and handle reschedules fast.</p>
       </div>
+      {remindersLocked ? (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-indigo-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+              PRO
+            </span>
+            <p className="font-semibold">Pro feature — includes appointment reminder calls.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUpgradeModalOpen(true)}
+            className="mt-2 rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700"
+          >
+            Upgrade now
+          </button>
+        </div>
+      ) : null}
+      {reminderUsageWarning ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">You’re close to your limit.</p>
+          <p>Upgrade to keep everything running without interruptions.</p>
+          <p className="mt-1 text-xs">{reminderUsageWarning}</p>
+        </div>
+      ) : null}
 
       {loading && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Loading appointments...</div>}
       {!loading && error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
@@ -385,6 +437,10 @@ const AppointmentsCommandPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={async () => {
+                            if (remindersLocked) {
+                              setUpgradeModalOpen(true)
+                              return
+                            }
                             setWorkingId(row.id)
                             setError(null)
                             try {
@@ -418,6 +474,10 @@ const AppointmentsCommandPage: React.FC = () => {
             <button
               type="button"
               onClick={async () => {
+                if (remindersLocked) {
+                  setUpgradeModalOpen(true)
+                  return
+                }
                 setWorkingId(selectedAppointment.id)
                 setError(null)
                 try {
@@ -441,6 +501,10 @@ const AppointmentsCommandPage: React.FC = () => {
             <button
               type="button"
               onClick={async () => {
+                if (remindersLocked) {
+                  setUpgradeModalOpen(true)
+                  return
+                }
                 setWorkingId(selectedAppointment.id)
                 setError(null)
                 try {
@@ -464,6 +528,28 @@ const AppointmentsCommandPage: React.FC = () => {
           </div>
         </section>
       )}
+      <UpgradePromptModal
+        isOpen={upgradeModalOpen}
+        title="You’re at your limit."
+        body="Upgrade to keep capturing leads and sending reports without interruptions."
+        reasonLine="Reminder calls are included in Pro."
+        upgrading={upgradeLoading}
+        onClose={() => setUpgradeModalOpen(false)}
+        onUpgrade={() => {
+          void (async () => {
+            try {
+              setUpgradeLoading(true)
+              const checkout = await createBillingCheckoutSession('pro')
+              if (!checkout.url) throw new Error('Missing checkout URL')
+              window.location.href = checkout.url
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Failed to start checkout.')
+            } finally {
+              setUpgradeLoading(false)
+            }
+          })()
+        }}
+      />
     </div>
   )
 }

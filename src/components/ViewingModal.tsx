@@ -19,6 +19,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
   const [form, setForm] = useState({ name: '', email: '', phone: '', date: '', time: 'Afternoon', notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string>('Failed to schedule. Try again.')
   const [confirmedSlot, setConfirmedSlot] = useState<{ date: string; time: string } | null>(null)
 
   const set = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }))
@@ -28,6 +29,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
     if (!form.name || !form.email || !form.date || !form.time) return
     setSubmitting(true)
     setStatus('idle')
+    setErrorMessage('Failed to schedule. Try again.')
     setConfirmedSlot(null)
 
     // Demo / Blueprint Bypass
@@ -56,7 +58,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
         }
 
         try {
-          await fetch(buildApiUrl('/api/leads/capture'), {
+          const captureResponse = await fetch(buildApiUrl('/api/leads/capture'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -79,6 +81,18 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
               context: 'showing_requested'
             })
           })
+          if (!captureResponse.ok) {
+            const payload = await captureResponse.json().catch(() => ({}))
+            if (String((payload as { error?: string }).error || '') === 'limit_reached') {
+              const captureLimitMessage =
+                String((payload as { reason_line?: string }).reason_line || '').trim() ||
+                "You've reached your lead storage limit. Upgrade to keep collecting leads."
+              setErrorMessage(captureLimitMessage)
+              setStatus('error')
+              setSubmitting(false)
+              return
+            }
+          }
         } catch (_captureError) {
           // Scheduling should still proceed if capture fails.
         }
@@ -160,7 +174,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
               Showing scheduled{confirmedSlot ? ` for ${confirmedSlot.date} at ${confirmedSlot.time}` : ''}. Confirmation sent.
             </div>
           )}
-          {status === 'error' && <div className='p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800'>Failed to schedule. Try again.</div>}
+          {status === 'error' && <div className='p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800'>{errorMessage}</div>}
         </div>
         <div className='flex justify-end items-center mt-6 pt-4 border-t border-slate-200'>
           <button type='button' onClick={onClose} className='px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 mr-2' disabled={submitting}>Cancel</button>

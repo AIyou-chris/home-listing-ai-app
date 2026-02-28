@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchDashboardLeads,
+  logDashboardAgentAction,
   type DashboardLeadItem
 } from '../../services/dashboardCommandService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
@@ -148,7 +149,10 @@ const LeadsInboxCommandPage: React.FC = () => {
           };
 
           return (
-            <div key={lead.id} className="group rounded-2xl border border-slate-200 bg-white p-5 hover:border-slate-300 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer" onClick={() => navigate(`/dashboard/leads/${lead.id}`)}>
+            <div key={lead.id} className="group rounded-2xl border border-slate-200 bg-white p-5 hover:border-slate-300 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer" onClick={() => {
+              void logOpen(lead.id)
+              navigate(`/dashboard/leads/${lead.id}`)
+            }}>
               <div className="flex items-start gap-4 flex-1">
 
                 {/* Subtle Avatar */}
@@ -189,6 +193,7 @@ const LeadsInboxCommandPage: React.FC = () => {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    void logOpen(lead.id)
                     navigate(`/dashboard/leads/${lead.id}`);
                   }}
                   className="w-full sm:w-auto px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-lg transition-colors text-sm"
@@ -205,3 +210,10 @@ const LeadsInboxCommandPage: React.FC = () => {
 }
 
 export default LeadsInboxCommandPage
+  const logOpen = async (leadId: string) => {
+    await logDashboardAgentAction({
+      lead_id: leadId,
+      action: 'lead_opened',
+      metadata: { source: 'leads_inbox' }
+    }).catch(() => undefined)
+  }
