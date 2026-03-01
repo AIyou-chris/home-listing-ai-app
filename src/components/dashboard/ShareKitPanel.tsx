@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import VideoShareActions from './VideoShareActions';
+import SocialVideoWidget from '../dashboard-widgets/SocialVideoWidget';
 
 // Using dummy types for the prop signature to wire this up quickly
 export interface ShareKitPanelProps {
@@ -134,40 +135,93 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                 </div>
             </div>
 
-            {/* Main Content Grid */}
-            <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${isDraft ? 'opacity-50 pointer-events-none' : ''}`}>
+            {/* Top Grid: Core Sharing Assets */}
+            <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 ${isDraft ? 'opacity-50 pointer-events-none' : ''}`}>
+                {/* LEFT: Link Block */}
 
-                {/* LEFT COLUMN */}
-                <div className="space-y-8">
+                {/* Link Block */}
+                <div className="bg-[#040814] p-6 rounded-xl border border-slate-800">
+                    <label className="block text-slate-300 font-bold mb-3">Share Link</label>
+                    <div className="flex bg-[#0B1121] rounded-lg border border-slate-700 overflow-hidden">
+                        <input
+                            type="text"
+                            readOnly
+                            value={shareUrl}
+                            className="flex-1 bg-transparent text-slate-300 px-4 py-3 outline-none font-mono text-sm"
+                        />
+                        <button
+                            onClick={() => handleCopy(shareUrl, setCopiedLink)}
+                            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors border-l border-slate-700"
+                        >
+                            {copiedLink ? 'Copied!' : 'Copy Link'}
+                        </button>
+                        <a
+                            href={shareUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hidden sm:flex items-center px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-colors border-l border-slate-700"
+                        >
+                            Open
+                        </a>
+                    </div>
+                    <p className="text-slate-500 text-sm mt-3">Use this link for social, email, and DMs.</p>
+                </div>
 
-                    {/* Link Block */}
-                    <div className="bg-[#040814] p-6 rounded-xl border border-slate-800">
-                        <label className="block text-slate-300 font-bold mb-3">Share Link</label>
-                        <div className="flex bg-[#0B1121] rounded-lg border border-slate-700 overflow-hidden">
-                            <input
-                                type="text"
-                                readOnly
-                                value={shareUrl}
-                                className="flex-1 bg-transparent text-slate-300 px-4 py-3 outline-none font-mono text-sm"
-                            />
-                            <button
-                                onClick={() => handleCopy(shareUrl, setCopiedLink)}
-                                className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors border-l border-slate-700"
-                            >
-                                {copiedLink ? 'Copied!' : 'Copy Link'}
-                            </button>
-                            <a
-                                href={shareUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="hidden sm:flex items-center px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-colors border-l border-slate-700"
-                            >
-                                Open
-                            </a>
-                        </div>
-                        <p className="text-slate-500 text-sm mt-3">Use this link for social, email, and DMs.</p>
+                {/* RIGHT: QR Code Block */}
+                <div className="bg-[#040814] p-6 rounded-xl border border-slate-800 flex flex-col items-center">
+                    <div className="w-full flex justify-between items-center mb-6">
+                        <h3 className="text-white font-bold text-lg">QR Codes</h3>
+
+                        {/* Simple Dropdown for QR Source Type */}
+                        <select
+                            value={qrSource}
+                            onChange={(e) => setQrSource(e.target.value as 'sign' | 'open_house' | 'social')}
+                            className="bg-slate-900 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none font-semibold cursor-pointer"
+                        >
+                            <option value="sign">Sign QR</option>
+                            <option value="open_house">Open House QR</option>
+                            <option value="social">Social QR</option>
+                        </select>
                     </div>
 
+                    {/* Interactive QR Display */}
+                    <div className="bg-white p-4 rounded-3xl w-64 h-64 mb-6 shadow-xl">
+                        <img src={qrImageUrl} alt="QR Code" className="w-full h-full object-contain" />
+                    </div>
+
+                    <div className="w-full grid grid-cols-3 gap-3 mb-4">
+                        <button className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors">
+                            Download PNG
+                        </button>
+                        <button className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors">
+                            Download SVG
+                        </button>
+                        <button
+                            onClick={() => handleCopy(trackingUrl, () => { })}
+                            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors"
+                        >
+                            Copy QR Link
+                        </button>
+                    </div>
+                    <p className="text-slate-500 text-xs text-center">
+                        QRs track where leads come from (sign, open house, social).
+                    </p>
+                </div>
+            </div>
+
+            {/* Middle Row: Social Video Gen */}
+            <div className={`mb-8 ${isDraft ? 'opacity-50 pointer-events-none' : ''}`}>
+                <SocialVideoWidget
+                    listingId={listing.id}
+                    listingAddress={listing.address}
+                    listingLink={shareUrl}
+                />
+            </div>
+
+            {/* Bottom Grid: Secondary Assets & Performance */}
+            <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${isDraft ? 'opacity-50 pointer-events-none' : ''}`}>
+                {/* LEFT COLUMN */}
+                <div className="space-y-8">
                     {/* Open House Pack Block */}
                     <div className="bg-[#040814] p-6 rounded-xl border border-slate-800">
                         <h3 className="text-white font-bold mb-2 text-lg">Open House Pack</h3>
@@ -238,48 +292,6 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
                 {/* RIGHT COLUMN */}
                 <div className="space-y-8">
-
-                    {/* QR Code Block */}
-                    <div className="bg-[#040814] p-6 rounded-xl border border-slate-800 flex flex-col items-center">
-                        <div className="w-full flex justify-between items-center mb-6">
-                            <h3 className="text-white font-bold text-lg">QR Codes</h3>
-
-                            {/* Simple Dropdown for QR Source Type */}
-                            <select
-                                value={qrSource}
-                                onChange={(e) => setQrSource(e.target.value as 'sign' | 'open_house' | 'social')}
-                                className="bg-slate-900 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none font-semibold cursor-pointer"
-                            >
-                                <option value="sign">Sign QR</option>
-                                <option value="open_house">Open House QR</option>
-                                <option value="social">Social QR</option>
-                            </select>
-                        </div>
-
-                        {/* Interactive QR Display */}
-                        <div className="bg-white p-4 rounded-3xl w-64 h-64 mb-6 shadow-xl">
-                            <img src={qrImageUrl} alt="QR Code" className="w-full h-full object-contain" />
-                        </div>
-
-                        <div className="w-full grid grid-cols-3 gap-3 mb-4">
-                            <button className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors">
-                                Download PNG
-                            </button>
-                            <button className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors">
-                                Download SVG
-                            </button>
-                            <button
-                                onClick={() => handleCopy(trackingUrl, () => { })}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors"
-                            >
-                                Copy QR Link
-                            </button>
-                        </div>
-                        <p className="text-slate-500 text-xs text-center">
-                            QRs track where leads come from (sign, open house, social).
-                        </p>
-                    </div>
-
                     {/* Test Lead Block */}
                     <div className="bg-[#040814] p-6 rounded-xl border border-slate-800">
                         <div className="flex justify-between items-start mb-2">

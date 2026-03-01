@@ -76,6 +76,16 @@ const PUBLIC_CHAT_MAX_PER_HOUR = Number(process.env.PUBLIC_CHAT_MAX_PER_HOUR || 
 const PUBLIC_CHAT_HISTORY_LIMIT = Number(process.env.PUBLIC_CHAT_HISTORY_LIMIT || 20);
 const PUBLIC_CHAT_SUMMARY_BUCKET_SIZE = Number(process.env.PUBLIC_CHAT_SUMMARY_BUCKET_SIZE || 3);
 const OPENAI_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o';
+const CREATOMATE_API_BASE_URL = 'https://api.creatomate.com/v2';
+const CREATOMATE_API_KEY = process.env.CREATOMATE_API_KEY || '';
+const CREATOMATE_WEBHOOK_SECRET = process.env.CREATOMATE_WEBHOOK_SECRET || '';
+const VIDEOS_BUCKET = String(process.env.VIDEOS_BUCKET || 'videos').trim() || 'videos';
+const BACKEND_BASE_URL = String(
+  process.env.BACKEND_BASE_URL ||
+  process.env.PUBLIC_URL ||
+  process.env.VOICE_PUBLIC_BASE_URL ||
+  `http://localhost:${process.env.PORT || 3002}`
+).replace(/\/+$/, '');
 
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -2085,29 +2095,53 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
   }
 });
 
-// Creatomate Webhook Endpoint
-app.post("/webhooks/creatomate", express.json({ limit: "2mb" }), async (req, res) => {
+// Creatomate webhook: validate quickly, enqueue finalize jobs, and return.
+app.post('/webhooks/creatomate', express.json({ limit: '2mb' }), async (req, res) => {
   try {
-    const secret = req.query.secret;
-    const expected = process.env.CREATOMATE_WEBHOOK_SECRET;
-
-    // 1) Reject if secret is missing or wrong
-    if (!expected || secret !== expected) {
-      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    const incomingSecret = String(req.query?.secret || '').trim();
+    if (!CREATOMATE_WEBHOOK_SECRET || incomingSecret !== CREATOMATE_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
     }
 
-    // 2) If secret is valid, process the webhook
-    const payload = req.body;
-    console.log('[Creatomate Webhook] Received status update:', payload.status, payload.id);
+    const payloads = Array.isArray(req.body) ? req.body : [req.body];
+    const accepted = [];
+    for (const payload of payloads) {
+      if (!payload || typeof payload !== 'object') continue;
+      const renderId = String(payload.id || payload.render_id || '').trim();
+      const status = String(payload.status || 'unknown').trim().toLowerCase();
+      const metadataVideoId = String(payload.metadata?.video_id || '').trim();
+      const jobKeySeed = renderId || metadataVideoId || crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 20);
+      const idempotencyKey = `webhook:creatomate:${jobKeySeed}:${status || 'unknown'}`;
 
-    // TODO: Connect this to the DB to toggle Social Video UI state to "Ready" and assign the URL
-    // await jobQueue.enqueue("creatomate_webhook_received", { payload });
+      await enqueueJob({
+        type: 'video_finalize_upload',
+        payload: {
+          payload,
+          render_id: renderId || null,
+          status,
+          metadata_video_id: metadataVideoId || null
+        },
+        idempotencyKey,
+        priority: 3,
+        runAt: nowIso(),
+        maxAttempts: 3
+      }).catch((error) => {
+        console.warn('[Creatomate Webhook] Failed to enqueue finalize job:', error?.message || error);
+      });
 
-    // For now just acknowledge receipt
-    return res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error("Creatomate webhook error:", err);
-    return res.status(500).json({ ok: false });
+      accepted.push({
+        render_id: renderId || null,
+        status: status || null
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      enqueued: accepted.length
+    });
+  } catch (error) {
+    console.error('[Creatomate Webhook] Error:', error);
+    return res.status(500).json({ error: 'failed_to_queue_creatomate_webhook' });
   }
 });
 
@@ -2773,6 +2807,123 @@ const buildListingVideoFileName = ({ listingRow, templateStyle, durationSeconds 
   return `${slugSeed}-${safeTemplate}-${safeDuration}s.mp4`;
 };
 
+const resolveCreatomateTemplateIdByStyle = (templateStyle) => {
+  const style = normalizeVideoTemplateStyle(templateStyle) || 'luxury';
+  if (style === 'luxury') return toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_LUXURY_ID);
+  if (style === 'country') return toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_COUNTRY_ID);
+  if (style === 'fixer') return toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_FIXER_ID);
+  if (style === 'story') {
+    return (
+      toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_STORY_ID) ||
+      toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_LUXURY_ID)
+    );
+  }
+  return null;
+};
+
+const formatListingDisplayAddress = (listingRow) => {
+  const parts = [
+    toTrimmedOrNull(listingRow?.address),
+    toTrimmedOrNull(listingRow?.city),
+    toTrimmedOrNull(listingRow?.state),
+    toTrimmedOrNull(listingRow?.zip)
+  ].filter(Boolean);
+  return parts.join(', ');
+};
+
+const buildCreatomateVideoModifications = ({ listingRow, agentRow, sourcePhotos = [] }) => {
+  const uniquePhotos = (sourcePhotos || [])
+    .filter((photo) => typeof photo === 'string' && photo.trim().length > 0)
+    .map((photo) => photo.trim())
+    .slice(0, 6);
+
+  const safeAddress = formatListingDisplayAddress(listingRow);
+  const safePrice = Number(listingRow?.price || 0);
+  const beds = Number(listingRow?.bedrooms || 0);
+  const baths = Number(listingRow?.bathrooms || 0);
+  const sqft = Number(listingRow?.sqft || listingRow?.square_feet || 0);
+  const detailParts = [];
+  if (beds > 0) detailParts.push(`${beds} bed`);
+  if (baths > 0) detailParts.push(`${baths} bath`);
+  if (sqft > 0) detailParts.push(`${sqft.toLocaleString()} sq ft`);
+  const detailsText = detailParts.join(' • ') || 'See listing details';
+
+  const agentName = [
+    toTrimmedOrNull(agentRow?.first_name),
+    toTrimmedOrNull(agentRow?.last_name)
+  ].filter(Boolean).join(' ') || 'HomeListingAI Agent';
+
+  const modifications = {
+    Price: safePrice > 0 ? `$${safePrice.toLocaleString()}` : 'Price available on request',
+    Address: safeAddress || 'Address available on request',
+    Details: detailsText,
+    CTA: 'Scan for details + showing options',
+    Brand: 'HomeListingAI'
+  };
+
+  uniquePhotos.forEach((url, index) => {
+    modifications[`Photo-${index + 1}.source`] = url;
+  });
+
+  if (agentRow?.headshot_url) {
+    modifications['Headshot.source'] = agentRow.headshot_url;
+  }
+  if (agentName) {
+    modifications.Badge = agentName;
+  }
+
+  return modifications;
+};
+
+const creatomateApiRequest = async ({ method = 'GET', path, data = null }) => {
+  if (!CREATOMATE_API_KEY) {
+    throw new Error('creatomate_api_key_missing');
+  }
+  const url = `${CREATOMATE_API_BASE_URL}${path}`;
+  const response = await axios({
+    method,
+    url,
+    data,
+    headers: {
+      Authorization: `Bearer ${CREATOMATE_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    timeout: 45000
+  });
+  return response.data;
+};
+
+const createCreatomateRender = async ({
+  templateId,
+  modifications,
+  metadata
+}) => {
+  const webhookUrl = `${BACKEND_BASE_URL}/webhooks/creatomate?secret=${encodeURIComponent(CREATOMATE_WEBHOOK_SECRET)}`;
+  const payload = {
+    template_id: templateId,
+    modifications: modifications || {},
+    webhook_url: webhookUrl,
+    metadata: metadata || {}
+  };
+  const result = await creatomateApiRequest({
+    method: 'POST',
+    path: '/renders',
+    data: payload
+  });
+  const render = Array.isArray(result) ? result[0] : result;
+  if (!render?.id) throw new Error('creatomate_render_id_missing');
+  return render;
+};
+
+const fetchCreatomateRenderById = async (renderId) => {
+  if (!renderId) return null;
+  const result = await creatomateApiRequest({
+    method: 'GET',
+    path: `/renders/${encodeURIComponent(renderId)}`
+  });
+  return Array.isArray(result) ? result[0] : result;
+};
+
 const toReferrerDomain = (value) => {
   if (!value || typeof value !== 'string') return null;
   try {
@@ -3267,6 +3418,33 @@ const emitListingPerformanceUpdated = ({ listingId, agentId, payload = {} }) => 
       listing_id: listingId,
       updated_at: nowIso(),
       ...payload
+    }
+  });
+};
+
+const emitListingVideoRealtimeEvent = ({
+  agentId,
+  listingId,
+  videoId,
+  status,
+  templateStyle = null,
+  durationSeconds = null,
+  creditsRemaining = null,
+  errorMessage = null
+}) => {
+  if (!agentId || !listingId || !videoId) return;
+  emitRealtimeEvent({
+    type: 'listing.video.updated',
+    agentId,
+    payload: {
+      listing_id: listingId,
+      video_id: videoId,
+      status: status || null,
+      template_style: templateStyle || null,
+      duration_seconds: Number(durationSeconds || 0) || null,
+      credits_remaining: Number.isFinite(Number(creditsRemaining)) ? Number(creditsRemaining) : null,
+      error_message: errorMessage || null,
+      updated_at: nowIso()
     }
   });
 };
@@ -5769,6 +5947,314 @@ const processStripeWebhookJob = async (job) => {
   };
 };
 
+const processVideoRenderCreatomateJob = async (job) => {
+  const videoId = toTrimmedOrNull(job.payload?.video_id || job.payload?.videoId);
+  if (!videoId) return { status: 'skipped', reason: 'video_id_required' };
+
+  const { data: videoRow, error: videoError } = await supabaseAdmin
+    .from('listing_videos')
+    .select('*')
+    .eq('id', videoId)
+    .maybeSingle();
+  if (videoError || !videoRow) {
+    throw videoError || new Error('listing_video_not_found');
+  }
+
+  const currentStatus = String(videoRow.status || '').toLowerCase();
+  if (currentStatus === 'succeeded') {
+    return { status: 'skipped', reason: 'already_succeeded' };
+  }
+
+  if (videoRow.creatomate_render_id && currentStatus !== 'failed') {
+    await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: currentStatus === 'queued' ? 'rendering' : videoRow.status,
+        updated_at: nowIso()
+      })
+      .eq('id', videoId);
+    return {
+      status: 'skipped',
+      reason: 'render_already_requested',
+      render_id: videoRow.creatomate_render_id
+    };
+  }
+
+  const ownerId = String(videoRow.agent_id || '').trim();
+  const listingId = String(videoRow.listing_id || '').trim();
+  if (!ownerId || !listingId) throw new Error('video_owner_or_listing_missing');
+
+  const templateStyle = normalizeVideoTemplateStyle(videoRow.template_style) || 'luxury';
+  const templateId = resolveCreatomateTemplateIdByStyle(templateStyle);
+  if (!templateId) {
+    throw new Error(`creatomate_template_missing_for_${templateStyle}`);
+  }
+
+  const { data: listingRow, error: listingError } = await supabaseAdmin
+    .from('properties')
+    .select('*')
+    .eq('id', listingId)
+    .maybeSingle();
+  if (listingError || !listingRow) throw listingError || new Error('listing_not_found_for_video');
+
+  let agentRow = null;
+  const { data: possibleAgent } = await supabaseAdmin
+    .from('agents')
+    .select('id, first_name, last_name, headshot_url')
+    .eq('id', ownerId)
+    .maybeSingle();
+  if (possibleAgent) {
+    agentRow = possibleAgent;
+  } else {
+    const { data: byAuth } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name, headshot_url')
+      .eq('auth_user_id', ownerId)
+      .maybeSingle();
+    agentRow = byAuth || null;
+  }
+
+  const sourcePhotos = Array.isArray(videoRow.source_photos) && videoRow.source_photos.length > 0
+    ? videoRow.source_photos
+    : [
+      ...(Array.isArray(listingRow.hero_photos) ? listingRow.hero_photos : []),
+      ...(Array.isArray(listingRow.gallery_photos) ? listingRow.gallery_photos : [])
+    ];
+
+  const modifications = buildCreatomateVideoModifications({
+    listingRow,
+    agentRow,
+    sourcePhotos
+  });
+
+  await supabaseAdmin
+    .from('listing_videos')
+    .update({
+      status: 'rendering',
+      creatomate_template_id: templateId,
+      updated_at: nowIso()
+    })
+    .eq('id', videoId);
+
+  const render = await createCreatomateRender({
+    templateId,
+    modifications,
+    metadata: {
+      video_id: videoId,
+      listing_id: listingId,
+      agent_id: ownerId
+    }
+  });
+
+  await supabaseAdmin
+    .from('listing_videos')
+    .update({
+      status: 'rendering',
+      creatomate_template_id: templateId,
+      creatomate_render_id: String(render.id),
+      error_message: null,
+      updated_at: nowIso()
+    })
+    .eq('id', videoId);
+
+  emitListingVideoRealtimeEvent({
+    agentId: ownerId,
+    listingId,
+    videoId,
+    status: 'rendering',
+    templateStyle,
+    durationSeconds: videoRow.duration_seconds
+  });
+
+  return {
+    status: 'rendering',
+    video_id: videoId,
+    render_id: String(render.id),
+    template_style: templateStyle
+  };
+};
+
+const processVideoFinalizeUploadJob = async (job) => {
+  const payload = job.payload?.payload && typeof job.payload.payload === 'object'
+    ? job.payload.payload
+    : (job.payload || {});
+  const normalizedStatus = String(payload?.status || job.payload?.status || 'unknown').trim().toLowerCase();
+  const renderId = String(payload?.id || payload?.render_id || job.payload?.render_id || '').trim();
+  const metadataVideoId = String(payload?.metadata?.video_id || job.payload?.metadata_video_id || '').trim();
+
+  let query = supabaseAdmin.from('listing_videos').select('*').limit(1);
+  if (metadataVideoId) {
+    query = query.eq('id', metadataVideoId);
+  } else if (renderId) {
+    query = query.eq('creatomate_render_id', renderId);
+  } else {
+    return { status: 'skipped', reason: 'video_reference_missing' };
+  }
+
+  const { data: videoRow, error: videoError } = await query.maybeSingle();
+  if (videoError || !videoRow) {
+    throw videoError || new Error('listing_video_not_found');
+  }
+
+  const ownerId = String(videoRow.agent_id || '').trim();
+  const listingId = String(videoRow.listing_id || '').trim();
+  const videoId = String(videoRow.id || '').trim();
+  if (!ownerId || !listingId || !videoId) throw new Error('video_identity_missing');
+
+  if (['planned', 'queued', 'rendering', 'transcribing'].includes(normalizedStatus)) {
+    await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: 'rendering',
+        creatomate_render_id: renderId || videoRow.creatomate_render_id,
+        updated_at: nowIso()
+      })
+      .eq('id', videoId);
+
+    emitListingVideoRealtimeEvent({
+      agentId: ownerId,
+      listingId,
+      videoId,
+      status: 'rendering',
+      templateStyle: videoRow.template_style,
+      durationSeconds: videoRow.duration_seconds
+    });
+    return { status: 'rendering', video_id: videoId };
+  }
+
+  if (normalizedStatus === 'failed') {
+    const errorMessage = toTrimmedOrNull(payload?.error_message || payload?.error || payload?.error_reason || 'creatomate_render_failed');
+    await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: 'failed',
+        creatomate_render_id: renderId || videoRow.creatomate_render_id,
+        error_message: errorMessage,
+        updated_at: nowIso()
+      })
+      .eq('id', videoId);
+
+    if (String(videoRow.status || '').toLowerCase() !== 'failed') {
+      await listingVideoCreditsService.refundReservedCredit({
+        agentId: ownerId,
+        listingId,
+        amount: 1
+      }).catch((error) => {
+        console.warn('[ListingVideos] Failed to refund reserved credit:', error?.message || error);
+      });
+    }
+
+    emitListingVideoRealtimeEvent({
+      agentId: ownerId,
+      listingId,
+      videoId,
+      status: 'failed',
+      templateStyle: videoRow.template_style,
+      durationSeconds: videoRow.duration_seconds,
+      errorMessage
+    });
+    return { status: 'failed', video_id: videoId };
+  }
+
+  if (normalizedStatus !== 'succeeded') {
+    return { status: 'skipped', reason: 'unsupported_status', raw_status: normalizedStatus };
+  }
+
+  let downloadUrl = toTrimmedOrNull(payload?.url);
+  if (!downloadUrl && renderId) {
+    const render = await fetchCreatomateRenderById(renderId);
+    downloadUrl = toTrimmedOrNull(render?.url);
+  }
+  if (!downloadUrl) {
+    throw new Error('creatomate_output_url_missing');
+  }
+
+  if (
+    String(videoRow.status || '').toLowerCase() === 'succeeded' &&
+    String(videoRow.storage_path || '').trim().length > 0
+  ) {
+    emitListingVideoRealtimeEvent({
+      agentId: ownerId,
+      listingId,
+      videoId,
+      status: 'succeeded',
+      templateStyle: videoRow.template_style,
+      durationSeconds: videoRow.duration_seconds
+    });
+    return { status: 'already_succeeded', video_id: videoId };
+  }
+
+  const response = await axios.get(downloadUrl, {
+    responseType: 'arraybuffer',
+    timeout: 120000
+  });
+  const binary = Buffer.from(response.data);
+  const storagePath = `agent/${ownerId}/listing/${listingId}/${videoId}.mp4`;
+  const fileName = videoRow.file_name || buildListingVideoFileName({
+    listingRow: { id: listingId, public_slug: listingId },
+    templateStyle: videoRow.template_style,
+    durationSeconds: videoRow.duration_seconds || 15
+  });
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(VIDEOS_BUCKET)
+    .upload(storagePath, binary, {
+      contentType: 'video/mp4',
+      upsert: true,
+      cacheControl: '3600'
+    });
+  if (uploadError) throw uploadError;
+
+  await supabaseAdmin
+    .from('listing_videos')
+    .update({
+      status: 'succeeded',
+      storage_bucket: VIDEOS_BUCKET,
+      storage_path: storagePath,
+      file_name: fileName,
+      mime_type: 'video/mp4',
+      creatomate_render_id: renderId || videoRow.creatomate_render_id,
+      error_message: null,
+      updated_at: nowIso()
+    })
+    .eq('id', videoId);
+
+  const credits = await listingVideoCreditsService.getCredits({
+    agentId: ownerId,
+    listingId
+  }).catch(() => null);
+
+  if (credits) {
+    emitRealtimeEvent({
+      type: 'listing.video.credits_updated',
+      agentId: ownerId,
+      payload: {
+        listing_id: listingId,
+        included: credits.included,
+        extra: credits.extra,
+        used: credits.used,
+        remaining: credits.remaining
+      }
+    });
+  }
+
+  emitListingVideoRealtimeEvent({
+    agentId: ownerId,
+    listingId,
+    videoId,
+    status: 'succeeded',
+    templateStyle: videoRow.template_style,
+    durationSeconds: videoRow.duration_seconds,
+    creditsRemaining: credits?.remaining ?? null
+  });
+
+  return {
+    status: 'succeeded',
+    video_id: videoId,
+    storage_path: storagePath
+  };
+};
+
 const scoreLeadIntentFromTags = (tags) => {
   const set = new Set(tags || []);
   let score = 15;
@@ -5996,6 +6482,8 @@ const queueJobHandlers = {
   email_send: processEmailSendJob,
   sms_send: processSmsSendJob,
   voice_reminder_call: processVoiceReminderCallJob,
+  video_render_creatomate: processVideoRenderCreatomateJob,
+  video_finalize_upload: processVideoFinalizeUploadJob,
   webhook_vapi_process: processVapiWebhookJob,
   webhook_telnyx_process: processTelnyxWebhookJob,
   webhook_stripe_process: processStripeWebhookJob,
@@ -14915,7 +15403,7 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
         .select('id, title, caption, file_name, mime_type, status, created_at')
         .eq('listing_id', listing.id)
         .eq('agent_id', listing.agent_id || listing.user_id || agentId)
-        .in('status', ['ready', 'completed', 'published'])
+        .in('status', ['ready', 'completed', 'published', 'succeeded'])
         .order('created_at', { ascending: false })
         .limit(1);
       if (videoError && !/does not exist|listing_videos/i.test(videoError.message || '')) {
@@ -15181,6 +15669,19 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
       throw insertError;
     }
 
+    await enqueueJob({
+      type: 'video_render_creatomate',
+      payload: {
+        video_id: videoRow.id,
+        listing_id: listing.id,
+        agent_id: ownerId
+      },
+      idempotencyKey: `video:render:${videoRow.id}`,
+      priority: 4,
+      runAt: nowIso(),
+      maxAttempts: 3
+    });
+
     emitRealtimeEvent({
       type: 'listing.video.credits_updated',
       agentId: ownerId,
@@ -15228,7 +15729,7 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
     if (creditReserved && creditOwnerId && creditListingId) {
       // If video row insertion fails after reserving, reimburse the reservation as extra credits.
       if (res.statusCode >= 400) {
-        listingVideoCreditsService.addExtraCredits({
+        listingVideoCreditsService.refundReservedCredit({
           agentId: creditOwnerId,
           listingId: creditListingId,
           amount: 1

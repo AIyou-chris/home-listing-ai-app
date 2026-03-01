@@ -121,6 +121,38 @@ AS $$
     listing_video_credits.updated_at;
 $$;
 
+CREATE OR REPLACE FUNCTION public.refund_listing_video_reserved_credit(
+  p_listing_id uuid,
+  p_agent_id uuid,
+  p_amount integer
+)
+RETURNS TABLE (
+  listing_id uuid,
+  agent_id uuid,
+  included_credits integer,
+  extra_credits integer,
+  used_credits integer,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+LANGUAGE sql
+AS $$
+  UPDATE public.listing_video_credits
+  SET
+    used_credits = GREATEST(used_credits - GREATEST(p_amount, 1), 0),
+    updated_at = now()
+  WHERE listing_video_credits.listing_id = p_listing_id
+    AND listing_video_credits.agent_id = p_agent_id
+  RETURNING
+    listing_video_credits.listing_id,
+    listing_video_credits.agent_id,
+    listing_video_credits.included_credits,
+    listing_video_credits.extra_credits,
+    listing_video_credits.used_credits,
+    listing_video_credits.created_at,
+    listing_video_credits.updated_at;
+$$;
+
 ALTER TABLE public.listing_videos
   ADD COLUMN IF NOT EXISTS template_style text,
   ADD COLUMN IF NOT EXISTS duration_seconds integer,

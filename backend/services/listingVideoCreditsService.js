@@ -145,11 +145,30 @@ const createListingVideoCreditsService = ({ supabaseAdmin }) => {
     return toCreditsPayload(row);
   };
 
+  const refundReservedCredit = async ({ agentId, listingId, amount = 1 }) => {
+    if (!agentId || !listingId) throw new Error('agent_id_and_listing_id_required');
+    const safeAmount = Math.max(1, Number(amount || 1));
+
+    const { data, error } = await supabaseAdmin.rpc('refund_listing_video_reserved_credit', {
+      p_listing_id: listingId,
+      p_agent_id: agentId,
+      p_amount: safeAmount
+    });
+    if (error) throw error;
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) {
+      throw new Error('failed_to_refund_reserved_credit');
+    }
+    return toCreditsPayload(row);
+  };
+
   return {
     ensureCreditsRow,
     getCredits,
     reserveCreditOrFail,
-    addExtraCredits
+    addExtraCredits,
+    refundReservedCredit
   };
 };
 
