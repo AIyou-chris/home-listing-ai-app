@@ -1,4 +1,6 @@
 import { buildApiUrl } from '../lib/api';
+import { getDemoOnboardingState } from '../demo/demoData';
+import { isDemoModeActive } from '../demo/useDemoMode';
 import { supabase } from './supabase';
 
 export interface OnboardingChecklistState {
@@ -58,11 +60,16 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
 };
 
 const resolveAgentId = async () => {
+  if (isDemoModeActive()) return 'demo-agent-busy';
   const { data } = await supabase.auth.getUser();
   return data.user?.id || null;
 };
 
 export const fetchOnboardingState = async (agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return getDemoOnboardingState();
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl('/api/dashboard/onboarding'), {
     headers: defaultHeaders(agentId)
@@ -74,6 +81,10 @@ export const patchOnboardingState = async (
   payload: OnboardingPatchPayload,
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    return getDemoOnboardingState();
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl('/api/dashboard/onboarding'), {
     method: 'PATCH',

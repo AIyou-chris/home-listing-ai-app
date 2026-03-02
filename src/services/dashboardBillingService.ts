@@ -1,4 +1,6 @@
 import { buildApiUrl } from '../lib/api';
+import { getDemoBillingSnapshot, getDemoBillingUsage } from '../demo/demoData';
+import { isDemoModeActive } from '../demo/useDemoMode';
 import { supabase } from './supabase';
 
 export type PlanId = 'free' | 'starter' | 'pro';
@@ -79,6 +81,7 @@ const defaultModal: LimitModalPayload = {
 };
 
 const resolveAgentId = async (): Promise<string | null> => {
+  if (isDemoModeActive()) return 'demo-agent-busy';
   const { data } = await supabase.auth.getUser();
   return data.user?.id || null;
 };
@@ -120,6 +123,8 @@ const assertResponse = async (response: Response) => {
 };
 
 export const fetchDashboardBilling = async (): Promise<DashboardBillingSnapshot> => {
+  if (isDemoModeActive()) return getDemoBillingSnapshot();
+
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/billing', agentId)), {
     headers: agentId ? { 'x-user-id': agentId } : undefined
@@ -140,6 +145,8 @@ export interface DashboardBillingUsageResponse {
 }
 
 export const fetchDashboardBillingUsage = async (): Promise<DashboardBillingUsageResponse> => {
+  if (isDemoModeActive()) return getDemoBillingUsage();
+
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/billing/usage', agentId)), {
     headers: agentId ? { 'x-user-id': agentId } : undefined

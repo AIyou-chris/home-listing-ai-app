@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import VideoShareActions from './VideoShareActions';
 import SocialVideoWidget from '../dashboard-widgets/SocialVideoWidget';
+import { showToast } from '../../utils/toastService';
 
 // Using dummy types for the prop signature to wire this up quickly
 export interface ShareKitPanelProps {
@@ -66,8 +67,21 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
             await navigator.clipboard.writeText(text);
             setCopiedState(true);
             setTimeout(() => setCopiedState(false), 2000);
+            showToast.success('Copied');
         } catch (err) {
             console.error("Failed to copy", err);
+        }
+    };
+
+    const handleDownloadQr = (format: 'png' | 'svg') => {
+        try {
+            const link = document.createElement('a');
+            link.href = qrImageUrl;
+            link.download = `${listing.slug}-${qrSource}-qr.${format}`;
+            link.click();
+            showToast.success('Downloaded');
+        } catch (error) {
+            console.error('Failed to download QR', error);
         }
     };
 
@@ -190,10 +204,10 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                     </div>
 
                     <div className="w-full grid grid-cols-3 gap-3 mb-4">
-                        <button className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors">
+                        <button onClick={() => handleDownloadQr('png')} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors">
                             Download PNG
                         </button>
-                        <button className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors">
+                        <button onClick={() => handleDownloadQr('svg')} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold rounded-lg transition-colors">
                             Download SVG
                         </button>
                         <button

@@ -2,6 +2,8 @@ import { supabase } from './supabase'
 import { Property, AIDescription, AgentProfile } from '../types'
 import { SAMPLE_AGENT } from '../constants'
 import { buildApiUrl } from '../lib/api'
+import { getDemoProperties } from '../demo/demoData'
+import { isDemoModeActive } from '../demo/useDemoMode'
 
 const PROPERTIES_TABLE = 'properties'
 
@@ -224,6 +226,10 @@ const buildRowPayload = (input: Partial<CreatePropertyInput>): Record<string, un
 
 export const listingsService = {
   async listProperties(agentId?: string): Promise<Property[]> {
+    if (isDemoModeActive()) {
+      return getDemoProperties()
+    }
+
     let effectiveAgentId = agentId
     if (!effectiveAgentId) {
       const { data } = await supabase.auth.getUser()
@@ -247,6 +253,10 @@ export const listingsService = {
   },
 
   async getPropertyById(id: string): Promise<Property | null> {
+    if (isDemoModeActive()) {
+      return getDemoProperties().find((property) => property.id === id) || null
+    }
+
     const { data, error } = await supabase
       .from(PROPERTIES_TABLE)
       .select('*')

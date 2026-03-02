@@ -170,10 +170,12 @@ const DEFAULT_AGENT_NOTIFICATION_SETTINGS = {
 const agentNotificationSettingsCache = new Map();
 const {
   getCalendarSettings,
-  updateCalendarSettings: updateCalendarPreferences,
-  saveCalendarConnection,
-  getCalendarCredentials
+  updateCalendarSettings: updateCalendarPreferences
 } = require('./utils/calendarSettings');
+const {
+  buildAppointmentIcsInvite,
+  buildAppointmentIcsUid
+} = require('./services/icsService');
 const billingEngine = createBillingEngine({
   supabaseAdmin,
   stripe,
@@ -2853,12 +2855,22 @@ const buildCreatomateVideoModifications = ({ listingRow, agentRow, sourcePhotos 
     toTrimmedOrNull(agentRow?.last_name)
   ].filter(Boolean).join(' ') || 'HomeListingAI Agent';
 
+  const priceText = safePrice > 0 ? `$${safePrice.toLocaleString()}` : 'Price available on request';
+  const addressText = safeAddress || 'Address available on request';
+  const ctaText = 'Scan for details + showing options';
+  const brandText = 'HomeListingAI';
+
   const modifications = {
-    Price: safePrice > 0 ? `$${safePrice.toLocaleString()}` : 'Price available on request',
-    Address: safeAddress || 'Address available on request',
+    Price: priceText,
+    'Price.text': priceText,
+    Address: addressText,
+    'Address.text': addressText,
     Details: detailsText,
-    CTA: 'Scan for details + showing options',
-    Brand: 'HomeListingAI'
+    'Details.text': detailsText,
+    CTA: ctaText,
+    'CTA.text': ctaText,
+    Brand: brandText,
+    'Brand.text': brandText
   };
 
   uniquePhotos.forEach((url, index) => {
@@ -2870,6 +2882,7 @@ const buildCreatomateVideoModifications = ({ listingRow, agentRow, sourcePhotos 
   }
   if (agentName) {
     modifications.Badge = agentName;
+    modifications['Badge.text'] = agentName;
   }
 
   return modifications;
@@ -2898,6 +2911,12 @@ const createCreatomateRender = async ({
   modifications,
   metadata
 }) => {
+  if (!CREATOMATE_WEBHOOK_SECRET) {
+    throw new Error('creatomate_webhook_secret_missing');
+  }
+  if (!BACKEND_BASE_URL) {
+    throw new Error('creatomate_webhook_url_missing');
+  }
   const webhookUrl = `${BACKEND_BASE_URL}/webhooks/creatomate?secret=${encodeURIComponent(CREATOMATE_WEBHOOK_SECRET)}`;
   const payload = {
     template_id: templateId,
@@ -3899,6 +3918,231 @@ const recordOutboundAttempt = async ({
 
 const getDashboardBaseUrl = () =>
   (process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+
+const getPublicAppBaseUrl = () =>
+  (
+    process.env.APP_BASE_URL ||
+    process.env.DASHBOARD_BASE_URL ||
+    process.env.FRONTEND_URL ||
+    'https://homelistingai.com'
+  ).replace(/\/$/, '');
+
+const generateAppointmentIcsToken = () => crypto.randomBytes(24).toString('hex');
+
+const buildAppointmentIcsDownloadUrl = (appointmentId, icsToken) => {
+  if (!appointmentId || !icsToken) return null;
+  const publicBaseUrl = getPublicAppBaseUrl();
+  return `${publicBaseUrl}/api/public/appointments/${appointmentId}/ics?token=${encodeURIComponent(icsToken)}`;
+};
+
+const buildAppointmentInviteEmailHtml = ({
+  headline,
+  bodyText,
+  listingAddress,
+  dateLabel,
+  timeLabel,
+  locationText,
+  addToCalendarUrl
+}) => `
+  <div style="font-family: Arial, sans-serif; line-height: 1.55; color: #0f172a;">
+    <h2 style="margin:0 0 12px 0; color:#0ea5e9;">${headline}</h2>
+    <p style="margin:0 0 14px 0;">${bodyText}</p>
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin:0 0 16px 0;">
+      <p style="margin:0 0 6px 0;"><strong>Listing:</strong> ${listingAddress}</p>
+      <p style="margin:0 0 6px 0;"><strong>Date:</strong> ${dateLabel}</p>
+      <p style="margin:0 0 6px 0;"><strong>Time:</strong> ${timeLabel}</p>
+      <p style="margin:0;"><strong>Location:</strong> ${locationText}</p>
+    </div>
+    <p style="margin:0 0 14px 0;">The calendar invite is attached as an ICS file.</p>
+    ${addToCalendarUrl
+    ? `<a href="${addToCalendarUrl}" style="display:inline-block; padding:10px 16px; background:#233074; color:#ffffff; text-decoration:none; border-radius:8px; font-weight:600;">Add to calendar</a>`
+    : ''}
+  </div>
+`;
+
+const queueAppointmentInviteEmails = async ({
+  appointmentRow,
+  appointmentKind,
+  contactName,
+  contactEmail,
+  contactPhone,
+  notes,
+  location,
+  meetLink,
+  propertyAddress,
+  leadId,
+  agentId,
+  agentProfile,
+  inviteVariant = 'scheduled'
+}) => {
+  if (!appointmentRow?.id || !agentId) {
+    return { queued: [] };
+  }
+
+  const resolvedAgentProfile = agentProfile || DEFAULT_AI_CARD_PROFILE;
+  const icsToken = appointmentRow.ics_token || generateAppointmentIcsToken();
+  const addToCalendarUrl = buildAppointmentIcsDownloadUrl(appointmentRow.id, icsToken);
+  const startIso = appointmentRow.starts_at || appointmentRow.start_iso;
+  const endIso = appointmentRow.ends_at || appointmentRow.end_iso;
+  const appointmentDateLabel =
+    normalizeDateOnly(appointmentRow.date || startIso) || normalizeDateOnly(startIso) || 'TBD';
+  const appointmentTimeLabel =
+    appointmentRow.time_label ||
+    formatReminderTimeLabel(startIso, appointmentRow.timezone || APPOINTMENT_REMINDER_TIMEZONE);
+  const listingAddress = propertyAddress || appointmentRow.property_address || location || 'Listing';
+  const appointmentLocation = location || appointmentRow.location || meetLink || listingAddress || 'TBD';
+  const organizerEmail = resolvedAgentProfile?.email || process.env.MAILGUN_FROM_EMAIL || 'notifications@mg.homelistingai.com';
+  const organizerName = resolvedAgentProfile?.name || 'HomeListingAI';
+  const inviteTitleName = (contactName || appointmentRow.name || 'Client').trim();
+  const normalizedEmail = (contactEmail || appointmentRow.email || '').trim().toLowerCase();
+  const inviteDescriptionNotes = notes || appointmentRow.notes || '';
+  const inviteMethod = String(appointmentRow.status || '').toLowerCase() === 'canceled' ? 'CANCEL' : 'REQUEST';
+  const sequence = inviteVariant === 'rescheduled' ? 1 : inviteVariant === 'canceled' ? 2 : 0;
+
+  const buyerIcs = buildAppointmentIcsInvite({
+    appointmentId: appointmentRow.id,
+    kind: appointmentKind || appointmentRow.kind || 'Appointment',
+    leadName: inviteTitleName,
+    leadEmail: normalizedEmail || null,
+    leadPhone: contactPhone || appointmentRow.phone || null,
+    notes: inviteDescriptionNotes,
+    location: appointmentLocation,
+    propertyAddress: listingAddress,
+    start: startIso,
+    end: endIso,
+    organizerName,
+    organizerEmail,
+    method: inviteMethod,
+    sequence
+  });
+
+  const inviteSubjectByVariant = {
+    scheduled: `Appointment confirmed — ${listingAddress}`,
+    rescheduled: `Appointment updated — ${listingAddress}`,
+    canceled: `Appointment canceled — ${listingAddress}`
+  };
+
+  const headlineByVariant = {
+    scheduled: 'Appointment Confirmed',
+    rescheduled: 'Appointment Updated',
+    canceled: 'Appointment Canceled'
+  };
+
+  const buyerBodyByVariant = {
+    scheduled: 'Your appointment is confirmed.',
+    rescheduled: 'Your appointment time was updated.',
+    canceled: 'Your appointment has been canceled.'
+  };
+
+  const queuedEntries = [];
+  const inviteSubject = inviteSubjectByVariant[inviteVariant] || inviteSubjectByVariant.scheduled;
+  const headline = headlineByVariant[inviteVariant] || headlineByVariant.scheduled;
+  const buyerBody = buyerBodyByVariant[inviteVariant] || buyerBodyByVariant.scheduled;
+
+  const buyerPayload =
+    normalizedEmail.length > 0
+      ? {
+        kind: 'appointment_confirmation',
+        agent_id: agentId,
+        lead_id: isUuid(leadId) ? leadId : null,
+        appointment_id: appointmentRow.id,
+        to_email: normalizedEmail,
+        subject: inviteSubject,
+        html: buildAppointmentInviteEmailHtml({
+          headline,
+          bodyText: buyerBody,
+          listingAddress,
+          dateLabel: appointmentDateLabel,
+          timeLabel: appointmentTimeLabel,
+          locationText: appointmentLocation,
+          addToCalendarUrl
+        }),
+        ics: {
+          content: buyerIcs,
+          filename: `appointment-${appointmentRow.id}.ics`
+        }
+      }
+      : null;
+
+  if (buyerPayload) {
+    const idempotencyKey = `email:appt_invite:${appointmentRow.id}:${inviteVariant}:buyer`;
+    await enqueueJob({
+      type: 'email_send',
+      payload: buyerPayload,
+      idempotencyKey,
+      priority: 4,
+      runAt: nowIso(),
+      maxAttempts: 3
+    });
+    await recordOutboundAttempt({
+      agentId,
+      leadId: isUuid(leadId) ? leadId : null,
+      appointmentId: appointmentRow.id,
+      channel: 'email',
+      provider: 'mailgun',
+      status: 'queued',
+      idempotencyKey,
+      payload: buyerPayload
+    });
+    queuedEntries.push(idempotencyKey);
+  }
+
+  const agentTargetEmail =
+    (resolvedAgentProfile?.email || '').trim() ||
+    (await getAgentEmailAddress(agentId)) ||
+    process.env.MAILGUN_REPLYTO_FALLBACK ||
+    null;
+
+  if (agentTargetEmail) {
+    const agentPayload = {
+      kind: 'appointment_confirmation',
+      agent_id: agentId,
+      lead_id: isUuid(leadId) ? leadId : null,
+      appointment_id: appointmentRow.id,
+      to_email: agentTargetEmail,
+      subject: `${inviteSubject} (Agent copy)`,
+      html: buildAppointmentInviteEmailHtml({
+        headline,
+        bodyText: `Lead update for ${inviteTitleName}.`,
+        listingAddress,
+        dateLabel: appointmentDateLabel,
+        timeLabel: appointmentTimeLabel,
+        locationText: appointmentLocation,
+        addToCalendarUrl
+      }),
+      ics: {
+        content: buyerIcs,
+        filename: `appointment-${appointmentRow.id}.ics`
+      }
+    };
+    const idempotencyKey = `email:appt_invite:${appointmentRow.id}:${inviteVariant}:agent`;
+    await enqueueJob({
+      type: 'email_send',
+      payload: agentPayload,
+      idempotencyKey,
+      priority: 4,
+      runAt: nowIso(),
+      maxAttempts: 3
+    });
+    await recordOutboundAttempt({
+      agentId,
+      leadId: isUuid(leadId) ? leadId : null,
+      appointmentId: appointmentRow.id,
+      channel: 'email',
+      provider: 'mailgun',
+      status: 'queued',
+      idempotencyKey,
+      payload: agentPayload
+    });
+    queuedEntries.push(idempotencyKey);
+  }
+
+  return {
+    ics_token: icsToken,
+    add_to_calendar_url: addToCalendarUrl,
+    queued: queuedEntries
+  };
+};
 
 const getAgentEmailAddress = async (agentId) => {
   if (!agentId) return process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
@@ -5592,7 +5836,8 @@ const processEmailSendJob = async (job) => {
       to: toEmail,
       subject: payload.subject || 'Appointment confirmed',
       html: payload.html || '<p>Your appointment is confirmed.</p>',
-      tags: { user_id: payload.agent_id || null }
+      tags: { user_id: payload.agent_id || null },
+      options: { ics: payload.ics }
     });
 
     await supabaseAdmin
@@ -5964,6 +6209,9 @@ const processVideoRenderCreatomateJob = async (job) => {
   if (currentStatus === 'succeeded') {
     return { status: 'skipped', reason: 'already_succeeded' };
   }
+  if (currentStatus === 'failed') {
+    return { status: 'skipped', reason: 'already_failed' };
+  }
 
   if (videoRow.creatomate_render_id && currentStatus !== 'failed') {
     await supabaseAdmin
@@ -5985,93 +6233,150 @@ const processVideoRenderCreatomateJob = async (job) => {
   if (!ownerId || !listingId) throw new Error('video_owner_or_listing_missing');
 
   const templateStyle = normalizeVideoTemplateStyle(videoRow.template_style) || 'luxury';
-  const templateId = resolveCreatomateTemplateIdByStyle(templateStyle);
-  if (!templateId) {
-    throw new Error(`creatomate_template_missing_for_${templateStyle}`);
-  }
 
-  const { data: listingRow, error: listingError } = await supabaseAdmin
-    .from('properties')
-    .select('*')
-    .eq('id', listingId)
-    .maybeSingle();
-  if (listingError || !listingRow) throw listingError || new Error('listing_not_found_for_video');
+  try {
+    const templateId = resolveCreatomateTemplateIdByStyle(templateStyle);
+    if (!templateId) {
+      throw new Error(`creatomate_template_missing_for_${templateStyle}`);
+    }
 
-  let agentRow = null;
-  const { data: possibleAgent } = await supabaseAdmin
-    .from('agents')
-    .select('id, first_name, last_name, headshot_url')
-    .eq('id', ownerId)
-    .maybeSingle();
-  if (possibleAgent) {
-    agentRow = possibleAgent;
-  } else {
-    const { data: byAuth } = await supabaseAdmin
+    const { data: listingRow, error: listingError } = await supabaseAdmin
+      .from('properties')
+      .select('*')
+      .eq('id', listingId)
+      .maybeSingle();
+    if (listingError || !listingRow) throw listingError || new Error('listing_not_found_for_video');
+
+    let agentRow = null;
+    const { data: possibleAgent } = await supabaseAdmin
       .from('agents')
       .select('id, first_name, last_name, headshot_url')
-      .eq('auth_user_id', ownerId)
+      .eq('id', ownerId)
       .maybeSingle();
-    agentRow = byAuth || null;
-  }
-
-  const sourcePhotos = Array.isArray(videoRow.source_photos) && videoRow.source_photos.length > 0
-    ? videoRow.source_photos
-    : [
-      ...(Array.isArray(listingRow.hero_photos) ? listingRow.hero_photos : []),
-      ...(Array.isArray(listingRow.gallery_photos) ? listingRow.gallery_photos : [])
-    ];
-
-  const modifications = buildCreatomateVideoModifications({
-    listingRow,
-    agentRow,
-    sourcePhotos
-  });
-
-  await supabaseAdmin
-    .from('listing_videos')
-    .update({
-      status: 'rendering',
-      creatomate_template_id: templateId,
-      updated_at: nowIso()
-    })
-    .eq('id', videoId);
-
-  const render = await createCreatomateRender({
-    templateId,
-    modifications,
-    metadata: {
-      video_id: videoId,
-      listing_id: listingId,
-      agent_id: ownerId
+    if (possibleAgent) {
+      agentRow = possibleAgent;
+    } else {
+      const { data: byAuth } = await supabaseAdmin
+        .from('agents')
+        .select('id, first_name, last_name, headshot_url')
+        .eq('auth_user_id', ownerId)
+        .maybeSingle();
+      agentRow = byAuth || null;
     }
-  });
 
-  await supabaseAdmin
-    .from('listing_videos')
-    .update({
+    const sourcePhotos = Array.isArray(videoRow.source_photos) && videoRow.source_photos.length > 0
+      ? videoRow.source_photos
+      : [
+        ...(Array.isArray(listingRow.hero_photos) ? listingRow.hero_photos : []),
+        ...(Array.isArray(listingRow.gallery_photos) ? listingRow.gallery_photos : [])
+      ];
+
+    const modifications = buildCreatomateVideoModifications({
+      listingRow,
+      agentRow,
+      sourcePhotos
+    });
+
+    await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: 'rendering',
+        creatomate_template_id: templateId,
+        updated_at: nowIso()
+      })
+      .eq('id', videoId);
+
+    const render = await createCreatomateRender({
+      templateId,
+      modifications,
+      metadata: {
+        video_id: videoId,
+        listing_id: listingId,
+        agent_id: ownerId
+      }
+    });
+
+    await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: 'rendering',
+        creatomate_template_id: templateId,
+        creatomate_render_id: String(render.id),
+        error_message: null,
+        updated_at: nowIso()
+      })
+      .eq('id', videoId);
+
+    emitListingVideoRealtimeEvent({
+      agentId: ownerId,
+      listingId,
+      videoId,
       status: 'rendering',
-      creatomate_template_id: templateId,
-      creatomate_render_id: String(render.id),
-      error_message: null,
-      updated_at: nowIso()
-    })
-    .eq('id', videoId);
+      templateStyle,
+      durationSeconds: videoRow.duration_seconds
+    });
 
-  emitListingVideoRealtimeEvent({
-    agentId: ownerId,
-    listingId,
-    videoId,
-    status: 'rendering',
-    templateStyle,
-    durationSeconds: videoRow.duration_seconds
-  });
+    return {
+      status: 'rendering',
+      video_id: videoId,
+      render_id: String(render.id),
+      template_style: templateStyle
+    };
+  } catch (error) {
+    const message = String(error?.message || error || '');
+    const isNonRetryable = /creatomate_template_missing_for_|listing_not_found_for_video|creatomate_webhook_secret_missing|creatomate_webhook_url_missing|creatomate_api_key_missing/i.test(message);
+    if (!isNonRetryable) {
+      throw error;
+    }
 
-  return {
-    status: 'rendering',
-    video_id: videoId,
-    render_id: String(render.id),
-    template_style: templateStyle
-  };
+    await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: 'failed',
+        error_message: toTrimmedOrNull(message) || 'video_render_setup_failed',
+        updated_at: nowIso()
+      })
+      .eq('id', videoId);
+
+    const refundedCredits = await listingVideoCreditsService.refundReservedCredit({
+      agentId: ownerId,
+      listingId,
+      amount: 1
+    }).catch((refundError) => {
+      console.warn('[ListingVideos] Failed to refund reserved credit after render setup failure:', refundError?.message || refundError);
+      return null;
+    });
+
+    if (refundedCredits) {
+      emitRealtimeEvent({
+        type: 'listing.video.credits_updated',
+        agentId: ownerId,
+        payload: {
+          listing_id: listingId,
+          included: refundedCredits.included,
+          extra: refundedCredits.extra,
+          used: refundedCredits.used,
+          remaining: refundedCredits.remaining
+        }
+      });
+    }
+
+    emitListingVideoRealtimeEvent({
+      agentId: ownerId,
+      listingId,
+      videoId,
+      status: 'failed',
+      templateStyle: videoRow.template_style,
+      durationSeconds: videoRow.duration_seconds,
+      errorMessage: toTrimmedOrNull(message) || 'video_render_setup_failed'
+    });
+
+    return {
+      status: 'failed',
+      video_id: videoId,
+      reason: 'non_retryable_render_setup_error'
+    };
+  }
 };
 
 const processVideoFinalizeUploadJob = async (job) => {
@@ -6100,6 +6405,14 @@ const processVideoFinalizeUploadJob = async (job) => {
   const listingId = String(videoRow.listing_id || '').trim();
   const videoId = String(videoRow.id || '').trim();
   if (!ownerId || !listingId || !videoId) throw new Error('video_identity_missing');
+
+  const persistedStatus = String(videoRow.status || '').toLowerCase();
+  if (persistedStatus === 'succeeded') {
+    return { status: 'skipped', reason: 'already_succeeded', video_id: videoId };
+  }
+  if (persistedStatus === 'failed') {
+    return { status: 'skipped', reason: 'already_failed', video_id: videoId };
+  }
 
   if (['planned', 'queued', 'rendering', 'transcribing'].includes(normalizedStatus)) {
     await supabaseAdmin
@@ -6134,13 +6447,29 @@ const processVideoFinalizeUploadJob = async (job) => {
       })
       .eq('id', videoId);
 
+    let refundedCredits = null;
     if (String(videoRow.status || '').toLowerCase() !== 'failed') {
-      await listingVideoCreditsService.refundReservedCredit({
+      refundedCredits = await listingVideoCreditsService.refundReservedCredit({
         agentId: ownerId,
         listingId,
         amount: 1
       }).catch((error) => {
         console.warn('[ListingVideos] Failed to refund reserved credit:', error?.message || error);
+        return null;
+      });
+    }
+
+    if (refundedCredits) {
+      emitRealtimeEvent({
+        type: 'listing.video.credits_updated',
+        agentId: ownerId,
+        payload: {
+          listing_id: listingId,
+          included: refundedCredits.included,
+          extra: refundedCredits.extra,
+          used: refundedCredits.used,
+          remaining: refundedCredits.remaining
+        }
       });
     }
 
@@ -6169,90 +6498,128 @@ const processVideoFinalizeUploadJob = async (job) => {
     throw new Error('creatomate_output_url_missing');
   }
 
-  if (
-    String(videoRow.status || '').toLowerCase() === 'succeeded' &&
-    String(videoRow.storage_path || '').trim().length > 0
-  ) {
-    emitListingVideoRealtimeEvent({
-      agentId: ownerId,
-      listingId,
-      videoId,
-      status: 'succeeded',
-      templateStyle: videoRow.template_style,
-      durationSeconds: videoRow.duration_seconds
-    });
-    return { status: 'already_succeeded', video_id: videoId };
-  }
-
-  const response = await axios.get(downloadUrl, {
-    responseType: 'arraybuffer',
-    timeout: 120000
-  });
-  const binary = Buffer.from(response.data);
-  const storagePath = `agent/${ownerId}/listing/${listingId}/${videoId}.mp4`;
+  const expectedStoragePath = `agent/${ownerId}/listing/${listingId}/${videoId}.mp4`;
+  const storagePath = String(videoRow.storage_path || '').trim() || expectedStoragePath;
   const fileName = videoRow.file_name || buildListingVideoFileName({
     listingRow: { id: listingId, public_slug: listingId },
     templateStyle: videoRow.template_style,
     durationSeconds: videoRow.duration_seconds || 15
   });
 
-  const { error: uploadError } = await supabaseAdmin.storage
-    .from(VIDEOS_BUCKET)
-    .upload(storagePath, binary, {
-      contentType: 'video/mp4',
-      upsert: true,
-      cacheControl: '3600'
+  try {
+    const response = await axios.get(downloadUrl, {
+      responseType: 'arraybuffer',
+      timeout: 120000
     });
-  if (uploadError) throw uploadError;
+    const binary = Buffer.from(response.data);
 
-  await supabaseAdmin
-    .from('listing_videos')
-    .update({
-      status: 'succeeded',
-      storage_bucket: VIDEOS_BUCKET,
-      storage_path: storagePath,
-      file_name: fileName,
-      mime_type: 'video/mp4',
-      creatomate_render_id: renderId || videoRow.creatomate_render_id,
-      error_message: null,
-      updated_at: nowIso()
-    })
-    .eq('id', videoId);
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(VIDEOS_BUCKET)
+      .upload(storagePath, binary, {
+        contentType: 'video/mp4',
+        upsert: true,
+        cacheControl: '3600'
+      });
+    if (uploadError) throw uploadError;
 
-  const credits = await listingVideoCreditsService.getCredits({
-    agentId: ownerId,
-    listingId
-  }).catch(() => null);
+    await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: 'succeeded',
+        storage_bucket: VIDEOS_BUCKET,
+        storage_path: storagePath,
+        file_name: fileName,
+        mime_type: 'video/mp4',
+        creatomate_render_id: renderId || videoRow.creatomate_render_id,
+        error_message: null,
+        updated_at: nowIso()
+      })
+      .eq('id', videoId);
 
-  if (credits) {
-    emitRealtimeEvent({
-      type: 'listing.video.credits_updated',
+    const credits = await listingVideoCreditsService.getCredits({
       agentId: ownerId,
-      payload: {
-        listing_id: listingId,
-        included: credits.included,
-        extra: credits.extra,
-        used: credits.used,
-        remaining: credits.remaining
-      }
+      listingId
+    }).catch(() => null);
+
+    if (credits) {
+      emitRealtimeEvent({
+        type: 'listing.video.credits_updated',
+        agentId: ownerId,
+        payload: {
+          listing_id: listingId,
+          included: credits.included,
+          extra: credits.extra,
+          used: credits.used,
+          remaining: credits.remaining
+        }
+      });
+    }
+
+    emitListingVideoRealtimeEvent({
+      agentId: ownerId,
+      listingId,
+      videoId,
+      status: 'succeeded',
+      templateStyle: videoRow.template_style,
+      durationSeconds: videoRow.duration_seconds,
+      creditsRemaining: credits?.remaining ?? null
     });
+
+    return {
+      status: 'succeeded',
+      video_id: videoId,
+      storage_path: storagePath
+    };
+  } catch (error) {
+    const errorMessage = toTrimmedOrNull(error?.message || error || 'video_finalize_failed') || 'video_finalize_failed';
+    await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: 'failed',
+        error_message: errorMessage,
+        updated_at: nowIso()
+      })
+      .eq('id', videoId);
+
+    const refundedCredits = await listingVideoCreditsService.refundReservedCredit({
+      agentId: ownerId,
+      listingId,
+      amount: 1
+    }).catch((refundError) => {
+      console.warn('[ListingVideos] Failed to refund reserved credit after finalize failure:', refundError?.message || refundError);
+      return null;
+    });
+
+    if (refundedCredits) {
+      emitRealtimeEvent({
+        type: 'listing.video.credits_updated',
+        agentId: ownerId,
+        payload: {
+          listing_id: listingId,
+          included: refundedCredits.included,
+          extra: refundedCredits.extra,
+          used: refundedCredits.used,
+          remaining: refundedCredits.remaining
+        }
+      });
+    }
+
+    emitListingVideoRealtimeEvent({
+      agentId: ownerId,
+      listingId,
+      videoId,
+      status: 'failed',
+      templateStyle: videoRow.template_style,
+      durationSeconds: videoRow.duration_seconds,
+      errorMessage
+    });
+
+    return {
+      status: 'failed',
+      video_id: videoId,
+      reason: 'video_finalize_failed'
+    };
   }
-
-  emitListingVideoRealtimeEvent({
-    agentId: ownerId,
-    listingId,
-    videoId,
-    status: 'succeeded',
-    templateStyle: videoRow.template_style,
-    durationSeconds: videoRow.duration_seconds,
-    creditsRemaining: credits?.remaining ?? null
-  });
-
-  return {
-    status: 'succeeded',
-    video_id: videoId,
-    storage_path: storagePath
-  };
 };
 
 const scoreLeadIntentFromTags = (tags) => {
@@ -9239,100 +9606,7 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
   }
 });
 
-// --- GMAIL INTEGRATION ---
-
-const gmailService = require('./services/gmailService');
-
-// OAuth callback - exchange code for tokens
-app.post('/api/gmail/oauth/callback', async (req, res) => {
-  try {
-    const { code, userId } = req.body;
-
-    if (!code || !userId) {
-      return res.status(400).json({ error: 'Missing code or userId' });
-    }
-
-    // Exchange code for tokens
-    const tokens = await gmailService.exchangeCodeForTokens(code);
-
-    // Get user email
-    const userInfo = await gmailService.getUserInfo(tokens.access_token);
-
-    // Store connection
-    await gmailService.storeConnection(userId, userInfo.email, tokens);
-
-    res.json({
-      success: true,
-      email: userInfo.email,
-      connection: {
-        provider: 'gmail',
-        email: userInfo.email,
-        connectedAt: new Date().toISOString(),
-        status: 'active'
-      }
-    });
-  } catch (error) {
-    console.error('Gmail OAuth callback error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Store tokens from frontend OAuth flow
-app.post('/api/gmail/oauth/store', async (req, res) => {
-  try {
-    const { userId, email, tokens } = req.body;
-
-    if (!userId || !email || !tokens) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    await gmailService.storeConnection(userId, email, tokens);
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Gmail OAuth store error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Get Gmail connection status
-app.get('/api/gmail/connection/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const connection = await gmailService.getConnection(userId);
-
-    if (!connection) {
-      return res.json({ connected: false });
-    }
-
-    res.json({
-      connected: true,
-      email: connection.email,
-      connectedAt: connection.updated_at,
-      status: 'active'
-    });
-  } catch (error) {
-    console.error('Error getting Gmail connection:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Send email via Gmail
-app.post('/api/gmail/send', async (req, res) => {
-  try {
-    const { userId, to, subject, text, html } = req.body;
-
-    if (!userId || !to || !subject) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const result = await gmailService.sendEmail(userId, { to, subject, text, html });
-    res.json({ success: true, messageId: result.id });
-  } catch (error) {
-    console.error('Error sending email via Gmail:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+// --- GMAIL INTEGRATION (REMOVED: USING MAILGUN SYSTEM SENDER NOW) ---
 
 // Send email via Gmail
 app.post('/api/admin/email/quick-send', async (req, res) => {
@@ -9405,18 +9679,6 @@ app.post('/api/admin/sms/quick-send', async (req, res) => {
   } catch (error) {
     console.error('Test SMS failed:', error);
     res.status(500).json({ error: error.message });
-  }
-});
-
-// Disconnect Gmail
-app.delete('/api/gmail/connection/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    await gmailService.disconnect(userId);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error disconnecting Gmail:', error);
-    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -9704,61 +9966,7 @@ function extractPhoneFromText(text) {
   return phoneMatch ? phoneMatch[0] : null;
 }
 
-// --- GOOGLE CALENDAR INTEGRATION ---
-
-const googleCalendarService = require('./services/googleCalendarService');
-
-// Store tokens from frontend OAuth flow
-app.post('/api/calendar/oauth/store', async (req, res) => {
-  try {
-    const { userId, email, tokens } = req.body;
-
-    if (!userId || !email || !tokens) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    await googleCalendarService.storeConnection(userId, email, tokens);
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Google Calendar OAuth store error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Get Google Calendar connection status
-app.get('/api/calendar/connection/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const connection = await googleCalendarService.getConnection(userId);
-
-    if (!connection) {
-      return res.json({ connected: false });
-    }
-
-    res.json({
-      connected: true,
-      email: connection.email,
-      connectedAt: connection.updated_at,
-      status: 'active'
-    });
-  } catch (error) {
-    console.error('Error getting Google Calendar connection:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Disconnect Google Calendar
-app.delete('/api/calendar/connection/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    await googleCalendarService.disconnect(userId);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error disconnecting Google Calendar:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+// --- CALENDAR INTEGRATION (REMOVED: USING ICS INSTEAD) ---
 
 const loginNotificationCooldowns = new Map();
 
@@ -15447,14 +15655,14 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
 app.get('/api/dashboard/videos/:videoId/signed-url', async (req, res) => {
   try {
     const { videoId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || '').trim();
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
     if (!agentId) {
       return res.status(401).json({ error: 'agent_auth_required' });
     }
 
     const requestedExpiresIn = Number(req.query.expiresIn || 1800);
     const expiresIn = Number.isFinite(requestedExpiresIn)
-      ? Math.min(60 * 60 * 24, Math.max(60, Math.round(requestedExpiresIn)))
+      ? Math.min(1800, Math.max(600, Math.round(requestedExpiresIn)))
       : 1800;
 
     const { data: videoRow, error: videoError } = await supabaseAdmin
@@ -20521,6 +20729,65 @@ app.get('/qr/:qrId', async (req, res) => {
 
 // Appointment Management Endpoints
 
+app.get('/api/public/appointments/:appointmentId/ics', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const requestedToken = String(req.query?.token || '').trim();
+    if (!requestedToken) {
+      return res.status(400).json({ error: 'token_required' });
+    }
+
+    const { data: appointmentRow, error: appointmentError } = await supabaseAdmin
+      .from('appointments')
+      .select(
+        'id, user_id, agent_id, lead_id, kind, name, email, phone, notes, location, property_address, date, time_label, starts_at, ends_at, start_iso, end_iso, timezone, status, confirmation_status, ics_token'
+      )
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    if (appointmentError) {
+      return res.status(500).json({ error: 'appointment_lookup_failed' });
+    }
+    if (!appointmentRow) {
+      return res.status(404).json({ error: 'appointment_not_found' });
+    }
+    if (!appointmentRow.ics_token || appointmentRow.ics_token !== requestedToken) {
+      return res.status(403).json({ error: 'invalid_token' });
+    }
+
+    const agentOwnerId = appointmentRow.agent_id || appointmentRow.user_id || null;
+    const agentProfile = agentOwnerId
+      ? (await fetchAiCardProfileForUser(agentOwnerId)) || null
+      : null;
+
+    const inviteMethod =
+      normalizeAppointmentStatusValue(appointmentRow.status || '') === 'canceled' ? 'CANCEL' : 'REQUEST';
+    const inviteIcs = buildAppointmentIcsInvite({
+      appointmentId: appointmentRow.id,
+      kind: appointmentRow.kind || 'Appointment',
+      leadName: appointmentRow.name || 'Client',
+      leadEmail: appointmentRow.email || null,
+      leadPhone: appointmentRow.phone || null,
+      notes: appointmentRow.notes || '',
+      location: appointmentRow.location || appointmentRow.property_address || null,
+      propertyAddress: appointmentRow.property_address || null,
+      start: appointmentRow.starts_at || appointmentRow.start_iso,
+      end: appointmentRow.ends_at || appointmentRow.end_iso,
+      organizerName: agentProfile?.name || 'HomeListingAI',
+      organizerEmail:
+        agentProfile?.email || process.env.MAILGUN_FROM_EMAIL || 'notifications@mg.homelistingai.com',
+      method: inviteMethod
+    });
+
+    res.set('Content-Type', 'text/calendar; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="appointment-${appointmentRow.id}.ics"`);
+    return res.status(200).send(inviteIcs);
+  } catch (error) {
+    console.error('[Appointments ICS] Failed to generate ICS:', error?.message || error);
+    return res.status(500).json({ error: 'ics_generation_failed' });
+  }
+});
+
 // Get all appointments
 app.get('/api/appointments', async (req, res) => {
   try {
@@ -20704,6 +20971,7 @@ app.post('/api/appointments', async (req, res) => {
         : TERMINAL_APPOINTMENT_STATUSES.has(normalizedStatus)
           ? 'unknown'
           : 'needs_confirmation';
+    const appointmentIcsToken = generateAppointmentIcsToken();
 
     // Auto-resolve/create lead for legacy request bodies.
     let resolvedLeadId = requestedLeadId;
@@ -20786,6 +21054,7 @@ app.post('/api/appointments', async (req, res) => {
       ends_at: isoRange.endIso,
       timezone: requestedTimezone,
       location: location || meetLink || null,
+      ics_token: appointmentIcsToken,
       meet_link: meetLink || null,
       notes: notes || null,
       status: normalizedStatus,
@@ -20816,6 +21085,7 @@ app.post('/api/appointments', async (req, res) => {
       delete legacyPayload.ends_at;
       delete legacyPayload.timezone;
       delete legacyPayload.location;
+      delete legacyPayload.ics_token;
       delete legacyPayload.confirmation_status;
       delete legacyPayload.last_reminder_outcome;
       delete legacyPayload.last_reminder_at;
@@ -20861,29 +21131,19 @@ app.post('/api/appointments', async (req, res) => {
       (await fetchAiCardProfileForUser(agentId || ownerId)) || DEFAULT_AI_CARD_PROFILE;
     const appointment = decorateAppointmentWithAgent(mapAppointmentFromRow(data), agentProfile);
 
-    // Sync to Google Calendar if connected
-    try {
-      const gcalEvent = await googleCalendarService.createEvent(ownerId, {
-        title: `${kind}: ${contactName}`,
-        description: `${kind} with ${contactName}\nEmail: ${contactEmail}\nPhone: ${phone || 'N/A'}\n\n${notes || ''}`,
-        startTime: isoRange.startIso,
-        endTime: isoRange.endIso,
-        attendees: contactEmail ? [{ email: contactEmail }] : [],
-        createMeetLink: !!meetLink
-      });
-
-      if (gcalEvent?.id) {
-        // Store Google Calendar event ID with appointment
-        await supabaseAdmin
-          .from('appointments')
-          .update({ google_calendar_event_id: gcalEvent.id })
-          .eq('id', data.id);
-        console.log(`🗓️ Synced appointment to Google Calendar: ${gcalEvent.id}`);
-      }
-    } catch (gcalError) {
-      console.warn('Failed to sync to Google Calendar:', gcalError.message);
-      // Don't fail the appointment creation if sync fails
-    }
+    // Connect to Calendar via ICS attachment
+    const { buildIcsInvite } = require('./services/icsService');
+    const icsContent = buildIcsInvite({
+      uid: `${data.id}@homelistingai.com`,
+      title: `${kind}: ${contactName}`,
+      description: `${kind} with ${contactName}\\nEmail: ${contactEmail}\\nPhone: ${phone || 'N/A'}\\n\\n${notes || ''}`,
+      location: location || meetLink || propertyAddress || 'TBD',
+      start: isoRange.startIso,
+      end: isoRange.endIso,
+      organizerName: agentProfile?.name || 'HomeListingAI',
+      organizerEmail: agentProfile?.email || 'notify@homelistingai.com',
+      attendeeEmail: contactEmail
+    });
 
     const reminderScheduling = await scheduleAppointmentReminders({
       appointmentRow: data,
@@ -20922,7 +21182,11 @@ app.post('/api/appointments', async (req, res) => {
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;"/>
             <p style="white-space: pre-line; font-size: 0.9em; color: #666;">${appointment.confirmationDetails.signature}</p>
           </div>
-        `
+        `,
+        ics: {
+          content: icsContent,
+          filename: `invite-${data.id}.ics`
+        }
       };
 
       await enqueueJob({
@@ -20944,6 +21208,44 @@ app.post('/api/appointments', async (req, res) => {
         idempotencyKey,
         payload: emailPayload
       });
+
+      // Also send ICS to the agent
+      const agentEmailPayload = {
+        kind: 'appointment_confirmation',
+        agent_id: ownerId,
+        lead_id: isUuid(resolvedLeadId) ? resolvedLeadId : null,
+        appointment_id: data.id,
+        to_email: agentProfile?.email || process.env.VITE_ADMIN_EMAIL,
+        subject: `New Appointment: ${contactName} - ${appointment.confirmationDetails.subject}`,
+        html: `
+          <div style="font-family: sans-serif; line-height: 1.5; color: #333;">
+            <h2 style="color: #0ea5e9;">New Appointment Scheduled</h2>
+            <p><strong>Lead:</strong> ${contactName}</p>
+            <p><strong>Email:</strong> ${contactEmail || 'N/A'}</p>
+            <p><strong>Phone:</strong> ${phone || 'N/A'}</p>
+            <p><strong>Time:</strong> ${day} at ${label}</p>
+            <p><strong>Location:</strong> ${location || meetLink || propertyAddress || 'N/A'}</p>
+            <p><strong>Notes:</strong> ${notes || 'None'}</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;"/>
+            <p>I attached the calendar invite to this email so you can add it directly to your agenda.</p>
+          </div>
+        `,
+        ics: {
+          content: icsContent,
+          filename: `invite-${data.id}.ics`
+        }
+      };
+
+      if (agentEmailPayload.to_email) {
+        await enqueueJob({
+          type: 'email_send',
+          payload: agentEmailPayload,
+          idempotencyKey: `email:appt_update_agent:${data.id}:scheduled`,
+          priority: 4,
+          runAt: nowIso(),
+          maxAttempts: 3
+        });
+      }
     }
 
     await emitAppointmentRealtimeEvent({
@@ -21319,17 +21621,7 @@ app.get('/api/listings', async (req, res) => {
     // 1. Fetch from Database (properties table)
     let query = supabaseAdmin
       .from('properties')
-      .select(`
-            *,
-            agents (
-                id,
-                first_name,
-                last_name,
-                email,
-                phone,
-                headshot_url
-            )
-        `)
+      .select('*')
       .order('listing_date', { ascending: false });
 
     // Apply Filters to DB Query
@@ -21388,7 +21680,7 @@ app.get('/api/listings', async (req, res) => {
     // Ideally user migrates off mock data.
     const combinedListings = [...mappedDbListings, ...filteredMemoryListings];
 
-    console.log(`🏠 Retrieved ${combinedListings.length} listings (${mappedDbListings.length} from DB, ${filteredMemoryListings.length} from Memory)`);
+    console.log(`🏠 Retrieved ${combinedListings.length} listings for user/agent: ${ownerId || agentId || 'Any'} (${mappedDbListings.length} from DB, ${filteredMemoryListings.length} from Memory)`);
 
     res.json({
       listings: combinedListings,
@@ -22874,153 +23166,7 @@ app.post('/api/payments/portal-session', async (req, res) => {
   }
 })
 
-app.get('/api/email/google/oauth-url', (req, res) => {
-  try {
-    if (!isGoogleOAuthConfigured()) {
-      return res.status(503).json({ success: false, error: 'Google OAuth is not configured.' });
-    }
 
-    const { userId } = req.query;
-    if (!userId) {
-      return res.status(400).json({ success: false, error: 'userId query parameter is required.' });
-    }
-
-    const context = typeof req.query.context === 'string' ? req.query.context : 'gmail';
-    const rawScopes = req.query.scopes;
-
-    const scopes = (() => {
-      if (Array.isArray(rawScopes)) {
-        return rawScopes
-          .flatMap((value) => String(value).split(/[\s,]+/))
-          .filter(Boolean);
-      }
-
-      if (typeof rawScopes === 'string') {
-        return rawScopes
-          .split(/[\s,]+/)
-          .filter(Boolean);
-      }
-
-      return context === 'calendar' ? GOOGLE_CALENDAR_SCOPES : GOOGLE_OAUTH_SCOPES;
-    })();
-
-    const oauthClient = createGoogleOAuthClient();
-    const state = createGoogleOAuthState(userId, context, scopes);
-    const url = oauthClient.generateAuthUrl({
-      access_type: 'offline',
-      scope: scopes,
-      prompt: 'consent',
-      state
-    });
-
-    res.json({ success: true, url, context });
-  } catch (error) {
-    console.error('Error generating Gmail OAuth URL:', error);
-    res.status(500).json({ success: false, error: 'Failed to generate Gmail OAuth URL.' });
-  }
-});
-
-app.get('/api/email/google/oauth-callback', async (req, res) => {
-  if (!isGoogleOAuthConfigured()) {
-    return sendOAuthResultPage(res, {
-      type: 'gmail-oauth-error',
-      reason: 'Google OAuth is not configured.'
-    });
-  }
-
-  const { code, state, error } = req.query;
-
-  if (error) {
-    return sendOAuthResultPage(res, {
-      type: 'gmail-oauth-error',
-      reason: Array.isArray(error) ? error.join(', ') : error
-    });
-  }
-
-  if (!code || !state) {
-    return sendOAuthResultPage(res, {
-      type: 'gmail-oauth-error',
-      reason: 'Missing required OAuth parameters.'
-    });
-  }
-
-  const storedState = consumeGoogleOAuthState(state);
-  if (!storedState) {
-    return sendOAuthResultPage(res, {
-      type: 'gmail-oauth-error',
-      reason: 'OAuth session expired or invalid.'
-    });
-  }
-
-  try {
-    const oauthClient = createGoogleOAuthClient();
-    const { tokens } = await oauthClient.getToken(code);
-    oauthClient.setCredentials(tokens);
-
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauthClient });
-    const profileResponse = await oauth2.userinfo.get();
-    const emailAddress = profileResponse?.data?.email || `${storedState.userId}@gmail.com`;
-
-    if (storedState.context === 'calendar') {
-      await saveCalendarConnection(storedState.userId, {
-        provider: 'google',
-        email: emailAddress,
-        connectedAt: new Date().toISOString(),
-        status: 'active',
-        metadata: {
-          scope: tokens.scope,
-          tokenType: tokens.token_type,
-          expiryDate: tokens.expiry_date || null,
-          hasRefreshToken: Boolean(tokens.refresh_token)
-        },
-        credentials: {
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiryDate: tokens.expiry_date,
-          scope: tokens.scope,
-          tokenType: tokens.token_type
-        }
-      });
-
-      sendOAuthResultPage(res, {
-        type: 'calendar-oauth-success',
-        userId: storedState.userId,
-        email: emailAddress,
-        tokens: {
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiryDate: tokens.expiry_date,
-          scope: tokens.scope,
-          tokenType: tokens.token_type,
-          idToken: tokens.id_token
-        }
-      });
-      return;
-    }
-
-    await connectEmailProvider(storedState.userId, 'gmail', emailAddress, {
-      credentials: {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        expiryDate: tokens.expiry_date,
-        scope: tokens.scope,
-        tokenType: tokens.token_type
-      }
-    });
-
-    sendOAuthResultPage(res, {
-      type: 'gmail-oauth-success',
-      userId: storedState.userId,
-      email: emailAddress
-    });
-  } catch (oauthError) {
-    console.error('Error completing Gmail OAuth flow:', oauthError);
-    sendOAuthResultPage(res, {
-      type: `${storedState?.context || 'gmail'}-oauth-error`,
-      reason: oauthError?.message || 'OAuth failed'
-    });
-  }
-});
 
 // Vapi Tool: Check Calendar Availability
 // [VAPI CALENDAR TOOL REMOVED]
@@ -23649,3 +23795,50 @@ setTimeout(() => {
   runStartupDiagnostics({ app, supabaseAdmin, schemaCapabilities })
     .catch((error) => console.warn('[StartupChecks] Failed:', error.message));
 }, 3000);
+// Quick fix for missing GET /api/dashboard/listings endpoint
+app.get('/api/dashboard/listings', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Missing logic auth header' });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    let agentId = req.query.agentId; // Allow impersonation
+    if (!agentId) {
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Invalid config token' });
+      }
+      agentId = user.id;
+    }
+
+    const { data: agentData } = await supabase
+      .from('agents')
+      .select('id, auth_user_id')
+      .eq('auth_user_id', agentId)
+      .maybeSingle();
+
+    const finalAgentId = agentData?.id || agentId;
+
+    const { data: listings, error } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('agent_id', finalAgentId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching dashboard listings:', error);
+      return res.status(500).json({ error: 'failed_to_fetch_listings' });
+    }
+
+    return res.json({
+      listings: listings || [],
+      count: (listings || []).length
+    });
+  } catch (error) {
+    console.error('Crash fetching dashboard listings:', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});

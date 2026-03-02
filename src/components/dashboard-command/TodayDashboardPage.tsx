@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import {
   fetchDashboardAppointments,
   fetchDashboardLeads,
@@ -83,6 +84,7 @@ const formatWarningLine = (billing: DashboardBillingSnapshot, key: string) => {
 
 const TodayDashboardPage: React.FC = () => {
   const navigate = useNavigate()
+  const demoMode = useDemoMode()
   const leadsById = useDashboardRealtimeStore((state) => state.leadsById)
   const appointmentsById = useDashboardRealtimeStore((state) => state.appointmentsById)
   const setInitialLeads = useDashboardRealtimeStore((state) => state.setInitialLeads)
@@ -95,8 +97,13 @@ const TodayDashboardPage: React.FC = () => {
   const [recentListing, setRecentListing] = useState<RecentListing | null>(null)
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null)
   const [billing, setBilling] = useState<DashboardBillingSnapshot | null>(null)
+  const hasFetchedInitialStateRef = useRef(false)
+  const fetchInFlightRef = useRef(false)
+  const isMountedRef = useRef(true)
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    if (fetchInFlightRef.current) return
+    fetchInFlightRef.current = true
     setLoading(true)
     setError(null)
     try {
@@ -108,6 +115,7 @@ const TodayDashboardPage: React.FC = () => {
         fetchDashboardBilling().catch(() => null)
       ])
 
+      if (!isMountedRef.current) return
       setInitialLeads(leadRes.leads || [])
       setInitialAppointments(appointmentRes.appointments || [])
       setOnboarding(onboardingState)
@@ -132,25 +140,40 @@ const TodayDashboardPage: React.FC = () => {
           }
         }
 
+        if (!isMountedRef.current) return
         setRecentListing({
           id: selectedListing.id,
           address: selectedListing.address || 'Listing'
         })
         setShareKit(selectedKit)
       } else {
+        if (!isMountedRef.current) return
         setRecentListing(null)
         setShareKit(null)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load today view.')
+      if (isMountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load today view.')
+      }
     } finally {
-      setLoading(false)
+      fetchInFlightRef.current = false
+      if (isMountedRef.current) {
+        setLoading(false)
+      }
     }
-  }
+  }, [setInitialAppointments, setInitialLeads])
 
   useEffect(() => {
+    if (hasFetchedInitialStateRef.current) return
+    hasFetchedInitialStateRef.current = true
     void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load])
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
   }, [])
 
   useEffect(() => {
@@ -171,7 +194,7 @@ const TodayDashboardPage: React.FC = () => {
         const bTs = new Date(b.last_activity_at || b.created_at || 0).getTime()
         return bTs - aTs
       })
-    return leads.slice(0, 5)
+    return leads.slice(0, 6)
   }, [leadsById])
 
   const upcomingAppointments = useMemo(() => {
@@ -223,7 +246,7 @@ const TodayDashboardPage: React.FC = () => {
       action: 'lead_opened',
       metadata: { source: 'today_dashboard' }
     }).catch(() => undefined)
-    navigate(`/dashboard/leads/${leadId}`)
+    navigate(buildDashboardPath(`/leads/${leadId}`, demoMode))
   }
 
   const handleDownloadQr = () => {
@@ -282,7 +305,7 @@ const TodayDashboardPage: React.FC = () => {
                   <p className="mt-1 text-sm text-slate-500">New leads will appear here automatically.</p>
                   <button
                     type="button"
-                    onClick={() => navigate('/dashboard/leads')}
+                    onClick={() => navigate(buildDashboardPath('/leads', demoMode))}
                     className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                   >
                     View all leads
@@ -331,7 +354,7 @@ const TodayDashboardPage: React.FC = () => {
                   <p className="font-semibold text-slate-900">Nothing scheduled in the next 24 hours.</p>
                   <button
                     type="button"
-                    onClick={() => navigate('/dashboard/appointments')}
+                    onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
                     className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                   >
                     View appointments
@@ -350,7 +373,7 @@ const TodayDashboardPage: React.FC = () => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigate(`/dashboard/appointments?appointmentId=${appointment.id}`)}
+                      onClick={() => navigate(`${buildDashboardPath('/appointments', demoMode)}?appointmentId=${appointment.id}`)}
                       className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
                     >
                       Open
@@ -369,13 +392,13 @@ const TodayDashboardPage: React.FC = () => {
             <div className="mt-4">
               {!recentListing ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
-                  <p className="font-semibold text-slate-900">No listings yet.</p>
+                  <p className="font-semibold text-slate-900">No listings yet</p>
                   <button
                     type="button"
-                    onClick={() => navigate('/listings')}
-                    className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                    onClick={() => navigate(buildDashboardPath('/listings', demoMode))}
+                    className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
                   >
-                    Create a listing
+                    Create your first listing
                   </button>
                 </div>
               ) : (
@@ -413,7 +436,7 @@ const TodayDashboardPage: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => navigate(`/dashboard/listings/${recentListing.id}`)}
+                          onClick={() => navigate(buildDashboardPath(`/listings/${recentListing.id}`, demoMode))}
                           className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
                         >
                           Open Share Kit
@@ -433,7 +456,7 @@ const TodayDashboardPage: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => navigate('/listings')}
+                          onClick={() => navigate(buildDashboardPath('/listings', demoMode))}
                           className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                         >
                           Open listing
@@ -495,8 +518,8 @@ const TodayDashboardPage: React.FC = () => {
 
                   {(billing.plan.id === 'free' || billingWarningLines.length > 0) && (
                     <button
-                      type="button"
-                      onClick={() => navigate('/dashboard/billing')}
+                    type="button"
+                    onClick={() => navigate(buildDashboardPath('/billing', demoMode))}
                       className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
                     >
                       Upgrade
@@ -530,7 +553,7 @@ const TodayDashboardPage: React.FC = () => {
               </ul>
               <button
                 type="button"
-                onClick={() => navigate('/dashboard/onboarding')}
+                onClick={() => navigate(buildDashboardPath('/onboarding', demoMode))}
                 className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
               >
                 Continue setup

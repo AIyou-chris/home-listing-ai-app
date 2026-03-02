@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import {
   DashboardLeadConversationMessage,
   DashboardLeadAppointment,
@@ -32,6 +33,7 @@ const formatDateTime = (value?: string | null) => {
 const LeadDetailCommandPage: React.FC = () => {
   const { leadId = '' } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
+  const demoMode = useDemoMode();
   const realtimeLead = useDashboardRealtimeStore((state) => (leadId ? state.leadsById[leadId] : undefined));
   const appointmentsById = useDashboardRealtimeStore((state) => state.appointmentsById);
   const [detail, setDetail] = useState<DashboardLeadDetail | null>(null);
@@ -341,7 +343,7 @@ const LeadDetailCommandPage: React.FC = () => {
       {/* ABOVE THE FOLD: Header & Context */}
       <div className="mb-2">
         <button
-          onClick={() => navigate('/dashboard/leads')}
+          onClick={() => navigate(buildDashboardPath('/leads', demoMode))}
           className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors mb-6"
         >
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>

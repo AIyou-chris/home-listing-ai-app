@@ -289,15 +289,12 @@ const buildTrialHtml = (firstName, day, dashboardUrl) => {
 
 
 module.exports = (supabaseAdmin) => {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const postmarkToken = process.env.POSTMARK_SERVER_TOKEN;
-  const sendgridKey = process.env.SENDGRID_API_KEY;
   const mailgunKey = process.env.MAILGUN_API_KEY;
-  const mailgunDomain = process.env.MAILGUN_DOMAIN;
-  const fallbackSupportEmail = process.env.SUPPORT_EMAIL || '';
-  const fromName = process.env.EMAIL_FROM_NAME || 'AI You Agent Team';
-  const fromAddress =
-    process.env.EMAIL_FROM_ADDRESS || `AI You Agent Team < noreply@homelistingai.com> `;
+  const mailgunDomain = process.env.MAILGUN_DOMAIN || 'mg.homelistingai.com';
+  const mailgunFromEmail = process.env.MAILGUN_FROM_EMAIL || 'notifications@mg.homelistingai.com';
+  const mailgunFromName = process.env.MAILGUN_FROM_NAME || 'HomeListingAI';
+  const fallbackSupportEmail = process.env.MAILGUN_REPLYTO_FALLBACK || 'support@homelistingai.com';
+  const fromAddress = `${mailgunFromName} <${mailgunFromEmail}>`;
 
   const persistFallbackEmail = async ({ to, subject, html, cc, tags, reason }) => {
     if (!supabaseAdmin) return { queued: false };
@@ -320,124 +317,18 @@ module.exports = (supabaseAdmin) => {
     }
   };
 
-  const sendViaResend = async ({ to, subject, html, cc, tags, overrideFrom, overrideReplyTo }) => {
-    if (!resendApiKey) return { sent: false };
-    assertFetchAvailable();
 
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${resendApiKey} `
-      },
-      body: JSON.stringify({
-        from: overrideFrom || fromAddress,
-        to,
-        cc,
-        reply_to: overrideReplyTo,
-        subject,
-        html,
-        tags
-      })
-    });
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`Resend error: ${errorBody} `);
-    }
-
-    return { sent: true, provider: 'resend' };
-  };
-
-  const sendViaPostmark = async ({ to, subject, html, cc, tags, overrideFrom, overrideReplyTo }) => {
-    if (!postmarkToken) return { sent: false };
-    assertFetchAvailable();
-
-    const response = await fetch('https://api.postmarkapp.com/email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Postmark-Server-Token': postmarkToken
-      },
-      body: JSON.stringify({
-        From: overrideFrom || fromAddress,
-        To: Array.isArray(to) ? to.join(',') : to,
-        Cc: cc && cc.length ? (Array.isArray(cc) ? cc.join(',') : cc) : undefined,
-        ReplyTo: overrideReplyTo,
-        Subject: subject,
-        HtmlBody: html,
-        MessageStream: 'outbound',
-        Metadata: tags
-      })
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`Postmark error: ${errorBody} `);
-    }
-
-    return { sent: true, provider: 'postmark' };
-  };
-
-  const sendViaSendgrid = async ({ to, subject, html, cc, tags, overrideFrom, overrideReplyTo }) => {
-    if (!sendgridKey) return { sent: false };
-    assertFetchAvailable();
-
-    const finalFrom = overrideFrom || fromAddress;
-
-    const payload = {
-      personalizations: [
-        {
-          to: Array.isArray(to) ? to.map((email) => ({ email })) : [{ email: to }],
-          cc: cc && cc.length ? cc.map((email) => ({ email })) : undefined,
-          dynamic_template_data: {},
-          custom_args: tags
-        }
-      ],
-      from: {
-        email: finalFrom.includes('<')
-          ? finalFrom.substring(finalFrom.indexOf('<') + 1, finalFrom.indexOf('>'))
-          : finalFrom,
-        name: finalFrom.includes('<')
-          ? finalFrom.substring(0, finalFrom.indexOf('<')).trim()
-          : (overrideFrom ? '' : fromName)
-      },
-      reply_to: overrideReplyTo ? { email: overrideReplyTo } : undefined,
-      subject,
-      content: [
-        {
-          type: 'text/html',
-          value: html
-        }
-      ]
-    };
-
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${sendgridKey} `,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`SendGrid error: ${errorBody} `);
-    }
-
-    return { sent: true, provider: 'sendgrid' };
-  };
-
-  const sendViaMailgun = async ({ to, subject, html, cc, tags, overrideFrom, overrideReplyTo, options }) => {
+  const sendViaMailgun = async ({ to, subject, html, cc, tags, overrideReplyTo, options }) => {
     if (!mailgunKey || !mailgunDomain) return { sent: false };
     assertFetchAvailable();
 
-    const formData = new URLSearchParams();
-    formData.append('from', overrideFrom || fromAddress);
-    if (overrideReplyTo) {
-      formData.append('h:Reply-To', overrideReplyTo);
-    }
+    const formData = new FormData();
+    formData.append('from', fromAddress);
+
+    // Always attach the original customFrom to Reply-To alongside the actual overrideReplyTo if they differ? 
+    // The spec: REPLY-TO is agent.email if available, else MAILGUN_REPLYTO_FALLBACK
+    formData.append('h:Reply-To', overrideReplyTo || fallbackSupportEmail);
 
     // Handle TO
     if (Array.isArray(to)) {
@@ -478,6 +369,12 @@ module.exports = (supabaseAdmin) => {
     if (options) {
       if (options.trackOpens) formData.append('o:tracking-opens', 'yes');
       if (options.trackClicks) formData.append('o:tracking-clicks', 'yes');
+
+      // Add ICS if available
+      if (options.ics) {
+        const icsBlob = new Blob([options.ics.content], { type: 'text/calendar; charset=utf-8; method=REQUEST' });
+        formData.append('attachment', icsBlob, options.ics.filename);
+      }
     }
 
     const auth = Buffer.from(`api:${mailgunKey}`).toString('base64');
@@ -485,10 +382,9 @@ module.exports = (supabaseAdmin) => {
     const response = await fetch(`https://api.mailgun.net/v3/${mailgunDomain}/messages`, {
       method: 'POST',
       headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
+        Authorization: `Basic ${auth}`
       },
-      body: formData.toString()
+      body: formData
     });
 
     if (!response.ok) {
@@ -524,69 +420,66 @@ module.exports = (supabaseAdmin) => {
       }
 
       // --- AGENT IDENTITY RESOLUTION ---
-      let customFrom = fromAddress;
-      let customReplyTo = fromAddress;
+      let customReplyTo = fallbackSupportEmail;
+      let isDemo = false;
+      const identityKey =
+        tags?.agent_id ||
+        tags?.agentId ||
+        tags?.user_id ||
+        tags?.userId ||
+        null;
 
-      if (tags?.user_id) {
+      if (identityKey) {
         try {
           const { data: agentData } = await supabaseAdmin
             .from('agents')
-            .select('slug, sender_name, sender_email, sender_reply_to')
-            .eq('auth_user_id', tags.user_id)
-            .single();
+            .select('email, is_demo')
+            .or(`id.eq.${identityKey},auth_user_id.eq.${identityKey}`)
+            .maybeSingle();
 
           if (agentData) {
-            // Build personal 'From' header
-            if (agentData.sender_name) {
-              const name = agentData.sender_name;
-              const email = agentData.sender_email || fromAddress;
-              customFrom = `${name} <${email}>`;
+            if (agentData.email) {
+              customReplyTo = agentData.email;
             }
-
-            // Determine personal 'Reply-To'
-            if (agentData.sender_reply_to) {
-              customReplyTo = agentData.sender_reply_to;
-            } else if (agentData.slug) {
-              customReplyTo = `${agentData.slug}@leads.homelistingai.com`;
+            if (agentData.is_demo === true) {
+              isDemo = true;
             }
-          }
-
-          // Gmail Override
-          const gmailService = require('./gmailService');
-          const connection = await gmailService.getConnection(tags.user_id);
-          if (connection) {
-            console.log(`📡 [EmailService] Routing via Gmail for User ${tags.user_id}`);
-            const gmailResult = await gmailService.sendEmail(tags.user_id, {
-              to,
-              subject,
-              text: html.replace(/<[^>]*>?/gm, ''), // Simple text fallback
-              html: finalHtml,
-              replyTo: customReplyTo
-            });
-            return { sent: true, provider: 'gmail', messageId, gmailData: gmailResult };
           }
         } catch (identityErr) {
           console.error(`⚠️ [EmailService] Identity Resolve Failed for User ${tags.user_id}:`, identityErr.message);
         }
       }
 
-      // Prioritize Mailgun if available, then others
-      const attempts = [sendViaMailgun, sendViaResend, sendViaPostmark, sendViaSendgrid];
-      for (const attempt of attempts) {
-        // Pass the resolved identity to the provider-specific senders
-        const result = await attempt({
-          to,
-          subject,
-          html: finalHtml,
-          cc,
-          tags: { ...tags, internal_msg_id: messageId },
-          overrideFrom: customFrom,
-          overrideReplyTo: customReplyTo,
-          options
-        });
-        if (result.sent) {
-          return { sent: true, provider: result.provider, messageId };
+      if (isDemo) {
+        console.log(`⚠️ [EmailService] Blocking email to ${to} (User is in demo mode)`);
+        const suppressedLeadId = tags?.lead_id || tags?.leadId || null;
+        if (supabaseAdmin && suppressedLeadId) {
+          await supabaseAdmin.from('lead_events').insert({
+            lead_id: suppressedLeadId,
+            type: 'outbound_suppressed',
+            payload: {
+              channel: 'email',
+              reason: 'demo_mode',
+              subject,
+              to
+            },
+            created_at: new Date().toISOString()
+          });
         }
+        return { sent: true, suppressed: true, provider: 'demo_suppressed', messageId };
+      }
+
+      const result = await sendViaMailgun({
+        to,
+        subject,
+        html: finalHtml,
+        cc,
+        tags: { ...tags, internal_msg_id: messageId },
+        overrideReplyTo: customReplyTo,
+        options
+      });
+      if (result.sent) {
+        return { sent: true, provider: result.provider, messageId };
       }
 
       // No provider configured – store fallback

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import {
   createLeadAppointment,
   fetchListingShareKit,
@@ -32,6 +33,7 @@ const cardClass = 'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm';
 
 const OnboardingCommandPage: React.FC = () => {
   const navigate = useNavigate();
+  const demoMode = useDemoMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -347,7 +349,7 @@ const OnboardingCommandPage: React.FC = () => {
       });
       setState(updated);
       showToast.success('Nice — you’re live.');
-      navigate('/dashboard/today');
+      navigate(buildDashboardPath('/today', demoMode));
     } catch (error) {
       showToast.error(error instanceof Error ? error.message : 'Failed to complete onboarding.');
     } finally {
@@ -380,10 +382,10 @@ const OnboardingCommandPage: React.FC = () => {
         </header>
         <div className={cardClass}>
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => navigate('/dashboard/command-center')} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
+            <button type="button" onClick={() => navigate(buildDashboardPath('/command-center', demoMode))} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
               Go to Command Center
             </button>
-            <button type="button" onClick={() => listingId ? navigate(`/dashboard/listings/${listingId}`) : navigate('/dashboard')} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+            <button type="button" onClick={() => listingId ? navigate(buildDashboardPath(`/listings/${listingId}`, demoMode)) : navigate(buildDashboardPath('/today', demoMode))} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
               Open Share Kit
             </button>
           </div>
@@ -542,7 +544,7 @@ const OnboardingCommandPage: React.FC = () => {
             <button type="button" onClick={() => void handleSendTestLead()} disabled={saving || (!testLeadForm.email && !testLeadForm.phone)} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
               Send test lead
             </button>
-            <button type="button" onClick={() => navigate('/dashboard/leads')} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+            <button type="button" onClick={() => navigate(buildDashboardPath('/leads', demoMode))} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
               View Lead in Inbox
             </button>
             <button type="button" onClick={() => void handleSkip()} disabled={saving} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">
@@ -571,7 +573,7 @@ const OnboardingCommandPage: React.FC = () => {
 
           <div className="mt-5 flex flex-wrap gap-3">
             {!state.is_pro ? (
-              <button type="button" onClick={() => navigate('/dashboard/billing')} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
+              <button type="button" onClick={() => navigate(buildDashboardPath('/billing', demoMode))} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
                 Upgrade to Pro
               </button>
             ) : (

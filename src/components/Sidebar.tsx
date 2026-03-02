@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { LogoWithName } from './LogoWithName';
 import { adminAuthService } from '../services/adminAuthService';
 
@@ -37,16 +37,20 @@ const NavItem: React.FC<{
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, isBlueprintMode = false }) => {
+  const location = useLocation();
+  const derivedDemoMode = isDemoMode || location.pathname.startsWith('/demo-dashboard');
+  const derivedBlueprintMode = isBlueprintMode || location.pathname.startsWith('/agent-blueprint-dashboard');
+
   // BASE PATH LOGIC FOR BLUEPRINT AND DEMO
-  const basePath = isBlueprintMode ? '/agent-blueprint-dashboard' : (isDemoMode ? '/demo-dashboard' : '');
+  const basePath = derivedBlueprintMode ? '/agent-blueprint-dashboard' : (derivedDemoMode ? '/demo-dashboard' : '');
 
   const getPath = (path: string) => `${basePath}${path}`;
-  const todayPath = isDemoMode || isBlueprintMode ? getPath('/daily-pulse') : '/dashboard/today';
-  const commandCenterPath = isDemoMode || isBlueprintMode ? getPath('/daily-pulse') : '/dashboard/command-center';
-  const listingsPath = isDemoMode || isBlueprintMode ? getPath('/listings') : '/listings';
-  const leadsPath = isDemoMode || isBlueprintMode ? getPath('/leads') : '/dashboard/leads';
-  const appointmentsPath = isDemoMode || isBlueprintMode ? getPath('/leads') : '/dashboard/appointments';
-  const settingsPath = isDemoMode || isBlueprintMode ? getPath('/settings') : '/settings';
+  const todayPath = derivedDemoMode || derivedBlueprintMode ? getPath('/today') : '/dashboard/today';
+  const commandCenterPath = derivedDemoMode || derivedBlueprintMode ? getPath('/command-center') : '/dashboard/command-center';
+  const listingsPath = derivedDemoMode || derivedBlueprintMode ? getPath('/listings') : '/dashboard/listings';
+  const leadsPath = derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads';
+  const appointmentsPath = derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments';
+  const settingsPath = derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/settings';
 
   const primaryItems = [
     { to: todayPath, icon: 'today', label: 'Today' },
@@ -76,12 +80,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
         `}>
         <div className="flex justify-between items-center px-2 mb-6">
           <a
-            href={isBlueprintMode ? "/agent-blueprint-dashboard" : "/"}
+            href={derivedBlueprintMode ? "/agent-blueprint-dashboard/today" : derivedDemoMode ? "/demo-dashboard/today" : "/dashboard/today"}
             onClick={handleLogoClick}
             className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg group"
           >
             <LogoWithName />
-            {!isDemoMode && !isBlueprintMode && (
+            {!derivedDemoMode && !derivedBlueprintMode && (
               <div className="mt-2 flex items-center gap-2">
                 <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 uppercase tracking-tight">
                   Trial Mode
@@ -112,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
 
           </div>
 
-          {!isDemoMode && (
+          {!derivedDemoMode && (
             <div className="mt-auto px-2 pb-6 border-t border-slate-100 pt-4">
               <NavItem
                 to={settingsPath}
@@ -132,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
             </div>
           )}
 
-          {isDemoMode && !isBlueprintMode && (
+          {derivedDemoMode && !derivedBlueprintMode && (
             <div className="mt-auto pt-6 space-y-3">
               <div className="px-2">
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">

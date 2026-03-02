@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, LeadFunnelType } from './types';
@@ -34,6 +34,7 @@ const TodayDashboardPage = lazy(() => import('./components/dashboard-command/Tod
 const LeadsInboxCommandPage = lazy(() => import('./components/dashboard-command/LeadsInboxCommandPage'));
 const LeadDetailCommandPage = lazy(() => import('./components/dashboard-command/LeadDetailCommandPage'));
 const AppointmentsCommandPage = lazy(() => import('./components/dashboard-command/AppointmentsCommandPage'));
+const ListingsCommandPage = lazy(() => import('./components/dashboard-command/ListingsCommandPage'));
 const ListingPerformancePage = lazy(() => import('./components/dashboard-command/ListingPerformancePage'));
 const BillingCommandPage = lazy(() => import('./components/dashboard-command/BillingCommandPage'));
 const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/OnboardingCommandPage'));
@@ -165,6 +166,62 @@ interface BackendListing {
 }
 
 import { ImpersonationProvider } from './context/ImpersonationContext';
+
+const DashboardRouteGate = () => {
+    const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding'>('loading');
+
+    useEffect(() => {
+        let cancelled = false;
+        const resolveTarget = async () => {
+            try {
+                const onboarding = await Promise.race([
+                    fetchOnboardingState(),
+                    new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))
+                ]);
+                if (cancelled) return;
+                if (!onboarding) {
+                    setRouteTarget('today');
+                    return;
+                }
+                setRouteTarget(onboarding.onboarding_completed ? 'today' : 'onboarding');
+            } catch (_error) {
+                if (cancelled) return;
+                setRouteTarget('today');
+            }
+        };
+
+        void resolveTarget();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    if (routeTarget === 'loading') {
+        return (
+            <div className="flex items-center justify-center p-10">
+                <LoadingSpinner size="lg" type="dots" text="Loading your dashboard..." />
+            </div>
+        );
+    }
+
+    if (routeTarget === 'onboarding') {
+        return <Navigate to="/dashboard/onboarding" replace />;
+    }
+
+    return <Navigate to="/dashboard/today" replace />;
+};
+
+const DemoDashboardLayout = () => (
+    <div className="flex h-screen bg-slate-50 relative">
+        <Sidebar isOpen={true} onClose={() => undefined} isDemoMode />
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
+                <DashboardRealtimeBootstrap />
+                <Outlet />
+            </main>
+        </div>
+    </div>
+)
 
 const App: React.FC = () => {
     const [user, setUser] = useState<AppUser | null>(null);
@@ -366,12 +423,16 @@ const App: React.FC = () => {
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Free Tier', history: [] });
     // Removed unused state variables
 
+    const hasInitializedAuthRef = useRef(false);
 
 
 
 
 
     useEffect(() => {
+        if (hasInitializedAuthRef.current) return;
+        hasInitializedAuthRef.current = true;
+
         console.log('🚀 APP INIT: Optimized Auth Flow');
 
         // Validate environment
@@ -507,21 +568,13 @@ const App: React.FC = () => {
 
             // Force Blueprint Mode handling if on that route specifically
             if (currentPath.includes('blueprint')) {
-                if (!isBlueprintMode) handleEnterBlueprintMode();
+                if (!isBlueprintMode) {
+                    setIsBlueprintMode(true);
+                    setIsDemoMode(true);
+                }
             }
 
-            if (isPublicRoute) {
-
-                // We typically just let the router handle the view based on URL,
-                // but for compatibility we set 'view' for the old renderer if needed
-                if (currentPath.startsWith('/checkout')) {
-                    // Do nothing, let router render Outlet
-                } else if (currentPath === '/signup') {
-                    setView('signup');
-                } else if (currentPath === '/signin') {
-                    setView('signin');
-                }
-            } else {
+            if (!isPublicRoute) {
                 // If protected route, show loading briefly while we check session
                 setIsLoading(true);
             }
@@ -693,8 +746,7 @@ const App: React.FC = () => {
         return () => {
             subscription.unsubscribe();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [navigate, setView]);
+    }, [navigate, isBlueprintMode]);
 
     // --- FORCE ADMIN REDIRECT ---
     // If we are detected as Admin, but not on an admin page, GO TO ADMIN DASHBOARD.
@@ -843,7 +895,6 @@ const App: React.FC = () => {
                     ctaMediaUrl: listing.ctaMediaUrl ?? ''
                 }));
                 setProperties(frontendProperties);
-                console.log('✅ Loaded listings from backend:', frontendProperties.length);
             } else {
                 console.warn('Failed to load listings from backend');
                 // IN PRODUCTION: Do NOT show demo data on failure. Show nothing.
@@ -1294,78 +1345,12 @@ const App: React.FC = () => {
         return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
     };
 
-    const DashboardRouteGate = () => {
-        const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding'>('loading');
-
-        useEffect(() => {
-            let cancelled = false;
-            const resolveTarget = async () => {
-                try {
-                    const onboarding = await fetchOnboardingState();
-                    if (cancelled) return;
-                    setRouteTarget(onboarding.onboarding_completed ? 'today' : 'onboarding');
-                } catch (_error) {
-                    if (cancelled) return;
-                    setRouteTarget('today');
-                }
-            };
-
-            void resolveTarget();
-            return () => {
-                cancelled = true;
-            };
-        }, []);
-
-        if (routeTarget === 'loading') {
-            return (
-                <div className="flex items-center justify-center p-10">
-                    <LoadingSpinner size="lg" type="dots" text="Loading your dashboard..." />
-                </div>
-            );
-        }
-
-        if (routeTarget === 'onboarding') {
-            return <Navigate to="/dashboard/onboarding" replace />;
-        }
-
-        return <Navigate to="/dashboard/today" replace />;
-    };
-
-    const ProtectedLayout = () => (
-        <div className="flex h-screen bg-slate-50 relative">
-            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-                {/* Mobile Header */}
-                <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm z-20">
-                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
-                        <span className="material-symbols-outlined text-xl">menu</span>
-                    </button>
-                    <div className="flex-1 flex justify-center">
-                        <LogoWithName />
-                    </div>
-                    <div>
-                        {user && <NotificationSystem userId={user.uid} />}
-                    </div>
-                </header>
-
-                {/* Desktop Notification Bell (Absolute Top-Right) */}
-                <div className="hidden md:block absolute top-6 right-8 z-50">
-                    {user && <NotificationSystem userId={user.uid} />}
-                </div>
-
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
-                    <DashboardRealtimeBootstrap />
-                    <Outlet />
-                </main>
-            </div>
-        </div>
-    );
 
     // Helper to render routes
     const renderRoutes = () => {
         if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
         console.log("📍 Rendering Routes");
-        const renderSettingsPage = (initialTab: 'profile' | 'notifications' | 'email' | 'identity' | 'calendar' | 'security' | 'billing' = 'profile') => (
+        const renderSettingsPage = (initialTab: 'profile' | 'notifications' | 'security' | 'billing' = 'profile') => (
             <SettingsPage
                 userId={user?.uid ?? 'guest-agent'}
                 userProfile={userProfile}
@@ -1375,24 +1360,6 @@ const App: React.FC = () => {
                     setNotificationSettings(settings);
                     if (user?.uid) {
                         await notificationSettingsService.update(user.uid, settings);
-                    }
-                }}
-                emailSettings={emailSettings}
-                onSaveEmailSettings={async (settings) => {
-                    setEmailSettings(settings);
-                    if (user?.uid) {
-                        try {
-                            await emailSettingsService.update(user.uid, settings);
-                        } catch (error) {
-                            console.error('Failed to save email settings:', error);
-                        }
-                    }
-                }}
-                calendarSettings={calendarSettings}
-                onSaveCalendarSettings={async (settings) => {
-                    setCalendarSettings(settings);
-                    if (user?.uid) {
-                        await calendarSettingsService.update(user.uid, settings);
                     }
                 }}
                 billingSettings={billingSettings}
@@ -1501,7 +1468,18 @@ const App: React.FC = () => {
                             <PublicAICard />
                         </Suspense>
                     } />
-                    <Route path="/demo-dashboard/*" element={<AgentDashboard isDemoMode={true} demoListingCount={4} />} />
+                    <Route path="/demo-dashboard" element={<DemoDashboardLayout />}>
+                        <Route index element={<Navigate to="/demo-dashboard/today" replace />} />
+                        <Route path="today" element={<TodayDashboardPage />} />
+                        <Route path="command-center" element={<ConversionDashboardHome />} />
+                        <Route path="leads" element={<LeadsInboxCommandPage />} />
+                        <Route path="leads/:leadId" element={<LeadDetailCommandPage />} />
+                        <Route path="appointments" element={<AppointmentsCommandPage />} />
+                        <Route path="listings" element={<ListingsCommandPage />} />
+                        <Route path="listings/:listingId" element={<ListingPerformancePage />} />
+                        <Route path="billing" element={<BillingCommandPage />} />
+                        <Route path="onboarding" element={<OnboardingCommandPage />} />
+                    </Route>
                     <Route path="/dashboard-blueprint/*" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
                     <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={false} isBlueprintMode={true} demoListingCount={1} />} />
                     <Route path="/demo-showcase" element={<MultiToolShowcase />} />
@@ -1561,7 +1539,35 @@ const App: React.FC = () => {
 
 
                     {/* Protected Routes (Wrapped in Layout) */}
-                    <Route element={<ProtectedLayout />}>
+                    <Route element={
+                        <div className="flex h-screen bg-slate-50 relative">
+                            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                            <div className="flex-1 flex flex-col overflow-hidden relative">
+                                {/* Mobile Header */}
+                                <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm z-20">
+                                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
+                                        <span className="material-symbols-outlined text-xl">menu</span>
+                                    </button>
+                                    <div className="flex-1 flex justify-center">
+                                        <LogoWithName />
+                                    </div>
+                                    <div>
+                                        {user && <NotificationSystem userId={user.uid} />}
+                                    </div>
+                                </header>
+
+                                {/* Desktop Notification Bell (Absolute Top-Right) */}
+                                <div className="hidden md:block absolute top-6 right-8 z-50">
+                                    {user && <NotificationSystem userId={user.uid} />}
+                                </div>
+
+                                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
+                                    <DashboardRealtimeBootstrap />
+                                    <Outlet />
+                                </main>
+                            </div>
+                        </div>
+                    }>
                         <Route path="/dashboard" element={
                             <DashboardRouteGate />
                         } />
@@ -1575,7 +1581,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/leads" element={<LeadsInboxCommandPage />} />
                         <Route path="/dashboard/leads/:leadId" element={<LeadDetailCommandPage />} />
                         <Route path="/dashboard/appointments" element={<AppointmentsCommandPage />} />
-                        <Route path="/dashboard/listings" element={<Navigate to="/listings" replace />} />
+                        <Route path="/dashboard/listings" element={<ListingsCommandPage />} />
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="/dashboard/billing" element={<BillingCommandPage />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />

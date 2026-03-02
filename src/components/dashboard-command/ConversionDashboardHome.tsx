@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import {
   fetchCommandCenterSnapshot,
   logDashboardAgentAction,
@@ -38,6 +39,7 @@ const queueCardClass =
 
 const ConversionDashboardHome: React.FC = () => {
   const navigate = useNavigate()
+  const demoMode = useDemoMode()
   const commandCenter = useDashboardRealtimeStore((state) => state.commandCenter)
   const setCommandCenter = useDashboardRealtimeStore((state) => state.setCommandCenter)
 
@@ -222,7 +224,7 @@ const ConversionDashboardHome: React.FC = () => {
             </div>
             <button
               type="button"
-              onClick={() => navigate('/dashboard/onboarding')}
+              onClick={() => navigate(buildDashboardPath('/onboarding', demoMode))}
               className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700"
             >
               {onboarding.onboarding_completed ? 'Open Checklist' : 'Launch Checklist'}
@@ -251,7 +253,7 @@ const ConversionDashboardHome: React.FC = () => {
                   <button
                     key={String(label)}
                     type="button"
-                    onClick={() => navigate(`/dashboard/onboarding?step=${step}`)}
+                    onClick={() => navigate(`${buildDashboardPath('/onboarding', demoMode)}?step=${step}`)}
                     className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-left ${
                       done
                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -266,16 +268,16 @@ const ConversionDashboardHome: React.FC = () => {
             </div>
           ) : (
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={() => navigate('/add-listing')} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+              <button type="button" onClick={() => navigate(buildDashboardPath('/listings', demoMode))} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
                 New Listing
               </button>
-              <button type="button" onClick={() => onboarding.first_listing_id ? navigate(`/dashboard/listings/${onboarding.first_listing_id}`) : navigate('/dashboard')} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+              <button type="button" onClick={() => onboarding.first_listing_id ? navigate(buildDashboardPath(`/listings/${onboarding.first_listing_id}`, demoMode)) : navigate(buildDashboardPath('/today', demoMode))} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
                 Share Kit
               </button>
-              <button type="button" onClick={() => navigate('/dashboard/leads')} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+              <button type="button" onClick={() => navigate(buildDashboardPath('/leads', demoMode))} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
                 Leads Inbox
               </button>
-              <button type="button" onClick={() => navigate('/dashboard/command-center')} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+              <button type="button" onClick={() => navigate(buildDashboardPath('/command-center', demoMode))} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
                 Command Center
               </button>
             </div>
@@ -320,7 +322,7 @@ const ConversionDashboardHome: React.FC = () => {
                 <p className="mt-1">New leads will show up here automatically.</p>
                 <button
                   type="button"
-                  onClick={() => navigate('/dashboard/onboarding?step=4')}
+                  onClick={() => navigate(`${buildDashboardPath('/onboarding', demoMode)}?step=4`)}
                   className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                 >
                   Send test lead
@@ -348,7 +350,7 @@ const ConversionDashboardHome: React.FC = () => {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {renderQueueActionButton('Call', () => void handleCallLead(lead), { disabled: !lead.phone })}
                   {renderQueueActionButton('Email', () => void handleEmailLead(lead), { disabled: !lead.email })}
-                  {renderQueueActionButton('Open', () => navigate(`/dashboard/leads/${lead.lead_id}`), { tone: 'primary' })}
+                  {renderQueueActionButton('Open', () => navigate(buildDashboardPath(`/leads/${lead.lead_id}`, demoMode)), { tone: 'primary' })}
                   <button
                     type="button"
                     onClick={() => void handleMarkContacted(lead)}
@@ -376,7 +378,7 @@ const ConversionDashboardHome: React.FC = () => {
                 <p className="mt-1">Next action: open a lead and set an appointment.</p>
                 <button
                   type="button"
-                  onClick={() => navigate('/dashboard/leads')}
+                  onClick={() => navigate(buildDashboardPath('/leads', demoMode))}
                   className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                 >
                   Open Leads
@@ -399,9 +401,9 @@ const ConversionDashboardHome: React.FC = () => {
                   })}
                   {renderQueueActionButton('Open', () => {
                     if (appointment.lead_id) {
-                      navigate(`/dashboard/leads/${appointment.lead_id}`)
+                      navigate(buildDashboardPath(`/leads/${appointment.lead_id}`, demoMode))
                     } else {
-                      navigate('/dashboard/appointments')
+                      navigate(buildDashboardPath('/appointments', demoMode))
                     }
                   })}
                 </div>
@@ -423,7 +425,7 @@ const ConversionDashboardHome: React.FC = () => {
                 <p className="mt-1">Next action: review upcoming appointments.</p>
                 <button
                   type="button"
-                  onClick={() => navigate('/dashboard/appointments')}
+                  onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
                   className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                 >
                   Open Appointments
@@ -456,9 +458,9 @@ const ConversionDashboardHome: React.FC = () => {
                     })}
                     {renderQueueActionButton('Open', () => {
                       if (appointment.lead_id) {
-                        navigate(`/dashboard/leads/${appointment.lead_id}`)
+                        navigate(buildDashboardPath(`/leads/${appointment.lead_id}`, demoMode))
                       } else {
-                        navigate('/dashboard/appointments')
+                        navigate(buildDashboardPath('/appointments', demoMode))
                       }
                     })}
                   </div>

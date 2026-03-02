@@ -1,4 +1,29 @@
 import { buildApiUrl } from '../lib/api';
+import {
+  createDemoAppointment,
+  createDemoTestLead,
+  disableDemoReminders,
+  generateDemoListingVideo,
+  getDemoAppointmentReminders,
+  getDemoAppointments,
+  getDemoCommandCenterSnapshot,
+  getDemoLeadConversation,
+  getDemoLeadDetail,
+  getDemoLeads,
+  getDemoListingPerformance,
+  getDemoListingShareKit,
+  getDemoRoiSummary,
+  getDemoVideoById,
+  logDemoAgentAction,
+  publishDemoListingShareKit,
+  retryDemoReminder,
+  retryDemoReminderForAppointment,
+  sendDemoReminderNow,
+  setDemoListingVideoScenario,
+  updateDemoAppointmentStatus,
+  updateDemoLeadStatusById
+} from '../demo/demoData'
+import { isDemoModeActive } from '../demo/useDemoMode'
 import { supabase } from './supabase';
 import { BillingLimitError } from './dashboardBillingService';
 
@@ -351,6 +376,7 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
 };
 
 export const resolveAgentId = async (): Promise<string | null> => {
+  if (isDemoModeActive()) return 'demo-agent-busy';
   const { data } = await supabase.auth.getUser();
   return data.user?.id || null;
 };
@@ -362,6 +388,17 @@ const withAgentQuery = (path: string, agentId: string | null): string => {
 };
 
 export const fetchDashboardLeads = async (filters: LeadsFilterInput = {}, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    const allLeads = getDemoLeads();
+    const tab = filters.tab || 'New';
+    const filteredLeads =
+      tab === 'All' ? allLeads : allLeads.filter((lead) => String(lead.status || '').toLowerCase() === 'new');
+    return {
+      success: true,
+      leads: filteredLeads
+    };
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const params = new URLSearchParams();
 
@@ -378,6 +415,10 @@ export const fetchDashboardLeads = async (filters: LeadsFilterInput = {}, agentI
 };
 
 export const fetchDashboardLeadDetail = async (leadId: string, refreshIntel = false, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return getDemoLeadDetail(leadId);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const query = new URLSearchParams();
   if (refreshIntel) query.set('refreshIntel', 'true');
@@ -389,6 +430,10 @@ export const fetchDashboardLeadDetail = async (leadId: string, refreshIntel = fa
 };
 
 export const fetchDashboardLeadConversation = async (leadId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return getDemoLeadConversation(leadId);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/leads/${encodeURIComponent(leadId)}/conversation`, agentId)),
@@ -404,6 +449,10 @@ export const updateDashboardLeadStatus = async (
   payload: { status: string; timeline?: string; financing?: string; working_with_agent?: string },
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    return updateDemoLeadStatusById(leadId, payload);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/leads/${encodeURIComponent(leadId)}/status`, agentId)), {
     method: 'PATCH',
@@ -423,6 +472,10 @@ export const createLeadAppointment = async (
   },
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    return createDemoAppointment(payload);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl('/api/appointments'), {
     method: 'POST',
@@ -433,6 +486,10 @@ export const createLeadAppointment = async (
 };
 
 export const updateAppointmentStatus = async (appointmentId: string, status: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return updateDemoAppointmentStatus(appointmentId, status);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(`/api/appointments/${encodeURIComponent(appointmentId)}`), {
     method: 'PUT',
@@ -446,6 +503,17 @@ export const fetchDashboardAppointments = async (
   options: { view?: 'today' | 'week' } = {},
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    const appointments = getDemoAppointments(options.view || 'week');
+    return {
+      success: true,
+      appointments,
+      counts: {
+        total: appointments.length
+      }
+    };
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const view = options.view || 'week';
   const url = buildApiUrl(withAgentQuery(`/api/dashboard/appointments?view=${view}`, agentId));
@@ -482,6 +550,13 @@ export const fetchRoiMetrics = async (timeframe: '1d' | '7d' | '14d' | '30d' = '
 };
 
 export const fetchDashboardRoi = async (range: '7d' | '30d' = '7d', agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return {
+      success: true,
+      ...getDemoRoiSummary(range)
+    };
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/roi?range=${encodeURIComponent(range)}`, agentId)), {
     headers: defaultJsonHeaders(agentId)
@@ -503,6 +578,10 @@ export const fetchListingPerformance = async (
   options: { range?: '7d' | '30d' } = {},
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    return getDemoListingPerformance(listingId, options.range || '30d');
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const range = options.range || '30d';
   const response = await fetch(
@@ -522,6 +601,10 @@ export const fetchListingPerformance = async (
 };
 
 export const fetchListingShareKit = async (listingId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return getDemoListingShareKit(listingId);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/share-kit`, agentId)),
@@ -535,6 +618,19 @@ export const fetchDashboardVideoSignedUrl = async (
   expiresIn = 1800,
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    const video = getDemoVideoById(videoId);
+    if (!video?.video_url) {
+      throw new Error('Video is still processing.');
+    }
+    return {
+      signedUrl: video.video_url,
+      expiresIn,
+      fileName: video.file_name,
+      mimeType: video.mime_type
+    };
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const path = withAgentQuery(
     `/api/dashboard/videos/${encodeURIComponent(videoId)}/signed-url?expiresIn=${encodeURIComponent(String(expiresIn))}`,
@@ -551,7 +647,77 @@ export const fetchDashboardVideoSignedUrl = async (
   }>(response);
 };
 
+export const fetchListingVideos = async (listingId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    const { getDemoListingVideos } = await import('../demo/demoData');
+    return getDemoListingVideos(listingId);
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/videos`, agentId)), {
+    headers: defaultJsonHeaders(agentId)
+  });
+  return parseResponse<{
+    credits_remaining: number;
+    credits_total?: number;
+    credits_used?: number;
+    scenario?: 'normal' | 'limit_reached' | 'failed_render';
+    videos: Array<{
+      id: string;
+      status: string;
+      title?: string | null;
+      caption?: string | null;
+      file_name?: string | null;
+      mime_type?: string | null;
+      video_url?: string | null;
+      creatomate_url?: string | null;
+      created_at?: string | null;
+    }>;
+  }>(response);
+};
+
+export const generateListingVideo = async (
+  listingId: string,
+  payload: { template_style: string },
+  agentIdOverride?: string | null
+) => {
+  if (isDemoModeActive()) {
+    const result = generateDemoListingVideo(listingId, payload.template_style);
+    if (!result.queued) {
+      throw new Error(result.error || 'Failed to generate video.');
+    }
+    return {
+      success: true,
+      status: 'queued',
+      credits_remaining: result.credits_remaining,
+      video: result.video || null
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/videos/generate`, agentId)), {
+    method: 'POST',
+    headers: defaultJsonHeaders(agentId),
+    body: JSON.stringify(payload)
+  });
+  return parseResponse<{
+    success: boolean;
+    status?: string;
+    credits_remaining?: number;
+    video?: Record<string, unknown> | null;
+  }>(response);
+};
+
+export const updateDemoVideoScenario = async (listingId: string, scenario: 'normal' | 'limit_reached' | 'failed_render') => {
+  if (!isDemoModeActive()) return;
+  setDemoListingVideoScenario(listingId, scenario);
+};
+
 export const publishListingShareKit = async (listingId: string, isPublished = true, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return publishDemoListingShareKit(listingId);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/publish`, agentId)),
@@ -575,6 +741,23 @@ export const generateListingQrCode = async (
   },
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    const shareKit = getDemoListingShareKit(listingId);
+    const sourceKey = payload.source_key || payload.source_type || 'sign';
+    const trackedUrl = `${shareKit.share_url || `https://homelistingai.com/l/${shareKit.public_slug || listingId}`}?src=${encodeURIComponent(sourceKey)}`;
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(trackedUrl)}`;
+    return {
+      success: true,
+      listing_id: listingId,
+      source_key: sourceKey,
+      source_type: payload.source_type || 'qr',
+      share_url: shareKit.share_url || trackedUrl,
+      tracked_url: trackedUrl,
+      qr_code_url: qrCodeUrl,
+      qr_code_svg: ''
+    };
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/generate-qr`, agentId)),
@@ -610,6 +793,10 @@ export const sendListingTestLeadCapture = async (
   },
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    return createDemoTestLead(listingId, payload);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/test-capture`, agentId)),
@@ -632,6 +819,13 @@ export const sendListingTestLeadCapture = async (
 };
 
 export const fetchCommandCenterSnapshot = async (agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return {
+      success: true,
+      ...getDemoCommandCenterSnapshot()
+    };
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/command-center', agentId)), {
     headers: defaultJsonHeaders(agentId)
@@ -643,6 +837,10 @@ export const logDashboardAgentAction = async (
   payload: { lead_id: string; action: 'call_clicked' | 'email_clicked' | 'lead_opened' | 'status_changed' | 'appointment_created' | 'appointment_updated'; metadata?: Record<string, unknown> },
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    return logDemoAgentAction(payload);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl('/api/dashboard/agent-actions'), {
     method: 'POST',
@@ -656,6 +854,10 @@ export const logDashboardAgentAction = async (
 };
 
 export const retryDashboardReminder = async (appointmentId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return retryDemoReminderForAppointment(appointmentId);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(`/api/dashboard/reminders/${encodeURIComponent(appointmentId)}/retry`), {
     method: 'POST',
@@ -673,6 +875,14 @@ export const retryDashboardReminder = async (appointmentId: string, agentIdOverr
 };
 
 export const fetchAppointmentReminders = async (appointmentId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return {
+      success: true,
+      appointment_id: appointmentId,
+      reminders: getDemoAppointmentReminders(appointmentId)
+    };
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders`, agentId)),
@@ -686,6 +896,10 @@ export const retryAppointmentReminder = async (
   reminderId: string,
   agentIdOverride?: string | null
 ) => {
+  if (isDemoModeActive()) {
+    return retryDemoReminder(appointmentId, reminderId);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders/${encodeURIComponent(reminderId)}/retry`),
@@ -706,6 +920,10 @@ export const retryAppointmentReminder = async (
 };
 
 export const sendAppointmentReminderNow = async (appointmentId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return sendDemoReminderNow(appointmentId);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders/send-now`),
@@ -726,6 +944,10 @@ export const sendAppointmentReminderNow = async (appointmentId: string, agentIdO
 };
 
 export const disableAppointmentReminders = async (appointmentId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return disableDemoReminders(appointmentId);
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders/disable`),

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import {
   fetchListingShareKit,
   publishListingShareKit,
@@ -21,6 +22,7 @@ type TestCaptureContext = 'report_requested' | 'showing_requested';
 
 const ListingPerformancePage: React.FC = () => {
   const navigate = useNavigate();
+  const demoMode = useDemoMode();
   const { listingId = '' } = useParams<{ listingId: string }>();
   const listingRealtimeSignal = useDashboardRealtimeStore((state) =>
     listingId ? state.listingSignalsById[listingId] : undefined
@@ -192,11 +194,11 @@ const ListingPerformancePage: React.FC = () => {
         reasonLine={upgradeModal.reasonLine}
         upgrading={upgradeLoading}
         onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
-        onUpgrade={() => {
-          if (!upgradeModal.targetPlan) {
-            navigate('/dashboard/billing');
-            return;
-          }
+          onUpgrade={() => {
+            if (!upgradeModal.targetPlan) {
+              navigate(buildDashboardPath('/billing', demoMode));
+              return;
+            }
           void (async () => {
             try {
               setUpgradeLoading(true);

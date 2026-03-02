@@ -1412,10 +1412,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
             onSaveProfile={async (profile) => setAgentProfile(profile)}
             notificationSettings={notificationSettings}
             onSaveNotifications={handleSaveNotificationSettings}
-            emailSettings={emailSettings}
-            onSaveEmailSettings={async (settings) => setEmailSettings(settings)}
-            calendarSettings={calendarSettings}
-            onSaveCalendarSettings={async (settings) => setCalendarSettings(settings)}
             billingSettings={billingSettings}
             onSaveBillingSettings={async (settings) => setBillingSettings(settings)}
             securitySettings={securitySettings}
@@ -1523,18 +1519,18 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                 activeView === 'leads' ? 'Leads & Appointments' :
                   activeView === 'listings' ? 'AI Listings' :
                     activeView === 'listings-v2' ? 'Listings Studio V2' :
-                    activeView === 'add-listing' ? 'Add Listing' :
-                      activeView === 'ai-interaction-hub' ? 'AI Interaction Hub' :
-                        activeView === 'ai-conversations' ? 'AI Conversations' :
-                          activeView === 'ai-sidekicks' ? 'AI Agent' :
-                            activeView === 'knowledge-base' ? 'AI Agent' :
-                              activeView === 'marketing' ? 'Marketing Hub' :
-                                activeView === 'payments' ? 'Payments & Store' :
-                                  activeView === 'marketing-reports' ? 'Marketing Reports' :
-                                    activeView === 'funnel-analytics' ? '' :
-                                      activeView === 'settings' ? 'Settings' :
-                                        activeView === 'ai-card' ? 'AI Business Card' :
-                                          'Dashboard'}
+                      activeView === 'add-listing' ? 'Add Listing' :
+                        activeView === 'ai-interaction-hub' ? 'AI Interaction Hub' :
+                          activeView === 'ai-conversations' ? 'AI Conversations' :
+                            activeView === 'ai-sidekicks' ? 'AI Agent' :
+                              activeView === 'knowledge-base' ? 'AI Agent' :
+                                activeView === 'marketing' ? 'Marketing Hub' :
+                                  activeView === 'payments' ? 'Payments & Store' :
+                                    activeView === 'marketing-reports' ? 'Marketing Reports' :
+                                      activeView === 'funnel-analytics' ? '' :
+                                        activeView === 'settings' ? 'Settings' :
+                                          activeView === 'ai-card' ? 'AI Business Card' :
+                                            'Dashboard'}
             </h1>
           </div>
           <div className="flex items-center gap-4">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NotificationSettings } from '../../types';
+import { NotificationSettings, AgentProfile } from '../../types';
 import { FeatureSection, ToggleSwitch } from './SettingsCommon';
 import UpgradePromptModal from '../billing/UpgradePromptModal';
 import { createBillingCheckoutSession, fetchDashboardBilling, type PlanId } from '../../services/dashboardBillingService';
@@ -9,6 +9,8 @@ interface NotificationSettingsProps {
     onSave: (settings: NotificationSettings) => Promise<void>;
     onBack?: () => void;
     isLoading?: boolean;
+    userProfile?: AgentProfile;
+    onSaveProfile?: (profile: AgentProfile) => Promise<void>;
 }
 
 type NotificationSettingKey = keyof NotificationSettings;
@@ -119,7 +121,9 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
     settings,
     onSave,
     onBack: _onBack,
-    isLoading = false
+    isLoading = false,
+    userProfile,
+    onSaveProfile
 }) => {
     const [localSettings, setLocalSettings] = useState<NotificationSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
@@ -135,6 +139,14 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
             setLocalSettings(settings);
         }
     }, [settings]);
+
+    const [replyToEmail, setReplyToEmail] = useState<string>('');
+
+    useEffect(() => {
+        if (userProfile?.email) {
+            setReplyToEmail(userProfile.email);
+        }
+    }, [userProfile]);
 
     useEffect(() => {
         let isMounted = true;
@@ -174,6 +186,9 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
         setIsSaving(true);
         try {
             await onSave(localSettings);
+            if (onSaveProfile && userProfile && replyToEmail !== userProfile.email) {
+                await onSaveProfile({ ...userProfile, email: replyToEmail });
+            }
         } finally {
             setIsSaving(false);
         }
@@ -185,6 +200,34 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                 <h2 className="text-2xl font-bold text-slate-900">🔔 Notification Preferences</h2>
                 <p className="text-slate-500 mt-1">Choose how and when you want to be notified.</p>
             </div>
+
+            <FeatureSection title="Email Delivery Settings" icon="forward_to_inbox">
+                <div className="space-y-4">
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <label className="flex-1 space-y-1 opacity-70 cursor-not-allowed">
+                            <span className="text-sm font-medium text-slate-700">Sender Identity (System)</span>
+                            <input
+                                type="text"
+                                value="HomeListingAI"
+                                disabled
+                                className="w-full rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500 cursor-not-allowed"
+                            />
+                            <p className="text-xs text-slate-500">Emails are reliably sent from our secure system infrastructure.</p>
+                        </label>
+                        <label className="flex-1 space-y-1">
+                            <span className="text-sm font-medium text-slate-700">Reply Goes To (Your Email)</span>
+                            <input
+                                type="email"
+                                value={replyToEmail}
+                                onChange={(e) => setReplyToEmail(e.target.value)}
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                                placeholder="you@example.com"
+                            />
+                            <p className="text-xs text-slate-500">When clients reply to automated emails, they will go here. Must be the primary address for this account.</p>
+                        </label>
+                    </div>
+                </div>
+            </FeatureSection>
 
             {NOTIFICATION_GROUPS.map((group) => (
                 <FeatureSection key={group.title} title={group.title} icon={group.icon}>
@@ -210,7 +253,7 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                                             ? 'SMS alerts are temporarily paused while we finish carrier setup.'
                                             : remindersProLocked && item.key === 'voiceAppointmentReminders'
                                                 ? 'Pro feature — includes appointment reminder calls.'
-                                            : item.description}
+                                                : item.description}
                                     </p>
                                     {remindersProLocked && item.key === 'voiceAppointmentReminders' && (
                                         <button
