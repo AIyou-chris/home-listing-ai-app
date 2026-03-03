@@ -751,10 +751,17 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                             Start Free Trial
                             <span className="material-symbols-outlined text-xl transition-transform group-hover:translate-x-1">arrow_forward</span>
                         </button>
-                        <button onClick={onEnterDemoMode} className="w-full sm:w-auto px-8 py-4 bg-transparent border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-lg transition-all text-lg hover:bg-slate-800/50 flex items-center justify-center gap-2">
-                            For Brokers <span className="text-cyan-500 ml-1">→</span>
+                        <button
+                            onClick={onEnterDemoMode}
+                            aria-label="See the machine (demo dashboard)"
+                            className="w-full sm:w-auto px-8 py-4 bg-transparent border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-lg transition-all text-lg hover:bg-slate-800/50 flex items-center justify-center gap-2"
+                        >
+                            See The Machine <span className="text-cyan-500 ml-1">→</span>
                         </button>
                     </div>
+                    <p className="mt-2 text-sm text-slate-500 text-center lg:text-left">
+                        Live demo. Fake data. Real flow.
+                    </p>
                 </div>
 
                 <div className="relative animate-fade-in-up" style={{ animationDelay: "600ms" }}>

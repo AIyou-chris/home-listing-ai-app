@@ -34,14 +34,23 @@ export const getAuthenticatedAgentData = async (): Promise<AgentData | null> => 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError) {
-      console.error('Error getting authenticated user:', authError);
+      const authErrorMeta = authError as { code?: string; name?: string; message?: string };
+      const authErrorText = [
+        authErrorMeta?.code,
+        authErrorMeta?.name,
+        authErrorMeta?.message,
+        String(authError)
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!authErrorText.includes('authsessionmissing') && !authErrorText.includes('auth session missing')) {
+        console.error('Error getting authenticated user:', authError);
+      }
       return null;
     }
 
-    if (!user) {
-      console.log('No authenticated user found');
-      return null;
-    }
+    if (!user) return null;
 
     return getAgentData(user.id);
   } catch (error) {

@@ -7,7 +7,14 @@ import {
   generateListingVideo,
   updateDemoVideoScenario
 } from '../../services/dashboardCommandService'
+import {
+  downloadVideoFromSignedUrl,
+  getVideoSignedUrl,
+  isNativeShareAvailable,
+  shareVideo
+} from '../../services/videoShareService'
 import { supabase } from '../../services/supabase'
+import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 import { showToast } from '../../utils/toastService'
 
 interface SocialVideoWidgetProps {
@@ -42,8 +49,9 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [templateStyle, setTemplateStyle] = useState<string>('luxury')
   const [copiedCaption, setCopiedCaption] = useState(false)
-  const [canShare, setCanShare] = useState(false)
   const [scenario, setScenario] = useState<DemoScenario>('normal')
+  const listingRealtimeSignal = useDashboardRealtimeStore((state) => state.listingSignalsById[listingId] || null)
+  const canShare = useMemo(() => isNativeShareAvailable(), [])
 
   const captionTemplate = useMemo(
     () => `Just listed: ${listingAddress}. Get the 1-page report + showing options: ${listingLink}`,
@@ -110,9 +118,6 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   }, [demoMode, listingId])
 
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      setCanShare(true)
-    }
     void loadVideoData()
   }, [loadVideoData])
 
@@ -148,6 +153,12 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
     }
   }, [demoMode, listingId, loadVideoData])
 
+  useEffect(() => {
+    if (demoMode) return
+    if (!listingRealtimeSignal) return
+    void loadVideoData()
+  }, [demoMode, listingRealtimeSignal, loadVideoData])
+
   const handleGenerate = async () => {
     setStatus('rendering')
     try {
@@ -170,12 +181,14 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   }
 
   const handleShare = async () => {
-    if (!videoUrl && !listingLink) return
+    if (!videoId) return
     try {
-      await navigator.share({
-        title: 'Listing Video',
-        text: captionTemplate,
-        url: videoUrl || listingLink
+      await shareVideo({
+        videoId,
+        captionText: captionTemplate,
+        listingLink,
+        title: 'Listing video',
+        fileName: `listing-${listingId}.mp4`
       })
     } catch (error) {
       console.error('Share failed:', error)
@@ -194,12 +207,10 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   }
 
   const handleDownload = async () => {
-    if (!videoUrl) return
+    if (!videoId) return
     try {
-      const link = document.createElement('a')
-      link.href = videoUrl
-      link.download = `listing-${listingId}.mp4`
-      link.click()
+      const signed = await getVideoSignedUrl(videoId, 1800)
+      await downloadVideoFromSignedUrl(signed.signedUrl, signed.fileName || `listing-${listingId}.mp4`)
       showToast.success('Downloaded')
     } catch (error) {
       console.error('Failed to download video:', error)
@@ -296,7 +307,7 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
             <button
               type="button"
               onClick={() => void handleDownload()}
-              disabled={!videoUrl}
+              disabled={!videoId}
               className="flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 py-3 px-4 text-sm font-bold text-white transition-colors hover:bg-slate-700 disabled:opacity-50"
             >
               Download MP4
@@ -344,4 +355,3 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
     </div>
   )
 }
-

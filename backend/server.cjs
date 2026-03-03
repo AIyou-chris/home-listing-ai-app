@@ -2111,7 +2111,8 @@ app.post('/webhooks/creatomate', express.json({ limit: '2mb' }), async (req, res
       if (!payload || typeof payload !== 'object') continue;
       const renderId = String(payload.id || payload.render_id || '').trim();
       const status = String(payload.status || 'unknown').trim().toLowerCase();
-      const metadataVideoId = String(payload.metadata?.video_id || '').trim();
+      const normalizedMetadata = normalizeCreatomateMetadata(payload.metadata);
+      const metadataVideoId = String(normalizedMetadata?.video_id || '').trim();
       const jobKeySeed = renderId || metadataVideoId || crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 20);
       const idempotencyKey = `webhook:creatomate:${jobKeySeed}:${status || 'unknown'}`;
 
@@ -2515,6 +2516,11 @@ const fetchRecentAgentActionsByLeadIds = async ({ agentId, leadIds, sinceIso }) 
   }
 };
 
+const isMissingSupabaseRelationError = (error) => {
+  const message = String(error?.message || '');
+  return /does not exist|could not find the table|schema cache/i.test(message);
+};
+
 const mapLeadForRealtime = async (leadRow) => {
   if (!leadRow?.id) return null;
   const listingId = leadRow.listing_id || null;
@@ -2834,6 +2840,8 @@ const formatListingDisplayAddress = (listingRow) => {
 };
 
 const buildCreatomateVideoModifications = ({ listingRow, agentRow, sourcePhotos = [] }) => {
+  const fallbackPhotoSource =
+    'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto=format&fit=crop';
   const uniquePhotos = (sourcePhotos || [])
     .filter((photo) => typeof photo === 'string' && photo.trim().length > 0)
     .map((photo) => photo.trim())
@@ -2873,9 +2881,10 @@ const buildCreatomateVideoModifications = ({ listingRow, agentRow, sourcePhotos 
     'Brand.text': brandText
   };
 
-  uniquePhotos.forEach((url, index) => {
-    modifications[`Photo-${index + 1}.source`] = url;
-  });
+  for (let index = 0; index < 6; index += 1) {
+    const resolved = uniquePhotos[index] || uniquePhotos[0] || fallbackPhotoSource;
+    modifications[`Photo-${index + 1}.source`] = resolved;
+  }
 
   if (agentRow?.headshot_url) {
     modifications['Headshot.source'] = agentRow.headshot_url;
@@ -2886,6 +2895,19 @@ const buildCreatomateVideoModifications = ({ listingRow, agentRow, sourcePhotos 
   }
 
   return modifications;
+};
+
+const normalizeCreatomateMetadata = (rawMetadata) => {
+  if (!rawMetadata) return {};
+  if (typeof rawMetadata === 'string') {
+    try {
+      const parsed = JSON.parse(rawMetadata);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  return rawMetadata && typeof rawMetadata === 'object' ? rawMetadata : {};
 };
 
 const creatomateApiRequest = async ({ method = 'GET', path, data = null }) => {
@@ -2922,7 +2944,7 @@ const createCreatomateRender = async ({
     template_id: templateId,
     modifications: modifications || {},
     webhook_url: webhookUrl,
-    metadata: metadata || {}
+    metadata: JSON.stringify(metadata || {})
   };
   const result = await creatomateApiRequest({
     method: 'POST',
@@ -6383,9 +6405,10 @@ const processVideoFinalizeUploadJob = async (job) => {
   const payload = job.payload?.payload && typeof job.payload.payload === 'object'
     ? job.payload.payload
     : (job.payload || {});
+  const normalizedMetadata = normalizeCreatomateMetadata(payload?.metadata);
   const normalizedStatus = String(payload?.status || job.payload?.status || 'unknown').trim().toLowerCase();
   const renderId = String(payload?.id || payload?.render_id || job.payload?.render_id || '').trim();
-  const metadataVideoId = String(payload?.metadata?.video_id || job.payload?.metadata_video_id || '').trim();
+  const metadataVideoId = String(normalizedMetadata?.video_id || job.payload?.metadata_video_id || '').trim();
 
   let query = supabaseAdmin.from('listing_videos').select('*').limit(1);
   if (metadataVideoId) {
@@ -14882,7 +14905,7 @@ app.get('/api/dashboard/command-center', async (req, res) => {
         sinceIso: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
       }),
       listingIds.length > 0
-        ? supabaseAdmin.from('properties').select('id, address, city, state, zip').in('id', listingIds)
+        ? supabaseAdmin.from('properties').select('id, address').in('id', listingIds)
         : Promise.resolve({ data: [] }),
       loadDashboardAppointmentsWindow({
         agentId,
@@ -14951,7 +14974,7 @@ app.get('/api/dashboard/command-center', async (req, res) => {
         ? supabaseAdmin.from('leads').select('id, full_name, name, phone, phone_e164, email, email_lower').in('id', appointmentLeadIds)
         : Promise.resolve({ data: [] }),
       appointmentListingIds.length > 0
-        ? supabaseAdmin.from('properties').select('id, address, city, state, zip').in('id', appointmentListingIds)
+        ? supabaseAdmin.from('properties').select('id, address').in('id', appointmentListingIds)
         : Promise.resolve({ data: [] }),
       appointmentIds.length > 0
         ? supabaseAdmin
@@ -14964,7 +14987,7 @@ app.get('/api/dashboard/command-center', async (req, res) => {
 
     if (appointmentLeadRes.error) throw appointmentLeadRes.error;
     if (appointmentListingRes.error) throw appointmentListingRes.error;
-    if (reminderRes.error && !/does not exist/i.test(reminderRes.error.message || '')) throw reminderRes.error;
+    if (reminderRes.error && !isMissingSupabaseRelationError(reminderRes.error)) throw reminderRes.error;
 
     const appointmentLeadMap = (appointmentLeadRes.data || []).reduce((acc, row) => {
       acc[row.id] = row;
@@ -16691,7 +16714,7 @@ app.get('/api/dashboard/appointments', async (req, res) => {
 
     if (leadRes.error) throw leadRes.error;
     if (listingRes.error) throw listingRes.error;
-    if (reminderRes.error && !/does not exist/i.test(reminderRes.error.message || '')) throw reminderRes.error;
+    if (reminderRes.error && !isMissingSupabaseRelationError(reminderRes.error)) throw reminderRes.error;
 
     const leadMap = (leadRes.data || []).reduce((acc, row) => {
       acc[row.id] = row;

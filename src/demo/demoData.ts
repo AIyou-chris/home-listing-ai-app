@@ -53,7 +53,7 @@ interface DemoListingMeta {
 }
 
 const demoNow = Date.now()
-const sampleVideoUrl = 'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-city-buildings-and-streets-3562-large.mp4'
+const sampleVideoUrl = '/demo/demo-video.mp4'
 
 const isoMinutesAgo = (minutes: number) => new Date(demoNow - minutes * 60_000).toISOString()
 const isoMinutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString()

@@ -10,25 +10,35 @@ interface SidebarProps {
   isBlueprintMode?: boolean;
 }
 
+const NAV_ITEMS = [
+  { key: 'today', icon: 'today', label: 'Today', path: '/today', testid: 'nav-today' },
+  { key: 'command-center', icon: 'space_dashboard', label: 'Command Center', path: '/command-center', testid: 'nav-command-center' },
+  { key: 'listings', icon: 'storefront', label: 'Listings', path: '/listings', testid: 'nav-listings' },
+  { key: 'leads', icon: 'groups', label: 'Leads', path: '/leads', testid: 'nav-leads' },
+  { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' }
+] as const;
+
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
   <span className={`material-symbols-outlined ${className}`}>{name}</span>
 );
-
 
 const NavItem: React.FC<{
   to: string;
   icon: string;
   children: React.ReactNode;
   onClose: () => void;
-}> = ({ to, icon, children, onClose }) => {
+  testid?: string;
+}> = ({ to, icon, children, onClose, testid }) => {
   return (
     <NavLink
       to={to}
+      data-testid={testid}
       onClick={onClose}
-      className={({ isActive }) => `flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${isActive
-        ? 'bg-primary-600 font-semibold text-white shadow-sm'
-        : 'font-medium text-slate-600 hover:bg-slate-100'
-        }`}
+      className={({ isActive }) =>
+        `flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-200 ${
+          isActive ? 'bg-primary-600 font-semibold text-white shadow-sm' : 'font-medium text-slate-600 hover:bg-slate-100'
+        }`
+      }
     >
       <Icon name={icon} className="transition-colors" />
       <span>{children}</span>
@@ -41,94 +51,80 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const derivedDemoMode = isDemoMode || location.pathname.startsWith('/demo-dashboard');
   const derivedBlueprintMode = isBlueprintMode || location.pathname.startsWith('/agent-blueprint-dashboard');
 
-  // BASE PATH LOGIC FOR BLUEPRINT AND DEMO
-  const basePath = derivedBlueprintMode ? '/agent-blueprint-dashboard' : (derivedDemoMode ? '/demo-dashboard' : '');
+  const basePath = derivedBlueprintMode ? '/agent-blueprint-dashboard' : derivedDemoMode ? '/demo-dashboard' : '';
 
   const getPath = (path: string) => `${basePath}${path}`;
-  const todayPath = derivedDemoMode || derivedBlueprintMode ? getPath('/today') : '/dashboard/today';
-  const commandCenterPath = derivedDemoMode || derivedBlueprintMode ? getPath('/command-center') : '/dashboard/command-center';
-  const listingsPath = derivedDemoMode || derivedBlueprintMode ? getPath('/listings') : '/dashboard/listings';
-  const leadsPath = derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads';
-  const appointmentsPath = derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments';
+  const pathMap: Record<string, string> = {
+    '/today': derivedDemoMode || derivedBlueprintMode ? getPath('/today') : '/dashboard/today',
+    '/command-center': derivedDemoMode || derivedBlueprintMode ? getPath('/command-center') : '/dashboard/command-center',
+    '/listings': derivedDemoMode || derivedBlueprintMode ? getPath('/listings') : '/dashboard/listings',
+    '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
+    '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments'
+  };
   const settingsPath = derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/settings';
 
-  const primaryItems = [
-    { to: todayPath, icon: 'today', label: 'Today' },
-    { to: commandCenterPath, icon: 'space_dashboard', label: 'Command Center' },
-    { to: listingsPath, icon: 'storefront', label: 'Listings' },
-    { to: leadsPath, icon: 'groups', label: 'Leads' },
-    { to: appointmentsPath, icon: 'event_available', label: 'Appointments' }
-  ];
-
   const handleLogoClick = () => {
-    // Rely on router for native behavior, or keep close logic
     onClose();
   };
 
   return (
     <>
       <div
-        className={`fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 z-30 bg-black/50 transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={onClose}
         aria-hidden="true"
       />
-      <aside className={`
-            fixed inset-y-0 left-0 z-40 h-full w-64 flex flex-col border-r border-slate-200 bg-white px-4 py-6
-            transform transition-transform duration-300 ease-in-out
-            md:static md:translate-x-0
-            ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        `}>
-        <div className="flex justify-between items-center px-2 mb-6">
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-slate-200 bg-white px-4 py-6
+          transform transition-transform duration-300 ease-in-out
+          lg:static lg:translate-x-0 lg:flex-shrink-0
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.25rem)'
+        }}
+      >
+        <div className="mb-6 flex items-center justify-between px-2">
           <a
-            href={derivedBlueprintMode ? "/agent-blueprint-dashboard/today" : derivedDemoMode ? "/demo-dashboard/today" : "/dashboard/today"}
+            href={derivedBlueprintMode ? '/agent-blueprint-dashboard/today' : derivedDemoMode ? '/demo-dashboard/today' : '/dashboard/today'}
             onClick={handleLogoClick}
-            className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg group"
+            className="group rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           >
             <LogoWithName />
             {!derivedDemoMode && !derivedBlueprintMode && (
               <div className="mt-2 flex items-center gap-2">
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 uppercase tracking-tight">
+                <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight text-blue-600">
                   Trial Mode
                 </span>
-                <span className="text-[10px] text-slate-400 font-medium">Active Trial</span>
+                <span className="text-[10px] font-medium text-slate-400">Active Trial</span>
               </div>
             )}
           </a>
-          <button onClick={onClose} className="md:hidden p-1 rounded-full text-slate-500 hover:bg-slate-100">
+          <button onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Close navigation">
             <Icon name="close" />
           </button>
         </div>
 
-
-        <nav className="flex-1 flex flex-col gap-4">
-          {/* Primary Section */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm flex flex-col">
-            {primaryItems.map((item) => (
-              <NavItem
-                key={item.to}
-                to={item.to}
-                icon={item.icon}
-                onClose={onClose}
-              >
+        <nav className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            {NAV_ITEMS.map((item) => (
+              <NavItem key={item.key} to={pathMap[item.path]} icon={item.icon} onClose={onClose} testid={item.testid}>
                 {item.label}
               </NavItem>
             ))}
-
           </div>
 
-          {!derivedDemoMode && (
-            <div className="mt-auto px-2 pb-6 border-t border-slate-100 pt-4">
-              <NavItem
-                to={settingsPath}
-                icon="settings"
-                onClose={onClose}
-              >
+          {!derivedDemoMode && !derivedBlueprintMode && (
+            <div className="mt-auto border-t border-slate-100 px-2 pb-6 pt-4">
+              <NavItem to={settingsPath} icon="settings" onClose={onClose} testid="nav-settings">
                 Settings
               </NavItem>
 
               <button
                 onClick={() => adminAuthService.logout()}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50"
               >
                 <Icon name="logout" className="text-rose-500" />
                 <span>Sign Out</span>
@@ -137,21 +133,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
           )}
 
           {derivedDemoMode && !derivedBlueprintMode && (
-            <div className="mt-auto pt-6 space-y-3">
+            <div className="mt-auto space-y-3 pt-6">
               <div className="px-2">
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                  <p className="text-xs font-medium text-slate-500 mb-3 uppercase tracking-wider">Demo Mode</p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">Demo Mode</p>
                   <div className="space-y-2">
                     <a
                       href="/"
-                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                     >
                       <span className="material-symbols-outlined text-lg">arrow_back</span>
                       Back to Home
                     </a>
                     <a
                       href="/#signup"
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 transition-colors"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700"
                     >
                       <span className="material-symbols-outlined text-lg">rocket_launch</span>
                       Start Your App

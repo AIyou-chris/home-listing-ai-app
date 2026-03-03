@@ -97,7 +97,6 @@ const FunnelAnalyticsPanel = lazy(() => import('./components/FunnelAnalyticsPane
 
 import { listingsService, CreatePropertyInput } from './services/listingsService';
 // Stubs removed, using real service
-import { LogoWithName } from './components/LogoWithName';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
 import DashboardRealtimeBootstrap from './components/dashboard-command/DashboardRealtimeBootstrap';
@@ -211,17 +210,49 @@ const DashboardRouteGate = () => {
     return <Navigate to="/dashboard/today" replace />;
 };
 
-const DemoDashboardLayout = () => (
-    <div className="flex h-screen bg-slate-50 relative">
-        <Sidebar isOpen={true} onClose={() => undefined} isDemoMode />
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
-                <DashboardRealtimeBootstrap />
-                <Outlet />
-            </main>
+const resolveDashboardPageTitle = (pathname: string) => {
+    if (pathname.includes('/command-center')) return 'Command Center';
+    if (pathname.includes('/listings')) return 'Listings';
+    if (pathname.includes('/leads')) return 'Leads';
+    if (pathname.includes('/appointments')) return 'Appointments';
+    if (pathname.includes('/settings')) return 'Settings';
+    return 'Today';
+};
+
+const DemoDashboardLayout = () => {
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const location = useLocation();
+    const pageTitle = resolveDashboardPageTitle(location.pathname);
+
+    return (
+        <div className="relative flex h-screen bg-slate-50">
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemoMode />
+            <div className="relative flex flex-1 flex-col overflow-hidden">
+                <header
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
+                    style={{
+                        paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
+                        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
+                    }}
+                >
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
+                        aria-label="Open navigation menu"
+                    >
+                        <span className="material-symbols-outlined text-xl">menu</span>
+                    </button>
+                    <h1 className="truncate px-3 text-base font-semibold text-slate-900">{pageTitle}</h1>
+                    <div className="w-10" aria-hidden="true" />
+                </header>
+                <main className="relative z-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+                    <DashboardRealtimeBootstrap />
+                    <Outlet />
+                </main>
+            </div>
         </div>
-    </div>
-)
+    );
+};
 
 const App: React.FC = () => {
     const [user, setUser] = useState<AppUser | null>(null);
@@ -326,6 +357,7 @@ const App: React.FC = () => {
 
     // PERF: Initialize loading state
     const [isLoading, setIsLoading] = useState(false); // Router handles most loading now
+    const [authReady, setAuthReady] = useState(false);
     const [isSettingUp] = useState(false); // Helper state for setup flows (currently unused)
     const [isDemoMode, setIsDemoMode] = useState(() => {
         const path = window.location.pathname;
@@ -424,6 +456,36 @@ const App: React.FC = () => {
     // Removed unused state variables
 
     const hasInitializedAuthRef = useRef(false);
+    const authReadyRef = useRef(false);
+
+    useEffect(() => {
+        authReadyRef.current = authReady;
+    }, [authReady]);
+
+    const logAuthBreadcrumb = useCallback((eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => {
+        const expiresAt =
+            typeof session?.expires_at === 'number'
+                ? new Date(session.expires_at * 1000).toISOString()
+                : null;
+
+        console.log('🧭 Auth breadcrumb', {
+            authReady: authReadyRef.current,
+            sessionExists: !!session?.user,
+            eventType,
+            expiresAt,
+            currentRoute: window.location.pathname
+        });
+    }, []);
+
+    const markAuthReady = useCallback((eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => {
+        queueMicrotask(() => {
+            if (!authReadyRef.current) {
+                authReadyRef.current = true;
+                setAuthReady(true);
+            }
+            logAuthBreadcrumb(eventType, session);
+        });
+    }, [logAuthBreadcrumb]);
 
 
 
@@ -541,15 +603,10 @@ const App: React.FC = () => {
         };
 
         const initAuth = async () => {
-            // Safety timeout to prevent infinite loading screen
-            const safetyTimeout = setTimeout(() => {
-                console.warn('⚠️ Auth check timed out. Forcing app load.');
-                setIsLoading(false);
-            }, 5000);
-
             // Check URL path immediately
             const currentPath = window.location.pathname;
             console.log('📍 Initial Route:', currentPath);
+            let resolvedSession: { expires_at?: number; user?: { id?: string } } | null = null;
 
             // Fast path for public routes - DO NOT BLOCK
             const isPublicRoute =
@@ -580,51 +637,12 @@ const App: React.FC = () => {
             }
 
             try {
-                // 0. OPTIMISTIC CHECK: Look in LocalStorage before waiting for network
-                // This prevents the 5s wait if the user was previously logged in.
-                try {
-                    const sbKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
-                    if (sbKey) {
-                        const raw = localStorage.getItem(sbKey);
-                        if (raw) {
-                            const sessionData = JSON.parse(raw);
-                            if (sessionData?.user?.id) {
-                                console.log('⚡️ Optimistic Auth: User found in local storage');
-                                const optimisticUser: AppUser = {
-                                    uid: sessionData.user.id,
-                                    id: sessionData.user.id,
-                                    email: sessionData.user.email,
-                                    displayName: sessionData.user.user_metadata?.name ?? null,
-                                    created_at: sessionData.user.created_at
-                                };
-                                // Update State immediately
-                                setUser(optimisticUser);
-
-                                // CRITICAL for Admin routes: Do NOT unblock UI yet if we are heading to /admin.
-                                // We MUST wait for the official admin check to prevent the 'flash' redirect to agent dashboard.
-                                if (!currentPath.startsWith('/admin')) {
-                                    setIsLoading(false);
-                                }
-                                clearTimeout(safetyTimeout);
-
-                                // We still let the network check run below to verify validity, 
-                                // but the user is already seeing the app!
-                            }
-                        }
-                    }
-                } catch (e) { console.warn('Optimistic check failed', e); }
-
                 // 1. Check Local Session (Network Validation)
-                console.log('🔍 Checking session (Network Validation)...');
-                const sessionPromise = supabase.auth.getSession();
+                console.log('🔍 Checking session...');
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                resolvedSession = session ?? null;
 
-                // Add a small timeout race for the network check too, just in case
-                const { data: { session }, error: sessionError } = await Promise.race([
-                    sessionPromise,
-                    new Promise<{ data: { session: null }, error: null }>((resolve) => setTimeout(() => resolve({ data: { session: null }, error: null }), 3000))
-                ]);
-
-                console.log('🔍 Network Session check complete. User:', session?.user?.email);
+                console.log('🔍 Session check complete. User:', session?.user?.email);
 
                 if (sessionError) throw sessionError;
 
@@ -660,7 +678,6 @@ const App: React.FC = () => {
 
                         if (currentPath === '/signup' && isNewUser) {
                             console.log('🆕 New user detected on signup page. Allowing signup flow to continue.');
-                            clearTimeout(safetyTimeout);
                             return;
                         }
 
@@ -679,20 +696,13 @@ const App: React.FC = () => {
                     // No Session
                     console.log('👤 No active session.');
                     setUser(null);
-
-                    // Redirect protected routes to signin
-                    if (!isPublicRoute) {
-                        console.log('🔒 Protected route accessed without session. Redirecting to signin.');
-                        // Store return url?
-                        navigate('/signin');
-                    }
                 }
 
             } catch (error) {
                 console.error("❌ Auth Init Error:", error);
             } finally {
-                clearTimeout(safetyTimeout);
                 setIsLoading(false);
+                markAuthReady('INIT_SESSION_RESOLVED', resolvedSession);
             }
         };
 
@@ -702,6 +712,7 @@ const App: React.FC = () => {
         // Listen for auth changes (Sign In / Sign Out / Token Refresh)
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log("🔐 Auth Change:", event, session?.user?.email);
+            markAuthReady(event, session ?? null);
 
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                 if (session?.user) {
@@ -746,7 +757,7 @@ const App: React.FC = () => {
         return () => {
             subscription.unsubscribe();
         };
-    }, [navigate, isBlueprintMode]);
+    }, [navigate, isBlueprintMode, markAuthReady]);
 
     // --- FORCE ADMIN REDIRECT ---
     // If we are detected as Admin, but not on an admin page, GO TO ADMIN DASHBOARD.
@@ -777,14 +788,14 @@ const App: React.FC = () => {
     // --- FORCE AUTH REDIRECT ---
     // If user is logged in but on a public auth page (Signin/Signup), redirect to Dashboard.
     useEffect(() => {
-        if (user && !isLoading) {
+        if (user && authReady) {
             const path = location.pathname;
             if (path === '/signin' || path === '/signup') {
                 console.log("✅ User authenticated on auth page. Redirecting to dashboard...");
                 navigate('/dashboard', { replace: true });
             }
         }
-    }, [user, isLoading, location.pathname, navigate]);
+    }, [user, authReady, location.pathname, navigate]);
 
     // Load centralized agent profile and set up real-time updates
     useEffect(() => {
@@ -1350,6 +1361,61 @@ const App: React.FC = () => {
     const renderRoutes = () => {
         if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
         console.log("📍 Rendering Routes");
+        const ProtectedDashboardLayout = () => {
+            if (!authReady) {
+                return (
+                    <div className="flex h-screen items-center justify-center bg-slate-50">
+                        <LoadingSpinner size="lg" type="dots" text="Checking session..." />
+                    </div>
+                );
+            }
+
+            if (!user && !isAdmin && !isDemoMode) {
+                logAuthBreadcrumb('ROUTE_GUARD_REDIRECT_NO_SESSION', null);
+                return <Navigate to="/signin?reason=expired" replace />;
+            }
+
+            return (
+                <div className="flex h-screen bg-slate-50 relative">
+                    <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                    <div className="flex-1 flex flex-col overflow-hidden relative">
+                        {/* Mobile Header */}
+                        <header
+                            className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
+                            style={{
+                                paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
+                                paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
+                            }}
+                        >
+                            <button
+                                onClick={() => setIsSidebarOpen(true)}
+                                className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
+                                aria-label="Open navigation menu"
+                            >
+                                <span className="material-symbols-outlined text-xl">menu</span>
+                            </button>
+                            <h1 className="truncate px-3 text-base font-semibold text-slate-900">
+                                {resolveDashboardPageTitle(location.pathname)}
+                            </h1>
+                            <div className="flex w-10 justify-end">
+                                {user && <NotificationSystem userId={user.uid} />}
+                            </div>
+                        </header>
+
+                        {/* Desktop Notification Bell (Absolute Top-Right) */}
+                        <div className="absolute right-8 top-6 z-50 hidden lg:block">
+                            {user && <NotificationSystem userId={user.uid} />}
+                        </div>
+
+                        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
+                            <DashboardRealtimeBootstrap />
+                            <Outlet />
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
         const renderSettingsPage = (initialTab: 'profile' | 'notifications' | 'security' | 'billing' = 'profile') => (
             <SettingsPage
                 userId={user?.uid ?? 'guest-agent'}
@@ -1387,8 +1453,8 @@ const App: React.FC = () => {
                                 <LandingPage
                                     onNavigateToSignUp={handleNavigateToSignUp}
                                     onNavigateToSignIn={handleNavigateToSignIn}
-                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
-                                    onNavigateToShowcase={() => navigate('/demo-dashboard')}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard/today')}
+                                    onNavigateToShowcase={() => navigate('/demo-dashboard/today')}
                                     scrollToSection={scrollToSection}
                                     onScrollComplete={() => setScrollToSection(null)}
                                     onOpenConsultationModal={() => { setConsultationRole('realtor'); setIsConsultationModalOpen(true); }}
@@ -1539,35 +1605,7 @@ const App: React.FC = () => {
 
 
                     {/* Protected Routes (Wrapped in Layout) */}
-                    <Route element={
-                        <div className="flex h-screen bg-slate-50 relative">
-                            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-                            <div className="flex-1 flex flex-col overflow-hidden relative">
-                                {/* Mobile Header */}
-                                <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm z-20">
-                                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
-                                        <span className="material-symbols-outlined text-xl">menu</span>
-                                    </button>
-                                    <div className="flex-1 flex justify-center">
-                                        <LogoWithName />
-                                    </div>
-                                    <div>
-                                        {user && <NotificationSystem userId={user.uid} />}
-                                    </div>
-                                </header>
-
-                                {/* Desktop Notification Bell (Absolute Top-Right) */}
-                                <div className="hidden md:block absolute top-6 right-8 z-50">
-                                    {user && <NotificationSystem userId={user.uid} />}
-                                </div>
-
-                                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
-                                    <DashboardRealtimeBootstrap />
-                                    <Outlet />
-                                </main>
-                            </div>
-                        </div>
-                    }>
+                    <Route element={<ProtectedDashboardLayout />}>
                         <Route path="/dashboard" element={
                             <DashboardRouteGate />
                         } />

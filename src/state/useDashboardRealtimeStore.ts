@@ -15,6 +15,8 @@ type RealtimeEventType =
   | 'reminder.updated'
   | 'listing.updated'
   | 'listing.performance.updated'
+  | 'listing.video.updated'
+  | 'listing.video.credits_updated'
   | 'system.ready'
 
 export interface DashboardRealtimeEventEnvelope {
@@ -242,7 +244,12 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
         }
       }
 
-      if (event.type === 'listing.updated' || event.type === 'listing.performance.updated') {
+      if (
+        event.type === 'listing.updated' ||
+        event.type === 'listing.performance.updated' ||
+        event.type === 'listing.video.updated' ||
+        event.type === 'listing.video.credits_updated'
+      ) {
         const listingId = asString(payload.listing_id)
         if (!listingId) return { lastRealtimeEvent: event }
         return {
