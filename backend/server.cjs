@@ -3312,6 +3312,182 @@ const loadListingByIdForAgent = async ({ listingId, agentId }) => {
   return data[0];
 };
 
+const loadListingById = async ({ listingId }) => {
+  if (!listingId) return null;
+  const { data, error } = await supabaseAdmin
+    .from('properties')
+    .select('*')
+    .eq('id', listingId)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+};
+
+const getListingOwnerId = (listingRow) => {
+  if (!listingRow) return '';
+  return String(listingRow.agent_id || listingRow.user_id || '');
+};
+
+const normalizeDashboardListingStatus = (status, isPublished = false) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'draft') return 'draft';
+  if (normalized === 'published') return 'published';
+  if (normalized === 'active' || normalized === 'sold') return 'published';
+  if (isPublished) return 'published';
+  return 'draft';
+};
+
+const isListingPublished = (listingRow) =>
+  normalizeDashboardListingStatus(listingRow?.status, Boolean(listingRow?.is_published)) === 'published';
+
+const extractListingDescription = (descriptionValue) => {
+  if (typeof descriptionValue === 'string') return descriptionValue;
+  if (descriptionValue && typeof descriptionValue === 'object') {
+    const title = typeof descriptionValue.title === 'string' ? descriptionValue.title.trim() : '';
+    const paragraphs = Array.isArray(descriptionValue.paragraphs)
+      ? descriptionValue.paragraphs.filter((item) => typeof item === 'string' && item.trim().length > 0)
+      : [];
+    return [title, ...paragraphs].filter(Boolean).join('\n\n');
+  }
+  return '';
+};
+
+const mapListingRowToDashboardPayload = (listingRow) => {
+  const heroPhotos = Array.isArray(listingRow.hero_photos) ? listingRow.hero_photos : [];
+  const galleryPhotos = Array.isArray(listingRow.gallery_photos) ? listingRow.gallery_photos : [];
+  const photos = [...heroPhotos, ...galleryPhotos]
+    .filter((photo) => typeof photo === 'string' && photo.trim().length > 0)
+    .slice(0, 6);
+
+  return {
+    id: listingRow.id,
+    status: normalizeDashboardListingStatus(listingRow.status, Boolean(listingRow.is_published)),
+    address: listingRow.address || '',
+    price: Number(listingRow.price || 0),
+    beds: Number(listingRow.bedrooms || 0),
+    baths: Number(listingRow.bathrooms || 0),
+    sqft: Number(listingRow.square_feet || 0),
+    description: extractListingDescription(listingRow.description),
+    photos
+  };
+};
+
+const normalizeBrainSourceType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'doc') return 'file';
+  if (normalized === 'text' || normalized === 'file' || normalized === 'url') return normalized;
+  return 'text';
+};
+
+const normalizeBrainSourceStatus = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'trained' || normalized === 'needs_retrain') return normalized;
+  return 'needs_retrain';
+};
+
+const isMissingListingSourceColumnError = (error) => {
+  const message = String(error?.message || '');
+  return (
+    /column .* does not exist/i.test(message) ||
+    /could not find the '.*' column of 'listing_sources' in the schema cache/i.test(message)
+  );
+};
+
+const mapListingSourceRow = (row) => {
+  const type = normalizeBrainSourceType(row.type || row.source_type);
+  const status = normalizeBrainSourceStatus(row.status || 'trained');
+  const text = row.text || row.content || null;
+  return {
+    id: row.id,
+    type,
+    title: row.title || row.source_key || 'Source',
+    text,
+    content: text,
+    url: row.url || null,
+    status,
+    trained_at: row.trained_at || null,
+    updated_at: row.updated_at || row.created_at || null
+  };
+};
+
+const listListingBrainSources = async ({ listingId, agentId }) => {
+  const { data, error } = await supabaseAdmin
+    .from('listing_sources')
+    .select('*')
+    .eq('listing_id', listingId)
+    .eq('agent_id', agentId)
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+  if (error) {
+    if (/does not exist|listing_sources/i.test(error.message || '')) return [];
+    throw error;
+  }
+  return (data || []).map(mapListingSourceRow);
+};
+
+const buildSourceKeyFromTitle = (title) => {
+  const normalized = toSourceKey(title);
+  if (normalized) return `${normalized}_${Date.now().toString(36).slice(-6)}`;
+  return `source_${Date.now().toString(36)}`;
+};
+
+const insertListingBrainSource = async ({ listingId, agentId, type, title, content = null, url = null, status = 'needs_retrain', trainedAt = null }) => {
+  const timestamp = nowIso();
+  const normalizedType = normalizeBrainSourceType(type);
+  const normalizedStatus = normalizeBrainSourceStatus(status);
+  const sourceKey = buildSourceKeyFromTitle(title || normalizedType);
+
+  const payload = {
+    listing_id: listingId,
+    agent_id: agentId,
+    source_type: normalizedType,
+    source_key: sourceKey,
+    type: normalizedType,
+    title: title || sourceKey,
+    content: content || null,
+    url: url || null,
+    status: normalizedStatus,
+    trained_at: trainedAt || null,
+    created_at: timestamp,
+    updated_at: timestamp
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from('listing_sources')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error && isMissingListingSourceColumnError(error)) {
+    const fallbackPayload = {
+      listing_id: listingId,
+      agent_id: agentId,
+      source_type: normalizedType,
+      source_key: sourceKey,
+      created_at: timestamp
+    };
+    const fallback = await supabaseAdmin
+      .from('listing_sources')
+      .insert(fallbackPayload)
+      .select('*')
+      .single();
+    if (fallback.error) throw fallback.error;
+    return mapListingSourceRow({
+      ...fallback.data,
+      type: normalizedType,
+      title: title || sourceKey,
+      content: content || null,
+      url: url || null,
+      status: normalizedStatus,
+      trained_at: trainedAt || null,
+      updated_at: fallback.data?.created_at || timestamp
+    });
+  }
+
+  if (error) throw error;
+  return mapListingSourceRow(data);
+};
+
 const recordListingEvent = async ({ listingId, type, payload }) => {
   if (!listingId || !type) return;
   try {
@@ -15562,6 +15738,436 @@ app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
   }
 });
 
+app.post('/api/dashboard/listings', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const nextStatus = normalizeDashboardListingStatus(req.body?.status || 'draft');
+    if (nextStatus !== 'draft') {
+      return res.status(400).json({ error: 'invalid_status_for_create' });
+    }
+    const nextAddress = toTrimmedOrNull(req.body?.address) || 'Address coming soon';
+    const timestamp = nowIso();
+
+    const insertPayload = {
+      agent_id: agentId,
+      user_id: agentId,
+      status: nextStatus,
+      is_published: false,
+      published_at: null,
+      title: 'Draft Listing',
+      address: nextAddress,
+      price: 0,
+      bedrooms: 0,
+      bathrooms: 0,
+      square_feet: 0,
+      description: '',
+      hero_photos: [],
+      gallery_photos: [],
+      created_at: timestamp,
+      updated_at: timestamp
+    };
+
+    const { data: listingRow, error: insertError } = await supabaseAdmin
+      .from('properties')
+      .insert(insertPayload)
+      .select('*')
+      .single();
+    if (insertError) throw insertError;
+
+    return res.json({
+      listing: mapListingRowToDashboardPayload(listingRow)
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to create draft listing:', error);
+    return res.status(500).json({ error: 'failed_to_create_listing' });
+  }
+});
+
+app.get('/api/dashboard/listings', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const runQuery = async (ownerMode = 'agent_or_user') => {
+      let query = supabaseAdmin
+        .from('properties')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      query = ownerMode === 'agent_or_user'
+        ? query.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+        : query.eq('user_id', agentId);
+
+      return query;
+    };
+
+    let { data: listingRows, error } = await runQuery('agent_or_user');
+    if (error && /agent_id/i.test(error.message || '')) {
+      const fallback = await runQuery('user_only');
+      listingRows = fallback.data;
+      error = fallback.error;
+    }
+    if (error) throw error;
+
+    const listings = (listingRows || []).map(mapListingRowToDashboardPayload);
+    return res.json({
+      listings,
+      count: listings.length
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to list dashboard listings:', error);
+    return res.status(500).json({ error: 'failed_to_list_listings' });
+  }
+});
+
+app.get('/api/dashboard/listings/:id', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listingId = String(req.params.id || '');
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const sources = await listListingBrainSources({ listingId: listingRow.id, agentId: ownerId });
+
+    return res.json({
+      listing: mapListingRowToDashboardPayload(listingRow),
+      brain_sources: sources
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to load listing editor payload:', error);
+    return res.status(500).json({ error: 'failed_to_load_listing' });
+  }
+});
+
+app.patch('/api/dashboard/listings/:id', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listingId = String(req.params.id || '');
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const updates = {};
+    const body = req.body || {};
+
+    if (body.price !== undefined) {
+      const nextPrice = Number(body.price);
+      if (!Number.isFinite(nextPrice) || nextPrice < 0) {
+        return res.status(400).json({ error: 'invalid_price' });
+      }
+      updates.price = nextPrice;
+    }
+    if (body.beds !== undefined) {
+      const nextBeds = Number(body.beds);
+      if (!Number.isFinite(nextBeds) || nextBeds < 0) return res.status(400).json({ error: 'invalid_beds' });
+      updates.bedrooms = nextBeds;
+    }
+    if (body.baths !== undefined) {
+      const nextBaths = Number(body.baths);
+      if (!Number.isFinite(nextBaths) || nextBaths < 0) return res.status(400).json({ error: 'invalid_baths' });
+      updates.bathrooms = nextBaths;
+    }
+    if (body.sqft !== undefined) {
+      const nextSqft = Number(body.sqft);
+      if (!Number.isFinite(nextSqft) || nextSqft < 0) return res.status(400).json({ error: 'invalid_sqft' });
+      updates.square_feet = nextSqft;
+    }
+    if (body.address !== undefined) {
+      updates.address = toTrimmedOrNull(body.address) || '';
+    }
+    if (body.description !== undefined) {
+      updates.description = typeof body.description === 'string' ? body.description : extractListingDescription(body.description);
+    }
+    if (body.photos !== undefined) {
+      if (!Array.isArray(body.photos)) return res.status(400).json({ error: 'invalid_photos' });
+      const nextPhotos = body.photos
+        .filter((photo) => typeof photo === 'string' && photo.trim().length > 0)
+        .map((photo) => photo.trim())
+        .slice(0, 6);
+      updates.hero_photos = nextPhotos.length ? [nextPhotos[0]] : [];
+      updates.gallery_photos = nextPhotos.length > 1 ? nextPhotos.slice(1) : [];
+    }
+    if (body.status !== undefined) {
+      const nextStatus = normalizeDashboardListingStatus(body.status);
+      if (nextStatus !== 'draft' && nextStatus !== 'published') {
+        return res.status(400).json({ error: 'invalid_status' });
+      }
+      updates.status = nextStatus;
+      updates.is_published = nextStatus === 'published';
+      updates.published_at = nextStatus === 'published'
+        ? (listingRow.published_at || nowIso())
+        : null;
+
+      if (nextStatus === 'published') {
+        const publicSlug = listingRow.public_slug || await ensureUniquePublicSlug({
+          listingId: listingRow.id,
+          title: listingRow.title,
+          address: listingRow.address
+        });
+        updates.public_slug = publicSlug;
+        updates.share_url = buildListingShareUrl(publicSlug);
+      }
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: 'no_supported_fields_provided' });
+    }
+
+    const previousPrice = Number(listingRow.price || 0);
+    const nextPrice = updates.price;
+    updates.updated_at = nowIso();
+
+    const { data: updatedRow, error: updateError } = await supabaseAdmin
+      .from('properties')
+      .update(updates)
+      .eq('id', listingId)
+      .select('*')
+      .single();
+    if (updateError) throw updateError;
+
+    if (nextPrice !== undefined && Number(nextPrice) !== previousPrice) {
+      const noteDate = new Date().toISOString().slice(0, 10);
+      const priceLabel = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(nextPrice));
+      await insertListingBrainSource({
+        listingId,
+        agentId: ownerId,
+        type: 'text',
+        title: 'Price update',
+        content: `Price updated to ${priceLabel} on ${noteDate}`,
+        status: 'needs_retrain'
+      }).catch((sourceError) => {
+        console.warn('[Dashboard] Failed to create price-update brain source note:', sourceError?.message || sourceError);
+      });
+    }
+
+    return res.json({
+      listing: mapListingRowToDashboardPayload(updatedRow)
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to patch listing:', error);
+    return res.status(500).json({ error: 'failed_to_update_listing' });
+  }
+});
+
+app.get('/api/dashboard/listings/:id/sources', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listingId = String(req.params.id || '');
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const sources = await listListingBrainSources({ listingId, agentId: ownerId });
+    return res.json({ sources });
+  } catch (error) {
+    console.error('[Dashboard] Failed to list listing sources:', error);
+    return res.status(500).json({ error: 'failed_to_list_sources' });
+  }
+});
+
+app.post('/api/dashboard/listings/:id/sources', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listingId = String(req.params.id || '');
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const type = normalizeBrainSourceType(req.body?.type);
+    const title = toTrimmedOrNull(req.body?.title);
+    if (!title) return res.status(400).json({ error: 'source_title_required' });
+
+    const source = await insertListingBrainSource({
+      listingId,
+      agentId: ownerId,
+      type,
+      title,
+      content: toTrimmedOrNull(req.body?.text ?? req.body?.content),
+      url: toTrimmedOrNull(req.body?.url),
+      status: normalizeBrainSourceStatus(req.body?.status || 'needs_retrain'),
+      trainedAt: req.body?.trained_at ? new Date(req.body.trained_at).toISOString() : null
+    });
+
+    return res.json({ source });
+  } catch (error) {
+    console.error('[Dashboard] Failed to create listing source:', error);
+    return res.status(500).json({ error: 'failed_to_create_source' });
+  }
+});
+
+app.patch('/api/dashboard/listings/:id/sources/:sourceId', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listingId = String(req.params.id || '');
+    const sourceId = String(req.params.sourceId || '');
+    if (!listingId || !sourceId) return res.status(400).json({ error: 'listing_id_and_source_id_required' });
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const updatePayload = {};
+    if (req.body?.type !== undefined) {
+      const normalizedType = normalizeBrainSourceType(req.body.type);
+      updatePayload.type = normalizedType;
+      updatePayload.source_type = normalizedType;
+    }
+    if (req.body?.title !== undefined) {
+      const title = toTrimmedOrNull(req.body.title);
+      if (!title) return res.status(400).json({ error: 'source_title_required' });
+      updatePayload.title = title;
+      updatePayload.source_key = buildSourceKeyFromTitle(title);
+    }
+    if (req.body?.content !== undefined) {
+      updatePayload.content = toTrimmedOrNull(req.body.content);
+    }
+    if (req.body?.text !== undefined) {
+      updatePayload.content = toTrimmedOrNull(req.body.text);
+    }
+    if (req.body?.url !== undefined) {
+      updatePayload.url = toTrimmedOrNull(req.body.url);
+    }
+    if (req.body?.status !== undefined) {
+      updatePayload.status = normalizeBrainSourceStatus(req.body.status);
+    }
+    if (req.body?.trained_at !== undefined) {
+      updatePayload.trained_at = req.body.trained_at ? new Date(req.body.trained_at).toISOString() : null;
+    }
+
+    if (!Object.keys(updatePayload).length) {
+      return res.status(400).json({ error: 'no_supported_fields_provided' });
+    }
+
+    updatePayload.updated_at = nowIso();
+
+    let updateResponse = await supabaseAdmin
+      .from('listing_sources')
+      .update(updatePayload)
+      .eq('id', sourceId)
+      .eq('listing_id', listingId)
+      .eq('agent_id', ownerId)
+      .select('*')
+      .maybeSingle();
+
+    if (updateResponse.error && isMissingListingSourceColumnError(updateResponse.error)) {
+      const fallbackPayload = {};
+      if (updatePayload.source_type) fallbackPayload.source_type = updatePayload.source_type;
+      if (updatePayload.source_key) fallbackPayload.source_key = updatePayload.source_key;
+      if (!Object.keys(fallbackPayload).length) {
+        fallbackPayload.source_key = buildSourceKeyFromTitle(`source_${Date.now().toString(36)}`);
+      }
+      updateResponse = await supabaseAdmin
+        .from('listing_sources')
+        .update(fallbackPayload)
+        .eq('id', sourceId)
+        .eq('listing_id', listingId)
+        .eq('agent_id', ownerId)
+        .select('*')
+        .maybeSingle();
+      if (updateResponse.error) throw updateResponse.error;
+      if (!updateResponse.data) return res.status(404).json({ error: 'source_not_found' });
+
+      const source = mapListingSourceRow({
+        ...updateResponse.data,
+        type: updatePayload.source_type || updateResponse.data.source_type,
+        title: updatePayload.title || updateResponse.data.source_key || 'Source',
+        content: updatePayload.content ?? null,
+        url: updatePayload.url ?? null,
+        status: updatePayload.status || 'trained',
+        trained_at: updatePayload.trained_at || null,
+        updated_at: updatePayload.updated_at
+      });
+      return res.json({ source });
+    }
+
+    if (updateResponse.error) throw updateResponse.error;
+    if (!updateResponse.data) return res.status(404).json({ error: 'source_not_found' });
+
+    return res.json({ source: mapListingSourceRow(updateResponse.data) });
+  } catch (error) {
+    console.error('[Dashboard] Failed to patch listing source:', error);
+    return res.status(500).json({ error: 'failed_to_update_source' });
+  }
+});
+
+app.delete('/api/dashboard/listings/:id/sources/:sourceId', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listingId = String(req.params.id || '');
+    const sourceId = String(req.params.sourceId || '');
+    if (!listingId || !sourceId) return res.status(400).json({ error: 'listing_id_and_source_id_required' });
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const { data: deletedRows, error: deleteError } = await supabaseAdmin
+      .from('listing_sources')
+      .delete()
+      .eq('id', sourceId)
+      .eq('listing_id', listingId)
+      .eq('agent_id', ownerId)
+      .select('id');
+    if (deleteError) throw deleteError;
+    if (!Array.isArray(deletedRows) || deletedRows.length === 0) {
+      return res.status(404).json({ error: 'source_not_found' });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Dashboard] Failed to delete listing source:', error);
+    return res.status(500).json({ error: 'failed_to_delete_source' });
+  }
+});
+
 app.get('/api/dashboard/listings/:listingId/leads', async (req, res) => {
   try {
     const { listingId } = req.params;
@@ -15601,9 +16207,22 @@ app.get('/api/dashboard/listings/:listingId/leads', async (req, res) => {
 app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
-    const listing = await loadListingByIdForAgent({ listingId, agentId });
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listing = await loadListingById({ listingId });
     if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listing);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+    if (!isListingPublished(listing)) {
+      return res.status(409).json({
+        error: 'NOT_PUBLISHED',
+        status: normalizeDashboardListingStatus(listing.status, Boolean(listing.is_published))
+      });
+    }
 
     const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
       listingId: listing.id,
@@ -15614,7 +16233,7 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
 
     const sourceRows = await ensureDefaultListingSources({
       listingId: listing.id,
-      agentId: listing.agent_id || listing.user_id || agentId
+      agentId: ownerId
     });
     const sources = sourceRows.reduce((acc, row) => {
       if (row?.source_key) {
@@ -15633,7 +16252,7 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
         .from('listing_videos')
         .select('id, title, caption, file_name, mime_type, status, created_at')
         .eq('listing_id', listing.id)
-        .eq('agent_id', listing.agent_id || listing.user_id || agentId)
+        .eq('agent_id', ownerId)
         .in('status', ['ready', 'completed', 'published', 'succeeded'])
         .order('created_at', { ascending: false })
         .limit(1);
@@ -15650,7 +16269,8 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
     res.json({
       success: true,
       listing_id: listing.id,
-      is_published: Boolean(listing.is_published),
+      status: normalizeDashboardListingStatus(listing.status, Boolean(listing.is_published)),
+      is_published: true,
       published_at: listing.published_at || null,
       public_slug: publicSlug,
       share_url: shareUrl,
@@ -15811,6 +16431,71 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
     }
     console.error('[Dashboard] Failed to load listing videos:', error);
     return res.status(500).json({ error: 'failed_to_load_listing_videos' });
+  }
+});
+
+app.post('/api/dev/listings/:id/videos/credits/add', async (req, res) => {
+  try {
+    const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+    const allowDemoCredits = String(process.env.ALLOW_DEMO_CREDITS || '').trim().toLowerCase() === 'true';
+    if (isProduction && !allowDemoCredits) {
+      return res.status(403).json({ error: 'dev_credits_disabled' });
+    }
+
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listingId = String(req.params.id || '').trim();
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const rawCount = Number(req.body?.count);
+    if (!Number.isFinite(rawCount) || rawCount <= 0 || !Number.isInteger(rawCount)) {
+      return res.status(400).json({ error: 'invalid_count' });
+    }
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const credits = await listingVideoCreditsService.addExtraCredits({
+      agentId: ownerId,
+      listingId,
+      amount: rawCount
+    });
+
+    emitRealtimeEvent({
+      type: 'listing.video.credits_updated',
+      agentId: ownerId,
+      payload: {
+        listing_id: listingId,
+        included: credits.included,
+        extra: credits.extra,
+        used: credits.used,
+        remaining: credits.remaining
+      }
+    });
+
+    return res.json({
+      success: true,
+      listing_id: listingId,
+      added: rawCount,
+      credits: {
+        included: credits.included,
+        extra: credits.extra,
+        used: credits.used,
+        remaining: credits.remaining
+      }
+    });
+  } catch (error) {
+    if (/listing_video_credits|reserve_listing_video_credit|add_listing_video_extra_credits/i.test(error?.message || '')) {
+      return res.status(500).json({ error: 'video_tables_missing_run_phase5_1_2_migration' });
+    }
+    console.error('[Dashboard] Failed to add dev listing video credits:', error);
+    return res.status(500).json({ error: 'failed_to_add_dev_credits' });
   }
 });
 
@@ -15975,15 +16660,34 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
 app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
-    const requestedPublishState = req.body?.is_published;
-    const nextPublished = requestedPublishState === undefined ? true : Boolean(requestedPublishState);
-    const listing = await loadListingByIdForAgent({ listingId, agentId });
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listing = await loadListingById({ listingId });
     if (!listing) return res.status(404).json({ error: 'listing_not_found' });
 
-    const ownerId = listing.agent_id || listing.user_id || agentId;
-    const publishTransition = nextPublished && !Boolean(listing.is_published);
-    const unpublishTransition = !nextPublished && Boolean(listing.is_published);
+    const ownerId = getListingOwnerId(listing);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const requestedStatus = toTrimmedOrNull(req.body?.status);
+    let nextStatus = 'published';
+    if (requestedStatus) {
+      const normalizedRequested = String(requestedStatus).toLowerCase();
+      if (normalizedRequested !== 'draft' && normalizedRequested !== 'published') {
+        return res.status(400).json({ error: 'invalid_status' });
+      }
+      nextStatus = normalizedRequested;
+    } else {
+      const requestedPublishState = req.body?.is_published;
+      nextStatus = requestedPublishState === undefined ? 'published' : (Boolean(requestedPublishState) ? 'published' : 'draft');
+    }
+
+    const currentStatus = normalizeDashboardListingStatus(listing.status, Boolean(listing.is_published));
+    const nextPublished = nextStatus === 'published';
+    const publishTransition = nextPublished && currentStatus !== 'published';
+    const unpublishTransition = !nextPublished && currentStatus === 'published';
 
     if (publishTransition) {
       const entitlement = await billingEngine.checkEntitlement({
@@ -16011,6 +16715,7 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
     const timestamp = nowIso();
 
     const patchPayload = {
+      status: nextStatus,
       is_published: nextPublished,
       published_at: nextPublished ? (listing.published_at || timestamp) : null,
       public_slug: publicSlug,
@@ -16053,9 +16758,9 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
 
     await recordListingEvent({
       listingId: listing.id,
-      type: 'published',
+      type: nextPublished ? 'published' : 'unpublished',
       payload: {
-        is_published: nextPublished,
+        status: nextStatus,
         share_url: shareUrl,
         public_slug: publicSlug
       }
@@ -16112,7 +16817,8 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
     res.json({
       success: true,
       listing_id: listing.id,
-      is_published: Boolean(updatedRow.is_published),
+      status: normalizeDashboardListingStatus(updatedRow.status, Boolean(updatedRow.is_published)),
+      is_published: normalizeDashboardListingStatus(updatedRow.status, Boolean(updatedRow.is_published)) === 'published',
       published_at: updatedRow.published_at || null,
       public_slug: updatedRow.public_slug || publicSlug,
       share_url: updatedRow.share_url || shareUrl,
@@ -16138,11 +16844,23 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
 app.post('/api/dashboard/listings/:listingId/generate-qr', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
-    const listing = await loadListingByIdForAgent({ listingId, agentId });
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listing = await loadListingById({ listingId });
     if (!listing) return res.status(404).json({ error: 'listing_not_found' });
 
-    const ownerId = listing.agent_id || listing.user_id || agentId;
+    const ownerId = getListingOwnerId(listing);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+    if (!isListingPublished(listing)) {
+      return res.status(409).json({
+        error: 'NOT_PUBLISHED',
+        status: normalizeDashboardListingStatus(listing.status, Boolean(listing.is_published))
+      });
+    }
+
     const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
       listingId: listing.id,
       title: listing.title,
@@ -16228,9 +16946,22 @@ app.post('/api/dashboard/listings/:listingId/generate-qr', async (req, res) => {
 app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
-    const listing = await loadListingByIdForAgent({ listingId, agentId });
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listing = await loadListingById({ listingId });
     if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listing);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+    if (!isListingPublished(listing)) {
+      return res.status(409).json({
+        error: 'NOT_PUBLISHED',
+        status: normalizeDashboardListingStatus(listing.status, Boolean(listing.is_published))
+      });
+    }
 
     const fullName = toTrimmedOrNull(req.body?.full_name || req.body?.name || 'Test Lead');
     const emailLower = normalizeEmailLower(req.body?.email || '');
@@ -16265,7 +16996,7 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-user-id': agentId
+        'x-user-id': ownerId
       },
       body: JSON.stringify({
         listing_id: listing.id,
@@ -16295,7 +17026,7 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
     }
 
     await applyOnboardingChecklistPatch({
-      agentId,
+      agentId: ownerId,
       checklistPatch: {
         first_listing_created: true,
         first_listing_id: listing.id,
@@ -23818,50 +24549,3 @@ setTimeout(() => {
   runStartupDiagnostics({ app, supabaseAdmin, schemaCapabilities })
     .catch((error) => console.warn('[StartupChecks] Failed:', error.message));
 }, 3000);
-// Quick fix for missing GET /api/dashboard/listings endpoint
-app.get('/api/dashboard/listings', async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ error: 'Missing logic auth header' });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    let agentId = req.query.agentId; // Allow impersonation
-    if (!agentId) {
-      if (authError || !user) {
-        return res.status(401).json({ error: 'Invalid config token' });
-      }
-      agentId = user.id;
-    }
-
-    const { data: agentData } = await supabase
-      .from('agents')
-      .select('id, auth_user_id')
-      .eq('auth_user_id', agentId)
-      .maybeSingle();
-
-    const finalAgentId = agentData?.id || agentId;
-
-    const { data: listings, error } = await supabase
-      .from('properties')
-      .select('*')
-      .eq('agent_id', finalAgentId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching dashboard listings:', error);
-      return res.status(500).json({ error: 'failed_to_fetch_listings' });
-    }
-
-    return res.json({
-      listings: listings || [],
-      count: (listings || []).length
-    });
-  } catch (error) {
-    console.error('Crash fetching dashboard listings:', error);
-    return res.status(500).json({ error: 'internal_error' });
-  }
-});
