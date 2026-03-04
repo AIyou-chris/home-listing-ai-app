@@ -93,6 +93,8 @@ const TodayDashboardPage: React.FC = () => {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [leadsOpen, setLeadsOpen] = useState(true)
+  const [appointmentsOpen, setAppointmentsOpen] = useState(true)
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null)
   const [recentListing, setRecentListing] = useState<RecentListing | null>(null)
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null)
@@ -296,9 +298,25 @@ const TodayDashboardPage: React.FC = () => {
       <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           <article className={containerCardClass}>
-            <h2 className="text-lg font-semibold text-slate-900">New Leads</h2>
-            <p className="mt-1 text-sm text-slate-500">Follow up fast. Book the showing.</p>
-            <div className="mt-4 space-y-3">
+            <button
+              type="button"
+              onClick={() => setLeadsOpen((o) => !o)}
+              className="flex w-full items-center justify-between gap-2 text-left"
+            >
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">New Leads</h2>
+                <p className="mt-1 text-sm text-slate-500">Follow up fast. Book the showing.</p>
+              </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform duration-200 ${leadsOpen ? 'rotate-180' : ''}`}
+              >
+                <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {leadsOpen && <div className="mt-4 space-y-3">
               {newLeads.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
                   <p className="font-semibold text-slate-900">All caught up.</p>
@@ -342,13 +360,29 @@ const TodayDashboardPage: React.FC = () => {
                   </div>
                 ))
               )}
-            </div>
+            </div>}
           </article>
 
           <article className={containerCardClass}>
-            <h2 className="text-lg font-semibold text-slate-900">Appointments Coming Up</h2>
-            <p className="mt-1 text-sm text-slate-500">Confirm these to reduce no-shows.</p>
-            <div className="mt-4 space-y-3">
+            <button
+              type="button"
+              onClick={() => setAppointmentsOpen((o) => !o)}
+              className="flex w-full items-center justify-between gap-2 text-left"
+            >
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Appointments Coming Up</h2>
+                <p className="mt-1 text-sm text-slate-500">Confirm these to reduce no-shows.</p>
+              </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform duration-200 ${appointmentsOpen ? 'rotate-180' : ''}`}
+              >
+                <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {appointmentsOpen && <div className="mt-4 space-y-3">
               {upcomingAppointments.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
                   <p className="font-semibold text-slate-900">Nothing scheduled in the next 24 hours.</p>
@@ -381,7 +415,7 @@ const TodayDashboardPage: React.FC = () => {
                   </div>
                 ))
               )}
-            </div>
+            </div>}
           </article>
         </div>
 

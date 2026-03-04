@@ -1,0 +1,75 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 3009 >>
+stream
+BT
+/F1 11 Tf
+72 760 Td
+14 TL
+(HomeListingAI - Project Snapshot) Tj
+T* (Date: March 4, 2026) Tj
+T* () Tj
+T* (1\) App purpose / who it is for) Tj
+T* (- HomeListingAI is an AI-powered operating system for real estate agents and small broker teams.) Tj
+T* (- It helps agents create listing content, run share kits, capture leads, manage appointments, and track pipeline health.) Tj
+T* (- Primary users: agents \(day-to-day\), team leads/brokers \(performance + oversight\), and admins \(platform operations\).) Tj
+T* () Tj
+T* (2\) Tech stack) Tj
+T* (- Frontend: React 18, TypeScript, Vite 7, React Router 6, Tailwind CSS, Zustand, react-hot-toast.) Tj
+T* (- Backend: Node.js + Express 5 \(monolithic server in backend/server.cjs\).) Tj
+T* (- Data/Auth/Storage: Supabase \(Postgres + auth/storage via @supabase/supabase-js\) and pg driver.) Tj
+T* (- Integrations: OpenAI, Google GenAI/googleapis, Stripe, Telnyx, QR tooling.) Tj
+T* (- Quality/tooling: ESLint, TypeScript checks, Jest tests, npm scripts for local orchestration.) Tj
+T* () Tj
+T* (3\) Coding conventions Codex established in this project cycle) Tj
+T* (- Keep API responses contract-stable and explicit \(predictable JSON envelopes\).) Tj
+T* (- Enforce dashboard ownership checks on agent resources; wrong owner returns 403 listing_access_denied.) Tj
+T* (- Use listing.status as single source of truth for publish state \(draft or published\).) Tj
+T* (- Prefer meaningful error codes \(for example 409 NOT_PUBLISHED\) instead of generic 500 failures.) Tj
+T* (- Keep dev/demo-only behavior behind explicit guards/flags; do not leak into production behavior.) Tj
+T* (- Apply schema updates via idempotent SQL migration before relying on new tables/columns.) Tj
+T* (- Make targeted changes \(listing builder scope\) and avoid collateral edits to unrelated subsystems.) Tj
+T* () Tj
+T* (4\) Pages done vs in progress \(current main branch snapshot\)) Tj
+T* (Done / active routes:) Tj
+T* (- Public: /, /signin, /signup, /checkout/:slug?, /store/:slug, /blog, /blog/:slug, /listing/:id, /l/:publicSlug.) Tj
+T* (- Agent dashboard command suite: /dashboard/today, /dashboard/command-center, /dashboard/leads,) Tj
+T* (  /dashboard/appointments, /dashboard/listings, /dashboard/listings/:listingId, /dashboard/billing, /dashboard/onboarding.) Tj
+T* (- Legacy listing flow still active: /listings, /add-listing, /property, /listings-v2.) Tj
+T* (- Admin surface active: /admin, /admin/:tab, /admin-login, /admin-setup.) Tj
+T* () Tj
+T* (In progress / partial:) Tj
+T* (- Listing Builder V1 edit route /dashboard/listings/:listingId/edit is not yet wired in main route table.) Tj
+T* (- Listings command cards still center on Open Share Kit; full New Listing + Edit Listing workflow is still being finalized.) Tj
+T* (- Some features intentionally marked pending in UI \(example: SMS messaging areas show coming soon\).) Tj
+T* () Tj
+T* (Notes) Tj
+T* (- This snapshot reflects repository state visible on March 4, 2026 in /src/App.tsx and related dashboard pages.) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000185 00000 n 
+0000000311 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+3372
+%%EOF

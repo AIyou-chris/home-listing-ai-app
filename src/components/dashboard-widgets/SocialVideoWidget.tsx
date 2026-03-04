@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDemoMode } from '../../demo/useDemoMode'
 import { subscribeDemoVideoUpdates } from '../../demo/demoData'
 import {
+  addDevListingVideoCredits,
   fetchDashboardVideoSignedUrl,
   fetchListingVideos,
   generateListingVideo,
@@ -40,6 +41,8 @@ interface ListingVideoRow {
 
 const creditsLabel = (remaining: number, total: number) => `${remaining}/${total}`
 const DEMO_VIDEO_CREDITS_KEY_PREFIX = 'hlai_demo_video_credits_'
+const LOCAL_MOCK_VIDEO_KEY_PREFIX = 'hlai_local_mock_video_'
+const LOCAL_SAMPLE_VIDEO_URL = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
 
 function isDevCreditsEnabled(): boolean {
   if (typeof window === 'undefined') return false
@@ -64,6 +67,13 @@ function setDemoCredits(listingId: string, value: number) {
   window.localStorage.setItem(`${DEMO_VIDEO_CREDITS_KEY_PREFIX}${listingId}`, String(safeValue))
 }
 
+function isLocalVideoBypassEnabled(): boolean {
+  if (typeof window === 'undefined') return false
+  if (window.location.hostname !== 'localhost') return false
+  const envValue = String(import.meta.env.VITE_LOCAL_VIDEO_BYPASS || 'true').trim().toLowerCase()
+  return envValue !== 'false'
+}
+
 export default function SocialVideoWidget({ listingId, listingAddress, listingLink }: SocialVideoWidgetProps) {
   const demoMode = useDemoMode()
   const [status, setStatus] = useState<WidgetStatus>('default')
@@ -78,6 +88,7 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   const listingRealtimeSignal = useDashboardRealtimeStore((state) => state.listingSignalsById[listingId] || null)
   const canShare = useMemo(() => isNativeShareAvailable(), [])
   const devCreditsEnabled = isDevCreditsEnabled()
+  const localVideoBypass = isLocalVideoBypassEnabled()
 
   const effectiveCreditsRemaining = demoCreditsOverride ?? creditsRemaining
   const effectiveCreditsTotal = demoCreditsOverride === null ? creditsTotal : Math.max(creditsTotal, demoCreditsOverride)
@@ -88,6 +99,35 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   )
 
   const loadVideoData = useCallback(async () => {
+    if (localVideoBypass) {
+      const storedCredits = getDemoCredits(listingId)
+      const resolvedCredits = storedCredits === null ? 99 : storedCredits
+      if (storedCredits === null) setDemoCredits(listingId, resolvedCredits)
+      setDemoCreditsOverride(resolvedCredits)
+      setCreditsTotal(Math.max(3, resolvedCredits))
+      setCreditsRemaining(resolvedCredits)
+
+      const cached = window.localStorage.getItem(`${LOCAL_MOCK_VIDEO_KEY_PREFIX}${listingId}`)
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as { id?: string; url?: string }
+          if (parsed?.id && parsed?.url) {
+            setVideoId(parsed.id)
+            setVideoUrl(parsed.url)
+            setStatus(resolvedCredits <= 0 ? 'limit_reached' : 'ready')
+            return
+          }
+        } catch {
+          // ignore local cache parsing errors
+        }
+      }
+
+      setVideoId(null)
+      setVideoUrl(null)
+      setStatus(resolvedCredits <= 0 ? 'limit_reached' : 'default')
+      return
+    }
+
     try {
       const data = await fetchListingVideos(listingId)
       const remaining = Number(data.credits_remaining ?? 0)
@@ -128,7 +168,7 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
 
       if (normalizedStatus === 'failed') {
         setVideoUrl(null)
-        setStatus('failed')
+        setStatus(resolvedRemaining <= 0 ? 'limit_reached' : 'failed')
         return
       }
 
@@ -150,9 +190,31 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
       setStatus(resolvedRemaining <= 0 ? 'limit_reached' : 'default')
     } catch (error) {
       console.error('Failed to load listing video data:', error)
-      setStatus('failed')
+      if (localVideoBypass) {
+        const cached = window.localStorage.getItem(`${LOCAL_MOCK_VIDEO_KEY_PREFIX}${listingId}`)
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached) as { id?: string; url?: string }
+            if (parsed?.id && parsed?.url) {
+              setVideoId(parsed.id)
+              setVideoUrl(parsed.url)
+              setStatus(effectiveCreditsRemaining <= 0 ? 'limit_reached' : 'ready')
+              return
+            }
+          } catch {
+            // ignore local cache parsing errors
+          }
+        }
+        setStatus(effectiveCreditsRemaining <= 0 ? 'limit_reached' : 'default')
+        return
+      }
+      if (effectiveCreditsRemaining <= 0) {
+        setStatus('limit_reached')
+      } else {
+        setStatus('failed')
+      }
     }
-  }, [demoMode, devCreditsEnabled, listingId])
+  }, [demoMode, devCreditsEnabled, effectiveCreditsRemaining, listingId, localVideoBypass])
 
   useEffect(() => {
     void loadVideoData()
@@ -201,13 +263,37 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
       setDemoCreditsOverride(null)
       return
     }
-    setDemoCreditsOverride(getDemoCredits(listingId))
-  }, [devCreditsEnabled, listingId])
+    const stored = getDemoCredits(listingId)
+    if (stored === null && localVideoBypass) {
+      setDemoCredits(listingId, 99)
+      setDemoCreditsOverride(99)
+      return
+    }
+    setDemoCreditsOverride(stored)
+  }, [devCreditsEnabled, listingId, localVideoBypass])
 
   const handleGenerate = async () => {
     const currentOverride = devCreditsEnabled ? getDemoCredits(listingId) : null
     if (devCreditsEnabled && currentOverride !== null && currentOverride <= 0) {
       setStatus('limit_reached')
+      return
+    }
+
+    if (localVideoBypass) {
+      setStatus('rendering')
+      window.setTimeout(() => {
+        const nextCredits = Math.max(0, (currentOverride ?? 99) - 1)
+        setDemoCredits(listingId, nextCredits)
+        setDemoCreditsOverride(nextCredits)
+        const nextVideoId = `local-${Date.now()}`
+        setVideoId(nextVideoId)
+        setVideoUrl(LOCAL_SAMPLE_VIDEO_URL)
+        window.localStorage.setItem(
+          `${LOCAL_MOCK_VIDEO_KEY_PREFIX}${listingId}`,
+          JSON.stringify({ id: nextVideoId, url: LOCAL_SAMPLE_VIDEO_URL })
+        )
+        setStatus(nextCredits <= 0 ? 'limit_reached' : 'ready')
+      }, 1000)
       return
     }
 
@@ -222,7 +308,14 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
       void loadVideoData()
     } catch (error) {
       const message = error instanceof Error ? error.message.toLowerCase() : ''
-      if (message.includes('credit') || message.includes('limit')) {
+      if (
+        message.includes('credit') ||
+        message.includes('limit') ||
+        message.includes('no_credits') ||
+        message.includes('pro_required') ||
+        message.includes('conflict') ||
+        message.includes('(409)')
+      ) {
         setStatus('limit_reached')
         return
       }
@@ -265,20 +358,37 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   const handleDownload = async () => {
     if (!videoId) return
     try {
+      // Local bypass: videoId is a mock ID that doesn't exist in the DB — use the URL directly
+      if (localVideoBypass && videoId.startsWith('local-') && videoUrl) {
+        await downloadVideoFromSignedUrl(videoUrl, `listing-${listingId}.mp4`)
+        showToast.success('Downloaded')
+        return
+      }
       const signed = await getVideoSignedUrl(videoId, 1800)
       await downloadVideoFromSignedUrl(signed.signedUrl, signed.fileName || `listing-${listingId}.mp4`)
       showToast.success('Downloaded')
     } catch (error) {
       console.error('Failed to download video:', error)
+      showToast.error('Download failed — try again.')
     }
   }
 
-  const handleAddDemoCredits = () => {
-    const nextCredits = Math.max(0, effectiveCreditsRemaining) + 3
-    setDemoCredits(listingId, nextCredits)
-    setDemoCreditsOverride(nextCredits)
-    setStatus('default')
-    showToast.success('Added +3 demo videos (dev mode)')
+  const handleAddDemoCredits = async () => {
+    try {
+      if (!demoMode && !localVideoBypass) {
+        await addDevListingVideoCredits(listingId, 3)
+        await loadVideoData()
+      } else {
+        const nextCredits = Math.max(0, effectiveCreditsRemaining) + 3
+        setDemoCredits(listingId, nextCredits)
+        setDemoCreditsOverride(nextCredits)
+      }
+      setStatus('default')
+      showToast.success('Added +3 demo videos (dev mode)')
+    } catch (error) {
+      console.error('Failed to add demo credits:', error)
+      showToast.error('Could not add demo credits')
+    }
   }
 
   return (
@@ -352,6 +462,11 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
 
       {status === 'ready' && (
         <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-[120px_1fr]">
+          {localVideoBypass && videoId?.startsWith('local-') && (
+            <div className="col-span-full rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-300">
+              Local dev mode — showing placeholder video. Deploy to production to generate real videos with listing photos.
+            </div>
+          )}
           <div className="relative flex aspect-[9/16] items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-black shadow-lg">
             {videoUrl ? (
               <video src={videoUrl} autoPlay loop muted playsInline className="h-full w-full object-cover" />
@@ -360,12 +475,21 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
             )}
           </div>
           <div className="flex w-full flex-col gap-3">
-            {canShare && (
+            {canShare ? (
               <button
                 onClick={() => void handleShare()}
                 className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 px-4 text-sm font-bold text-white transition-colors hover:bg-blue-500"
               >
                 Share
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  void navigator.clipboard.writeText(listingLink).then(() => showToast.success('Listing link copied!'))
+                }}
+                className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 px-4 text-sm font-bold text-white transition-colors hover:bg-blue-500"
+              >
+                Copy listing link
               </button>
             )}
             <button
@@ -382,6 +506,14 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
             >
               {copiedCaption ? 'Copied!' : 'Copy caption'}
             </button>
+            <button
+              type="button"
+              onClick={() => void handleGenerate()}
+              className="flex items-center justify-center gap-2 rounded-lg border border-blue-700 bg-[#0B1121] py-3 px-4 text-sm font-bold text-blue-300 transition-colors hover:bg-blue-950"
+            >
+              Regenerate video (latest photos)
+            </button>
+            <p className="text-[11px] text-slate-500">Tip: save photo changes in the listing editor first, then regenerate.</p>
           </div>
         </div>
       )}
@@ -416,6 +548,15 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         <div className="mt-6 rounded-xl border border-rose-500/20 bg-rose-500/10 p-5 text-center">
           <p className="mb-1 text-sm font-bold tracking-wide text-rose-500">Video failed to render.</p>
           <p className="mb-5 text-xs text-rose-300/70">Try again in a moment.</p>
+          {devCreditsEnabled && effectiveCreditsRemaining <= 0 && (
+            <button
+              type="button"
+              onClick={handleAddDemoCredits}
+              className="mb-3 w-full rounded-lg bg-amber-500 py-3 text-sm font-bold text-black hover:bg-amber-400"
+            >
+              Add +3 demo videos
+            </button>
+          )}
           <button
             onClick={() => void handleGenerate()}
             className="w-full rounded-lg bg-rose-600 py-3 text-sm font-bold text-white transition-colors hover:bg-rose-500"

@@ -62,6 +62,7 @@ const ListingsCommandPage: React.FC = () => {
   const demoMode = useDemoMode()
   const [loading, setLoading] = useState(true)
   const [creatingDraft, setCreatingDraft] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<ListingRow[]>([])
 
@@ -218,6 +219,23 @@ const ListingsCommandPage: React.FC = () => {
     }
   }
 
+  const handleDeleteListing = async (listingId: string) => {
+    const confirmed = window.confirm('Delete this listing? This cannot be undone.')
+    if (!confirmed) return
+
+    setDeletingId(listingId)
+    try {
+      await listingsService.deleteProperty(listingId)
+      setRows((prev) => prev.filter((row) => row.id !== listingId))
+      toast.success('Listing deleted.')
+    } catch (deleteError) {
+      const message = deleteError instanceof Error ? deleteError.message : 'Failed to delete listing.'
+      toast.error(message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -301,6 +319,14 @@ const ListingsCommandPage: React.FC = () => {
                       className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                     >
                       Share Kit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteListing(row.id)}
+                      disabled={deletingId === row.id}
+                      className="rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deletingId === row.id ? 'Deleting…' : 'Delete'}
                     </button>
                   </div>
                 </div>

@@ -219,3 +219,51 @@ export const deleteListingBuilderSource = async (listingId: string, sourceId: st
   )
   return parseResponse<{ success: boolean }>(response)
 }
+
+export const generateListingDescription = async (
+  listingId: string,
+  fields: { address: string; price: number; beds: number; baths: number; sqft: number },
+  agentIdOverride?: string | null
+) => {
+  const agentId = await resolveListingAgent(agentIdOverride)
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/generate-description`, agentId)),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify(fields)
+    }
+  )
+  const payload = await parseResponse<{ description: string }>(response)
+  return payload.description
+}
+
+export const uploadListingBuilderSourceFile = async (listingId: string, file: File, agentIdOverride?: string | null) => {
+  const agentId = await resolveListingAgent(agentIdOverride)
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const url = buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/sources/upload-file`, agentId))
+  const headers: HeadersInit = agentId ? { 'x-user-id': agentId } : {}
+
+  const response = await fetch(url, { method: 'POST', headers, body: formData })
+  const payload = await parseResponse<{ source: ListingSourceApi }>(response)
+  return mapSource(payload.source)
+}
+
+export const retrainListingBrain = async (listingId: string, agentIdOverride?: string | null) => {
+  const agentId = await resolveListingAgent(agentIdOverride)
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/retrain`, agentId)),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify({})
+    }
+  )
+  const payload = await parseResponse<{ success?: boolean; message?: string; ai_summary: string | null; sources: ListingSourceApi[] }>(response)
+  return {
+    ai_summary: payload.ai_summary ?? null,
+    sources: (payload.sources || []).map(mapSource)
+  }
+}

@@ -8,6 +8,7 @@ import {
   sendListingTestLeadCapture,
   type ListingShareKitResponse
 } from '../../services/dashboardCommandService';
+import { fetchListingBuilderPayload } from '../../services/listingBuilderService';
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore';
 import { ShareKitPanel } from '../dashboard/ShareKitPanel';
 import UpgradePromptModal from '../billing/UpgradePromptModal';
@@ -31,6 +32,9 @@ const ListingPerformancePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null);
+  const [listingDetails, setListingDetails] = useState<{
+    address: string; price: number; beds: number; baths: number;
+  } | null>(null);
   const [activeListingWarning, setActiveListingWarning] = useState<string | null>(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeModal, setUpgradeModal] = useState<{
@@ -58,7 +62,18 @@ const ListingPerformancePage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      await loadShareKit();
+      const [, details] = await Promise.all([
+        loadShareKit(),
+        fetchListingBuilderPayload(listingId).catch(() => null)
+      ]);
+      if (details) {
+        setListingDetails({
+          address: details.listing.address,
+          price: details.listing.price,
+          beds: details.listing.beds,
+          baths: details.listing.baths
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load listing dashboard.');
     } finally {
@@ -147,13 +162,15 @@ const ListingPerformancePage: React.FC = () => {
       <ShareKitPanel
         listing={{
           id: listingId,
-          title: 'Your Listing',
-          address: '[Listing Address]',
-          price: '[-]',
+          title: listingDetails?.address || 'Your Listing',
+          address: listingDetails?.address || '',
+          price: listingDetails?.price
+            ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(listingDetails.price)
+            : '',
           status: shareKit?.is_published ? 'PUBLISHED' : 'DRAFT',
           slug: shareKit?.public_slug || listingId,
-          beds: '-',
-          baths: '-'
+          beds: listingDetails?.beds ?? '-',
+          baths: listingDetails?.baths ?? '-'
         }}
         latestVideo={shareKit?.latest_video || null}
         onPublish={onPublish}

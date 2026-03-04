@@ -78,7 +78,9 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
             const link = document.createElement('a');
             link.href = qrImageUrl;
             link.download = `${listing.slug}-${qrSource}-qr.${format}`;
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
             showToast.success('Downloaded');
         } catch (error) {
             console.error('Failed to download QR', error);

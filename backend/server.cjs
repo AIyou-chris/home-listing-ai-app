@@ -40,6 +40,7 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 } // 25MB Limit (OpenAI Max)
 });
 const { parseISO, addMinutes, isBefore, isAfter } = require('date-fns');
+const pdfParse = require('pdf-parse');
 
 const leadScoringService = require('./services/LeadScoringService');
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
@@ -82,8 +83,9 @@ const CREATOMATE_WEBHOOK_SECRET = process.env.CREATOMATE_WEBHOOK_SECRET || '';
 const VIDEOS_BUCKET = String(process.env.VIDEOS_BUCKET || 'videos').trim() || 'videos';
 const BACKEND_BASE_URL = String(
   process.env.BACKEND_BASE_URL ||
-  process.env.PUBLIC_URL ||
+  process.env.VITE_VOICE_API_BASE_URL ||
   process.env.VOICE_PUBLIC_BASE_URL ||
+  process.env.PUBLIC_URL ||
   `http://localhost:${process.env.PORT || 3002}`
 ).replace(/\/+$/, '');
 
@@ -2817,14 +2819,25 @@ const buildListingVideoFileName = ({ listingRow, templateStyle, durationSeconds 
 
 const resolveCreatomateTemplateIdByStyle = (templateStyle) => {
   const style = normalizeVideoTemplateStyle(templateStyle) || 'luxury';
-  if (style === 'luxury') return toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_LUXURY_ID);
-  if (style === 'country') return toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_COUNTRY_ID);
-  if (style === 'fixer') return toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_FIXER_ID);
+  const luxuryTemplateId =
+    toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_LUXURY_ID) ||
+    toTrimmedOrNull(process.env.CREATOMATE_LUXURY_TEMPLATE_ID);
+  const storyTemplateId =
+    toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_STORY_ID) ||
+    toTrimmedOrNull(process.env.CREATOMATE_STORY_TEMPLATE_ID);
+  const countryTemplateId =
+    toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_COUNTRY_ID) ||
+    toTrimmedOrNull(process.env.CREATOMATE_COUNTRY_TEMPLATE_ID);
+  const fixerTemplateId =
+    toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_FIXER_ID) ||
+    toTrimmedOrNull(process.env.CREATOMATE_FIXER_TEMPLATE_ID);
+
+  if (style === 'luxury') return luxuryTemplateId;
+  // Fall back to luxury so testing does not hard fail when only one template is configured.
+  if (style === 'country') return countryTemplateId || luxuryTemplateId;
+  if (style === 'fixer') return fixerTemplateId || luxuryTemplateId;
   if (style === 'story') {
-    return (
-      toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_STORY_ID) ||
-      toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_LUXURY_ID)
-    );
+    return storyTemplateId || luxuryTemplateId;
   }
   return null;
 };
@@ -2883,8 +2896,15 @@ const buildCreatomateVideoModifications = ({ listingRow, agentRow, sourcePhotos 
 
   for (let index = 0; index < 6; index += 1) {
     const resolved = uniquePhotos[index] || uniquePhotos[0] || fallbackPhotoSource;
-    modifications[`Photo-${index + 1}.source`] = resolved;
+    const slot = index + 1;
+    // Support common naming variants across Creatomate templates.
+    modifications[`Photo-${slot}.source`] = resolved;
+    modifications[`Photo ${slot}.source`] = resolved;
+    modifications[`Photo${slot}.source`] = resolved;
+    modifications[`photo-${slot}.source`] = resolved;
+    modifications[`photo_${slot}.source`] = resolved;
   }
+  modifications['Photo.source'] = uniquePhotos[0] || fallbackPhotoSource;
 
   if (agentRow?.headshot_url) {
     modifications['Headshot.source'] = agentRow.headshot_url;
@@ -3765,7 +3785,7 @@ const mapPublicListingPayload = async (listingRow) => {
     bathrooms: Number(listingRow.bathrooms || 0),
     squareFeet: Number(listingRow.sqft || listingRow.square_feet || 0),
     status: listingRow.status || 'active',
-    description: listingRow.description || descriptionText || '',
+    description: descriptionText || '',
     features: Array.isArray(listingRow.features) ? listingRow.features : [],
     heroPhotos,
     galleryPhotos,
@@ -15948,17 +15968,30 @@ app.patch('/api/dashboard/listings/:id', async (req, res) => {
     if (nextPrice !== undefined && Number(nextPrice) !== previousPrice) {
       const noteDate = new Date().toISOString().slice(0, 10);
       const priceLabel = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(nextPrice));
-      await insertListingBrainSource({
-        listingId,
-        agentId: ownerId,
-        type: 'text',
-        title: 'Price update',
-        content: `Price updated to ${priceLabel} on ${noteDate}`,
-        status: 'needs_retrain'
-      }).catch((sourceError) => {
-        console.warn('[Dashboard] Failed to create price-update brain source note:', sourceError?.message || sourceError);
-      });
-    }
+      const priceContent = `Price updated to ${priceLabel} on ${noteDate}`;
+      // Dedup: skip if an identical price-update note already exists for today
+      const { data: existingPriceNotes } = await supabaseAdmin
+        .from('listing_sources')
+        .select('id, content')
+        .eq('listing_id', listingId)
+        .eq('agent_id', ownerId)
+        .eq('title', 'Price update')
+        .gte('created_at', `${noteDate}T00:00:00.000Z`)
+        .lte('created_at', `${noteDate}T23:59:59.999Z`);
+      const alreadyNoted = (existingPriceNotes || []).some((n) => n.content === priceContent);
+      if (!alreadyNoted) {
+        await insertListingBrainSource({
+          listingId,
+          agentId: ownerId,
+          type: 'text',
+          title: 'Price update',
+          content: priceContent,
+          status: 'needs_retrain'
+        }).catch((sourceError) => {
+          console.warn('[Dashboard] Failed to create price-update brain source note:', sourceError?.message || sourceError);
+        });
+      } // end if (!alreadyNoted)
+    } // end if (nextPrice !== previousPrice)
 
     return res.json({
       listing: mapListingRowToDashboardPayload(updatedRow)
@@ -16165,6 +16198,241 @@ app.delete('/api/dashboard/listings/:id/sources/:sourceId', async (req, res) => 
   } catch (error) {
     console.error('[Dashboard] Failed to delete listing source:', error);
     return res.status(500).json({ error: 'failed_to_delete_source' });
+  }
+});
+
+// ── Quick AI description generator (Essentials tab) ──────────────────────────
+app.post('/api/dashboard/listings/:id/generate-description', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listingId = String(req.params.id || '');
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    // Use values from request body if provided (agent may not have saved yet)
+    const body = req.body || {};
+    const address = toTrimmedOrNull(body.address) || listingRow.address || 'the property';
+    const price = Number(body.price ?? listingRow.price) || 0;
+    const beds = Number(body.beds ?? listingRow.bedrooms) || 0;
+    const baths = Number(body.baths ?? listingRow.bathrooms) || 0;
+    const sqft = Number(body.sqft ?? listingRow.square_feet ?? listingRow.sqft) || 0;
+
+    const priceLabel = price > 0
+      ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price)
+      : 'price TBD';
+
+    // Also pull in any existing brain sources for richer context
+    const sources = await listListingBrainSources({ listingId, agentId: ownerId });
+    const sourceContext = sources
+      .map((s) => (s.content || s.text || '').trim())
+      .filter((t) => t.length > 0)
+      .join('\n\n---\n\n')
+      .slice(0, 8000);
+
+    const prompt = [
+      `You are a real estate copywriter. Write a compelling listing description for this property.`,
+      ``,
+      `Property: ${address}`,
+      `Price: ${priceLabel}`,
+      beds > 0 ? `Beds: ${beds}` : null,
+      baths > 0 ? `Baths: ${baths}` : null,
+      sqft > 0 ? `Sq Ft: ${sqft.toLocaleString('en-US')}` : null,
+      sourceContext ? `\nAgent notes:\n${sourceContext}` : null,
+      ``,
+      `Write 2–3 engaging paragraphs. Lead with lifestyle and feel, then highlight key specs. No emojis. No invented details.`
+    ].filter(Boolean).join('\n');
+
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_CHAT_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: 500
+    });
+
+    const description = completion.choices[0]?.message?.content?.trim() || '';
+    if (!description) return res.status(500).json({ error: 'ai_returned_empty_response' });
+
+    return res.json({ description });
+  } catch (error) {
+    console.error('[Dashboard] Generate description error:', error);
+    return res.status(500).json({ error: 'generate_description_failed' });
+  }
+});
+
+// ── Upload a document as a brain source ───────────────────────────────────────
+app.post('/api/dashboard/listings/:id/sources/upload-file', (req, res) => {
+  upload.single('file')(req, res, async (multerErr) => {
+    if (multerErr) return res.status(400).json({ error: multerErr.message });
+    try {
+      const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+      if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+      const listingId = String(req.params.id || '');
+      if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+      if (!req.file) return res.status(400).json({ error: 'no_file_uploaded' });
+
+      const listingRow = await loadListingById({ listingId });
+      if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+      const ownerId = getListingOwnerId(listingRow);
+      if (!ownerId || ownerId !== String(agentId)) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+        return res.status(403).json({ error: 'listing_access_denied' });
+      }
+
+      const { originalname, path: filePath, mimetype } = req.file;
+      const ext = (originalname || '').split('.').pop()?.toLowerCase() || '';
+      let extractedText = '';
+
+      try {
+        if (['txt', 'md', 'csv', 'rtf'].includes(ext)) {
+          extractedText = fs.readFileSync(filePath, 'utf8');
+        } else if (ext === 'pdf' || (mimetype || '').includes('pdf')) {
+          const buf = fs.readFileSync(filePath);
+          const data = await pdfParse(buf);
+          extractedText = data.text || '';
+        } else {
+          extractedText = `[Uploaded file: ${originalname}. To train the AI with this document, copy and paste its text using the Paste Text option.]`;
+        }
+      } finally {
+        try { fs.unlinkSync(filePath); } catch (_) {}
+      }
+
+      extractedText = extractedText.trim().slice(0, 50000);
+
+      const source = await insertListingBrainSource({
+        listingId,
+        agentId: ownerId,
+        type: 'file',
+        title: originalname,
+        content: extractedText || `[${originalname}]`,
+        status: 'needs_retrain'
+      });
+
+      return res.json({ source });
+    } catch (error) {
+      console.error('[Dashboard] File upload source error:', error);
+      return res.status(500).json({ error: 'failed_to_process_file' });
+    }
+  });
+});
+
+// ── Retrain listing brain with OpenAI ─────────────────────────────────────────
+app.post('/api/dashboard/listings/:id/retrain', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const listingId = String(req.params.id || '');
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const sources = await listListingBrainSources({ listingId, agentId: ownerId });
+    const staleSources = sources.filter((s) => s.status !== 'trained');
+
+    if (staleSources.length === 0 && sources.length > 0) {
+      return res.json({ message: 'already_trained', sources, ai_summary: null });
+    }
+
+    // Aggregate all source content (trained + stale) for a complete picture
+    const contentParts = sources
+      .map((s) => (s.content || s.text || '').trim())
+      .filter((t) => t.length > 0);
+    const combinedContent = contentParts.join('\n\n---\n\n').slice(0, 12000);
+
+    const priceLabel = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(listingRow.price || 0));
+    const beds = listingRow.bedrooms || 0;
+    const baths = listingRow.bathrooms || 0;
+    const sqft = listingRow.square_feet || listingRow.sqft || 0;
+    const address = listingRow.address || 'the property';
+
+    const userPrompt = [
+      `You are a real estate copywriter. Write a compelling, professional listing description for the following property.`,
+      ``,
+      `Property: ${address}`,
+      `Price: ${priceLabel}`,
+      `Beds: ${beds} | Baths: ${baths} | Sq Ft: ${sqft}`,
+      ``,
+      `Source notes from the agent:`,
+      combinedContent || '(No source notes provided — write a general description based on the property details above.)',
+      ``,
+      `Instructions:`,
+      `- 3–4 paragraphs, vivid and specific`,
+      `- Lead with the lifestyle, not just specs`,
+      `- Do not invent details not in the source notes`,
+      `- Suitable for MLS and marketing`,
+      `- No emojis`
+    ].join('\n');
+
+    let aiSummary = '';
+    try {
+      const completion = await openai.chat.completions.create({
+        model: OPENAI_CHAT_MODEL,
+        messages: [{ role: 'user', content: userPrompt }],
+        max_completion_tokens: 700
+      });
+      aiSummary = completion.choices[0]?.message?.content?.trim() || '';
+    } catch (openaiError) {
+      console.warn('[Retrain] OpenAI call failed:', openaiError?.message);
+    }
+
+    // Mark all stale sources as trained
+    const nowTs = new Date().toISOString();
+    if (staleSources.length > 0) {
+      await Promise.all(
+        staleSources.map((s) =>
+          supabaseAdmin
+            .from('listing_sources')
+            .update({ status: 'trained', trained_at: nowTs, updated_at: nowTs })
+            .eq('id', s.id)
+            .eq('listing_id', listingId)
+            .eq('agent_id', ownerId)
+        )
+      );
+    }
+
+    // Upsert the AI summary as a dedicated source (replace previous AI Summary if exists)
+    if (aiSummary) {
+      // Delete any previous AI Summary source before inserting fresh
+      await supabaseAdmin
+        .from('listing_sources')
+        .delete()
+        .eq('listing_id', listingId)
+        .eq('agent_id', ownerId)
+        .eq('title', '🤖 AI Summary');
+
+      await insertListingBrainSource({
+        listingId,
+        agentId: ownerId,
+        type: 'text',
+        title: '🤖 AI Summary',
+        content: aiSummary,
+        status: 'trained',
+        trainedAt: nowTs
+      });
+    }
+
+    const refreshed = await listListingBrainSources({ listingId, agentId: ownerId });
+    return res.json({ success: true, ai_summary: aiSummary || null, sources: refreshed });
+  } catch (error) {
+    console.error('[Dashboard] Retrain error:', error);
+    return res.status(500).json({ error: 'retrain_failed' });
   }
 });
 
@@ -16388,9 +16656,9 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
       listingId: listing.id
     });
 
-    const { data: videos, error: videosError } = await supabaseAdmin
+    let { data: videos, error: videosError } = await supabaseAdmin
       .from('listing_videos')
-      .select('id, listing_id, template_style, duration_seconds, status, storage_bucket, storage_path, file_name, error_message, created_at, updated_at')
+      .select('id, listing_id, template_style, duration_seconds, status, storage_bucket, storage_path, file_name, error_message, creatomate_render_id, creatomate_url, created_at, updated_at')
       .eq('listing_id', listing.id)
       .eq('agent_id', ownerId)
       .order('created_at', { ascending: false });
@@ -16399,6 +16667,64 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
         return res.status(500).json({ error: 'video_tables_missing_run_phase5_1_2_migration' });
       }
       throw videosError;
+    }
+
+    // Local/dev safety net: poll Creatomate directly so videos do not stay "rendering"
+    // forever when webhook delivery is unavailable.
+    const pendingVideos = (videos || [])
+      .filter((row) => ['queued', 'pending', 'processing', 'rendering'].includes(String(row.status || '').toLowerCase()))
+      .filter((row) => toTrimmedOrNull(row.creatomate_render_id))
+      .slice(0, 3);
+
+    let refreshed = false;
+    for (const row of pendingVideos) {
+      try {
+        const renderId = toTrimmedOrNull(row.creatomate_render_id);
+        if (!renderId) continue;
+        const render = await fetchCreatomateRenderById(renderId);
+        const renderStatus = String(render?.status || '').toLowerCase();
+        const renderUrl = toTrimmedOrNull(render?.url);
+
+        if (['failed', 'canceled'].includes(renderStatus)) {
+          await supabaseAdmin
+            .from('listing_videos')
+            .update({
+              status: 'failed',
+              error_message: toTrimmedOrNull(render?.error_message || render?.error || 'creatomate_render_failed'),
+              updated_at: nowIso()
+            })
+            .eq('id', row.id);
+          refreshed = true;
+          continue;
+        }
+
+        if ((renderStatus === 'succeeded' || renderStatus === 'completed') && renderUrl) {
+          await supabaseAdmin
+            .from('listing_videos')
+            .update({
+              status: 'succeeded',
+              creatomate_url: renderUrl,
+              error_message: null,
+              updated_at: nowIso()
+            })
+            .eq('id', row.id);
+          refreshed = true;
+        }
+      } catch (renderSyncError) {
+        console.warn('[Dashboard] Failed to refresh rendering video status:', renderSyncError?.message || renderSyncError);
+      }
+    }
+
+    if (refreshed) {
+      const reload = await supabaseAdmin
+        .from('listing_videos')
+        .select('id, listing_id, template_style, duration_seconds, status, storage_bucket, storage_path, file_name, error_message, creatomate_render_id, creatomate_url, created_at, updated_at')
+        .eq('listing_id', listing.id)
+        .eq('agent_id', ownerId)
+        .order('created_at', { ascending: false });
+      if (!reload.error) {
+        videos = reload.data || videos;
+      }
     }
 
     return res.json({
@@ -16417,6 +16743,7 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
         storage_bucket: row.storage_bucket || 'videos',
         storage_path: row.storage_path || null,
         file_name: row.file_name || null,
+        creatomate_url: row.creatomate_url || null,
         error_message: row.error_message || null,
         created_at: row.created_at || null,
         updated_at: row.updated_at || null

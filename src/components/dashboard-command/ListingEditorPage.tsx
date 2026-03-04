@@ -6,12 +6,15 @@ import {
   createListingBuilderSource,
   deleteListingBuilderSource,
   fetchListingBuilderPayload,
+  generateListingDescription,
   type ListingBrainSourceStatus,
   type ListingBrainSourceType,
   type ListingBuilderSource,
   patchListingBuilder,
-  updateListingBuilderSource
+  retrainListingBrain,
+  uploadListingBuilderSourceFile
 } from '../../services/listingBuilderService'
+import { publishListingShareKit } from '../../services/dashboardCommandService'
 import { getLocalListingDraft, saveLocalListingDraft } from '../../services/listingDraftStorage'
 import { uploadListingPhoto } from '../../services/listingMediaService'
 
@@ -32,31 +35,22 @@ const SECTIONS: Array<{ key: EditorSection; label: string }> = [
   { key: 'brain', label: 'Listing Brain' }
 ]
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
 const formatUpdatedTime = (iso: string | null) => {
   if (!iso) return 'Unknown'
-  const value = new Date(iso)
-  if (Number.isNaN(value.getTime())) return 'Unknown'
-  return value.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  })
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return 'Unknown'
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 const createEmptyDraft = (): ListingDraftState => ({
-  address: '',
-  price: 0,
-  beds: 0,
-  baths: 0,
-  sqft: 0,
-  description: ''
+  address: '', price: 0, beds: 0, baths: 0, sqft: 0, description: ''
 })
 
 const normalizeStatusLabel = (status: string) => {
-  const normalized = String(status || '').toLowerCase()
-  if (normalized === 'draft' || normalized === 'pending') return 'Draft'
-  return 'Published'
+  const n = String(status || '').toLowerCase()
+  return n === 'draft' || n === 'pending' ? 'Draft' : 'Published'
 }
 
 const sourceTypeLabel = (type: ListingBrainSourceType) => {
@@ -65,6 +59,50 @@ const sourceTypeLabel = (type: ListingBrainSourceType) => {
   return 'Text'
 }
 
+const sourceTypeIcon = (type: ListingBrainSourceType) => {
+  if (type === 'doc') return '📄'
+  if (type === 'url') return '🌐'
+  return '📝'
+}
+
+// Format digits-only string with commas (e.g. "450000" → "450,000")
+const formatWithCommas = (raw: string): string => {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  return Number(digits).toLocaleString('en-US')
+}
+
+// Allow digits only
+const digitsOnly = (raw: string) => raw.replace(/\D/g, '')
+
+// Allow digits + single decimal point, max 1 decimal digit (e.g. "2.5")
+const sanitizeDecimal = (raw: string): string => {
+  const cleaned = raw.replace(/[^\d.]/g, '')
+  const dot = cleaned.indexOf('.')
+  if (dot === -1) return cleaned
+  return cleaned.slice(0, dot + 2)
+}
+
+// ── Shared style tokens ────────────────────────────────────────────────────────
+
+const card = 'rounded-xl border border-slate-200 bg-white shadow-sm'
+const fieldCls =
+  'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100'
+const sectionLabel = 'mb-1 block text-[10px] font-semibold uppercase tracking-widest text-slate-400'
+const outlineBtn =
+  'rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50'
+
+// Convert a File to a base64 data URL (survives page refresh, safe for localStorage)
+const readAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
 const ListingEditorPage: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
@@ -72,10 +110,10 @@ const ListingEditorPage: React.FC = () => {
   const { listingId = '' } = useParams<{ listingId: string }>()
 
   const [activeSection, setActiveSection] = useState<EditorSection>('essentials')
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [isLocalOnly, setIsLocalOnly] = useState(false)
@@ -85,6 +123,17 @@ const ListingEditorPage: React.FC = () => {
   const [sources, setSources] = useState<ListingBuilderSource[]>([])
   const [photoUrlInput, setPhotoUrlInput] = useState('')
   const [sourceBusy, setSourceBusy] = useState(false)
+  const [generatingDesc, setGeneratingDesc] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+
+  // Brain modal — replaces window.prompt()
+  const [brainModal, setBrainModal] = useState<{ type: 'text' | 'url'; value: string } | null>(null)
+
+  // Free-form display strings — formatted while typing, stripped on Save
+  const [priceDisplay, setPriceDisplay] = useState('')
+  const [bedsDisplay, setBedsDisplay] = useState('')
+  const [bathsDisplay, setBathsDisplay] = useState('')
+  const [sqftDisplay, setSqftDisplay] = useState('')
 
   const photoFileRef = useRef<HTMLInputElement | null>(null)
   const docFileRef = useRef<HTMLInputElement | null>(null)
@@ -93,85 +142,59 @@ const ListingEditorPage: React.FC = () => {
     () => (location.pathname.startsWith('/dashboard') ? '/dashboard' : '/demo-dashboard'),
     [location.pathname]
   )
-
   const appendDemoQuery = useMemo(
     () => (demoMode && dashboardRoot === '/dashboard' ? '?demo=1' : ''),
     [dashboardRoot, demoMode]
   )
+  const buildListingPath = (suffix: string) => `${dashboardRoot}${suffix}${appendDemoQuery}`
 
-  const buildListingPath = (pathSuffix: string) => `${dashboardRoot}${pathSuffix}${appendDemoQuery}`
-
-  const listingLabel = draft.address.trim() || 'Draft Listing'
+  const listingLabel = draft.address.trim() || 'Untitled Listing'
   const statusLabel = normalizeStatusLabel(listingStatus)
 
   const canPublish = useMemo(
     () =>
       draft.address.trim().length > 0 &&
-      Number(draft.price) > 0 &&
-      Number(draft.beds) > 0 &&
-      Number(draft.baths) > 0 &&
-      Number(draft.sqft) > 0,
-    [draft.address, draft.baths, draft.beds, draft.price, draft.sqft]
+      Number(priceDisplay.replace(/,/g, '')) > 0 &&
+      Number(bedsDisplay) > 0 &&
+      Number(bathsDisplay) > 0 &&
+      Number(sqftDisplay) > 0,
+    [draft.address, priceDisplay, bedsDisplay, bathsDisplay, sqftDisplay]
   )
 
   const lastTrainedAt = useMemo(() => {
-    const trainedValues = sources
-      .map((source) => source.trained_at)
-      .filter((value): value is string => typeof value === 'string' && value.length > 0)
-      .map((value) => new Date(value).getTime())
-      .filter((value) => Number.isFinite(value))
-
-    if (trainedValues.length === 0) return null
-    return new Date(Math.max(...trainedValues)).toISOString()
+    const times = sources
+      .map((s) => s.trained_at)
+      .filter((v): v is string => typeof v === 'string' && v.length > 0)
+      .map((v) => new Date(v).getTime())
+      .filter((v) => Number.isFinite(v))
+    return times.length === 0 ? null : new Date(Math.max(...times)).toISOString()
   }, [sources])
 
-  const saveLocalSnapshot = () => {
-    saveLocalListingDraft({
-      id: listingId,
-      title: listingLabel,
-      address: draft.address || 'Address coming soon',
-      price: draft.price,
-      bedrooms: draft.beds,
-      bathrooms: draft.baths,
-      squareFeet: draft.sqft,
-      description: draft.description,
-      amenities: [],
-      photos,
-      createdAt: new Date().toISOString()
-    })
-  }
+  // ── Load ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     let cancelled = false
 
-    const loadFromLocal = (message: string | null) => {
-      const localDraft = getLocalListingDraft(listingId)
-      const fallback = localDraft || {
-        id: listingId,
-        title: 'Draft Listing',
-        address: 'Address coming soon',
-        price: 0,
-        bedrooms: 0,
-        bathrooms: 0,
-        squareFeet: 0,
-        description: '',
-        amenities: [],
-        photos: [],
-        createdAt: new Date().toISOString()
-      }
+    const applyDisplayValues = (price: number, beds: number, baths: number, sqft: number) => {
+      setPriceDisplay(price > 0 ? price.toLocaleString('en-US') : '')
+      setBedsDisplay(beds > 0 ? String(beds) : '')
+      setBathsDisplay(baths > 0 ? String(baths) : '')
+      setSqftDisplay(sqft > 0 ? String(sqft) : '')
+    }
 
+    const loadFromLocal = (message: string | null) => {
+      const local = getLocalListingDraft(listingId)
+      const fb = local || {
+        id: listingId, title: 'Draft Listing', address: 'Address coming soon',
+        price: 0, bedrooms: 0, bathrooms: 0, squareFeet: 0,
+        description: '', amenities: [], photos: [], createdAt: new Date().toISOString()
+      }
       if (cancelled) return
       setIsLocalOnly(true)
       setListingStatus('draft')
-      setDraft({
-        address: fallback.address,
-        price: fallback.price,
-        beds: fallback.bedrooms,
-        baths: fallback.bathrooms,
-        sqft: fallback.squareFeet,
-        description: fallback.description
-      })
-      setPhotos((fallback.photos || []).slice(0, 6))
+      setDraft({ address: fb.address, price: fb.price, beds: fb.bedrooms, baths: fb.bathrooms, sqft: fb.squareFeet, description: fb.description })
+      applyDisplayValues(fb.price, fb.bedrooms, fb.bathrooms, fb.squareFeet)
+      setPhotos((fb.photos || []).slice(0, 6))
       setSources([])
       setError(null)
       setNotice(message)
@@ -179,150 +202,122 @@ const ListingEditorPage: React.FC = () => {
     }
 
     const load = async () => {
-      if (!listingId) {
-        setError('Missing listing id.')
-        setLoading(false)
-        return
-      }
-
+      if (!listingId) { setError('Missing listing id.'); setLoading(false); return }
       setLoading(true)
       setError(null)
 
-      if (demoMode) {
-        loadFromLocal(null)
-        return
-      }
+      if (demoMode) { loadFromLocal(null); return }
 
       try {
         const payload = await fetchListingBuilderPayload(listingId)
         if (cancelled) return
-
+        const price = Number(payload.listing.price) || 0
+        const beds = Number(payload.listing.beds) || 0
+        const baths = Number(payload.listing.baths) || 0
+        const sqft = Number(payload.listing.sqft) || 0
         setIsLocalOnly(false)
         setNotice(null)
         setListingStatus(payload.listing.status || 'draft')
-        setDraft({
-          address: payload.listing.address || '',
-          price: Number(payload.listing.price) || 0,
-          beds: Number(payload.listing.beds) || 0,
-          baths: Number(payload.listing.baths) || 0,
-          sqft: Number(payload.listing.sqft) || 0,
-          description: payload.listing.description || ''
-        })
+        setDraft({ address: payload.listing.address || '', price, beds, baths, sqft, description: payload.listing.description || '' })
+        applyDisplayValues(price, beds, baths, sqft)
         setPhotos((payload.listing.photos || []).slice(0, 6))
         setSources(payload.brain_sources || [])
-      } catch (loadError) {
-        const localDraft = getLocalListingDraft(listingId)
-        if (localDraft) {
-          loadFromLocal('Live listing was unavailable, so local draft mode is active.')
-          return
-        }
-
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load listing editor.')
-        }
+      } catch (err) {
+        const local = getLocalListingDraft(listingId)
+        if (local) { loadFromLocal('Live listing unavailable — showing local draft.'); return }
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load listing editor.')
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
 
     void load()
-
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [demoMode, listingId])
 
-  const updateDraft = (key: keyof ListingDraftState, value: string | number) => {
+  const updateDraft = (key: keyof ListingDraftState, value: string | number) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
-  }
 
-  const addPhotoUrl = () => {
-    const next = photoUrlInput.trim()
-    if (!next) return
-    if (photos.length >= 6) {
-      toast.error('You can add up to 6 photos.')
-      return
-    }
-    setPhotos((prev) => [...prev, next].slice(0, 6))
-    setPhotoUrlInput('')
-  }
+  // ── Photo actions ─────────────────────────────────────────────────────────
 
-  const handleUploadPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    event.target.value = ''
-
-    if (photos.length >= 6) {
-      toast.error('You can add up to 6 photos.')
-      return
-    }
-
+  const doUploadFile = async (file: File) => {
+    if (photos.length >= 6) { toast.error('Maximum 6 photos allowed.'); return }
     setUploadingPhoto(true)
     try {
-      const nextUrl = demoMode || isLocalOnly ? URL.createObjectURL(file) : await uploadListingPhoto(file)
-      if (!nextUrl) throw new Error('Upload did not return a photo URL.')
-      setPhotos((prev) => [...prev, nextUrl].slice(0, 6))
-    } catch (uploadError) {
-      toast.error(uploadError instanceof Error ? uploadError.message : 'Photo upload failed.')
+      // Use base64 data URL for local/demo so photos survive page refresh
+      const url = demoMode || isLocalOnly ? await readAsDataUrl(file) : await uploadListingPhoto(file)
+      if (!url) throw new Error('Upload did not return a URL.')
+      setPhotos((prev) => [...prev, url].slice(0, 6))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Photo upload failed.')
     } finally {
       setUploadingPhoto(false)
     }
   }
 
+  const handleUploadPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file) void doUploadFile(file)
+  }
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setDragOver(false)
+    const file = event.dataTransfer.files[0]
+    if (file && file.type.startsWith('image/')) void doUploadFile(file)
+  }
+
+  const addPhotoUrl = () => {
+    const url = photoUrlInput.trim()
+    if (!url) return
+    if (photos.length >= 6) { toast.error('Maximum 6 photos allowed.'); return }
+    setPhotos((prev) => [...prev, url].slice(0, 6))
+    setPhotoUrlInput('')
+  }
+
+  const makePhotoPrimary = (index: number) => {
+    const next = [...photos]
+    const [picked] = next.splice(index, 1)
+    setPhotos([picked, ...next].slice(0, 6))
+  }
+
+  // ── Source actions ────────────────────────────────────────────────────────
+
   const addLocalSource = (input: { type: ListingBrainSourceType; title: string; status?: ListingBrainSourceStatus; content?: string | null; url?: string | null }) => {
-    const timestamp = new Date().toISOString()
+    const ts = new Date().toISOString()
     const status = input.status || 'needs_retrain'
-    setSources((prev) => [
-      {
-        id: `local-source-${Date.now()}`,
-        type: input.type,
-        title: input.title,
-        status,
-        trained_at: status === 'trained' ? timestamp : null,
-        updated_at: timestamp,
-        content: input.content ?? null,
-        url: input.url ?? null
-      },
-      ...prev
-    ])
+    setSources((prev) => [{
+      id: `local-${Date.now()}`,
+      type: input.type, title: input.title, status,
+      trained_at: status === 'trained' ? ts : null,
+      updated_at: ts, content: input.content ?? null, url: input.url ?? null
+    }, ...prev])
   }
 
   const createSource = async (input: { type: ListingBrainSourceType; title: string; content?: string | null; url?: string | null }) => {
     const title = input.title.trim()
     if (!title) return
-
-    if (demoMode || isLocalOnly) {
-      addLocalSource({ ...input, title, status: 'needs_retrain' })
-      return
-    }
-
+    if (demoMode || isLocalOnly) { addLocalSource({ ...input, title, status: 'needs_retrain' }); return }
     setSourceBusy(true)
     try {
-      const source = await createListingBuilderSource(listingId, {
-        ...input,
-        title,
-        status: 'needs_retrain'
-      })
+      const source = await createListingBuilderSource(listingId, { ...input, title, status: 'needs_retrain' })
       setSources((prev) => [source, ...prev])
-    } catch (sourceError) {
-      toast.error(sourceError instanceof Error ? sourceError.message : 'Could not add source.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not add source.')
     } finally {
       setSourceBusy(false)
     }
   }
 
   const handleDeleteSource = async (sourceId: string) => {
-    if (demoMode || isLocalOnly) {
-      setSources((prev) => prev.filter((source) => source.id !== sourceId))
-      return
-    }
-
+    if (demoMode || isLocalOnly) { setSources((prev) => prev.filter((s) => s.id !== sourceId)); return }
     setSourceBusy(true)
     try {
       await deleteListingBuilderSource(listingId, sourceId)
-      setSources((prev) => prev.filter((source) => source.id !== sourceId))
-    } catch (deleteError) {
-      toast.error(deleteError instanceof Error ? deleteError.message : 'Could not delete source.')
+      setSources((prev) => prev.filter((s) => s.id !== sourceId))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not delete source.')
     } finally {
       setSourceBusy(false)
     }
@@ -331,449 +326,707 @@ const ListingEditorPage: React.FC = () => {
   const handleRetrain = async () => {
     if (sources.length === 0) return
     const nowIso = new Date().toISOString()
-
     if (demoMode || isLocalOnly) {
-      setSources((prev) => prev.map((source) => ({ ...source, status: 'trained', trained_at: nowIso, updated_at: nowIso })))
-      toast.success('Listing Brain retrained (demo/local mode).')
+      setSources((prev) => prev.map((s) => ({ ...s, status: 'trained' as ListingBrainSourceStatus, trained_at: nowIso, updated_at: nowIso })))
+      toast.success('Listing Brain retrained.')
       return
     }
-
     setSourceBusy(true)
     try {
-      const needsRetrain = sources.filter((source) => source.status !== 'trained')
-      await Promise.all(
-        needsRetrain.map((source) =>
-          updateListingBuilderSource(listingId, source.id, {
-            status: 'trained',
-            trained_at: nowIso
-          })
-        )
-      )
-
-      const refreshed = await fetchListingBuilderPayload(listingId)
-      setSources(refreshed.brain_sources || [])
-      toast.success('Listing Brain retrained.')
-    } catch (retrainError) {
-      toast.error(retrainError instanceof Error ? retrainError.message : 'Retrain failed.')
+      const result = await retrainListingBrain(listingId)
+      setSources(result.sources)
+      if (result.ai_summary) {
+        updateDraft('description', result.ai_summary)
+        setActiveSection('essentials')
+        toast.success('AI wrote a listing description from your sources. Review it in Essentials.')
+      } else {
+        toast.success('Listing Brain retrained.')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Retrain failed.')
     } finally {
       setSourceBusy(false)
     }
   }
 
+  // ── AI description generator ───────────────────────────────────────────────
+
+  const handleGenerateDescription = async () => {
+    const numPrice = Number(priceDisplay.replace(/,/g, '')) || 0
+    const numBeds = Number(bedsDisplay) || 0
+    const numBaths = Number(bathsDisplay) || 0
+    const numSqft = Number(sqftDisplay) || 0
+
+    if (demoMode || isLocalOnly) {
+      // Demo: generate a placeholder so the feature is still demonstrable
+      setGeneratingDesc(true)
+      await new Promise((r) => setTimeout(r, 900))
+      updateDraft('description', `Welcome to ${draft.address || 'this stunning home'} — a beautifully presented property offered at ${numPrice > 0 ? `$${numPrice.toLocaleString('en-US')}` : 'a competitive price'}. With ${numBeds} spacious bedrooms and ${numBaths} well-appointed bathrooms across ${numSqft > 0 ? `${numSqft.toLocaleString('en-US')} sq ft` : 'generous living space'}, this home is perfect for families and entertainers alike.\n\nThe thoughtful floor plan flows effortlessly from formal living areas into an open-concept kitchen and dining space, all bathed in natural light. Quality finishes and recent upgrades throughout make this a true move-in-ready opportunity.\n\nLocated in a sought-after neighbourhood close to top schools, parks, and everyday conveniences — this is the one you've been waiting for. Schedule your private showing today.`)
+      setGeneratingDesc(false)
+      return
+    }
+
+    setGeneratingDesc(true)
+    try {
+      const description = await generateListingDescription(listingId, {
+        address: draft.address,
+        price: numPrice,
+        beds: numBeds,
+        baths: numBaths,
+        sqft: numSqft
+      })
+      updateDraft('description', description)
+      toast.success('AI description ready — review and edit as needed.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not generate description.')
+    } finally {
+      setGeneratingDesc(false)
+    }
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+
   const handleSave = async () => {
+    const numPrice = Number(priceDisplay.replace(/,/g, '')) || 0
+    const numBeds = Number(bedsDisplay) || 0
+    const numBaths = Number(bathsDisplay) || 0
+    const numSqft = Number(sqftDisplay) || 0
+
     setSaving(true)
     try {
       if (demoMode || isLocalOnly) {
-        saveLocalSnapshot()
+        saveLocalListingDraft({
+          id: listingId,
+          title: draft.address.trim() || 'Draft Listing',
+          address: draft.address || 'Address coming soon',
+          price: numPrice, bedrooms: numBeds, bathrooms: numBaths, squareFeet: numSqft,
+          description: draft.description, amenities: [], photos,
+          createdAt: new Date().toISOString()
+        })
         toast.success('Draft saved locally.')
         return
       }
-
       await patchListingBuilder(listingId, {
-        address: draft.address,
-        price: Number(draft.price) || 0,
-        beds: Number(draft.beds) || 0,
-        baths: Number(draft.baths) || 0,
-        sqft: Number(draft.sqft) || 0,
-        description: draft.description,
-        photos
+        address: draft.address, price: numPrice, beds: numBeds,
+        baths: numBaths, sqft: numSqft, description: draft.description, photos
       })
-
       const refreshed = await fetchListingBuilderPayload(listingId)
       setListingStatus(refreshed.listing.status || 'draft')
       setSources(refreshed.brain_sources || [])
       setNotice(null)
       toast.success('Listing saved.')
-    } catch (saveError) {
-      toast.error(saveError instanceof Error ? saveError.message : 'Failed to save listing.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save listing.')
     } finally {
       setSaving(false)
     }
   }
 
+  // ── Publish ───────────────────────────────────────────────────────────────
+
+  const handlePublish = async () => {
+    const numPrice = Number(priceDisplay.replace(/,/g, '')) || 0
+    const numBeds = Number(bedsDisplay) || 0
+    const numBaths = Number(bathsDisplay) || 0
+    const numSqft = Number(sqftDisplay) || 0
+
+    // Already published — just navigate to Share Kit
+    if (statusLabel === 'Published') {
+      navigate(buildListingPath(`/listings/${listingId}`))
+      return
+    }
+
+    // Demo / local — just mark as published locally
+    if (demoMode || isLocalOnly) {
+      setListingStatus('published')
+      toast.success('Listing published! Opening Share Kit…')
+      navigate(buildListingPath(`/listings/${listingId}`))
+      return
+    }
+
+    setPublishing(true)
+    try {
+      // Save current form state first so published data is fresh
+      await patchListingBuilder(listingId, {
+        address: draft.address, price: numPrice, beds: numBeds,
+        baths: numBaths, sqft: numSqft, description: draft.description, photos
+      })
+
+      // Then publish
+      const result = await publishListingShareKit(listingId, true)
+      setListingStatus(result.is_published ? 'published' : 'draft')
+      toast.success('Listing published! Opening Share Kit…')
+      navigate(buildListingPath(`/listings/${listingId}`))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to publish listing.')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  // ── States ────────────────────────────────────────────────────────────────
+
   if (loading) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-6 md:px-8">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Loading listing editor…</div>
+      <div className="mx-auto max-w-5xl px-4 py-10 md:px-6">
+        <div className={`${card} p-6 text-sm text-slate-400`}>Loading listing…</div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-6 md:px-8">
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{error}</div>
+      <div className="mx-auto max-w-5xl px-4 py-10 md:px-6">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">{error}</div>
       </div>
     )
   }
 
+  // Preview line for Essentials strip
+  const previewParts: string[] = []
+  if (draft.address.trim()) previewParts.push(draft.address.trim())
+  if (priceDisplay) previewParts.push(`$${priceDisplay}`)
+  if (bedsDisplay) previewParts.push(`${bedsDisplay} bd`)
+  if (bathsDisplay) previewParts.push(`${bathsDisplay} ba`)
+  if (sqftDisplay) previewParts.push(`${sqftDisplay} sf`)
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-4 py-6 md:px-8">
-      <header className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
+    <>
+    <div className="mx-auto max-w-5xl space-y-4 px-4 py-6 md:px-6">
+
+      {/* ── Page header ── */}
+      <header className={`${card} p-4`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-1">
             <button
               type="button"
               onClick={() => navigate(buildListingPath('/listings'))}
-              className="text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+              className="flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-800"
             >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
               Back to Listings
             </button>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-slate-900">{listingLabel}</h1>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-                  statusLabel === 'Published' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
+              <h1 className="truncate text-lg font-bold text-slate-900">{listingLabel}</h1>
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest ${
+                statusLabel === 'Published' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+              }`}>
                 {statusLabel}
               </span>
             </div>
-            {notice ? <p className="text-sm text-amber-700">{notice}</p> : null}
+            {notice && <p className="text-xs text-amber-600">{notice}</p>}
           </div>
-          <div className="flex gap-2">
+          <div className="flex shrink-0 gap-2">
             <button
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? 'Saving…' : 'Save'}
             </button>
             <button
               type="button"
-              disabled={!canPublish || saving}
-              onClick={() => toast.success('Publish flow will connect in Share Kit.')}
-              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!canPublish || saving || publishing}
+              onClick={() => void handlePublish()}
+              className={outlineBtn}
             >
-              Publish
+              {publishing ? 'Publishing…' : statusLabel === 'Published' ? 'View Share Kit' : 'Publish'}
             </button>
           </div>
         </div>
       </header>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="md:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left"
-          >
-            <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-              <span className="material-symbols-outlined text-base">menu</span>
-              {SECTIONS.find((section) => section.key === activeSection)?.label || 'Section'}
-            </span>
-            <span className="material-symbols-outlined text-base text-slate-500">
-              {mobileMenuOpen ? 'expand_less' : 'expand_more'}
-            </span>
-          </button>
-          {mobileMenuOpen && (
-            <div className="mt-2 rounded-lg border border-slate-200 bg-white p-1">
-              {SECTIONS.map((section, index) => (
-                <button
-                  key={section.key}
-                  type="button"
-                  onClick={() => {
-                    setActiveSection(section.key)
-                    setMobileMenuOpen(false)
-                  }}
-                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-semibold ${
-                    activeSection === section.key ? 'bg-primary-50 text-primary-700' : 'text-slate-700'
-                  }`}
-                >
-                  <span>{section.label}</span>
-                  <span className="text-xs text-slate-400">Step {index + 1}</span>
-                </button>
-              ))}
-            </div>
-          )}
+      {/* ── Editor card ── */}
+      <div className={card}>
+
+        {/* Mobile: section switcher (always visible so sections never feel hidden) */}
+        <div className="border-b border-slate-100 px-4 py-3 md:hidden">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Section</p>
+          <div className="grid grid-cols-3 gap-2 rounded-lg border border-slate-100 bg-slate-50 p-1.5">
+            {SECTIONS.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setActiveSection(s.key)}
+                className={`rounded-md px-2 py-2 text-xs font-semibold transition ${
+                  activeSection === s.key ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-600 hover:bg-white'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <nav className="hidden gap-2 md:flex" aria-label="Listing editor sections">
-          {SECTIONS.map((section) => (
+        {/* Desktop: underline tab bar */}
+        <nav className="hidden border-b border-slate-100 px-6 md:flex" aria-label="Editor sections">
+          {SECTIONS.map((s) => (
             <button
-              key={section.key}
+              key={s.key}
               type="button"
-              onClick={() => setActiveSection(section.key)}
-              className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
-                activeSection === section.key ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              onClick={() => setActiveSection(s.key)}
+              className={`relative mr-6 pb-3 pt-4 text-sm font-semibold transition-colors duration-150 ${
+                activeSection === s.key
+                  ? 'text-primary-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-primary-600 after:content-[\'\']'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              {section.label}
+              {s.label}
             </button>
           ))}
         </nav>
 
-        {activeSection === 'essentials' && (
-          <section className="mt-4 space-y-4">
-            <h2 className="text-lg font-semibold text-slate-900">Essentials</h2>
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="text-sm text-slate-700 md:col-span-2">
-                Address
-                <input
-                  value={draft.address}
-                  onChange={(event) => updateDraft('address', event.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-sm text-slate-700">
-                Price
-                <input
-                  type="number"
-                  min={0}
-                  value={draft.price}
-                  onChange={(event) => updateDraft('price', Number(event.target.value) || 0)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-sm text-slate-700">
-                Beds
-                <input
-                  type="number"
-                  min={0}
-                  value={draft.beds}
-                  onChange={(event) => updateDraft('beds', Number(event.target.value) || 0)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-sm text-slate-700">
-                Baths
-                <input
-                  type="number"
-                  min={0}
-                  value={draft.baths}
-                  onChange={(event) => updateDraft('baths', Number(event.target.value) || 0)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-sm text-slate-700">
-                Sqft
-                <input
-                  type="number"
-                  min={0}
-                  value={draft.sqft}
-                  onChange={(event) => updateDraft('sqft', Number(event.target.value) || 0)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
+        {/* ── Section content ── */}
+        <div className="p-4 md:p-6">
 
-            <label className="block text-sm text-slate-700">
-              About this home
-              <textarea
-                rows={6}
-                value={draft.description}
-                onChange={(event) => updateDraft('description', event.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </label>
-          </section>
-        )}
+          {/* ════ ESSENTIALS ════ */}
+          {activeSection === 'essentials' && (
+            <div className="space-y-4">
 
-        {activeSection === 'photos' && (
-          <section className="mt-4 space-y-4">
-            <h2 className="text-lg font-semibold text-slate-900">Photos</h2>
-            <p className="text-sm text-slate-600">Add up to 6 photos. First photo is primary.</p>
+              {/* Basics card */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
+                <p className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Basics</p>
 
-            {photos.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">No photos yet.</div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {photos.map((photo, index) => (
-                  <div key={`${photo}-${index}`} className="overflow-hidden rounded-xl border border-slate-200">
-                    <img src={photo} alt={`Listing photo ${index + 1}`} className="h-36 w-full object-cover" />
-                    <div className="flex items-center justify-between border-t border-slate-200 p-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = [...photos]
-                          const selected = next.splice(index, 1)[0]
-                          next.unshift(selected)
-                          setPhotos(next.slice(0, 6))
-                        }}
-                        className="text-xs font-semibold text-slate-700"
-                      >
-                        Make Primary
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPhotos((prev) => prev.filter((_, photoIndex) => photoIndex !== index))}
-                        className="text-xs font-semibold text-rose-600"
-                      >
-                        Delete
-                      </button>
+                {/* Address */}
+                <div className="mb-4">
+                  <label className={sectionLabel}>Property Address</label>
+                  <input
+                    value={draft.address}
+                    onChange={(e) => updateDraft('address', e.target.value)}
+                    placeholder="123 Main St, City, State 00000"
+                    className={fieldCls}
+                  />
+                </div>
+
+                {/* Stats row */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+
+                  <div>
+                    <label className={sectionLabel}>Price</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">$</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={priceDisplay}
+                        onChange={(e) => setPriceDisplay(formatWithCommas(e.target.value))}
+                        placeholder="0"
+                        className={`${fieldCls} pl-6`}
+                      />
                     </div>
                   </div>
-                ))}
+
+                  <div>
+                    <label className={sectionLabel}>Beds</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={bedsDisplay}
+                      onChange={(e) => setBedsDisplay(digitsOnly(e.target.value))}
+                      placeholder="0"
+                      className={fieldCls}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={sectionLabel}>Baths</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={bathsDisplay}
+                      onChange={(e) => setBathsDisplay(sanitizeDecimal(e.target.value))}
+                      placeholder="0"
+                      className={fieldCls}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={sectionLabel}>Sq Ft</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={sqftDisplay}
+                      onChange={(e) => setSqftDisplay(digitsOnly(e.target.value))}
+                      placeholder="0"
+                      className={fieldCls}
+                    />
+                  </div>
+
+                </div>
               </div>
-            )}
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                value={photoUrlInput}
-                onChange={(event) => setPhotoUrlInput(event.target.value)}
-                placeholder="Paste photo URL"
-                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                onClick={addPhotoUrl}
-                disabled={photos.length >= 6}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Add URL
-              </button>
-              <button
-                type="button"
-                onClick={() => photoFileRef.current?.click()}
-                disabled={photos.length >= 6 || uploadingPhoto}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
-              </button>
+              {/* About card */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <label className={sectionLabel}>About This Home</label>
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerateDescription()}
+                    disabled={generatingDesc || saving}
+                    className="flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 transition hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {generatingDesc ? (
+                      <>
+                        <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                        </svg>
+                        Writing…
+                      </>
+                    ) : (
+                      <>✨ Write with AI</>
+                    )}
+                  </button>
+                </div>
+                <textarea
+                  rows={7}
+                  value={draft.description}
+                  onChange={(e) => updateDraft('description', e.target.value)}
+                  placeholder="Describe what makes this home special — neighbourhood, upgrades, lifestyle…"
+                  className={`${fieldCls} resize-none`}
+                />
+              </div>
+
+              {/* Preview strip */}
+              <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Preview</span>
+                <span className="truncate text-sm text-slate-600">
+                  {previewParts.length > 0
+                    ? previewParts.join(' · ')
+                    : <span className="text-slate-400">Fill in the basics above to see a preview.</span>}
+                </span>
+              </div>
+
             </div>
+          )}
 
-            <input
-              ref={photoFileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleUploadPhoto}
-            />
-          </section>
-        )}
+          {/* ════ PHOTOS ════ */}
+          {activeSection === 'photos' && (
+            <div className="space-y-4">
 
-        {activeSection === 'brain' && (
-          <section className="mt-4 space-y-4">
-            <h2 className="text-lg font-semibold text-slate-900">Listing Brain</h2>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const value = window.prompt('Paste source text')
-                  if (!value) return
-                  const normalized = value.trim()
-                  if (!normalized) return
-                  void createSource({
-                    type: 'text',
-                    title: normalized.slice(0, 80),
-                    content: normalized
-                  })
-                }}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+              {/* Upload zone */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => photos.length < 6 && photoFileRef.current?.click()}
+                className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-10 text-center transition ${
+                  dragOver
+                    ? 'border-primary-400 bg-primary-50'
+                    : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white'
+                } ${photos.length >= 6 ? 'cursor-not-allowed opacity-50' : ''}`}
               >
-                Paste Text
-              </button>
-              <button
-                type="button"
-                onClick={() => docFileRef.current?.click()}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-              >
-                Upload Docs
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const value = window.prompt('Website URL')
-                  if (!value) return
-                  const normalized = value.trim()
-                  if (!normalized) return
-                  void createSource({
-                    type: 'url',
-                    title: normalized,
-                    url: normalized
-                  })
-                }}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-              >
-                Scan Website
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const value = window.prompt('Source title')
-                  if (!value) return
-                  const normalized = value.trim()
-                  if (!normalized) return
-                  void createSource({
-                    type: 'text',
-                    title: normalized
-                  })
-                }}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-              >
-                + Add Source
-              </button>
-            </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm">
+                  {uploadingPhoto ? (
+                    <svg className="h-5 w-5 animate-spin text-primary-600" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">
+                    {uploadingPhoto ? 'Uploading…' : 'Drop photos here or click to upload'}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {photos.length}/6 photos added · First photo is your primary
+                  </p>
+                </div>
+              </div>
 
-            <input
-              ref={docFileRef}
-              type="file"
-              accept=".pdf,.doc,.docx,.txt"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (!file) return
-                void createSource({
-                  type: 'doc',
-                  title: file.name
-                })
-              }}
-            />
+              {/* URL input */}
+              <div className="flex gap-2">
+                <input
+                  value={photoUrlInput}
+                  onChange={(e) => setPhotoUrlInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addPhotoUrl()}
+                  placeholder="Or paste a photo URL…"
+                  className={`${fieldCls} flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={addPhotoUrl}
+                  disabled={photos.length >= 6 || !photoUrlInput.trim()}
+                  className={outlineBtn}
+                >
+                  Add
+                </button>
+              </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              Sources: {sources.length} • Last trained: {lastTrainedAt ? formatUpdatedTime(lastTrainedAt) : 'Not trained yet'}
-            </div>
-
-            <div className="rounded-lg border border-slate-200">
-              {sources.length === 0 ? (
-                <p className="p-3 text-sm text-slate-500">No sources yet. Add your first source above.</p>
-              ) : (
-                <ul className="divide-y divide-slate-200">
-                  {sources.map((source) => (
-                    <li key={source.id} className="flex items-center justify-between gap-3 p-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{source.title}</p>
-                        <p className="text-xs uppercase tracking-wide text-slate-500">{sourceTypeLabel(source.type)}</p>
+              {/* Photo grid */}
+              {photos.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {photos.map((photo, idx) => (
+                    <div key={`${photo}-${idx}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <div className="relative">
+                        <img src={photo} alt={`${listingLabel}${idx === 0 ? ' — Primary Photo' : ` — Photo ${idx + 1}`}`} className="h-40 w-full object-cover" />
+                        {idx === 0 && (
+                          <span className="absolute left-2 top-2 rounded-full bg-primary-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white shadow">
+                            Primary
+                          </span>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                            source.status === 'trained' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          {source.status === 'trained' ? 'Trained' : 'Needs retrain'}
-                        </span>
-                        <p className="mt-1 text-xs text-slate-500">{formatUpdatedTime(source.updated_at)}</p>
+                      <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2">
                         <button
                           type="button"
-                          disabled={sourceBusy}
-                          onClick={() => void handleDeleteSource(source.id)}
-                          className="mt-1 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => makePhotoPrimary(idx)}
+                          disabled={idx === 0}
+                          className="text-xs font-semibold text-slate-500 transition hover:text-slate-800 disabled:cursor-default disabled:opacity-40"
                         >
-                          Delete
+                          {idx === 0 ? 'Primary' : 'Set as Primary'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                          className="text-xs font-semibold text-rose-500 transition hover:text-rose-700"
+                        >
+                          Remove
                         </button>
                       </div>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
-            </div>
 
-            <button
-              type="button"
-              disabled={sourceBusy || sources.length === 0}
-              onClick={() => void handleRetrain()}
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Retrain Listing AI
-            </button>
-          </section>
-        )}
+              <input ref={photoFileRef} type="file" accept="image/*" className="hidden" onChange={handleUploadPhoto} />
+
+            </div>
+          )}
+
+          {/* ════ LISTING BRAIN ════ */}
+          {activeSection === 'brain' && (
+            <div className="space-y-4">
+
+              {/* Header + actions */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Listing Brain</p>
+                <p className="mb-4 text-sm text-slate-500">
+                  Feed the AI everything you know about this property. The more it knows, the better the listing copy.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={sourceBusy}
+                    onClick={() => setBrainModal({ type: 'text', value: '' })}
+                    className={outlineBtn}
+                  >
+                    📝 Paste Text
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sourceBusy}
+                    onClick={() => docFileRef.current?.click()}
+                    className={outlineBtn}
+                  >
+                    📄 Upload Doc
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sourceBusy}
+                    onClick={() => setBrainModal({ type: 'url', value: '' })}
+                    className={outlineBtn}
+                  >
+                    🌐 Scan Website
+                  </button>
+                </div>
+              </div>
+
+              {/* Sources list */}
+              <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                  <div>
+                    <span className="text-sm font-semibold text-slate-800">
+                      {sources.length} {sources.length === 1 ? 'Source' : 'Sources'}
+                    </span>
+                    <span className="ml-2 text-xs text-slate-400">
+                      Last trained: {lastTrainedAt ? formatUpdatedTime(lastTrainedAt) : 'Never'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={sourceBusy || sources.length === 0}
+                    onClick={() => void handleRetrain()}
+                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Retrain AI
+                  </button>
+                </div>
+
+                {sources.length === 0 ? (
+                  <div className="px-4 py-10 text-center">
+                    <p className="text-sm font-semibold text-slate-500">No sources yet</p>
+                    <p className="mt-1 text-xs text-slate-400">Add your first source above to train the listing AI.</p>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-slate-100">
+                    {sources.map((source) => (
+                      <li key={source.id} className="flex items-center gap-4 px-4 py-3">
+                        <span className="text-lg leading-none">{sourceTypeIcon(source.type)}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-800">{source.title}</p>
+                          <p className="text-xs text-slate-400">{sourceTypeLabel(source.type)} · {formatUpdatedTime(source.updated_at)}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-3">
+                          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                            source.status === 'trained'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {source.status === 'trained' ? '✓ Trained' : 'Needs retrain'}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={sourceBusy}
+                            onClick={() => void handleDeleteSource(source.id)}
+                            className="text-xs font-semibold text-rose-500 transition hover:text-rose-700 disabled:opacity-40"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <input
+                ref={docFileRef}
+                type="file"
+                accept=".pdf,.txt,.md,.csv"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (!file) return
+                  if (demoMode || isLocalOnly) {
+                    // Client-side extraction for local/demo
+                    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+                    if (['txt', 'md', 'csv'].includes(ext)) {
+                      const reader = new FileReader()
+                      reader.onload = () => {
+                        const text = (reader.result as string).slice(0, 50000)
+                        void addLocalSource({ type: 'doc', title: file.name, content: text, status: 'needs_retrain' })
+                      }
+                      reader.readAsText(file)
+                    } else {
+                      addLocalSource({ type: 'doc', title: file.name, content: `[${file.name}]`, status: 'needs_retrain' })
+                    }
+                    return
+                  }
+                  setSourceBusy(true)
+                  try {
+                    const source = await uploadListingBuilderSourceFile(listingId, file)
+                    setSources((prev) => [source, ...prev])
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Could not upload file.')
+                  } finally {
+                    setSourceBusy(false)
+                  }
+                }}
+              />
+
+            </div>
+          )}
+
+        </div>
       </div>
     </div>
+
+    {/* ── Brain source modal ── */}
+    {brainModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+          onClick={() => setBrainModal(null)}
+        />
+
+        {/* Card */}
+        <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+
+          {/* Close */}
+          <button
+            type="button"
+            onClick={() => setBrainModal(null)}
+            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Close"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {brainModal.type === 'text' ? (
+            <>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Add Source</p>
+              <h2 className="mb-1 text-lg font-bold text-slate-900">Paste Text</h2>
+              <p className="mb-4 text-sm text-slate-500">Paste any property info — MLS notes, feature lists, agent remarks, anything relevant.</p>
+              <textarea
+                autoFocus
+                rows={7}
+                value={brainModal.value}
+                onChange={(e) => setBrainModal({ ...brainModal, value: e.target.value })}
+                placeholder="Paste your source text here…"
+                className={`${fieldCls} resize-none`}
+              />
+            </>
+          ) : (
+            <>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Add Source</p>
+              <h2 className="mb-1 text-lg font-bold text-slate-900">Scan Website</h2>
+              <p className="mb-4 text-sm text-slate-500">Enter a URL and the AI will scan it for property details — Zillow, Realtor.com, your own site, anywhere.</p>
+              <input
+                autoFocus
+                type="url"
+                value={brainModal.value}
+                onChange={(e) => setBrainModal({ ...brainModal, value: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const url = brainModal.value.trim()
+                    if (url) { void createSource({ type: 'url', title: url, url }); setBrainModal(null) }
+                  }
+                }}
+                placeholder="https://zillow.com/homedetails/…"
+                className={fieldCls}
+              />
+            </>
+          )}
+
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" onClick={() => setBrainModal(null)} className={outlineBtn}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!brainModal.value.trim() || sourceBusy}
+              onClick={() => {
+                const val = brainModal.value.trim()
+                if (!val) return
+                if (brainModal.type === 'text') {
+                  void createSource({ type: 'text', title: val.slice(0, 80), content: val })
+                } else {
+                  void createSource({ type: 'url', title: val, url: val })
+                }
+                setBrainModal(null)
+              }}
+              className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Add Source
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

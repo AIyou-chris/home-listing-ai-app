@@ -47,6 +47,9 @@ const ConversionDashboardHome: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [workingItemId, setWorkingItemId] = useState<string | null>(null)
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null)
+  const [newLeadsOpen, setNewLeadsOpen] = useState(true)
+  const [appointmentsOpen, setAppointmentsOpen] = useState(true)
+  const [attentionOpen, setAttentionOpen] = useState(true)
 
   useEffect(() => {
     const load = async () => {
@@ -310,12 +313,22 @@ const ConversionDashboardHome: React.FC = () => {
 
       <section className="grid gap-4 lg:grid-cols-3">
         <article className={queueCardClass}>
-          <header>
-            <h2 className="text-base font-semibold text-slate-900">New leads to work</h2>
-            <p className="text-xs text-slate-500">Reply fast. Book the showing.</p>
-          </header>
+          <button
+            type="button"
+            onClick={() => setNewLeadsOpen((o) => !o)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">New leads to work</h2>
+              <p className="text-xs text-slate-500">Reply fast. Book the showing.</p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+              className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform duration-200 ${newLeadsOpen ? 'rotate-180' : ''}`}>
+              <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+            </svg>
+          </button>
 
-          <div className="mt-3 space-y-3">
+          {newLeadsOpen && <div className="mt-3 space-y-3">
             {queues.new_leads_to_work.length === 0 && (
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                 <p className="font-semibold text-slate-900">All caught up.</p>
@@ -362,16 +375,26 @@ const ConversionDashboardHome: React.FC = () => {
                 </div>
               </div>
             ))}
-          </div>
+          </div>}
         </article>
 
         <article className={queueCardClass}>
-          <header>
-            <h2 className="text-base font-semibold text-slate-900">Appointments coming up</h2>
-            <p className="text-xs text-slate-500">Confirm these to reduce no-shows.</p>
-          </header>
+          <button
+            type="button"
+            onClick={() => setAppointmentsOpen((o) => !o)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Appointments coming up</h2>
+              <p className="text-xs text-slate-500">Confirm these to reduce no-shows.</p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+              className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform duration-200 ${appointmentsOpen ? 'rotate-180' : ''}`}>
+              <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+            </svg>
+          </button>
 
-          <div className="mt-3 space-y-3">
+          {appointmentsOpen && <div className="mt-3 space-y-3">
             {queues.appointments_coming_up.length === 0 && (
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                 <p className="font-semibold text-slate-900">Nothing scheduled in the next 24 hours.</p>
@@ -409,16 +432,26 @@ const ConversionDashboardHome: React.FC = () => {
                 </div>
               </div>
             ))}
-          </div>
+          </div>}
         </article>
 
         <article className={queueCardClass}>
-          <header>
-            <h2 className="text-base font-semibold text-slate-900">Needs attention</h2>
-            <p className="text-xs text-slate-500">Fix these and keep the pipeline clean.</p>
-          </header>
+          <button
+            type="button"
+            onClick={() => setAttentionOpen((o) => !o)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Needs attention</h2>
+              <p className="text-xs text-slate-500">Fix these and keep the pipeline clean.</p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+              className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform duration-200 ${attentionOpen ? 'rotate-180' : ''}`}>
+              <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+            </svg>
+          </button>
 
-          <div className="mt-3 space-y-3">
+          {attentionOpen && <div className="mt-3 space-y-3">
             {queues.needs_attention.length === 0 && (
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                 <p className="font-semibold text-slate-900">Nothing urgent right now.</p>
@@ -467,7 +500,7 @@ const ConversionDashboardHome: React.FC = () => {
                 </div>
               )
             })}
-          </div>
+          </div>}
         </article>
       </section>
 

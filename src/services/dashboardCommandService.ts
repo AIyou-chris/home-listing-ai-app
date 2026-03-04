@@ -610,6 +610,24 @@ export const fetchListingShareKit = async (listingId: string, agentIdOverride?: 
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/share-kit`, agentId)),
     { headers: defaultJsonHeaders(agentId) }
   );
+
+  // 409 = listing exists but is unpublished — return a safe draft state so the
+  // Share Kit page renders the Publish button instead of crashing into an error box.
+  if (response.status === 409) {
+    return {
+      success: false,
+      listing_id: listingId,
+      is_published: false,
+      published_at: null,
+      public_slug: null,
+      share_url: null,
+      qr_code_url: null,
+      qr_code_svg: null,
+      latest_video: null,
+      source_defaults: {}
+    } as ListingShareKitResponse;
+  }
+
   return parseResponse<ListingShareKitResponse>(response);
 };
 
@@ -705,6 +723,33 @@ export const generateListingVideo = async (
     status?: string;
     credits_remaining?: number;
     video?: Record<string, unknown> | null;
+  }>(response);
+};
+
+export const addDevListingVideoCredits = async (
+  listingId: string,
+  count = 3,
+  agentIdOverride?: string | null
+) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dev/listings/${encodeURIComponent(listingId)}/videos/credits/add`, agentId)),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify({ count })
+    }
+  );
+  return parseResponse<{
+    success: boolean;
+    listing_id: string;
+    added: number;
+    credits: {
+      included: number;
+      extra: number;
+      used: number;
+      remaining: number;
+    };
   }>(response);
 };
 
